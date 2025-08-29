@@ -48,8 +48,8 @@ else:
     logging.debug("Authentication not required, proceeding without credentials.")
 
 # --- Environment Variables ---
-PROJECT_ID = os.getenv("PROJECT_ID")
-LOCATION   = os.getenv("LOCATION", "us-central1")
+PROJECT_ID = os.getenv("PROJECT_ID") if os.getenv("PROJECT_ID") else os.getenv("GOOGLE_CLOUD_PROJECT")
+LOCATION   = os.getenv("LOCATION")  if os.getenv("LOCATION") else os.getenv("GOOGLE_CLOUD_LOCATION")
 MODEL      = os.getenv("MODEL", "gemini-2.0-flash")
 
 if not PROJECT_ID:
