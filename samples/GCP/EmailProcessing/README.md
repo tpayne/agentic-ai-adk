@@ -37,6 +37,7 @@ To deploy to GCP, you will need to do the following.
     local gsName="$(echo gs://adk-email-processing-$(gcloud config get-value project)-$(date +%Y%m%d-%H%M%S))"
     gcloud auth application-default login
     gcloud storage buckets create ${gsName}
+    export PROJECT_ID=$(gcloud config get-value project)
     adk deploy agent_engine EmailProcessing/ \
         --project=$(gcloud config get-value project) \
         --region=us-central1 \

@@ -87,7 +87,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             name="GenerateEmail", sub_agents=[sentimentReviewer, emailGenerator]
         )
         loop_agent = LoopAgent(
-            name="ReviewEmail", sub_agents=[emailReviewer], max_iterations=2
+            name="ReviewEmail", sub_agents=[emailReviewer], max_iterations=5
         )
 
         # Define the sub_agents list for the framework
@@ -155,16 +155,16 @@ class CustomEmailProcessorAgent(BaseAgent):
             logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event        
 
-        sentiment_check_result = ctx.session.state.get("sentiment_check_result")
-        current_email_result = ctx.session.state.get("current_email")
+        email_sentiment = ctx.session.state.get("email_sentiment")
+        email_draft = ctx.session.state.get("email_draft")
 
         # Check if email was generated before proceeding
-        if not current_email_result or not str(current_email_result).strip():
+        if not email_draft or not str(email_draft).strip():
             logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
             return  # Stop processing if initial email failed
         
-        logger.debug(f"[{self.name}] Sentiment check result: {sentiment_check_result}")
-        logger.debug(f"[{self.name}] Email state after generator: {current_email_result}")
+        logger.debug(f"[{self.name}] Sentiment check result: {email_sentiment}")
+        logger.debug(f"[{self.name}] Email state after generator: {email_draft}")
 
         # 2. Reviewer Loop
         logger.debug(f"[{self.name}] Running EmailReviewerLoop...")
@@ -172,9 +172,16 @@ class CustomEmailProcessorAgent(BaseAgent):
         async for event in self.loop_agent.run_async(ctx):
             logger.debug(f"[{self.name}] Event from EmailReviewerLoop: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event
+            # Stop the loop if reviewer says "No further comments"
+            email_review_comments = ctx.session.state.get("email_review_comments","N/A").strip()
+            if email_review_comments == "No further comments.":
+                logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
+                break
 
-        current_email_result = ctx.session.state.get("current_email")
-        logger.debug(f"[{self.name}] Email state after loop: {current_email_result}")
+        email_draft = ctx.session.state.get("email_draft")
+        email_review_comments = ctx.session.state.get("email_review_comments")
+        logger.debug(f"[{self.name}] Email state after loop: {email_draft}")
+        logger.debug(f"[{self.name}] Review comments: {email_review_comments}")
         logger.debug(f"[{self.name}] Workflow finished.")
 
 helpbot_instruction = (
@@ -189,8 +196,9 @@ helpbot_instruction = (
 )
 
 reviewer_instruction = (
-    "You are an expert email reviewer. Review the email provided: {{current_email}}. Provide 1-2 sentences of constructive criticism "
+    "You are an expert email reviewer. Review the email provided: {{email_draft}}. Provide 1-2 sentences of constructive criticism "
     "on how to improve it. Focus on clarity, tone, and professionalism."
+    "When your are finished reviewing and have nothing more to add, respond with 'No further comments.'"
 )
 
 sentiment_instruction = (
@@ -209,7 +217,8 @@ emailGenerator = LlmAgent(
     ),
     instruction=helpbot_instruction + " Write a concise email response to the following customer inquiry: {{topic}}",
     input_schema=None,
-    output_key="current_email",
+    output_schema=None,
+    output_key="email_draft",
 )
 
 emailReviewer = LlmAgent(
@@ -221,7 +230,8 @@ emailReviewer = LlmAgent(
     ),
     instruction=reviewer_instruction,
     input_schema=None,
-    output_key="current_reviewer",
+    output_schema=None,
+    output_key="email_review_comments",
 )
 
 sentimentReviewer = LlmAgent(
@@ -233,7 +243,8 @@ sentimentReviewer = LlmAgent(
     ),
     instruction=sentiment_instruction,
     input_schema=None,
-    output_key="sentiment_check_result",
+    output_schema=None,
+    output_key="email_sentiment",
 )
 
 # --- Create the custom agent instance ---
@@ -302,16 +313,10 @@ async def call_agent_async(user_input_topic: str):
             logger.debug(f"Potential final response from [{event.author}]: {event.content.parts[0].text}")
             final_response = event.content.parts[0].text
 
-    logger.debug("\n--- Agent Interaction Result ---")
-    logger.debug("Agent Final Response: ", final_response)
-
     final_session = await session_service.get_session(app_name=APP_NAME, 
                                                 user_id=user_id, 
                                                 session_id=session_id)
-    logger.debug("Final Session State:")
-    logger.debug(json.dumps(final_session.state, indent=2))
-    logger.debug("-------------------------------\n")
-    print("\n--- Agent Processed email ---")
+    return json.dumps(final_session.state, indent=2)
 
 # --- Main Execution Block for a local, working example ---
 if __name__ == "__main__":
