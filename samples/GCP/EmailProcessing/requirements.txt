@@ -1,0 +1,5 @@
+google-adk>=0.1.42
+google-auth>=2.17.3
+google-cloud-aiplatform>=1.87.0
+python-dotenv>=1.0.1
+uv==0.1.42
