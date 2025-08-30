@@ -187,6 +187,25 @@ class CustomEmailProcessorAgent(BaseAgent):
                 logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
                 break
 
+        # 3. Finalize and return the result
+        final_session = ctx.session
+        result = {
+            "email_draft": final_session.state.get("email_draft"),
+            "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
+            "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
+        }
+
+        final_content = types.Content(
+            role="model",
+            parts=[types.Part(text=json.dumps(result, indent=2))]
+        )
+
+        yield Event(
+            author="CustomEmailProcessorAgent",
+            is_final_response=True,
+            content=final_content,
+        )
+
         logger.debug(f"[{self.name}] Workflow finished.")
         return
     
@@ -343,18 +362,9 @@ async def call_agent_async(user_input_topic: str):
         if event.is_final_response() and event.content and event.content.parts:
             logger.debug(f"Potential final response from [{event.author}]: {event.content.parts[0].text}")
             final_response = event.content.parts[0].text
-
-    final_session = await session_service.get_session(app_name=APP_NAME,
-                                                user_id=user_id,
-                                                session_id=session_id)
-    # Extract only the required fields from the final session state
-    result = {
-        "email_draft": final_session.state.get("email_draft"),
-        "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
-        "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
-    }
     
-    return json.dumps(result, indent=2)
+    # Return the captured final response directly
+    return final_response
 
 # --- Main Execution Block for a local, working example ---
 if __name__ == "__main__":
