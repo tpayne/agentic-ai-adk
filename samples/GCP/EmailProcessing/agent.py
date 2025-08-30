@@ -168,20 +168,10 @@ class CustomEmailProcessorAgent(BaseAgent):
 
         # 2. Reviewer Loop
         logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
-        previous_draft = None # Initialize a variable to hold the draft from the previous iteration
-        
+        # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
         async for event in self.loop_agent.run_async(ctx):
             yield event
             email_review_comments = ctx.session.state.get("email_review_comments","").strip()
-            current_draft = ctx.session.state.get("email_draft")
-
-            if previous_draft and current_draft != previous_draft:
-                logger.info(f"[{self.name}] Email draft has been changed in this iteration.")
-            elif previous_draft is not None and current_draft == previous_draft:
-                logger.warning(f"[{self.name}] Email draft remained unchanged, even with new review comments.")
-
-            previous_draft = current_draft
-            
             # Stop the loop if reviewer says "No further comments"
             if "No further comments." in email_review_comments:
                 logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
@@ -200,15 +190,15 @@ class CustomEmailProcessorAgent(BaseAgent):
             parts=[types.Part(text=json.dumps(result, indent=2))]
         )
 
+        # Corrected: Removed `is_final_response=True` from the constructor
         yield Event(
             author="CustomEmailProcessorAgent",
-            is_final_response=True,
             content=final_content,
         )
 
         logger.debug(f"[{self.name}] Workflow finished.")
         return
-    
+
 # --- Pydantic Schema for structured sentiment output ---
 class EmailSentiment(BaseModel):
     sentiment: str = Field(description="The single word sentiment label of the email.")
