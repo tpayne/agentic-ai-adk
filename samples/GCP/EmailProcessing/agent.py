@@ -16,10 +16,11 @@ from google.adk.runners import Runner
 from google.adk.events import Event
 
 import google.auth
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 import sys
 
 # --- Constants ---
+# The application name for ADK. This should be unique to your application.
 APP_NAME = "email_processing_app"
 
 # ---- Load .env ----
@@ -30,12 +31,14 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 # Suppress the specific ADK warning about output_schema and agent transfers
 logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
+# Get log level from environment variable, default to WARNING
 LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
 if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
     LOGLEVEL = "WARNING"
 logger.setLevel(LOGLEVEL)
 
 # ---- Credentials ----
+# Determine if authentication is required based on environment variables
 AUTH_REQUIRED = os.getenv("GCP_LOGIN", "FALSE").upper() == "TRUE"
 if AUTH_REQUIRED:
     SA_JSON = os.getenv("SA_JSON_FILE")
@@ -50,6 +53,7 @@ else:
     logging.debug("Authentication not required, proceeding without credentials.")
 
 # --- Environment Variables ---
+# Get project ID and location, with fallbacks
 PROJECT_ID = os.getenv("PROJECT_ID") if os.getenv("PROJECT_ID") else os.getenv("GOOGLE_CLOUD_PROJECT")
 LOCATION   = os.getenv("LOCATION")  if os.getenv("LOCATION") else os.getenv("GOOGLE_CLOUD_LOCATION")
 MODEL      = os.getenv("MODEL", "gemini-2.0-flash")
@@ -60,10 +64,12 @@ if not PROJECT_ID:
 # --- Custom Orchestrator Agent ---
 class CustomEmailProcessorAgent(BaseAgent):
     """
-    A stable-GA ADK agent that:
-     1. Receives customer support requests
-     2. Drafts an email response to the customer
-     3. Reviews the email draft for tone and quality
+    An ADK agent that orchestrates a multi-step workflow for processing IT support emails.
+
+    The workflow includes:
+     1. Receives customer support requests.
+     2. Drafts an email response to the customer.
+     3. Reviews the email draft for tone and quality.
      4. Finalizes the draft for a human to review.
     """
     # --- Field Declarations for Pydantic ---
@@ -85,13 +91,25 @@ class CustomEmailProcessorAgent(BaseAgent):
         emailReviewer: LlmAgent,
         emailReviser: LlmAgent,
     ):
+        """
+        Initializes the custom email processing agent and its sub-agents.
+
+        Args:
+            name: The name of the agent.
+            sentimentReviewer: The agent for sentiment analysis.
+            emailGenerator: The agent for generating the initial email draft.
+            emailReviewer: The agent for reviewing the email draft.
+            emailReviser: The agent for revising the email based on feedback.
+        """
+        # A sequential agent to perform the initial sentiment analysis and email generation
         sequential_agent = SequentialAgent(
             name="GenerateEmail", sub_agents=[sentimentReviewer, emailGenerator]
         )
-        # Create a new sequential agent for the revision loop
+        # A sequential agent for the review and revise loop
         revision_agent = SequentialAgent(
             name="ReviewAndReviseEmail", sub_agents=[emailReviewer, emailReviser]
         )
+        # A loop agent that repeatedly calls the revision agent until a condition is met
         loop_agent = LoopAgent(
             name="ReviewEmail", sub_agents=[revision_agent], max_iterations=5
         )
@@ -101,6 +119,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             loop_agent,
         ]
 
+        # Call the parent class's constructor with all sub-agents
         super().__init__(
             name=name,
             sentimentReviewer=sentimentReviewer,
@@ -116,8 +135,8 @@ class CustomEmailProcessorAgent(BaseAgent):
     @staticmethod
     def extract_user_text(session) -> str | None:
         """
-        Safely grab the first `text` from session.events[0].content.parts[0].
-        Returns None if any level is missing.
+        Safely extracts the text content from the first event in a session.
+        This handles different session event structures and returns None if text is not found.
         """
         try:
             events = session["events"]
@@ -138,35 +157,67 @@ class CustomEmailProcessorAgent(BaseAgent):
         self,
         ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
+        """
+        Implements the main asynchronous execution logic for the custom agent.
+
+        Args:
+            ctx: The invocation context containing session state and new messages.
+
+        Yields:
+            Event: An event representing a step in the agent's workflow.
+        """
         logger.debug(f"[{self.name}] Starting email generation workflow.")
 
-        logger.debug(f"[{self.name}] InvocationContext structure: {json.dumps(ctx.session.model_dump(), indent=2, default=str)}")
+        # Set default values for optional email context fields to prevent KeyErrors later
+        ctx.session.state.setdefault("from_email_address", "a customer")
+        ctx.session.state.setdefault("subject", "a new support request")
+
+        # Check for a new message and parse it
         if hasattr(ctx.session, "new_message") and ctx.session.new_message:
+            user_message_text = None
             if ctx.session.new_message.parts and ctx.session.new_message.parts[0].text:
-                user_input_topic = ctx.session.new_message.parts[0].text
-                ctx.session.state["topic"] = user_input_topic
-                logger.info(f"Saved user message to session state as `topic`: {user_input_topic}")
+                user_message_text = ctx.session.new_message.parts[0].text
+
+            # Attempt to parse the user message as a JSON object with optional fields
+            try:
+                if user_message_text:
+                    payload = json.loads(user_message_text)
+                    email_context = EmailContext.model_validate(payload)
+                    # If valid JSON, save fields to session state
+                    ctx.session.state["from_email_address"] = email_context.fromEmailAddress
+                    ctx.session.state["subject"] = email_context.subject
+                    user_input_topic = email_context.body
+                    ctx.session.state["topic"] = user_input_topic
+                    logger.info(f"Saved JSON email context to session state.")
+            except (json.JSONDecodeError, ValidationError):
+                # If JSON parsing or validation fails, treat it as a plain text topic
+                user_input_topic = user_message_text
+                if user_input_topic is not None:
+                    ctx.session.state["topic"] = user_input_topic
+                    logger.info(f"Saved plain text topic to session state: {user_input_topic}")
+                else:
+                    logging.warning("Could not extract user text for topic.")
         else:
+            # Fallback to extracting text from the session if no new message is present
             user_input_topic = CustomEmailProcessorAgent.extract_user_text(ctx.session)
             if user_input_topic is not None:
                 ctx.session.state["topic"] = user_input_topic
             else:
                 logging.warning("Could not extract user text for topic.")
 
-        # 1. Initial Email Generation
+        # 1. Initial Email Generation and Sentiment Analysis
         logger.debug(f"[{self.name}] Running EmailGenerator...")
         async for event in self.sequential_agent.run_async(ctx):
             logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event
 
+        # Check if an email draft was successfully generated
         email_draft = ctx.session.state.get("email_draft")
-
-        # Check if email was generated before proceeding
         if not email_draft or not str(email_draft).strip():
             logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
             return
 
-        # 2. Reviewer Loop
+        # 2. Reviewer Loop for continuous revision
         logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
         # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
         async for event in self.loop_agent.run_async(ctx):
@@ -190,7 +241,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             parts=[types.Part(text=json.dumps(result, indent=2))]
         )
 
-        # Corrected: Removed `is_final_response=True` from the constructor
+        # Yield the final event with the complete, structured response
         yield Event(
             author="CustomEmailProcessorAgent",
             content=final_content,
@@ -199,10 +250,19 @@ class CustomEmailProcessorAgent(BaseAgent):
         logger.debug(f"[{self.name}] Workflow finished.")
         return
 
-# --- Pydantic Schema for structured sentiment output ---
+# --- Pydantic Schemas for structured input/output ---
+class EmailContext(BaseModel):
+    """Pydantic model for structured JSON email input."""
+    fromEmailAddress: str = Field(None, description="The sender's email address.")
+    subject: str = Field(None, description="The subject line of the email.")
+    body: str = Field(..., description="The body of the email.")
+    dateTime: str = Field(None, description="The date and time the email was sent.")
+
 class EmailSentiment(BaseModel):
+    """Pydantic model for structured sentiment output from the LLM."""
     sentiment: str = Field(description="The single word sentiment label of the email.")
 
+# --- LLM Agent Instructions ---
 helpbot_instruction = (
     "You are HelpBot, an automated IT helpdesk email chatbot for a corporate IT support desk. "
     "You know common IT problems with Windows and Linux. "
@@ -226,10 +286,8 @@ reviser_instruction = (
     "Return only the revised email draft, with no additional commentary."
 )
 
-# **MODIFIED INSTRUCTION**
 sentiment_instruction = (
     "You are an expert in analyzing email sentiment. Review the email provided: {{topic}}. "
-    "Identify the overall sentiment of the email as one of the following labels: Professional, Frustrated, Impatient, or Neutral. "
     "Output ONLY the single sentiment label as specified in the schema. Do not output anything else."
 )
 
@@ -241,7 +299,11 @@ emailGenerator = LlmAgent(
         temperature=0.8,
         top_p=1,
     ),
-    instruction=helpbot_instruction + " Generate the complete email draft for the following customer inquiry: {{topic}}. Provide ONLY the email content, with no introductory or concluding remarks.",
+    instruction=helpbot_instruction + (
+        " Generate the complete email draft for the following customer inquiry: {{topic}}. "
+        "The original email was from {{from_email_address}} with the subject '{{subject}}'."
+        "Provide ONLY the email content, with no introductory or concluding remarks."
+    ),
     input_schema=None,
     output_schema=None,
     output_key="email_draft",
@@ -299,7 +361,7 @@ root_agent = CustomEmailProcessorAgent(
 # --- Main Execution Block for a local, working example ---
 async def setup_session_and_runner(user_id: str, session_id: str, email_topic: str):
     """
-    A simple async function to demonstrate the agent's capabilities.
+    Sets up an ADK session and a Runner for local testing.
     """
     INITIAL_STATE = {"topic": email_topic}
 
@@ -320,8 +382,10 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
 # --- Function to Interact with the Agent ---
 async def call_agent_async(user_input_topic: str):
     """
-    Sends a new topic to the agent (overwriting the initial one if needed)
-    and runs the workflow.
+    Sends a new topic to the agent and runs the workflow.
+    
+    Args:
+        user_input_topic: The user's input, which can be a JSON string or plain text.
     """
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
@@ -340,7 +404,7 @@ async def call_agent_async(user_input_topic: str):
 
     content = types.Content(
         role='user',
-        parts=[types.Part(text=f"Generate a draft email in response to: {user_input_topic}")]
+        parts=[types.Part(text=user_input_topic)]
     )
 
     events = runner.run_async(user_id=user_id,
@@ -358,11 +422,18 @@ async def call_agent_async(user_input_topic: str):
 
 # --- Main Execution Block for a local, working example ---
 if __name__ == "__main__":
-    user_message = (
-        sys.argv[1]
-        if len(sys.argv) > 1
-        else "Hi, I need help with my laptop that won't turn on. I've tried charging it and pressing the power button multiple times. Can you help me draft an email to tech support?"
-    )
+    # Example for JSON input
+    json_message = json.dumps({
+        "fromEmailAddress": "johndoe@example.com",
+        "subject": "Urgent: Laptop is not turning on",
+        "body": "Hi, I need help with my laptop that won't turn on. I've tried charging it and pressing the power button multiple times. Can you help me draft an email to tech support?"
+    }, indent=2)
+
+    # Example for plain string input
+    string_message = "My printer is not working."
+
+    # Choose which message to run based on command-line argument
+    user_message = sys.argv[1] if len(sys.argv) > 1 else json_message
 
     final_state_json = asyncio.run(call_agent_async(user_message))
     print(final_state_json)
