@@ -241,7 +241,7 @@ emailGenerator = LlmAgent(
         temperature=0.8,
         top_p=1,
     ),
-    instruction=helpbot_instruction + " Write a concise email response to the following customer inquiry: {{topic}}",
+    instruction=helpbot_instruction + " Generate the complete email draft for the following customer inquiry: {{topic}}. Provide ONLY the email content, with no introductory or concluding remarks.",
     input_schema=None,
     output_schema=None,
     output_key="email_draft",
