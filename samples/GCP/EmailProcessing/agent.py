@@ -28,6 +28,8 @@ load_dotenv()
 # --- Configure Logging ---
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
+# Suppress the specific ADK warning about output_schema and agent transfers
+logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
 LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
 if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
     LOGLEVEL = "WARNING"
@@ -65,14 +67,14 @@ class CustomEmailProcessorAgent(BaseAgent):
      4. Finalizes the draft for a human to review.
     """
     # --- Field Declarations for Pydantic ---
-    # Declare the agents passed during initialization as class attributes with type hints
     sentimentReviewer: LlmAgent
     emailGenerator: LlmAgent
     emailReviewer: LlmAgent
+    emailReviser: LlmAgent # New agent for revising the email
     loop_agent: LoopAgent
     sequential_agent: SequentialAgent
+    revision_agent: SequentialAgent # New agent for the revision step
 
-    # model_config allows setting Pydantic configurations if needed, e.g., arbitrary_types_allowed
     model_config = {"arbitrary_types_allowed": True}
 
     def __init__(
@@ -81,30 +83,34 @@ class CustomEmailProcessorAgent(BaseAgent):
         sentimentReviewer: LlmAgent,
         emailGenerator: LlmAgent,
         emailReviewer: LlmAgent,
+        emailReviser: LlmAgent,
     ):
-        # Create internal agents *before* calling super().__init__
         sequential_agent = SequentialAgent(
             name="GenerateEmail", sub_agents=[sentimentReviewer, emailGenerator]
         )
+        # Create a new sequential agent for the revision loop
+        revision_agent = SequentialAgent(
+            name="ReviewAndReviseEmail", sub_agents=[emailReviewer, emailReviser]
+        )
         loop_agent = LoopAgent(
-            name="ReviewEmail", sub_agents=[emailReviewer], max_iterations=5
+            name="ReviewEmail", sub_agents=[revision_agent], max_iterations=5
         )
 
-        # Define the sub_agents list for the framework
         sub_agents_list = [
             sequential_agent,
             loop_agent,
         ]
 
-        # Pydantic will validate and assign them based on the class annotations.
         super().__init__(
             name=name,
             sentimentReviewer=sentimentReviewer,
             emailGenerator=emailGenerator,
             emailReviewer=emailReviewer,
+            emailReviser=emailReviser,
             sequential_agent=sequential_agent,
+            revision_agent=revision_agent,
             loop_agent=loop_agent,
-            sub_agents=sub_agents_list, # Pass the sub_agents list directly
+            sub_agents=sub_agents_list,
         )
 
     @staticmethod
@@ -114,7 +120,6 @@ class CustomEmailProcessorAgent(BaseAgent):
         Returns None if any level is missing.
         """
         try:
-            # If session is a dict:
             events = session["events"]
             first_part = events[0]["content"]["parts"][0]
             return first_part["text"]
@@ -122,7 +127,6 @@ class CustomEmailProcessorAgent(BaseAgent):
             pass
 
         try:
-            # If session is an object:
             ev = session.events[0]
             part = ev.content.parts[0]
             return part.text
@@ -133,9 +137,9 @@ class CustomEmailProcessorAgent(BaseAgent):
     async def _run_async_impl(
         self,
         ctx: InvocationContext,
-    ) -> AsyncGenerator[Event, None]:        
+    ) -> AsyncGenerator[Event, None]:
         logger.debug(f"[{self.name}] Starting email generation workflow.")
-    
+
         logger.debug(f"[{self.name}] InvocationContext structure: {json.dumps(ctx.session.model_dump(), indent=2, default=str)}")
         if hasattr(ctx.session, "new_message") and ctx.session.new_message:
             if ctx.session.new_message.parts and ctx.session.new_message.parts[0].text:
@@ -153,36 +157,42 @@ class CustomEmailProcessorAgent(BaseAgent):
         logger.debug(f"[{self.name}] Running EmailGenerator...")
         async for event in self.sequential_agent.run_async(ctx):
             logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
-            yield event        
+            yield event
 
-        email_sentiment = ctx.session.state.get("email_sentiment")
         email_draft = ctx.session.state.get("email_draft")
 
         # Check if email was generated before proceeding
         if not email_draft or not str(email_draft).strip():
             logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
-            return  # Stop processing if initial email failed
-        
-        logger.debug(f"[{self.name}] Sentiment check result: {email_sentiment}")
-        logger.debug(f"[{self.name}] Email state after generator: {email_draft}")
+            return
 
         # 2. Reviewer Loop
-        logger.debug(f"[{self.name}] Running EmailReviewerLoop...")
-        # Use the loop_agent instance attribute assigned during init
+        logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
+        previous_draft = None # Initialize a variable to hold the draft from the previous iteration
+        
         async for event in self.loop_agent.run_async(ctx):
-            logger.debug(f"[{self.name}] Event from EmailReviewerLoop: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event
+            email_review_comments = ctx.session.state.get("email_review_comments","").strip()
+            current_draft = ctx.session.state.get("email_draft")
+
+            if previous_draft and current_draft != previous_draft:
+                logger.info(f"[{self.name}] Email draft has been changed in this iteration.")
+            elif previous_draft is not None and current_draft == previous_draft:
+                logger.warning(f"[{self.name}] Email draft remained unchanged, even with new review comments.")
+
+            previous_draft = current_draft
+            
             # Stop the loop if reviewer says "No further comments"
-            email_review_comments = ctx.session.state.get("email_review_comments","N/A").strip()
-            if email_review_comments == "No further comments.":
+            if "No further comments." in email_review_comments:
                 logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
                 break
 
-        email_draft = ctx.session.state.get("email_draft")
-        email_review_comments = ctx.session.state.get("email_review_comments")
-        logger.debug(f"[{self.name}] Email state after loop: {email_draft}")
-        logger.debug(f"[{self.name}] Review comments: {email_review_comments}")
         logger.debug(f"[{self.name}] Workflow finished.")
+        return
+    
+# --- Pydantic Schema for structured sentiment output ---
+class EmailSentiment(BaseModel):
+    sentiment: str = Field(description="The single word sentiment label of the email.")
 
 helpbot_instruction = (
     "You are HelpBot, an automated IT helpdesk email chatbot for a corporate IT support desk. "
@@ -201,10 +211,17 @@ reviewer_instruction = (
     "When your are finished reviewing and have nothing more to add, respond with 'No further comments.'"
 )
 
+reviser_instruction = (
+    "You are an expert email reviser. You have been given an email draft: {{email_draft}} and review comments: {{email_review_comments}}. "
+    "Your task is to apply the review comments to the email draft to create a new, improved draft. "
+    "Return only the revised email draft, with no additional commentary."
+)
+
+# **MODIFIED INSTRUCTION**
 sentiment_instruction = (
     "You are an expert in analyzing email sentiment. Review the email provided: {{topic}}. "
-    "Identify the overall sentiment of the email as one of the following labels: Professional, Frustrated, Impatient, or Eeutral. "
-    "Output ONLY the single sentiment label and NOTHING else."
+    "Identify the overall sentiment of the email as one of the following labels: Professional, Frustrated, Impatient, or Neutral. "
+    "Output ONLY the single sentiment label as specified in the schema. Do not output anything else."
 )
 
 # --- Define the individual LLM agents ---
@@ -234,6 +251,20 @@ emailReviewer = LlmAgent(
     output_key="email_review_comments",
 )
 
+# NEW: Agent for revising the email
+emailReviser = LlmAgent(
+    name="EmailReviser",
+    model=MODEL,
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.8,
+        top_p=1,
+    ),
+    instruction=reviser_instruction,
+    input_schema=None,
+    output_schema=None,
+    output_key="email_draft", # Overwrite the email_draft with the revised version
+)
+
 sentimentReviewer = LlmAgent(
     name="EmailSentimentReviewer",
     model=MODEL,
@@ -243,8 +274,8 @@ sentimentReviewer = LlmAgent(
     ),
     instruction=sentiment_instruction,
     input_schema=None,
-    output_schema=None,
-    output_key="email_sentiment",
+    output_schema=EmailSentiment,
+    output_key="email_sentiment_obj",
 )
 
 # --- Create the custom agent instance ---
@@ -253,6 +284,7 @@ root_agent = CustomEmailProcessorAgent(
     sentimentReviewer=sentimentReviewer,
     emailGenerator=emailGenerator,
     emailReviewer=emailReviewer,
+    emailReviser=emailReviser, # Pass the new agent here
 )
 
 # --- Main Execution Block for a local, working example ---
@@ -263,11 +295,11 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
     INITIAL_STATE = {"topic": email_topic}
 
     session_service = InMemorySessionService()
-    session = await session_service.create_session(app_name=APP_NAME, 
-                                                   user_id=user_id, 
+    session = await session_service.create_session(app_name=APP_NAME,
+                                                   user_id=user_id,
                                                    session_id=session_id,
                                                    state=INITIAL_STATE)
-    
+
     logger.debug(f"Initial session state: {session.state}")
     runner = Runner(
         agent=root_agent, # Pass the custom orchestrator agent
@@ -282,14 +314,13 @@ async def call_agent_async(user_input_topic: str):
     Sends a new topic to the agent (overwriting the initial one if needed)
     and runs the workflow.
     """
-
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
 
     session_service, runner = await setup_session_and_runner(user_id, session_id, user_input_topic)
 
-    current_session = await session_service.get_session(app_name=APP_NAME, 
-                                                  user_id=user_id, 
+    current_session = await session_service.get_session(app_name=APP_NAME,
+                                                  user_id=user_id,
                                                   session_id=session_id)
     if not current_session:
         logger.error("Session not found!")
@@ -299,12 +330,12 @@ async def call_agent_async(user_input_topic: str):
     logger.debug(f"Updated session state topic to: {user_input_topic}")
 
     content = types.Content(
-        role='user', 
+        role='user',
         parts=[types.Part(text=f"Generate a draft email in response to: {user_input_topic}")]
     )
 
-    events = runner.run_async(user_id=user_id, 
-                              session_id=session_id, 
+    events = runner.run_async(user_id=user_id,
+                              session_id=session_id,
                               new_message=content)
 
     final_response = "No final response captured."
@@ -313,10 +344,17 @@ async def call_agent_async(user_input_topic: str):
             logger.debug(f"Potential final response from [{event.author}]: {event.content.parts[0].text}")
             final_response = event.content.parts[0].text
 
-    final_session = await session_service.get_session(app_name=APP_NAME, 
-                                                user_id=user_id, 
+    final_session = await session_service.get_session(app_name=APP_NAME,
+                                                user_id=user_id,
                                                 session_id=session_id)
-    return json.dumps(final_session.state, indent=2)
+    # Extract only the required fields from the final session state
+    result = {
+        "email_draft": final_session.state.get("email_draft"),
+        "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
+        "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
+    }
+    
+    return json.dumps(result, indent=2)
 
 # --- Main Execution Block for a local, working example ---
 if __name__ == "__main__":
@@ -326,4 +364,5 @@ if __name__ == "__main__":
         else "Hi, I need help with my laptop that won't turn on. I've tried charging it and pressing the power button multiple times. Can you help me draft an email to tech support?"
     )
 
-    asyncio.run(call_agent_async(user_message))
+    final_state_json = asyncio.run(call_agent_async(user_message))
+    print(final_state_json)
