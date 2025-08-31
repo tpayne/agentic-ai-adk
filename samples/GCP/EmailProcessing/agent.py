@@ -178,6 +178,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             if ctx.session.new_message.parts and ctx.session.new_message.parts[0].text:
                 user_message_text = ctx.session.new_message.parts[0].text
 
+            bodyText = None
             # Attempt to parse the user message as a JSON object with optional fields
             try:
                 if user_message_text:
@@ -187,6 +188,7 @@ class CustomEmailProcessorAgent(BaseAgent):
                     ctx.session.state["from_email_address"] = email_context.fromEmailAddress
                     ctx.session.state["subject"] = email_context.subject
                     user_input_topic = email_context.body
+                    bodyText = email_context.body
                     ctx.session.state["topic"] = user_input_topic
                     logger.info(f"Saved JSON email context to session state.")
             except (json.JSONDecodeError, ValidationError):
@@ -194,6 +196,7 @@ class CustomEmailProcessorAgent(BaseAgent):
                 user_input_topic = user_message_text
                 if user_input_topic is not None:
                     ctx.session.state["topic"] = user_input_topic
+                    bodyText = user_input_topic
                     logger.info(f"Saved plain text topic to session state: {user_input_topic}")
                 else:
                     logging.warning("Could not extract user text for topic.")
@@ -202,6 +205,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             user_input_topic = CustomEmailProcessorAgent.extract_user_text(ctx.session)
             if user_input_topic is not None:
                 ctx.session.state["topic"] = user_input_topic
+                bodyText = user_input_topic
             else:
                 logging.warning("Could not extract user text for topic.")
 
@@ -231,6 +235,7 @@ class CustomEmailProcessorAgent(BaseAgent):
         # 3. Finalize and return the result
         final_session = ctx.session
         result = {
+            "email_source": bodyText,
             "email_draft": final_session.state.get("email_draft"),
             "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
             "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
