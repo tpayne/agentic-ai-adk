@@ -173,41 +173,33 @@ class CustomEmailProcessorAgent(BaseAgent):
         ctx.session.state.setdefault("subject", "a new support request")
 
         # Check for a new message and parse it
-        if hasattr(ctx.session, "new_message") and ctx.session.new_message:
-            user_message_text = None
-            if ctx.session.new_message.parts and ctx.session.new_message.parts[0].text:
-                user_message_text = ctx.session.new_message.parts[0].text
+        bodyText = None
+        user_message_text = None
 
-            bodyText = None
-            # Attempt to parse the user message as a JSON object with optional fields
+        # Prefer new_message if present
+        if getattr(ctx.session, "new_message", None) and getattr(ctx.session.new_message, "parts", None):
+            part = ctx.session.new_message.parts[0]
+            user_message_text = getattr(part, "text", None)
+
+        # Fallback: extract from session events
+        if user_message_text is None:
+            user_message_text = CustomEmailProcessorAgent.extract_user_text(ctx.session)
+
+        if user_message_text is not None:
             try:
-                if user_message_text:
-                    payload = json.loads(user_message_text)
-                    email_context = EmailContext.model_validate(payload)
-                    # If valid JSON, save fields to session state
-                    ctx.session.state["from_email_address"] = email_context.fromEmailAddress
-                    ctx.session.state["subject"] = email_context.subject
-                    user_input_topic = email_context.body
-                    bodyText = email_context.body
-                    ctx.session.state["topic"] = user_input_topic
-                    logger.info(f"Saved JSON email context to session state.")
+                payload = json.loads(user_message_text)
+                email_context = EmailContext.model_validate(payload)
+                ctx.session.state["from_email_address"] = email_context.fromEmailAddress
+                ctx.session.state["subject"] = email_context.subject
+                ctx.session.state["topic"] = email_context.body
+                bodyText = email_context.body
+                logger.debug("Saved JSON email context to session state.")
             except (json.JSONDecodeError, ValidationError):
-                # If JSON parsing or validation fails, treat it as a plain text topic
-                user_input_topic = user_message_text
-                if user_input_topic is not None:
-                    ctx.session.state["topic"] = user_input_topic
-                    bodyText = user_input_topic
-                    logger.info(f"Saved plain text topic to session state: {user_input_topic}")
-                else:
-                    logging.warning("Could not extract user text for topic.")
+                ctx.session.state["topic"] = user_message_text
+                bodyText = user_message_text
+                logger.debug(f"Saved plain text topic to session state: {user_message_text}")
         else:
-            # Fallback to extracting text from the session if no new message is present
-            user_input_topic = CustomEmailProcessorAgent.extract_user_text(ctx.session)
-            if user_input_topic is not None:
-                ctx.session.state["topic"] = user_input_topic
-                bodyText = user_input_topic
-            else:
-                logging.warning("Could not extract user text for topic.")
+            logging.warning("Could not extract user text for topic.")
 
         # 1. Initial Email Generation and Sentiment Analysis
         logger.debug(f"[{self.name}] Running EmailGenerator...")
