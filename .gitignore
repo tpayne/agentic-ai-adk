@@ -4,6 +4,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Apple files
+.DS_Store/
+.DS_Store
+
 # C extensions
 *.so
 
