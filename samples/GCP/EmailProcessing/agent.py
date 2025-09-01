@@ -369,7 +369,10 @@ sentiment_instruction = (
     "You are an expert in analyzing email sentiment. Review the email provided: {{topic}}. "
     "Output ONLY the following: "
     "1. A single sentiment label as specified in the schema. "
-    "2. A single action statement about what the action is this email needs to result in doing. "
+    "2. A single action statement about what the action is this email needs to result in doing. You will need to catagorize the intention. "
+    "   into the following categories: 'Generic IT Issue', ''Windows IT Issue', 'Unix IT Issue', 'Hardware Issue', 'Software Issue', 'Network Issue', "
+    "   'Policy Question', 'Customer Account Issue', 'FAQ Request', 'Customer Data Request', 'Customer Payment Request, 'Other'. "
+    "Format your response as a JSON object matching the EmailSentiment schema. "
     "Do not output anything else."
 )
 
