@@ -3,6 +3,8 @@ import os
 import json
 import uuid
 import asyncio
+import requests
+import google.auth
 
 from typing import AsyncGenerator
 from typing_extensions import override
@@ -15,7 +17,6 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.adk.events import Event
 
-import google.auth
 from pydantic import BaseModel, Field, ValidationError
 import sys
 
@@ -191,8 +192,9 @@ class CustomEmailProcessorAgent(BaseAgent):
                 email_context = EmailContext.model_validate(payload)
                 ctx.session.state["from_email_address"] = email_context.fromEmailAddress
                 ctx.session.state["subject"] = email_context.subject
-                ctx.session.state["topic"] = email_context.body
+                user_input_topic = email_context.body
                 bodyText = email_context.body
+                ctx.session.state["topic"] = user_input_topic
                 logger.debug("Saved JSON email context to session state.")
             except (json.JSONDecodeError, ValidationError):
                 ctx.session.state["topic"] = user_message_text
@@ -201,28 +203,106 @@ class CustomEmailProcessorAgent(BaseAgent):
         else:
             logging.warning("Could not extract user text for topic.")
 
-        # 1. Initial Email Generation and Sentiment Analysis
-        logger.debug(f"[{self.name}] Running EmailGenerator...")
-        async for event in self.sequential_agent.run_async(ctx):
-            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
-            yield event
+        # Check for the AGENTSPACE_AI_URL environment variable
+        agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
 
-        # Check if an email draft was successfully generated
-        email_draft = ctx.session.state.get("email_draft")
-        if not email_draft or not str(email_draft).strip():
-            logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
-            return
+        if agentspace_ai_url:
+            # i) If the URL is specified, use the REST API call
+            logger.info("AGENTSPACE_AI_URL specified. Using external API for email draft.")
+            try:
+                # Get a new access token
+                credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+                auth_req = google.auth.transport.requests.Request()
+                credentials.refresh(auth_req)
+                access_token = credentials.token
 
-        # 2. Reviewer Loop for continuous revision
-        logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
-        # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
-        async for event in self.loop_agent.run_async(ctx):
-            yield event
-            email_review_comments = ctx.session.state.get("email_review_comments","").strip()
-            # Stop the loop if reviewer says "No further comments"
-            if "No further comments." in email_review_comments:
-                logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
-                break
+                # Extract project_id and app_id from the URL
+                url_parts = agentspace_ai_url.split('/')
+                project_id = url_parts[5]
+                app_id = url_parts[11]
+
+                # Combine instructions with the topic for the query
+                combined_query = helpbot_instruction + " " + bodyText
+                logger.info(f"Sending query API - {combined_query}")
+
+                # Construct the payload
+                payload = {
+                    "query": combined_query,
+                    "pageSize": 10,
+                    "queryExpansionSpec": {"condition": "AUTO"},
+                    "spellCorrectionSpec": {"mode": "AUTO"},
+                    "languageCode": "en-US",
+                    "userInfo": {"timeZone": "Europe/London"},
+                    "session": f"projects/{project_id}/locations/eu/collections/default_collection/engines/{app_id}/sessions/-"
+                }
+
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+
+                # Make the API call
+                response = requests.post(agentspace_ai_url, headers=headers, json=payload)
+                response.raise_for_status() # Raise an exception for bad status codes
+
+                # Process the response to get the draft
+                search_results = response.json()
+                logger.info(f"API Result is - {search_results}")
+                draft_parts = []
+                for result in search_results.get('results', []):
+                    title = result.get('document', {}).get('derivedStructData', {}).get('title')
+                    snippet = result.get('document', {}).get('derivedStructData', {}).get('snippet')
+                    if title and snippet:
+                        draft_parts.append(f"Subject: {title}\n\n{snippet}\n")
+                
+                # Use a simple combination of results as the draft
+                if draft_parts:
+                    email_draft = "\n---\n".join(draft_parts)
+                else:
+                    email_draft = "No relevant information found to create a draft. Please provide more details."
+                
+                # Save the new draft and other placeholder values to the session state
+                ctx.session.state["email_draft"] = email_draft
+                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
+                ctx.session.state["email_review_comments"] = "No further comments."
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error calling external API: {e}")
+                ctx.session.state["email_draft"] = f"Failed to get email draft from external API: {e}"
+                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
+                ctx.session.state["email_review_comments"] = "No further comments."
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}")
+                ctx.session.state["email_draft"] = f"An unexpected error occurred: {e}"
+                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
+                ctx.session.state["email_review_comments"] = "No further comments."
+
+        else:
+            # ii) If the URL isn't specified, use the current LlmAgent method
+            logger.info("AGENTSPACE_AI_URL not specified. Using internal LLM agent.")
+            
+            # 1. Initial Email Generation and Sentiment Analysis
+            logger.debug(f"[{self.name}] Running EmailGenerator...")
+            async for event in self.sequential_agent.run_async(ctx):
+                logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
+                yield event
+
+            # Check if an email draft was successfully generated
+            email_draft = ctx.session.state.get("email_draft")
+            if not email_draft or not str(email_draft).strip():
+                logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
+                return
+
+            # 2. Reviewer Loop for continuous revision
+            logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
+            # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
+            async for event in self.loop_agent.run_async(ctx):
+                yield event
+                email_review_comments = ctx.session.state.get("email_review_comments","").strip()
+                # Stop the loop if reviewer says "No further comments"
+                if "No further comments." in email_review_comments:
+                    logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
+                    break
 
         # 3. Finalize and return the result
         final_session = ctx.session
