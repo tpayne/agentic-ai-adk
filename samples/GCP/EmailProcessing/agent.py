@@ -62,6 +62,92 @@ MODEL      = os.getenv("MODEL", "gemini-2.0-flash")
 if not PROJECT_ID:
     raise RuntimeError("PROJECT_ID environment variable is required")
 
+# --- Placeholder Tool Agents ---
+# These agents would contain the logic for calling a specific tool
+class HardwareToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[HardwareToolAgent] Simulating calling hardware support tool...")
+        ctx.session.state["tool_result"] = "Hardware support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Hardware support tool was called.")]))
+
+class SoftwareToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[SoftwareToolAgent] Simulating calling software support tool...")
+        ctx.session.state["tool_result"] = "Software support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Software support tool was called.")]))
+
+class GenericITToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[GenericITToolAgent] Simulating calling generic IT support tool...")
+        ctx.session.state["tool_result"] = "Generic IT support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Generic IT support tool was called.")]))
+
+class WindowsToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[WindowsToolAgent] Simulating calling Windows IT support tool...")
+        ctx.session.state["tool_result"] = "Windows IT support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Windows IT support tool was called.")]))
+
+class UnixToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[UnixToolAgent] Simulating calling Unix IT support tool...")
+        ctx.session.state["tool_result"] = "Unix IT support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Unix IT support tool was called.")]))
+
+class NetworkToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[NetworkToolAgent] Simulating calling network support tool...")
+        ctx.session.state["tool_result"] = "Network support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Network support tool was called.")]))
+
+class PolicyToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[PolicyToolAgent] Simulating calling policy support tool...")
+        ctx.session.state["tool_result"] = "Policy support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Policy support tool was called.")]))
+
+class CustomerAccountToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[CustomerAccountToolAgent] Simulating calling customer account support tool...")
+        ctx.session.state["tool_result"] = "Customer account support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer account support tool was called.")]))
+
+class FAQToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[FAQToolAgent] Simulating calling FAQ support tool...")
+        ctx.session.state["tool_result"] = "FAQ support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="FAQ support tool was called.")]))
+
+class CustomerDataToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[CustomerDataToolAgent] Simulating calling customer data support tool...")
+        ctx.session.state["tool_result"] = "Customer data support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer data support tool was called.")]))
+
+class CustomerPaymentToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[CustomerPaymentToolAgent] Simulating calling customer payment support tool...")
+        ctx.session.state["tool_result"] = "Customer payment support tool was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer payment support tool was called.")]))
+
+class OtherToolAgent(BaseAgent):
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        logger.info("[OtherToolAgent] Simulating calling a general tool for other issues...")
+        ctx.session.state["tool_result"] = "A general tool for other issues was called."
+        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="A general tool for other issues was called.")]))
+
 # --- Custom Orchestrator Agent ---
 class CustomEmailProcessorAgent(BaseAgent):
     """
@@ -292,8 +378,49 @@ class CustomEmailProcessorAgent(BaseAgent):
             if not email_draft or not str(email_draft).strip():
                 logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
                 return
+            
+            # 2. Dispatch the correct tool based on intention
+            email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
+            logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
 
-            # 2. Reviewer Loop for continuous revision
+            if email_intention == 'Hardware Issue':
+                async for event in HardwareToolAgent(name="HardwareToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Software Issue':
+                async for event in SoftwareToolAgent(name="SoftwareToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Windows IT Issue':
+                async for event in WindowsToolAgent(name="WindowsToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Unix IT Issue':
+                async for event in UnixToolAgent(name="UnixToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Network Issue':
+                async for event in NetworkToolAgent(name="NetworkToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Policy Question':
+                async for event in PolicyToolAgent(name="PolicyToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Customer Account Issue':
+                async for event in CustomerAccountToolAgent(name="CustomerAccountToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'FAQ Request':
+                async for event in FAQToolAgent(name="FAQToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Customer Data Request':
+                async for event in CustomerDataToolAgent(name="CustomerDataToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Customer Payment Request':
+                async for event in CustomerPaymentToolAgent(name="CustomerPaymentToolAgent").run_async(ctx):
+                    yield event
+            elif email_intention == 'Other':
+                async for event in OtherToolAgent(name="OtherToolAgent").run_async(ctx):
+                    yield event
+            else: # Fallback for 'Generic IT Issue' or any unhandled category
+                async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
+                    yield event
+
+            # 3. Reviewer Loop for continuous revision
             logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
             # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
             async for event in self.loop_agent.run_async(ctx):
@@ -304,13 +431,14 @@ class CustomEmailProcessorAgent(BaseAgent):
                     logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
                     break
 
-        # 3. Finalize and return the result
+        # 4. Finalize and return the result
         final_session = ctx.session
         result = {
             "email_source": bodyText,
             "email_draft": final_session.state.get("email_draft"),
             "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
             "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
+            "tool_called_message": final_session.state.get("tool_result", "No tool was explicitly called."),
             "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
         }
 
@@ -510,14 +638,18 @@ if __name__ == "__main__":
     # Example for JSON input
     json_message = json.dumps({
         "fromEmailAddress": "johndoe@example.com",
-        "subject": "Urgent: Laptop is not turning on",
-        "body": "Hi, I need help with my laptop that won't turn on. I've tried charging it and pressing the power button multiple times. Can you help me draft an email to tech support?"
+        "subject": "Urgent: My laptop is not turning on",
+        "body": "Hi, my laptop is not turning on. I've tried charging it and pressing the power button multiple times."
     }, indent=2)
 
-    # Example for plain string input
-    string_message = "My printer is not working."
+    # Example for plain string input for a software issue
+    string_message_software = "My web browser keeps crashing when I open a new tab."
+
+    # Example for plain string input for a hardware issue
+    string_message_hardware = "My mouse isn't working at all."
 
     # Choose which message to run based on command-line argument
+    # Default to the JSON message if no argument is provided
     user_message = sys.argv[1] if len(sys.argv) > 1 else json_message
 
     final_state_json = asyncio.run(call_agent_async(user_message))
