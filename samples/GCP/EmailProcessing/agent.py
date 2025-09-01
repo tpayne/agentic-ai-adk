@@ -310,6 +310,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             "email_source": bodyText,
             "email_draft": final_session.state.get("email_draft"),
             "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
+            "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
             "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
         }
 
@@ -338,6 +339,7 @@ class EmailContext(BaseModel):
 class EmailSentiment(BaseModel):
     """Pydantic model for structured sentiment output from the LLM."""
     sentiment: str = Field(description="The single word sentiment label of the email.")
+    intention: str = Field(description="The single action statement about what the action is this email needs to result in doing.")
 
 # --- LLM Agent Instructions ---
 helpbot_instruction = (
@@ -365,7 +367,10 @@ reviser_instruction = (
 
 sentiment_instruction = (
     "You are an expert in analyzing email sentiment. Review the email provided: {{topic}}. "
-    "Output ONLY the single sentiment label as specified in the schema. Do not output anything else."
+    "Output ONLY the following: "
+    "1. A single sentiment label as specified in the schema. "
+    "2. A single action statement about what the action is this email needs to result in doing. "
+    "Do not output anything else."
 )
 
 # --- Define the individual LLM agents ---
