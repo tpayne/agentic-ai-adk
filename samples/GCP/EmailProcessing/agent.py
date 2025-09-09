@@ -711,6 +711,9 @@ helpbot_instruction = (
     "Cite references when possible. "
     "Request further info with clear steps if needed. "
     "If unable to resolve, state any additional info needed to escalate or other sources to consult. "
+    "When providing instructions or lists, use numbered lists. Use **bold** for emphasis on key words or phrases. "
+    "Return the full email text as HTML only, do not return any other text. Wrap the response in <html><body>...</body></html> tags. "
+    "You may use multiple paragraphs, headings, and ordered/unordered lists to structure your response, and you may use simple HTML tags like <b> and <p> for emphasis."
 )
 
 reviewer_instruction = (
