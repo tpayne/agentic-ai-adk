@@ -677,7 +677,7 @@ helpbot_instruction = (
     "Be truthful, never lie or make up facts; if unsure, explain why. "
     "Cite references when possible. "
     "Request further info with clear steps if needed. "
-    "If unable to resolve, state you will create an IT ticket and provide: summary, description, priority, and classification (e.g., hardware, software, licensing, OS, user login)."
+    "If unable to resolve, state any additional info needed to escalate or other sources to consult. "
 )
 
 reviewer_instruction = (
