@@ -671,6 +671,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             "metadata": {
                 "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
                 "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
+                "email_urgency": final_session.state.get("email_sentiment_obj", {}).get("urgency"),
                 "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
             }
         }
@@ -700,6 +701,7 @@ class EmailSentiment(BaseModel):
     """Pydantic model for structured sentiment output from the LLM."""
     sentiment: str = Field(description="The single word sentiment label of the email.")
     intention: str = Field(description="The single action statement about what the action is this email needs to result in doing.")
+    urgency:   str = Field(description="Optional urgency level of the email.")
 
 # --- LLM Agent Instructions ---
 helpbot_instruction = (
@@ -735,6 +737,8 @@ sentiment_instruction = (
     "2. A single action statement about what the action is this email needs to result in doing. You will need to catagorize the intention. "
     "   into the following categories: 'Generic IT Issue', ''Windows IT Issue', 'Unix IT Issue', 'Hardware Issue', 'Software Issue', 'Network Issue', "
     "   'Policy Question', 'Customer Account Issue', 'FAQ Request', 'Customer Data Request', 'Customer Payment Request, 'Other'. "
+    "3. A single urgency label for the email, depending on if it is clearly urgent or high priority. Categories are 'Low', 'Medium', 'High', or 'Critical'. "
+    "   If not clearly specified, return 'Normal'. "
     "Format your response as a JSON object matching the EmailSentiment schema. "
     "Do not output anything else."
 )
