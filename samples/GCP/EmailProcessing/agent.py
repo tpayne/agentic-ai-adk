@@ -659,14 +659,21 @@ class CustomEmailProcessorAgent(BaseAgent):
         # 4. Finalize and return the result
         final_session = ctx.session
         result = {
-            "email_source": bodyText,
-            "email_draft": final_session.state.get("email_draft"),
-            "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
-            "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
-            "tool_called_message": final_session.state.get("tool_result", "No tool was explicitly called."),
-            "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
+            "email_data": {
+                "fromEmailAddress": final_session.state.get("from_email_address"),
+                "subject": final_session.state.get("subject"),
+                "body": bodyText,
+            },
+            "answer": {
+                "email_draft": final_session.state.get("email_draft"),
+                "tool_called_message": final_session.state.get("tool_result", "No tool was explicitly called."),
+            },
+            "metadata": {
+                "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
+                "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
+                "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
+            }
         }
-
         final_content = types.Content(
             role="model",
             parts=[types.Part(text=json.dumps(result, indent=2))]
