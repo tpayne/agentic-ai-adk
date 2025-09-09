@@ -666,7 +666,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             },
             "answer": {
                 "email_draft": final_session.state.get("email_draft"),
-                "tool_called_message": final_session.state.get("tool_result", "No tool was explicitly called."),
+                "tool_results": final_session.state.get("tool_result", "No tool was explicitly called."),
             },
             "metadata": {
                 "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
