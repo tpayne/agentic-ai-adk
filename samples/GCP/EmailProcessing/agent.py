@@ -62,6 +62,303 @@ MODEL      = os.getenv("MODEL", "gemini-2.0-flash")
 if not PROJECT_ID:
     raise RuntimeError("PROJECT_ID environment variable is required")
 
+# --- Utility Functions ---
+
+
+def get_session_info(project_id: str, app_id: str, query: str, access_token: str, region: str) -> dict:
+    """
+    Performs a search query to the Google Discovery Engine API and extracts
+    session information from the response.
+
+    Args:
+        project_id: The Google Cloud project ID.
+        app_id: The Discovery Engine app ID.
+        query: The search query string.
+        access_token: The OAuth 2.0 access token for authentication.
+        region: The Google Cloud region (e.g., 'eu', 'us-central1').
+
+    Returns:
+        A dictionary containing the 'name' and 'queryId' from the
+        sessionInfo block, or an empty dictionary if the request fails.
+    """
+    url = (
+        f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
+        f"{project_id}/locations/{region}/collections/default_collection/engines/"
+        f"{app_id}/servingConfigs/default_search:search"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "query": query,
+        "pageSize": 10,
+        "queryExpansionSpec": {"condition": "AUTO"},
+        "spellCorrectionSpec": {"mode": "AUTO"},
+        "languageCode": "en-US"
+    }
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        data = response.json()
+
+        session_info = data.get("sessionInfo", {})
+        session_name = session_info.get("name")
+        query_id = session_info.get("queryId")
+
+        if session_name and query_id:
+            return {
+                "name": session_name,
+                "queryId": query_id
+            }
+        else:
+            print("Warning: 'sessionInfo' or its components not found in the response.")
+            return {}
+
+    except requests.exceptions.HTTPError as err:
+        print(f"HTTP error occurred: {err}")
+        print(f"Response body: {response.text}")
+        return {}
+    except requests.exceptions.RequestException as err:
+        print(f"An error occurred: {err}")
+        return {}
+    except (json.JSONDecodeError, KeyError) as err:
+        print(f"Failed to parse JSON response or extract keys: {err}")
+        print(f"Response text: {response.text}")
+        return {}
+
+def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> list:
+    """
+    Performs an answer generation query using session info and extracts
+    the content from each chunk in a single array.
+
+    Args:
+        project_id: The Google Cloud project ID.
+        app_id: The Discovery Engine app ID.
+        query_text: The original search query text.
+        query_id: The query ID from the previous search call.
+        session_name: The session name from the previous search call.
+        access_token: The OAuth 2.0 access token for authentication.
+        region: The Google Cloud region (e.g., 'eu', 'us-central1').
+
+    Returns:
+        A list of content strings from the response chunks, or an empty list
+        if the request fails.
+    """
+    url = (
+        f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
+        f"{project_id}/locations/{region}/collections/default_collection/engines/"
+        f"{app_id}/servingConfigs/default_search:answer"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "query": {
+            "text": query_text,
+            "queryId": query_id
+        },
+        "session": session_name,
+        "answerGenerationSpec": {
+            "ignoreAdversarialQuery": True,
+            "ignoreNonAnswerSeekingQuery": False,
+            "ignoreLowRelevantContent": True,
+            "includeCitations": True,
+            "modelSpec": {"modelVersion": "stable"}
+        }
+    }
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        data = response.json()
+        # Navigate through the JSON to find the references and their content
+        return []
+        answerText = data.get("answer", {}).get("answerText", "")
+        logger.info(f"Answer text: {answerText}")
+        if "A summary could not be generated for your search query" in answerText:
+            return []
+        references = data.get("answer", {}).get("references", [])
+        content_array = []
+        for ref in references:
+            chunk_info = ref.get("chunkInfo", {})
+            content = chunk_info.get("content")
+            if content:
+                content_array.append(content)
+        
+        return content_array
+
+    except requests.exceptions.HTTPError as err:
+        print(f"HTTP error occurred: {err}")
+        print(f"Response body: {response.text}")
+        return []
+    except requests.exceptions.RequestException as err:
+        print(f"An error occurred: {err}")
+        return []
+    except (json.JSONDecodeError, KeyError) as err:
+        print(f"Failed to parse JSON response or extract keys: {err}")
+        print(f"Response text: {response.text}")
+        return []
+
+def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> list:
+    """
+    Performs an answer generation query using session info and extracts
+    the content from each chunk in a single array.
+
+    Args:
+        project_id: The Google Cloud project ID.
+        app_id: The Discovery Engine app ID.
+        query_text: The original search query text.
+        query_id: The query ID from the previous search call.
+        session_name: The session name from the previous search call.
+        access_token: The OAuth 2.0 access token for authentication.
+        region: The Google Cloud region (e.g., 'eu', 'us-central1').
+
+    Returns:
+        A list of content strings from the response chunks, or an empty list
+        if the request fails.
+    """
+    url = (
+        f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
+        f"{project_id}/locations/{region}/collections/default_collection/engines/"
+        f"{app_id}/servingConfigs/default_search:answer"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "query": {
+            "text": query_text,
+            "queryId": query_id
+        },
+        "session": session_name,
+        "relatedQuestionsSpec": {
+            "enable":"true"
+        },
+        "answerGenerationSpec": {
+            "ignoreAdversarialQuery":"true",
+            "ignoreNonAnswerSeekingQuery":"false",
+            "ignoreLowRelevantContent":"true",
+            "multimodalSpec":{},
+            "includeCitations":"true",
+            "modelSpec": {
+                "modelVersion":"stable"
+            }
+        }
+    }
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        data = response.json()
+        # Navigate through the JSON to find the references and their content
+        references = data.get("answer", {}).get("references", [])
+        answerText = data.get("answer", {}).get("answerText", "")
+        if "A summary could not be generated for your search query" in answerText:
+            return []
+        content_array = []
+        for ref in references:
+            chunk_info = ref.get("chunkInfo", {})
+            if chunk_info is None:
+                continue
+            content = chunk_info.get("content")
+            if content:
+                content_array.append(content)
+        
+        return content_array
+
+    except requests.exceptions.HTTPError as err:
+        print(f"HTTP error occurred: {err}")
+        print(f"Response body: {response.text}")
+        return []
+    except requests.exceptions.RequestException as err:
+        print(f"An error occurred: {err}")
+        return []
+    except (json.JSONDecodeError, KeyError) as err:
+        print(f"Failed to parse JSON response or extract keys: {err}")
+        print(f"Response text: {response.text}")
+        return []
+
+# --- Function to Call External API ---
+def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
+    """
+    Calls the AgentSpace AI URL with the provided body text and returns the draft response.
+
+    Args:
+        agentspace_ai_url: The URL of the AgentSpace AI endpoint.
+        bodyText: The body text to send in the query.
+
+    Returns:
+        The draft response generated by the AgentSpace AI.
+    """
+    # This function is a placeholder for the actual implementation
+    # of calling the AgentSpace AI URL and processing the response.
+    try:
+        # Get a new access token
+        logger.info("Refreshing access token...")
+        credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+        auth_req = google.auth.transport.requests.Request()
+        credentials.refresh(auth_req)
+        access_token = credentials.token
+
+        # Extract project_id and app_id from the URL
+        url_parts = agentspace_ai_url.split('/')
+        project_id = url_parts[5]
+        app_id = url_parts[11]
+        region = url_parts[7]
+
+        # Combine instructions with the topic for the query
+        combined_query = "" + " " + bodyText
+        logger.info(f"Sending query API - {combined_query}")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "query": combined_query,
+            "pageSize": 10000,
+            "queryExpansionSpec": {"condition": "AUTO"},
+            "spellCorrectionSpec": {"mode": "AUTO"},
+            "languageCode": "en-US",
+            "contentSearchSpec":{"extractiveContentSpec":{"maxExtractiveAnswerCount":1}},
+            "userInfo":{"timeZone":"Europe/London"},
+            "session": f"projects/{project_id}/locations/{region}/collections/default_collection/engines/{app_id}/sessions/-"
+        }
+
+        response = requests.post(agentspace_ai_url, headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        data = response.json()
+        session_info = data.get("sessionInfo", {})
+        session_name = session_info.get("name")
+        query_id = session_info.get("queryId")
+
+        if session_name and query_id:
+            draft_response_array = get_answer_content(project_id, app_id, combined_query, 
+                                                      query_id, session_name, access_token, 
+                                                      region)
+            return draft_response_array
+        else:
+            print("Warning: 'sessionInfo' or its components not found in the response.")
+            return {}
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error calling external API: {e}")
+        raise RuntimeError(f"Error calling external API: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        raise RuntimeError(f"Error calling external API: {e}")
+    
 # --- Placeholder Tool Agents ---
 # These agents would contain the logic for calling a specific tool
 class HardwareToolAgent(BaseAgent):
@@ -70,7 +367,7 @@ class HardwareToolAgent(BaseAgent):
         logger.info("[HardwareToolAgent] Simulating calling hardware support tool...")
         ctx.session.state["tool_result"] = "Hardware support tool was called."
         yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Hardware support tool was called.")]))
-
+            
 class SoftwareToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
@@ -110,8 +407,25 @@ class PolicyToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         logger.info("[PolicyToolAgent] Simulating calling policy support tool...")
-        ctx.session.state["tool_result"] = "Policy support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Policy support tool was called.")]))
+        try:
+            agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
+            bodyText = ctx.session.state.get("topic", "No topic provided.")
+            if agentspace_ai_url and bodyText:
+                draft_response = run_agentspace_url_query(agentspace_ai_url, bodyText)
+                if isinstance(draft_response, list):
+                    draft_response = "\n\n".join(draft_response)
+                ctx.session.state["tool_result"] = draft_response
+                yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+            else:
+                error_msg = "AGENTSPACE_AI_URL or topic is not set."
+                logger.error(error_msg)
+                ctx.session.state["tool_result"] = error_msg
+                yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+        except Exception as e:
+            error_msg = f"Exception in PolicyToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class CustomerAccountToolAgent(BaseAgent):
     @override
@@ -289,147 +603,70 @@ class CustomEmailProcessorAgent(BaseAgent):
         else:
             logging.warning("Could not extract user text for topic.")
 
-        # Check for the AGENTSPACE_AI_URL environment variable
-        agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
+         
+        # 1. Initial Email Generation and Sentiment Analysis
+        logger.debug(f"[{self.name}] Running EmailGenerator...")
+        async for event in self.sequential_agent.run_async(ctx):
+            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
+            yield event
 
-        if agentspace_ai_url:
-            # i) If the URL is specified, use the REST API call
-            logger.info("AGENTSPACE_AI_URL specified. Using external API for email draft.")
-            try:
-                # Get a new access token
-                credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-                auth_req = google.auth.transport.requests.Request()
-                credentials.refresh(auth_req)
-                access_token = credentials.token
+        # Check if an email draft was successfully generated
+        email_draft = ctx.session.state.get("email_draft")
+        if not email_draft or not str(email_draft).strip():
+            logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
+            return
+        
+        # 2. Dispatch the correct tool based on intention
+        email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
+        logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
 
-                # Extract project_id and app_id from the URL
-                url_parts = agentspace_ai_url.split('/')
-                project_id = url_parts[5]
-                app_id = url_parts[11]
-
-                # Combine instructions with the topic for the query
-                combined_query = helpbot_instruction + " " + bodyText
-                logger.info(f"Sending query API - {combined_query}")
-
-                # Construct the payload
-                payload = {
-                    "query": combined_query,
-                    "pageSize": 10,
-                    "queryExpansionSpec": {"condition": "AUTO"},
-                    "spellCorrectionSpec": {"mode": "AUTO"},
-                    "languageCode": "en-US",
-                    "userInfo": {"timeZone": "Europe/London"},
-                    "session": f"projects/{project_id}/locations/eu/collections/default_collection/engines/{app_id}/sessions/-"
-                }
-
-                headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json"
-                }
-
-                # Make the API call
-                response = requests.post(agentspace_ai_url, headers=headers, json=payload)
-                response.raise_for_status() # Raise an exception for bad status codes
-
-                # Process the response to get the draft
-                search_results = response.json()
-                logger.info(f"API Result is - {search_results}")
-                draft_parts = []
-                for result in search_results.get('results', []):
-                    title = result.get('document', {}).get('derivedStructData', {}).get('title')
-                    snippet = result.get('document', {}).get('derivedStructData', {}).get('snippet')
-                    if title and snippet:
-                        draft_parts.append(f"Subject: {title}\n\n{snippet}\n")
-                
-                # Use a simple combination of results as the draft
-                if draft_parts:
-                    email_draft = "\n---\n".join(draft_parts)
-                else:
-                    email_draft = "No relevant information found to create a draft. Please provide more details."
-                
-                # Save the new draft and other placeholder values to the session state
-                ctx.session.state["email_draft"] = email_draft
-                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
-                ctx.session.state["email_review_comments"] = "No further comments."
-                
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Error calling external API: {e}")
-                ctx.session.state["email_draft"] = f"Failed to get email draft from external API: {e}"
-                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
-                ctx.session.state["email_review_comments"] = "No further comments."
-            except Exception as e:
-                logger.error(f"An unexpected error occurred: {e}")
-                ctx.session.state["email_draft"] = f"An unexpected error occurred: {e}"
-                ctx.session.state["email_sentiment_obj"] = {"sentiment": "N/A"}
-                ctx.session.state["email_review_comments"] = "No further comments."
-
-        else:
-            # ii) If the URL isn't specified, use the current LlmAgent method
-            logger.info("AGENTSPACE_AI_URL not specified. Using internal LLM agent.")
-            
-            # 1. Initial Email Generation and Sentiment Analysis
-            logger.debug(f"[{self.name}] Running EmailGenerator...")
-            async for event in self.sequential_agent.run_async(ctx):
-                logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
+        if email_intention == 'Hardware Issue':
+            async for event in HardwareToolAgent(name="HardwareToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Software Issue':
+            async for event in SoftwareToolAgent(name="SoftwareToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Windows IT Issue':
+            async for event in WindowsToolAgent(name="WindowsToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Unix IT Issue':
+            async for event in UnixToolAgent(name="UnixToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Network Issue':
+            async for event in NetworkToolAgent(name="NetworkToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Policy Question':
+            async for event in PolicyToolAgent(name="PolicyToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Customer Account Issue':
+            async for event in CustomerAccountToolAgent(name="CustomerAccountToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'FAQ Request':
+            async for event in FAQToolAgent(name="FAQToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Customer Data Request':
+            async for event in CustomerDataToolAgent(name="CustomerDataToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Customer Payment Request':
+            async for event in CustomerPaymentToolAgent(name="CustomerPaymentToolAgent").run_async(ctx):
+                yield event
+        elif email_intention == 'Other':
+            async for event in OtherToolAgent(name="OtherToolAgent").run_async(ctx):
+                yield event
+        else: # Fallback for 'Generic IT Issue' or any unhandled category
+            async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
                 yield event
 
-            # Check if an email draft was successfully generated
-            email_draft = ctx.session.state.get("email_draft")
-            if not email_draft or not str(email_draft).strip():
-                logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
-                return
-            
-            # 2. Dispatch the correct tool based on intention
-            email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
-            logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
-
-            if email_intention == 'Hardware Issue':
-                async for event in HardwareToolAgent(name="HardwareToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Software Issue':
-                async for event in SoftwareToolAgent(name="SoftwareToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Windows IT Issue':
-                async for event in WindowsToolAgent(name="WindowsToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Unix IT Issue':
-                async for event in UnixToolAgent(name="UnixToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Network Issue':
-                async for event in NetworkToolAgent(name="NetworkToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Policy Question':
-                async for event in PolicyToolAgent(name="PolicyToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Customer Account Issue':
-                async for event in CustomerAccountToolAgent(name="CustomerAccountToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'FAQ Request':
-                async for event in FAQToolAgent(name="FAQToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Customer Data Request':
-                async for event in CustomerDataToolAgent(name="CustomerDataToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Customer Payment Request':
-                async for event in CustomerPaymentToolAgent(name="CustomerPaymentToolAgent").run_async(ctx):
-                    yield event
-            elif email_intention == 'Other':
-                async for event in OtherToolAgent(name="OtherToolAgent").run_async(ctx):
-                    yield event
-            else: # Fallback for 'Generic IT Issue' or any unhandled category
-                async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
-                    yield event
-
-            # 3. Reviewer Loop for continuous revision
-            logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
-            # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
-            async for event in self.loop_agent.run_async(ctx):
-                yield event
-                email_review_comments = ctx.session.state.get("email_review_comments","").strip()
-                # Stop the loop if reviewer says "No further comments"
-                if "No further comments." in email_review_comments:
-                    logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
-                    break
+        # 3. Reviewer Loop for continuous revision
+        logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
+        # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
+        async for event in self.loop_agent.run_async(ctx):
+            yield event
+            email_review_comments = ctx.session.state.get("email_review_comments","").strip()
+            # Stop the loop if reviewer says "No further comments"
+            if "No further comments." in email_review_comments:
+                logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
+                break
 
         # 4. Finalize and return the result
         final_session = ctx.session
