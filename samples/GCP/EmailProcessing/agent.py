@@ -64,76 +64,10 @@ if not PROJECT_ID:
 
 # --- Utility Functions ---
 
-
-def get_session_info(project_id: str, app_id: str, query: str, access_token: str, region: str) -> dict:
+def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> dict:
     """
-    Performs a search query to the Google Discovery Engine API and extracts
-    session information from the response.
-
-    Args:
-        project_id: The Google Cloud project ID.
-        app_id: The Discovery Engine app ID.
-        query: The search query string.
-        access_token: The OAuth 2.0 access token for authentication.
-        region: The Google Cloud region (e.g., 'eu', 'us-central1').
-
-    Returns:
-        A dictionary containing the 'name' and 'queryId' from the
-        sessionInfo block, or an empty dictionary if the request fails.
-    """
-    url = (
-        f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
-        f"{project_id}/locations/{region}/collections/default_collection/engines/"
-        f"{app_id}/servingConfigs/default_search:search"
-    )
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "query": query,
-        "pageSize": 10,
-        "queryExpansionSpec": {"condition": "AUTO"},
-        "spellCorrectionSpec": {"mode": "AUTO"},
-        "languageCode": "en-US"
-    }
-
-    try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        data = response.json()
-
-        session_info = data.get("sessionInfo", {})
-        session_name = session_info.get("name")
-        query_id = session_info.get("queryId")
-
-        if session_name and query_id:
-            return {
-                "name": session_name,
-                "queryId": query_id
-            }
-        else:
-            print("Warning: 'sessionInfo' or its components not found in the response.")
-            return {}
-
-    except requests.exceptions.HTTPError as err:
-        print(f"HTTP error occurred: {err}")
-        print(f"Response body: {response.text}")
-        return {}
-    except requests.exceptions.RequestException as err:
-        print(f"An error occurred: {err}")
-        return {}
-    except (json.JSONDecodeError, KeyError) as err:
-        print(f"Failed to parse JSON response or extract keys: {err}")
-        print(f"Response text: {response.text}")
-        return {}
-
-def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> list:
-    """
-    Performs an answer generation query using session info and extracts
-    the content from each chunk in a single array.
+    Performs an answer generation query and returns a dictionary with the answer
+    text and a list of content chunks.
 
     Args:
         project_id: The Google Cloud project ID.
@@ -145,84 +79,8 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
         region: The Google Cloud region (e.g., 'eu', 'us-central1').
 
     Returns:
-        A list of content strings from the response chunks, or an empty list
-        if the request fails.
-    """
-    url = (
-        f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
-        f"{project_id}/locations/{region}/collections/default_collection/engines/"
-        f"{app_id}/servingConfigs/default_search:answer"
-    )
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "query": {
-            "text": query_text,
-            "queryId": query_id
-        },
-        "session": session_name,
-        "answerGenerationSpec": {
-            "ignoreAdversarialQuery": True,
-            "ignoreNonAnswerSeekingQuery": False,
-            "ignoreLowRelevantContent": True,
-            "includeCitations": True,
-            "modelSpec": {"modelVersion": "stable"}
-        }
-    }
-
-    try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        data = response.json()
-        # Navigate through the JSON to find the references and their content
-        return []
-        answerText = data.get("answer", {}).get("answerText", "")
-        logger.info(f"Answer text: {answerText}")
-        if "A summary could not be generated for your search query" in answerText:
-            return []
-        references = data.get("answer", {}).get("references", [])
-        content_array = []
-        for ref in references:
-            chunk_info = ref.get("chunkInfo", {})
-            content = chunk_info.get("content")
-            if content:
-                content_array.append(content)
-        
-        return content_array
-
-    except requests.exceptions.HTTPError as err:
-        print(f"HTTP error occurred: {err}")
-        print(f"Response body: {response.text}")
-        return []
-    except requests.exceptions.RequestException as err:
-        print(f"An error occurred: {err}")
-        return []
-    except (json.JSONDecodeError, KeyError) as err:
-        print(f"Failed to parse JSON response or extract keys: {err}")
-        print(f"Response text: {response.text}")
-        return []
-
-def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> list:
-    """
-    Performs an answer generation query using session info and extracts
-    the content from each chunk in a single array.
-
-    Args:
-        project_id: The Google Cloud project ID.
-        app_id: The Discovery Engine app ID.
-        query_text: The original search query text.
-        query_id: The query ID from the previous search call.
-        session_name: The session name from the previous search call.
-        access_token: The OAuth 2.0 access token for authentication.
-        region: The Google Cloud region (e.g., 'eu', 'us-central1').
-
-    Returns:
-        A list of content strings from the response chunks, or an empty list
-        if the request fails.
+        A dictionary with 'answerText' and 'contentArray' keys, or an empty
+        dictionary if the request fails or no valid answer is found.
     """
     url = (
         f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
@@ -242,51 +100,54 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
         },
         "session": session_name,
         "relatedQuestionsSpec": {
-            "enable":"true"
+            "enable": "true"
         },
         "answerGenerationSpec": {
-            "ignoreAdversarialQuery":"true",
-            "ignoreNonAnswerSeekingQuery":"false",
-            "ignoreLowRelevantContent":"true",
-            "multimodalSpec":{},
-            "includeCitations":"true",
+            "ignoreAdversarialQuery": "true",
+            "ignoreNonAnswerSeekingQuery": "false",
+            "ignoreLowRelevantContent": "true",
+            "multimodalSpec": {},
+            "includeCitations": "true",
             "modelSpec": {
-                "modelVersion":"stable"
+                "modelVersion": "stable"
             }
         }
     }
 
     try:
+        logger.info("Calling answer generation API...")
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
+        response.raise_for_status()  # This will raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
-        # Navigate through the JSON to find the references and their content
+
+        answer_text = data.get("answer", {}).get("answerText", "")
         references = data.get("answer", {}).get("references", [])
-        answerText = data.get("answer", {}).get("answerText", "")
-        if "A summary could not be generated for your search query" in answerText:
-            return []
         content_array = []
+        
+        # Extract content from each reference
         for ref in references:
             chunk_info = ref.get("chunkInfo", {})
-            if chunk_info is None:
-                continue
-            content = chunk_info.get("content")
-            if content:
-                content_array.append(content)
-        
-        return content_array
+            if chunk_info:
+                content = chunk_info.get("content")
+                if content:
+                    content_array.append(content)
 
-    except requests.exceptions.HTTPError as err:
-        print(f"HTTP error occurred: {err}")
-        print(f"Response body: {response.text}")
-        return []
-    except requests.exceptions.RequestException as err:
-        print(f"An error occurred: {err}")
-        return []
-    except (json.JSONDecodeError, KeyError) as err:
-        print(f"Failed to parse JSON response or extract keys: {err}")
-        print(f"Response text: {response.text}")
-        return []
+        # Handle case where no summary could be generated
+        if "A summary could not be generated for your search query" in answer_text:
+            logger.warning("- No valid answer could be generated for the query.")
+            return {"answerText": "", "contentArray": []}
+
+        return {
+            "answerText": answer_text,
+            "contentArray": content_array
+        }
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API request failed: {e}")
+        return {"answerText": "", "contentArray": []}
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Failed to parse JSON response or extract keys: {e}")
+        return {"answerText": "", "contentArray": []}
 
 # --- Function to Call External API ---
 def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
@@ -304,7 +165,8 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
     # of calling the AgentSpace AI URL and processing the response.
     try:
         # Get a new access token
-        logger.info("Refreshing access token...")
+        logger.info("Calling session generation API...")
+        logger.info("- Refreshing access token...")
         credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
         auth_req = google.auth.transport.requests.Request()
         credentials.refresh(auth_req)
@@ -318,7 +180,7 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
 
         # Combine instructions with the topic for the query
         combined_query = "" + " " + bodyText
-        logger.info(f"Sending query API - {combined_query}")
+        logger.info(f"- Sending query API - {combined_query}")
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -344,10 +206,12 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
         query_id = session_info.get("queryId")
 
         if session_name and query_id:
-            draft_response_array = get_answer_content(project_id, app_id, combined_query, 
+            draft_response_json = get_answer_content(project_id, app_id, combined_query, 
                                                       query_id, session_name, access_token, 
                                                       region)
-            return draft_response_array
+            draft_response_array = draft_response_json.get("contentArray", [])
+            draft_answer_text = draft_response_json.get("answerText", "")
+            return draft_answer_text
         else:
             print("Warning: 'sessionInfo' or its components not found in the response.")
             return {}
@@ -359,68 +223,129 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
         logger.error(f"An unexpected error occurred: {e}")
         raise RuntimeError(f"Error calling external API: {e}")
     
+def get_agentspace_draft_response(ctx: InvocationContext) -> str:
+    """
+    Calls the AgentSpace AI URL with the topic from the context and returns the draft response.
+    Args:
+        ctx: The invocation context containing session state.
+        Returns:
+        The draft response generated by the AgentSpace AI.
+    """
+    try:            
+        agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
+        bodyText = ctx.session.state.get("topic", "No topic provided.")
+        if agentspace_ai_url and bodyText:
+            draft_response = run_agentspace_url_query(agentspace_ai_url, bodyText)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            return draft_response
+        return ""
+    except Exception as e:
+        logger.error(f"Exception in get_agentspace_draft_response: {e}")
+        return ""
+        
 # --- Placeholder Tool Agents ---
 # These agents would contain the logic for calling a specific tool
 class HardwareToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[HardwareToolAgent] Simulating calling hardware support tool...")
-        ctx.session.state["tool_result"] = "Hardware support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Hardware support tool was called.")]))
-            
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in HardwareToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+
 class SoftwareToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[SoftwareToolAgent] Simulating calling software support tool...")
-        ctx.session.state["tool_result"] = "Software support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Software support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in SoftwareToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class GenericITToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[GenericITToolAgent] Simulating calling generic IT support tool...")
-        ctx.session.state["tool_result"] = "Generic IT support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Generic IT support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in GenericITToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class WindowsToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[WindowsToolAgent] Simulating calling Windows IT support tool...")
-        ctx.session.state["tool_result"] = "Windows IT support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Windows IT support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in WindowsToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class UnixToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[UnixToolAgent] Simulating calling Unix IT support tool...")
-        ctx.session.state["tool_result"] = "Unix IT support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Unix IT support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in UnixToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class NetworkToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[NetworkToolAgent] Simulating calling network support tool...")
-        ctx.session.state["tool_result"] = "Network support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Network support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in NetworkToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class PolicyToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         logger.info("[PolicyToolAgent] Simulating calling policy support tool...")
         try:
-            agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
-            bodyText = ctx.session.state.get("topic", "No topic provided.")
-            if agentspace_ai_url and bodyText:
-                draft_response = run_agentspace_url_query(agentspace_ai_url, bodyText)
-                if isinstance(draft_response, list):
-                    draft_response = "\n\n".join(draft_response)
-                ctx.session.state["tool_result"] = draft_response
-                yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-            else:
-                error_msg = "AGENTSPACE_AI_URL or topic is not set."
-                logger.error(error_msg)
-                ctx.session.state["tool_result"] = error_msg
-                yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in PolicyToolAgent: {e}"
             logger.error(error_msg)
@@ -430,37 +355,77 @@ class PolicyToolAgent(BaseAgent):
 class CustomerAccountToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[CustomerAccountToolAgent] Simulating calling customer account support tool...")
-        ctx.session.state["tool_result"] = "Customer account support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer account support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in CustomerAccountToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class FAQToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[FAQToolAgent] Simulating calling FAQ support tool...")
-        ctx.session.state["tool_result"] = "FAQ support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="FAQ support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in FAQToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class CustomerDataToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[CustomerDataToolAgent] Simulating calling customer data support tool...")
-        ctx.session.state["tool_result"] = "Customer data support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer data support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in CustomerDataToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class CustomerPaymentToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[CustomerPaymentToolAgent] Simulating calling customer payment support tool...")
-        ctx.session.state["tool_result"] = "Customer payment support tool was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="Customer payment support tool was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in CustomerPaymentToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class OtherToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[OtherToolAgent] Simulating calling a general tool for other issues...")
-        ctx.session.state["tool_result"] = "A general tool for other issues was called."
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text="A general tool for other issues was called.")]))
+        try:
+            draft_response = get_agentspace_draft_response(ctx)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            ctx.session.state["tool_result"] = draft_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
+        except Exception as e:
+            error_msg = f"Exception in OtherToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 # --- Custom Orchestrator Agent ---
 class CustomEmailProcessorAgent(BaseAgent):
@@ -603,20 +568,6 @@ class CustomEmailProcessorAgent(BaseAgent):
         else:
             logging.warning("Could not extract user text for topic.")
 
-         
-        # 1. Initial Email Generation and Sentiment Analysis
-        logger.debug(f"[{self.name}] Running EmailGenerator...")
-        async for event in self.sequential_agent.run_async(ctx):
-            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
-            yield event
-
-        # Check if an email draft was successfully generated
-        email_draft = ctx.session.state.get("email_draft")
-        if not email_draft or not str(email_draft).strip():
-            logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
-            return
-        
-        # 2. Dispatch the correct tool based on intention
         email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
         logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
 
@@ -657,6 +608,17 @@ class CustomEmailProcessorAgent(BaseAgent):
             async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
                 yield event
 
+        logger.debug(f"[{self.name}] Running EmailGenerator...")
+        async for event in self.sequential_agent.run_async(ctx):
+            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
+            yield event
+
+        # Check if an email draft was successfully generated
+        email_draft = ctx.session.state.get("email_draft")
+        if not email_draft or not str(email_draft).strip():
+            logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
+            return
+        
         # 3. Reviewer Loop for continuous revision
         logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
         # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
@@ -711,7 +673,7 @@ helpbot_instruction = (
     "You are HelpBot, an automated IT helpdesk email chatbot for a corporate IT support desk. "
     "You know common IT problems with Windows and Linux. "
     "Respond professionally and empathetically in email format for semi-IT literate users. "
-    "Limit responses to IT topics only. "
+    "Limit responses to IT, HR, FAQ and policy topics only. "
     "Be truthful, never lie or make up facts; if unsure, explain why. "
     "Cite references when possible. "
     "Request further info with clear steps if needed. "
@@ -752,6 +714,7 @@ emailGenerator = LlmAgent(
     instruction=helpbot_instruction + (
         " Generate the complete email draft for the following customer inquiry: {{topic}}. "
         "The original email was from {{from_email_address}} with the subject '{{subject}}'."
+        "Use the tool result if available: {{tool_result}} to help inform your response. "
         "Provide ONLY the email content, with no introductory or concluding remarks."
     ),
     input_schema=None,
