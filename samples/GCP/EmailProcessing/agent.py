@@ -243,14 +243,15 @@ def get_agentspace_draft_response(ctx: InvocationContext) -> str:
     except Exception as e:
         logger.error(f"Exception in get_agentspace_draft_response: {e}")
         return ""
-        
+
 # --- Placeholder Tool Agents ---
 # These agents would contain the logic for calling a specific tool
 class HardwareToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -265,7 +266,8 @@ class SoftwareToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -280,7 +282,8 @@ class GenericITToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -295,7 +298,8 @@ class WindowsToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -310,7 +314,8 @@ class UnixToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -325,7 +330,8 @@ class NetworkToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -341,7 +347,8 @@ class PolicyToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         logger.info("[PolicyToolAgent] Simulating calling policy support tool...")
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -356,7 +363,8 @@ class CustomerAccountToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -371,7 +379,8 @@ class FAQToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -386,7 +395,8 @@ class CustomerDataToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -401,7 +411,8 @@ class CustomerPaymentToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -416,7 +427,8 @@ class OtherToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            draft_response = get_agentspace_draft_response(ctx)
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
@@ -439,6 +451,7 @@ class CustomEmailProcessorAgent(BaseAgent):
      4. Finalizes the draft for a human to review.
     """
     # --- Field Declarations for Pydantic ---
+    queryRewriter: LlmAgent
     sentimentReviewer: LlmAgent
     emailGenerator: LlmAgent
     emailReviewer: LlmAgent
@@ -452,6 +465,7 @@ class CustomEmailProcessorAgent(BaseAgent):
     def __init__(
         self,
         name: str,
+        queryRewriter: LlmAgent,
         sentimentReviewer: LlmAgent,
         emailGenerator: LlmAgent,
         emailReviewer: LlmAgent,
@@ -462,6 +476,7 @@ class CustomEmailProcessorAgent(BaseAgent):
 
         Args:
             name: The name of the agent.
+            queryRewriter: The agent for rewriting the query.
             sentimentReviewer: The agent for sentiment analysis.
             emailGenerator: The agent for generating the initial email draft.
             emailReviewer: The agent for reviewing the email draft.
@@ -488,6 +503,7 @@ class CustomEmailProcessorAgent(BaseAgent):
         # Call the parent class's constructor with all sub-agents
         super().__init__(
             name=name,
+            queryRewriter=queryRewriter,
             sentimentReviewer=sentimentReviewer,
             emailGenerator=emailGenerator,
             emailReviewer=emailReviewer,
@@ -567,6 +583,16 @@ class CustomEmailProcessorAgent(BaseAgent):
                 logger.debug(f"Saved plain text topic to session state: {user_message_text}")
         else:
             logging.warning("Could not extract user text for topic.")
+        
+        original_query = bodyText
+        
+        # Run the query rewriter first to ensure the rewritten query is available
+        async for event in self.queryRewriter.run_async(ctx):
+            yield event
+
+        rewritten_query = ctx.session.state.get("rewritten_query", original_query)
+        logger.info(f"- Original Query: '{original_query}'")
+        logger.info(f"- Rewritten Query: '{rewritten_query}'")
 
         email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
         logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
@@ -703,7 +729,21 @@ sentiment_instruction = (
     "Do not output anything else."
 )
 
+query_rewriter_instruction = (
+    "You are an expert on Agentspace AI apps. "
+    "Your role is to ensure Agentspace AI apps RESTful API will return a relevant answer. "
+    "Rewrite the following text - {{topic}} - into a direct, succinct question that an AI knowledge base can easily answer. "
+    "The question should begin with 'what' or a similar interrogative. Return only the rephrased question."
+)
+
 # --- Define the individual LLM agents ---
+queryRewriter = LlmAgent(
+    name="QueryRewriter",
+    model=MODEL,
+    instruction=query_rewriter_instruction,
+    output_key="rewritten_query"
+)
+
 emailGenerator = LlmAgent(
     name="EmailGenerator",
     model=MODEL,
@@ -765,6 +805,7 @@ sentimentReviewer = LlmAgent(
 # --- Create the custom agent instance ---
 root_agent = CustomEmailProcessorAgent(
     name="CustomEmailProcessorAgent",
+    queryRewriter=queryRewriter,
     sentimentReviewer=sentimentReviewer,
     emailGenerator=emailGenerator,
     emailReviewer=emailReviewer,
