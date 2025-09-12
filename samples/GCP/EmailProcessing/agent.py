@@ -134,7 +134,7 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
 
         # Handle case where no summary could be generated
         if "A summary could not be generated for your search query" in answer_text:
-            logger.warning("- No valid answer could be generated for the query.")
+            logger.info("- No valid answer could be generated for the query.")
             return {"answerText": "", "contentArray": []}
 
         return {
@@ -423,6 +423,40 @@ class CustomerPaymentToolAgent(BaseAgent):
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
+class CustomerMeterToolAgent(BaseAgent):
+    """
+    Agent for handling customer meter-related requests.
+    Includes a method to add a custom acknowledgement to the response.
+    """
+    def _add_meter_update_acknowledgement(self, draft_response: str) -> str:
+        """
+        Adds a custom acknowledgement message to the end of the draft response.
+        This can be a template for other specific customizations.
+        """
+        acknowledgement_text = "\n\nNote: A meter update has been applied to the customer's record."
+        return draft_response + acknowledgement_text
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        try:
+            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
+            
+            # Call the Agentspace AI URL to get the initial draft
+            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            if isinstance(draft_response, list):
+                draft_response = "\n\n".join(draft_response)
+            
+            # Call the new method to add the custom acknowledgement
+            customized_response = self._add_meter_update_acknowledgement(draft_response)
+ 
+            ctx.session.state["tool_result"] = customized_response
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=customized_response)]))
+        except Exception as e:
+            error_msg = f"Exception in CustomerMeterToolAgent: {e}"
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+
 class OtherToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
@@ -484,7 +518,7 @@ class CustomEmailProcessorAgent(BaseAgent):
         """
         # A sequential agent to perform the initial sentiment analysis and email generation
         sequential_agent = SequentialAgent(
-            name="GenerateEmail", sub_agents=[sentimentReviewer, emailGenerator]
+            name="GenerateEmail", sub_agents=[sentimentReviewer, queryRewriter]
         )
         # A sequential agent for the review and revise loop
         revision_agent = SequentialAgent(
@@ -586,8 +620,9 @@ class CustomEmailProcessorAgent(BaseAgent):
         
         original_query = bodyText
         
-        # Run the query rewriter first to ensure the rewritten query is available
-        async for event in self.queryRewriter.run_async(ctx):
+        # Run the sentiment analysis and query rewriter
+        async for event in self.sequential_agent.run_async(ctx):
+            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event
 
         rewritten_query = ctx.session.state.get("rewritten_query", original_query)
@@ -627,6 +662,9 @@ class CustomEmailProcessorAgent(BaseAgent):
         elif email_intention == 'Customer Payment Request':
             async for event in CustomerPaymentToolAgent(name="CustomerPaymentToolAgent").run_async(ctx):
                 yield event
+        elif email_intention == 'Customer Meter Request':
+            async for event in CustomerMeterToolAgent(name="CustomerMeterToolAgent").run_async(ctx):
+                yield event
         elif email_intention == 'Other':
             async for event in OtherToolAgent(name="OtherToolAgent").run_async(ctx):
                 yield event
@@ -635,8 +673,7 @@ class CustomEmailProcessorAgent(BaseAgent):
                 yield event
 
         logger.debug(f"[{self.name}] Running EmailGenerator...")
-        async for event in self.sequential_agent.run_async(ctx):
-            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
+        async for event in self.emailGenerator.run_async(ctx):
             yield event
 
         # Check if an email draft was successfully generated
@@ -708,7 +745,7 @@ helpbot_instruction = (
     "You are HelpBot, an automated IT helpdesk email chatbot for a corporate IT support desk. "
     "You know common IT problems with Windows and Linux. "
     "Respond professionally and empathetically in email format for semi-IT literate users. "
-    "Limit responses to IT, HR, FAQ and policy topics only. "
+    "Limit responses to IT, HR, FAQ, Customer issues, Customer meter updates and policy topics only. "
     "Be truthful, never lie or make up facts; if unsure, explain why. "
     "Cite references when possible. "
     "Request further info with clear steps if needed. "
@@ -736,7 +773,8 @@ sentiment_instruction = (
     "1. A single sentiment label as specified in the schema. "
     "2. A single action statement about what the action is this email needs to result in doing. You will need to catagorize the intention. "
     "   into the following categories: 'Generic IT Issue', ''Windows IT Issue', 'Unix IT Issue', 'Hardware Issue', 'Software Issue', 'Network Issue', "
-    "   'Policy Question', 'Customer Account Issue', 'FAQ Request', 'Customer Data Request', 'Customer Payment Request, 'Other'. "
+    "   'Policy Question', 'Customer Account Issue', 'FAQ Request', 'Customer Data Request', 'Customer Payment Request', "
+    "   'Customer Meter Request', 'Other'. "
     "3. A single urgency label for the email, depending on if it is clearly urgent or high priority. Categories are 'Low', 'Medium', 'High', or 'Critical'. "
     "   If not clearly specified, return 'Normal'. "
     "Format your response as a JSON object matching the EmailSentiment schema. "
