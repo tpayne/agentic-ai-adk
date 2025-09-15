@@ -439,16 +439,36 @@ class CustomerMeterToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            
-            # Call the Agentspace AI URL to get the initial draft
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            
-            # Call the new method to add the custom acknowledgement
-            customized_response = self._add_meter_update_acknowledgement(draft_response)
- 
+            customized_response = ""
+            logger.info("[CustomerMeterToolAgent] Simulating calling customer meter tool...")
+            # Check if an email draft was successfully generated
+            customer_name = ctx.session.state.get("email_parser_obj",{}).get("customer_name","unknown")
+            customer_id = ctx.session.state.get("email_parser_obj",{}).get("customer_id","unknown")
+            date_range = ctx.session.state.get("email_parser_obj",{}).get("date_range","unknown")
+            meter_reading = ctx.session.state.get("email_parser_obj",{}).get("meter_reading","unknown")
+            logger.info(" - Checking user input...")
+            if customer_name == "unknown" or \
+               customer_id == "unknown" or \
+               meter_reading == "unknown" or \
+               date_range == "unknown":
+                logger.info(f" - User input is missing {customer_name}, {customer_id}, {date_range}, {meter_reading}...")
+                customized_response = "You have not specified all the required customer name, id, meter reading or date range details"
+            else:
+                logger.info(f" - User input is {customer_name}, {customer_id}, {date_range}, {meter_reading}...")
+                logger.info(" - Checking customer details...")                                      
+                rewritten_query = f"Is there a customer with the customer_id {customer_id}?"
+                # Call the Agentspace AI URL to get the initial draft
+                draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+                if isinstance(draft_response, list):
+                    draft_response = "\n\n".join(draft_response)
+                
+                if "yes" in draft_response.lower():
+                    # Call the new method to add the custom acknowledgement
+                    draft_response = "The customer exists in the system"
+                    customized_response = self._add_meter_update_acknowledgement(draft_response)
+                else:
+                    customized_response = "The customer specified does not exist in the system"
+
             ctx.session.state["tool_result"] = customized_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=customized_response)]))
         except Exception as e:
@@ -487,6 +507,7 @@ class CustomEmailProcessorAgent(BaseAgent):
     # --- Field Declarations for Pydantic ---
     queryRewriter: LlmAgent
     sentimentReviewer: LlmAgent
+    emailParser: LlmAgent
     emailGenerator: LlmAgent
     emailReviewer: LlmAgent
     emailReviser: LlmAgent # New agent for revising the email
@@ -501,6 +522,7 @@ class CustomEmailProcessorAgent(BaseAgent):
         name: str,
         queryRewriter: LlmAgent,
         sentimentReviewer: LlmAgent,
+        emailParser: LlmAgent,
         emailGenerator: LlmAgent,
         emailReviewer: LlmAgent,
         emailReviser: LlmAgent,
@@ -512,13 +534,14 @@ class CustomEmailProcessorAgent(BaseAgent):
             name: The name of the agent.
             queryRewriter: The agent for rewriting the query.
             sentimentReviewer: The agent for sentiment analysis.
+            emailParser: The agent for parsing email details
             emailGenerator: The agent for generating the initial email draft.
             emailReviewer: The agent for reviewing the email draft.
             emailReviser: The agent for revising the email based on feedback.
         """
         # A sequential agent to perform the initial sentiment analysis and email generation
         sequential_agent = SequentialAgent(
-            name="GenerateEmail", sub_agents=[sentimentReviewer, queryRewriter]
+            name="GenerateEmail", sub_agents=[sentimentReviewer, emailParser, queryRewriter]
         )
         # A sequential agent for the review and revise loop
         revision_agent = SequentialAgent(
@@ -539,6 +562,7 @@ class CustomEmailProcessorAgent(BaseAgent):
             name=name,
             queryRewriter=queryRewriter,
             sentimentReviewer=sentimentReviewer,
+            emailParser=emailParser,
             emailGenerator=emailGenerator,
             emailReviewer=emailReviewer,
             emailReviser=emailReviser,
@@ -740,6 +764,13 @@ class EmailSentiment(BaseModel):
     intention: str = Field(description="The single action statement about what the action is this email needs to result in doing.")
     urgency:   str = Field(description="Optional urgency level of the email.")
 
+class EmailParser(BaseModel):
+    """Pydantic model for structured parser output from the LLM."""
+    customer_name: str = Field(description="The customer name.")
+    customer_id: str = Field(description="The customer id.")
+    date_range:   str = Field(description="The date range.")
+    meter_reading: str = Field(description="The meter reading.")
+
 # --- LLM Agent Instructions ---
 helpbot_instruction = (
     "You are HelpBot, an automated IT helpdesk email chatbot for a corporate IT support desk. "
@@ -786,6 +817,20 @@ query_rewriter_instruction = (
     "Your role is to ensure Agentspace AI apps RESTful API will return a relevant answer. "
     "Rewrite the following text - {{topic}} - into a direct, succinct question that an AI knowledge base can easily answer. "
     "The question should begin with 'what' or a similar interrogative. Return only the rephrased question."
+)
+
+parser_instruction = (
+    "You are an expert in analyzing email contents. Review the email provided: {{topic}}. "
+    "Output ONLY the following: "
+    "1. A single customer name as specified in the schema. "
+    "2. A single customer id as specified in the schema."
+    "3. A date range for an account as specified in the schema. This must have a start date and an end date. "
+    "   If only one is specified, use the same date for start and end. "
+    "   If not specified, return 'unknown'. "
+    "4. A single meter reading as specified in the schema. "
+    "Format your response as a JSON object matching the EmailParser schema. "
+    "If not specified, return 'unknown'. "
+    "Do not output anything else."
 )
 
 # --- Define the individual LLM agents ---
@@ -854,14 +899,28 @@ sentimentReviewer = LlmAgent(
     output_key="email_sentiment_obj",
 )
 
+emailParser = LlmAgent(
+    name="EmailParser",
+    model=MODEL,
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.8,
+        top_p=1,
+    ),
+    instruction=parser_instruction,
+    input_schema=None,
+    output_schema=EmailParser,
+    output_key="email_parser_obj",
+)
+
 # --- Create the custom agent instance ---
 root_agent = CustomEmailProcessorAgent(
     name="CustomEmailProcessorAgent",
     queryRewriter=queryRewriter,
     sentimentReviewer=sentimentReviewer,
+    emailParser=emailParser, # Pass the new agent here
     emailGenerator=emailGenerator,
     emailReviewer=emailReviewer,
-    emailReviser=emailReviser, # Pass the new agent here
+    emailReviser=emailReviser,
 )
 
 # --- Main Execution Block for a local, working example ---
