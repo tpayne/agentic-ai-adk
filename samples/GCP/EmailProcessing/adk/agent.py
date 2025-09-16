@@ -16,6 +16,7 @@ from google.genai import types
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.adk.events import Event
+from google.adk.sessions import VertexAiSessionService
 
 from pydantic import BaseModel, Field, ValidationError
 import sys
