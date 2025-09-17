@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 *.py[codz]
 *$py.class
+**/app.properties
 
 # Apple files
 .DS_Store/

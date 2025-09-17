@@ -17,4 +17,6 @@ ARG account=emailuser
 RUN addgroup --system ${account} && adduser ${account} --system
 RUN adduser ${account} ${account} 
 
+EXPOSE 8080 5000
+
 CMD ["python3","-m","adk.adkCloudRunService"]

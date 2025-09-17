@@ -9,7 +9,6 @@ import google.auth
 from typing import AsyncGenerator
 from typing_extensions import override
 
-from dotenv import load_dotenv
 from google.adk.agents import LlmAgent, BaseAgent, LoopAgent, SequentialAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types
@@ -19,49 +18,16 @@ from google.adk.events import Event
 from google.adk.sessions import VertexAiSessionService
 
 from pydantic import BaseModel, Field, ValidationError
+
+from . import utils
+from .utils import load_properties, getValue
+
 import sys
 
 # --- Constants ---
 # The application name for ADK. This should be unique to your application.
 APP_NAME = "email_processing_app"
-
-# ---- Load .env ----
-load_dotenv()
-
-# --- Configure Logging ---
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
-# Suppress the specific ADK warning about output_schema and agent transfers
-logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
-# Get log level from environment variable, default to WARNING
-LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
-if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-    LOGLEVEL = "WARNING"
-logger.setLevel(LOGLEVEL)
-
-# ---- Credentials ----
-# Determine if authentication is required based on environment variables
-AUTH_REQUIRED = os.getenv("GCP_LOGIN", "FALSE").upper() == "TRUE"
-if AUTH_REQUIRED:
-    SA_JSON = os.getenv("SA_JSON_FILE")
-    if SA_JSON and os.path.exists(SA_JSON):
-        credentials, _ = google.auth.load_credentials_from_file(SA_JSON)
-        logging.debug("Loaded service-account credentials from JSON.")
-    else:
-        credentials, _ = google.auth.default()
-        logging.debug("Using Application Default Credentials.")
-else:
-    credentials = None
-    logging.debug("Authentication not required, proceeding without credentials.")
-
-# --- Environment Variables ---
-# Get project ID and location, with fallbacks
-PROJECT_ID = os.getenv("PROJECT_ID") if os.getenv("PROJECT_ID") else os.getenv("GOOGLE_CLOUD_PROJECT")
-LOCATION   = os.getenv("LOCATION")  if os.getenv("LOCATION") else os.getenv("GOOGLE_CLOUD_LOCATION")
-MODEL      = os.getenv("MODEL", "gemini-2.0-flash")
-
-if not PROJECT_ID:
-    raise RuntimeError("PROJECT_ID environment variable is required")
+MODEL="gemini-2.0-flash"
 
 # --- Utility Functions ---
 
@@ -116,7 +82,6 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
     }
 
     try:
-        logger.info("Calling answer generation API...")
         response = requests.post(url, headers=headers, data=json.dumps(payload))
         response.raise_for_status()  # This will raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
@@ -135,7 +100,6 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
 
         # Handle case where no summary could be generated
         if "A summary could not be generated for your search query" in answer_text:
-            logger.info("- No valid answer could be generated for the query.")
             return {"answerText": "", "contentArray": []}
 
         return {
@@ -144,10 +108,8 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
         }
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"API request failed: {e}")
         return {"answerText": "", "contentArray": []}
     except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"Failed to parse JSON response or extract keys: {e}")
         return {"answerText": "", "contentArray": []}
 
 # --- Function to Call External API ---
@@ -166,8 +128,21 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
     # of calling the AgentSpace AI URL and processing the response.
     try:
         # Get a new access token
-        logger.info("Calling session generation API...")
-        logger.info("- Refreshing access token...")
+        # ---- Credentials ----
+        # Determine if authentication is required based on environment variables
+        auth_required = getValue("debug")
+        isAuth = bool(auth_required == "true") if auth_required is not None else False
+        if isAuth:
+            print("Authentication is required.")
+            sa_json_file = utils.getValue("sa_json_file")
+            if sa_json_file and os.path.exists(sa_json_file):
+                credentials, _ = google.auth.load_credentials_from_file(sa_json_file)
+            else:
+                credentials, _ = google.auth.default()
+        else:
+            print("Authentication is not required.")
+            credentials = None 
+
         credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
         auth_req = google.auth.transport.requests.Request()
         credentials.refresh(auth_req)
@@ -181,7 +156,6 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
 
         # Combine instructions with the topic for the query
         combined_query = "" + " " + bodyText
-        logger.info(f"- Sending query API - {combined_query}")
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -214,14 +188,11 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
             draft_answer_text = draft_response_json.get("answerText", "")
             return draft_answer_text
         else:
-            print("Warning: 'sessionInfo' or its components not found in the response.")
             return {}
         
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling external API: {e}")
         raise RuntimeError(f"Error calling external API: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
         raise RuntimeError(f"Error calling external API: {e}")
     
 def get_agentspace_draft_response(ctx: InvocationContext) -> str:
@@ -233,7 +204,7 @@ def get_agentspace_draft_response(ctx: InvocationContext) -> str:
         The draft response generated by the AgentSpace AI.
     """
     try:            
-        agentspace_ai_url = os.getenv("AGENTSPACE_AI_URL")
+        agentspace_ai_url = utils.getValue("AGENTSPACE_AI_URL")
         bodyText = ctx.session.state.get("topic", "No topic provided.")
         if agentspace_ai_url and bodyText:
             draft_response = run_agentspace_url_query(agentspace_ai_url, bodyText)
@@ -242,7 +213,6 @@ def get_agentspace_draft_response(ctx: InvocationContext) -> str:
             return draft_response
         return ""
     except Exception as e:
-        logger.error(f"Exception in get_agentspace_draft_response: {e}")
         return ""
 
 # --- Placeholder Tool Agents ---
@@ -252,14 +222,13 @@ class HardwareToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in HardwareToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -268,14 +237,13 @@ class SoftwareToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in SoftwareToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -284,14 +252,13 @@ class GenericITToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in GenericITToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -300,14 +267,13 @@ class WindowsToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in WindowsToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -316,14 +282,13 @@ class UnixToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in UnixToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -332,31 +297,28 @@ class NetworkToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in NetworkToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
 class PolicyToolAgent(BaseAgent):
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        logger.info("[PolicyToolAgent] Simulating calling policy support tool...")
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in PolicyToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -365,14 +327,13 @@ class CustomerAccountToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerAccountToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -381,14 +342,13 @@ class FAQToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in FAQToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -397,14 +357,13 @@ class CustomerDataToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerDataToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -413,14 +372,13 @@ class CustomerPaymentToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerPaymentToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -441,25 +399,20 @@ class CustomerMeterToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             customized_response = ""
-            logger.info("[CustomerMeterToolAgent] Simulating calling customer meter tool...")
             # Check if an email draft was successfully generated
             customer_name = ctx.session.state.get("email_parser_obj",{}).get("customer_name","unknown")
             customer_id = ctx.session.state.get("email_parser_obj",{}).get("customer_id","unknown")
             date_range = ctx.session.state.get("email_parser_obj",{}).get("date_range","unknown")
             meter_reading = ctx.session.state.get("email_parser_obj",{}).get("meter_reading","unknown")
-            logger.info(" - Checking user input...")
             if customer_name == "unknown" or \
                customer_id == "unknown" or \
                meter_reading == "unknown" or \
                date_range == "unknown":
-                logger.info(f" - User input is missing {customer_name}, {customer_id}, {date_range}, {meter_reading}...")
                 customized_response = "You have not specified all the required customer name, id, meter reading or date range details"
             else:
-                logger.info(f" - User input is {customer_name}, {customer_id}, {date_range}, {meter_reading}...")
-                logger.info(" - Checking customer details...")                                      
                 rewritten_query = f"Is there a customer with the customer_id {customer_id}?"
                 # Call the Agentspace AI URL to get the initial draft
-                draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+                draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
                 if isinstance(draft_response, list):
                     draft_response = "\n\n".join(draft_response)
                 
@@ -474,7 +427,6 @@ class CustomerMeterToolAgent(BaseAgent):
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=customized_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerMeterToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -483,14 +435,13 @@ class OtherToolAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(os.getenv("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in OtherToolAgent: {e}"
-            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -607,7 +558,6 @@ class CustomEmailProcessorAgent(BaseAgent):
         Yields:
             Event: An event representing a step in the agent's workflow.
         """
-        logger.debug(f"[{self.name}] Starting email generation workflow.")
 
         # Set default values for optional email context fields to prevent KeyErrors later
         ctx.session.state.setdefault("from_email_address", "a customer")
@@ -635,27 +585,18 @@ class CustomEmailProcessorAgent(BaseAgent):
                 user_input_topic = email_context.body
                 bodyText = email_context.body
                 ctx.session.state["topic"] = user_input_topic
-                logger.debug("Saved JSON email context to session state.")
             except (json.JSONDecodeError, ValidationError):
                 ctx.session.state["topic"] = user_message_text
                 bodyText = user_message_text
-                logger.debug(f"Saved plain text topic to session state: {user_message_text}")
-        else:
-            logging.warning("Could not extract user text for topic.")
         
         original_query = bodyText
         
         # Run the sentiment analysis and query rewriter
         async for event in self.sequential_agent.run_async(ctx):
-            logger.debug(f"[{self.name}] Event from EmailGenerator: {event.model_dump_json(indent=2, exclude_none=True)}")
             yield event
 
         rewritten_query = ctx.session.state.get("rewritten_query", original_query)
-        logger.info(f"- Original Query: '{original_query}'")
-        logger.info(f"- Rewritten Query: '{rewritten_query}'")
-
         email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
-        logger.debug(f"[{self.name}] Email intention detected: {email_intention}. Dispatching tool...")
 
         if email_intention == 'Hardware Issue':
             async for event in HardwareToolAgent(name="HardwareToolAgent").run_async(ctx):
@@ -697,25 +638,21 @@ class CustomEmailProcessorAgent(BaseAgent):
             async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
                 yield event
 
-        logger.debug(f"[{self.name}] Running EmailGenerator...")
         async for event in self.emailGenerator.run_async(ctx):
             yield event
 
         # Check if an email draft was successfully generated
         email_draft = ctx.session.state.get("email_draft")
         if not email_draft or not str(email_draft).strip():
-            logger.error(f"[{self.name}] Failed to generate initial email. Aborting workflow.")
             return
         
         # 3. Reviewer Loop for continuous revision
-        logger.debug(f"[{self.name}] Running Reviewer and Reviser loop...")
         # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
         async for event in self.loop_agent.run_async(ctx):
             yield event
             email_review_comments = ctx.session.state.get("email_review_comments","").strip()
             # Stop the loop if reviewer says "No further comments"
             if "No further comments." in email_review_comments:
-                logger.debug(f"[{self.name}] Reviewer indicated completion. Stopping review loop.")
                 break
 
         # 4. Finalize and return the result
@@ -748,7 +685,6 @@ class CustomEmailProcessorAgent(BaseAgent):
             content=final_content,
         )
 
-        logger.debug(f"[{self.name}] Workflow finished.")
         return
 
 # --- Pydantic Schemas for structured input/output ---
@@ -937,7 +873,6 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
                                                    session_id=session_id,
                                                    state=INITIAL_STATE)
 
-    logger.debug(f"Initial session state: {session.state}")
     runner = Runner(
         agent=root_agent, # Pass the custom orchestrator agent
         app_name=APP_NAME,
@@ -946,12 +881,13 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
     return session_service, runner
 
 # --- Function to Interact with the Agent ---
-async def call_agent_async(user_input_topic: str):
+async def call_agent_async(user_input_topic: str, logger: logging.Logger):
     """
     Sends a new topic to the agent and runs the workflow.
     
     Args:
         user_input_topic: The user's input, which can be a JSON string or plain text.
+        logger: The logger object to use for logging.
     """
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
@@ -962,11 +898,9 @@ async def call_agent_async(user_input_topic: str):
                                                   user_id=user_id,
                                                   session_id=session_id)
     if not current_session:
-        logger.error("Session not found!")
         return
 
     current_session.state["topic"] = user_input_topic
-    logger.debug(f"Updated session state topic to: {user_input_topic}")
 
     content = types.Content(
         role='user',
@@ -980,30 +914,7 @@ async def call_agent_async(user_input_topic: str):
     final_response = "No final response captured."
     async for event in events:
         if event.is_final_response() and event.content and event.content.parts:
-            logger.debug(f"Potential final response from [{event.author}]: {event.content.parts[0].text}")
             final_response = event.content.parts[0].text
     
     # Return the captured final response directly
     return final_response
-
-# --- Main Execution Block for a local, working example ---
-if __name__ == "__main__":
-    # Example for JSON input
-    json_message = json.dumps({
-        "fromEmailAddress": "johndoe@example.com",
-        "subject": "Urgent: My laptop is not turning on",
-        "body": "Hi, my laptop is not turning on. I've tried charging it and pressing the power button multiple times."
-    }, indent=2)
-
-    # Example for plain string input for a software issue
-    string_message_software = "My web browser keeps crashing when I open a new tab."
-
-    # Example for plain string input for a hardware issue
-    string_message_hardware = "My mouse isn't working at all."
-
-    # Choose which message to run based on command-line argument
-    # Default to the JSON message if no argument is provided
-    user_message = sys.argv[1] if len(sys.argv) > 1 else json_message
-
-    final_state_json = asyncio.run(call_agent_async(user_message))
-    print(final_state_json)

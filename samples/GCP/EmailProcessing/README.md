@@ -1,7 +1,9 @@
 # Email Processing Sample
+
 This sample code demonstrates how to use the Agentic Development Kit (ADK) to process emails using Google Cloud Platform (GCP) services. The code includes functionalities for reading, processing, and responding to emails using AI agents.
 
 ## Prerequisites
+
 - Python 3.8 or higher
 - GCP account with necessary permissions
 - Google Cloud SDK installed and configured
@@ -9,6 +11,7 @@ This sample code demonstrates how to use the Agentic Development Kit (ADK) to pr
 - A GCP API key (see https://aistudio.google.com/apikey to generate one for your project)
 
 ## Setup and Test Agent
+
 To setup and test the agent, you can do the following.
 
 ```bash
@@ -17,7 +20,7 @@ To setup and test the agent, you can do the following.
     source .venv/bin/activate
     pip install -r requirements.txt
     export GOOGLE_API_KEY=<YourKey>
-    
+
     python3 adk/agent.py
     {
         "email_source": "Hi, I need help with my laptop that won't turn on. I've tried charging it and pressing the power button multiple times. Can you help me draft an email to tech support?",
@@ -36,7 +39,7 @@ To setup and test the agent, you can do the following.
     }
 
     python3 adk/agent.py \
-        '{"fromEmailAddress":"jdoe@example.com", "subject":"Laptop issues", "body":"Urgent: I need help! My laptop has bluescreened and will not longer boot up. I have work I need to do and I am blocked without my machine. I need assistance ASAP! Please contact me! Thanks, Joe"}'                                                       
+        '{"fromEmailAddress":"jdoe@example.com", "subject":"Laptop issues", "body":"Urgent: I need help! My laptop has bluescreened and will not longer boot up. I have work I need to do and I am blocked without my machine. I need assistance ASAP! Please contact me! Thanks, Joe"}'
     {
         "email_source": "Urgent: I need help! My laptop has bluescreened and will not longer boot up. I have work I need to do and I am blocked without my machine. I need assistance ASAP! Please contact me! Thanks, Joe",
         "email_draft": "Subject: Re: Laptop issues\n\nDear Joe,\n\nI understand your laptop is experiencing a blue screen error and is preventing you from working. I'll do my best to assist you in resolving this issue quickly.\n\nA blue screen error (also known as a \"Stop Error\") generally indicates a critical system error in Windows. Since the system is not booting, here are some steps we can try:\n\n1.  **Attempt to boot into Safe Mode:**\n    *   Restart your computer.\n    *   As it restarts (before the Windows logo appears), repeatedly press the F8 key. This should bring up the Advanced Boot Options menu.\n    *   Select \"Safe Mode\" using the arrow keys and press Enter.\n    *   If you can boot into Safe Mode, it indicates that the core Windows services are functioning, and the issue may be related to a driver or software.\n\n2.  **If Safe Mode Fails, try Last Known Good Configuration:**\n    *   As with Safe Mode, access the Advanced Boot Options menu (repeatedly press F8 during startup).\n    *   Select \"Last Known Good Configuration (advanced)\" and press Enter. This will attempt to boot using the last registry and driver configuration that worked.\n\n3.  **Check Hardware Connections (If comfortable):** While less likely with a laptop, ensure that the RAM modules are properly seated. Consult your laptop's manual for instructions on how to access the RAM.\n\nIf you are able to boot into Safe Mode, please provide the following information:\n\n*   When did the blue screen issue start occurring?\n*   Were there any recent software or driver updates installed before the issue started?\n*   What is the exact blue screen error message (if you can recall it)? This can help pinpoint the cause.\n*   What were you doing when the blue screen occurred?\n\nIf neither Safe Mode nor Last Known Good Configuration works, I will need to create a ticket for further investigation.\n\nIn that case the ticket will have the following details:\n\n*   **Summary:** Laptop experiencing blue screen and unable to boot.\n*   **Description:** User's laptop is encountering a blue screen error during startup, preventing normal operation. Attempts to boot into Safe Mode and Last Known Good Configuration have failed. User is blocked from work.\n*   **Priority:** High\n*   **Classification:** OS\n\nPlease let me know the results of trying Safe Mode and Last Known Good Configuration.\n\nRegards,\n\nHelpBot\n",
@@ -56,14 +59,16 @@ To setup and test the agent, you can do the following.
 ```
 
 ## Test Deployment Emulation
+
 To check that the agent is working correctly in the GCP ADK environment, you can use the web service.
 
 ```bash
-    (cd ..; adk web) 
+    (cd ..; adk web)
     open http://127.0.0.1:8000
 ```
 
 ## Deploy to GCP
+
 To deploy to GCP, you will need to do the following.
 
 ```bash
@@ -81,6 +86,7 @@ To deploy to GCP, you will need to do the following.
 ```
 
 ## Building Docker Image for Cloud Deployment
+
 To build the docker image, you will need to do the following.
 
 ```bash
@@ -89,7 +95,7 @@ To build the docker image, you will need to do the following.
 
 To run the docker image locally, you will need to do the following.
 
-```bash
+````bash
     gcloud auth application-default login
     docker run --rm -it -v ~/.config/gcloud:/root/.config/gcloud \
         -e PROJECT_ID=<projectId> \
@@ -126,7 +132,36 @@ To run the docker image locally, you will need to do the following.
                 }
             }
         }
+````
+
+To deploy to CloudRun, you will need to run the following.
+
+Create an environment file in `/tmp/file.txt`
+
+Populate this file with the variables you need.
+
+```bash
+    PROJECT_ID:<projectId>
+    GOOGLE_API_KEY:<apiKey>
+    AGENTSPACE_AI_URL:https://<region>>-discoveryengine.googleapis.com/v1alpha/projects/<projectId>/locations/<region>/collections/default_collection/engines/<agentspaceAgent>/servingConfigs/default_search:search
+    GOOGLE_GENAI_USE_VERTEXAI:false
+```
+
+Then run the below command
+
+```bash
+    gcloud run deploy emailprocessor \
+        --source . \
+        --region us-central1 \
+        --platform managed \
+        --description "CloudRun for Comms Assist" \
+        --allow-unauthenticated \
+        --execution-environment gen2 \
+        --ingress all \
+        --port 8080 \
+        --env-vars-file=/tmp/file.txt
 ```
 
 ## Notes
+
 - For notes on ADK agents - see https://google.github.io/adk-docs/agents/
