@@ -29,6 +29,17 @@ import sys
 APP_NAME = "email_processing_app"
 MODEL="gemini-2.0-flash"
 
+# --- Configure Logging ---
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+# Suppress the specific ADK warning about output_schema and agent transfers
+logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
+# Get log level from environment variable, default to WARNING
+LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
+if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    LOGLEVEL = "WARNING"
+logger.setLevel(LOGLEVEL)
+
 # --- Utility Functions ---
 
 def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> dict:
@@ -108,8 +119,10 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
         }
 
     except requests.exceptions.RequestException as e:
+        logger.error(f"Error calling external API for answer: {e}")
         return {"answerText": "", "contentArray": []}
     except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Error calling external API for answer: {e}")
         return {"answerText": "", "contentArray": []}
 
 # --- Function to Call External API ---
@@ -130,41 +143,42 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
         # Get a new access token
         # ---- Credentials ----
         # Determine if authentication is required based on environment variables
-        auth_required = getValue("debug")
+        auth_required = getValue("gcp_login")
         isAuth = bool(auth_required == "true") if auth_required is not None else False
         if isAuth:
-            print("Authentication is required.")
+            logger.debug("- Doing GCP authentication...")
             sa_json_file = utils.getValue("sa_json_file")
             if sa_json_file and os.path.exists(sa_json_file):
                 credentials, _ = google.auth.load_credentials_from_file(sa_json_file)
             else:
                 credentials, _ = google.auth.default()
         else:
-            print("Authentication is not required.")
+            logger.debug("- Not doing GCP authentication...")
             credentials = None 
 
-        credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-        auth_req = google.auth.transport.requests.Request()
-        credentials.refresh(auth_req)
-        access_token = credentials.token
+        if isAuth:
+            credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+            auth_req = google.auth.transport.requests.Request()
+            credentials.refresh(auth_req)
+            access_token = credentials.token
 
         # Extract project_id and app_id from the URL
         url_parts = agentspace_ai_url.split('/')
         project_id = url_parts[5]
         app_id = url_parts[11]
         region = url_parts[7]
-
+        logger.debug("- Done...")
         # Combine instructions with the topic for the query
         combined_query = "" + " " + bodyText
 
         headers = {
-            "Authorization": f"Bearer {access_token}",
+            **({"Authorization": f"Bearer {access_token}"} if isAuth else {}),
             "Content-Type": "application/json"
         }
 
         payload = {
             "query": combined_query,
-            "pageSize": 10000,
+            "pageSize": 100,
             "queryExpansionSpec": {"condition": "AUTO"},
             "spellCorrectionSpec": {"mode": "AUTO"},
             "languageCode": "en-US",
@@ -173,8 +187,10 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
             "session": f"projects/{project_id}/locations/{region}/collections/default_collection/engines/{app_id}/sessions/-"
         }
 
+        logger.debug(f"- Calling external agent URI...")
         response = requests.post(agentspace_ai_url, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
+        logger.debug(f"- Parsing agent response...")
         data = response.json()
         session_info = data.get("sessionInfo", {})
         session_name = session_info.get("name")
@@ -184,16 +200,17 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
             draft_response_json = get_answer_content(project_id, app_id, combined_query, 
                                                       query_id, session_name, access_token, 
                                                       region)
-            draft_response_array = draft_response_json.get("contentArray", [])
             draft_answer_text = draft_response_json.get("answerText", "")
             return draft_answer_text
         else:
             return {}
         
     except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"Error calling external API: {e}")
+        logger.error(f"Error calling external API with request exception: {e}")
+        raise RuntimeError(f"Error calling external API with request exception: {e}")
     except Exception as e:
-        raise RuntimeError(f"Error calling external API: {e}")
+        logger.error(f"Error calling external API with general exception: {e}")
+        raise RuntimeError(f"Error calling external API with request exception: {e}")
     
 def get_agentspace_draft_response(ctx: InvocationContext) -> str:
     """

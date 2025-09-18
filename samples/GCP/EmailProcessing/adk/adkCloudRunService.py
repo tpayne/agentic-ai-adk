@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from flask_cors import CORS
 from flask import Flask, render_template, request, jsonify
 from types import ClassMethodDescriptorType
 from typing import Any, NoReturn, Optional
@@ -17,6 +18,8 @@ import asyncio
 import logging
 
 app = Flask(__name__)
+CORS(app)
+
 #
 # Utility functions
 #
