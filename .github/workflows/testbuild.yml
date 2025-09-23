@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - "Outlook/CommsAssist/**"
+      - "samples/**"
   pull_request:
     paths:
-      - "Outlook/CommsAssist/**"
+      - "samples/**"
   workflow_dispatch:
 
 concurrency:
