@@ -3,8 +3,7 @@ import os
 import json
 import uuid
 import asyncio
-import requests
-import google.auth
+import httpx
 
 from typing import AsyncGenerator
 from typing_extensions import override
@@ -23,6 +22,8 @@ from . import utils
 from .utils import load_properties, getValue
 
 import sys
+import google.auth
+import google.auth.transport.requests
 
 # --- Constants ---
 # The application name for ADK. This should be unique to your application.
@@ -42,34 +43,16 @@ logger.setLevel(LOGLEVEL)
 
 # --- Utility Functions ---
 
-def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, access_token: str, region: str) -> dict:
+async def get_answer_content(client: httpx.AsyncClient, project_id: str, app_id: str, query_text: str, query_id: str, session_name: str, region: str) -> dict:
     """
     Performs an answer generation query and returns a dictionary with the answer
     text and a list of content chunks.
-
-    Args:
-        project_id: The Google Cloud project ID.
-        app_id: The Discovery Engine app ID.
-        query_text: The original search query text.
-        query_id: The query ID from the previous search call.
-        session_name: The session name from the previous search call.
-        access_token: The OAuth 2.0 access token for authentication.
-        region: The Google Cloud region (e.g., 'eu', 'us-central1').
-
-    Returns:
-        A dictionary with 'answerText' and 'contentArray' keys, or an empty
-        dictionary if the request fails or no valid answer is found.
     """
     url = (
         f"https://{region}-discoveryengine.googleapis.com/v1alpha/projects/"
         f"{project_id}/locations/{region}/collections/default_collection/engines/"
         f"{app_id}/servingConfigs/default_search:answer"
     )
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
 
     payload = {
         "query": {
@@ -93,15 +76,14 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
     }
 
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()  # This will raise an HTTPError for bad responses (4xx or 5xx)
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
         data = response.json()
 
         answer_text = data.get("answer", {}).get("answerText", "")
         references = data.get("answer", {}).get("references", [])
         content_array = []
         
-        # Extract content from each reference
         for ref in references:
             chunk_info = ref.get("chunkInfo", {})
             if chunk_info:
@@ -109,7 +91,6 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
                 if content:
                     content_array.append(content)
 
-        # Handle case where no summary could be generated
         if "A summary could not be generated for your search query" in answer_text:
             return {"answerText": "", "contentArray": []}
 
@@ -118,63 +99,56 @@ def get_answer_content(project_id: str, app_id: str, query_text: str, query_id: 
             "contentArray": content_array
         }
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling external API for answer: {e}")
-        return {"answerText": "", "contentArray": []}
-    except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"Error calling external API for answer: {e}")
-        return {"answerText": "", "contentArray": []}
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error during get_answer_content: {e.response.status_code} {e.response.text}")
+        return {"answerText": f"An HTTP error occurred: {e.response.status_code}", "contentArray": []}
+    except httpx.RequestException as e:
+        logger.error(f"Request error during get_answer_content: {e}")
+        return {"answerText": f"A request error occurred: {e}", "contentArray": []}
+    except Exception as e:
+        logger.error(f"Unexpected error during get_answer_content: {e}")
+        return {"answerText": "An unexpected error occurred.", "contentArray": []}
 
-# --- Function to Call External API ---
-def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
+async def get_authenticated_client() -> httpx.AsyncClient:
+    """
+    Returns an authenticated httpx.AsyncClient instance.
+    """
+    auth_required = getValue("gcp_login")
+    isAuth = bool(auth_required == "true") if auth_required is not None else False
+    
+    if isAuth:
+        logger.debug("- Doing GCP authentication...")
+        sa_json_file = utils.getValue("sa_json_file")
+        if sa_json_file and os.path.exists(sa_json_file):
+            credentials, _ = google.auth.load_credentials_from_file(sa_json_file)
+        else:
+            credentials, _ = google.auth.default()
+        
+        auth_req = google.auth.transport.requests.Request()
+        credentials.refresh(auth_req)
+        access_token = credentials.token
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        return httpx.AsyncClient(headers=headers, timeout=60.0)
+    else:
+        logger.debug("- Not doing GCP authentication...")
+        headers = {"Content-Type": "application/json"}
+        return httpx.AsyncClient(headers=headers, timeout=60.0)
+
+async def run_agentspace_url_query(client: httpx.AsyncClient, agentspace_ai_url: str, bodyText: str) -> str:
     """
     Calls the AgentSpace AI URL with the provided body text and returns the draft response.
-
-    Args:
-        agentspace_ai_url: The URL of the AgentSpace AI endpoint.
-        bodyText: The body text to send in the query.
-
-    Returns:
-        The draft response generated by the AgentSpace AI.
     """
-    # This function is a placeholder for the actual implementation
-    # of calling the AgentSpace AI URL and processing the response.
     try:
-        # Get a new access token
-        # ---- Credentials ----
-        # Determine if authentication is required based on environment variables
-        auth_required = getValue("gcp_login")
-        isAuth = bool(auth_required == "true") if auth_required is not None else False
-        if isAuth:
-            logger.debug("- Doing GCP authentication...")
-            sa_json_file = utils.getValue("sa_json_file")
-            if sa_json_file and os.path.exists(sa_json_file):
-                credentials, _ = google.auth.load_credentials_from_file(sa_json_file)
-            else:
-                credentials, _ = google.auth.default()
-        else:
-            logger.debug("- Not doing GCP authentication...")
-            credentials = None 
-
-        if isAuth:
-            credentials, project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
-            auth_req = google.auth.transport.requests.Request()
-            credentials.refresh(auth_req)
-            access_token = credentials.token
-
-        # Extract project_id and app_id from the URL
         url_parts = agentspace_ai_url.split('/')
         project_id = url_parts[5]
         app_id = url_parts[11]
         region = url_parts[7]
-        logger.debug("- Done...")
-        # Combine instructions with the topic for the query
+        
         combined_query = "" + " " + bodyText
-
-        headers = {
-            **({"Authorization": f"Bearer {access_token}"} if isAuth else {}),
-            "Content-Type": "application/json"
-        }
 
         payload = {
             "query": combined_query,
@@ -186,219 +160,119 @@ def run_agentspace_url_query(agentspace_ai_url: str, bodyText: str) -> str:
             "userInfo":{"timeZone":"Europe/London"},
             "session": f"projects/{project_id}/locations/{region}/collections/default_collection/engines/{app_id}/sessions/-"
         }
-
-        logger.debug(f"- Calling external agent URI...")
-        response = requests.post(agentspace_ai_url, headers=headers, data=json.dumps(payload))
+        
+        logger.debug(f"- Calling external agent URI: {agentspace_ai_url}")
+        response = await client.post(agentspace_ai_url, json=payload)
         response.raise_for_status()
         logger.debug(f"- Parsing agent response...")
+        
         data = response.json()
         session_info = data.get("sessionInfo", {})
         session_name = session_info.get("name")
         query_id = session_info.get("queryId")
 
         if session_name and query_id:
-            draft_response_json = get_answer_content(project_id, app_id, combined_query, 
-                                                      query_id, session_name, access_token, 
-                                                      region)
+            draft_response_json = await get_answer_content(client, project_id, app_id, combined_query, query_id, session_name, region)
             draft_answer_text = draft_response_json.get("answerText", "")
             return draft_answer_text
         else:
-            return {}
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling external API with request exception: {e}")
-        raise RuntimeError(f"Error calling external API with request exception: {e}")
-    except Exception as e:
-        logger.error(f"Error calling external API with general exception: {e}")
-        raise RuntimeError(f"Error calling external API with request exception: {e}")
+            logger.warning("Session name or query ID not found in response.")
+            return "No valid session or query ID found."
     
-def get_agentspace_draft_response(ctx: InvocationContext) -> str:
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error during run_agentspace_url_query: {e.response.status_code} {e.response.text}")
+        return f"An HTTP error occurred: {e.response.status_code}."
+    except httpx.RequestException as e:
+        logger.error(f"Request error during run_agentspace_url_query: {e}")
+        return f"A request error occurred: {e}."
+    except Exception as e:
+        logger.error(f"General error during run_agentspace_url_query: {e}")
+        return "An unexpected error occurred."
+    
+async def get_agentspace_draft_response(client: httpx.AsyncClient, ctx: InvocationContext) -> str:
     """
     Calls the AgentSpace AI URL with the topic from the context and returns the draft response.
-    Args:
-        ctx: The invocation context containing session state.
-        Returns:
-        The draft response generated by the AgentSpace AI.
     """
     try:            
         agentspace_ai_url = utils.getValue("AGENTSPACE_AI_URL")
         bodyText = ctx.session.state.get("topic", "No topic provided.")
         if agentspace_ai_url and bodyText:
-            draft_response = run_agentspace_url_query(agentspace_ai_url, bodyText)
+            draft_response = await run_agentspace_url_query(client, agentspace_ai_url, bodyText)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             return draft_response
         return ""
     except Exception as e:
+        logger.error(f"Error in get_agentspace_draft_response: {e}")
         return ""
 
-# --- Placeholder Tool Agents ---
-# These agents would contain the logic for calling a specific tool
-class HardwareToolAgent(BaseAgent):
+# --- New Base Class for Tool Agents ---
+class _BaseToolAgent(BaseAgent):
+    """
+    Base class for all specific tool agents.
+    It contains the shared logic for calling the external Agentspace AI.
+    """
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        client = ctx.session.state.get("httpx_client")
+        if not client:
+            error_msg = "HTTP client not found in session state."
+            logger.error(error_msg)
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+            return
+
         try:
             rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
+            draft_response = await run_agentspace_url_query(client, utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
             ctx.session.state["tool_result"] = draft_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
-            error_msg = f"Exception in HardwareToolAgent: {e}"
+            error_msg = f"Exception in {self.name}: {e}"
+            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
-class SoftwareToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in SoftwareToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+# --- Tool Agents that inherit from the new Base Class ---
+class HardwareToolAgent(_BaseToolAgent):
+    pass
 
-class GenericITToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in GenericITToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class SoftwareToolAgent(_BaseToolAgent):
+    pass
 
-class WindowsToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in WindowsToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class GenericITToolAgent(_BaseToolAgent):
+    pass
 
-class UnixToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in UnixToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class WindowsToolAgent(_BaseToolAgent):
+    pass
 
-class NetworkToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in NetworkToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class UnixToolAgent(_BaseToolAgent):
+    pass
 
-class PolicyToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in PolicyToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class NetworkToolAgent(_BaseToolAgent):
+    pass
 
-class CustomerAccountToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in CustomerAccountToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class PolicyToolAgent(_BaseToolAgent):
+    pass
 
-class FAQToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in FAQToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class CustomerAccountToolAgent(_BaseToolAgent):
+    pass
 
-class CustomerDataToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in CustomerDataToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class FAQToolAgent(_BaseToolAgent):
+    pass
 
-class CustomerPaymentToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in CustomerPaymentToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+class CustomerDataToolAgent(_BaseToolAgent):
+    pass
 
+class CustomerPaymentToolAgent(_BaseToolAgent):
+    pass
+
+class OtherToolAgent(_BaseToolAgent):
+    pass
+
+# --- Custom CustomerMeterToolAgent with specific logic ---
 class CustomerMeterToolAgent(BaseAgent):
     """
     Agent for handling customer meter-related requests.
@@ -407,58 +281,44 @@ class CustomerMeterToolAgent(BaseAgent):
     def _add_meter_update_acknowledgement(self, draft_response: str) -> str:
         """
         Adds a custom acknowledgement message to the end of the draft response.
-        This can be a template for other specific customizations.
         """
         acknowledgement_text = "\n\nNote: A meter update has been applied to the customer's record."
         return draft_response + acknowledgement_text
 
     @override
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        client = ctx.session.state.get("httpx_client")
+        if not client:
+            error_msg = "HTTP client not found in session state."
+            ctx.session.state["tool_result"] = error_msg
+            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
+            return
+
         try:
-            customized_response = ""
-            # Check if an email draft was successfully generated
             customer_name = ctx.session.state.get("email_parser_obj",{}).get("customer_name","unknown")
             customer_id = ctx.session.state.get("email_parser_obj",{}).get("customer_id","unknown")
             date_range = ctx.session.state.get("email_parser_obj",{}).get("date_range","unknown")
             meter_reading = ctx.session.state.get("email_parser_obj",{}).get("meter_reading","unknown")
-            if customer_name == "unknown" or \
-               customer_id == "unknown" or \
-               meter_reading == "unknown" or \
-               date_range == "unknown":
-                customized_response = "You have not specified all the required customer name, id, meter reading or date range details"
+            
+            if "unknown" in [customer_name, customer_id, date_range, meter_reading]:
+                customized_response = "You have not specified all the required customer name, id, meter reading or date range details."
             else:
                 rewritten_query = f"Is there a customer with the customer_id {customer_id}?"
-                # Call the Agentspace AI URL to get the initial draft
-                draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-                if isinstance(draft_response, list):
-                    draft_response = "\n\n".join(draft_response)
+                draft_response = await run_agentspace_url_query(client, utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
                 
-                if "yes" in draft_response.lower():
-                    # Call the new method to add the custom acknowledgement
-                    draft_response = "The customer exists in the system"
+                if "An HTTP error occurred" in draft_response or "A request error occurred" in draft_response:
+                     customized_response = f"An error occurred while checking the customer ID: {draft_response}"
+                elif "yes" in draft_response.lower():
+                    draft_response = "The customer exists in the system."
                     customized_response = self._add_meter_update_acknowledgement(draft_response)
                 else:
-                    customized_response = "The customer specified does not exist in the system"
+                    customized_response = "The customer specified does not exist in the system."
 
             ctx.session.state["tool_result"] = customized_response
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=customized_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerMeterToolAgent: {e}"
-            ctx.session.state["tool_result"] = error_msg
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
-
-class OtherToolAgent(BaseAgent):
-    @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        try:
-            rewritten_query = ctx.session.state.get("rewritten_query", ctx.session.state.get("topic"))
-            draft_response = run_agentspace_url_query(utils.getValue("AGENTSPACE_AI_URL"), rewritten_query)
-            if isinstance(draft_response, list):
-                draft_response = "\n\n".join(draft_response)
-            ctx.session.state["tool_result"] = draft_response
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
-        except Exception as e:
-            error_msg = f"Exception in OtherToolAgent: {e}"
+            logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -466,23 +326,16 @@ class OtherToolAgent(BaseAgent):
 class CustomEmailProcessorAgent(BaseAgent):
     """
     An ADK agent that orchestrates a multi-step workflow for processing IT support emails.
-
-    The workflow includes:
-     1. Receives customer support requests.
-     2. Drafts an email response to the customer.
-     3. Reviews the email draft for tone and quality.
-     4. Finalizes the draft for a human to review.
     """
-    # --- Field Declarations for Pydantic ---
     queryRewriter: LlmAgent
     sentimentReviewer: LlmAgent
     emailParser: LlmAgent
     emailGenerator: LlmAgent
     emailReviewer: LlmAgent
-    emailReviser: LlmAgent # New agent for revising the email
+    emailReviser: LlmAgent
     loop_agent: LoopAgent
     sequential_agent: SequentialAgent
-    revision_agent: SequentialAgent # New agent for the revision step
+    revision_agent: SequentialAgent
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -496,27 +349,12 @@ class CustomEmailProcessorAgent(BaseAgent):
         emailReviewer: LlmAgent,
         emailReviser: LlmAgent,
     ):
-        """
-        Initializes the custom email processing agent and its sub-agents.
-
-        Args:
-            name: The name of the agent.
-            queryRewriter: The agent for rewriting the query.
-            sentimentReviewer: The agent for sentiment analysis.
-            emailParser: The agent for parsing email details
-            emailGenerator: The agent for generating the initial email draft.
-            emailReviewer: The agent for reviewing the email draft.
-            emailReviser: The agent for revising the email based on feedback.
-        """
-        # A sequential agent to perform the initial sentiment analysis and email generation
         sequential_agent = SequentialAgent(
             name="GenerateEmail", sub_agents=[sentimentReviewer, emailParser, queryRewriter]
         )
-        # A sequential agent for the review and revise loop
         revision_agent = SequentialAgent(
             name="ReviewAndReviseEmail", sub_agents=[emailReviewer, emailReviser]
         )
-        # A loop agent that repeatedly calls the revision agent until a condition is met
         loop_agent = LoopAgent(
             name="ReviewEmail", sub_agents=[revision_agent], max_iterations=5
         )
@@ -526,7 +364,6 @@ class CustomEmailProcessorAgent(BaseAgent):
             loop_agent,
         ]
 
-        # Call the parent class's constructor with all sub-agents
         super().__init__(
             name=name,
             queryRewriter=queryRewriter,
@@ -543,10 +380,6 @@ class CustomEmailProcessorAgent(BaseAgent):
 
     @staticmethod
     def extract_user_text(session) -> str | None:
-        """
-        Safely extracts the text content from the first event in a session.
-        This handles different session event structures and returns None if text is not found.
-        """
         try:
             events = session["events"]
             first_part = events[0]["content"]["parts"][0]
@@ -566,30 +399,18 @@ class CustomEmailProcessorAgent(BaseAgent):
         self,
         ctx: InvocationContext,
     ) -> AsyncGenerator[Event, None]:
-        """
-        Implements the main asynchronous execution logic for the custom agent.
-
-        Args:
-            ctx: The invocation context containing session state and new messages.
-
-        Yields:
-            Event: An event representing a step in the agent's workflow.
-        """
-
-        # Set default values for optional email context fields to prevent KeyErrors later
+        
         ctx.session.state.setdefault("from_email_address", "a customer")
         ctx.session.state.setdefault("subject", "a new support request")
+        ctx.session.state["httpx_client"] = await get_authenticated_client()
 
-        # Check for a new message and parse it
         bodyText = None
         user_message_text = None
 
-        # Prefer new_message if present
         if getattr(ctx.session, "new_message", None) and getattr(ctx.session.new_message, "parts", None):
             part = ctx.session.new_message.parts[0]
             user_message_text = getattr(part, "text", None)
 
-        # Fallback: extract from session events
         if user_message_text is None:
             user_message_text = CustomEmailProcessorAgent.extract_user_text(ctx.session)
 
@@ -608,71 +429,44 @@ class CustomEmailProcessorAgent(BaseAgent):
         
         original_query = bodyText
         
-        # Run the sentiment analysis and query rewriter
         async for event in self.sequential_agent.run_async(ctx):
             yield event
 
         rewritten_query = ctx.session.state.get("rewritten_query", original_query)
         email_intention = ctx.session.state.get("email_sentiment_obj", {}).get("intention")
 
-        if email_intention == 'Hardware Issue':
-            async for event in HardwareToolAgent(name="HardwareToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Software Issue':
-            async for event in SoftwareToolAgent(name="SoftwareToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Windows IT Issue':
-            async for event in WindowsToolAgent(name="WindowsToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Unix IT Issue':
-            async for event in UnixToolAgent(name="UnixToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Network Issue':
-            async for event in NetworkToolAgent(name="NetworkToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Policy Question':
-            async for event in PolicyToolAgent(name="PolicyToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Customer Account Issue':
-            async for event in CustomerAccountToolAgent(name="CustomerAccountToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'FAQ Request':
-            async for event in FAQToolAgent(name="FAQToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Customer Data Request':
-            async for event in CustomerDataToolAgent(name="CustomerDataToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Customer Payment Request':
-            async for event in CustomerPaymentToolAgent(name="CustomerPaymentToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Customer Meter Request':
-            async for event in CustomerMeterToolAgent(name="CustomerMeterToolAgent").run_async(ctx):
-                yield event
-        elif email_intention == 'Other':
-            async for event in OtherToolAgent(name="OtherToolAgent").run_async(ctx):
-                yield event
-        else: # Fallback for 'Generic IT Issue' or any unhandled category
-            async for event in GenericITToolAgent(name="GenericITToolAgent").run_async(ctx):
-                yield event
+        tool_agent_map = {
+            'Hardware Issue': HardwareToolAgent,
+            'Software Issue': SoftwareToolAgent,
+            'Windows IT Issue': WindowsToolAgent,
+            'Unix IT Issue': UnixToolAgent,
+            'Network Issue': NetworkToolAgent,
+            'Policy Question': PolicyToolAgent,
+            'Customer Account Issue': CustomerAccountToolAgent,
+            'FAQ Request': FAQToolAgent,
+            'Customer Data Request': CustomerDataToolAgent,
+            'Customer Payment Request': CustomerPaymentToolAgent,
+            'Customer Meter Request': CustomerMeterToolAgent,
+            'Other': OtherToolAgent,
+        }
+        
+        selected_agent = tool_agent_map.get(email_intention, GenericITToolAgent)
+        async for event in selected_agent(name=selected_agent.__name__).run_async(ctx):
+            yield event
 
         async for event in self.emailGenerator.run_async(ctx):
             yield event
 
-        # Check if an email draft was successfully generated
         email_draft = ctx.session.state.get("email_draft")
         if not email_draft or not str(email_draft).strip():
             return
         
-        # 3. Reviewer Loop for continuous revision
-        # The LoopAgent calls the revision_agent (which contains the reviewer and reviser) until the condition is met.
         async for event in self.loop_agent.run_async(ctx):
             yield event
             email_review_comments = ctx.session.state.get("email_review_comments","").strip()
-            # Stop the loop if reviewer says "No further comments"
             if "No further comments." in email_review_comments:
                 break
 
-        # 4. Finalize and return the result
         final_session = ctx.session
         result = {
             "email_data": {
@@ -696,11 +490,12 @@ class CustomEmailProcessorAgent(BaseAgent):
             parts=[types.Part(text=json.dumps(result, indent=2))]
         )
 
-        # Yield the final event with the complete, structured response
         yield Event(
             author="CustomEmailProcessorAgent",
             content=final_content,
         )
+        
+        await ctx.session.state["httpx_client"].aclose()
 
         return
 
@@ -826,7 +621,6 @@ emailReviewer = LlmAgent(
     output_key="email_review_comments",
 )
 
-# NEW: Agent for revising the email
 emailReviser = LlmAgent(
     name="EmailReviser",
     model=MODEL,
@@ -837,7 +631,7 @@ emailReviser = LlmAgent(
     instruction=reviser_instruction,
     input_schema=None,
     output_schema=None,
-    output_key="email_draft", # Overwrite the email_draft with the revised version
+    output_key="email_draft",
 )
 
 sentimentReviewer = LlmAgent(
@@ -871,7 +665,7 @@ root_agent = CustomEmailProcessorAgent(
     name="CustomEmailProcessorAgent",
     queryRewriter=queryRewriter,
     sentimentReviewer=sentimentReviewer,
-    emailParser=emailParser, # Pass the new agent here
+    emailParser=emailParser,
     emailGenerator=emailGenerator,
     emailReviewer=emailReviewer,
     emailReviser=emailReviser,
@@ -891,7 +685,7 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
                                                    state=INITIAL_STATE)
 
     runner = Runner(
-        agent=root_agent, # Pass the custom orchestrator agent
+        agent=root_agent,
         app_name=APP_NAME,
         session_service=session_service
     )
@@ -901,10 +695,6 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
 async def call_agent_async(user_input_topic: str, logger: logging.Logger):
     """
     Sends a new topic to the agent and runs the workflow.
-    
-    Args:
-        user_input_topic: The user's input, which can be a JSON string or plain text.
-        logger: The logger object to use for logging.
     """
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
@@ -933,5 +723,4 @@ async def call_agent_async(user_input_topic: str, logger: logging.Logger):
         if event.is_final_response() and event.content and event.content.parts:
             final_response = event.content.parts[0].text
     
-    # Return the captured final response directly
     return final_response

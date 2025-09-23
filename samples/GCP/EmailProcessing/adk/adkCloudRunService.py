@@ -35,20 +35,8 @@ def handler(signum, frame):
 #
 def process_query(query_data: dict) -> str:
     try:
-        # Attempt to parse the query string as JSON
-        try:
-            app.logger.debug("Running query")
-            # Validate the parsed JSON against the Pydantic schema
-            app.logger.debug("Validating query")
-            validated_data = EmailContext.model_validate(query_data)
-            # Use the validated data to ensure a correctly formatted input is passed
-            app.logger.debug("Running query")
-            final_state_json = asyncio.run(call_agent_async(json.dumps(validated_data.model_dump()), app.logger))
-        except (json.JSONDecodeError, ValidationError) as e:
-            # If JSON parsing or validation fails, treat the input as a plain string
-            app.logger.warning(f"Input is not a valid JSON for EmailContext. Processing as plain text. Error: {e}")
-            final_state_json = asyncio.run(call_agent_async(json.dumps(query_data), app.logger))
-        
+        app.logger.debug("Running query")
+        final_state_json = asyncio.run(call_agent_async(json.dumps(query_data), app.logger))
         return final_state_json
     except Exception as e:
         app.logger.error("Exception fired - Cannot process query")
