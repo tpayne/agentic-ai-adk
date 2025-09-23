@@ -3,7 +3,6 @@ name: Build and Test Docker Images
 on:
   push:
     branches:
-      - main
     paths:
       - "samples/**"
   pull_request:
