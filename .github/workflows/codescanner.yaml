@@ -50,7 +50,7 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
     - name: Run OSV-Scanner
-      uses: google/osv-scanner-action@v1
+      uses: google/osv-scanner-action
       id: scan
       with:
         scan-args: "--format sarif --output osv-results.sarif"
