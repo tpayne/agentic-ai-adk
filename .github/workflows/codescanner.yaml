@@ -4,10 +4,17 @@ name: "CodeQL Scan"
 
 on:
   push:
-    branches: [ "main" ]
+    paths:
+      - "samples/**"
   pull_request:
-    branches: [ "main" ]
+    paths:
+      - "samples/**"
+  workflow_dispatch:
 
+concurrency:
+  group: ${{ github.ref }}ScanTest
+  cancel-in-progress: true
+  
 permissions:
   contents: read
   security-events: write
