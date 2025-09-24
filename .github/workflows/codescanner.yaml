@@ -48,3 +48,12 @@ jobs:
     # 3. Perform CodeQL Analysis
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+
+
+    - name: Run Semgrep
+      uses: returntocorp/semgrep-action@v1
+      with:
+        # This is the default. You can change it to a specific rule or rule-pack.
+        config: auto
+        # Generates a SARIF file that GitHub understands.
+        publish-results: always
