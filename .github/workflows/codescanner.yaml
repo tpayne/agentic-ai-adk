@@ -1,0 +1,43 @@
+# .github/workflows/codeql-scan.yml
+
+name: "CodeQL Scan"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        # Define the languages to scan.
+        # Options: csharp, cpp, go, java, javascript, python, ruby
+        language: ['javascript', 'python']
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 1. Initialize CodeQL
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    # 2. Autobuild (for compiled languages; skipped for Python/JS)
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    # 3. Perform CodeQL Analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
