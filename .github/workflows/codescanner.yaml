@@ -49,21 +49,13 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
 
-    - name: Run Trivy Scan
-      uses: aquasecurity/trivy-action@master
+    - name: Run OSV-Scanner
+      uses: google/osv-scanner-action@v1
+      id: scan
       with:
-        # The type of scan to run (e.g., 'fs' for filesystem)
-        scan-type: 'fs'
-        # The directory to scan
-        path: '.'
-        # The output format, 'github' for GitHub's native format
-        format: 'github'
-        # Where to save the output of the scan
-        output: 'trivy-results.sarif'
-        # The trivy exit code for vulnerability found
-        exit-code: '0'
-
-    - name: Upload Trivy results to GitHub Security tab
+        scan-args: "--format sarif --output osv-results.sarif"
+        
+    - name: Upload SARIF file to GitHub
       uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: osv-results.sarif
