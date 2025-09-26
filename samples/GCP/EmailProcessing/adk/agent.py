@@ -102,9 +102,6 @@ async def get_answer_content(client: httpx.AsyncClient, project_id: str, app_id:
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error during get_answer_content: {e.response.status_code} {e.response.text}")
         return {"answerText": f"An HTTP error occurred: {e.response.status_code}", "contentArray": []}
-    except httpx.RequestException as e:
-        logger.error(f"Request error during get_answer_content: {e}")
-        return {"answerText": f"A request error occurred: {e}", "contentArray": []}
     except Exception as e:
         logger.error(f"Unexpected error during get_answer_content: {e}")
         return {"answerText": "An unexpected error occurred.", "contentArray": []}
@@ -143,6 +140,9 @@ async def run_agentspace_url_query(client: httpx.AsyncClient, agentspace_ai_url:
     Calls the AgentSpace AI URL with the provided body text and returns the draft response.
     """
     try:
+        if agentspace_ai_url and '/' not in agentspace_ai_url:
+            return "" 
+        
         url_parts = agentspace_ai_url.split('/')
         project_id = url_parts[5]
         app_id = url_parts[11]
@@ -182,9 +182,6 @@ async def run_agentspace_url_query(client: httpx.AsyncClient, agentspace_ai_url:
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error during run_agentspace_url_query: {e.response.status_code} {e.response.text}")
         return f"An HTTP error occurred: {e.response.status_code}."
-    except httpx.RequestException as e:
-        logger.error(f"Request error during run_agentspace_url_query: {e}")
-        return f"A request error occurred: {e}."
     except Exception as e:
         logger.error(f"General error during run_agentspace_url_query: {e}")
         return "An unexpected error occurred."
@@ -196,7 +193,7 @@ async def get_agentspace_draft_response(client: httpx.AsyncClient, ctx: Invocati
     try:            
         agentspace_ai_url = utils.getValue("AGENTSPACE_AI_URL")
         bodyText = ctx.session.state.get("topic", "No topic provided.")
-        if agentspace_ai_url and bodyText:
+        if agentspace_ai_url and bodyText and agentspace_ai_url != "<ENTERAGENTSPACEAPIURL_DEFAULTSEARCH>":
             draft_response = await run_agentspace_url_query(client, agentspace_ai_url, bodyText)
             if isinstance(draft_response, list):
                 draft_response = "\n\n".join(draft_response)
@@ -482,6 +479,7 @@ class CustomEmailProcessorAgent(BaseAgent):
                 "email_sentiment": final_session.state.get("email_sentiment_obj", {}).get("sentiment"),
                 "email_intention": final_session.state.get("email_sentiment_obj", {}).get("intention"),
                 "email_urgency": final_session.state.get("email_sentiment_obj", {}).get("urgency"),
+                "email_keystatements": final_session.state.get("email_sentiment_obj", {}).get("keystatement"),
                 "email_review_comments": final_session.state.get("email_review_comments").split("\n\n")[-1].strip()
             }
         }
@@ -512,6 +510,7 @@ class EmailSentiment(BaseModel):
     sentiment: str = Field(description="The single word sentiment label of the email.")
     intention: str = Field(description="The single action statement about what the action is this email needs to result in doing.")
     urgency:   str = Field(description="Optional urgency level of the email.")
+    keystatement: str = Field(description="A key statement about what the email is about and what is it asking.")
 
 class EmailParser(BaseModel):
     """Pydantic model for structured parser output from the LLM."""
@@ -557,6 +556,7 @@ sentiment_instruction = (
     "   'Customer Meter Request', 'Other'. "
     "3. A single urgency label for the email, depending on if it is clearly urgent or high priority. Categories are 'Low', 'Medium', 'High', or 'Critical'. "
     "   If not clearly specified, return 'Normal'. "
+    "4. A key statement about what the email is about and what is it asking. Make the summary concise and capture the key actions and facts. "
     "Format your response as a JSON object matching the EmailSentiment schema. "
     "Do not output anything else."
 )

@@ -102,7 +102,7 @@ To run the docker image locally, you will need to do the following.
         -e GOOGLE_API_KEY=<apiKey> \
         -e AGENTSPACE_AI_URL=https://<region>>-discoveryengine.googleapis.com/v1alpha/projects/<projectId>/locations/<region>/collections/default_collection/engines/<agentspaceAgent>/servingConfigs/default_search:search \
         -e GOOGLE_GENAI_USE_VERTEXAI=false \
-        -p 8080:5001 \
+        -p 8080:8080 \
         adkagent
     curl http://localhost:8080/query \
         -H "Content-Type: application/json" \
