@@ -1,7 +1,7 @@
 Flask==3.1.2
 Flask-Cors
 Jinja2==3.1.6
-MarkupSafe==3.0.2 # CORRECTED VERSION
+MarkupSafe==3.0.3 # CORRECTED VERSION
 Werkzeug==3.1.3
 annotated-types==0.7.0
 anyio==4.11.0
