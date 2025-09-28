@@ -26,9 +26,19 @@ jobs:
           cd samples/GCP/EmailProcessing
           docker build . --file Dockerfile --tag adktemplate:latest
           docker run --rm -it -d -p 8080:8080 adktemplate:latest
-          docker scout cves adktemplate:latest
+          #docker scout cves adktemplate:latest
           sleep 10
           curl localhost:8080/status
 
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'adktemplate:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          
       - name: Stop containers...
         run: (docker stop $(docker container ls -q))
