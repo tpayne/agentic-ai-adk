@@ -26,6 +26,7 @@ jobs:
           cd samples/GCP/EmailProcessing
           docker build . --file Dockerfile --tag adktemplate:latest
           docker run --rm -it -d -p 8080:8080 adktemplate:latest
+          docker scout cves adktemplate:latest
           sleep 10
           curl localhost:8080/status
 
