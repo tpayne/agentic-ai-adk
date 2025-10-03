@@ -14,6 +14,35 @@ This sample code demonstrates how to use the Agentic Development Kit (ADK) to pr
 
 To setup and test the agent, you can do the following.
 
+Note - To run the `agent.py` standalone, you may need to add a `main` runner routine as the code is currently configured as a REST API service only, e.g. add the following code to the .py file.
+
+```python
+
+# --- Main Execution Block for a local, working example ---
+if __name__ == "__main__":
+    # Example for JSON input
+    json_message = json.dumps({
+        "fromEmailAddress": "johndoe@example.com",
+        "subject": "Urgent: My laptop is not turning on",
+        "body": "Hi, my laptop is not turning on. I've tried charging it and pressing the power button multiple times."
+    }, indent=2)
+
+    # Example for plain string input for a software issue
+    string_message_software = "My web browser keeps crashing when I open a new tab."
+
+    # Example for plain string input for a hardware issue
+    string_message_hardware = "My mouse isn't working at all."
+
+    # Choose which message to run based on command-line argument
+    # Default to the JSON message if no argument is provided
+    user_message = sys.argv[1] if len(sys.argv) > 1 else json_message
+
+    final_state_json = asyncio.run(call_agent_async(user_message))
+    print(final_state_json)
+```
+
+This will allow the agent to run as a simple invocable script and not use a REST API to drive it.
+
 ```bash
     rm -r .venv
     python3 -m venv .venv
