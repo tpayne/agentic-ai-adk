@@ -75,6 +75,13 @@ To check that the agent is working correctly in the GCP ADK environment, you can
     .venv/bin/adk web
 ```
 
+Sample runs in ADK
+![Sample run](Images/adkImage001.png)
+
+Sample flow
+![Sample run](Images/adkImage002.png)
+
+
 ## Deploy to GCP
 
 To deploy to GCP, you will need to do the following.
