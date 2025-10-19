@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from queue import Full
 import uuid
 import asyncio
 import httpx
@@ -39,7 +40,7 @@ logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERR
 LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
 if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
     LOGLEVEL = "WARNING"
-logger.setLevel(LOGLEVEL)
+    if logger: logger.setLevel(LOGLEVEL)
 
 # --- Utility Functions ---
 
@@ -100,10 +101,10 @@ async def get_answer_content(client: httpx.AsyncClient, project_id: str, app_id:
         }
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error during get_answer_content: {e.response.status_code} {e.response.text}")
+        if logger: logger.error(f"HTTP error during get_answer_content: {e.response.status_code} {e.response.text}")
         return {"answerText": f"An HTTP error occurred: {e.response.status_code}", "contentArray": []}
     except Exception as e:
-        logger.error(f"Unexpected error during get_answer_content: {e}")
+        if logger: logger.error(f"Unexpected error during get_answer_content: {e}")
         return {"answerText": "An unexpected error occurred.", "contentArray": []}
 
 async def get_authenticated_client() -> httpx.AsyncClient:
@@ -114,7 +115,7 @@ async def get_authenticated_client() -> httpx.AsyncClient:
     isAuth = bool(auth_required == "true") if auth_required is not None else False
     
     if isAuth:
-        logger.debug("- Doing GCP authentication...")
+        if logger: logger.debug("- Doing GCP authentication...")
         sa_json_file = utils.getValue("sa_json_file")
         if sa_json_file and os.path.exists(sa_json_file):
             credentials, _ = google.auth.load_credentials_from_file(sa_json_file)
@@ -131,7 +132,7 @@ async def get_authenticated_client() -> httpx.AsyncClient:
         }
         return httpx.AsyncClient(headers=headers, timeout=60.0)
     else:
-        logger.debug("- Not doing GCP authentication...")
+        if logger: logger.debug("- Not doing GCP authentication...")
         headers = {"Content-Type": "application/json"}
         return httpx.AsyncClient(headers=headers, timeout=60.0)
 
@@ -161,10 +162,10 @@ async def run_agentspace_url_query(client: httpx.AsyncClient, agentspace_ai_url:
             "session": f"projects/{project_id}/locations/{region}/collections/default_collection/engines/{app_id}/sessions/-"
         }
         
-        logger.debug(f"- Calling external agent URI: {agentspace_ai_url}")
+        if logger: logger.debug(f"- Calling external agent URI: {agentspace_ai_url}")
         response = await client.post(agentspace_ai_url, json=payload)
         response.raise_for_status()
-        logger.debug(f"- Parsing agent response...")
+        if logger: logger.debug(f"- Parsing agent response...")
         
         data = response.json()
         session_info = data.get("sessionInfo", {})
@@ -176,14 +177,14 @@ async def run_agentspace_url_query(client: httpx.AsyncClient, agentspace_ai_url:
             draft_answer_text = draft_response_json.get("answerText", "")
             return draft_answer_text
         else:
-            logger.warning("Session name or query ID not found in response.")
+            if logger: logger.warning("Session name or query ID not found in response.")
             return "No valid session or query ID found."
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error during run_agentspace_url_query: {e.response.status_code} {e.response.text}")
+        if logger: logger.error(f"HTTP error during run_agentspace_url_query: {e.response.status_code} {e.response.text}")
         return f"An HTTP error occurred: {e.response.status_code}."
     except Exception as e:
-        logger.error(f"General error during run_agentspace_url_query: {e}")
+        if logger: logger.error(f"General error during run_agentspace_url_query: {e}")
         return "An unexpected error occurred."
     
 async def get_agentspace_draft_response(client: httpx.AsyncClient, ctx: InvocationContext) -> str:
@@ -200,7 +201,7 @@ async def get_agentspace_draft_response(client: httpx.AsyncClient, ctx: Invocati
             return draft_response
         return ""
     except Exception as e:
-        logger.error(f"Error in get_agentspace_draft_response: {e}")
+        if logger: logger.error(f"Error in get_agentspace_draft_response: {e}")
         return ""
 
 # --- New Base Class for Tool Agents ---
@@ -214,7 +215,7 @@ class _BaseToolAgent(BaseAgent):
         client = ctx.session.state.get("httpx_client")
         if not client:
             error_msg = "HTTP client not found in session state."
-            logger.error(error_msg)
+            if logger: logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
             return
@@ -228,7 +229,7 @@ class _BaseToolAgent(BaseAgent):
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=draft_response)]))
         except Exception as e:
             error_msg = f"Exception in {self.name}: {e}"
-            logger.error(error_msg)
+            if logger: logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -315,7 +316,7 @@ class CustomerMeterToolAgent(BaseAgent):
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=customized_response)]))
         except Exception as e:
             error_msg = f"Exception in CustomerMeterToolAgent: {e}"
-            logger.error(error_msg)
+            if logger: logger.error(error_msg)
             ctx.session.state["tool_result"] = error_msg
             yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=error_msg)]))
 
@@ -692,7 +693,7 @@ async def setup_session_and_runner(user_id: str, session_id: str, email_topic: s
     return session_service, runner
 
 # --- Function to Interact with the Agent ---
-async def call_agent_async(user_input_topic: str, logger: logging.Logger):
+async def call_agent_async(user_input_topic: str, logger: logging.Logger = None):
     """
     Sends a new topic to the agent and runs the workflow.
     """
@@ -724,3 +725,25 @@ async def call_agent_async(user_input_topic: str, logger: logging.Logger):
             final_response = event.content.parts[0].text
     
     return final_response
+
+# --- Main Execution Block for a local, working example ---
+if __name__ == "__main__":
+    # Example for JSON input
+    json_message = json.dumps({
+        "fromEmailAddress": "johndoe@example.com",
+        "subject": "Urgent: My laptop is not turning on",
+        "body": "Hi, my laptop is not turning on. I've tried charging it and pressing the power button multiple times."
+    }, indent=2)
+
+    # Example for plain string input for a software issue
+    string_message_software = "My web browser keeps crashing when I open a new tab."
+
+    # Example for plain string input for a hardware issue
+    string_message_hardware = "My mouse isn't working at all."
+
+    # Choose which message to run based on command-line argument
+    # Default to the JSON message if no argument is provided
+    user_message = sys.argv[1] if len(sys.argv) > 1 else json_message
+
+    final_state_json = asyncio.run(call_agent_async(user_message))
+    print(final_state_json)
