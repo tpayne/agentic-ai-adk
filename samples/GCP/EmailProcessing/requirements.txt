@@ -12,7 +12,7 @@ google-adk>=0.1.42
 google-auth>=2.17.3
 h11==0.16.0
 httpx 
-idna==3.10
+idna==3.11
 itsdangerous==2.2.0
 jproperties==2.1.2
 pydantic>=2.11.1
