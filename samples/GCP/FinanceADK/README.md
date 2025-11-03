@@ -40,11 +40,6 @@ See `requirements.txt` for version constraints used in your environment.
 
 ---
 
-## Running Locally (Python)
-
-Create a virtual environment and install requirements:
-
-```bash
 ## Setup and Test Agent
 
 To setup and test the agent, you can do the following.
