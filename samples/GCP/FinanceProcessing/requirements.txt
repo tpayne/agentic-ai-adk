@@ -1,0 +1,10 @@
+# ADK runtime
+google-adk>=0.1.42
+google-auth>=2.17.3
+
+# Yahoo Finance tooling + caching and data handling
+yfinance>=0.2.28
+requests-cache>=0.9.8
+pandas>=2.2.0
+numpy>=1.26.0
+lxml>=4.9.0
