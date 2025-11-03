@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Build the ADK Docker image
+      - name: Build the ADK Docker image for email
         run: |
           cd samples/GCP/EmailProcessing
           docker build . --file Dockerfile --tag adktemplate:latest
@@ -29,6 +29,12 @@ jobs:
           #docker scout cves adktemplate:latest
           sleep 10
           curl localhost:8080/status
+    
+      - name: Build the ADK Docker image for fintech
+        run: |
+          cd samples/GCP/FinanceProcessing
+          docker build . -t adkfinance && \
+            docker run --rm -it -v "$(pwd)/sample.txt":/app/sample.txt adkfinance -f sample.txt
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
