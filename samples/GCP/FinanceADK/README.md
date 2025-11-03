@@ -63,6 +63,12 @@ To check that the agent is working correctly in the GCP ADK environment, you can
     .venv/bin/adk web
 ```
 
+Sample runs in ADK
+![Sample run](Images/sample001.png)
+
+Sample flow
+![Sample run](Images/sample002.png)
+
 ---
 
 ## Docker Usage
