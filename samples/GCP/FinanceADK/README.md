@@ -1,6 +1,6 @@
 # ADK Yahoo Finance LLM Agent
 
-A lightweight ADK-style agent exposing Yahoo Finance tools via a root LLM agent.
+A lightweight ADK LLM agent exposing Yahoo Finance tools via a root LLM agent.
 
 ## Features
 
@@ -9,11 +9,8 @@ A lightweight ADK-style agent exposing Yahoo Finance tools via a root LLM agent.
     - `get_aggregated_stock_data`  
     *(yfinance-backed)*
 
-- Root ADK tool registry + dispatcher with schema validation and timeouts.
 - Root `LlmAgent` accepts natural-language queries, parses LLM-style JSON decisions, and invokes tools.
 - In-memory requests-cache to avoid filesystem permission issues in containers.
-- CLI interactive mode and batch mode: pass `-f <file>` to run commands from a file (one command per line).
-- Minimal rule-based example LLM for local testing; designed to be replaced by a real LLM call.
 
 ---
 
@@ -25,7 +22,6 @@ adk/
     agent.py          # main merged module (ADK root, tools, LlmAgent, CLI)
     requirements.txt
     Dockerfile
-    sample.txt        # (optional) sample batch commands (one per line)
 ```
 
 ---
