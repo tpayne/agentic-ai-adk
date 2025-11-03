@@ -18,6 +18,6 @@ RUN adduser ${account} ${account}
 
 USER ${account}
 
-# Run the merged ADK LLM agent module implemented in adk/adk_yfinance_llm_agent.py
-CMD ["python3", "-m", "adk.agent"]
-
+# Run the adk.agent module as the container entrypoint so CLI flags are forwarded.
+ENTRYPOINT ["python3", "-m", "adk.agent"]
+CMD []

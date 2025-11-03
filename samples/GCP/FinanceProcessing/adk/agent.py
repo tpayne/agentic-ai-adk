@@ -3,6 +3,7 @@
 ADK + Yahoo Finance tools + root LlmAgent
 
 - Uses requests-cache with in-memory backend to avoid filesystem issues in containers.
+- Provides a CLI and a batch mode: run with -f <fileName> to read commands (one per line).
 - Adds validation and a fallback that extracts ticker symbols from the user message
   when the LLM returns an invalid symbol such as the literal "JSON".
 - Minimal dependencies: yfinance, requests-cache, pandas, numpy (installed via requirements).
@@ -18,6 +19,9 @@ import json
 import logging
 import time
 import re
+import argparse
+import sys
+import os
 
 import yfinance as yf
 import requests_cache
@@ -490,11 +494,51 @@ def example_llm_call(prompt: str) -> str:
     return json.dumps({"tool": "get_last_stock_price", "params": {"symbol": symbol}, "explain": f"default fallback to last price {symbol}"})
 
 
-# --- CLI quick demo ---
+# --- Batch processing helper (reads file and runs each non-empty line) ---
+def process_file_lines(llm_agent: LlmAgent, filename: str, print_json: bool = True) -> int:
+    """
+    Reads filename line by line; each non-empty, non-comment line is treated as a user query.
+    Prints a JSON result for each line. Returns number of processed lines.
+    Lines starting with '#' are ignored.
+    """
+    if not os.path.exists(filename):
+        print(json.dumps({"error": f"file not found: {filename}"}))
+        return 0
+
+    processed = 0
+    with open(filename, "r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            processed += 1
+            out = llm_agent.handle_user_message(line)
+            if print_json:
+                print(json.dumps({"input": line, "output": out}, ensure_ascii=False))
+            else:
+                # human-friendly print
+                print(f"> {line}")
+                print(json.dumps(out, indent=2, ensure_ascii=False))
+    return processed
+
+
+# --- CLI quick demo + file option ---
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(description="ADK + LLM Yahoo Finance agent CLI")
+    parser.add_argument("-f", "--file", help="File containing commands (one per line). Lines starting with # are ignored.")
+    parser.add_argument("--no-json", action="store_true", help="When using -f, print human-friendly output instead of compact JSON lines.")
+    args = parser.parse_args()
+
     adk = create_default_agent()
     llm_agent = LlmAgent(adk=adk, llm_call=example_llm_call, llm_is_async=False, max_retries=1)
+
+    if args.file:
+        processed = process_file_lines(llm_agent, args.file, print_json=not args.no_json)
+        if processed == 0:
+            # exit with non-zero so CI/scripts can detect no-ops
+            sys.exit(2)
+        sys.exit(0)
 
     print("ADK + LLM agent demo. Type a question (e.g., 'What's the last price for TSLA?') or 'exit'.")
     while True:
