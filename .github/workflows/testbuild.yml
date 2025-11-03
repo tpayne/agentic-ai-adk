@@ -30,11 +30,17 @@ jobs:
           sleep 10
           curl localhost:8080/status
     
-      - name: Build the ADK Docker image for fintech
+      - name: Build the sample ADK Docker image for fintech
         run: |
           cd samples/GCP/FinanceProcessing
+          docker build . -t adksample && \
+            docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt adksample -f sample.txt
+
+      - name: Build the ADK Docker image for fintech
+        run: |
+          cd samples/GCP/FinanceADK
           docker build . -t adkfinance && \
-            docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt adkfinance -f sample.txt
+            docker run --rm adkfinance
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
