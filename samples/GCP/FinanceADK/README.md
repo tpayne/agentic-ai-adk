@@ -7,6 +7,12 @@ A lightweight ADK LLM agent exposing Yahoo Finance tools via a root LLM agent.
 - **Tools:**  
     - `get_last_stock_price`  
     - `get_aggregated_stock_data`  
+    - `get_major_index_symbols`
+    - `calculate_beta_and_volatility`
+    - `compare_key_metrics`
+    - `generate_time_series_chart_data`
+    - `get_risk_free_rate`
+    - `get_historical_market_return`   
     *(yfinance-backed)*
 
 - Root `LlmAgent` accepts natural-language queries, parses LLM-style JSON decisions, and invokes tools.
@@ -68,6 +74,9 @@ Sample runs in ADK
 
 Sample flow
 ![Sample run](Images/sample002.png)
+
+Sample CAPM flow calculation
+![Sample run](Images/sample003.png)
 
 ---
 
