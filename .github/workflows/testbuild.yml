@@ -34,7 +34,7 @@ jobs:
         run: |
           cd samples/GCP/FinanceProcessing
           docker build . -t adkfinance && \
-            docker run --rm -it -v "$(pwd)/sample.txt":/app/sample.txt adkfinance -f sample.txt
+            docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt adkfinance -f sample.txt
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
