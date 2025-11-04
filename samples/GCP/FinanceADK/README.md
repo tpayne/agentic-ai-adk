@@ -101,6 +101,13 @@ docker run --rm -it adkfinance
 
 ---
 
-## License
+## Sample Prompts
 
-This repository contains sample code. Apply your preferred license. No license is included by default.
+- "What are the RSI and MACD values for Tesla (TSLA) based on the last 6 months of data?"
+- "Can you provide the latest 20-day Simple Moving Average (SMA) for the FTSE 100 (^FTSE) over the past year?"
+- "I need the complete technical indicator data, including the MACD, RSI, and SMA, for Microsoft (MSFT) for the 3-month period."
+- "What is the current On-Balance Volume (OBV) reading for Amazon (AMZN) using the last 2 years of trading data?"
+- "Calculate the OBV for JPMorgan Chase (JPM) for the 1-year period."
+- "Please check the On-Balance Volume for Alphabet (GOOGL) over the past 3 months."
+- "What is the CAPM of CTSH when compared to the FTSE100 for the last 5 years"
+- "get the stock price for BP from FTSE100"

@@ -602,6 +602,149 @@ def generate_time_series_chart_data(symbol: str, period: str, metric: str) -> Di
         return {'error': f"Failed to generate chart data for {symbol}: {e}"}
 
 
+# --- New Technical Indicator Tools ---
+def get_technical_indicators(
+    symbol: str, 
+    period: str, 
+    short_window: int = 12, 
+    long_window: int = 26, 
+    signal_window: int = 9, 
+    ma_window: int = 20
+) -> Dict[str, Any]:
+    """
+    Calculates key technical indicators: Simple Moving Average (SMA), Relative Strength Index (RSI), 
+    and Moving Average Convergence Divergence (MACD) for a given stock symbol.
+
+    Args:
+        symbol: The stock symbol (e.g., 'AAPL', 'TSLA').
+        period: The period over which to retrieve data (e.g., '1y', '6mo').
+        short_window: The period for the fast EMA in MACD (default 12).
+        long_window: The period for the slow EMA in MACD (default 26).
+        signal_window: The period for the signal line in MACD (default 9).
+        ma_window: The period for the Simple Moving Average (default 20).
+
+    Returns:
+        A dictionary containing the latest calculated values for all indicators.
+    """
+    try:
+        # Fetch daily data
+        data = yf.download(symbol, period=period, interval='1d', progress=False)
+        data['Close'] = data['Close'].ffill() # Forward fill any NaN prices
+        
+        if data.empty:
+            return {"error": f"No data found for {symbol} over the period {period}."}
+        
+        # --- 1. Simple Moving Average (SMA) ---
+        data['SMA'] = data['Close'].rolling(window=ma_window).mean()
+
+        # --- 2. Moving Average Convergence Divergence (MACD) ---
+        data['EMA_Short'] = data['Close'].ewm(span=short_window, adjust=False).mean()
+        data['EMA_Long'] = data['Close'].ewm(span=long_window, adjust=False).mean()
+        data['MACD_Line'] = data['EMA_Short'] - data['EMA_Long']
+        data['Signal_Line'] = data['MACD_Line'].ewm(span=signal_window, adjust=False).mean()
+        data['MACD_Histogram'] = data['MACD_Line'] - data['Signal_Line']
+
+        # --- 3. Relative Strength Index (RSI) ---
+        delta = data['Close'].diff(1)
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        
+        avg_gain = gain.ewm(com=14 - 1, adjust=False).mean()
+        avg_loss = loss.ewm(com=14 - 1, adjust=False).mean()
+
+        rs = avg_gain / avg_loss
+        data['RSI'] = 100 - (100 / (1 + rs))
+
+        # --- Final Data Preparation ---
+        # Ensure we only consider rows where all indicators have been calculated
+        data.dropna(inplace=True)
+
+        if data.empty:
+            # Handle case where there isn't enough data (e.g., period is too short)
+            return {
+                "symbol": symbol,
+                "error": f"Insufficient trading days (less than {max(long_window, 14)} days) to calculate technical indicators for {symbol} over {period}."
+            }
+
+        # --- FIX: Extract latest values as native Python types using .item() ---
+        try:
+            latest_close_price = data['Close'].iloc[-1].item() 
+            latest_sma = data['SMA'].iloc[-1].item()
+            latest_rsi = data['RSI'].iloc[-1].item()
+            latest_macd_line = data['MACD_Line'].iloc[-1].item()
+            latest_macd_signal = data['Signal_Line'].iloc[-1].item()
+            latest_macd_histogram = data['MACD_Histogram'].iloc[-1].item()
+        except Exception as e:
+            return {'error': f"Failed to extract final indicator values due to a data type issue: {e}"}
+
+        # Return a dictionary containing only standard Python types
+        return {
+            "symbol": symbol.upper(),
+            "period": period,
+            "latest_close_price": round(latest_close_price, 2),
+            "latest_sma": round(latest_sma, 2),
+            "latest_rsi": round(latest_rsi, 2),
+            "latest_macd_line": round(latest_macd_line, 4),
+            "latest_macd_signal": round(latest_macd_signal, 4),
+            "latest_macd_histogram": round(latest_macd_histogram, 4),
+            "note": "RSI above 70 is overbought, below 30 is oversold. A positive MACD Histogram (MACD Line > Signal Line) suggests upward momentum."
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to calculate technical indicators for {symbol}: {e}"}
+
+def get_on_balance_volume(symbol: str, period: str) -> Dict[str, Any]:
+    """
+    Calculates the On-Balance Volume (OBV) for a given stock symbol and time period.
+
+    Args:
+        symbol: The stock symbol (e.g., 'AAPL', 'MSFT').
+        period: The period over which to retrieve data (e.g., '1y', '6mo').
+
+    Returns:
+        A dictionary containing the latest calculated On-Balance Volume value.
+    """
+    try:
+        # Fetch daily data
+        data = yf.download(symbol, period=period, interval='1d', progress=False)
+        
+        # 1. Robust Data Preparation: Select only necessary columns and drop rows with any missing data
+        # Explicitly select 'Close' and 'Volume' and drop rows where either is NaN.
+        data = data[['Close', 'Volume']].dropna()
+
+        if data.empty or len(data) < 2:
+            return {"error": f"Insufficient data (less than 2 valid days of Close/Volume) to calculate OBV for {symbol} over {period}. Data check failed."}
+
+        # 2. Calculate the price change direction: 1, -1, or 0
+        # The .diff() creates NaN on the first row. .fillna(0) correctly initializes the OBV starting point.
+        price_direction = np.sign(data['Close'].diff()).fillna(0)
+        
+        # 3. Calculate the daily volume contribution (Volume * Direction)
+        # We explicitly convert Volume to a 64-bit integer (np.int64) for maximum robustness against volume type errors.
+        data['Volume_Contribution'] = data['Volume'].astype(np.int64) * price_direction
+        
+        # 4. Calculate On-Balance Volume (OBV) as the cumulative sum
+        data['OBV'] = data['Volume_Contribution'].cumsum()
+        
+        # 5. Final Extraction and Type Safety
+        latest_obv_scalar = data['OBV'].iloc[-1]
+        
+        if pd.isna(latest_obv_scalar):
+             return {"error": "Latest OBV value is NaN. Calculation produced an invalid result."}
+
+        # FIX: Use .item() to ensure serialization, and explicitly cast to int for the final return
+        latest_obv = int(latest_obv_scalar.item())
+
+        return {
+            "symbol": symbol.upper(),
+            "period": period,
+            "latest_on_balance_volume": latest_obv,
+            "note": "OBV confirms price trends. If price rises but OBV falls, it suggests a weak move."
+        }
+
+    except Exception as e:
+        # Return a descriptive error message including the internal exception type and message
+        return {"error": f"Failed to calculate On-Balance Volume for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}    
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
@@ -609,7 +752,7 @@ root_agent = LlmAgent(
     name="Financial_Analysis_Agent",
     model="gemini-2.5-flash",
     description="A specialist financial assistant that uses market data tools to answer questions about stock prices, historical performance, risk metrics (Beta), index constituents, time-series data for visualization, risk-free rate, and historical market returns (E(R_m)).",
-    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, generate_time_series_chart_data, get_risk_free_rate, and get_historical_market_return) to answer any user queries about stock information and financial metrics, including CAPM calculations.",
+    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, and get_on_balance_volume) to answer any user queries about stock information and financial metrics, including CAPM calculations and technical analysis.",
     tools=[
         get_last_stock_price,
         get_aggregated_stock_data,
@@ -619,5 +762,7 @@ root_agent = LlmAgent(
         generate_time_series_chart_data,
         get_risk_free_rate, 
         get_historical_market_return, 
+        get_technical_indicators,
+        get_on_balance_volume,
     ],
 )
