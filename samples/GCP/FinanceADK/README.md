@@ -103,7 +103,9 @@ docker run --rm -it adkfinance
 
 ## Financial Analytical Methods for Stock Analysis
 
-The financial analytical methods used in your prompts fall into two main categories: **Technical Indicators** (used for market timing and trend analysis) and **Risk & Return Models** (used for valuation and risk assessment).
+The financial analytical methods used fall into two main categories: 
+**Technical Indicators** (used for market timing and trend analysis) and 
+**Risk & Return Models** (used for valuation and risk assessment).
 
 | Method | Category | Description | How to Use (Enrichment) |
 | :--- | :--- | :--- | :--- |
