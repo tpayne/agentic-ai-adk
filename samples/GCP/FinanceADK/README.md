@@ -101,6 +101,21 @@ docker run --rm -it adkfinance
 
 ---
 
+## Financial Analytical Methods for Stock Analysis
+
+The financial analytical methods used in your prompts fall into two main categories: **Technical Indicators** (used for market timing and trend analysis) and **Risk & Return Models** (used for valuation and risk assessment).
+
+| Method | Category | Description | How to Use (Enrichment) |
+| :--- | :--- | :--- | :--- |
+| **Simple Moving Average (SMA)** | Technical | A straightforward average of a security's price over a specified number of periods (e.g., the 20-day SMA). It smooths out price fluctuations to show the underlying trend. | Use it to **identify the trend direction** and **dynamic support/resistance levels**. When the price is consistently above the SMA, the trend is bullish; when below, it's bearish. |
+| **Relative Strength Index (RSI)** | Technical | A momentum oscillator that measures the speed and change of price movements, calculated on a scale of 0 to 100. | Use it to **identify overbought or oversold conditions**. A reading **above 70** suggests the asset is overbought and may be due for a pullback, while a reading **below 30** suggests it is oversold and may be due for a bounce. |
+| **Moving Average Convergence Divergence (MACD)** | Technical | A trend-following momentum indicator that shows the relationship between two exponential moving averages (EMAs) of a security's price. It includes a MACD Line, a Signal Line, and a Histogram. | Use it to **gauge momentum and generate trade signals**. A **positive MACD Histogram** (where the MACD Line is above the Signal Line) suggests upward momentum and a potential buy signal. |
+| **On-Balance Volume (OBV)** | Technical | A cumulative volume-based indicator that links volume to price change. It adds volume on up days and subtracts volume on down days. | Use it to **confirm the conviction behind a price trend**. If price rises but **OBV falls**, it suggests a weak move or lack of institutional buyer participation, indicating the price trend may be unreliable or temporary. |
+| **Capital Asset Pricing Model (CAPM)** | Risk & Return | A model used to determine the theoretically **required rate of return** for an asset, given its risk relative to the overall market. It is calculated as: $E(R_i) = R_f + \beta_i * (E(R_m) - R_f)$. | Use it to **evaluate if a stock is fairly priced**. If the stock's expected return is **higher** than the CAPM-calculated required return, the stock might be undervalued. |
+| **Beta ($\beta$)** | Risk & Return | A measure of the **systematic risk** of a stock—how much the stock's price moves in relation to the overall market (e.g., the FTSE 100). | Use it to **measure sensitivity and risk**. A Beta **greater than 1** means the stock is theoretically more volatile (higher systematic risk) than the market, while a Beta **less than 1** means it is less volatile. |
+
+---
+
 ## Sample Prompts
 
 - "What are the RSI and MACD values for Tesla (TSLA) based on the last 6 months of data?"
