@@ -23,7 +23,7 @@ import numpy as np # Required for financial calculations (log returns, statistic
 requests_cache.install_cache(backend="memory", expire_after=60)
 
 # --- logging ---
-logger = logging.getLogger("adk_yfinance_llm")
+logger = logging.getLogger("calculation_agent")
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -745,14 +745,81 @@ def get_on_balance_volume(symbol: str, period: str) -> Dict[str, Any]:
     except Exception as e:
         # Return a descriptive error message including the internal exception type and message
         return {"error": f"Failed to calculate On-Balance Volume for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}    
+
+def calculate_ebitda(symbol: str) -> Dict[str, Any]:
+    """
+    Calculates the most recent annual EBITDA (Earnings Before Interest, Taxes,
+    Depreciation, and Amortization) for a specified stock symbol.
+
+    Args:
+        symbol: The stock ticker symbol (e.g., 'AAPL', 'MSFT').
+
+    Returns:
+        A dictionary containing the symbol and the calculated EBITDA value (as a float),
+        or an 'error' message if the data cannot be retrieved.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # 1. Attempt to get explicit EBITDA from .info (quickest method)
+        info = ticker.info
+        ebitda_value = info.get('ebitda')
+        
+        if ebitda_value is not None and ebitda_value != 0:
+            return {
+                'symbol': symbol.upper(),
+                'ebitda': float(ebitda_value),
+                'source': 'info'
+            }
+
+        # 2. Fallback: Calculate from annual financial statements using the add-back method
+        # Financials DataFrame contains annual income statement data
+        financials = ticker.financials
+        
+        if financials.empty:
+            return {'error': f"Failed to retrieve financial statements for {symbol}. Cannot calculate EBITDA."}
+
+        # Get the most recent annual column (the first one)
+        latest_financials = financials.iloc[:, 0]
+        
+        # Keys for the add-back method: Net Income + Interest + Taxes + D&A
+        net_income = latest_financials.get('Net Income')
+        interest_expense = latest_financials.get('Interest Expense') or latest_financials.get('Interest Expense Non Operating') or 0
+        tax_provision = latest_financials.get('Tax Provision')
+        depreciation_amortization = latest_financials.get('Depreciation And Amortization')
+
+        # Check for mandatory components
+        if net_income is None or tax_provision is None or depreciation_amortization is None:
+            # Report missing data
+            missing_components = [
+                k for k, v in {
+                    'Net Income': net_income, 
+                    'Tax Provision': tax_provision, 
+                    'Depreciation And Amortization': depreciation_amortization
+                }.items() if v is None
+            ]
+            return {'error': f"Failed to calculate EBITDA for {symbol}. Missing key financial components: {', '.join(missing_components)}."}
+
+        # Calculate EBITDA: Net Income + Interest Expense + Tax Provision + D&A
+        calculated_ebitda = net_income + interest_expense + tax_provision + depreciation_amortization
+        
+        return {
+            'symbol': symbol.upper(),
+            'ebitda': float(calculated_ebitda),
+            'source': 'calculated_from_NetIncome_addback'
+        }
+
+    except Exception as e:
+        logger.error(f"Error calculating EBITDA for {symbol}: {e}")
+        return {'error': f"Failed to calculate EBITDA for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
-root_agent = LlmAgent(
-    name="Financial_Analysis_Agent",
+calculation_agent = LlmAgent(
+    name="calculation_agent",
     model="gemini-2.5-flash",
-    description="A specialist financial assistant that uses market data tools to answer questions about stock prices, historical performance, risk metrics (Beta), index constituents, time-series data for visualization, risk-free rate, and historical market returns (E(R_m)).",
-    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, and get_on_balance_volume) to answer any user queries about stock information and financial metrics, including CAPM calculations and technical analysis.",
+    description="A specialist financial assistant that uses market data tools to answer questions about stock prices, historical performance, risk metrics (Beta), index constituents, time-series data for visualization, risk-free rate, historical market returns (E(R_m)), and financial statement analysis (like EBITDA).",
+    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, get_on_balance_volume, and calculate_ebitda) to answer any user queries about stock information and financial metrics, including CAPM calculations and technical analysis.",
     tools=[
         get_last_stock_price,
         get_aggregated_stock_data,
@@ -764,5 +831,6 @@ root_agent = LlmAgent(
         get_historical_market_return, 
         get_technical_indicators,
         get_on_balance_volume,
+        calculate_ebitda,
     ],
 )

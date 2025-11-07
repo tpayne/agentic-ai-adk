@@ -23,11 +23,18 @@ A lightweight ADK LLM agent exposing Yahoo Finance tools via a root LLM agent.
 ## Repository Layout
 
 ```
-adk/
-    __init__.py
-    agent.py          # main merged module (ADK root, tools, LlmAgent, CLI)
-    requirements.txt
-    Dockerfile
+├── Dockerfile
+├── finance_agents
+│   ├── __init__.py
+│   ├── agent.py
+│   ├── calculation_agent.py
+│   └── review_agent.py
+├── Images
+│   ├── sample001.png
+│   ├── sample002.png
+│   └── sample003.png
+├── README.md
+└── requirements.txt
 ```
 
 ---
@@ -78,6 +85,11 @@ Sample flow
 Sample CAPM flow calculation
 ![Sample run](Images/sample003.png)
 
+Sample Stock Recommendation
+![Sample run](Images/sample004.png)
+
+![Sample run](Images/sample005.png)
+
 ---
 
 ## Docker Usage
@@ -97,7 +109,7 @@ docker run --rm -it adkfinance
 
 **Notes:**
 
-- The Docker image runs the module `adk.agent` as the container ENTRYPOINT. Arguments passed to `docker run` are forwarded to the module.
+- The Docker image runs the module `finance_agents.agent` as the container ENTRYPOINT. Arguments passed to `docker run` are forwarded to the module.
 
 ---
 
@@ -128,3 +140,4 @@ The financial analytical methods used fall into two main categories:
 - "Please check the On-Balance Volume for Alphabet (GOOGL) over the past 3 months."
 - "What is the CAPM of CTSH when compared to the FTSE100 for the last 5 years"
 - "get the stock price for BP from FTSE100"
+- "between the major tech stocks - Apple, Microsoft, Amazon, Google, Tesla, Nvidia - which of these companies is giving the highest return and lowest risk based on the indicators that you support"

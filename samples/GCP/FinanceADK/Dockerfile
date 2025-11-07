@@ -8,7 +8,7 @@ RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/ma
 WORKDIR /app
 
 COPY requirements.txt .
-COPY adk ./adk
+COPY finance_agents ./finance_agents
 
 RUN pip install -r requirements.txt
 
@@ -19,5 +19,5 @@ RUN adduser ${account} ${account}
 USER ${account}
 
 # Run the adk.agent module as the container entrypoint so CLI flags are forwarded.
-ENTRYPOINT ["python3", "-m", "adk.agent"]
+ENTRYPOINT ["python3", "-m", "finance_agents.agent"]
 CMD []
