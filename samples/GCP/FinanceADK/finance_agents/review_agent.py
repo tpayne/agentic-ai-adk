@@ -6,9 +6,6 @@ from typing import Dict, Any, List
 import logging
 import json # Used for safe JSON parsing/formatting
 
-# Import the root agent from agent.py as the sub-agent
-from .calculation_agent import calculation_agent as calculation_agent
-
 #--- logging ---
 logger = logging.getLogger("recommendation_agent")
 logger.setLevel(logging.INFO)
@@ -100,5 +97,4 @@ review_agent = LlmAgent(
     3. **Final Report:** Provide a concise summary of the overall review status (Accepted, Warning, or Rejected), including the findings from any data re-verification steps.
     """,
     tools=[review_portfolio_recommendation],
-    sub_agents=[calculation_agent] # Financial Analysis Agent added for verification
 )

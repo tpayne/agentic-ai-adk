@@ -10,7 +10,7 @@ import numpy as np # Required for generate_recommended_portfolio if more complex
 
 # Import the root agent from agent.py as the sub-agent
 from .calculation_agent import calculation_agent as root_calculation_agent
-from .review_agent import review_agent as review_agent
+from .review_agent import review_agent as root_review_agent
 
 # --- logging ---
 logger = logging.getLogger("recommendation_agent")
@@ -27,6 +27,16 @@ root_calculation_instance = LlmAgent(
     instruction=root_calculation_agent.instruction,
     tools=root_calculation_agent.tools, 
 )
+
+root_review_instance = LlmAgent(
+    # Copy all necessary properties from the original agent object
+    name=root_review_agent.name + "_Root_Instance", 
+    model=root_review_agent.model,
+    description=root_review_agent.description,
+    instruction=root_review_agent.instruction,
+    tools=root_review_agent.tools, 
+)
+
 
 # --- Internal Portfolio Logic (Parent Agent's Compilation Tool) ---
 def generate_recommended_portfolio(
@@ -111,6 +121,6 @@ root_agent = LlmAgent(
     # The orchestration layer, correctly listing the two sub-agents:
     sub_agents=[
         root_calculation_instance, # Data/Calculation layer
-        review_agent       # QA/Review layer
+        root_review_instance       # QA/Review layer
     ]
 )
