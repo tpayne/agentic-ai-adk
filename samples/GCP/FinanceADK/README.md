@@ -85,6 +85,11 @@ Sample flow
 Sample CAPM flow calculation
 ![Sample run](Images/sample003.png)
 
+Sample Stock Recommendation
+![Sample run](Images/sample004.png)
+
+![Sample run](Images/sample005.png)
+
 ---
 
 ## Docker Usage
