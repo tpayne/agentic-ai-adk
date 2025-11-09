@@ -11,10 +11,12 @@ import numpy as np # Required for generate_recommended_portfolio if more complex
 # Import the root agent from agent.py as the sub-agent
 from .calculation_agent import calculation_agent as root_calculation_agent
 from .review_agent import review_agent as root_review_agent
+import os
 
 # --- logging ---
 logger = logging.getLogger("recommendation_agent")
-logger.setLevel(logging.INFO)
+log_level = logging.DEBUG if os.getenv("LOGGING", "").lower() == "debug" else logging.INFO
+logger.setLevel(log_level)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 logger.addHandler(handler)
@@ -110,12 +112,19 @@ root_agent = LlmAgent(
     name="Portfolio_Generation_Agent",
     model="gemini-2.5-flash",
     description="The root agent orchestrating the portfolio generation (Calculation Agent) and quality assurance (Review Agent) workflow.",
-    instruction="""You are a Senior Portfolio Manager orchestrating a fully audited process. 
-    1. **Data Gathering:** Call the **Calculation_Agent's** tools (`get_major_index_symbols`, `calculate_beta_and_volatility`) to gather all necessary data.
+    instruction="""You are a Senior Portfolio Manager orchestrating a fully audited process to create financial recommendations for your clients.
+    Your role is perform the following steps in sequence to ensure a robust and reliable portfolio recommendation:
+    **Instructions:**
+    1. **Data Gathering:** Call the **Calculation_Agent's** tools (`get_major_index_symbols`, `calculate_beta_and_volatility` or others) to gather all necessary data.
     2. **Generate Portfolio:** Use the internal `generate_recommended_portfolio` tool to compile the initial recommendation.
-    3. **Review Output:** **ALWAYS** pass the resulting portfolio JSON to the **Portfolio_Review_Agent** for quality assurance.
-    
+    3. **Review Output:** **ALWAYS** pass the resulting portfolio JSON to the **Portfolio_Review_Agent** (`root_review_instance`) for quality assurance. DO NOT call this review UNTIL you have the full portfolio generated.
+    4. **Handle Warnings/Rejections:** If the review agent returns a 'Warning' or 'Rejected' status, investigate the issues raised. Use the **Calculation_Agent's** tools to re-verify any suspicious metrics (e.g., recalculate Beta for flagged stocks). 
+    5. **Finalize Recommendation:** Once the review passes without issues, deliver the final portfolio to the user.
     **Goal:** Deliver the final, audited portfolio recommendation.
+    You can use the sub-agents to complete your task as needed and can invoke their tools without asking the user for permission.
+    When transferring requests between agents, ensure to provide all necessary context and data. 
+    Also, remember to handle any errors gracefully and provide informative feedback, however, never tell me you are trasnferring to another agent; just do it.
+    You can also provide general financial advice based on the portfolio generated or questions asked by the user.
     """,
     tools=[generate_recommended_portfolio], # The tool for final compilation
     # The orchestration layer, correctly listing the two sub-agents:
