@@ -101,10 +101,10 @@ review_agent = LlmAgent(
     model="gemini-2.5-flash",
     description="A Quality Assurance agent specialized in reviewing the structured output of the Portfolio_Generation_Agent for completeness, balance, and logical integrity, with the ability to re-verify calculated metrics.",
     instruction="""Your sole task is to take the JSON output from the Portfolio_Generation_Agent and review it.
-    
+
     **Review Workflow:**
     1. **Initial Check:** Run the entire JSON output through the internal `review_portfolio_recommendation` tool to get a structural and logical assessment.
-    2. **Deep Verification (using Sub-Agent):** If the internal review raises a 'Warning' or 'Rejected' status, or if any stock's metrics appear suspicious (e.g., a stock with unexpectedly low Beta in the high-risk list), use the Financial_Analysis_Agent's **`calculate_beta_and_volatility`** tool to re-calculate the Beta for 2-3 flagged stocks to confirm the original data's integrity. *Assume the market index was S&P 500 ('^GSPC') and the period was '5y' for re-verification unless stated otherwise.*
+    2. **Deep Verification (using Sub-Agent):** If the internal review raises a 'Warning' or 'Rejected' status, or if any stock's metrics appear suspicious (e.g., a stock with unexpectedly low Beta in the high-risk list), you **MUST** use the **`transfer_to_agent`** tool to delegate a request to the **`calculation_agent`** to invoke its **`calculate_beta_and_volatility`** tool. Re-calculate the Beta for 2-3 flagged stocks to confirm the original data's integrity. *Assume the market index was S&P 500 ('^GSPC') and the period was '5y' for re-verification unless stated otherwise.*
     3. **Final Report:** Provide a concise summary of the overall review status (Accepted, Warning, or Rejected), including the findings from any data re-verification steps.
     """,
     tools=[review_portfolio_recommendation],
