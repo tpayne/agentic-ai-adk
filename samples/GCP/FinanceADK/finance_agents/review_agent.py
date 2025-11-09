@@ -6,6 +6,17 @@ from typing import Dict, Any, List
 import logging
 import json # Used for safe JSON parsing/formatting
 
+from .calculation_agent import calculation_agent as review_calculation_agent
+
+review_calculation_instance = LlmAgent(
+    # Copy all necessary properties from the original agent object
+    name=review_calculation_agent.name + "_Root_Instance", 
+    model=review_calculation_agent.model,
+    description=review_calculation_agent.description,
+    instruction=review_calculation_agent.instruction,
+    tools=review_calculation_agent.tools, 
+)
+
 #--- logging ---
 logger = logging.getLogger("recommendation_agent")
 logger.setLevel(logging.INFO)
@@ -97,4 +108,5 @@ review_agent = LlmAgent(
     3. **Final Report:** Provide a concise summary of the overall review status (Accepted, Warning, or Rejected), including the findings from any data re-verification steps.
     """,
     tools=[review_portfolio_recommendation],
+    sub_agents=[review_calculation_instance]
 )
