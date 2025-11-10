@@ -5,6 +5,7 @@ from google.adk.agents import LlmAgent
 from typing import Dict, Any, List
 import logging
 import json # Used for safe JSON parsing/formatting
+import os
 
 from .calculation_agent import calculation_agent as review_calculation_agent
 
@@ -19,7 +20,12 @@ review_calculation_instance = LlmAgent(
 
 #--- logging ---
 logger = logging.getLogger("recommendation_agent")
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+# Get log level from environment variable, default to WARNING
+LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
+if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    LOGLEVEL = "WARNING"
+    if logger: logger.setLevel(LOGLEVEL)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 logger.addHandler(handler)

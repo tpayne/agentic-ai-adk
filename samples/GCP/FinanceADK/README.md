@@ -141,6 +141,7 @@ The financial analytical methods used fall into two main categories:
 - "What is the CAPM of CTSH when compared to the FTSE100 for the last 5 years"
 - "get the stock price for BP from FTSE100"
 - "between the major tech stocks - Apple, Microsoft, Amazon, Google, Tesla, Nvidia - which of these companies is giving the highest return and lowest risk based on the indicators that you support"
+- "Calculate the Price-to-Earnings Ratio for Microsoft (MSFT) and what is its Sharpe Ratio over the last 5 years, assuming a risk-free rate of 4.5%."
 
 --- 
 

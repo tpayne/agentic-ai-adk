@@ -1,8 +1,14 @@
-# adk/__init__.py
-# Make the package importable and re-export the agent module.
+# finance_agents/__init__.py
+
+# Import the main agent module
 from . import agent
 
-# If your agent module exposes a top-level symbol (Agent or create_agent),
-# uncomment the following lines to re-export it for discovery.
-# from .agent import Agent, create_agent
-# __all__ = ["agent", "Agent", "create_agent"]
+# Re-export the main agent object for easy package-level import
+# Assuming the entry point agent is named 'root_agent' in agent.py
+from .agent import root_agent 
+__all__ = ["agent", "root_agent"] 
+
+# If you need to re-export ALL agents and objects for some reason:
+from .calculation_agent import calculation_agent
+from .review_agent import review_agent
+__all__ += ["calculation_agent", "review_agent"]

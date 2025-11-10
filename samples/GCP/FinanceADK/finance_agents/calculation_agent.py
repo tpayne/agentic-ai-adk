@@ -17,6 +17,7 @@ import logging
 import pandas as pd # Explicitly imported for web scraping
 import requests # Required for robust web scraping with custom headers
 import numpy as np # Required for financial calculations (log returns, statistics)
+import os
 
 # Use in-memory cache for robustness in containerized environments
 # Cache expiration set to 60 seconds to provide near real-time data
@@ -24,7 +25,12 @@ requests_cache.install_cache(backend="memory", expire_after=60)
 
 # --- logging ---
 logger = logging.getLogger("calculation_agent")
-logger.setLevel(logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+# Get log level from environment variable, default to WARNING
+LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
+if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    LOGLEVEL = "WARNING"
+    if logger: logger.setLevel(LOGLEVEL)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 logger.addHandler(handler)
@@ -812,6 +818,123 @@ def calculate_ebitda(symbol: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error calculating EBITDA for {symbol}: {e}")
         return {'error': f"Failed to calculate EBITDA for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}
+
+def get_pe_ratio(symbol: str) -> Dict[str, Any]:
+    """
+    Retrieves the Price-to-Earnings (P/E) ratio for a given stock symbol.
+    The P/E Ratio is a key valuation metric.
+
+    Args:
+        symbol: The stock ticker symbol (e.g., 'AAPL', 'MSFT').
+
+    Returns:
+        A dictionary containing the P/E ratio or an error message.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        # Attempt to get the trailing P/E ratio directly from info, which is a common source of error.
+        pe_ratio = ticker.info.get('trailingPE')
+        
+        if pe_ratio is not None and pe_ratio > 0:
+            return {
+                "symbol": symbol,
+                "price_to_earnings_ratio": pe_ratio,
+                "note": "P/E ratio successfully retrieved from fundamental data."
+            }
+        else:
+            # Fallback for missing/bad data
+            return {
+                "symbol": symbol,
+                "error": "P/E Ratio data is missing or zero/negative. Cannot be calculated.",
+                "note": "The data endpoint for fundamental data may be unstable or the P/E ratio is not applicable/missing."
+            }
+
+    except Exception as e:
+        return {"error": f"Failed to get P/E ratio for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}
+
+def calculate_sharpe_ratio(
+    symbol: str,
+    risk_free_rate: float,
+    period: str = "5y",
+    interval: str = "1d",
+    trading_days: int = 252,
+    auto_adjust: bool = True
+) -> Dict[str, Any]:
+    """
+    Calculates the Annualized Sharpe Ratio for a stock over a given period.
+
+    Args:
+        symbol: The stock ticker (e.g., 'MSFT').
+        risk_free_rate: The annual risk-free rate (as a percentage, e.g., 4.5 for 4.5%).
+        period: The time frame for historical data (e.g., '1y', '5y').
+        interval: Data interval (default '1d').
+        trading_days: Number of trading days per year for annualization (default 252).
+        auto_adjust: Pass explicitly to yf.download to control adjusted prices (default True).
+
+    Returns:
+        A dictionary with symbol, period, risk_free_rate_percent, sharpe_ratio,
+        annualized_return, annualized_volatility, or an error entry.
+    """
+    try:
+        rf_rate_decimal = float(risk_free_rate) / 100.0
+
+        # Explicitly pass auto_adjust to avoid FutureWarning from yfinance
+        data = yf.download(
+            symbol,
+            period=period,
+            interval=interval,
+            progress=False,
+            auto_adjust=auto_adjust
+        )
+
+        if data is None or data.empty:
+            return {"symbol": symbol, "error": f"Could not retrieve historical data for {symbol} over {period}."}
+
+        # Choose price column:
+        # - if auto_adjust is True, yfinance returns adjusted prices in the 'Close' column;
+        # - if auto_adjust is False, prefer 'Adj Close' when present, otherwise 'Close'.
+        if auto_adjust:
+            price_col = "Close"
+        else:
+            price_col = "Adj Close" if "Adj Close" in data.columns else "Close"
+
+        if price_col not in data.columns:
+            return {"symbol": symbol, "error": f"No Close or Adj Close column found for {symbol}."}
+
+        prices = data[price_col].astype(float).dropna()
+        if prices.size < 2:
+            return {"symbol": symbol, "error": f"Insufficient price data for {symbol} to compute returns."}
+
+        # Log returns
+        returns = np.log(prices / prices.shift(1)).dropna()
+        if returns.size < 2:
+            return {"symbol": symbol, "error": f"Insufficient non-NaN return data for {symbol}."}
+
+        # Compute scalars safely using .item() to avoid FutureWarning about float(Series)
+        mean_return_scalar = returns.mean()
+        std_dev_scalar = returns.std(ddof=1)
+
+        # mean_return_scalar and std_dev_scalar should be scalar numpy types; extract safely
+        mean_return = float(mean_return_scalar.item()) * trading_days
+        std_dev = float(std_dev_scalar.item()) * np.sqrt(trading_days)
+
+        if np.isnan(std_dev) or std_dev <= 1e-12:
+            return {"symbol": symbol, "error": f"Annualized volatility is zero or NaN for {symbol}."}
+
+        sharpe_ratio = (mean_return - rf_rate_decimal) / std_dev
+
+        return {
+            "symbol": symbol,
+            "period": period,
+            "risk_free_rate_percent": float(risk_free_rate),
+            "sharpe_ratio": round(float(sharpe_ratio), 6),
+            "annualized_return": round(float(mean_return), 6),
+            "annualized_volatility": round(float(std_dev), 6)
+        }
+
+    except Exception as e:
+        return {"symbol": symbol, "error": f"Internal error: {type(e).__name__}: {str(e)}"}
+ 
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
@@ -819,18 +942,24 @@ calculation_agent = LlmAgent(
     name="calculation_agent",
     model="gemini-2.5-flash",
     description="A specialist financial assistant that uses market data tools to answer questions about stock prices, historical performance, risk metrics (Beta), index constituents, time-series data for visualization, risk-free rate, historical market returns (E(R_m)), and financial statement analysis (like EBITDA).",
-    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, get_on_balance_volume, and calculate_ebitda) to answer any user queries about stock information and financial metrics, including CAPM calculations and technical analysis.",
+    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, " \
+    "get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, " \
+    "generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, " \
+    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio and calculate_ebitda) to answer any user queries about stock information and financial metrics, " \
+    "including CAPM calculations and technical analysis.",
     tools=[
-        get_last_stock_price,
-        get_aggregated_stock_data,
-        get_major_index_symbols,
         calculate_beta_and_volatility,
+        calculate_ebitda,
+        calculate_sharpe_ratio,
         compare_key_metrics,
         generate_time_series_chart_data,
-        get_risk_free_rate, 
+        get_aggregated_stock_data,
         get_historical_market_return, 
-        get_technical_indicators,
+        get_last_stock_price,
+        get_major_index_symbols,
         get_on_balance_volume,
-        calculate_ebitda,
+        get_pe_ratio,      
+        get_risk_free_rate, 
+        get_technical_indicators,
     ],
 )
