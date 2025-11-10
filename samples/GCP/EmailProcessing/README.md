@@ -63,6 +63,7 @@ This will allow the agent to run as a simple invocable script and not use a REST
         "email_keystatements": "The user's laptop is making noises and they suspect a hardware problem. They are asking for advice on how to proceed urgently.",
         "email_review_comments": "The email is well-written and informative. To improve it, consider adding a direct sentence reassuring Jim that on-site support will be dispatched quickly once the requested information is received, reinforcing the urgency of the situation.\nNo further comments."
       }
+    }
 
 ```
 
