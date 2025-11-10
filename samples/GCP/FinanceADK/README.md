@@ -141,3 +141,9 @@ The financial analytical methods used fall into two main categories:
 - "What is the CAPM of CTSH when compared to the FTSE100 for the last 5 years"
 - "get the stock price for BP from FTSE100"
 - "between the major tech stocks - Apple, Microsoft, Amazon, Google, Tesla, Nvidia - which of these companies is giving the highest return and lowest risk based on the indicators that you support"
+
+--- 
+
+## Issues to keep in mind
+
+- If you are using the free tier of Gemini to run this app, i.e. the `GOOGLE_API_KEY`, then you may well run into resource limits if you attempt to generate a "real" portfolio of 10+ stocks etc. Other operations requiring many tokens may also hit similar limits.
