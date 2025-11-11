@@ -935,6 +935,132 @@ def calculate_sharpe_ratio(
     except Exception as e:
         return {"symbol": symbol, "error": f"Internal error: {type(e).__name__}: {str(e)}"}
  
+def calculate_sortino_ratio(symbol: str, risk_free_rate: float, period: str = "5y") -> Dict[str, Any]:
+    """
+    Calculates the Annualized Sortino Ratio for a stock over a given period, focusing only on downside volatility.
+    """
+    try:
+        rf_rate_decimal = float(risk_free_rate) / 100.0
+        # explicitly set auto_adjust to avoid yfinance FutureWarning and to return adjusted prices
+        data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+
+        if data is None or data.empty:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: Could not retrieve historical data for {symbol}."}
+
+        # With auto_adjust=True, 'Close' is already adjusted; otherwise prefer 'Adj Close'
+        price_col = "Close" if "Close" in data.columns else ("Adj Close" if "Adj Close" in data.columns else None)
+        if price_col is None:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: No Close/Adj Close column for {symbol}."}
+
+        prices = data[price_col].astype(float).dropna()
+        if prices.size < 2:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: Insufficient price data for {symbol}."}
+
+        # use simple arithmetic returns for Sortino
+        returns = prices.pct_change().dropna()
+        if returns.size < 2:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: Insufficient return data for {symbol}."}
+
+        trading_days = 252
+
+        # Minimum acceptable return (daily)
+        mar_daily = (1 + rf_rate_decimal) ** (1 / trading_days) - 1
+
+        # downside deviations: only values below MAR, measured as (min(0, r - MAR))
+        downside_diff = np.minimum(0.0, returns - mar_daily)
+        # downside variance = mean(square(downside_diff)); use population mean (ddof=0)
+        downside_var_daily = np.nanmean(np.square(downside_diff))
+        # if no downside observations, downside_var_daily will be 0.0 (or NaN if all NaN)
+        if np.isnan(downside_var_daily) or downside_var_daily <= 0.0:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: No downside returns or zero downside variance for {symbol}."}
+
+        # annualize downside deviation
+        downside_std = np.sqrt(downside_var_daily) * np.sqrt(trading_days)
+
+        if np.isnan(downside_std) or downside_std <= 1e-12:
+            return {"symbol": symbol, "error": f"Sortino Ratio failed: Annualized Downside Volatility is zero or NaN for {symbol}."}
+
+        # annualized mean return (arithmetic)
+        mean_return = float(returns.mean().item()) * trading_days
+
+        # final Sortino: (annual_return - annual_rf) / annualized_downside_std
+        sortino_ratio = (mean_return - rf_rate_decimal) / downside_std
+
+        return {
+            "symbol": symbol,
+            "period": period,
+            "risk_free_rate_percent": float(risk_free_rate),
+            "sortino_ratio": round(float(sortino_ratio), 6),
+            "annualized_return": round(float(mean_return), 6),
+            "annualized_downside_volatility": round(float(downside_std), 6)
+        }
+
+    except Exception as e:
+        return {"symbol": symbol, "error": f"Failed to calculate Sortino Ratio for {symbol}. Internal error: {type(e).__name__}: {str(e)}"}
+
+def calculate_correlation_matrix(symbols: List[str], period: str = "5y") -> Dict[str, Any]:
+    """
+    Downloads historical data for multiple stocks and calculates the correlation matrix of their log returns.
+    """
+    if len(symbols) < 2:
+        return {"error": "Correlation matrix requires at least two symbols."}
+
+    try:
+        # Explicitly set auto_adjust=True so Close is adjusted (avoids warning and accounts for dividends/splits)
+        raw = yf.download(symbols, period=period, interval="1d", progress=False, auto_adjust=True)
+
+        if raw is None or raw.empty:
+            return {"error": f"Correlation matrix failed: could not retrieve data for symbols over {period}."}
+
+        # If multiple tickers, yf.download returns a DataFrame; for multi-ticker it may be a panel-like DataFrame.
+        # After auto_adjust=True, 'Close' should be present and adjusted; prefer 'Close' if present.
+        if isinstance(raw, pd.DataFrame) and "Close" in raw.columns and raw.columns.nlevels == 2:
+            # Multi-column with (field, symbol) structure: select Close field across symbols
+            data = raw["Close"].copy()
+        elif isinstance(raw, pd.DataFrame) and "Close" in raw.columns and raw.columns.nlevels == 1:
+            # Single-level columns (when yfinance returns single ticker frame)
+            data = raw[["Close"]].copy() if len(symbols) == 1 else raw["Close"] if "Close" in raw else raw
+            # If selection yields a Series (single ticker), convert to DataFrame
+            if isinstance(data, pd.Series):
+                data = data.to_frame(name=symbols[0])
+        else:
+            # Fallback: try 'Adj Close' or assume raw is already a prices DataFrame
+            if "Adj Close" in raw.columns:
+                data = raw["Adj Close"].copy()
+            else:
+                # assume raw is already the price DataFrame
+                data = raw.copy()
+
+        # If data is a Series (single symbol), convert to DataFrame
+        if isinstance(data, pd.Series):
+            data = data.to_frame(name=symbols[0])
+
+        # Drop symbols that failed entirely
+        data.dropna(axis=1, how='all', inplace=True)
+
+        # Need at least two columns after dropping
+        if data.shape[1] < 2:
+            return {"error": f"Correlation matrix failed: less than two symbols with valid data over {period}."}
+
+        # Compute log returns aligned on common dates, then drop NaNs
+        log_returns = np.log(data / data.shift(1)).dropna(how='all')
+
+        if log_returns.empty or log_returns.shape[1] < 2:
+            return {"error": f"Correlation matrix failed: Insufficient common return data for the provided symbols over {period}."}
+
+        correlation_matrix = log_returns.corr()
+
+        matrix_json = correlation_matrix.to_json(orient="index")
+
+        return {
+            "period": period,
+            "symbols": list(correlation_matrix.columns),
+            "correlation_matrix_json": matrix_json
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to calculate Correlation Matrix. Internal error: {type(e).__name__}: {str(e)}"}
+    
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
@@ -945,12 +1071,15 @@ calculation_agent = LlmAgent(
     instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, " \
     "get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, " \
     "generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, " \
-    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio and calculate_ebitda) to answer any user queries about stock information and financial metrics, " \
+    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio, calculate_sortino_ratio, calculate_correlation_matrix " \
+    " and calculate_ebitda) to answer any user queries about stock information and financial metrics, " \
     "including CAPM calculations and technical analysis.",
     tools=[
         calculate_beta_and_volatility,
         calculate_ebitda,
         calculate_sharpe_ratio,
+        calculate_sortino_ratio,
+        calculate_correlation_matrix,     
         compare_key_metrics,
         generate_time_series_chart_data,
         get_aggregated_stock_data,
@@ -961,5 +1090,6 @@ calculation_agent = LlmAgent(
         get_pe_ratio,      
         get_risk_free_rate, 
         get_technical_indicators,
+
     ],
 )

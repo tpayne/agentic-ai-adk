@@ -51,12 +51,12 @@ def generate_recommended_portfolio(
     stock_daily_returns: Dict[str, List[float]] 
 ) -> Dict[str, Any]:
     """
-    Analyzes a dictionary of calculated financial indicators and risk metrics 
-    for multiple stocks and generates a recommended portfolio of 20 stocks 
-    categorized by risk profile, now incorporating Sharpe Ratio and Correlation.
+    Analyzes a dictionary of calculated financial indicators (including Sortino Ratio) 
+    and risk metrics for multiple stocks and generates a recommended portfolio of 20 stocks 
+    categorized by risk profile, incorporating Sortino Ratio and Correlation for comprehensive analysis.
 
     The input 'stock_data_results' is expected to contain performance, risk, 
-    Sharpe Ratio, and P/E ratio for each stock.
+    Sortino Ratio, Sharpe Ratio, and P/E ratio for each stock.
 
     Args:
         exchange_name: The name of the exchange/index (e.g., 'SP500', 'FTSE100').
@@ -73,25 +73,35 @@ def generate_recommended_portfolio(
     # --- 1. PREP DATA ---
     df = pd.DataFrame.from_dict(stock_data_results, orient='index')
     
-    # Drop any rows where critical data is missing
-    required_metrics = ['beta', 'annualized_return', 'sharpe_ratio', 'pe_ratio']
+    # Drop any rows where critical data is missing. NOW includes 'sortino_ratio'
+    required_metrics = ['beta', 'annualized_return', 'sharpe_ratio', 'sortino_ratio', 'pe_ratio']
     existing_metrics = [m for m in required_metrics if m in df.columns]
     
     df.dropna(subset=existing_metrics, inplace=True)
+    
+    # Fallback/cleanup for stocks where Sortino may have failed but Sharpe exists
+    if 'sortino_ratio' in df.columns:
+        df['sortino_ratio'].fillna(df['sharpe_ratio'], inplace=True)
+        # Ensure we don't have zeros in sortino if it's the basis for filtering
+        df = df[df['sortino_ratio'] > 0.0]
 
-    # --- 2. FILTER & SORT ---
-    # High-Risk/High-Return Candidates: Beta > 1.2 AND above average Sharpe Ratio
+
+    # --- 2. FILTER & SORT (UPDATED TO USE SORTINO RATIO) ---
+    
+    # High-Risk/High-Return Candidates: Beta > 1.2 AND above average Sortino Ratio
+    # This captures the stocks with aggressive systematic risk that also compensate well for downside volatility.
     high_risk_candidates = df[
         (df['beta'] > 1.2) & 
-        (df['sharpe_ratio'] > df['sharpe_ratio'].median())
-    ].sort_values(by='annualized_return', ascending=False)
+        (df['sortino_ratio'] > df['sortino_ratio'].median())
+    ].sort_values(by=['sortino_ratio', 'annualized_return'], ascending=False)
 
-    # Low-Mid-Risk/Stable Candidates: Beta < 1.0 AND high Sharpe Ratio
+    # Low-Mid-Risk/Stable Candidates: Beta < 1.0 AND high Sortino Ratio
+    # This selects defensive stocks that have a strong return relative to their losses.
     low_risk_candidates = df[
         (df['beta'] < 1.0) & 
-        (df['sharpe_ratio'] > df['sharpe_ratio'].quantile(0.75)) & # Only top quartile Sharpe
-        (df['pe_ratio'] < 30) # NEW FUNDAMENTAL FILTER: Avoid extremely expensive stocks
-    ].sort_values(by='annualized_return', ascending=False)
+        (df['sortino_ratio'] > df['sortino_ratio'].quantile(0.75)) & # Only top quartile Sortino
+        (df['pe_ratio'] < 30) 
+    ].sort_values(by=['sortino_ratio', 'annualized_return'], ascending=False)
 
 
     # --- 3. CORRELATION MATRIX & DIVERSIFICATION ---
@@ -109,7 +119,7 @@ def generate_recommended_portfolio(
         corr_df.dropna(inplace=True) 
 
         if len(corr_df.columns) > 1 and len(corr_df) > 10: 
-            # Calculate the Absolute Correlation Matrix (abs() correlation is used to simplify diversification)
+            # Calculate the Absolute Correlation Matrix 
             corr_matrix = corr_df.corr().abs()
             
             # Diversification Heuristic: Select candidates with low average correlation
@@ -160,7 +170,7 @@ def generate_recommended_portfolio(
         low_risk_final = list(low_risk_candidates.index[:10])
 
 
-    # --- 4. COMPILE FINAL PORTFOLIO ---
+    # --- 4. COMPILE FINAL PORTFOLIO (UPDATED TO INCLUDE SORTINO) ---
     
     # Helper to compile the final stock data
     def compile_stock_list(symbols, data_df):
@@ -171,6 +181,7 @@ def generate_recommended_portfolio(
                 'annualized_volatility': data_df.loc[sym, 'annualized_volatility'],
                 'beta': data_df.loc[sym, 'beta'],
                 'sharpe_ratio': data_df.loc[sym, 'sharpe_ratio'], 
+                'sortino_ratio': data_df.loc[sym, 'sortino_ratio'], # <--- NEW METRIC
                 'pe_ratio': data_df.loc[sym, 'pe_ratio'],         
             }
             for sym in symbols
