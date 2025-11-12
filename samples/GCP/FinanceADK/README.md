@@ -133,6 +133,7 @@ The financial analytical methods used fall into two main categories:
 ## Sample Prompts
 
 - "Between the major tech stocks - Apple, Microsoft, Amazon, Google, Tesla, Nvidia - which of these companies is giving the highest return and lowest risk based on the indicators that you support"
+- "Calculate the Jensen's Alpha for NVIDIA (NVDA). Assume its actual annualized return is 65%, its Beta is 1.5, the market return is 10%, and the risk-free rate is 4.5%."
 - "Calculate the OBV for JPMorgan Chase (JPM) for the 1-year period."
 - "Calculate the Price-to-Earnings Ratio for Microsoft (MSFT) and what is its Sharpe Ratio over the last 5 years, assuming a risk-free rate of 4.5%."
 - "Calculate the Sortino Ratio for Tesla (TSLA) over the last 3 years using an annual risk-free rate of 4.2%."
@@ -143,6 +144,7 @@ The financial analytical methods used fall into two main categories:
 - "Please check the On-Balance Volume for Alphabet (GOOGL) over the past 3 months."
 - "What are the RSI and MACD values for Tesla (TSLA) based on the last 6 months of data?"
 - "What is the CAPM of CTSH when compared to the FTSE100 for the last 5 years"
+- "What is the PEG Ratio for Netflix (NFLX)?"
 - "What is the Piotroski F-Score for Exxon Mobil (XOM)?"
 - "What is the correlation matrix for the daily returns of Microsoft (MSFT), Exxon Mobil (XOM), and Visa (V) over the past 5 years?"
 - "What is the current On-Balance Volume (OBV) reading for Amazon (AMZN) using the last 2 years of trading data?"
