@@ -51,12 +51,12 @@ def generate_recommended_portfolio(
     stock_daily_returns: Dict[str, List[float]] 
 ) -> Dict[str, Any]:
     """
-    Analyzes a dictionary of calculated financial indicators (including Sortino Ratio) 
-    and risk metrics for multiple stocks and generates a recommended portfolio of 20 stocks 
-    categorized by risk profile, incorporating Sortino Ratio and Correlation for comprehensive analysis.
+    Analyzes a dictionary of calculated financial indicators (including Sortino Ratio, 
+    Treynor Ratio, and Piotroski F-Score) and risk metrics for multiple stocks 
+    and generates a recommended portfolio of 20 stocks categorized by risk profile, 
+    incorporating all available metrics for comprehensive analysis and diversification.
 
-    The input 'stock_data_results' is expected to contain performance, risk, 
-    Sortino Ratio, Sharpe Ratio, and P/E ratio for each stock.
+    The input 'stock_data_results' is expected to contain all calculated metrics.
 
     Args:
         exchange_name: The name of the exchange/index (e.g., 'SP500', 'FTSE100').
@@ -73,38 +73,52 @@ def generate_recommended_portfolio(
     # --- 1. PREP DATA ---
     df = pd.DataFrame.from_dict(stock_data_results, orient='index')
     
-    # Drop any rows where critical data is missing. NOW includes 'sortino_ratio'
-    required_metrics = ['beta', 'annualized_return', 'sharpe_ratio', 'sortino_ratio', 'pe_ratio']
+    # Drop any rows where critical data is missing. NOW includes all new metrics.
+    required_metrics = ['beta', 'annualized_return', 'sharpe_ratio', 'sortino_ratio', 'treynor_ratio', 'pe_ratio', 'piotroski_f_score']
     existing_metrics = [m for m in required_metrics if m in df.columns]
     
+    # Fill NaN F-Scores with 0 for filtering purposes (missing data suggests poor quality/new company)
+    if 'piotroski_f_score' in df.columns:
+        df['piotroski_f_score'].fillna(0, inplace=True)
+        
     df.dropna(subset=existing_metrics, inplace=True)
     
-    # Fallback/cleanup for stocks where Sortino may have failed but Sharpe exists
+    # Fallback/cleanup for stocks where Sortino/Sharpe/Treynor may have failed but others exist
     if 'sortino_ratio' in df.columns:
-        df['sortino_ratio'].fillna(df['sharpe_ratio'], inplace=True)
-        # Ensure we don't have zeros in sortino if it's the basis for filtering
-        df = df[df['sortino_ratio'] > 0.0]
-
-
-    # --- 2. FILTER & SORT (UPDATED TO USE SORTINO RATIO) ---
+        df['sortino_ratio'].fillna(df['sharpe_ratio'].fillna(0), inplace=True)
+    if 'treynor_ratio' in df.columns:
+        df['treynor_ratio'].fillna(df['sortino_ratio'].fillna(df['sharpe_ratio'].fillna(0)), inplace=True)
     
-    # High-Risk/High-Return Candidates: Beta > 1.2 AND above average Sortino Ratio
-    # This captures the stocks with aggressive systematic risk that also compensate well for downside volatility.
+    # Ensure all three performance metrics are non-negative for filtering
+    df = df[
+        (df['sortino_ratio'] > 0.0) & 
+        (df['treynor_ratio'] > 0.0) & 
+        (df['sharpe_ratio'] > 0.0)
+    ]
+
+
+    # --- 2. FILTER & SORT (UPDATED TO USE TREYNOR AND PIOTROSKI) ---
+    
+    # High-Risk/High-Return Candidates: Beta > 1.2 AND above average Sortino/Treynor
+    # These are aggressive stocks that also reward systemic risk efficiently.
     high_risk_candidates = df[
         (df['beta'] > 1.2) & 
-        (df['sortino_ratio'] > df['sortino_ratio'].median())
-    ].sort_values(by=['sortino_ratio', 'annualized_return'], ascending=False)
+        (df['sortino_ratio'] > df['sortino_ratio'].median()) &
+        (df['treynor_ratio'] > df['treynor_ratio'].median()) # NEW: Treynor filter for systematic efficiency
+    ].sort_values(by=['sortino_ratio', 'treynor_ratio', 'annualized_return'], ascending=False)
 
-    # Low-Mid-Risk/Stable Candidates: Beta < 1.0 AND high Sortino Ratio
-    # This selects defensive stocks that have a strong return relative to their losses.
+    # Low-Mid-Risk/Stable Candidates: Beta < 1.0 AND high Sortino AND high Quality
+    # Defensive stocks with excellent downside protection and strong fundamentals (F-Score >= 7).
     low_risk_candidates = df[
         (df['beta'] < 1.0) & 
-        (df['sortino_ratio'] > df['sortino_ratio'].quantile(0.75)) & # Only top quartile Sortino
-        (df['pe_ratio'] < 30) 
-    ].sort_values(by=['sortino_ratio', 'annualized_return'], ascending=False)
+        (df['sortino_ratio'] > df['sortino_ratio'].quantile(0.75)) &
+        (df['pe_ratio'] < 30) & 
+        (df['piotroski_f_score'] >= 7) # NEW: Fundamental Quality filter
+    ].sort_values(by=['sortino_ratio', 'piotroski_f_score', 'annualized_return'], ascending=False)
 
 
     # --- 3. CORRELATION MATRIX & DIVERSIFICATION ---
+    # ... (This section remains identical to your previous correct version for diversification)
     
     # Compile a list of potential final symbols for the diversification check
     potential_symbols = list(high_risk_candidates.index[:15]) + list(low_risk_candidates.index[:15])
@@ -126,6 +140,9 @@ def generate_recommended_portfolio(
             def select_diversified(candidates_df, count, existing_selection):
                 symbols = list(candidates_df.index)
                 final_selection = []
+                
+                # Check for logger existence before use
+                local_logger = logging.getLogger("recommendation_agent")
                 
                 for symbol in symbols:
                     if len(final_selection) >= count:
@@ -161,16 +178,16 @@ def generate_recommended_portfolio(
             # Fallback to simple top 10/10 if data is insufficient for correlation
             high_risk_final = list(high_risk_candidates.index[:10])
             low_risk_final = list(low_risk_candidates.index[:10])
-            logger.warning("Data insufficient for correlation. Falling back to simple sorting.")
+            logging.warning("Data insufficient for correlation. Falling back to simple sorting.")
             
     except Exception as e:
         # Fallback if correlation calculation fails entirely
-        logger.warning(f"Correlation calculation failed: {e}. Falling back to simple sorting.")
+        logging.warning(f"Correlation calculation failed: {e}. Falling back to simple sorting.")
         high_risk_final = list(high_risk_candidates.index[:10])
         low_risk_final = list(low_risk_candidates.index[:10])
 
 
-    # --- 4. COMPILE FINAL PORTFOLIO (UPDATED TO INCLUDE SORTINO) ---
+    # --- 4. COMPILE FINAL PORTFOLIO (UPDATED TO INCLUDE NEW METRICS) ---
     
     # Helper to compile the final stock data
     def compile_stock_list(symbols, data_df):
@@ -181,8 +198,10 @@ def generate_recommended_portfolio(
                 'annualized_volatility': data_df.loc[sym, 'annualized_volatility'],
                 'beta': data_df.loc[sym, 'beta'],
                 'sharpe_ratio': data_df.loc[sym, 'sharpe_ratio'], 
-                'sortino_ratio': data_df.loc[sym, 'sortino_ratio'], # <--- NEW METRIC
+                'sortino_ratio': data_df.loc[sym, 'sortino_ratio'], 
+                'treynor_ratio': data_df.loc[sym, 'treynor_ratio'],         # <--- NEW METRIC
                 'pe_ratio': data_df.loc[sym, 'pe_ratio'],         
+                'piotroski_f_score': data_df.loc[sym, 'piotroski_f_score'], # <--- NEW METRIC
             }
             for sym in symbols
             if sym in data_df.index

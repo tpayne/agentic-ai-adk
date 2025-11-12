@@ -1060,7 +1060,230 @@ def calculate_correlation_matrix(symbols: List[str], period: str = "5y") -> Dict
 
     except Exception as e:
         return {"error": f"Failed to calculate Correlation Matrix. Internal error: {type(e).__name__}: {str(e)}"}
-    
+
+def calculate_treynor_ratio(
+    symbol: str,
+    risk_free_rate: float,
+    annualized_return: float,
+    beta: float
+) -> Dict[str, Any]:
+    """
+    Calculates the Treynor Ratio: (Annualized Return - Risk-Free Rate) / Beta.
+    Assumes risk_free_rate is given as a percentage (e.g., 4.5 for 4.5%).
+    """
+    try:
+        # convert rf% to decimal
+        rf_rate_decimal = float(risk_free_rate) / 100.0
+
+        # validate numeric inputs
+        try:
+            annualized_return = float(annualized_return)
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid annualized_return (not numeric)."}
+
+        try:
+            beta = float(beta)
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid beta (not numeric)."}
+
+        # guard: beta cannot be zero or effectively zero
+        if abs(beta) < 1e-12:
+            return {
+                "symbol": symbol,
+                "treynor_ratio": None,
+                "annualized_return": annualized_return,
+                "beta": beta,
+                "risk_free_rate_percent": float(risk_free_rate),
+                "error": "Treynor Ratio failed: Beta is zero or too close to zero."
+            }
+
+        treynor_ratio = (annualized_return - rf_rate_decimal) / beta
+
+        return {
+            "symbol": symbol,
+            "treynor_ratio": float(treynor_ratio),
+            "annualized_return": float(annualized_return),
+            "beta": float(beta),
+            "risk_free_rate_percent": float(risk_free_rate)
+        }
+
+    except Exception as e:
+        # keep the logger call you already use in the file
+        try:
+            logger.error(f"Error calculating Treynor Ratio for {symbol}: {e}")
+        except Exception:
+            pass
+        return {"symbol": symbol, "error": f"Failed to calculate Treynor Ratio. Internal error: {type(e).__name__}: {str(e)}"}
+
+def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
+    """
+    Calculates the Piotroski F-Score (0-9) using the latest two columns in the
+    ticker.financials, ticker.balance_sheet, and ticker.cashflow DataFrames.
+    Returns NaN score and a descriptive error when critical data is missing.
+    """
+    def safe_get(df, row_label, col_idx):
+        """Return float value at df.loc[row_label, df.columns[col_idx]] or np.nan."""
+        try:
+            if df is None or df.empty:
+                return np.nan
+            # ensure column index exists
+            if col_idx < 0 or col_idx >= df.shape[1]:
+                return np.nan
+            col = df.columns[col_idx]
+            val = df.at[row_label, col] if row_label in df.index else np.nan
+            # coerce pandas types and numpy types to float
+            return float(val) if pd.notna(val) else np.nan
+        except Exception:
+            return np.nan
+
+    f_score = 0
+    metrics = {}
+    try:
+        ticker = yf.Ticker(symbol)
+
+        inc = getattr(ticker, "financials", None)
+        bs = getattr(ticker, "balance_sheet", None)
+        cf = getattr(ticker, "cashflow", None)
+
+        # Basic existence check
+        if inc is None or bs is None or cf is None:
+            return {"symbol": symbol, "piotroski_f_score": np.nan, "error": "Missing financial tables from yfinance for symbol."}
+
+        # Need at least two columns (most recent first)
+        if inc.shape[1] < 2 or bs.shape[1] < 2 or cf.shape[1] < 2:
+            return {"symbol": symbol, "piotroski_f_score": np.nan, "error": "Insufficient data (less than 2 years) for Piotroski F-Score calculation."}
+
+        # column 0 = T (most recent), column 1 = T-1
+        T_idx = 0
+        Tm1_idx = 1
+
+        # --- PROFITABILITY ---
+
+        # P1: ROA_T > 0  where ROA = Net Income / Total Assets
+        net_income_T = safe_get(inc, "Net Income", T_idx)
+        total_assets_T = safe_get(bs, "Total Assets", T_idx)
+        roa_T = net_income_T / total_assets_T if pd.notna(net_income_T) and pd.notna(total_assets_T) and total_assets_T != 0 else np.nan
+
+        net_income_Tm1 = safe_get(inc, "Net Income", Tm1_idx)
+        total_assets_Tm1 = safe_get(bs, "Total Assets", Tm1_idx)
+        roa_Tm1 = net_income_Tm1 / total_assets_Tm1 if pd.notna(net_income_Tm1) and pd.notna(total_assets_Tm1) and total_assets_Tm1 != 0 else np.nan
+
+        if pd.notna(roa_T) and roa_T > 0:
+            f_score += 1
+            metrics["P1_ROA_Positive"] = True
+        else:
+            metrics["P1_ROA_Positive"] = False
+
+        # P2: CFO > 0 (Cash from operations)
+        cfo_T = safe_get(cf, "Total Cash From Operating Activities", T_idx)
+        if pd.notna(cfo_T) and cfo_T > 0:
+            f_score += 1
+            metrics["P2_CFO_Positive"] = True
+        else:
+            metrics["P2_CFO_Positive"] = False
+
+        # P3: ROA improvement
+        if pd.notna(roa_T) and pd.notna(roa_Tm1) and roa_T > roa_Tm1:
+            f_score += 1
+            metrics["P3_ROA_Improvement"] = True
+        else:
+            metrics["P3_ROA_Improvement"] = False
+
+        # P4: CFO > Net Income (quality of earnings)
+        if pd.notna(cfo_T) and pd.notna(net_income_T) and cfo_T > net_income_T:
+            f_score += 1
+            metrics["P4_CFO_vs_NetIncome"] = True
+        else:
+            metrics["P4_CFO_vs_NetIncome"] = False
+
+        # --- LEVERAGE / LIQUIDITY ---
+
+        # L1: Decrease in long-term debt (or stable)
+        ltd_T = safe_get(bs, "Long Term Debt", T_idx)
+        ltd_Tm1 = safe_get(bs, "Long Term Debt", Tm1_idx)
+        if pd.notna(ltd_T) and pd.notna(ltd_Tm1) and ltd_T <= ltd_Tm1:
+            f_score += 1
+            metrics["L1_Debt_Decrease"] = True
+        else:
+            metrics["L1_Debt_Decrease"] = False
+
+        # L2: Increase in current ratio (Current Assets / Current Liabilities)
+        ca_T = safe_get(bs, "Current Assets", T_idx)
+        cl_T = safe_get(bs, "Current Liabilities", T_idx)
+        ca_Tm1 = safe_get(bs, "Current Assets", Tm1_idx)
+        cl_Tm1 = safe_get(bs, "Current Liabilities", Tm1_idx)
+
+        current_ratio_T = ca_T / cl_T if pd.notna(ca_T) and pd.notna(cl_T) and cl_T != 0 else np.nan
+        current_ratio_Tm1 = ca_Tm1 / cl_Tm1 if pd.notna(ca_Tm1) and pd.notna(cl_Tm1) and cl_Tm1 != 0 else np.nan
+
+        if pd.notna(current_ratio_T) and pd.notna(current_ratio_Tm1) and current_ratio_T > current_ratio_Tm1:
+            f_score += 1
+            metrics["L2_Current_Ratio_Improvement"] = True
+        else:
+            metrics["L2_Current_Ratio_Improvement"] = False
+
+        # L3: No new shares issued (proxy via Common Stock)
+        cs_T = safe_get(bs, "Common Stock", T_idx)
+        cs_Tm1 = safe_get(bs, "Common Stock", Tm1_idx)
+        if pd.notna(cs_T) and pd.notna(cs_Tm1) and cs_T <= cs_Tm1:
+            f_score += 1
+            metrics["L3_No_New_Shares"] = True
+        else:
+            metrics["L3_No_New_Shares"] = False
+
+        # --- OPERATING EFFICIENCY ---
+
+        # O1: Increase in Gross Margin (Gross Profit / Total Revenue)
+        gp_T = safe_get(inc, "Gross Profit", T_idx)
+        rev_T = safe_get(inc, "Total Revenue", T_idx)
+        gp_Tm1 = safe_get(inc, "Gross Profit", Tm1_idx)
+        rev_Tm1 = safe_get(inc, "Total Revenue", Tm1_idx)
+
+        gm_T = gp_T / rev_T if pd.notna(gp_T) and pd.notna(rev_T) and rev_T != 0 else np.nan
+        gm_Tm1 = gp_Tm1 / rev_Tm1 if pd.notna(gp_Tm1) and pd.notna(rev_Tm1) and rev_Tm1 != 0 else np.nan
+
+        if pd.notna(gm_T) and pd.notna(gm_Tm1) and gm_T > gm_Tm1:
+            f_score += 1
+            metrics["O1_Gross_Margin_Improvement"] = True
+        else:
+            metrics["O1_Gross_Margin_Improvement"] = False
+
+        # O2: Increase in Asset Turnover (Total Revenue / Total Assets)
+        ta_T = safe_get(bs, "Total Assets", T_idx)
+        ta_Tm1 = safe_get(bs, "Total Assets", Tm1_idx)
+
+        at_T = rev_T / ta_T if pd.notna(rev_T) and pd.notna(ta_T) and ta_T != 0 else np.nan
+        at_Tm1 = rev_Tm1 / ta_Tm1 if pd.notna(rev_Tm1) and pd.notna(ta_Tm1) and ta_Tm1 != 0 else np.nan
+
+        if pd.notna(at_T) and pd.notna(at_Tm1) and at_T > at_Tm1:
+            f_score += 1
+            metrics["O2_Asset_Turnover_Improvement"] = True
+        else:
+            metrics["O2_Asset_Turnover_Improvement"] = False
+
+        # If any of the critical inputs are NaN, flag partial result
+        critical_fields = [roa_T, roa_Tm1, cfo_T, current_ratio_T, current_ratio_Tm1, gm_T, gm_Tm1, at_T, at_Tm1]
+        if any(pd.isna(x) for x in critical_fields):
+            return {
+                "symbol": symbol,
+                "piotroski_f_score": int(f_score),
+                "breakdown": metrics,
+                "warning": "Piotroski F-Score may be partial because some inputs were missing (NaN)."
+            }
+
+        return {
+            "symbol": symbol,
+            "piotroski_f_score": int(f_score),
+            "breakdown": metrics
+        }
+
+    except Exception as e:
+        try:
+            logger.error(f"Error calculating Piotroski F-Score for {symbol}: {e}")
+        except Exception:
+            pass
+        return {"symbol": symbol, "piotroski_f_score": np.nan, "error": f"Failed to calculate Piotroski F-Score. Internal error: {type(e).__name__}: {str(e)}"}
+
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
@@ -1071,15 +1294,17 @@ calculation_agent = LlmAgent(
     instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, " \
     "get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, " \
     "generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, " \
-    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio, calculate_sortino_ratio, calculate_correlation_matrix " \
-    " and calculate_ebitda) to answer any user queries about stock information and financial metrics, " \
-    "including CAPM calculations and technical analysis.",
+    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio, calculate_sortino_ratio, calculate_correlation_matrix, " \
+    "calculate_piotroski_f_score, calculate_treynor_ratio and calculate_ebitda) to answer any user queries about stock information " \
+    "and financial metrics including CAPM calculations and technical analysis.",
     tools=[
         calculate_beta_and_volatility,
+        calculate_correlation_matrix,   
         calculate_ebitda,
+        calculate_piotroski_f_score,  
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
-        calculate_correlation_matrix,     
+        calculate_treynor_ratio,
         compare_key_metrics,
         generate_time_series_chart_data,
         get_aggregated_stock_data,
@@ -1090,6 +1315,5 @@ calculation_agent = LlmAgent(
         get_pe_ratio,      
         get_risk_free_rate, 
         get_technical_indicators,
-
     ],
 )
