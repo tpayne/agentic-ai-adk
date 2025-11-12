@@ -1284,6 +1284,144 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
             pass
         return {"symbol": symbol, "piotroski_f_score": np.nan, "error": f"Failed to calculate Piotroski F-Score. Internal error: {type(e).__name__}: {str(e)}"}
 
+def calculate_jensens_alpha(
+    symbol: str,
+    risk_free_rate: float,
+    annualized_return: float,
+    beta: float,
+    market_return: float
+) -> Dict[str, Any]:
+    """
+    Calculates Jensen's Alpha.
+
+    Notes:
+    - risk_free_rate is expected as a percentage (e.g., 4.5 for 4.5%). Converted to decimal internally.
+    - annualized_return and market_return are expected as decimals (e.g., 0.15 for 15%).
+    """
+    try:
+        # Validate numeric inputs and normalize units
+        try:
+            rf_decimal = float(risk_free_rate) / 100.0
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid risk_free_rate (not numeric)."}
+
+        try:
+            annualized_return = float(annualized_return)
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid annualized_return (not numeric)."}
+
+        try:
+            market_return = float(market_return)
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid market_return (not numeric)."}
+
+        try:
+            beta = float(beta)
+        except Exception:
+            return {"symbol": symbol, "error": "Invalid beta (not numeric)."}
+
+        # CAPM expected return
+        market_risk_premium = market_return - rf_decimal
+        expected_return = rf_decimal + beta * market_risk_premium
+
+        jensens_alpha = annualized_return - expected_return
+
+        return {
+            "symbol": symbol,
+            "jensens_alpha": float(jensens_alpha),
+            "expected_return_capm": float(expected_return),
+            "inputs": {
+                "risk_free_rate_percent": float(risk_free_rate),
+                "annualized_return": float(annualized_return),
+                "beta": float(beta),
+                "market_return": float(market_return)
+            }
+        }
+
+    except Exception as e:
+        try:
+            logger.error(f"Error calculating Jensen's Alpha for {symbol}: {e}")
+        except Exception:
+            pass
+        return {"symbol": symbol, "error": f"Failed to calculate Jensen's Alpha. Internal error: {type(e).__name__}: {str(e)}"}
+
+def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
+    """
+    Calculates the PEG Ratio.
+
+    Notes:
+    - PEG is computed as P/E divided by annual EPS growth in percent:
+      PEG = trailingPE / (growth_rate * 100)
+    - This implementation tries several common yfinance info keys for growth.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        info = getattr(ticker, "info", {}) or {}
+
+        # Trailing P/E
+        pe_ratio = info.get("trailingPE") or info.get("peRatio") or info.get("trailing_pe")
+        try:
+            pe_ratio = float(pe_ratio) if pe_ratio is not None else None
+        except Exception:
+            pe_ratio = None
+
+        # Try several keys for growth (yfinance uses different names across tickers/versions)
+        growth_candidates = [
+            "earningsGrowth",               # common fractional growth (decimal)
+            "forwardEpsGrowth",             # sometimes present
+            "earningsQuarterlyGrowth",      # quarterly growth (decimal) -- not ideal, but fallback
+            "nextFiscalYearEps",            # not a growth rate but sometimes used; ignored here
+        ]
+
+        growth_rate = None
+        for key in growth_candidates:
+            val = info.get(key)
+            if val is None:
+                continue
+            # Accept numbers only
+            try:
+                val_f = float(val)
+            except Exception:
+                continue
+            # earningsQuarterlyGrowth may be quarterly; we prefer annual measures when present.
+            growth_rate = val_f
+            break
+
+        # Additional fallback: try analyst estimates in ticker.earnings or ticker.recommendations if available
+        # (omitted heavy parsing here; keep to info fields for reliability)
+
+        # Validate inputs
+        if pe_ratio is None or growth_rate is None:
+            return {"symbol": symbol, "peg_ratio": np.nan, "error": "Missing P/E or growth rate data for PEG calculation."}
+
+        # If growth_rate is expressed as decimal (e.g., 0.15 => 15%), convert to percent
+        # Ensure growth_rate is positive
+        try:
+            growth_rate = float(growth_rate)
+        except Exception:
+            return {"symbol": symbol, "peg_ratio": np.nan, "error": "Unexpected growth rate format for PEG calculation."}
+
+        if growth_rate <= 0:
+            return {"symbol": symbol, "peg_ratio": np.nan, "error": "Growth rate must be positive for PEG calculation."}
+
+        growth_percent = growth_rate * 100.0
+        peg_ratio = pe_ratio / growth_percent
+
+        return {
+            "symbol": symbol,
+            "peg_ratio": float(peg_ratio),
+            "pe_ratio": float(pe_ratio),
+            "annual_eps_growth_percent": float(growth_percent),
+            "raw_growth_input": growth_rate
+        }
+
+    except Exception as e:
+        try:
+            logger.error(f"Error calculating PEG Ratio for {symbol}: {e}")
+        except Exception:
+            pass
+        return {"symbol": symbol, "peg_ratio": np.nan, "error": f"Failed to calculate PEG Ratio. Internal error: {type(e).__name__}: {str(e)}"}
+
 # --- ADK Agent Definition ---
 
 # The root_agent is the entry point for the ADK application.
@@ -1295,12 +1433,14 @@ calculation_agent = LlmAgent(
     "get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, " \
     "generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, " \
     "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio, calculate_sortino_ratio, calculate_correlation_matrix, " \
-    "calculate_piotroski_f_score, calculate_treynor_ratio and calculate_ebitda) to answer any user queries about stock information " \
+    "calculate_piotroski_f_score, calculate_treynor_ratio, calculate_jensens_alpha, calculate_peg_ratio and calculate_ebitda) to answer any user queries about stock information " \
     "and financial metrics including CAPM calculations and technical analysis.",
     tools=[
         calculate_beta_and_volatility,
         calculate_correlation_matrix,   
         calculate_ebitda,
+        calculate_jensens_alpha,
+        calculate_peg_ratio,
         calculate_piotroski_f_score,  
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
