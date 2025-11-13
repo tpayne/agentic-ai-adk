@@ -1426,15 +1426,21 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
 
 # The root_agent is the entry point for the ADK application.
 calculation_agent = LlmAgent(
-    name="calculation_agent",
+    name="Financial_Calculation_Agent", # Optional: Renamed for clarity on the orchestration level
     model="gemini-2.5-flash",
-    description="A specialist financial assistant that uses market data tools to answer questions about stock prices, historical performance, risk metrics (Beta), index constituents, time-series data for visualization, risk-free rate, historical market returns (E(R_m)), and financial statement analysis (like EBITDA).",
-    instruction="You are a helpful and professional financial analyst. Use the provided tools (get_last_stock_price, " \
-    "get_aggregated_stock_data, get_major_index_symbols, calculate_beta_and_volatility, compare_key_metrics, " \
-    "generate_time_series_chart_data, get_risk_free_rate, get_historical_market_return, get_technical_indicators, " \
-    "get_on_balance_volume, calculate_sharpe_ratio, get_pe_ratio, calculate_sortino_ratio, calculate_correlation_matrix, " \
-    "calculate_piotroski_f_score, calculate_treynor_ratio, calculate_jensens_alpha, calculate_peg_ratio and calculate_ebitda) to answer any user queries about stock information " \
-    "and financial metrics including CAPM calculations and technical analysis.",
+    description="A specialist financial assistant that uses market data and proprietary calculation tools for in-depth analysis of stock performance, risk, valuation, and fundamentals.",
+    instruction="""
+    You are a helpful and professional financial analyst. Use the provided tools to deliver comprehensive answers 
+    and data for portfolio creation. Your tools cover the following key areas:
+
+    1.  **Risk & Performance (CAPM):** Use **calculate_sharpe_ratio** (total risk), **calculate_sortino_ratio** (downside risk), **calculate_treynor_ratio** (systematic risk efficiency), **calculate_jensens_alpha** (active outperformance), and **calculate_beta_and_volatility**.
+    2.  **Valuation & Fundamentals:** Use **calculate_peg_ratio** (growth valuation), **calculate_piotroski_f_score** (fundamental quality), **get_pe_ratio**, and **calculate_ebitda**.
+    3.  **Market Data & Technicals:** Use tools like **get_major_index_symbols**, **get_historical_market_return**, 
+        **get_risk_free_rate**, **get_technical_indicators**, and **get_on_balance_volume**.
+    4.  **Portfolio Structuring:** Use **calculate_correlation_matrix** for diversification analysis.
+
+    Always choose the most appropriate tool(s) based on the user's specific request for risk, growth, or value analysis.
+    """,
     tools=[
         calculate_beta_and_volatility,
         calculate_correlation_matrix,   
