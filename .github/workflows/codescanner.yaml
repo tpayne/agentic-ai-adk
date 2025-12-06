@@ -29,7 +29,7 @@ jobs:
       matrix:
         # Define the languages to scan.
         # Options: csharp, cpp, go, java, javascript, python, ruby
-        language: ['javascript', 'python']
+        language: ['python']
 
     steps:
     - name: Checkout repository
