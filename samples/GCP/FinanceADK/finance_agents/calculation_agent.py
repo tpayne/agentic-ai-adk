@@ -1,29 +1,23 @@
 
 # calculation_agent.py
-# VERSION: 2025-12-06.3
+# VERSION: 2025-12-06.7
 """
-ADK Calculation Agent — robust market-data tools with safe refactors, detailed docstrings,
+ADK Calculation Agent — market-data tools, metrics, and fundamentals, with clear docstrings
 and backward-compatible outputs.
 
-**Key improvements (kept minimal and additive):**
-- Guarded logging setup (prevents duplicate handlers on re-import, honors LOGLEVEL).
-- Adds `get_daily_returns()` tool so the portfolio agent can compute diversification (correlation)
-  without fetching raw prices itself.
-- Clarifies unit conventions in docstrings: returns and volatilities are reported as **decimals** by default
-  (e.g., 0.15 => 15%). Where helpful for compatibility, mirror **percent** fields are added (e.g. Beta tool).
-- Maintains original public agent name and tools list: `calculation_agent`.
+Primary conventions:
+- Returns and volatilities are reported as DECIMALS by default (e.g., 0.15 => 15%).
+- Where helpful for compatibility, percent mirror fields are included (e.g., *_percent).
+- Functions are defensive: they return dicts with result keys or an 'error' key on failure.
 
-**Environment knobs:**
+Environment knobs:
 - LOGLEVEL: DEBUG | INFO | WARNING | ERROR | CRITICAL
 - RISK_FREE_RATE_OVERRIDE: decimal annual rate (e.g., 0.045 for 4.5%)
-
-This file intentionally keeps your original functionality and adds documentation for clarity.
 """
 
 from google.adk.agents import LlmAgent
 from typing import Dict, List, Any
 
-# Third-party libraries (unchanged)
 import yfinance as yf
 import requests_cache
 import logging
@@ -33,14 +27,10 @@ import numpy as np
 import os
 
 # -----------------------------------------------------------------------------
-# Logging — guarded to avoid duplicate handlers on re-import and to honor LOGLEVEL.
+# Logging — guarded to avoid duplicate handlers on re-import; honors LOGLEVEL.
 # -----------------------------------------------------------------------------
 def get_logger(name: str) -> logging.Logger:
-    """
-    Create a module logger with:
-      - Level derived from LOGLEVEL env (default 'WARNING', safe fallback).
-      - A single StreamHandler (guarded so repeated imports don't stack handlers).
-    """
+    """Create a module logger with guarded handler and env-derived level."""
     logger = logging.getLogger(name)
     level = os.getenv('LOGLEVEL', 'WARNING').upper()
     if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
@@ -55,11 +45,11 @@ def get_logger(name: str) -> logging.Logger:
 logger = get_logger('calculation_agent')
 
 # -----------------------------------------------------------------------------
-# HTTP caching for stability: short TTL memory cache avoids repeated live calls.
+# Short-lived HTTP cache; reduces load and improves resilience in demos.
 # -----------------------------------------------------------------------------
 requests_cache.install_cache(backend='memory', expire_after=60)
 
-# Standard UA to reduce 403 rejections from sites like Wikipedia.
+# Standard UA to reduce 403 from Wikipedia et al.
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                   'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -70,12 +60,7 @@ HEADERS = {
 # Index constituent scrapers — unchanged logic, clarified documentation.
 # -----------------------------------------------------------------------------
 def _get_sp500_symbols() -> List[str]:
-    """
-    Scrape S&P 500 tickers from Wikipedia.
-
-    Returns:
-        List[str]: list of symbols (strings). Empty list on failure.
-    """
+    """Scrape S&P 500 tickers from Wikipedia."""
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -92,12 +77,7 @@ def _get_sp500_symbols() -> List[str]:
         return []
 
 def _get_nasdaq100_symbols() -> List[str]:
-    """
-    Scrape NASDAQ-100 tickers from Wikipedia.
-
-    Returns:
-        List[str]: list of symbols (strings). Empty list on failure.
-    """
+    """Scrape NASDAQ-100 tickers from Wikipedia."""
     url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -114,12 +94,7 @@ def _get_nasdaq100_symbols() -> List[str]:
         return []
 
 def _get_ftse100_symbols() -> List[str]:
-    """
-    Scrape FTSE 100 tickers from Wikipedia and append '.L' suffix for Yahoo Finance.
-
-    Returns:
-        List[str]: list of Yahoo-compatible tickers (e.g., 'BP.L').
-    """
+    """Scrape FTSE 100 tickers and append '.L' suffix for Yahoo Finance."""
     url = 'https://en.wikipedia.org/wiki/FTSE_100_Index'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -136,18 +111,10 @@ def _get_ftse100_symbols() -> List[str]:
         return []
 
 # -----------------------------------------------------------------------------
-# Tools — market data, metrics, and fundamentals (docstrings expanded).
+# Tools — market data, metrics, fundamentals (docstrings expanded).
 # -----------------------------------------------------------------------------
 def get_last_stock_price(symbol: str) -> Dict[str, Any]:
-    """
-    Return the latest available stock price and timestamp (Unix seconds).
-
-    Args:
-        symbol: stock ticker (e.g., 'AAPL', 'BP.L').
-
-    Returns:
-        Dict with keys: 'symbol', 'price', 'timestamp' OR {'error': ...}
-    """
+    """Return the latest price and timestamp (Unix seconds) or error."""
     try:
         info = yf.Ticker(symbol).info
         price = info.get('regularMarketPrice') or info.get('currentPrice')
@@ -159,15 +126,7 @@ def get_last_stock_price(symbol: str) -> Dict[str, Any]:
         return {'error': f'Failed to fetch last price for {symbol}: {e}'}
 
 def get_aggregated_stock_data(symbol: str, interval: str, start_date: str, end_date: str) -> Dict[str, Any]:
-    """
-    Retrieve OHLCV time series for a period and interval.
-
-    Args:
-        symbol, interval, start_date, end_date.
-
-    Returns:
-        Dict with 'data' list of {date, open, high, low, close, volume} OR {'error': ...}
-    """
+    """Return OHLCV records for a given period/interval or error."""
     try:
         hist = yf.Ticker(symbol).history(start=start_date, end=end_date, interval=interval)
         data = [{
@@ -184,12 +143,9 @@ def get_aggregated_stock_data(symbol: str, interval: str, start_date: str, end_d
 
 def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
     """
-    Return constituents of a major index.
+    Retrieve constituents for a supported index.
 
-    Supported: SP500, NASDAQ100, FTSE100, DOWJONES (static list).
-
-    Returns:
-        Dict with 'symbols' list or {'error': ...}
+    Supported keys: SP500, NASDAQ100, FTSE100, DOWJONES.
     """
     idx = index_name.upper().replace(' ', '').replace('-', '').replace('_', '')
     m = {
@@ -201,21 +157,17 @@ def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
                              'PG','TRV','UNH','V','VZ','WBA','WMT','DOW']
     }
     if idx in m:
-        syms = midx
-        return {'index_name': idx, 'symbols': syms, 'count': len(syms), 'source': 'Wikipedia via pandas_read_html'} \
-               if syms else {'index_name': idx, 'symbols': [], 'error': f'Failed to scrape symbols for {idx}.'}
+        try:
+            syms = midx  # call the mapped function
+        except Exception as e:
+            return {'index_name': idx, 'symbols': [], 'error': f'Failed to fetch list for {idx}: {e}'}
+        if syms:
+            return {'index_name': idx, 'symbols': syms, 'count': len(syms), 'source': 'Wikipedia via pandas_read_html'}
+        return {'index_name': idx, 'symbols': [], 'error': f'Failed to scrape symbols for {idx}.'}
     return {'index_name': 'Unknown', 'symbols': [], 'error': f"Index '{index_name}' not recognized. Supported: {', '.join(m.keys())}"}
 
 def get_risk_free_rate(exchange_or_country: str) -> Dict[str, Any]:
-    """
-    Return the annualized risk-free rate (decimal). Uses US 10Y (^TNX) by default.
-
-    Env override:
-        RISK_FREE_RATE_OVERRIDE: decimal annual rate (e.g., 0.045 for 4.5%).
-
-    Returns:
-        {'rate_decimal_annual', 'rate_symbol', 'note'} OR {'error': ...}
-    """
+    """Return annualized risk-free rate (decimal). Uses ^TNX by default; override via env."""
     override = os.getenv('RISK_FREE_RATE_OVERRIDE')
     if override is not None:
         try:
@@ -223,7 +175,6 @@ def get_risk_free_rate(exchange_or_country: str) -> Dict[str, Any]:
                     'rate_symbol': 'override',
                     'note': 'Provided via env override.'}
         except Exception:
-            # Swallow parsing error and continue to proxy map.
             pass
 
     proxy_map = {'US':'^TNX','USA':'^TNX','NASDAQ':'^TNX','NYSE':'^TNX',
@@ -234,23 +185,14 @@ def get_risk_free_rate(exchange_or_country: str) -> Dict[str, Any]:
         y = info.get('regularMarketPrice') or info.get('currentPrice')
         if y is None:
             raise ValueError('yield not available')
-        return {'rate_decimal_annual': round(float(y)/100.0, 6),
+        return {'rate_decimal_annual': round(float(y) / 100.0, 6),
                 'rate_symbol': tick,
                 'note': '10Y yield proxy; use override for non-US.'}
     except Exception as e:
         return {'error': f'Failed to fetch risk-free proxy ({tick}) for {exchange_or_country}: {e}'}
 
 def get_historical_market_return(index_symbol: str, period: str) -> Dict[str, Any]:
-    """
-    Return historical annualized market **nominal** return (decimal).
-
-    Notes:
-        - Uses daily closes, requires >= 20 values.
-        - Annualization assumes 252 trading days.
-
-    Returns:
-        {'annualized_market_return_decimal', ...} OR {'error': ...}
-    """
+    """Return historical annualized market nominal return (decimal)."""
     try:
         s = yf.download(index_symbol, period=period, interval='1d', progress=False)['Close']
         s = s.iloc[:, 0] if isinstance(s, pd.DataFrame) else s
@@ -270,18 +212,7 @@ def get_historical_market_return(index_symbol: str, period: str) -> Dict[str, An
 def calculate_beta_and_volatility(stock_symbol: str, market_index_symbol: str, period: str) -> Dict[str, Any]:
     """
     Compute CAPM Beta and annualized volatilities (decimal) using daily log returns (OLS fit).
-
     Also returns percent mirrors for backward compatibility.
-
-    Returns:
-        {
-          'beta',
-          'stock_annualized_return', 'stock_annualized_volatility',
-          'market_annualized_volatility',
-          'stock_annualized_return_percent', 'stock_annualized_volatility_percent',
-          'market_annualized_volatility_percent',
-          'note', ...
-        } OR {'error': ...}
     """
     try:
         data = yf.download([stock_symbol, market_index_symbol], period=period, interval='1d', progress=False)['Close'].dropna()
@@ -326,11 +257,7 @@ def calculate_beta_and_volatility(stock_symbol: str, market_index_symbol: str, p
         return {'error': f'Financial calculation failed: {e}'}
 
 def compare_key_metrics(symbols: List[str], period: str) -> Dict[str, Any]:
-    """
-    Compare total return, annualized return, and annualized volatility across symbols.
-
-    Returns values in **percent** for readability, with error entries for insufficient data.
-    """
+    """Compare performance metrics across symbols; returns metrics in percent."""
     out = {}
     try:
         data = yf.download(symbols, period=period, interval='1d', progress=False)['Close']
@@ -362,12 +289,7 @@ def compare_key_metrics(symbols: List[str], period: str) -> Dict[str, Any]:
         return {'error': f'Comparison failed: {e}'}
 
 def generate_time_series_chart_data(symbol: str, period: str, metric: str) -> Dict[str, Any]:
-    """
-    Prepare time-series points for charting a single metric (Close/Open/High/Low/Volume).
-
-    Returns:
-        Dict with 'data_points' list or error.
-    """
+    """Prepare time-series points for charting a single metric (Close/Open/High/Low/Volume)."""
     if metric not in ['Close', 'Open', 'High', 'Low', 'Volume']:
         return {'error': f"Invalid metric '{metric}'."}
     try:
@@ -386,15 +308,7 @@ def generate_time_series_chart_data(symbol: str, period: str, metric: str) -> Di
 def get_technical_indicators(symbol: str, period: str,
                              short_window: int = 12, long_window: int = 26,
                              signal_window: int = 9, ma_window: int = 20) -> Dict[str, Any]:
-    """
-    Compute SMA, MACD line/signal/histogram, and RSI.
-
-    Notes:
-        - Uses standard EMA spans for MACD.
-        - RSI computed via smoothed gains/losses.
-
-    Returns latest indicator values or error.
-    """
+    """Compute SMA, MACD line/signal/histogram, and RSI; return latest values or error."""
     try:
         df = yf.download(symbol, period=period, interval='1d', progress=False)
         if df.empty:
@@ -411,7 +325,7 @@ def get_technical_indicators(symbol: str, period: str,
         df['Signal_Line'] = df['MACD_Line'].ewm(span=signal_window, adjust=False).mean()
         df['MACD_Histogram'] = df['MACD_Line'] - df['Signal_Line']
 
-        # RSI (classic 14, computed via EWMA of gains/losses; com=13 approximates)
+        # RSI
         delta = df['Close'].diff(1)
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
@@ -437,12 +351,7 @@ def get_technical_indicators(symbol: str, period: str,
         return {'error': f'Indicators failed: {e}'}
 
 def get_on_balance_volume(symbol: str, period: str) -> Dict[str, Any]:
-    """
-    Calculate On-Balance Volume (OBV): cumulative volume signed by day-over-day price changes.
-
-    Returns:
-        {'latest_on_balance_volume': int, ...} OR {'error': ...}
-    """
+    """Calculate OBV (cumulative signed volume); return latest value or error."""
     try:
         df = yf.download(symbol, period=period, interval='1d', progress=False)[['Close', 'Volume']].dropna()
         if df.empty or len(df) < 2:
@@ -462,9 +371,6 @@ def calculate_ebitda(symbol: str) -> Dict[str, Any]:
       1) Prefer explicit 'ebitda' from .info
       2) Fallback: EBIT + D&A
       3) Fallback: Net Income + Interest Expense + Tax Provision + D&A
-
-    Returns:
-        {'ebitda': float, 'source': '...'} OR {'error': ...}
     """
     try:
         t = yf.Ticker(symbol)
@@ -491,9 +397,7 @@ def calculate_ebitda(symbol: str) -> Dict[str, Any]:
         return {'error': f'EBITDA failed: {e}'}
 
 def get_pe_ratio(symbol: str) -> Dict[str, Any]:
-    """
-    Retrieve trailing P/E ratio if positive; error otherwise.
-    """
+    """Retrieve trailing P/E ratio if positive; error otherwise."""
     try:
         pe = yf.Ticker(symbol).info.get('trailingPE')
         if pe and pe > 0:
@@ -505,11 +409,7 @@ def get_pe_ratio(symbol: str) -> Dict[str, Any]:
 def calculate_sharpe_ratio(symbol: str, risk_free_rate: float,
                            period: str = '5y', interval: str = '1d',
                            trading_days: int = 252, auto_adjust: bool = True) -> Dict[str, Any]:
-    """
-    Annualized Sharpe Ratio using daily log returns:
-        Sharpe = (annualized mean return - Rf) / annualized std dev
-    Returns decimals for annualized mean return and volatility.
-    """
+    """Annualized Sharpe = (annualized mean log return - Rf_decimal) / annualized std dev."""
     try:
         rf = float(risk_free_rate) / 100.0
         df = yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=auto_adjust)
@@ -534,11 +434,7 @@ def calculate_sharpe_ratio(symbol: str, risk_free_rate: float,
         return {'symbol': symbol, 'error': f'Internal error: {e}'}
 
 def calculate_sortino_ratio(symbol: str, risk_free_rate: float, period: str = '5y') -> Dict[str, Any]:
-    """
-    Annualized Sortino Ratio (uses **arithmetic** daily returns and downside deviation):
-        Sortino = (annualized mean return - Rf) / annualized downside std dev
-    Returns decimals for annualized mean return and downside volatility.
-    """
+    """Annualized Sortino = (annualized mean arithmetic return - Rf_decimal) / annualized downside std dev."""
     try:
         rf = float(risk_free_rate) / 100.0
         df = yf.download(symbol, period=period, interval='1d', progress=False, auto_adjust=True)
@@ -566,12 +462,7 @@ def calculate_sortino_ratio(symbol: str, risk_free_rate: float, period: str = '5
         return {'symbol': symbol, 'error': f'Sortino failed: {e}'}
 
 def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
-    """
-    Compute correlation matrix (JSON) of log returns across symbols.
-
-    Returns:
-        {'correlation_matrix_json', 'symbols', 'period'} OR {'error': ...}
-    """
+    """Compute correlation matrix (JSON) of log returns across symbols; return error if insufficient."""
     if len(symbols) < 2:
         return {'error': 'Requires at least two symbols'}
     try:
@@ -588,10 +479,10 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
             data = raw['Adj Close'].copy() if 'Adj Close' in raw.columns else raw.copy()
         if isinstance(data, pd.Series):
             data = data.to_frame(name=symbols[0])
-        data.dropna(axis=1, how='all', inplace=True)
+        data.dropna(axis=1, how='all', inplace=True)  # drop empty columns only
         if data.shape[1] < 2:
             return {'error': 'Less than two valid symbols'}
-        lr = np.log(data / data.shift(1)).dropna(how='all')
+        lr = np.log(data / data.shift(1)).dropna(how='all')  # drop rows that are all-NaN
         if lr.empty or lr.shape[1] < 2:
             return {'error': 'Insufficient common return data'}
         cm = lr.corr()
@@ -600,16 +491,7 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
         return {'error': f'Correlation failed: {e}'}
 
 def calculate_treynor_ratio(symbol: str, risk_free_rate: float, annualized_return: float, beta: float) -> Dict[str, Any]:
-    """
-    Treynor Ratio = (Annualized Return - Rf) / Beta
-
-    Expects:
-        - annualized_return as decimal (e.g., 0.12 for 12%)
-        - risk_free_rate as percent (e.g., 4.5)
-
-    Returns:
-        {'treynor_ratio', 'annualized_return', 'beta', 'risk_free_rate_percent'} OR error.
-    """
+    """Treynor Ratio = (Annualized Return - Rf_decimal) / Beta; returns decimals."""
     try:
         rf = float(risk_free_rate) / 100.0
         ar = float(annualized_return)
@@ -632,13 +514,7 @@ def calculate_treynor_ratio(symbol: str, risk_free_rate: float, annualized_retur
         return {'symbol': symbol, 'error': f'Treynor failed: {e}'}
 
 def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
-    """
-    Compute Piotroski F-Score (0–9) using latest two annual columns across financials & balance sheets.
-
-    Returns:
-        {'piotroski_f_score': int, 'breakdown': dict} OR {'error': ...}
-        Adds 'warning' if some inputs are missing (NaN).
-    """
+    """Compute Piotroski F-Score (0–9) using latest two annual columns across statements."""
     def safe_get(df, row, col_idx):
         try:
             if df is None or df.empty or col_idx < 0 or col_idx >= df.shape[1]:
@@ -691,7 +567,6 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
         atTm1 = revTm1 / taTm1 if pd.notna(revTm1) and pd.notna(taTm1) and taTm1 != 0 else np.nan
         details['O2_Asset_Turnover_Improvement'] = pd.notna(atT) and pd.notna(atTm1) and atT > atTm1; f += int(details['O2_Asset_Turnover_Improvement'])
 
-        # Partial-data warning
         if any(pd.isna(x) for x in [roaT, roaTm1, cfoT, crT, crTm1, gmT, gmTm1, atT, atTm1]):
             return {'symbol': symbol, 'piotroski_f_score': int(f), 'breakdown': details,
                     'warning': 'Partial input (NaN) encountered.'}
@@ -702,16 +577,7 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
 
 def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_return: float,
                             beta: float, market_return: float) -> Dict[str, Any]:
-    """
-    Jensen's Alpha = actual annualized return - CAPM expected return.
-
-    Inputs:
-        - risk_free_rate as percent (e.g., 4.5)
-        - annualized_return and market_return as decimals (e.g., 0.12)
-
-    Returns:
-        {'jensens_alpha', 'expected_return_capm', 'inputs': {...}} OR error.
-    """
+    """Jensen's Alpha = actual annualized return - CAPM expected return; returns decimals."""
     try:
         rf = float(risk_free_rate) / 100.0
         ar = float(annualized_return)
@@ -732,11 +598,15 @@ def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_retur
 
 def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
     """
-    PEG = P/E / (annual EPS growth in percent).
-    Tries several keys for growth. Guards against implausible growth (>200%) or <= 0.
+    PEG ratio — return BOTH common variants to remove unit ambiguity:
 
-    Returns:
-        {'peg_ratio', 'pe_ratio', 'annual_eps_growth_percent', 'raw_growth_input'} OR error.
+    Definitions:
+      - growth_decimal: annual EPS growth as decimal (e.g., 0.15 => 15%).
+      - growth_percent: growth_decimal * 100 (e.g., 15.0).
+
+    Returned fields:
+      - peg_ratio_decimal_denominator = PE / growth_decimal
+      - peg_ratio_percent_denominator = PE / growth_percent
     """
     try:
         info = getattr(yf.Ticker(symbol), 'info', {}) or {}
@@ -752,22 +622,38 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
             if v is None:
                 continue
             try:
-                growth = float(v)
+                growth = float(v)  # expected decimal
                 break
             except Exception:
                 continue
 
         if pe is None or growth is None or growth <= 0 or growth > 2.0:
-            return {'symbol': symbol, 'peg_ratio': np.nan, 'error': 'Missing/implausible inputs'}
+            return {'symbol': symbol,
+                    'peg_ratio_decimal_denominator': np.nan,
+                    'peg_ratio_percent_denominator': np.nan,
+                    'error': 'Missing/implausible inputs (PE or growth).'}
 
-        return {'symbol': symbol,
-                'peg_ratio': float(pe / (growth * 100.0)),
-                'pe_ratio': float(pe),
-                'annual_eps_growth_percent': float(growth * 100.0),
-                'raw_growth_input': float(growth)}
+        growth_decimal = float(growth)
+        growth_percent = growth_decimal * 100.0
+
+        peg_dec = float(pe) / growth_decimal
+        peg_pct = float(pe) / growth_percent
+
+        return {
+            'symbol': symbol,
+            'peg_ratio_decimal_denominator': float(peg_dec),
+            'peg_ratio_percent_denominator': float(peg_pct),
+            'pe_ratio': float(pe),
+            'annual_eps_growth_decimal': float(growth_decimal),
+            'annual_eps_growth_percent': float(growth_percent),
+            'note': 'Both decimal- and percent-denominator PEGs returned for clarity.'
+        }
     except Exception as e:
         logger.error(f'PEG failed: {e}')
-        return {'symbol': symbol, 'peg_ratio': np.nan, 'error': f'PEG failed: {e}'}
+        return {'symbol': symbol,
+                'peg_ratio_decimal_denominator': np.nan,
+                'peg_ratio_percent_denominator': np.nan,
+                'error': f'PEG failed: {e}'}
 
 # -----------------------------------------------------------------------------
 # New utility: aligned daily returns for correlation/diversification.
@@ -778,6 +664,10 @@ def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
 
     Returns:
         {'period': str, 'daily_returns': {symbol: [r1, r2, ...], ...}} OR {'error': ...}
+
+    Note:
+      - Arithmetic returns (pct_change) are returned as decimals (e.g., 0.01 = 1%).
+      - Tools that expect log returns compute them independently (e.g., correlation/log-return tools).
     """
     try:
         close = yf.download(symbols, period=period, interval='1d', progress=False, auto_adjust=True)['Close']
@@ -792,7 +682,7 @@ def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
         return {'error': f'Daily returns failed: {e}'}
 
 # -----------------------------------------------------------------------------
-# ADK Agent Definition — keeps your public name & tool list intact, with added tool.
+# ADK Agent Definition — public name & tool list (with new tool).
 # -----------------------------------------------------------------------------
 calculation_agent = LlmAgent(
     name='Financial_Calculation_Agent',
@@ -819,6 +709,6 @@ calculation_agent = LlmAgent(
         get_pe_ratio,
         get_risk_free_rate,
         get_technical_indicators,
-        get_daily_returns,  # <-- new tool added
+        get_daily_returns,
     ],
 )

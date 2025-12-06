@@ -1,14 +1,13 @@
 
 # review_agent.py
-# VERSION: 2025-12-06.4
+# VERSION: 2025-12-06.7
 """
 Portfolio Review Agent — quality checks for portfolio JSON.
 
-Changes in this version (addressing your review):
-1) **Input type flexibility (Medium/Optional):**
-   `review_portfolio_recommendation` now accepts either a JSON string *or* a Python dict.
-   This avoids runtime errors if the ADK passes already-parsed objects.
-2) **Guarded logging:** unchanged behavior; documented here for diffing.
+Conventions:
+- Accepts JSON string OR Python dict.
+- Performs lightweight schema validation and risk threshold checks.
+- Returns 'Accepted'|'Warning'|'Rejected' with observations and the original portfolio.
 
 Environment knobs:
 - EXPECTED_COUNT_TOTAL (default 20)
@@ -22,9 +21,6 @@ from typing import Dict, Any, List, Union
 import logging
 import os
 import json
-
-# Allow delegated metric re-checks via Calculation Agent (unchanged public name)
-from .calculation_agent import calculation_agent as calc_agent
 
 # -----------------------------------------------------------------------------
 # Logging — guard duplicate handlers and honor LOGLEVEL.
@@ -43,23 +39,11 @@ def get_logger(name: str) -> logging.Logger:
 
 logger = get_logger('review_agent')
 
-# Clone a calculation agent instance to delegate metric re-verification (unchanged pattern)
-calc_instance = LlmAgent(
-    name=calc_agent.name + '_Root_Instance',
-    model=calc_agent.model,
-    description=calc_agent.description,
-    instruction=calc_agent.instruction,
-    tools=calc_agent.tools,
-)
-
 # -----------------------------------------------------------------------------
 # Schema validation — minimal, internal (no third-party).
 # -----------------------------------------------------------------------------
 def _validate_portfolio_shape(portfolio: Dict[str, Any]) -> List[str]:
-    """
-    Ensure the minimal expected structure is present and well-typed.
-    Returns a list of human-readable issues (empty if none).
-    """
+    """Ensure minimal expected structure is present and well-typed."""
     issues: List[str] = []
     for k in ['exchange', 'recommendation_date', 'risk_categories']:
         if k not in portfolio:
@@ -76,7 +60,7 @@ def _validate_portfolio_shape(portfolio: Dict[str, Any]) -> List[str]:
     return issues
 
 # -----------------------------------------------------------------------------
-# Review tool — retains your risk checks and status outcomes, adds schema validation.
+# Review tool — retains risk checks and status outcomes; accepts dict or JSON.
 # -----------------------------------------------------------------------------
 def review_portfolio_recommendation(portfolio_json: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -85,17 +69,12 @@ def review_portfolio_recommendation(portfolio_json: Union[str, Dict[str, Any]]) 
       - Count expectations (default 20)
       - Category-specific Beta sanity checks (configurable thresholds)
 
-    Input:
-      - `portfolio_json`: JSON string OR Python dict
-
-    Returns:
-      {'review_status': 'Accepted'|'Warning'|'Rejected', 'observations': [...], 'original_portfolio': <dict|str>}
+    Input: JSON string OR Python dict
+    Return: {'review_status', 'observations', 'original_portfolio'}
     """
     try:
-        # --- Accept dict or JSON string safely (Medium/Optional fix) ---
         portfolio = portfolio_json if isinstance(portfolio_json, dict) else json.loads(portfolio_json)
 
-        # 0) Shape validation first — prevents confusing downstream errors
         issues = _validate_portfolio_shape(portfolio)
         if issues:
             return {'review_status': 'Rejected',
@@ -109,25 +88,21 @@ def review_portfolio_recommendation(portfolio_json: Union[str, Dict[str, Any]]) 
         status = 'Accepted'
         observations: List[str] = []
 
-        # 1) Total count expectation
         expected_total = int(os.getenv('EXPECTED_COUNT_TOTAL', '20'))
         total = len(high) + len(low)
         if total != expected_total:
             status = 'Warning'
             observations.append(f'Portfolio count {total}/{expected_total} — expected exactly {expected_total}.')
 
-        # 2) Beta sanity checks (configurable)
         hi = float(os.getenv('BETA_HIGH_MIN', '1.2'))
         lo = float(os.getenv('BETA_LOW_MAX', '1.0'))
 
-        # High-risk category: expect beta > hi
         for it in high:
             b = it.get('beta', 0)
             if b <= hi:
                 status = 'Warning'
                 observations.append(f"High-risk {it.get('symbol','?')} beta {b} <= {hi}.")
 
-        # Low/mid-risk category: expect beta < lo
         for it in low:
             b = it.get('beta', 0)
             if b >= lo:
@@ -159,6 +134,5 @@ review_agent = LlmAgent(
         "Run the review_portfolio_recommendation tool; if status is Warning/Rejected, "
         "delegate to calculation agent to re-check metrics (e.g., beta) for flagged symbols."
     ),
-    tools=[review_portfolio_recommendation],
-    sub_agents=[calc_instance]
+    tools=[review_portfolio_recommendation]
 )

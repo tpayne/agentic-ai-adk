@@ -1,23 +1,15 @@
 
 # agent.py (root portfolio agent)
-# VERSION: 2025-12-06.4
+# VERSION: 2025-12-06.7
 """
 Root ADK agent orchestrating:
 - Calculation Agent (data & metrics)
 - Review Agent (QA)
 
-Changes in this version (addressing your review):
-1) **Column existence (Must‑fix):** We now *create* all expected metric columns with safe
-   defaults (0.0) before any boolean indexing. This prevents KeyError if the user’s
-   `stock_data_results` are missing one or more fields (e.g., 'sharpe_ratio', 'sortino_ratio').
-2) **pack() lookup safety (Medium):** The pack step now checks column existence and uses
-   `None` fallbacks to avoid KeyError if a field is missing.
-3) **Tool registration (Medium):** `generate_recommended_portfolio` is explicitly registered
-   in `root_agent.tools=[...]` so the ADK runtime/LLM can call it as a tool.
-4) **Correlation rows threshold (Observational):** The minimum aligned returns length is now
-   configurable via env `MIN_RETURNS_LENGTH` (default `10`). If the window is shorter, we fall
-   back to the ranking-only path. (You already had `MAX_AVG_CORR`; this adds symmetry.)
-5) **Guarded logging:** unchanged behavior, documented here for diffing.
+Conventions:
+- Returns/volatility fields are DECIMALS.
+- Deterministic selection with average-correlation threshold + stable backfill ensures 10/10.
+- Tunable behavior via environment variables.
 """
 
 from google.adk.agents import LlmAgent
@@ -67,7 +59,7 @@ review_instance = LlmAgent(
 )
 
 # -----------------------------------------------------------------------------
-# Internal tool — generate_recommended_portfolio (comments restored & expanded).
+# Internal tool — generate_recommended_portfolio
 # -----------------------------------------------------------------------------
 def generate_recommended_portfolio(
     exchange_name: str,
@@ -81,10 +73,16 @@ def generate_recommended_portfolio(
 
     Inputs:
       - exchange_name: label for the recommendation.
-      - stock_data_results: per-symbol metrics; **returns/volatility should be DECIMALS**.
-      - stock_daily_returns: per-symbol daily arithmetic returns (for correlation).
+      - stock_data_results: per-symbol metrics; returns/volatility are DECIMALS.
+      - stock_daily_returns: per-symbol daily arithmetic returns (aligned lists or see note).
 
-    Filtering logic (unchanged thresholds, documented):
+    NOTE on `stock_daily_returns` shape:
+      - If you pass raw lists, they MUST be aligned (same length, same date order).
+      - If lists differ in length, we align by trimming all symbols to the shortest available
+        length (`min_len`) so correlation is computed on a common window. For timestamped
+        Series, pass aligned indices instead.
+
+    Filters:
       - High risk: beta > BETA_HIGH_MIN (default 1.2), above-median Sortino and Treynor.
       - Low/mid risk: beta < BETA_LOW_MAX (default 1.0), Sortino > 75th percentile,
                       pe_ratio < 30, piotroski_f_score >= 7.
@@ -94,15 +92,9 @@ def generate_recommended_portfolio(
         threshold (MAX_AVG_CORR, default 0.4).
       - Deterministic backfill (Sortino -> Treynor -> Annualized Return) ensures 10 picks if correlation
         is too strict or data are sparse.
-
-    Returns:
-      Dict with keys: 'exchange', 'recommendation_date', 'total_recommendations', 'risk_categories'
     """
-    # 1) PREP DATA (keep original columns; clarify required fields)
+    # 1) PREP DATA — ensure expected columns exist
     df = pd.DataFrame.from_dict(stock_data_results, orient='index')
-
-    # --- MUST‑FIX: ensure all expected columns exist with safe defaults ---
-    # This avoids KeyError later when we index df['sharpe_ratio'] etc.
     required_cols = [
         'beta',
         'annualized_return',
@@ -115,22 +107,19 @@ def generate_recommended_portfolio(
     ]
     for col in required_cols:
         if col not in df.columns:
-            # Safe default: 0.0 for metrics, None for volatility if you prefer.
-            # Using 0.0 here ensures downstream math and comparisons won’t blow up.
             df[col] = 0.0
 
-    # Drop rows that have NaNs in any **present** required fields; since we now created missing ones with
-    # defaults, this acts only on actual NaNs from data.
+    # Drop rows that are actually NaN (defaults above are numeric, so mask only true NaNs)
     df = df.dropna(subset=[c for c in required_cols if c in df.columns])
 
-    # Fallbacks — keep original intent; now columns exist so .fillna(...) is safe and consistent.
+    # Fallbacks — now safe because columns exist
     df['sortino_ratio'] = df['sortino_ratio'].fillna(df['sharpe_ratio']).fillna(0.0)
     df['treynor_ratio'] = df['treynor_ratio'].fillna(df['sortino_ratio']).fillna(df['sharpe_ratio']).fillna(0.0)
 
-    # Validity: require positive risk-adjusted performance metrics
+    # Validity: require positive risk-adjusted metrics
     df = df[(df['sortino_ratio'] > 0.0) & (df['treynor_ratio'] > 0.0) & (df['sharpe_ratio'] > 0.0)]
 
-    # 2) FILTER & SORT (thresholds configurable via env)
+    # 2) FILTER & SORT (env thresholds)
     hi = float(os.getenv('BETA_HIGH_MIN', '1.2'))
     lo = float(os.getenv('BETA_LOW_MAX', '1.0'))
 
@@ -145,13 +134,25 @@ def generate_recommended_portfolio(
              (df['piotroski_f_score'] >= 7)] \
             .sort_values(by=['sortino_ratio', 'piotroski_f_score', 'annualized_return'], ascending=False)
 
-    # 3) CORRELATION & DIVERSIFICATION (deterministic selection + backfill)
+    # 3) CORRELATION & DIVERSIFICATION — align differing list lengths by min_len
     candidates = list(high.index[:15]) + list(low.index[:15])
-    min_returns_length = int(os.getenv('MIN_RETURNS_LENGTH', '10'))  # New knob: minimal aligned length
+    min_returns_length = int(os.getenv('MIN_RETURNS_LENGTH', '10'))
 
     try:
-        # Build aligned daily returns DF from provided dict (no live fetch here)
-        corr_df = pd.DataFrame({s: stock_daily_returns[s] for s in candidates if s in stock_daily_returns}).dropna()
+        # Build aligned frame: trim each list to min_len; then construct DataFrame
+        series_map = {}
+        lengths = [len(stock_daily_returns[s]) for s in candidates if s in stock_daily_returns]
+        if lengths:
+            min_len = min(lengths)
+            for s in candidates:
+                if s in stock_daily_returns:
+                    # keep last min_len entries to align windows deterministically
+                    arr = stock_daily_returns[s][-min_len:]
+                    series_map[s] = pd.Series(arr, name=s)
+        else:
+            series_map = {}
+
+        corr_df = pd.DataFrame(series_map)
         if corr_df.shape[1] > 1 and len(corr_df) > min_returns_length:
             C = corr_df.corr().abs()
             max_avg = float(os.getenv('MAX_AVG_CORR', '0.4'))
@@ -193,15 +194,15 @@ def generate_recommended_portfolio(
             high_final = list(high.index[:10])
             low_final = list(low.index[:10])
             logger.warning(
-                f'Data insufficient for correlation (cols={corr_df.shape[1]}, rows={len(corr_df)} <= {min_returns_length}); '
-                'falling back to simple sorting.'
+                f'Data insufficient for correlation (cols={corr_df.shape[1] if "corr_df" in locals() else 0}, '
+                f'rows={len(corr_df) if "corr_df" in locals() else 0} <= {min_returns_length}); falling back.'
             )
     except Exception as e:
         logger.warning(f'Correlation fallback due to error: {e}')
         high_final = list(high.index[:10])
         low_final = list(low.index[:10])
 
-    # Ensure 10/10 via backfill helper (safe if pick() already returns 10)
+    # Ensure 10/10 via backfill helper
     def backfill(cdf, cur, k):
         for s in cdf.index:
             if len(cur) >= k:
@@ -244,7 +245,7 @@ def generate_recommended_portfolio(
     }
 
 # -----------------------------------------------------------------------------
-# ADK Agent Definition — preserved public name; now registers tool explicitly.
+# ADK Agent Definition — preserved public name; registers tool explicitly.
 # -----------------------------------------------------------------------------
 root_agent = LlmAgent(
     name='Portfolio_Generation_Agent',
@@ -254,7 +255,7 @@ root_agent = LlmAgent(
         "Delegate data/metrics to Calculation_Agent; compile via generate_recommended_portfolio; "
         "ALWAYS send final JSON to Portfolio_Review_Agent for QA; address warnings then finalize."
     ),
-    tools=[  # <-- New: register internal tool so the LLM/ADK can invoke it directly
+    tools=[
         generate_recommended_portfolio
     ],
     sub_agents=[calc_instance, review_instance]
