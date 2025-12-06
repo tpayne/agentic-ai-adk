@@ -1,19 +1,29 @@
 
 # calculation_agent.py
-# VERSION: 2025-12-06.2
+# VERSION: 2025-12-06.3
 """
-ADK Calculation Agent with safe refactors and backward-compatible outputs.
-Key updates vs original:
-- Guarded logging (no duplicate handlers; LOGLEVEL env respected)
-- Consistent **decimal** units for returns/vol; kept percent mirror fields in beta/vol tool
-- New tool: get_daily_returns() for diversification inputs
-- Safer risk-free proxy with override (RISK_FREE_RATE_OVERRIDE)
-- Minor numerical consistency (ddof=1) and clearer notes
+ADK Calculation Agent — robust market-data tools with safe refactors, detailed docstrings,
+and backward-compatible outputs.
+
+**Key improvements (kept minimal and additive):**
+- Guarded logging setup (prevents duplicate handlers on re-import, honors LOGLEVEL).
+- Adds `get_daily_returns()` tool so the portfolio agent can compute diversification (correlation)
+  without fetching raw prices itself.
+- Clarifies unit conventions in docstrings: returns and volatilities are reported as **decimals** by default
+  (e.g., 0.15 => 15%). Where helpful for compatibility, mirror **percent** fields are added (e.g. Beta tool).
+- Maintains original public agent name and tools list: `calculation_agent`.
+
+**Environment knobs:**
+- LOGLEVEL: DEBUG | INFO | WARNING | ERROR | CRITICAL
+- RISK_FREE_RATE_OVERRIDE: decimal annual rate (e.g., 0.045 for 4.5%)
+
+This file intentionally keeps your original functionality and adds documentation for clarity.
 """
 
 from google.adk.agents import LlmAgent
 from typing import Dict, List, Any
 
+# Third-party libraries (unchanged)
 import yfinance as yf
 import requests_cache
 import logging
@@ -22,39 +32,57 @@ import requests
 import numpy as np
 import os
 
-# --- Logging ---------------------------------------------------------------
-
+# -----------------------------------------------------------------------------
+# Logging — guarded to avoid duplicate handlers on re-import and to honor LOGLEVEL.
+# -----------------------------------------------------------------------------
 def get_logger(name: str) -> logging.Logger:
+    """
+    Create a module logger with:
+      - Level derived from LOGLEVEL env (default 'WARNING', safe fallback).
+      - A single StreamHandler (guarded so repeated imports don't stack handlers).
+    """
     logger = logging.getLogger(name)
     level = os.getenv('LOGLEVEL', 'WARNING').upper()
-    if level not in {'DEBUG','INFO','WARNING','ERROR','CRITICAL'}:
+    if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
         level = 'WARNING'
     logger.setLevel(level)
     if not logger.handlers:
-        h = logging.StreamHandler()
-        h.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-        logger.addHandler(h)
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        logger.addHandler(handler)
     return logger
 
 logger = get_logger('calculation_agent')
 
-# Cache HTTP where possible
+# -----------------------------------------------------------------------------
+# HTTP caching for stability: short TTL memory cache avoids repeated live calls.
+# -----------------------------------------------------------------------------
 requests_cache.install_cache(backend='memory', expire_after=60)
 
+# Standard UA to reduce 403 rejections from sites like Wikipedia.
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                  'AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/91.0.4472.124 Safari/537.36'
 }
 
-# --- Symbol scrapers -------------------------------------------------------
-
+# -----------------------------------------------------------------------------
+# Index constituent scrapers — unchanged logic, clarified documentation.
+# -----------------------------------------------------------------------------
 def _get_sp500_symbols() -> List[str]:
+    """
+    Scrape S&P 500 tickers from Wikipedia.
+
+    Returns:
+        List[str]: list of symbols (strings). Empty list on failure.
+    """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         tables = pd.read_html(r.text)
         for tbl in tables:
-            for col in ['Symbol','Ticker','Security']:
+            for col in ['Symbol', 'Ticker', 'Security']:
                 if col in tbl.columns:
                     return tbl[col].astype(str).tolist()
         logger.warning('S&P500 symbols: expected column not found.')
@@ -64,13 +92,19 @@ def _get_sp500_symbols() -> List[str]:
         return []
 
 def _get_nasdaq100_symbols() -> List[str]:
+    """
+    Scrape NASDAQ-100 tickers from Wikipedia.
+
+    Returns:
+        List[str]: list of symbols (strings). Empty list on failure.
+    """
     url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         tables = pd.read_html(r.text)
         for tbl in tables:
-            for col in ['Ticker','Symbol','Security']:
+            for col in ['Ticker', 'Symbol', 'Security']:
                 if col in tbl.columns:
                     return tbl[col].astype(str).tolist()
         logger.warning('NASDAQ100 symbols: expected column not found.')
@@ -80,13 +114,19 @@ def _get_nasdaq100_symbols() -> List[str]:
         return []
 
 def _get_ftse100_symbols() -> List[str]:
+    """
+    Scrape FTSE 100 tickers from Wikipedia and append '.L' suffix for Yahoo Finance.
+
+    Returns:
+        List[str]: list of Yahoo-compatible tickers (e.g., 'BP.L').
+    """
     url = 'https://en.wikipedia.org/wiki/FTSE_100_Index'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         tables = pd.read_html(r.text)
         for tbl in tables:
-            for col in ['Ticker','TIDM','Code']:
+            for col in ['Ticker', 'TIDM', 'Code']:
                 if col in tbl.columns:
                     return [f"{t}.L" for t in tbl[col].astype(str).tolist()]
         logger.warning('FTSE100 symbols: expected column not found.')
@@ -95,13 +135,23 @@ def _get_ftse100_symbols() -> List[str]:
         logger.error(f'FTSE100 scrape failed: {e}', exc_info=True)
         return []
 
-# --- Tools -----------------------------------------------------------------
-
+# -----------------------------------------------------------------------------
+# Tools — market data, metrics, and fundamentals (docstrings expanded).
+# -----------------------------------------------------------------------------
 def get_last_stock_price(symbol: str) -> Dict[str, Any]:
+    """
+    Return the latest available stock price and timestamp (Unix seconds).
+
+    Args:
+        symbol: stock ticker (e.g., 'AAPL', 'BP.L').
+
+    Returns:
+        Dict with keys: 'symbol', 'price', 'timestamp' OR {'error': ...}
+    """
     try:
-        ti = yf.Ticker(symbol).info
-        price = ti.get('regularMarketPrice') or ti.get('currentPrice')
-        ts = ti.get('regularMarketTime') or 0
+        info = yf.Ticker(symbol).info
+        price = info.get('regularMarketPrice') or info.get('currentPrice')
+        ts = info.get('regularMarketTime') or 0
         if price is None:
             raise ValueError('No price field available')
         return {'symbol': symbol, 'price': float(price), 'timestamp': int(ts)}
@@ -109,6 +159,15 @@ def get_last_stock_price(symbol: str) -> Dict[str, Any]:
         return {'error': f'Failed to fetch last price for {symbol}: {e}'}
 
 def get_aggregated_stock_data(symbol: str, interval: str, start_date: str, end_date: str) -> Dict[str, Any]:
+    """
+    Retrieve OHLCV time series for a period and interval.
+
+    Args:
+        symbol, interval, start_date, end_date.
+
+    Returns:
+        Dict with 'data' list of {date, open, high, low, close, volume} OR {'error': ...}
+    """
     try:
         hist = yf.Ticker(symbol).history(start=start_date, end=end_date, interval=interval)
         data = [{
@@ -124,83 +183,154 @@ def get_aggregated_stock_data(symbol: str, interval: str, start_date: str, end_d
         return {'error': f'Failed to fetch aggregated data for {symbol}: {e}'}
 
 def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
-    idx = index_name.upper().replace(' ','').replace('-','').replace('_','')
-    m = {'SP500': _get_sp500_symbols, 'NASDAQ100': _get_nasdaq100_symbols, 'FTSE100': _get_ftse100_symbols,
-         'DOWJONES': lambda: ['AAPL','AMGN','AXP','BA','CAT','CRM','CSCO','CVX','DIS','GS','HD','HON','IBM','INTC','JNJ','JPM','KO','MCD','MMM','MRK','MSFT','NKE','PG','TRV','UNH','V','VZ','WBA','WMT','DOW']}
+    """
+    Return constituents of a major index.
+
+    Supported: SP500, NASDAQ100, FTSE100, DOWJONES (static list).
+
+    Returns:
+        Dict with 'symbols' list or {'error': ...}
+    """
+    idx = index_name.upper().replace(' ', '').replace('-', '').replace('_', '')
+    m = {
+        'SP500': _get_sp500_symbols,
+        'NASDAQ100': _get_nasdaq100_symbols,
+        'FTSE100': _get_ftse100_symbols,
+        'DOWJONES': lambda: ['AAPL','AMGN','AXP','BA','CAT','CRM','CSCO','CVX','DIS','GS','HD',
+                             'HON','IBM','INTC','JNJ','JPM','KO','MCD','MMM','MRK','MSFT','NKE',
+                             'PG','TRV','UNH','V','VZ','WBA','WMT','DOW']
+    }
     if idx in m:
         syms = midx
-        return {'index_name': idx, 'symbols': syms, 'count': len(syms), 'source': 'Wikipedia via pandas_read_html'} if syms else \
-               {'index_name': idx, 'symbols': [], 'error': f'Failed to scrape symbols for {idx}.'}
+        return {'index_name': idx, 'symbols': syms, 'count': len(syms), 'source': 'Wikipedia via pandas_read_html'} \
+               if syms else {'index_name': idx, 'symbols': [], 'error': f'Failed to scrape symbols for {idx}.'}
     return {'index_name': 'Unknown', 'symbols': [], 'error': f"Index '{index_name}' not recognized. Supported: {', '.join(m.keys())}"}
 
 def get_risk_free_rate(exchange_or_country: str) -> Dict[str, Any]:
+    """
+    Return the annualized risk-free rate (decimal). Uses US 10Y (^TNX) by default.
+
+    Env override:
+        RISK_FREE_RATE_OVERRIDE: decimal annual rate (e.g., 0.045 for 4.5%).
+
+    Returns:
+        {'rate_decimal_annual', 'rate_symbol', 'note'} OR {'error': ...}
+    """
     override = os.getenv('RISK_FREE_RATE_OVERRIDE')
     if override is not None:
         try:
-            return {'rate_decimal_annual': round(float(override), 6), 'rate_symbol': 'override', 'note': 'Provided via env override.'}
+            return {'rate_decimal_annual': round(float(override), 6),
+                    'rate_symbol': 'override',
+                    'note': 'Provided via env override.'}
         except Exception:
+            # Swallow parsing error and continue to proxy map.
             pass
-    proxy_map = {'US':'^TNX','USA':'^TNX','NASDAQ':'^TNX','NYSE':'^TNX','UK':'^TNX','LSE':'^TNX','JAPAN':'^TNX','TOKYO':'^TNX'}
+
+    proxy_map = {'US':'^TNX','USA':'^TNX','NASDAQ':'^TNX','NYSE':'^TNX',
+                 'UK':'^TNX','LSE':'^TNX','JAPAN':'^TNX','TOKYO':'^TNX'}
     tick = proxy_map.get(exchange_or_country.upper().strip(), '^TNX')
     try:
         info = yf.Ticker(tick).info
         y = info.get('regularMarketPrice') or info.get('currentPrice')
         if y is None:
             raise ValueError('yield not available')
-        return {'rate_decimal_annual': round(float(y)/100.0, 6), 'rate_symbol': tick, 'note': '10Y yield proxy; use override for non-US.'}
+        return {'rate_decimal_annual': round(float(y)/100.0, 6),
+                'rate_symbol': tick,
+                'note': '10Y yield proxy; use override for non-US.'}
     except Exception as e:
         return {'error': f'Failed to fetch risk-free proxy ({tick}) for {exchange_or_country}: {e}'}
 
 def get_historical_market_return(index_symbol: str, period: str) -> Dict[str, Any]:
+    """
+    Return historical annualized market **nominal** return (decimal).
+
+    Notes:
+        - Uses daily closes, requires >= 20 values.
+        - Annualization assumes 252 trading days.
+
+    Returns:
+        {'annualized_market_return_decimal', ...} OR {'error': ...}
+    """
     try:
         s = yf.download(index_symbol, period=period, interval='1d', progress=False)['Close']
-        s = s.iloc[:,0] if isinstance(s, pd.DataFrame) else s
+        s = s.iloc[:, 0] if isinstance(s, pd.DataFrame) else s
         s = s.dropna()
         if len(s) < 20:
             return {'error': f'Insufficient data for {index_symbol} over {period}.'}
-        tr = (s.iloc[-1]/s.iloc[0]) - 1
-        years = len(s)/252.0
-        ann = ((1+tr)**(1/years))-1 if years>0 else 0.0
-        return {'index_symbol': index_symbol, 'period': period, 'annualized_market_return_decimal': round(float(ann), 6), 'note': 'Nominal return.'}
+        tr = (s.iloc[-1] / s.iloc[0]) - 1
+        years = len(s) / 252.0
+        ann = ((1 + tr) ** (1 / years)) - 1 if years > 0 else 0.0
+        return {'index_symbol': index_symbol,
+                'period': period,
+                'annualized_market_return_decimal': round(float(ann), 6),
+                'note': 'Nominal return; subtract expected inflation for real return.'}
     except Exception as e:
         return {'error': f'Failed to calculate market return for {index_symbol}: {e}'}
 
 def calculate_beta_and_volatility(stock_symbol: str, market_index_symbol: str, period: str) -> Dict[str, Any]:
+    """
+    Compute CAPM Beta and annualized volatilities (decimal) using daily log returns (OLS fit).
+
+    Also returns percent mirrors for backward compatibility.
+
+    Returns:
+        {
+          'beta',
+          'stock_annualized_return', 'stock_annualized_volatility',
+          'market_annualized_volatility',
+          'stock_annualized_return_percent', 'stock_annualized_volatility_percent',
+          'market_annualized_volatility_percent',
+          'note', ...
+        } OR {'error': ...}
+    """
     try:
         data = yf.download([stock_symbol, market_index_symbol], period=period, interval='1d', progress=False)['Close'].dropna()
         if data.empty or len(data) < 20:
             return {'error': f'Insufficient data for {stock_symbol}/{market_index_symbol} over {period}.'}
-        rs = np.log(data[stock_symbol]/data[stock_symbol].shift(1)).dropna()
-        rm = np.log(data[market_index_symbol]/data[market_index_symbol].shift(1)).dropna()
+
+        rs = np.log(data[stock_symbol] / data[stock_symbol].shift(1)).dropna()
+        rm = np.log(data[market_index_symbol] / data[market_index_symbol].shift(1)).dropna()
+
         n = min(len(rs), len(rm))
         rs, rm = rs[-n:], rm[-n:]
         if n < 20:
             return {'error': f'Insufficient aligned data ({n} days).'}
+
         beta, _ = np.polyfit(rm, rs, 1)
         af = np.sqrt(252)
-        sv = rs.std(ddof=1)*af
-        mv = rm.std(ddof=1)*af
-        tr = (data[stock_symbol].iloc[-1]/data[stock_symbol].iloc[0]) - 1
-        years = len(data)/252.0
-        ar = ((1+tr)**(1/years))-1 if years>0 else 0.0
-        return {
+        sv = rs.std(ddof=1) * af
+        mv = rm.std(ddof=1) * af
+
+        tr = (data[stock_symbol].iloc[-1] / data[stock_symbol].iloc[0]) - 1
+        years = len(data) / 252.0
+        ar = ((1 + tr) ** (1 / years)) - 1 if years > 0 else 0.0
+
+        result = {
             'stock_symbol': stock_symbol,
             'market_index_symbol': market_index_symbol,
             'period': period,
-            'beta': round(float(beta),4),
-            'stock_annualized_return': round(float(ar),6),
-            'stock_annualized_volatility': round(float(sv),6),
-            'market_annualized_volatility': round(float(mv),6),
-            # backward-compatible mirror fields (percent)
-            'stock_annualized_return_percent': round(float(ar)*100,2),
-            'stock_annualized_volatility_percent': round(float(sv)*100,2),
-            'market_annualized_volatility_percent': round(float(mv)*100,2),
-            'note': 'Decimals + percent mirrors for backward compatibility.'
+            'beta': round(float(beta), 4),
+            'stock_annualized_return': round(float(ar), 6),
+            'stock_annualized_volatility': round(float(sv), 6),
+            'market_annualized_volatility': round(float(mv), 6),
+            'note': 'Decimals returned; percent mirrors provided for compatibility.',
         }
+        # Backward-compatible mirrors (percent)
+        result.update({
+            'stock_annualized_return_percent': round(float(ar) * 100, 2),
+            'stock_annualized_volatility_percent': round(float(sv) * 100, 2),
+            'market_annualized_volatility_percent': round(float(mv) * 100, 2),
+        })
+        return result
     except Exception as e:
         return {'error': f'Financial calculation failed: {e}'}
 
 def compare_key_metrics(symbols: List[str], period: str) -> Dict[str, Any]:
+    """
+    Compare total return, annualized return, and annualized volatility across symbols.
+
+    Returns values in **percent** for readability, with error entries for insufficient data.
+    """
     out = {}
     try:
         data = yf.download(symbols, period=period, interval='1d', progress=False)['Close']
@@ -211,22 +341,34 @@ def compare_key_metrics(symbols: List[str], period: str) -> Dict[str, Any]:
             return {'error': f'No sufficient data over {period}.'}
         for sym in symbols:
             if sym not in data.columns:
-                out[sym] = {'error': 'No data'}; continue
+                out[sym] = {'error': 'No data'}
+                continue
             px = data[sym].dropna()
             if len(px) < 20:
-                out[sym] = {'error': f'Only {len(px)} days'}; continue
-            r = np.log(px/px.shift(1)).dropna()
-            tr = (px.iloc[-1]/px.iloc[0]) - 1
-            ann_vol = r.std(ddof=1)*np.sqrt(252)
-            years = len(px)/252.0
-            ann = ((1+tr)**(1/years))-1 if years>0 else 0.0
-            out[sym] = {'total_return_percent': round(tr*100,2), 'annualized_return_percent': round(ann*100,2), 'annualized_volatility_percent': round(ann_vol*100,2)}
+                out[sym] = {'error': f'Only {len(px)} days'}
+                continue
+            r = np.log(px / px.shift(1)).dropna()
+            tr = (px.iloc[-1] / px.iloc[0]) - 1
+            ann_vol = r.std(ddof=1) * np.sqrt(252)
+            years = len(px) / 252.0
+            ann = ((1 + tr) ** (1 / years)) - 1 if years > 0 else 0.0
+            out[sym] = {
+                'total_return_percent': round(tr * 100, 2),
+                'annualized_return_percent': round(ann * 100, 2),
+                'annualized_volatility_percent': round(ann_vol * 100, 2),
+            }
         return {'comparison_period': period, 'results': out}
     except Exception as e:
         return {'error': f'Comparison failed: {e}'}
 
 def generate_time_series_chart_data(symbol: str, period: str, metric: str) -> Dict[str, Any]:
-    if metric not in ['Close','Open','High','Low','Volume']:
+    """
+    Prepare time-series points for charting a single metric (Close/Open/High/Low/Volume).
+
+    Returns:
+        Dict with 'data_points' list or error.
+    """
+    if metric not in ['Close', 'Open', 'High', 'Low', 'Volume']:
         return {'error': f"Invalid metric '{metric}'."}
     try:
         df = yf.download(symbol, period=period, interval='1d', progress=False)
@@ -234,50 +376,76 @@ def generate_time_series_chart_data(symbol: str, period: str, metric: str) -> Di
             return {'error': f'No {metric} data for {symbol} over {period}'}
         pts = []
         for idx, row in df.iterrows():
-            val = int(row[metric]) if metric=='Volume' else round(float(row[metric]),4)
+            val = int(row[metric]) if metric == 'Volume' else round(float(row[metric]), 4)
             pts.append({'date': idx.strftime('%Y-%m-%d'), 'value': val})
-        return {'symbol': symbol, 'metric': metric, 'period': period, 'title': f'{symbol} {metric} over {period}', 'data_points': pts}
+        return {'symbol': symbol, 'metric': metric, 'period': period,
+                'title': f'{symbol} {metric} over {period}', 'data_points': pts}
     except Exception as e:
         return {'error': f'Chart data failed: {e}'}
 
-def get_technical_indicators(symbol: str, period: str, short_window: int = 12, long_window: int = 26, signal_window: int = 9, ma_window: int = 20) -> Dict[str, Any]:
+def get_technical_indicators(symbol: str, period: str,
+                             short_window: int = 12, long_window: int = 26,
+                             signal_window: int = 9, ma_window: int = 20) -> Dict[str, Any]:
+    """
+    Compute SMA, MACD line/signal/histogram, and RSI.
+
+    Notes:
+        - Uses standard EMA spans for MACD.
+        - RSI computed via smoothed gains/losses.
+
+    Returns latest indicator values or error.
+    """
     try:
         df = yf.download(symbol, period=period, interval='1d', progress=False)
         if df.empty:
             return {'error': f'No data for {symbol} over {period}'}
         df['Close'] = df['Close'].ffill()
+
+        # SMA
         df['SMA'] = df['Close'].rolling(window=ma_window).mean()
+
+        # MACD
         df['EMA_Short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
         df['EMA_Long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
         df['MACD_Line'] = df['EMA_Short'] - df['EMA_Long']
         df['Signal_Line'] = df['MACD_Line'].ewm(span=signal_window, adjust=False).mean()
         df['MACD_Histogram'] = df['MACD_Line'] - df['Signal_Line']
+
+        # RSI (classic 14, computed via EWMA of gains/losses; com=13 approximates)
         delta = df['Close'].diff(1)
-        gain = delta.where(delta>0, 0)
-        loss = -delta.where(delta<0, 0)
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
         avg_gain = gain.ewm(com=13, adjust=False).mean()
         avg_loss = loss.ewm(com=13, adjust=False).mean()
-        rs = avg_gain/avg_loss
-        df['RSI'] = 100 - (100/(1+rs))
+        rs = avg_gain / avg_loss
+        df['RSI'] = 100 - (100 / (1 + rs))
+
         df.dropna(inplace=True)
         last = df.iloc[-1]
         return {
-            'symbol': symbol.upper(), 'period': period,
-            'latest_close_price': round(float(last['Close']),2),
-            'latest_sma': round(float(last['SMA']),2),
-            'latest_rsi': round(float(last['RSI']),2),
-            'latest_macd_line': round(float(last['MACD_Line']),4),
-            'latest_macd_signal': round(float(last['Signal_Line']),4),
-            'latest_macd_histogram': round(float(last['MACD_Histogram']),4),
+            'symbol': symbol.upper(),
+            'period': period,
+            'latest_close_price': round(float(last['Close']), 2),
+            'latest_sma': round(float(last['SMA']), 2),
+            'latest_rsi': round(float(last['RSI']), 2),
+            'latest_macd_line': round(float(last['MACD_Line']), 4),
+            'latest_macd_signal': round(float(last['Signal_Line']), 4),
+            'latest_macd_histogram': round(float(last['MACD_Histogram']), 4),
             'note': 'RSI>70 overbought, <30 oversold.'
         }
     except Exception as e:
         return {'error': f'Indicators failed: {e}'}
 
 def get_on_balance_volume(symbol: str, period: str) -> Dict[str, Any]:
+    """
+    Calculate On-Balance Volume (OBV): cumulative volume signed by day-over-day price changes.
+
+    Returns:
+        {'latest_on_balance_volume': int, ...} OR {'error': ...}
+    """
     try:
-        df = yf.download(symbol, period=period, interval='1d', progress=False)[['Close','Volume']].dropna()
-        if df.empty or len(df)<2:
+        df = yf.download(symbol, period=period, interval='1d', progress=False)[['Close', 'Volume']].dropna()
+        if df.empty or len(df) < 2:
             return {'error': f'Insufficient data for OBV ({symbol})'}
         direction = np.sign(df['Close'].diff()).fillna(0)
         df['OBV'] = (df['Volume'].astype(np.int64) * direction).cumsum()
@@ -289,6 +457,15 @@ def get_on_balance_volume(symbol: str, period: str) -> Dict[str, Any]:
         return {'error': f'OBV failed: {e}'}
 
 def calculate_ebitda(symbol: str) -> Dict[str, Any]:
+    """
+    Calculate EBITDA using best available path:
+      1) Prefer explicit 'ebitda' from .info
+      2) Fallback: EBIT + D&A
+      3) Fallback: Net Income + Interest Expense + Tax Provision + D&A
+
+    Returns:
+        {'ebitda': float, 'source': '...'} OR {'error': ...}
+    """
     try:
         t = yf.Ticker(symbol)
         info = t.info
@@ -298,33 +475,43 @@ def calculate_ebitda(symbol: str) -> Dict[str, Any]:
         fin = t.financials
         if fin.empty:
             return {'error': f'No financials for {symbol}'}
-        latest = fin.iloc[:,0]
+        latest = fin.iloc[:, 0]
         ebit = latest.get('Ebit') or latest.get('Operating Income')
         da = latest.get('Depreciation And Amortization')
         if ebit is not None and da is not None:
-            return {'symbol': symbol.upper(), 'ebitda': float(ebit+da), 'source': 'ebit_plus_da'}
+            return {'symbol': symbol.upper(), 'ebitda': float(ebit + da), 'source': 'ebit_plus_da'}
         ni = latest.get('Net Income')
         ie = latest.get('Interest Expense') or latest.get('Interest Expense Non Operating') or 0
         tax = latest.get('Tax Provision')
         if ni is None or tax is None or da is None:
             return {'error': 'Missing components for EBITDA add-back'}
-        return {'symbol': symbol.upper(), 'ebitda': float(ni+ie+tax+da), 'source': 'net_income_addback'}
+        return {'symbol': symbol.upper(), 'ebitda': float(ni + ie + tax + da), 'source': 'net_income_addback'}
     except Exception as e:
         logger.error(f'EBITDA failed: {e}')
         return {'error': f'EBITDA failed: {e}'}
 
 def get_pe_ratio(symbol: str) -> Dict[str, Any]:
+    """
+    Retrieve trailing P/E ratio if positive; error otherwise.
+    """
     try:
         pe = yf.Ticker(symbol).info.get('trailingPE')
-        if pe and pe>0:
+        if pe and pe > 0:
             return {'symbol': symbol, 'price_to_earnings_ratio': float(pe), 'note': 'Trailing P/E'}
         return {'symbol': symbol, 'error': 'P/E missing or non-positive'}
     except Exception as e:
         return {'error': f'PE failed: {e}'}
 
-def calculate_sharpe_ratio(symbol: str, risk_free_rate: float, period: str = '5y', interval: str = '1d', trading_days: int = 252, auto_adjust: bool = True) -> Dict[str, Any]:
+def calculate_sharpe_ratio(symbol: str, risk_free_rate: float,
+                           period: str = '5y', interval: str = '1d',
+                           trading_days: int = 252, auto_adjust: bool = True) -> Dict[str, Any]:
+    """
+    Annualized Sharpe Ratio using daily log returns:
+        Sharpe = (annualized mean return - Rf) / annualized std dev
+    Returns decimals for annualized mean return and volatility.
+    """
     try:
-        rf = float(risk_free_rate)/100.0
+        rf = float(risk_free_rate) / 100.0
         df = yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=auto_adjust)
         if df is None or df.empty:
             return {'symbol': symbol, 'error': 'No data'}
@@ -332,19 +519,28 @@ def calculate_sharpe_ratio(symbol: str, risk_free_rate: float, period: str = '5y
         px = df[col].astype(float).dropna()
         if px.size < 2:
             return {'symbol': symbol, 'error': 'Insufficient prices'}
-        r = np.log(px/px.shift(1)).dropna()
-        mu = float(r.mean().item())*trading_days
-        sigma = float(r.std(ddof=1).item())*np.sqrt(trading_days)
+        r = np.log(px / px.shift(1)).dropna()
+        mu = float(r.mean().item()) * trading_days
+        sigma = float(r.std(ddof=1).item()) * np.sqrt(trading_days)
         if sigma <= 1e-12 or np.isnan(sigma):
             return {'symbol': symbol, 'error': 'Zero/NaN volatility'}
-        sr = (mu - rf)/sigma
-        return {'symbol': symbol, 'period': period, 'risk_free_rate_percent': float(risk_free_rate), 'sharpe_ratio': round(sr,6), 'annualized_return': round(mu,6), 'annualized_volatility': round(sigma,6)}
+        sr = (mu - rf) / sigma
+        return {'symbol': symbol, 'period': period,
+                'risk_free_rate_percent': float(risk_free_rate),
+                'sharpe_ratio': round(sr, 6),
+                'annualized_return': round(mu, 6),
+                'annualized_volatility': round(sigma, 6)}
     except Exception as e:
         return {'symbol': symbol, 'error': f'Internal error: {e}'}
 
 def calculate_sortino_ratio(symbol: str, risk_free_rate: float, period: str = '5y') -> Dict[str, Any]:
+    """
+    Annualized Sortino Ratio (uses **arithmetic** daily returns and downside deviation):
+        Sortino = (annualized mean return - Rf) / annualized downside std dev
+    Returns decimals for annualized mean return and downside volatility.
+    """
     try:
-        rf = float(risk_free_rate)/100.0
+        rf = float(risk_free_rate) / 100.0
         df = yf.download(symbol, period=period, interval='1d', progress=False, auto_adjust=True)
         if df is None or df.empty:
             return {'symbol': symbol, 'error': 'No data'}
@@ -353,19 +549,29 @@ def calculate_sortino_ratio(symbol: str, risk_free_rate: float, period: str = '5
             return {'symbol': symbol, 'error': 'Insufficient prices'}
         r = px.pct_change().dropna()
         td = 252
-        mar_d = (1+rf)**(1/td) - 1
+        mar_d = (1 + rf) ** (1 / td) - 1
         dd = np.minimum(0.0, r - mar_d)
         dd_var = np.nanmean(np.square(dd))
         if np.isnan(dd_var) or dd_var <= 0.0:
             return {'symbol': symbol, 'error': 'No downside variance'}
-        dstd = np.sqrt(dd_var)*np.sqrt(td)
-        mean_ann = float(r.mean().item())*td
-        srt = (mean_ann - rf)/dstd
-        return {'symbol': symbol, 'period': period, 'risk_free_rate_percent': float(risk_free_rate), 'sortino_ratio': round(srt,6), 'annualized_return': round(mean_ann,6), 'annualized_downside_volatility': round(dstd,6)}
+        dstd = np.sqrt(dd_var) * np.sqrt(td)
+        mean_ann = float(r.mean().item()) * td
+        srt = (mean_ann - rf) / dstd
+        return {'symbol': symbol, 'period': period,
+                'risk_free_rate_percent': float(risk_free_rate),
+                'sortino_ratio': round(srt, 6),
+                'annualized_return': round(mean_ann, 6),
+                'annualized_downside_volatility': round(dstd, 6)}
     except Exception as e:
         return {'symbol': symbol, 'error': f'Sortino failed: {e}'}
 
 def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
+    """
+    Compute correlation matrix (JSON) of log returns across symbols.
+
+    Returns:
+        {'correlation_matrix_json', 'symbols', 'period'} OR {'error': ...}
+    """
     if len(symbols) < 2:
         return {'error': 'Requires at least two symbols'}
     try:
@@ -375,7 +581,7 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
         if isinstance(raw, pd.DataFrame) and 'Close' in raw.columns and raw.columns.nlevels == 2:
             data = raw['Close'].copy()
         elif isinstance(raw, pd.DataFrame) and 'Close' in raw.columns and raw.columns.nlevels == 1:
-            data = raw[['Close']].copy() if len(symbols)==1 else raw['Close'] if 'Close' in raw else raw
+            data = raw[['Close']].copy() if len(symbols) == 1 else raw['Close'] if 'Close' in raw else raw
             if isinstance(data, pd.Series):
                 data = data.to_frame(name=symbols[0])
         else:
@@ -385,7 +591,7 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
         data.dropna(axis=1, how='all', inplace=True)
         if data.shape[1] < 2:
             return {'error': 'Less than two valid symbols'}
-        lr = np.log(data/data.shift(1)).dropna(how='all')
+        lr = np.log(data / data.shift(1)).dropna(how='all')
         if lr.empty or lr.shape[1] < 2:
             return {'error': 'Insufficient common return data'}
         cm = lr.corr()
@@ -394,82 +600,144 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
         return {'error': f'Correlation failed: {e}'}
 
 def calculate_treynor_ratio(symbol: str, risk_free_rate: float, annualized_return: float, beta: float) -> Dict[str, Any]:
+    """
+    Treynor Ratio = (Annualized Return - Rf) / Beta
+
+    Expects:
+        - annualized_return as decimal (e.g., 0.12 for 12%)
+        - risk_free_rate as percent (e.g., 4.5)
+
+    Returns:
+        {'treynor_ratio', 'annualized_return', 'beta', 'risk_free_rate_percent'} OR error.
+    """
     try:
-        rf = float(risk_free_rate)/100.0
+        rf = float(risk_free_rate) / 100.0
         ar = float(annualized_return)
         b = float(beta)
         if abs(b) < 1e-12:
-            return {'symbol': symbol, 'treynor_ratio': None, 'annualized_return': ar, 'beta': b, 'risk_free_rate_percent': float(risk_free_rate), 'error': 'Beta too close to zero'}
-        tr = (ar - rf)/b
-        return {'symbol': symbol, 'treynor_ratio': float(tr), 'annualized_return': float(ar), 'beta': float(b), 'risk_free_rate_percent': float(risk_free_rate)}
+            return {'symbol': symbol,
+                    'treynor_ratio': None,
+                    'annualized_return': ar,
+                    'beta': b,
+                    'risk_free_rate_percent': float(risk_free_rate),
+                    'error': 'Beta too close to zero'}
+        tr = (ar - rf) / b
+        return {'symbol': symbol,
+                'treynor_ratio': float(tr),
+                'annualized_return': float(ar),
+                'beta': float(b),
+                'risk_free_rate_percent': float(risk_free_rate)}
     except Exception as e:
         logger.error(f'Treynor failed: {e}')
         return {'symbol': symbol, 'error': f'Treynor failed: {e}'}
 
 def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
+    """
+    Compute Piotroski F-Score (0–9) using latest two annual columns across financials & balance sheets.
+
+    Returns:
+        {'piotroski_f_score': int, 'breakdown': dict} OR {'error': ...}
+        Adds 'warning' if some inputs are missing (NaN).
+    """
     def safe_get(df, row, col_idx):
         try:
-            if df is None or df.empty or col_idx<0 or col_idx>=df.shape[1]:
+            if df is None or df.empty or col_idx < 0 or col_idx >= df.shape[1]:
                 return np.nan
             col = df.columns[col_idx]
             val = df.at[row, col] if row in df.index else np.nan
             return float(val) if pd.notna(val) else np.nan
         except Exception:
             return np.nan
-    f = 0; details = {}
+
+    f = 0
+    details = {}
     try:
         t = yf.Ticker(symbol)
-        inc, bs, cf = getattr(t,'financials',None), getattr(t,'balance_sheet',None), getattr(t,'cashflow',None)
-        if inc is None or bs is None or cf is None or inc.shape[1]<2 or bs.shape[1]<2 or cf.shape[1]<2:
+        inc, bs, cf = getattr(t, 'financials', None), getattr(t, 'balance_sheet', None), getattr(t, 'cashflow', None)
+        if inc is None or bs is None or cf is None or inc.shape[1] < 2 or bs.shape[1] < 2 or cf.shape[1] < 2:
             return {'symbol': symbol, 'piotroski_f_score': np.nan, 'error': 'Missing/insufficient financial tables'}
         T, Tm1 = 0, 1
-        niT = safe_get(inc,'Net Income',T); taT = safe_get(bs,'Total Assets',T)
-        niTm1 = safe_get(inc,'Net Income',Tm1); taTm1 = safe_get(bs,'Total Assets',Tm1)
-        roaT = niT/taT if pd.notna(niT) and pd.notna(taT) and taT!=0 else np.nan
-        roaTm1 = niTm1/taTm1 if pd.notna(niTm1) and pd.notna(taTm1) and taTm1!=0 else np.nan
-        details['P1_ROA_Positive'] = pd.notna(roaT) and roaT>0; f += int(details['P1_ROA_Positive'])
-        cfoT = safe_get(cf,'Total Cash From Operating Activities',T)
-        details['P2_CFO_Positive'] = pd.notna(cfoT) and cfoT>0; f += int(details['P2_CFO_Positive'])
-        details['P3_ROA_Improvement'] = pd.notna(roaT) and pd.notna(roaTm1) and roaT>roaTm1; f += int(details['P3_ROA_Improvement'])
-        details['P4_CFO_vs_NetIncome'] = pd.notna(cfoT) and pd.notna(niT) and cfoT>niT; f += int(details['P4_CFO_vs_NetIncome'])
-        ltdT = safe_get(bs,'Long Term Debt',T); ltdTm1 = safe_get(bs,'Long Term Debt',Tm1)
-        details['L1_Debt_Decrease'] = pd.notna(ltdT) and pd.notna(ltdTm1) and ltdT<=ltdTm1; f += int(details['L1_Debt_Decrease'])
-        caT = safe_get(bs,'Current Assets',T); clT = safe_get(bs,'Current Liabilities',T)
-        caTm1 = safe_get(bs,'Current Assets',Tm1); clTm1 = safe_get(bs,'Current Liabilities',Tm1)
-        crT = caT/clT if pd.notna(caT) and pd.notna(clT) and clT!=0 else np.nan
-        crTm1 = caTm1/clTm1 if pd.notna(caTm1) and pd.notna(clTm1) and clTm1!=0 else np.nan
-        details['L2_Current_Ratio_Improvement'] = pd.notna(crT) and pd.notna(crTm1) and crT>crTm1; f += int(details['L2_Current_Ratio_Improvement'])
-        csT = safe_get(bs,'Common Stock',T); csTm1 = safe_get(bs,'Common Stock',Tm1)
-        details['L3_No_New_Shares'] = pd.notna(csT) and pd.notna(csTm1) and csT<=csTm1; f += int(details['L3_No_New_Shares'])
-        gpT = safe_get(inc,'Gross Profit',T); revT = safe_get(inc,'Total Revenue',T)
-        gpTm1 = safe_get(inc,'Gross Profit',Tm1); revTm1 = safe_get(inc,'Total Revenue',Tm1)
-        gmT = gpT/revT if pd.notna(gpT) and pd.notna(revT) and revT!=0 else np.nan
-        gmTm1 = gpTm1/revTm1 if pd.notna(gpTm1) and pd.notna(revTm1) and revTm1!=0 else np.nan
-        details['O1_Gross_Margin_Improvement'] = pd.notna(gmT) and pd.notna(gmTm1) and gmT>gmTm1; f += int(details['O1_Gross_Margin_Improvement'])
-        atT = revT/taT if pd.notna(revT) and pd.notna(taT) and taT!=0 else np.nan
-        atTm1 = revTm1/taTm1 if pd.notna(revTm1) and pd.notna(taTm1) and taTm1!=0 else np.nan
-        details['O2_Asset_Turnover_Improvement'] = pd.notna(atT) and pd.notna(atTm1) and atT>atTm1; f += int(details['O2_Asset_Turnover_Improvement'])
-        if any(pd.isna(x) for x in [roaT,roaTm1,cfoT,crT,crTm1,gmT,gmTm1,atT,atTm1]):
-            return {'symbol': symbol, 'piotroski_f_score': int(f), 'breakdown': details, 'warning': 'Partial input (NaN) encountered.'}
+
+        # Profitability
+        niT = safe_get(inc, 'Net Income', T); taT = safe_get(bs, 'Total Assets', T)
+        niTm1 = safe_get(inc, 'Net Income', Tm1); taTm1 = safe_get(bs, 'Total Assets', Tm1)
+        roaT = niT / taT if pd.notna(niT) and pd.notna(taT) and taT != 0 else np.nan
+        roaTm1 = niTm1 / taTm1 if pd.notna(niTm1) and pd.notna(taTm1) and taTm1 != 0 else np.nan
+        details['P1_ROA_Positive'] = pd.notna(roaT) and roaT > 0; f += int(details['P1_ROA_Positive'])
+        cfoT = safe_get(cf, 'Total Cash From Operating Activities', T)
+        details['P2_CFO_Positive'] = pd.notna(cfoT) and cfoT > 0; f += int(details['P2_CFO_Positive'])
+        details['P3_ROA_Improvement'] = pd.notna(roaT) and pd.notna(roaTm1) and roaT > roaTm1; f += int(details['P3_ROA_Improvement'])
+        details['P4_CFO_vs_NetIncome'] = pd.notna(cfoT) and pd.notna(niT) and cfoT > niT; f += int(details['P4_CFO_vs_NetIncome'])
+
+        # Leverage/Liquidity
+        ltdT = safe_get(bs, 'Long Term Debt', T); ltdTm1 = safe_get(bs, 'Long Term Debt', Tm1)
+        details['L1_Debt_Decrease'] = pd.notna(ltdT) and pd.notna(ltdTm1) and ltdT <= ltdTm1; f += int(details['L1_Debt_Decrease'])
+        caT = safe_get(bs, 'Current Assets', T); clT = safe_get(bs, 'Current Liabilities', T)
+        caTm1 = safe_get(bs, 'Current Assets', Tm1); clTm1 = safe_get(bs, 'Current Liabilities', Tm1)
+        crT = caT / clT if pd.notna(caT) and pd.notna(clT) and clT != 0 else np.nan
+        crTm1 = caTm1 / clTm1 if pd.notna(caTm1) and pd.notna(clTm1) and clTm1 != 0 else np.nan
+        details['L2_Current_Ratio_Improvement'] = pd.notna(crT) and pd.notna(crTm1) and crT > crTm1; f += int(details['L2_Current_Ratio_Improvement'])
+        csT = safe_get(bs, 'Common Stock', T); csTm1 = safe_get(bs, 'Common Stock', Tm1)
+        details['L3_No_New_Shares'] = pd.notna(csT) and pd.notna(csTm1) and csT <= csTm1; f += int(details['L3_No_New_Shares'])
+
+        # Operating Efficiency
+        gpT = safe_get(inc, 'Gross Profit', T); revT = safe_get(inc, 'Total Revenue', T)
+        gpTm1 = safe_get(inc, 'Gross Profit', Tm1); revTm1 = safe_get(inc, 'Total Revenue', Tm1)
+        gmT = gpT / revT if pd.notna(gpT) and pd.notna(revT) and revT != 0 else np.nan
+        gmTm1 = gpTm1 / revTm1 if pd.notna(gpTm1) and pd.notna(revTm1) and revTm1 != 0 else np.nan
+        details['O1_Gross_Margin_Improvement'] = pd.notna(gmT) and pd.notna(gmTm1) and gmT > gmTm1; f += int(details['O1_Gross_Margin_Improvement'])
+
+        atT = revT / taT if pd.notna(revT) and pd.notna(taT) and taT != 0 else np.nan
+        atTm1 = revTm1 / taTm1 if pd.notna(revTm1) and pd.notna(taTm1) and taTm1 != 0 else np.nan
+        details['O2_Asset_Turnover_Improvement'] = pd.notna(atT) and pd.notna(atTm1) and atT > atTm1; f += int(details['O2_Asset_Turnover_Improvement'])
+
+        # Partial-data warning
+        if any(pd.isna(x) for x in [roaT, roaTm1, cfoT, crT, crTm1, gmT, gmTm1, atT, atTm1]):
+            return {'symbol': symbol, 'piotroski_f_score': int(f), 'breakdown': details,
+                    'warning': 'Partial input (NaN) encountered.'}
         return {'symbol': symbol, 'piotroski_f_score': int(f), 'breakdown': details}
     except Exception as e:
         logger.error(f'Piotroski failed: {e}')
         return {'symbol': symbol, 'piotroski_f_score': np.nan, 'error': f'Piotroski failed: {e}'}
 
-def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_return: float, beta: float, market_return: float) -> Dict[str, Any]:
+def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_return: float,
+                            beta: float, market_return: float) -> Dict[str, Any]:
+    """
+    Jensen's Alpha = actual annualized return - CAPM expected return.
+
+    Inputs:
+        - risk_free_rate as percent (e.g., 4.5)
+        - annualized_return and market_return as decimals (e.g., 0.12)
+
+    Returns:
+        {'jensens_alpha', 'expected_return_capm', 'inputs': {...}} OR error.
+    """
     try:
-        rf = float(risk_free_rate)/100.0
+        rf = float(risk_free_rate) / 100.0
         ar = float(annualized_return)
         mr = float(market_return)
         b = float(beta)
-        exp = rf + b*(mr - rf)
+        exp = rf + b * (mr - rf)
         alpha = ar - exp
-        return {'symbol': symbol, 'jensens_alpha': float(alpha), 'expected_return_capm': float(exp), 'inputs': {'risk_free_rate_percent': float(risk_free_rate), 'annualized_return': ar, 'beta': b, 'market_return': mr}}
+        return {'symbol': symbol,
+                'jensens_alpha': float(alpha),
+                'expected_return_capm': float(exp),
+                'inputs': {'risk_free_rate_percent': float(risk_free_rate),
+                           'annualized_return': ar,
+                           'beta': b,
+                           'market_return': mr}}
     except Exception as e:
         logger.error(f"Jensen's alpha failed: {e}")
         return {'symbol': symbol, 'error': f"Jensen's alpha failed: {e}"}
 
 def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
+    """
+    PEG = P/E / (annual EPS growth in percent).
+    Tries several keys for growth. Guards against implausible growth (>200%) or <= 0.
+
+    Returns:
+        {'peg_ratio', 'pe_ratio', 'annual_eps_growth_percent', 'raw_growth_input'} OR error.
+    """
     try:
         info = getattr(yf.Ticker(symbol), 'info', {}) or {}
         pe = info.get('trailingPE') or info.get('peRatio') or info.get('trailing_pe')
@@ -477,22 +745,40 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
             pe = float(pe) if pe is not None else None
         except Exception:
             pe = None
+
         growth = None
-        for k in ['earningsGrowth','forwardEpsGrowth','earningsQuarterlyGrowth']:
+        for k in ['earningsGrowth', 'forwardEpsGrowth', 'earningsQuarterlyGrowth']:
             v = info.get(k)
-            if v is None: continue
-            try: growth = float(v); break
-            except Exception: continue
-        if pe is None or growth is None or growth<=0 or growth>2.0:
+            if v is None:
+                continue
+            try:
+                growth = float(v)
+                break
+            except Exception:
+                continue
+
+        if pe is None or growth is None or growth <= 0 or growth > 2.0:
             return {'symbol': symbol, 'peg_ratio': np.nan, 'error': 'Missing/implausible inputs'}
-        return {'symbol': symbol, 'peg_ratio': float(pe/(growth*100.0)), 'pe_ratio': float(pe), 'annual_eps_growth_percent': float(growth*100.0), 'raw_growth_input': float(growth)}
+
+        return {'symbol': symbol,
+                'peg_ratio': float(pe / (growth * 100.0)),
+                'pe_ratio': float(pe),
+                'annual_eps_growth_percent': float(growth * 100.0),
+                'raw_growth_input': float(growth)}
     except Exception as e:
         logger.error(f'PEG failed: {e}')
         return {'symbol': symbol, 'peg_ratio': np.nan, 'error': f'PEG failed: {e}'}
 
-# New utility used by portfolio diversification
-
+# -----------------------------------------------------------------------------
+# New utility: aligned daily returns for correlation/diversification.
+# -----------------------------------------------------------------------------
 def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
+    """
+    Compute aligned arithmetic daily returns for a list of symbols.
+
+    Returns:
+        {'period': str, 'daily_returns': {symbol: [r1, r2, ...], ...}} OR {'error': ...}
+    """
     try:
         close = yf.download(symbols, period=period, interval='1d', progress=False, auto_adjust=True)['Close']
         if isinstance(close, pd.Series):
@@ -505,7 +791,9 @@ def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
     except Exception as e:
         return {'error': f'Daily returns failed: {e}'}
 
-# --- Agent -----------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# ADK Agent Definition — keeps your public name & tool list intact, with added tool.
+# -----------------------------------------------------------------------------
 calculation_agent = LlmAgent(
     name='Financial_Calculation_Agent',
     model='gemini-2.5-flash',
@@ -531,6 +819,6 @@ calculation_agent = LlmAgent(
         get_pe_ratio,
         get_risk_free_rate,
         get_technical_indicators,
-        get_daily_returns,
+        get_daily_returns,  # <-- new tool added
     ],
 )
