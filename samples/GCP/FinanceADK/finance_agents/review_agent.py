@@ -1,118 +1,91 @@
-# adk/review_agent.py
 
-# ADK and type imports
+# review_agent.py
+# VERSION: 2025-12-06.2
+
 from google.adk.agents import LlmAgent
 from typing import Dict, Any, List
-import logging
-import json # Used for safe JSON parsing/formatting
-import os
+import logging, os, json
 
-from .calculation_agent import calculation_agent as review_calculation_agent
+from .calculation_agent import calculation_agent as calc_agent
 
-review_calculation_instance = LlmAgent(
-    # Copy all necessary properties from the original agent object
-    name=review_calculation_agent.name + "_Root_Instance", 
-    model=review_calculation_agent.model,
-    description=review_calculation_agent.description,
-    instruction=review_calculation_agent.instruction,
-    tools=review_calculation_agent.tools, 
+# --- logging ---------------------------------------------------------------
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    lvl = os.getenv('LOGLEVEL','WARNING').upper()
+    if lvl not in {'DEBUG','INFO','WARNING','ERROR','CRITICAL'}:
+        lvl = 'WARNING'
+    logger.setLevel(lvl)
+    if not logger.handlers:
+        h = logging.StreamHandler(); h.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        logger.addHandler(h)
+    return logger
+
+logger = get_logger('review_agent')
+
+# clone calc agent for delegated verification
+calc_instance = LlmAgent(
+    name=calc_agent.name + '_Root_Instance',
+    model=calc_agent.model,
+    description=calc_agent.description,
+    instruction=calc_agent.instruction,
+    tools=calc_agent.tools,
 )
 
-#--- logging ---
-logger = logging.getLogger("recommendation_agent")
-logging.basicConfig(level=logging.WARNING)
-# Get log level from environment variable, default to WARNING
-LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
-if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-    LOGLEVEL = "WARNING"
-    if logger: logger.setLevel(LOGLEVEL)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-logger.addHandler(handler)
+# --- internal checks -------------------------------------------------------
 
-# --- Internal Review Logic (Manual Python Function) ---
+def _validate_portfolio_shape(p: Dict[str,Any]) -> List[str]:
+    issues = []
+    for k in ['exchange','recommendation_date','risk_categories']:
+        if k not in p: issues.append(f"Missing top-level key: '{k}'.")
+    rc = p.get('risk_categories')
+    if not isinstance(rc, dict):
+        issues.append("'risk_categories' must be an object/dict.")
+        return issues
+    for k in ['high_performer_high_risk','stable_performer_low_mid_risk']:
+        if k not in rc: issues.append(f"Missing risk category: '{k}'.")
+        elif not isinstance(rc.get(k), list): issues.append(f"Risk category '{k}' must be a list.")
+    return issues
+
 
 def review_portfolio_recommendation(portfolio_json: str) -> Dict[str, Any]:
-    """
-    Analyzes the structured JSON output from the Portfolio_Generation_Agent to ensure 
-    it meets risk balance, metric integrity, and formatting standards.
-
-    Args:
-        portfolio_json: The complete JSON string output from the Portfolio_Generation_Agent.
-
-    Returns:
-        A dictionary containing the review status, key observations, and the original portfolio.
-    """
+    """Lightweight schema + risk threshold validation. Env: BETA_HIGH_MIN/BETA_LOW_MAX/EXPECTED_COUNT_TOTAL"""
     try:
-        # Safely parse the JSON output
-        portfolio = json.loads(portfolio_json)
-        
-        review_status = "Accepted"
-        observations = []
-        
-        risk_categories = portfolio.get('risk_categories', {})
-        high_risk_list = risk_categories.get('high_performer_high_risk', [])
-        low_mid_risk_list = risk_categories.get('stable_performer_low_mid_risk', [])
-
-        # 1. Check Portfolio Balance (Goal: 10/10)
-        high_count = len(high_risk_list)
-        low_count = len(low_mid_risk_list)
-        
-        if high_count + low_count != 20:
-            review_status = "Warning"
-            observations.append(f"Portfolio count is unbalanced or incomplete: {high_count + low_count}/20 stocks recommended.")
-            
-        # 2. Check Risk Profile Integrity (e.g., Beta values)
-        # Check high-risk assumptions
-        for item in high_risk_list:
-            if item.get('beta', 0) <= 1.2:
-                observations.append(f"Stock {item['symbol']} in 'high_risk' category has low Beta ({item['beta']}). Needs verification.")
-                review_status = "Warning"
-
-        # Check low-risk assumptions
-        for item in low_mid_risk_list:
-            if item.get('beta', 0) >= 1.0:
-                observations.append(f"Stock {item['symbol']} in 'low/mid_risk' category has high Beta ({item['beta']}). Needs verification.")
-                # Only set to 'Warning' if it wasn't already 'Rejected'
-                if review_status != "Rejected":
-                    review_status = "Warning"
-        
-        if not observations:
-             observations.append("All structural and risk-profile checks passed successfully.")
-
-        return {
-            "review_status": review_status,
-            "observations": observations,
-            "original_portfolio": portfolio
-        }
-    
+        p = json.loads(portfolio_json)
+        issues = _validate_portfolio_shape(p)
+        if issues:
+            return {'review_status':'Rejected','observations':[f"Schema issues: {', '.join(issues)}"],'original_portfolio': p}
+        rc = p['risk_categories']
+        high, low = rc.get('high_performer_high_risk', []), rc.get('stable_performer_low_mid_risk', [])
+        status = 'Accepted'; obs: List[str] = []
+        expected_total = int(os.getenv('EXPECTED_COUNT_TOTAL','20'))
+        total = len(high)+len(low)
+        if total != expected_total:
+            status = 'Warning'; obs.append(f'Portfolio count {total}/{expected_total} — expected exactly {expected_total}.')
+        hi = float(os.getenv('BETA_HIGH_MIN','1.2'))
+        lo = float(os.getenv('BETA_LOW_MAX','1.0'))
+        for it in high:
+            b = it.get('beta', 0)
+            if b <= hi:
+                status = 'Warning'; obs.append(f"High-risk {it.get('symbol','?')} beta {b} <= {hi}.")
+        for it in low:
+            b = it.get('beta', 0)
+            if b >= lo:
+                status = 'Warning'; obs.append(f"Low/mid-risk {it.get('symbol','?')} beta {b} >= {lo}.")
+        if not obs:
+            obs.append('All structural and risk-profile checks passed successfully.')
+        return {'review_status': status, 'observations': obs, 'original_portfolio': p}
     except json.JSONDecodeError:
-        return {
-            "review_status": "Rejected",
-            "observations": ["Input portfolio is not valid JSON."],
-            "original_portfolio": portfolio_json 
-        }
+        return {'review_status':'Rejected','observations':['Input portfolio is not valid JSON.'],'original_portfolio': portfolio_json}
     except Exception as e:
-        return {
-            "review_status": "Rejected",
-            "observations": [f"Review failed due to unexpected internal error: {e}"],
-            "original_portfolio": portfolio_json 
-        }
+        return {'review_status':'Rejected','observations':[f'Review failed: {e}'],'original_portfolio': portfolio_json}
 
-
-# --- ADK Agent Definition ---
-
+# --- agent -----------------------------------------------------------------
 review_agent = LlmAgent(
-    name="Portfolio_Review_Agent",
-    model="gemini-2.5-flash",
-    description="A Quality Assurance agent specialized in reviewing the structured output of the Portfolio_Generation_Agent for completeness, balance, and logical integrity, with the ability to re-verify calculated metrics.",
-    instruction="""Your sole task is to take the JSON output from the Portfolio_Generation_Agent and review it.
-
-    **Review Workflow:**
-    1. **Initial Check:** Run the entire JSON output through the internal `review_portfolio_recommendation` tool to get a structural and logical assessment.
-    2. **Deep Verification (using Sub-Agent):** If the internal review raises a 'Warning' or 'Rejected' status, or if any stock's metrics appear suspicious (e.g., a stock with unexpectedly low Beta in the high-risk list), you **MUST** use the **`transfer_to_agent`** tool to delegate a request to the **`calculation_agent`** to invoke its **`calculate_beta_and_volatility`** tool. Re-calculate the Beta for 2-3 flagged stocks to confirm the original data's integrity. *Assume the market index was S&P 500 ('^GSPC') and the period was '5y' for re-verification unless stated otherwise.*
-    3. **Final Report:** Provide a concise summary of the overall review status (Accepted, Warning, or Rejected), including the findings from any data re-verification steps.
-    """,
+    name='Portfolio_Review_Agent',
+    model='gemini-2.5-flash',
+    description='QA agent reviewing the portfolio output for completeness and logical integrity.',
+    instruction='Run the review_portfolio_recommendation tool; if status is Warning/Rejected, delegate to calculation agent to re-check metrics (e.g., beta).',
     tools=[review_portfolio_recommendation],
-    sub_agents=[review_calculation_instance]
+    sub_agents=[calc_instance]
 )

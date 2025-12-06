@@ -1,218 +1,139 @@
-# adk/portfolio_agent.py
 
-# ADK and type imports
+# agent.py (root portfolio agent)
+# VERSION: 2025-12-06.2
+
 from google.adk.agents import LlmAgent
-
 from typing import Dict, List, Any
-import logging
+import logging, os
 import pandas as pd
-import numpy as np # Required for generate_recommended_portfolio if more complex logic is added
 
-# Import the root agent from agent.py as the sub-agent
-from .calculation_agent import calculation_agent as root_calculation_agent
-from .review_agent import review_agent as root_review_agent
-import os
+# --- logging ---------------------------------------------------------------
 
-# --- Configure Logging ---
-logger = logging.getLogger("recommendation_agent")
-logging.basicConfig(level=logging.WARNING)
-# Get log level from environment variable, default to WARNING
-LOGLEVEL = os.getenv("LOGLEVEL", "WARNING").upper()
-if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-    LOGLEVEL = "WARNING"
-    if logger: logger.setLevel(LOGLEVEL)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-logger.addHandler(handler)
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    lvl = os.getenv('LOGLEVEL','WARNING').upper()
+    if lvl not in {'DEBUG','INFO','WARNING','ERROR','CRITICAL'}:
+        lvl = 'WARNING'
+    logger.setLevel(lvl)
+    if not logger.handlers:
+        h = logging.StreamHandler(); h.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        logger.addHandler(h)
+    return logger
 
-root_calculation_instance = LlmAgent(
-    # Copy all necessary properties from the original agent object
-    name=root_calculation_agent.name + "_Root_Instance", 
-    model=root_calculation_agent.model,
-    description=root_calculation_agent.description,
-    instruction=root_calculation_agent.instruction,
-    tools=root_calculation_agent.tools, 
+logger = get_logger('portfolio_root')
+
+# sub-agents
+from .calculation_agent import calculation_agent as calc_agent
+from .review_agent import review_agent as qa_agent
+
+calc_instance = LlmAgent(
+    name=calc_agent.name + '_Root_Instance',
+    model=calc_agent.model,
+    description=calc_agent.description,
+    instruction=calc_agent.instruction,
+    tools=calc_agent.tools,
 )
 
-root_review_instance = LlmAgent(
-    # Copy all necessary properties from the original agent object
-    name=root_review_agent.name + "_Root_Instance", 
-    model=root_review_agent.model,
-    description=root_review_agent.description,
-    instruction=root_review_agent.instruction,
-    tools=root_review_agent.tools, 
+review_instance = LlmAgent(
+    name=qa_agent.name + '_Root_Instance',
+    model=qa_agent.model,
+    description=qa_agent.description,
+    instruction=qa_agent.instruction,
+    tools=qa_agent.tools,
 )
 
+# --- internal tool ---------------------------------------------------------
 
-# --- Internal Portfolio Logic (Parent Agent's Compilation Tool) ---
 def generate_recommended_portfolio(
-    exchange_name: str, 
+    exchange_name: str,
     stock_data_results: Dict[str, Any],
-    stock_daily_returns: Dict[str, List[float]] 
+    stock_daily_returns: Dict[str, List[float]]
 ) -> Dict[str, Any]:
+    """Builds a 20-stock portfolio split 10/10 by risk, with diversification heuristic.
+    All returns/volatility fields should be **decimals**.
+    Env: BETA_HIGH_MIN (1.2), BETA_LOW_MAX (1.0), MAX_AVG_CORR (0.4)
     """
-    Analyzes a dictionary of calculated financial indicators (including Sortino Ratio, 
-    Treynor Ratio, and Piotroski F-Score) and risk metrics for multiple stocks 
-    and generates a recommended portfolio of 20 stocks categorized by risk profile, 
-    incorporating all available metrics for comprehensive analysis and diversification.
-
-    The input 'stock_data_results' is expected to contain all calculated metrics.
-
-    Args:
-        exchange_name: The name of the exchange/index (e.g., 'SP500', 'FTSE100').
-        stock_data_results: A dictionary where keys are stock symbols and values 
-                            are dictionaries of their calculated metrics.
-        stock_daily_returns: A dictionary where keys are stock symbols and values
-                             are lists of their daily returns over the period, 
-                             used for the correlation matrix.
-
-    Returns:
-        A structured dictionary containing a balanced portfolio categorized by risk.
-    """
-    
-    # --- 1. PREP DATA ---
     df = pd.DataFrame.from_dict(stock_data_results, orient='index')
-    
-    # Drop any rows where critical data is missing. NOW includes all new metrics.
-    required_metrics = ['beta', 'annualized_return', 'sharpe_ratio', 'sortino_ratio', 'treynor_ratio', 'pe_ratio', 'piotroski_f_score']
-    existing_metrics = [m for m in required_metrics if m in df.columns]
-    
-    # Fill NaN F-Scores with 0 for filtering purposes (missing data suggests poor quality/new company)
-    if 'piotroski_f_score' in df.columns:
-        df['piotroski_f_score'].fillna(0, inplace=True)
-        
-    df.dropna(subset=existing_metrics, inplace=True)
-    
-    # Fallback/cleanup for stocks where Sortino/Sharpe/Treynor may have failed but others exist
-    if 'sortino_ratio' in df.columns:
-        df['sortino_ratio'].fillna(df['sharpe_ratio'].fillna(0), inplace=True)
-    if 'treynor_ratio' in df.columns:
-        df['treynor_ratio'].fillna(df['sortino_ratio'].fillna(df['sharpe_ratio'].fillna(0)), inplace=True)
-    
-    # Ensure all three performance metrics are non-negative for filtering
-    df = df[
-        (df['sortino_ratio'] > 0.0) & 
-        (df['treynor_ratio'] > 0.0) & 
-        (df['sharpe_ratio'] > 0.0)
-    ]
+    required = ['beta','annualized_return','sharpe_ratio','sortino_ratio','treynor_ratio','pe_ratio','piotroski_f_score']
+    df = df.dropna(subset=[c for c in required if c in df.columns])
 
+    if 'sortino_ratio' in df:
+        df['sortino_ratio'] = df['sortino_ratio'].fillna(df.get('sharpe_ratio',0)).fillna(0)
+    if 'treynor_ratio' in df:
+        df['treynor_ratio'] = df['treynor_ratio'].fillna(df.get('sortino_ratio',0)).fillna(df.get('sharpe_ratio',0)).fillna(0)
 
-    # --- 2. FILTER & SORT (UPDATED TO USE TREYNOR AND PIOTROSKI) ---
-    
-    # High-Risk/High-Return Candidates: Beta > 1.2 AND above average Sortino/Treynor
-    # These are aggressive stocks that also reward systemic risk efficiently.
-    high_risk_candidates = df[
-        (df['beta'] > 1.2) & 
-        (df['sortino_ratio'] > df['sortino_ratio'].median()) &
-        (df['treynor_ratio'] > df['treynor_ratio'].median()) # NEW: Treynor filter for systematic efficiency
-    ].sort_values(by=['sortino_ratio', 'treynor_ratio', 'annualized_return'], ascending=False)
+    df = df[(df['sortino_ratio']>0.0) & (df['treynor_ratio']>0.0) & (df['sharpe_ratio']>0.0)]
 
-    # Low-Mid-Risk/Stable Candidates: Beta < 1.0 AND high Sortino AND high Quality
-    # Defensive stocks with excellent downside protection and strong fundamentals (F-Score >= 7).
-    low_risk_candidates = df[
-        (df['beta'] < 1.0) & 
-        (df['sortino_ratio'] > df['sortino_ratio'].quantile(0.75)) &
-        (df['pe_ratio'] < 30) & 
-        (df['piotroski_f_score'] >= 7) # NEW: Fundamental Quality filter
-    ].sort_values(by=['sortino_ratio', 'piotroski_f_score', 'annualized_return'], ascending=False)
+    hi = float(os.getenv('BETA_HIGH_MIN','1.2'))
+    lo = float(os.getenv('BETA_LOW_MAX','1.0'))
 
+    high = df[(df['beta']>hi) & (df['sortino_ratio']>df['sortino_ratio'].median()) & (df['treynor_ratio']>df['treynor_ratio'].median())]
+    high = high.sort_values(by=['sortino_ratio','treynor_ratio','annualized_return'], ascending=False)
 
-    # --- 3. CORRELATION MATRIX & DIVERSIFICATION ---
-    # ... (This section remains identical to your previous correct version for diversification)
-    
-    # Compile a list of potential final symbols for the diversification check
-    potential_symbols = list(high_risk_candidates.index[:15]) + list(low_risk_candidates.index[:15])
-    
+    low = df[(df['beta']<lo) & (df['sortino_ratio']>df['sortino_ratio'].quantile(0.75)) & (df['pe_ratio']<30) & (df['piotroski_f_score']>=7)]
+    low = low.sort_values(by=['sortino_ratio','piotroski_f_score','annualized_return'], ascending=False)
+
+    candidates = list(high.index[:15]) + list(low.index[:15])
     try:
-        # Create the DataFrame for Correlation using daily returns
-        corr_df = pd.DataFrame({
-            symbol: stock_daily_returns[symbol]
-            for symbol in potential_symbols
-            if symbol in stock_daily_returns 
-        })
-        corr_df.dropna(inplace=True) 
-
-        if len(corr_df.columns) > 1 and len(corr_df) > 10: 
-            # Calculate the Absolute Correlation Matrix 
-            corr_matrix = corr_df.corr().abs()
-            
-            # Diversification Heuristic: Select candidates with low average correlation
-            def select_diversified(candidates_df, count, existing_selection):
-                symbols = list(candidates_df.index)
-                final_selection = []
-                
-                # Check for logger existence before use
-                local_logger = logging.getLogger("recommendation_agent")
-                
-                for symbol in symbols:
-                    if len(final_selection) >= count:
-                        break
-                    
-                    if symbol not in corr_matrix.index or symbol in existing_selection:
-                        continue
-                        
-                    is_diversified = True
-                    if final_selection or existing_selection:
-                        all_selected = final_selection + existing_selection
-                        valid_selected = [s for s in all_selected if s in corr_matrix.index]
-                        
-                        if valid_selected:
-                            # Calculate the average absolute correlation to the current portfolio
-                            avg_corr = corr_matrix.loc[symbol, valid_selected].mean()
-                            
-                            # Heuristic: Only add if average correlation is below the 0.4 threshold
-                            if avg_corr > 0.4: 
-                                is_diversified = False
-                    
-                    if is_diversified:
-                        final_selection.append(symbol)
-                        
-                return final_selection
-            
-            # Select final 10 high-risk picks
-            high_risk_final = select_diversified(high_risk_candidates, 10, [])
-            # Select final 10 low-risk picks, diversifying against the high-risk picks as well
-            low_risk_final = select_diversified(low_risk_candidates, 10, high_risk_final) 
-
+        corr_df = pd.DataFrame({s: stock_daily_returns[s] for s in candidates if s in stock_daily_returns}).dropna()
+        if corr_df.shape[1]>1 and len(corr_df)>10:
+            C = corr_df.corr().abs()
+            max_avg = float(os.getenv('MAX_AVG_CORR','0.4'))
+            def pick(cdf, k, existing):
+                chosen = []
+                for s in cdf.index:
+                    if len(chosen)>=k: break
+                    if s in existing or s not in C.index: continue
+                    base = [x for x in (chosen+existing) if x in C.index]
+                    avg = C.loc[s, base].mean() if base else 0.0
+                    if avg <= max_avg:
+                        chosen.append(s)
+                if len(chosen)<k:
+                    remain = [s for s in cdf.index if s not in chosen and s not in existing]
+                    remain.sort(key=lambda s: (-cdf.loc[s,'sortino_ratio'], -cdf.loc[s,'treynor_ratio'], -cdf.loc[s,'annualized_return']))
+                    for s in remain:
+                        if len(chosen)>=k: break
+                        chosen.append(s)
+                return chosen
+            high_final = pick(high, 10, [])
+            low_final = pick(low, 10, high_final)
         else:
-            # Fallback to simple top 10/10 if data is insufficient for correlation
-            high_risk_final = list(high_risk_candidates.index[:10])
-            low_risk_final = list(low_risk_candidates.index[:10])
-            logging.warning("Data insufficient for correlation. Falling back to simple sorting.")
-            
+            high_final = list(high.index[:10]); low_final = list(low.index[:10])
     except Exception as e:
-        # Fallback if correlation calculation fails entirely
-        logging.warning(f"Correlation calculation failed: {e}. Falling back to simple sorting.")
-        high_risk_final = list(high_risk_candidates.index[:10])
-        low_risk_final = list(low_risk_candidates.index[:10])
+        logger.warning(f'Correlation fallback: {e}')
+        high_final = list(high.index[:10]); low_final = list(low.index[:10])
 
+    def backfill(cdf, cur, k):
+        for s in cdf.index:
+            if len(cur)>=k: break
+            if s not in cur: cur.append(s)
+        return cur
 
-    # --- 4. COMPILE FINAL PORTFOLIO (UPDATED TO INCLUDE NEW METRICS) ---
-    
-    # Helper to compile the final stock data
-    def compile_stock_list(symbols, data_df):
-        return [
-            {
-                'symbol': sym,
-                'annualized_return': data_df.loc[sym, 'annualized_return'],
-                'annualized_volatility': data_df.loc[sym, 'annualized_volatility'],
-                'beta': data_df.loc[sym, 'beta'],
-                'sharpe_ratio': data_df.loc[sym, 'sharpe_ratio'], 
-                'sortino_ratio': data_df.loc[sym, 'sortino_ratio'], 
-                'treynor_ratio': data_df.loc[sym, 'treynor_ratio'],         # <--- NEW METRIC
-                'pe_ratio': data_df.loc[sym, 'pe_ratio'],         
-                'piotroski_f_score': data_df.loc[sym, 'piotroski_f_score'], # <--- NEW METRIC
-            }
-            for sym in symbols
-            if sym in data_df.index
-        ]
-        
+    high_final = backfill(high, high_final, 10)
+    low_final  = backfill(low,  low_final,  10)
+
+    def pack(symbols, data):
+        out = []
+        for s in symbols:
+            if s in data.index:
+                out.append({
+                    'symbol': s,
+                    'annualized_return': data.loc[s,'annualized_return'],
+                    'annualized_volatility': data.loc[s,'annualized_volatility'] if 'annualized_volatility' in data.columns else None,
+                    'beta': data.loc[s,'beta'],
+                    'sharpe_ratio': data.loc[s,'sharpe_ratio'],
+                    'sortino_ratio': data.loc[s,'sortino_ratio'],
+                    'treynor_ratio': data.loc[s,'treynor_ratio'],
+                    'pe_ratio': data.loc[s,'pe_ratio'],
+                    'piotroski_f_score': data.loc[s,'piotroski_f_score'],
+                })
+        return out
+
     portfolio = {
-        'high_performer_high_risk': compile_stock_list(high_risk_final, df),
-        'stable_performer_low_mid_risk': compile_stock_list(low_risk_final, df),
+        'high_performer_high_risk': pack(high_final, df),
+        'stable_performer_low_mid_risk': pack(low_final, df),
     }
 
-    # Final Output Structure
     return {
         'exchange': exchange_name,
         'recommendation_date': pd.Timestamp.now().strftime('%Y-%m-%d'),
@@ -220,29 +141,11 @@ def generate_recommended_portfolio(
         'risk_categories': portfolio
     }
 
-# --- ADK Agent Definition ---
-
-# This agent is assigned to root_agent, making it the application entry point.
+# Agent definition
 root_agent = LlmAgent(
-    name="Portfolio_Generation_Agent",
-    model="gemini-2.5-flash",
-    description="The root agent orchestrating the portfolio generation (Calculation Agent) and quality assurance (Review Agent) workflow.",
-    instruction="""You are a Senior Portfolio Manager orchestrating a fully audited process to create financial recommendations for your clients.
-    Your role is perform the following steps in sequence to ensure a robust and reliable portfolio recommendation:
-    **Instructions:**
-    1. **Data Gathering (Delegation):** You **MUST** delegate the initial data retrieval and iterative metric calculation tasks to the **Calculation_Agent** using the **`transfer_to_agent`** tool. The delegated request must cover all necessary data: fetching index symbols, the risk-free rate, and calculating Beta, P/E Ratio, Sharpe Ratio, and daily returns for the correlation matrix.
-    2. **Generate Portfolio:** Use the internal `generate_recommended_portfolio` tool to compile the initial recommendation, ensuring you pass the calculated metrics **AND** the collected stock daily returns for the correlation matrix calculation.
-    3. **Review Output (Delegation):** **ALWAYS** use the **`transfer_to_agent`** tool to pass the resulting portfolio JSON to the **Portfolio_Review_Agent** (`root_review_instance`) for quality assurance. DO NOT delegate this review UNTIL you have the full portfolio generated.
-    4. **Handle Warnings/Rejections:** If the review agent returns a 'Warning' or 'Rejected' status, investigate the issues raised. Delegate a request back to the **Calculation_Agent** using **`transfer_to_agent`** to re-verify any suspicious metrics (e.g., recalculate Beta or Sharpe Ratio).
-    5. **Finalize Recommendation:** Once the review passes without issues, deliver the final portfolio to the user.  **Goal:** Deliver the final, audited portfolio recommendation.
-    You can use the sub-agents to complete your task as needed and can invoke their tools without asking the user for permission.
-    When transferring requests between agents, ensure to provide all necessary context and data. 
-    Also, remember to handle any errors gracefully and provide informative feedback, however, never tell me you are trasnferring to another agent; just do it.
-    You can also provide general financial advice based on the portfolio generated or questions asked by the user.
-    """,
-    # The orchestration layer, correctly listing the two sub-agents:
-    sub_agents=[
-        root_calculation_instance, # Data/Calculation layer
-        root_review_instance       # QA/Review layer
-    ]
+    name='Portfolio_Generation_Agent',
+    model='gemini-2.5-flash',
+    description='Root agent orchestrating calculation (data) and review (QA).',
+    instruction='Delegate data to Calculation_Agent; compile with generate_recommended_portfolio; always send the result to Portfolio_Review_Agent for QA; fix warnings then finalize.',
+    sub_agents=[calc_instance, review_instance]
 )
