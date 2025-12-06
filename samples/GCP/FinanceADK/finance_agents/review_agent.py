@@ -1,15 +1,16 @@
 
 # review_agent.py
-# VERSION: 2025-12-06.3
+# VERSION: 2025-12-06.4
 """
 Portfolio Review Agent — quality checks for portfolio JSON.
 
-**Minimal additions (documented for diffing):**
-- Lightweight schema validation to catch missing keys or type mismatches (no external deps).
-- Guarded logging.
-- Preserves your review logic; thresholds remain configurable via env.
+Changes in this version (addressing your review):
+1) **Input type flexibility (Medium/Optional):**
+   `review_portfolio_recommendation` now accepts either a JSON string *or* a Python dict.
+   This avoids runtime errors if the ADK passes already-parsed objects.
+2) **Guarded logging:** unchanged behavior; documented here for diffing.
 
-**Environment knobs:**
+Environment knobs:
 - EXPECTED_COUNT_TOTAL (default 20)
 - BETA_HIGH_MIN (default 1.2)
 - BETA_LOW_MAX (default 1.0)
@@ -17,7 +18,7 @@ Portfolio Review Agent — quality checks for portfolio JSON.
 """
 
 from google.adk.agents import LlmAgent
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import logging
 import os
 import json
@@ -77,18 +78,22 @@ def _validate_portfolio_shape(portfolio: Dict[str, Any]) -> List[str]:
 # -----------------------------------------------------------------------------
 # Review tool — retains your risk checks and status outcomes, adds schema validation.
 # -----------------------------------------------------------------------------
-def review_portfolio_recommendation(portfolio_json: str) -> Dict[str, Any]:
+def review_portfolio_recommendation(portfolio_json: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Review the portfolio JSON for:
+    Review the portfolio for:
       - Schema correctness (minimal structure)
       - Count expectations (default 20)
       - Category-specific Beta sanity checks (configurable thresholds)
 
+    Input:
+      - `portfolio_json`: JSON string OR Python dict
+
     Returns:
-        {'review_status': 'Accepted'|'Warning'|'Rejected', 'observations': [...], 'original_portfolio': <dict|str>}
+      {'review_status': 'Accepted'|'Warning'|'Rejected', 'observations': [...], 'original_portfolio': <dict|str>}
     """
     try:
-        portfolio = json.loads(portfolio_json)
+        # --- Accept dict or JSON string safely (Medium/Optional fix) ---
+        portfolio = portfolio_json if isinstance(portfolio_json, dict) else json.loads(portfolio_json)
 
         # 0) Shape validation first — prevents confusing downstream errors
         issues = _validate_portfolio_shape(portfolio)
