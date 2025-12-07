@@ -1,23 +1,15 @@
 
-# calculation_agent.py
-# VERSION: 2025-12-06.7
+# calculation_agent.py — MERGED VERSION
+# DATE: 2025-12-07
 """
-ADK Calculation Agent — market-data tools, metrics, and fundamentals, with clear docstrings
-and backward-compatible outputs.
-
-Primary conventions:
-- Returns and volatilities are reported as DECIMALS by default (e.g., 0.15 => 15%).
-- Where helpful for compatibility, percent mirror fields are included (e.g., *_percent).
-- Functions are defensive: they return dicts with result keys or an 'error' key on failure.
-
-Environment knobs:
-- LOGLEVEL: DEBUG | INFO | WARNING | ERROR | CRITICAL
-- RISK_FREE_RATE_OVERRIDE: decimal annual rate (e.g., 0.045 for 4.5%)
+Calculation Agent with robust market-data access, risk/return metrics, fundamentals, and utilities.
+Merged highlights:
+- Stability: guarded logging, request caching, User-Agent headers, NaN/zero guards, adjusted-price handling.
+- Functionality: decimal units for returns/volatility (with percent mirrors where useful),
+  risk-free override, aligned daily returns utility, full metrics toolset.
 """
-
 from google.adk.agents import LlmAgent
 from typing import Dict, List, Any
-
 import yfinance as yf
 import requests_cache
 import logging
@@ -27,10 +19,9 @@ import numpy as np
 import os
 
 # -----------------------------------------------------------------------------
-# Logging — guarded to avoid duplicate handlers on re-import; honors LOGLEVEL.
+# Logging (guarded); honors LOGLEVEL
 # -----------------------------------------------------------------------------
 def get_logger(name: str) -> logging.Logger:
-    """Create a module logger with guarded handler and env-derived level."""
     logger = logging.getLogger(name)
     level = os.getenv('LOGLEVEL', 'WARNING').upper()
     if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}:
@@ -44,23 +35,20 @@ def get_logger(name: str) -> logging.Logger:
 
 logger = get_logger('calculation_agent')
 
-# -----------------------------------------------------------------------------
-# Short-lived HTTP cache; reduces load and improves resilience in demos.
-# -----------------------------------------------------------------------------
+# Short-lived HTTP cache to reduce load and improve resilience
 requests_cache.install_cache(backend='memory', expire_after=60)
 
 # Standard UA to reduce 403 from Wikipedia et al.
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                  'AppleWebKit/537.36 (KHTML, like Gecko) '
-                  'Chrome/91.0.4472.124 Safari/537.36'
+    'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                   'AppleWebKit/537.36 (KHTML, like Gecko) '
+                   'Chrome/91.0.4472.124 Safari/537.36')
 }
 
 # -----------------------------------------------------------------------------
-# Index constituent scrapers — unchanged logic, clarified documentation.
+# Index constituent scrapers (robust columns, UA headers)
 # -----------------------------------------------------------------------------
 def _get_sp500_symbols() -> List[str]:
-    """Scrape S&P 500 tickers from Wikipedia."""
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -77,7 +65,6 @@ def _get_sp500_symbols() -> List[str]:
         return []
 
 def _get_nasdaq100_symbols() -> List[str]:
-    """Scrape NASDAQ-100 tickers from Wikipedia."""
     url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -94,7 +81,6 @@ def _get_nasdaq100_symbols() -> List[str]:
         return []
 
 def _get_ftse100_symbols() -> List[str]:
-    """Scrape FTSE 100 tickers and append '.L' suffix for Yahoo Finance."""
     url = 'https://en.wikipedia.org/wiki/FTSE_100_Index'
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
@@ -111,7 +97,7 @@ def _get_ftse100_symbols() -> List[str]:
         return []
 
 # -----------------------------------------------------------------------------
-# Tools — market data, metrics, fundamentals (docstrings expanded).
+# Tools — market data, metrics, fundamentals
 # -----------------------------------------------------------------------------
 def get_last_stock_price(symbol: str) -> Dict[str, Any]:
     """Return the latest price and timestamp (Unix seconds) or error."""
@@ -144,7 +130,6 @@ def get_aggregated_stock_data(symbol: str, interval: str, start_date: str, end_d
 def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
     """
     Retrieve constituents for a supported index.
-
     Supported keys: SP500, NASDAQ100, FTSE100, DOWJONES.
     """
     idx = index_name.upper().replace(' ', '').replace('-', '').replace('_', '')
@@ -158,7 +143,7 @@ def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
     }
     if idx in m:
         try:
-            syms = midx  # call the mapped function
+            syms = midx  # <-- Correctly invoke the mapped function
         except Exception as e:
             return {'index_name': idx, 'symbols': [], 'error': f'Failed to fetch list for {idx}: {e}'}
         if syms:
@@ -176,7 +161,6 @@ def get_risk_free_rate(exchange_or_country: str) -> Dict[str, Any]:
                     'note': 'Provided via env override.'}
         except Exception:
             pass
-
     proxy_map = {'US':'^TNX','USA':'^TNX','NASDAQ':'^TNX','NYSE':'^TNX',
                  'UK':'^TNX','LSE':'^TNX','JAPAN':'^TNX','TOKYO':'^TNX'}
     tick = proxy_map.get(exchange_or_country.upper().strip(), '^TNX')
@@ -218,24 +202,19 @@ def calculate_beta_and_volatility(stock_symbol: str, market_index_symbol: str, p
         data = yf.download([stock_symbol, market_index_symbol], period=period, interval='1d', progress=False)['Close'].dropna()
         if data.empty or len(data) < 20:
             return {'error': f'Insufficient data for {stock_symbol}/{market_index_symbol} over {period}.'}
-
         rs = np.log(data[stock_symbol] / data[stock_symbol].shift(1)).dropna()
         rm = np.log(data[market_index_symbol] / data[market_index_symbol].shift(1)).dropna()
-
         n = min(len(rs), len(rm))
         rs, rm = rs[-n:], rm[-n:]
         if n < 20:
             return {'error': f'Insufficient aligned data ({n} days).'}
-
         beta, _ = np.polyfit(rm, rs, 1)
         af = np.sqrt(252)
         sv = rs.std(ddof=1) * af
         mv = rm.std(ddof=1) * af
-
         tr = (data[stock_symbol].iloc[-1] / data[stock_symbol].iloc[0]) - 1
         years = len(data) / 252.0
         ar = ((1 + tr) ** (1 / years)) - 1 if years > 0 else 0.0
-
         result = {
             'stock_symbol': stock_symbol,
             'market_index_symbol': market_index_symbol,
@@ -246,7 +225,6 @@ def calculate_beta_and_volatility(stock_symbol: str, market_index_symbol: str, p
             'market_annualized_volatility': round(float(mv), 6),
             'note': 'Decimals returned; percent mirrors provided for compatibility.',
         }
-        # Backward-compatible mirrors (percent)
         result.update({
             'stock_annualized_return_percent': round(float(ar) * 100, 2),
             'stock_annualized_volatility_percent': round(float(sv) * 100, 2),
@@ -314,17 +292,14 @@ def get_technical_indicators(symbol: str, period: str,
         if df.empty:
             return {'error': f'No data for {symbol} over {period}'}
         df['Close'] = df['Close'].ffill()
-
         # SMA
         df['SMA'] = df['Close'].rolling(window=ma_window).mean()
-
         # MACD
         df['EMA_Short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
         df['EMA_Long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
         df['MACD_Line'] = df['EMA_Short'] - df['EMA_Long']
         df['Signal_Line'] = df['MACD_Line'].ewm(span=signal_window, adjust=False).mean()
         df['MACD_Histogram'] = df['MACD_Line'] - df['Signal_Line']
-
         # RSI
         delta = df['Close'].diff(1)
         gain = delta.where(delta > 0, 0)
@@ -333,7 +308,6 @@ def get_technical_indicators(symbol: str, period: str,
         avg_loss = loss.ewm(com=13, adjust=False).mean()
         rs = avg_gain / avg_loss
         df['RSI'] = 100 - (100 / (1 + rs))
-
         df.dropna(inplace=True)
         last = df.iloc[-1]
         return {
@@ -407,8 +381,8 @@ def get_pe_ratio(symbol: str) -> Dict[str, Any]:
         return {'error': f'PE failed: {e}'}
 
 def calculate_sharpe_ratio(symbol: str, risk_free_rate: float,
-                           period: str = '5y', interval: str = '1d',
-                           trading_days: int = 252, auto_adjust: bool = True) -> Dict[str, Any]:
+                            period: str = '5y', interval: str = '1d',
+                            trading_days: int = 252, auto_adjust: bool = True) -> Dict[str, Any]:
     """Annualized Sharpe = (annualized mean log return - Rf_decimal) / annualized std dev."""
     try:
         rf = float(risk_free_rate) / 100.0
@@ -477,12 +451,12 @@ def calculate_correlation_matrix(symbols: List[str], period: str = '5y') -> Dict
                 data = data.to_frame(name=symbols[0])
         else:
             data = raw['Adj Close'].copy() if 'Adj Close' in raw.columns else raw.copy()
-        if isinstance(data, pd.Series):
-            data = data.to_frame(name=symbols[0])
-        data.dropna(axis=1, how='all', inplace=True)  # drop empty columns only
+            if isinstance(data, pd.Series):
+                data = data.to_frame(name=symbols[0])
+        data.dropna(axis=1, how='all', inplace=True)
         if data.shape[1] < 2:
             return {'error': 'Less than two valid symbols'}
-        lr = np.log(data / data.shift(1)).dropna(how='all')  # drop rows that are all-NaN
+        lr = np.log(data / data.shift(1)).dropna(how='all')
         if lr.empty or lr.shape[1] < 2:
             return {'error': 'Insufficient common return data'}
         cm = lr.corr()
@@ -524,7 +498,6 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
             return float(val) if pd.notna(val) else np.nan
         except Exception:
             return np.nan
-
     f = 0
     details = {}
     try:
@@ -533,7 +506,6 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
         if inc is None or bs is None or cf is None or inc.shape[1] < 2 or bs.shape[1] < 2 or cf.shape[1] < 2:
             return {'symbol': symbol, 'piotroski_f_score': np.nan, 'error': 'Missing/insufficient financial tables'}
         T, Tm1 = 0, 1
-
         # Profitability
         niT = safe_get(inc, 'Net Income', T); taT = safe_get(bs, 'Total Assets', T)
         niTm1 = safe_get(inc, 'Net Income', Tm1); taTm1 = safe_get(bs, 'Total Assets', Tm1)
@@ -544,7 +516,6 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
         details['P2_CFO_Positive'] = pd.notna(cfoT) and cfoT > 0; f += int(details['P2_CFO_Positive'])
         details['P3_ROA_Improvement'] = pd.notna(roaT) and pd.notna(roaTm1) and roaT > roaTm1; f += int(details['P3_ROA_Improvement'])
         details['P4_CFO_vs_NetIncome'] = pd.notna(cfoT) and pd.notna(niT) and cfoT > niT; f += int(details['P4_CFO_vs_NetIncome'])
-
         # Leverage/Liquidity
         ltdT = safe_get(bs, 'Long Term Debt', T); ltdTm1 = safe_get(bs, 'Long Term Debt', Tm1)
         details['L1_Debt_Decrease'] = pd.notna(ltdT) and pd.notna(ltdTm1) and ltdT <= ltdTm1; f += int(details['L1_Debt_Decrease'])
@@ -555,18 +526,15 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
         details['L2_Current_Ratio_Improvement'] = pd.notna(crT) and pd.notna(crTm1) and crT > crTm1; f += int(details['L2_Current_Ratio_Improvement'])
         csT = safe_get(bs, 'Common Stock', T); csTm1 = safe_get(bs, 'Common Stock', Tm1)
         details['L3_No_New_Shares'] = pd.notna(csT) and pd.notna(csTm1) and csT <= csTm1; f += int(details['L3_No_New_Shares'])
-
         # Operating Efficiency
         gpT = safe_get(inc, 'Gross Profit', T); revT = safe_get(inc, 'Total Revenue', T)
         gpTm1 = safe_get(inc, 'Gross Profit', Tm1); revTm1 = safe_get(inc, 'Total Revenue', Tm1)
         gmT = gpT / revT if pd.notna(gpT) and pd.notna(revT) and revT != 0 else np.nan
         gmTm1 = gpTm1 / revTm1 if pd.notna(gpTm1) and pd.notna(revTm1) and revTm1 != 0 else np.nan
         details['O1_Gross_Margin_Improvement'] = pd.notna(gmT) and pd.notna(gmTm1) and gmT > gmTm1; f += int(details['O1_Gross_Margin_Improvement'])
-
         atT = revT / taT if pd.notna(revT) and pd.notna(taT) and taT != 0 else np.nan
         atTm1 = revTm1 / taTm1 if pd.notna(revTm1) and pd.notna(taTm1) and taTm1 != 0 else np.nan
         details['O2_Asset_Turnover_Improvement'] = pd.notna(atT) and pd.notna(atTm1) and atT > atTm1; f += int(details['O2_Asset_Turnover_Improvement'])
-
         if any(pd.isna(x) for x in [roaT, roaTm1, cfoT, crT, crTm1, gmT, gmTm1, atT, atTm1]):
             return {'symbol': symbol, 'piotroski_f_score': int(f), 'breakdown': details,
                     'warning': 'Partial input (NaN) encountered.'}
@@ -576,7 +544,7 @@ def calculate_piotroski_f_score(symbol: str) -> Dict[str, Any]:
         return {'symbol': symbol, 'piotroski_f_score': np.nan, 'error': f'Piotroski failed: {e}'}
 
 def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_return: float,
-                            beta: float, market_return: float) -> Dict[str, Any]:
+                             beta: float, market_return: float) -> Dict[str, Any]:
     """Jensen's Alpha = actual annualized return - CAPM expected return; returns decimals."""
     try:
         rf = float(risk_free_rate) / 100.0
@@ -599,14 +567,11 @@ def calculate_jensens_alpha(symbol: str, risk_free_rate: float, annualized_retur
 def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
     """
     PEG ratio — return BOTH common variants to remove unit ambiguity:
-
-    Definitions:
-      - growth_decimal: annual EPS growth as decimal (e.g., 0.15 => 15%).
-      - growth_percent: growth_decimal * 100 (e.g., 15.0).
-
-    Returned fields:
-      - peg_ratio_decimal_denominator = PE / growth_decimal
-      - peg_ratio_percent_denominator = PE / growth_percent
+      - growth_decimal: e.g., 0.15
+      - growth_percent: 15.0
+      Returned:
+        peg_ratio_decimal_denominator = PE / growth_decimal
+        peg_ratio_percent_denominator = PE / growth_percent
     """
     try:
         info = getattr(yf.Ticker(symbol), 'info', {}) or {}
@@ -615,7 +580,6 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
             pe = float(pe) if pe is not None else None
         except Exception:
             pe = None
-
         growth = None
         for k in ['earningsGrowth', 'forwardEpsGrowth', 'earningsQuarterlyGrowth']:
             v = info.get(k)
@@ -626,19 +590,15 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
                 break
             except Exception:
                 continue
-
         if pe is None or growth is None or growth <= 0 or growth > 2.0:
             return {'symbol': symbol,
                     'peg_ratio_decimal_denominator': np.nan,
                     'peg_ratio_percent_denominator': np.nan,
                     'error': 'Missing/implausible inputs (PE or growth).'}
-
         growth_decimal = float(growth)
         growth_percent = growth_decimal * 100.0
-
         peg_dec = float(pe) / growth_decimal
         peg_pct = float(pe) / growth_percent
-
         return {
             'symbol': symbol,
             'peg_ratio_decimal_denominator': float(peg_dec),
@@ -655,19 +615,12 @@ def calculate_peg_ratio(symbol: str) -> Dict[str, Any]:
                 'peg_ratio_percent_denominator': np.nan,
                 'error': f'PEG failed: {e}'}
 
-# -----------------------------------------------------------------------------
-# New utility: aligned daily returns for correlation/diversification.
-# -----------------------------------------------------------------------------
+# Utility: aligned arithmetic daily returns
 def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
     """
     Compute aligned arithmetic daily returns for a list of symbols.
-
-    Returns:
-        {'period': str, 'daily_returns': {symbol: [r1, r2, ...], ...}} OR {'error': ...}
-
-    Note:
-      - Arithmetic returns (pct_change) are returned as decimals (e.g., 0.01 = 1%).
-      - Tools that expect log returns compute them independently (e.g., correlation/log-return tools).
+    Returns: {'period': str, 'daily_returns': {symbol: [r1, r2, ...], ...}} or {'error': ...}
+    Note: returns are DECIMALS (e.g., 0.01 = 1%).
     """
     try:
         close = yf.download(symbols, period=period, interval='1d', progress=False, auto_adjust=True)['Close']
@@ -682,13 +635,13 @@ def get_daily_returns(symbols: List[str], period: str = '5y') -> Dict[str, Any]:
         return {'error': f'Daily returns failed: {e}'}
 
 # -----------------------------------------------------------------------------
-# ADK Agent Definition — public name & tool list (with new tool).
+# ADK Agent Definition — public name & tools (includes new utility)
 # -----------------------------------------------------------------------------
 calculation_agent = LlmAgent(
     name='Financial_Calculation_Agent',
     model='gemini-2.5-flash',
     description='Specialist financial assistant with market data & calculation tools.',
-    instruction='Use the tools to fetch data and compute the requested financial metrics. Prefer decimal units for returns/volatility.',
+    instruction='Use the tools to fetch data and compute requested financial metrics. Prefer decimal units for returns/volatility.',
     tools=[
         calculate_beta_and_volatility,
         calculate_correlation_matrix,
