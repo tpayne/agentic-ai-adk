@@ -1,8 +1,10 @@
+
 name: Build and Test Docker Images
 
 on:
   push:
     branches:
+      - '**'
     paths:
       - "samples/**"
   pull_request:
@@ -11,46 +13,70 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.ref }}CiTest
+  group: ${{ github.ref }}-CiTest
   cancel-in-progress: true
 
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: email
+            context: samples/GCP/EmailProcessing
+            tag: adktemplate:latest
+            run: |
+              docker run --rm -d -p 8080:8080 ${{ matrix.tag }}
+              # wait briefly for startup and check health
+              sleep 10
+              curl -sSf localhost:8080/status
+
+          - name: finance_sample
+            context: samples/GCP/FinanceProcessing
+            tag: adksample:latest
+            run: |
+              # Ensure sample.txt exists (if it's part of repo, this is harmless)
+              test -f sample.txt || echo "demo" > sample.txt
+              docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt ${{ matrix.tag }} -f sample.txt
+
+          - name: finance_adk
+            context: samples/GCP/FinanceADK
+            tag: adkfinance:latest
+            run: |
+              docker run --rm ${{ matrix.tag }}
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Build the ADK Docker image for email
+      - name: Build Docker image - ${{ matrix.name }}
+        working-directory: ${{ matrix.context }}
         run: |
-          cd samples/GCP/EmailProcessing
-          docker build . --file Dockerfile --tag adktemplate:latest
-          docker run --rm -it -d -p 8080:8080 adktemplate:latest
-          #docker scout cves adktemplate:latest
-          sleep 10
-          curl localhost:8080/status
-    
-      - name: Build the sample ADK Docker image for fintech
-        run: |
-          cd samples/GCP/FinanceProcessing
-          docker build . -t adksample && \
-            docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt adksample -f sample.txt
+          docker build . --file Dockerfile --tag ${{ matrix.tag }}
 
-      - name: Build the ADK Docker image for fintech
-        run: |
-          cd samples/GCP/FinanceADK
-          docker build . -t adkfinance && \
-            docker run --rm adkfinance
+      - name: Run container/tests - ${{ matrix.name }}
+        working-directory: ${{ matrix.context }}
+        run: ${{ matrix.run }}
 
-#      - name: Run Trivy vulnerability scanner
-#        uses: aquasecurity/trivy-action@master
-#        with:
-#          image-ref: 'adktemplate:latest'
-#          format: 'table'
-#          exit-code: '1'
-#          ignore-unfixed: true
-#          vuln-type: 'os,library'
-#          severity: 'CRITICAL,HIGH'
-          
-      - name: Stop containers...
-        run: (docker stop $(docker container ls -q))
+      # Trivy vulnerability scan (informational only)
+      - name: Trivy scan - ${{ matrix.tag }} (non-fatal)
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ matrix.tag }}
+          format: 'table'
+          exit-code: '0'           # do not fail the job on findings
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Stop containers (if any)
+        if: always()
+        run: |
+          CONTAINERS=$(docker ps -q)
+          if [ -n "$CONTAINERS" ]; then
+            docker stop $CONTAINERS
+          else
+            echo "No running containers to stop."
+          fi
