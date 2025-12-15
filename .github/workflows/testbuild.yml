@@ -85,6 +85,3 @@ jobs:
             echo "No running containers to stop."
           fi
 
-            echo "No running containers to stop."
-          fi
-
