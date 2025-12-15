@@ -26,8 +26,8 @@ jobs:
           - name: email
             context: samples/GCP/EmailProcessing
             tag: adktemplate:latest
-            run: |
-              docker run --rm -d -p 8080:8080 ${{ matrix.tag }}
+            test_cmd: |
+              docker run --rm -d -p 8080:8080 "$IMAGE_TAG"
               # wait briefly for startup and check health
               sleep 10
               curl -sSf localhost:8080/status
@@ -35,16 +35,16 @@ jobs:
           - name: finance_sample
             context: samples/GCP/FinanceProcessing
             tag: adksample:latest
-            run: |
-              # Ensure sample.txt exists (if it's part of repo, this is harmless)
+            test_cmd: |
+              # Ensure sample.txt exists (harmless if already present)
               test -f sample.txt || echo "demo" > sample.txt
-              docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt ${{ matrix.tag }} -f sample.txt
+              docker run --rm -v "$(pwd)/sample.txt":/app/sample.txt "$IMAGE_TAG" -f sample.txt
 
           - name: finance_adk
             context: samples/GCP/FinanceADK
             tag: adkfinance:latest
-            run: |
-              docker run --rm ${{ matrix.tag }}
+            test_cmd: |
+              docker run --rm "$IMAGE_TAG"
 
     steps:
       - name: Checkout repository
@@ -52,12 +52,16 @@ jobs:
 
       - name: Build Docker image - ${{ matrix.name }}
         working-directory: ${{ matrix.context }}
+        env:
+          IMAGE_TAG: ${{ matrix.tag }}
         run: |
-          docker build . --file Dockerfile --tag ${{ matrix.tag }}
+          docker build . --file Dockerfile --tag "$IMAGE_TAG"
 
       - name: Run container/tests - ${{ matrix.name }}
         working-directory: ${{ matrix.context }}
-        run: ${{ matrix.run }}
+        env:
+          IMAGE_TAG: ${{ matrix.tag }}
+        run: ${{ matrix.test_cmd }}
 
       # Trivy vulnerability scan (informational only)
       - name: Trivy scan - ${{ matrix.tag }} (non-fatal)
@@ -80,3 +84,7 @@ jobs:
           else
             echo "No running containers to stop."
           fi
+
+            echo "No running containers to stop."
+          fi
+
