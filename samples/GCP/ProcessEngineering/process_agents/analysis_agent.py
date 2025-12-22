@@ -1,30 +1,20 @@
 # process_agents/analysis_agent.py
 from google.adk.agents import LlmAgent
-from typing import Dict, Any
+import time
 
-def analyze_process_requirements(raw_text: str) -> Dict[str, Any]:
-    """
-    Analyzes raw text to extract key process metadata.
-    Returns structured dictionary with sector, actors, and high-level goals.
-    """
-    # In a real scenario, this might use NLP libraries or specific regex.
-    # Here we simulate structure for the LLM to populate via its reasoning.
-    return {
-        "status": "analyzed",
-        "input_length": len(raw_text),
-        "note": "Analysis successful. LLM will structure the output in the conversation context."
-    }
+def log_analysis_metadata(sector: str, goal_count: int):
+    """Internal tool to track extraction progress."""
+    time.sleep(2)
+    return f"Analysis started for {sector} with {goal_count} identified objectives."
 
 analysis_agent = LlmAgent(
     name='Analysis_Agent',
-    model='ggemini-2.0-flash-001',
-    description='Analyzes unstructured business descriptions to identify goals, actors, and industry sector.',
+    model='gemini-2.0-flash-001',
+    description='Performs deep analysis of process descriptions.',
     instruction=(
-        "Analyze the provided text. Identify: "
-        "1. The Industry Sector (e.g., Finance, Healthcare, Retail). "
-        "2. The Primary Actors (Who is involved?). "
-        "3. The High-Level Goals (What is the outcome?). "
-        "Return this as a structured summary for the Design Agent."
+        "You are a Senior Business Analyst. Analyze the input to extract: "
+        "1. Precise Industry Sector. 2. All Stakeholders/Actors. 3. Defined Success Metrics. "
+        "Your output must be a 'Requirements Specification' used by the Design Agent."
     ),
-    tools=[analyze_process_requirements]
+    tools=[log_analysis_metadata]
 )

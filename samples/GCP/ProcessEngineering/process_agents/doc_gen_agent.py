@@ -1,58 +1,101 @@
 # process_agents/doc_gen_agent.py
 from google.adk.agents import LlmAgent
 import docx
-from docx.shared import Inches
-import graphviz
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
 import os
 import json
+import re
+import time
+import networkx as nx
+import matplotlib.pyplot as plt
 
-def generate_process_diagram(process_name: str, dot_source: str) -> str:
+def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
+    """Generates a readable PNG diagram using NetworkX (No external exe needed)."""
     try:
+        time.sleep(2) # Rate limit protection
         output_dir = "output"
         os.makedirs(output_dir, exist_ok=True)
-        filename = f"{process_name.lower().replace(' ', '_')}_diagram"
-        src = graphviz.Source(dot_source)
-        output_path = src.render(filename=filename, directory=output_dir, format='png', cleanup=True)
-        return output_path
-    except Exception as e:
-        return f"Error: {e}"
-
-def create_word_document(process_name: str, content_json: str, diagram_path: str = "None") -> str:
-    """
-    content_json: A JSON string mapping Section Titles to Section Text.
-    """
-    try:
-        output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)
-        filename = os.path.join(output_dir, f"{process_name.lower().replace(' ', '_')}_spec.docx")
+        filename = os.path.join(output_dir, f"{process_name.lower().replace(' ', '_')}_flow.png")
         
-        # Parse the JSON string manually
-        content = json.loads(content_json)
+        # Robustly parse edge list
+        clean_edges = re.sub(r'^```json\s*|```$', '', edge_list_json.strip(), flags=re.MULTILINE)
+        edges = json.loads(clean_edges)
+        
+        G = nx.DiGraph()
+        G.add_edges_from(edges)
+        
+        plt.figure(figsize=(10, 6))
+        # kamada_kawai prevents node overlap for better readability
+        pos = nx.kamada_kawai_layout(G) 
+        
+        nx.draw(G, pos, with_labels=True, node_color='#D6EAF8', 
+                edge_color='#5D6D7E', node_size=2500, font_size=8, 
+                font_weight='bold', arrows=True, arrowsize=15, 
+                width=1.5, node_shape='s')
+        
+        plt.title(f"Process Architecture: {process_name}", fontsize=12)
+        plt.savefig(filename, bbox_inches='tight', dpi=300)
+        plt.close()
+        return filename
+    except Exception as e:
+        print(f"Diagram Error: {e}")
+        return "None"
+
+def create_professional_word_doc(process_name: str, content_json: str, diagram_path: str) -> str:
+    """Compiles a clean Word Specification from JSON content."""
+    try:
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        doc_path = os.path.join(output_dir, f"{process_name.lower().replace(' ', '_')}_specification.docx")
+        
+        # Clean JSON from potential LLM markdown or filler
+        clean_content = re.sub(r'^```json\s*|```$', '', content_json.strip(), flags=re.MULTILINE)
+        
+        try:
+            sections = json.loads(clean_content)
+        except json.JSONDecodeError:
+            # Fallback if JSON is still malformed: treat as raw text
+            sections = {"Process Detailed Narrative": content_json}
         
         doc = docx.Document()
-        doc.add_heading(f"Process Specification: {process_name}", 0)
         
-        if diagram_path and os.path.exists(diagram_path):
-            doc.add_heading('Process Flow Diagram', level=1)
-            doc.add_picture(diagram_path, width=Inches(6.0))
-
-        for section_title, section_text in content.items():
-            doc.add_heading(section_title, level=1)
-            doc.add_paragraph(section_text)
+        # Title
+        title = doc.add_heading(process_name, 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # 1. Insert Diagram
+        if diagram_path != "None" and os.path.exists(diagram_path):
+            doc.add_heading('1. Process Flow Visualization', level=1)
+            para = doc.add_paragraph()
+            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = para.add_run()
+            run.add_picture(diagram_path, width=Inches(5.5))
+        
+        # 2. Narrative Content
+        doc.add_heading('2. Process Details', level=1)
+        for section_title, section_body in sections.items():
+            doc.add_heading(section_title, level=2)
+            p = doc.add_paragraph(str(section_body))
+            p.style.font.size = Pt(11)
             
-        doc.save(filename)
-        return f"Document saved: {filename}"
+        doc.save(doc_path)
+        return f"SUCCESS: Professional document generated at {doc_path}"
     except Exception as e:
-        return f"Failed: {e}"
+        return f"ERROR: {str(e)}"
 
 doc_gen_agent = LlmAgent(
     name='Documentation_Agent',
     model='gemini-2.0-flash-001',
-    description='Generates Word documents and PNG flow diagrams.',
+    description='Generates professional Word specifications and diagrams.',
     instruction=(
-        "1. Create a DOT graph. Use 'generate_process_diagram'. "
-        "2. Prepare content as a JSON string (e.g., '{\"Overview\": \"...\"}'). "
-        "3. Use 'create_word_document' with that JSON string and the diagram path."
+        "You are a Technical Writer. Convert the approved workflow into a final specification. "
+        "1. Identify the flow steps and prepare them as a JSON edge list (e.g., '[[\"Step1\", \"Step2\"]]') "
+        "for the 'generate_clean_diagram' tool. "
+        "2. Structure the full text into a JSON object (Heading: Content) and use "
+        "'create_professional_word_doc' to generate the .docx file. "
+        "OUTPUT ONLY the tool calls. No conversational filler."
     ),
-    tools=[generate_process_diagram, create_word_document]
+    tools=[generate_clean_diagram, create_professional_word_doc]
 )
