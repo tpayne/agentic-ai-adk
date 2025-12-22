@@ -12,7 +12,7 @@ def draft_process_workflow(sector: str, goals_csv: str, steps_description: str) 
 
 design_agent = LlmAgent(
     name='Design_Agent',
-    model='gemini-2.0-flash', # Using 2.0 for stability
+    model='gemini-2.0-flash-001', # Using 2.0 for stability
     description='Designs detailed step-by-step business process workflows.',
     instruction=(
         "Create a detailed workflow. Use 'draft_process_workflow'. "

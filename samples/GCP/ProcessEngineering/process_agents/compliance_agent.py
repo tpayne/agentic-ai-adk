@@ -26,7 +26,7 @@ def check_sector_compliance(sector: str, process_details: str) -> Dict[str, Any]
 
 compliance_agent = LlmAgent(
     name='Compliance_Review_Agent',
-    model='gemini-2.5-flash',
+    model='gemini-2.0-flash-001',
     description='Reviews process designs for sector-specific compliance and best practices.',
     instruction=(
         "Review the drafted workflow. Use 'check_sector_compliance'. "

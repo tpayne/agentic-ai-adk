@@ -60,7 +60,7 @@ def request_human_feedback(question: str, context_summary: str) -> str:
 # -----------------------------------------------------------------------------
 root_agent = LlmAgent(
     name='Process_Architect_Root',
-    model='gemini-2.5-flash',
+    model='gemini-2.0-flash-001',
     description='Lead Architect orchestrating business process analysis, design, and documentation.',
     instruction=(
         "You are the Lead Process Architect. "

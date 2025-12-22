@@ -47,7 +47,7 @@ def create_word_document(process_name: str, content_json: str, diagram_path: str
 
 doc_gen_agent = LlmAgent(
     name='Documentation_Agent',
-    model='gemini-2.0-flash',
+    model='gemini-2.0-flash-001',
     description='Generates Word documents and PNG flow diagrams.',
     instruction=(
         "1. Create a DOT graph. Use 'generate_process_diagram'. "

@@ -17,7 +17,7 @@ def analyze_process_requirements(raw_text: str) -> Dict[str, Any]:
 
 analysis_agent = LlmAgent(
     name='Analysis_Agent',
-    model='gemini-2.5-flash',
+    model='ggemini-2.0-flash-001',
     description='Analyzes unstructured business descriptions to identify goals, actors, and industry sector.',
     instruction=(
         "Analyze the provided text. Identify: "
