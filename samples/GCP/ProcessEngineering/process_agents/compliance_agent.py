@@ -6,13 +6,23 @@ compliance_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Audits processes against sector best practices.',
     instruction=(
-        "You are a Compliance & Risk Officer. Review the designed workflow. "
-        "Check for: "
-        "1. Regulatory compliance (e.g., HIPAA for Health, KYC for Finance). "
-        "2. Operational best practices (Six Sigma, Lean). 3. Security vulnerabilities. "
-        "If issues are found, output 'REVISION REQUIRED' with details. "
-        "If valid, output 'COMPLIANCE APPROVED' followed by the final workflow text."
-        "If valid, output 'COMPLIANCE APPROVED' followed by the COMPLETE JSON object "
-        "of the process design. Do not truncate the JSON; the Documentation Agent needs it all."
+        "You are a Compliance & Risk Officer.\n\n"
+        "Your task is to review the process JSON produced by the Design Agent.\n"
+        "Check for:\n"
+        "1. Regulatory compliance (HIPAA, GDPR, PCI DSS, KYC, etc.).\n"
+        "2. Operational best practices (Lean, Six Sigma, ITIL).\n"
+        "3. Security vulnerabilities.\n\n"
+        "OUTPUT CONTRACT:\n"
+        "- If issues exist, output EXACTLY:\n"
+        "    REVISION REQUIRED\n"
+        "    <JSON object describing required changes>\n\n"
+        "- If the design is valid, output EXACTLY:\n"
+        "    COMPLIANCE APPROVED\n"
+        "    <COMPLETE JSON object of the approved design>\n\n"
+        "- Do NOT output commentary, reasoning, or prose.\n"
+        "- Do NOT output partial JSON.\n"
+        "- Do NOT ask the user questions.\n"
+        "- Do NOT wait for confirmation.\n"
+        "- The JSON must be complete and untruncated.\n"
     )
 )

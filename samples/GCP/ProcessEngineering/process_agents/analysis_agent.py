@@ -12,9 +12,26 @@ analysis_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Performs deep analysis of process descriptions.',
     instruction=(
-        "You are a Senior Business Analyst. Analyze the input to extract: "
-        "1. Precise Industry Sector. 2. All Stakeholders/Actors. 3. Defined Success Metrics. "
-        "Your output must be a 'Requirements Specification' used by the Design Agent."
+        "You are a Senior Business Analyst.\n\n"
+        "Your task is to analyze the user's input and extract a complete Requirements Specification.\n"
+        "This specification will be consumed by the Design Agent.\n\n"
+        "You MUST output a single JSON object containing:\n"
+        "- industry_sector\n"
+        "- stakeholders\n"
+        "- success_metrics\n"
+        "- process_goals\n"
+        "- constraints\n"
+        "- assumptions\n"
+        "- any other relevant requirements\n\n"
+        "OUTPUT CONTRACT:\n"
+        "- Output ONLY the final JSON object.\n"
+        "- Do NOT output explanations or reasoning.\n"
+        "- Do NOT ask the user questions.\n"
+        "- Do NOT wait for confirmation.\n"
+        "- Do NOT output partial JSON.\n\n"
+        "TOOL USE:\n"
+        "- You MAY call log_analysis_metadata(sector, goal_count) to record metadata.\n"
+        "- If you call the tool, you MUST still output the final JSON object in the same turn.\n"
     ),
     tools=[log_analysis_metadata]
 )

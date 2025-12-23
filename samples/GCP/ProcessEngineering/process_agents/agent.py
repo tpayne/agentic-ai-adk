@@ -1,11 +1,11 @@
-# process_agents/agent.py
 from google.adk.agents import LoopAgent, SequentialAgent
 from .analysis_agent import analysis_agent
 from .design_agent import design_agent
 from .compliance_agent import compliance_agent
-from .doc_gen_agent import doc_gen_agent
+from .json_normalizer_agent import json_normalizer_agent
+from .doc_generation_agent import doc_generation_agent
 
-# Automates the Design -> Compliance -> Redesign cycle (up to 5 times)
+# Design → Compliance loop
 review_loop = LoopAgent(
     name="Design_Compliance_Loop",
     sub_agents=[
@@ -17,13 +17,14 @@ review_loop = LoopAgent(
     max_iterations=5
 )
 
-# The Full Pipeline
+# Full pipeline
 root_agent = SequentialAgent(
     name="Automated_Process_Architect_Pipeline",
     sub_agents=[
-        analysis_agent, 
-        review_loop, 
-        doc_gen_agent
+        analysis_agent,
+        review_loop,
+        json_normalizer_agent,
+        doc_generation_agent
     ]
 )
 

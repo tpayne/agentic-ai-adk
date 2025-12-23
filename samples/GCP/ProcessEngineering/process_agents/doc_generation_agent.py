@@ -1,5 +1,4 @@
-# process_agents/doc_gen_agent.py
-
+# process_agents/doc_generation_agent.py
 from google.adk.agents import LlmAgent
 import docx
 from docx.shared import Inches, Pt
@@ -13,33 +12,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import traceback
 
-
-# -----------------------------
-# Utility: Save raw JSON input
-# -----------------------------
-
-def save_raw_data_to_json(json_content: str) -> str:
-    """
-    Save the full JSON string to a local file for processing.
-    The content may come wrapped in ```json fences; we strip those.
-    """
-    try:
-        os.makedirs("output", exist_ok=True)
-        clean_json = re.sub(
-            r'^```json\s*|```$',
-            '',
-            json_content.strip(),
-            flags=re.MULTILINE
-        )
-        path = "output/process_data.json"
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(clean_json)
-        return path
-    except Exception:
-        traceback.print_exc()
-        return "ERROR: Failed to save JSON"
-
-
 # -----------------------------------
 # Utility: Generate simple flowchart
 # -----------------------------------
@@ -48,6 +20,11 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
     """
     Generates a simple flowchart using a list of strict 2-tuple pairs:
     e.g. [["Start", "Step 1"], ["Step 1", "End"]]
+
+    EXPECTATION:
+    - edge_list_json is a JSON-encoded list of [from, to] pairs, derived
+      from the normalized JSON (e.g. from step order or phase sequence).
+      The LLM agent is responsible for deciding the most meaningful flow.
     """
     try:
         os.makedirs("output", exist_ok=True)
@@ -187,19 +164,29 @@ def _render_generic_value(doc: docx.Document, value, level: int = 0) -> None:
 
 
 # -----------------------------------
-# Schema-aware renderers (defensive + generic)
+# Schema-aware renderers (for normalized JSON)
 # -----------------------------------
 
 def _add_overview_section(doc: docx.Document, data: dict) -> None:
-    """1.0 Process Overview: built from whatever high-level fields exist."""
+    """
+    1.0 Process Overview.
+
+    For normalized JSON:
+    - Prefer `introduction` for the main narrative.
+    - Fall back to `description` or `process_description` if present.
+    """
     try:
         doc.add_heading("1.0 Process Overview", level=1)
 
+        introduction = data.get("introduction")
         description = (
             data.get("description")
             or data.get("process_description")
         )
-        if description:
+
+        if introduction:
+            doc.add_paragraph(str(introduction))
+        elif description:
             doc.add_paragraph(str(description))
         else:
             doc.add_paragraph(
@@ -230,7 +217,14 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
     """
     2.0 Stakeholders & Responsibilities.
-    Handles list of strings OR list of dicts with stakeholder_name/role/responsibilities.
+
+    Normalized expectation:
+    - stakeholders: list of:
+        {
+          "stakeholder_name": "...",
+          "responsibilities": [ "...", "..." ]
+        }
+    - Fallback: list of strings is also supported.
     """
     try:
         if not stakeholders:
@@ -240,14 +234,14 @@ def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
 
         doc.add_heading("2.0 Stakeholders and Responsibilities", level=1)
 
-        # If simple list of strings
-        if stakeholders and all(isinstance(s, str) for s in stakeholders):
+        # Simple list of strings
+        if all(isinstance(s, str) for s in stakeholders):
             for s in stakeholders:
                 doc.add_paragraph(str(s), style="List Bullet")
             doc.add_paragraph()
             return
 
-        # Otherwise treat as list of dicts
+        # List of dicts
         table = doc.add_table(rows=1, cols=2)
         table.style = "Table Grid"
         hdr_cells = table.rows[0].cells
@@ -259,6 +253,7 @@ def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
                 continue
             name = (
                 s.get("stakeholder_name")
+                or s.get("role_name")
                 or s.get("name")
                 or s.get("role")
                 or "Stakeholder"
@@ -279,8 +274,22 @@ def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
 
 def _add_process_steps_section(doc: docx.Document, steps) -> None:
     """
-    3.0 Process Steps / Workflow.
-    For generic process_steps arrays (like your retail schema).
+    3.0 Process Steps / Workflow for normalized JSON.
+
+    Normalized expectation:
+    - process_steps: list of:
+        {
+          "step_number": 1,
+          "step_name": "...",
+          "description": "...",
+          "responsible_party": [ "...", "..." ],
+          "activities": [ "...", "..." ],
+          "inputs": [ "...", "..." ],
+          "outputs": [ "...", "..." ],
+          "success_criteria": "...",
+          "KPIs": [ "...", "..." ],
+          "escalation_procedure": "..."
+        }
     """
     try:
         if not isinstance(steps, list) or not steps:
@@ -292,7 +301,6 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
             if not isinstance(step, dict):
                 continue
 
-            # Support multiple naming styles
             step_no = step.get("step_number") or step.get("step_id") or s_idx
             name = step.get("step_name", f"Step {step_no}")
             description = step.get("description") or step.get("step_description", "")
@@ -394,7 +402,7 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
 
 
 def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> None:
-    """4.0 Tools section: 'tools_summary' dict. Defensive."""
+    """4.0 Tools section: 'tools_summary' dict."""
     try:
         if not isinstance(tools_summary, dict) or not tools_summary:
             return
@@ -425,7 +433,12 @@ def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> 
 def _add_metrics_section(doc: docx.Document, metrics) -> None:
     """
     5.0 Metrics & KPIs section.
-    Defensive for list of strings or list of dicts.
+
+    Normalized expectation:
+    - metrics: list of dicts with keys like:
+      metric_name, description, measurement_frequency, target
+    or
+    - metrics: list of strings.
     """
     try:
         if not isinstance(metrics, list) or not metrics:
@@ -547,7 +560,7 @@ def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
 
         doc.add_heading("8.0 Process Flow Diagram", level=1)
         doc.add_paragraph(
-            "The following diagram provides a high-level visualization of the process flow as defined in the JSON source."
+            "The following diagram provides a high-level visualization of the process flow as defined in the normalized JSON source."
         )
         doc.add_picture(diag_file, width=Inches(5.5))
         doc.add_paragraph()
@@ -617,7 +630,7 @@ def _add_additional_data_section(doc: docx.Document, data: dict, consumed_keys: 
 
         doc.add_heading("Appendix B: Additional Source Data", level=1)
         doc.add_paragraph(
-            "This appendix contains additional structured data from the source JSON that is not covered in the main sections."
+            "This appendix contains additional structured data from the normalized source JSON that is not covered in the main sections."
         )
         _render_generic_value(doc, remaining, level=0)
     except Exception:
@@ -653,11 +666,14 @@ def create_standard_doc_from_file(process_name: str) -> str:
     """
     Generate a structured, professional process document from process_data.json.
 
-    The JSON can represent ANY business process. This function:
-    - Uses known keys (stakeholders, process_steps, tools_summary, metrics, system_requirements, reporting_and_analytics)
-      to build semantically rich sections where possible.
-    - Falls back to a generic recursive renderer to ensure all data is surfaced.
-    - Is fully defensive: no assumptions about types; no hard crashes.
+    EXPECTATION:
+    - process_data.json contains normalized, document-ready JSON as described
+      at the top of this file.
+    - This function is schema-aware for that normalized format and will:
+      * Build a professional title page.
+      * Add document control + TOC.
+      * Render overview, stakeholders, workflow, tools, metrics, reporting,
+        system requirements, flow diagram, and appendices.
     """
     try:
         with open("output/process_data.json", 'r', encoding="utf-8") as f:
@@ -675,7 +691,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
             data = {"root": raw_data}
 
         name = str(data.get("process_name", process_name))
-        description = data.get("description") or data.get("process_description")
+        description = data.get("description") or data.get("process_description") or data.get("introduction")
         version = str(data.get("version", "1.0"))
         sector = data.get("industry_sector", data.get("business_unit", "")) or "N/A"
 
@@ -688,7 +704,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
         appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
 
         consumed_keys = {
-            "process_name", "description", "process_description", "version",
+            "process_name", "description", "process_description", "introduction", "version",
             "industry_sector", "business_unit",
             "stakeholders",
             "process_steps",
@@ -798,18 +814,24 @@ def create_standard_doc_from_file(process_name: str) -> str:
 # Agent definition
 # --------------------------
 
-doc_gen_agent = LlmAgent(
-    name='Documentation_Agent',
-    model='gemini-2.0-flash-001',
-    description='Professional business process document generator.',
+doc_generation_agent = LlmAgent(
+    name="Document_Generation_Agent",
+    model="gemini-2.0-flash-001",
+    description="Generates diagrams and Word documents from normalized JSON.",
     instruction=(
-        "You are a Lead Process Architect. You MUST call your tools exactly as follows: "
-        "1. CALL 'save_raw_data_to_json' with the COMPLETE business process JSON. "
-        "2. CALL 'generate_clean_diagram' with a list of 2-tuple pairs "
-        "(e.g. [['Start', 'Step 1'], ['Step 1', 'Step 2']]) representing the flow. "
-        "3. CALL 'create_standard_doc_from_file' with the process title. "
-        "The tool will generate a structured, professional process specification document "
-        "directly from the JSON. Do not summarize, omit, or invent content."
+        "You are a Documentation Automation Specialist.\n\n"
+        "Your task is to:\n"
+        "1. Read the normalized JSON already saved in process_data.json.\n"
+        "2. Infer a simple ordered flow from process_steps.\n"
+        "3. Call generate_clean_diagram with the process_name and edge list.\n"
+        "4. Call create_standard_doc_from_file with the process_name.\n\n"
+
+        "OUTPUT CONTRACT:\n"
+        "- You MUST NOT output any natural language except a final success message.\n"
+        "- You MUST NOT ask the user questions.\n"
+        "- You MUST call generate_clean_diagram FIRST.\n"
+        "- You MUST call create_standard_doc_from_file SECOND.\n"
+        "- After the second tool call, output a short confirmation message.\n"
     ),
-    tools=[save_raw_data_to_json, generate_clean_diagram, create_standard_doc_from_file],
+    tools=[generate_clean_diagram, create_standard_doc_from_file]
 )
