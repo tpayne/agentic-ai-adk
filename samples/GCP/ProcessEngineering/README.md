@@ -4,45 +4,63 @@ A specialized multi-agent suite built on the Google Agent Development Kit (ADK).
 
 ## ⚙️ Features
 
-- **Multi-Agent Orchestration**: A lead "Process Architect" manages a specialized team for analysis, design, compliance, and documentation.
-- **Human-in-the-Loop (HITL)**: Integrated feedback loop that pauses execution to allow users to refine or approve processes before final artifacts are created.
-- **Compliance Guardrails**: Automatic auditing against sector-specific best practices (e.g., GDPR for Finance, HIPAA for Healthcare).
-- **Automated Artifacts**: 
-  - **Process Diagrams**: Generates high-resolution PNG flowcharts using Graphviz.
-  - **Business Specifications**: Generates formatted `.docx` files containing the process logic and embedded diagrams.
+- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" pipeline that moves from raw requirements to final artifacts without requiring manual intervention. The **Analysis Agent** sets the scope, the **Design/Compliance Loop** iteratively refines the logic, and the **Normalizer** locks the data for production.
+- **Zero-Loss Data Normalization**: Features a specialized **JSON Normalizer Agent** that acts as a data-sanitization gate. It transforms free-form architectural designs into a stabilized, enriched document schema, ensuring that complex workflows (30+ steps) are preserved with 100% integrity.
+- **Self-Auditing Compliance Gate**: The **Compliance Agent** acts as an automated "Release Manager." It forces the Design Agent into a recursive revision loop if regulatory or security gaps are detected, only releasing the process to the documentation stage once "COMPLIANCE APPROVED" is achieved.
+- **Automated High-Fidelity Artifacts**: 
+  - **Process Diagrams**: Dynamically infers workflow sequences from normalized data to generate high-resolution PNG flowcharts via **NetworkX**.
+  - **Engineering Specifications**: Generates professional `.docx` files using a logic-driven rendering engine. Includes **Automated Table of Contents**, **Stakeholder Matrix Tables**, and structured **Appendix** sections for deep-dive technical data.
+
+### 🚀 Autonomous Execution Flow
+
+1.  **Requirement Extraction**: The Analysis Agent converts user intent into a machine-readable JSON Requirements Specification.
+2.  **Iterative Refinement**: The Design and Compliance agents cycle automatically, refining the process until all operational and regulatory criteria are met.
+3.  **Schema Stabilization**: The Normalizer Agent maps the finalized design to a strict documentation contract, saving the state to `process_data.json`.
+4.  **Artifact Engineering**: The Documentation Agent reads the local state to render complex diagrams and the final professional specification.
 
 ---
 
 ## 🏗️ Repository Layout
 
 ```text
-├── Dockerfile              # Container definition with Graphviz dependencies
-├── requirements.txt        # Python dependencies (adk, docx, graphviz)
-├── process_agents/
-│   ├── __init__.py         # Package entry point (exports root_agent)
-│   ├── agent.py            # Root Agent: Process Architect & HITL Orchestrator
-│   ├── analysis_agent.py   # Specialist: Requirement extraction & Sector ID
-│   ├── design_agent.py     # Specialist: Workflow logic & step definition
-│   ├── compliance_agent.py # Auditor: Best practice & regulatory checks
-│   └── doc_gen_agent.py    # Draftsman: Word & Diagram file generation
-└── output/                 # Destination for generated .docx and .png files
+├── Dockerfile
+├── output
+│   ├── agile_scrum_sdlc_for_web_development_flow.png
+│   ├── agile_scrum_sdlc_for_web_development_specification.docx
+│   ├── inventory_stock-out_management_flow.png
+│   ├── Inventory_Stock-Out_Management.docx
+│   └── process_data.json
+├── process_agents
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-314.pyc
+│   │   ├── agent.cpython-314.pyc
+│   │   ├── analysis_agent.cpython-314.pyc
+│   │   ├── compliance_agent.cpython-314.pyc
+│   │   ├── design_agent.cpython-314.pyc
+│   │   ├── doc_gen_agent.cpython-314.pyc
+│   │   ├── doc_generation_agent.cpython-314.pyc
+│   │   └── json_normalizer_agent.cpython-314.pyc
+│   ├── agent.py
+│   ├── analysis_agent.py
+│   ├── compliance_agent.py
+│   ├── design_agent.py
+│   ├── doc_generation_agent.py
+│   └── json_normalizer_agent.py
+├── README.md
+└── requirements.txt
 ```
 
 ---
 
-## Requirements
+## 🛠 Requirements
 
-Graphviz: Required for diagram generation.
-
-macOS: brew install graphviz
-
-Linux: sudo apt install graphviz
-
-Google API Key: An active Gemini API key.
-
-Python 3.12+: Stable Python environment recommended (avoid 3.14-dev for production).
-
-See `requirements.txt` for version constraints used in your environment.
+- **Graphviz**: Required for advanced layout and alternative diagram generation formats.
+    - **macOS**: `brew install graphviz`
+    - **Linux**: `sudo apt install graphviz`
+- **Google API Key**: An active Gemini API key (set as `GOOGLE_API_KEY` in your environment).
+- **Python 3.12+**: A stable Python environment is recommended for consistent execution of the `docx` and `networkx` libraries.
+- **Dependencies**: See `requirements.txt` for specific version constraints, including `python-docx`, `networkx`, and `matplotlib`.
 
 ---
 
@@ -69,7 +87,6 @@ To check that the agent is working correctly in the GCP ADK environment, you can
     .venv/bin/adk web
 ```
 
-
 ---
 
 ## Docker Usage
@@ -92,17 +109,20 @@ docker run -it --rm \
 
 **Notes:**
 
-- The Docker image runs the module `finance_agents.agent` as the container ENTRYPOINT. Arguments passed to `docker run` are forwarded to the module.
+- None
 
 ---
 
-## The Workflow Pattern
+## 🔄 The Workflow Pattern
 
-* Analyze: Takes raw descriptions and identifies the industry sector and key actors.
-* Design: Converts the analysis into a logical, step-by-step workflow.
-* Review: The Compliance Agent audits the design. If errors are found, it sends it back for redesign.
-* Feedback: The system pauses and asks: "Does this design meet your requirements?"
-* Publish: Once approved, the system renders a PNG diagram and compiles a professional Business Specification document in the output/ folder.
+The system follows a high-precision, four-stage autonomous pipeline designed to move from unstructured intent to professional documentation without human intervention.
+
+- **Analyze**: The **Analysis Agent** performs a deep scan of raw descriptions to identify the industry sector, core stakeholders, and success metrics, outputting a machine-readable Requirements Specification.
+- **Design & Refine**: The **Design Agent** architects a logical, step-by-step workflow. This is immediately passed to the **Compliance Agent** for a recursive audit. If regulatory gaps or security risks are detected, the system triggers an automatic redesign loop (up to 5 iterations) until a "COMPLIANCE APPROVED" state is reached.
+- **Normalize**: Once the design is locked, the **JSON Normalizer Agent** sanitizes and enriches the data. It maps free-form architectural ideas into a strict, document-ready schema, ensuring that complex details—such as toolchains, metrics, and extended steps—are preserved for the final artifact.
+- **Publish**: The **Document Generation Agent** executes the final build. It reads the local state and uses a specialized rendering engine to:
+    - **Render** a high-resolution PNG flowchart using NetworkX logic.
+    - **Compile** a professional Business Specification (`.docx`) featuring a dynamic Table of Contents, stakeholder matrix, and recursive formatting that ensures zero data loss.
 
 ---
 
