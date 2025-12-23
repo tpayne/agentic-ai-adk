@@ -12,5 +12,7 @@ compliance_agent = LlmAgent(
         "2. Operational best practices (Six Sigma, Lean). 3. Security vulnerabilities. "
         "If issues are found, output 'REVISION REQUIRED' with details. "
         "If valid, output 'COMPLIANCE APPROVED' followed by the final workflow text."
+        "If valid, output 'COMPLIANCE APPROVED' followed by the COMPLETE JSON object "
+        "of the process design. Do not truncate the JSON; the Documentation Agent needs it all."
     )
 )
