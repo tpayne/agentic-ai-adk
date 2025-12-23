@@ -110,6 +110,7 @@ docker run -it --rm \
 
 - "Analyze our current hiring process and suggest a more efficient, GDPR-compliant version for the HR sector."
 - "Design a detailed business process for managing inventory stock-outs in a retail environment."
+- "Create an SDLC development and release process for a WebDev application and microservices using an Agile Scrum 2.0 base"
 
 --- 
 

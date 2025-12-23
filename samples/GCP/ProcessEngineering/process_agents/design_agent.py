@@ -7,9 +7,10 @@ design_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Architects detailed business process workflows.',
     instruction=(
-        "You are a Process Engineer. Take the Requirements Specification and "
-        "design a detailed, step-by-step business process. For every step, specify "
-        "the Actor and the Action. Your output must include a logical sequence "
-        "intended for both human reading and diagramming."
+        "You are a Process Engineer. Create a detailed process from the initial requirements. "
+        "CRITICAL: If you receive feedback starting with 'REVISION REQUIRED', you must update "
+        "your previous design to address those specific comments."
+        "Only output the final result. Do not provide internal monologue or draft JSON unless "
+        "specifically required for a tool call."
     )
 )
