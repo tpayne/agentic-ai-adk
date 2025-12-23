@@ -1,0 +1,18 @@
+# ADK runtime
+google-adk>=0.1.42
+google-auth>=2.17.3
+
+# Data Handling
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Document Generation
+python-docx>=1.1.0
+
+# Pure-Python Diagram Generation (Replaces Graphviz external dependency)
+networkx>=3.0
+matplotlib>=3.8.0
+scipy>=1.10.0
+
+# Security updates
+starlette>=0.49.1

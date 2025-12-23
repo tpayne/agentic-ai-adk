@@ -46,6 +46,12 @@ jobs:
             test_cmd: |
               docker run --rm "$IMAGE_TAG"
 
+          - name: process_adk
+            context: samples/GCP/ProcessEngineering
+            tag: adkprocesseng:latest
+            test_cmd: |
+              echo "No runtime test available for Process Engineering sample."
+              
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
