@@ -128,7 +128,7 @@ The system follows a high-precision, four-stage autonomous pipeline designed to 
 
 ## Sample Prompts
 
-- "Analyze our current hiring process and suggest a more efficient, GDPR-compliant version for the HR sector."
+- "Create me an Enterprise Archotecture and Business enterprise architecture SDLC process. I need to be able to track EA decisions, outcomes, progress and escalate when required."
 - "Design a detailed business process for managing inventory stock-outs in a retail environment."
 - "Create an SDLC development and release process for a WebDev application and microservices using an Agile Scrum 2.0 base"
 

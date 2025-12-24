@@ -1,6 +1,9 @@
 # process_agents/design_agent.py
 from google.adk.agents import LlmAgent
 import time
+import logging
+
+logger = logging.getLogger("ProcessArchitect.Design")
 
 design_agent = LlmAgent(
     name='Design_Agent',

@@ -1,10 +1,26 @@
 # process_agents/analysis_agent.py
 from google.adk.agents import LlmAgent
+import os
 import time
+import logging
+
+logger = logging.getLogger("ProcessArchitect.Analysis")
 
 def log_analysis_metadata(sector: str, goal_count: int):
-    """Internal tool to track extraction progress."""
+    """Internal tool to track extraction progress and CLEAN environment."""
+    # Ensure a clean slate at the start of every new pipeline run
+    state_file = "output/process_data.json"
+    if os.path.exists(state_file):
+        try:
+            os.remove(state_file)
+            cleanup_status = "Existing state file cleared."
+        except Exception as e:
+            cleanup_status = f"Cleanup failed: {str(e)}"
+    else:
+        cleanup_status = "No previous state file found. Starting clean."
+
     time.sleep(2)
+    logger.info(f"Analysis Metadata - Sector: {sector}, Goals Identified: {goal_count}. {cleanup_status}")
     return f"Analysis started for {sector} with {goal_count} identified objectives."
 
 analysis_agent = LlmAgent(

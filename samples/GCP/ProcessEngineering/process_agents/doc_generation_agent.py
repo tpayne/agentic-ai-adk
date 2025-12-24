@@ -4,79 +4,16 @@ import docx
 from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+
 import os
 import json
-import re
-import networkx as nx
-import matplotlib.pyplot as plt
+
 from datetime import datetime
 import traceback
 
-# -----------------------------------
-# Utility: Generate simple flowchart
-# -----------------------------------
+import logging
 
-def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
-    """
-    Generates a simple flowchart using a list of strict 2-tuple pairs:
-    e.g. [["Start", "Step 1"], ["Step 1", "End"]]
-
-    EXPECTATION:
-    - edge_list_json is a JSON-encoded list of [from, to] pairs, derived
-      from the normalized JSON (e.g. from step order or phase sequence).
-      The LLM agent is responsible for deciding the most meaningful flow.
-    """
-    try:
-        os.makedirs("output", exist_ok=True)
-        filename = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
-
-        clean_edges = re.sub(
-            r'^```json\s*|```$',
-            '',
-            edge_list_json.strip(),
-            flags=re.MULTILINE
-        )
-
-        try:
-            edges_obj = json.loads(clean_edges)
-        except Exception:
-            traceback.print_exc()
-            return "None"
-
-        edges = []
-        if isinstance(edges_obj, list):
-            for item in edges_obj:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    edges.append((str(item[0]), str(item[1])))
-
-        if not edges:
-            return "None"
-
-        G = nx.DiGraph()
-        G.add_edges_from(edges)
-
-        plt.figure(figsize=(10, 6))
-        pos = nx.spring_layout(G)
-        nx.draw(
-            G,
-            pos,
-            with_labels=True,
-            node_color='lightblue',
-            edge_color='gray',
-            node_size=2500,
-            font_size=8,
-        )
-        try:
-            plt.tight_layout()
-        except Exception:
-            pass
-        plt.savefig(filename)
-        plt.close()
-        return filename
-    except Exception:
-        traceback.print_exc()
-        return "None"
-
+logger = logging.getLogger("ProcessArchitect.DocGen")
 
 # -----------------------------------
 # Helpers: Document building blocks
@@ -675,7 +612,10 @@ def create_standard_doc_from_file(process_name: str) -> str:
       * Render overview, stakeholders, workflow, tools, metrics, reporting,
         system requirements, flow diagram, and appendices.
     """
+    print(f"Creating document for process: {process_name}...")
+    logger.info(f"Creating document for process: {process_name}...")
     try:
+        logger.info(f"Loading process data from output/process_data.json...")
         with open("output/process_data.json", 'r', encoding="utf-8") as f:
             try:
                 raw_data = json.load(f)
@@ -817,21 +757,25 @@ def create_standard_doc_from_file(process_name: str) -> str:
 doc_generation_agent = LlmAgent(
     name="Document_Generation_Agent",
     model="gemini-2.0-flash-001",
-    description="Generates diagrams and Word documents from normalized JSON.",
+    description="Generates a professional Word document from normalized JSON.",
     instruction=(
         "You are a Documentation Automation Specialist.\n\n"
-        "Your task is to:\n"
-        "1. Read the normalized JSON already saved in process_data.json.\n"
-        "2. Infer a simple ordered flow from process_steps.\n"
-        "3. Call generate_clean_diagram with the process_name and edge list.\n"
-        "4. Call create_standard_doc_from_file with the process_name.\n\n"
-
-        "OUTPUT CONTRACT:\n"
-        "- You MUST NOT output any natural language except a final success message.\n"
-        "- You MUST NOT ask the user questions.\n"
-        "- You MUST call generate_clean_diagram FIRST.\n"
-        "- You MUST call create_standard_doc_from_file SECOND.\n"
-        "- After the second tool call, output a short confirmation message.\n"
+        "CONTEXT:\n"
+        "- The normalized process JSON has already been saved to output/process_data.json.\n"
+        "- A process flow diagram PNG may already exist in the output folder, generated "
+        "  by another agent.\n\n"
+        "YOUR TASK:\n"
+        "- Call create_standard_doc_from_file exactly once using the process_name.\n"
+        "- The function will:\n"
+        "    * Load output/process_data.json\n"
+        "    * Build a professional, structured Word document\n"
+        "    * Embed the flow diagram if the PNG exists\n\n"
+        "INTERACTION RULES:\n"
+        "- You MUST NOT ask the user any questions.\n"
+        "- You MUST NOT output intermediate natural language reasoning.\n"
+        "- After calling create_standard_doc_from_file, you may output a short final "
+        "  confirmation message summarizing success or failure.\n"
     ),
-    tools=[generate_clean_diagram, create_standard_doc_from_file]
+    tools=[create_standard_doc_from_file],
 )
+

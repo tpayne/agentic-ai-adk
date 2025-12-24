@@ -1,5 +1,8 @@
 # process_agents/compliance_agent.py
 from google.adk.agents import LlmAgent
+import logging
+
+logger = logging.getLogger("ProcessArchitect.Compliance")
 
 compliance_agent = LlmAgent(
     name='Compliance_Review_Agent',
