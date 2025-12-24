@@ -1,5 +1,6 @@
 # process_agents/json_normalizer_agent.py
 from google.adk.agents import LlmAgent
+from google.genai import types
 import os
 import re
 import traceback
@@ -11,6 +12,10 @@ logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 # -----------------------------
 # Utility: Save raw JSON input
 # -----------------------------
+def log_agent_activity(message: str):
+    """Internal tool to log agent progress for debugging."""
+    logger.debug(f"--- [DIAGNOSTIC] JSON_Normalizer: {message} ---")
+    return "Log recorded."
 
 def save_raw_data_to_json(json_content: str) -> str:
     """
@@ -21,8 +26,7 @@ def save_raw_data_to_json(json_content: str) -> str:
     - json_content is already a normalized, document-ready JSON string.
     """
     try:
-        logger.info("Normalization complete. Writing state to output/process_data.json")
-        print(f"Attempting to save normalized JSON data...")
+        logger.info("Saving normalized JSON to file...")
         os.makedirs("output", exist_ok=True)
         old_path = "output/process_data.json"
         clean_json = re.sub(
@@ -32,11 +36,11 @@ def save_raw_data_to_json(json_content: str) -> str:
             flags=re.MULTILINE
         )
 
-        path = "output/process_data.json"
-        with open(path, "w", encoding="utf-8") as f:
+        new_path = "output/process_data.json"
+        with open(new_path, "w", encoding="utf-8") as f:
             f.write(clean_json)
 
-        return path
+        return new_path
 
     except Exception:
         traceback.print_exc()
@@ -52,41 +56,29 @@ json_normalizer_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",
     instruction=(
-        "You are a Process Data Normalization Specialist. "
-        "Your EXCLUSIVE goal is to transform raw business process data into a stable schema "
-        "and save it using the 'save_raw_data_to_json' tool.\n\n"
+        "You are a Senior Process Architect. Your ONLY goal is to call the 'save_raw_data_to_json' tool.\n\n"
+        
+        "PHASE 1: LOGGING\n"
+        "Immediately call log_agent_activity('Starting Enrichment and Schema Mapping').\n\n"
 
-        "TOOL CALL PAYLOAD REQUIREMENTS:\n"
-        "The 'json_content' argument of your tool call MUST be a single, complete JSON object "
-        "following this schema:\n"
+        "PHASE 2: ENRICHMENT & MAPPING\n"
+        "Transform the input data into the following schema. You MUST expand every 'description' "
+        "and the 'introduction' into detailed paragraphs (Enrichment).\n"
         "{\n"
-        "  \"process_name\": string,\n"
-        "  \"version\": string,\n"
-        "  \"introduction\": string,\n"
-        "  \"stakeholders\": [...],\n"
-        "  \"process_steps\": [...],\n"
-        "  \"tools_summary\": {...},\n"
-        "  \"metrics\": [...],\n"
-        "  \"reporting_and_analytics\": {...},\n"
-        "  \"system_requirements\": [...],\n"
-        "  \"appendix\": {...}\n"
+        "  \"process_name\": string, \"version\": string, \"introduction\": string,\n"
+        "  \"stakeholders\": [], \"process_steps\": [], \"tools_summary\": {},\n"
+        "  \"metrics\": [], \"reporting_and_analytics\": {}, \n"
+        "  \"system_requirements\": [], \"appendix\": {}\n"
         "}\n\n"
 
-        "JSON STRICTNESS (MANDATORY):\n"
-        "- Argument must be valid, parseable JSON (json.loads() compatible).\n"
-        "- Use double quotes for all keys and strings. No single quotes.\n"
-        "- Do NOT output Python dictionaries; Do NOT use markdown fences (```json).\n\n"
-
-        "CONTENT QUALITY:\n"
-        "- Enrich vague sections with professional, auditable detail.\n"
-        "- Organize steps into a logical, sequential workflow.\n"
-        "- Map any content that cannot be categorized into the \"appendix\".\n\n"
-
-        "EXECUTION RULES:\n"
-        "- You MUST NOT respond with natural language or the JSON text itself.\n"
-        "- You MUST output ONLY the tool call to 'save_raw_data_to_json'.\n"
-        "- Place the entire normalized JSON object into the 'json_content' parameter.\n"
-        "- After the tool call is emitted, you MUST stop immediately."
+        "PHASE 3: EXECUTION\n"
+        "- Call 'save_raw_data_to_json' with the resulting JSON object.\n"
+        "- NO natural language output. NO markdown fences (```json).\n"
+        "- Your turn is complete ONLY after calling the tool."
     ),
-    tools=[save_raw_data_to_json]
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.0,
+        top_p=1,
+    ),
+    tools=[save_raw_data_to_json, log_agent_activity]
 )
