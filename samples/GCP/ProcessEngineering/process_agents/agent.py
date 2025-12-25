@@ -10,6 +10,7 @@ from .analysis_agent import analysis_agent
 from .design_agent import design_agent
 from .compliance_agent import compliance_agent
 from .json_normalizer_agent import json_normalizer_agent
+from .json_review_agent import json_review_agent
 from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 
@@ -75,16 +76,27 @@ review_loop = LoopAgent(
     max_iterations=5
 )
 
+json_normalization_loop = LoopAgent(
+    name="JSON_Normalization_Retry_Loop",
+    sub_agents=[
+        SequentialAgent(
+            name="Normalizer_Review_Sequence",
+            sub_agents=[json_normalizer_agent, json_review_agent]
+        )
+    ],
+    max_iterations=5
+)
+
 # Main Orchestrator
 # Added edge_inference_agent back into the sequence
 root_agent = SequentialAgent(
     name="Automated_Process_Architect_Pipeline",
     sub_agents=[
-        analysis_agent,        # Stage 1: Requirements
-        review_loop,           # Stage 2: Design/Audit Loop
-        json_normalizer_agent, # Stage 3: Stabilization (Writes process_data.json)
-        edge_inference_agent,  # Stage 4: Logical Flow (Writes flow.png)
-        doc_generation_agent   # Stage 5: Artifact Build (Writes .docx)
+        analysis_agent,          # Stage 1: Requirements
+        review_loop,             # Stage 2: Design/Audit Loop
+        json_normalization_loop, # Stage 3: Stabilization (Writes process_data.json)
+        edge_inference_agent,    # Stage 4: Logical Flow (Writes flow.png)
+        doc_generation_agent     # Stage 5: Artifact Build (Writes .docx)
     ]
 )
 
