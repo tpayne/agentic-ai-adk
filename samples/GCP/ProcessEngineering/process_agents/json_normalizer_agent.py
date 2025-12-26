@@ -1,35 +1,18 @@
 from google.adk.agents import LlmAgent
 from google.genai import types
+from google.adk.tools.tool_context import ToolContext
+from google.adk.agents.invocation_context import InvocationContext
 from pydantic import BaseModel
 import os, re, traceback, logging
 
 logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 
-
-def log_agent_activity(message: str):
-    logger.info(f"--- [DIAGNOSTIC] JSON_Normalizer: {message} ---")
-    return "Log recorded."
-
-
-def save_raw_data_to_json(json_content: str) -> str:
-    """Save the JSON to output/process_data.json."""
-    try:
-        logger.info("Saving normalized JSON to file...")
-        os.makedirs("output", exist_ok=True)
-
-        clean_json = re.sub(r'^```json\s*|```$', "", json_content.strip(), flags=re.MULTILINE)
-
-        path = "output/process_data.json"
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(clean_json)
-            f.flush()
-
-        return path
-
-    except Exception:
-        traceback.print_exc()
-        return "ERROR: Failed to save JSON"
-
+# --- Tool Definition ---
+def exit_loop(tool_context: ToolContext):
+    """Tool to exit the normalization loop when JSON is approved."""
+    logger.info("JSON approved. Exiting normalization loop.")
+    tool_context.actions.escalate = True
+    return {}
 
 # -----------------------------
 # JSON NORMALIZER AGENT
@@ -59,19 +42,19 @@ json_normalizer_agent = LlmAgent(
         "  \"appendix\": {}\n"
         "}\n\n"
 
-        "REVISION & LOOPING RULES:\n"
-        "- If you receive feedback starting with 'REVISION REQUIRED', update the previous "
-        "JSON object to address the specific critiques while maintaining all other enrichments.\n"
-        "- If you see 'JSON APPROVED' in the conversation history, your task is complete; "
-        "however, if prompted to generate, always output the full, final JSON.\n\n"
-
         "OUTPUT CONTRACT (STRICT):\n"
         "- Output ONLY the raw JSON object.\n"
         "- Do NOT use markdown code blocks (e.g., no ```json).\n"
         "- Do NOT include natural language, intro text, or 'here is the updated JSON'.\n"
         "- Ensure the JSON is valid, complete, and contains no trailing commas.\n"
         "- Your response must start with '{' and end with '}'."
+
+        "REVISION RULES:\n"
+        "- If you receive feedback starting with 'REVISION REQUIRED', update the previous "
+        "JSON object to address the specific critiques while maintaining all other enrichments.\n"
+        "- If you receive feedback starting with 'JSON APPROVED', then STOP.\n"
     ),
+    # tools=[exit_loop],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.8,
         top_p=1,

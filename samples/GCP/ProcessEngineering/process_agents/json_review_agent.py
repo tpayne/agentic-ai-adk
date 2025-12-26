@@ -27,10 +27,11 @@ json_review_agent = LlmAgent(
         "5. CONSISTENCY: Ensure tool names in 'tools_summary' match those mentioned in 'process_steps'.\n\n"
 
         "OUTPUT CONTRACT (STRICT):\n"
-        "- If any criteria fail, you MUST output exactly:\n"
+        "- If any criteria fail, you MUST collect together ALL the modifications needed to meet the criteria and output them\n"
+        "  exactly as the following JSON set:\n"
         "    REVISION REQUIRED\n"
-        "    {\"error_type\": \"string\", \"location\": \"json_path\", \"instruction\": \"detailed fix instruction\"}\n\n"
-        
+        "    [{\"error_type\": \"string\", \"line\": \"line_number\", \"location\": \"json_path\", \"instruction\": \"detailed fix instruction\"}]\n\n"
+
         "- If and ONLY if all criteria are met, output exactly:\n"
         "    JSON APPROVED\n"
         "    <THE FULL VALID JSON OBJECT>\n\n"

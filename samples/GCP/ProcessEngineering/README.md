@@ -2,6 +2,9 @@
 
 A specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering—from initial requirement analysis and logical design to compliance auditing and professional document generation.
 
+**NOTE**
+This ADK sample should be regarded as BETA quality only as the results is generates are unpredictable
+
 ## ⚙️ Features
 
 - **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" pipeline that moves from raw requirements to final artifacts without requiring manual intervention. The **Analysis Agent** sets the scope, the **Design/Compliance Loop** iteratively refines the logic, and the **Normalizer** locks the data for production.
@@ -23,32 +26,36 @@ A specialized multi-agent suite built on the Google Agent Development Kit (ADK).
 ## 🏗️ Repository Layout
 
 ```text
+.
 ├── Dockerfile
+├── examples
+│   ├── DataCentreMigration
+│   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
+│   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
+│   │   └── process_data.json
+│   └── EnergyProvider
+│       ├── Business_Customer_Incident_Management.docx
+│       └── process_data.json
 ├── output
-│   ├── agile_scrum_sdlc_for_web_development_flow.png
-│   ├── agile_scrum_sdlc_for_web_development_specification.docx
-│   ├── inventory_stock-out_management_flow.png
-│   ├── Inventory_Stock-Out_Management.docx
-│   └── process_data.json
+│   ├── data_center_migration_flow.png
+│   ├── Data_Center_Migration.docx
+│   └── logs
+│       ├── pipeline_20251226_023119.log
+│       └── runtime_errors.log
 ├── process_agents
 │   ├── __init__.py
-│   ├── __pycache__
-│   │   ├── __init__.cpython-314.pyc
-│   │   ├── agent.cpython-314.pyc
-│   │   ├── analysis_agent.cpython-314.pyc
-│   │   ├── compliance_agent.cpython-314.pyc
-│   │   ├── design_agent.cpython-314.pyc
-│   │   ├── doc_gen_agent.cpython-314.pyc
-│   │   ├── doc_generation_agent.cpython-314.pyc
-│   │   └── json_normalizer_agent.cpython-314.pyc
 │   ├── agent.py
 │   ├── analysis_agent.py
 │   ├── compliance_agent.py
 │   ├── design_agent.py
 │   ├── doc_generation_agent.py
-│   └── json_normalizer_agent.py
+│   ├── edge_inference_agent.py
+│   ├── json_normalizer_agent.py
+│   ├── json_review_agent.py
+│   └── json_writer_agent.py
 ├── README.md
 └── requirements.txt
+
 ```
 
 ---

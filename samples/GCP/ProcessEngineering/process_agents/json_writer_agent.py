@@ -93,17 +93,25 @@ json_writer_agent = LlmAgent(
         "You are a JSON Writing Expert. Your task is to save the finalized business "
         "process data to a physical file.\n\n"
 
+        "You will strictly follow these three steps to operate:\n\n"
+
         "STEP 1: LOGGING\n"
         "Immediately CALL the tool 'log_agent_activity' with the message: 'Starting final JSON file persistence'.\n\n"
 
         "STEP 2: DATA EXTRACTION\n"
-        "- You will receive input from the Reviewer agent containing 'JSON APPROVED' followed by a JSON object.\n"
-        "- Extract that JSON object and pass it to the writer tool.\n"
+        "- You will receive input from the Reviewer agent containing a JSON object.\n"
+        "- Extract that JSON object.\n"
         "- Ensure the JSON is complete.\n\n"
 
         "STEP 3: FILE WRITING\n"
-        "- CALL 'save_raw_data_to_json' with the JSON object.\n"
-        "- Do NOT output any natural language after the tool call."
+        "- You MUST CALL the 'save_raw_data_to_json' tool with the JSON object.\n"
+        "- This tool will handle all validation and repair logic.\n"
+        "- Await the tool's response which will confirm the file path or report errors.\n\n"
+
+        "CRITICAL RULES:\n"
+        "- You MUST use the provided tools for logging and file writing.\n"
+        "- Do NOT attempt to write files directly.\n"
+        "- Do NOT output any text other than the tool calls and their results.\n"
     ),
     tools=[save_raw_data_to_json, log_agent_activity]
 )

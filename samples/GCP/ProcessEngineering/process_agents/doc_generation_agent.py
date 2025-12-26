@@ -644,12 +644,18 @@ def create_standard_doc_from_file(process_name: str) -> str:
         appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
 
         consumed_keys = {
-            "process_name", "description", "process_description", "introduction", "version",
-            "industry_sector", "business_unit",
+            "process_name", 
+            "description", 
+            "process_description", 
+            "introduction", ""
+            "version",
+            "industry_sector", 
+            "business_unit",
             "stakeholders",
             "process_steps",
             "tools_summary",
-            "metrics", "success_metrics",
+            "metrics", 
+            "success_metrics",
             "reporting_and_analytics",
             "system_requirements",
             "appendix",
