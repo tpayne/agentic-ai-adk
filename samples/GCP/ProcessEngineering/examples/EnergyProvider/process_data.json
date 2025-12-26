@@ -1,0 +1,138 @@
+{
+  "reporting_and_analytics": {},
+  "system_requirements": [
+    "The Incident Management System (IMS) must support audit logging of all user actions, including authentication attempts, data modifications, and system configuration changes, with timestamps and user IDs. Audit logs must be securely stored and regularly reviewed.",
+    "All communication channels (phone, email, online portal, chat) must support encryption and secure authentication methods to protect customer data and prevent unauthorized access.",
+    "The IMS must be compliant with relevant data privacy regulations, including GDPR, and must have mechanisms in place to manage data subject rights (e.g., right to access, right to erasure).",
+    "The IMS must support role-based access control to restrict access to sensitive data and functions based on user roles and responsibilities.",
+    "The IMS must have robust backup and disaster recovery procedures in place to ensure data availability and business continuity in the event of a system failure or disaster."
+  ],
+  "process_name": "Business Customer Incident Management",
+  "introduction": "This document outlines the Business Customer Incident Management process designed for an electricity provider in the UK, focusing exclusively on business customers. This process is a structured, ITIL-aligned approach to managing and resolving electricity-related incidents reported by these business customers. The overarching goal is to ensure minimal disruption to their operations, strict adherence to service level agreements (SLAs), proactive communication, and continuous service improvement. These improvements are driven by data-driven insights and a robust problem management framework. The process emphasizes both immediate resolution of incidents and long-term prevention of recurring issues, contributing to a more reliable and satisfactory service experience for the electricity provider's business clientele.",
+  "metrics": [],
+  "version": "1.0",
+  "tools_summary": {
+    "SCADA": "Supervisory Control and Data Acquisition system used for real-time monitoring and control of the electricity network.",
+    "Customer Relationship Management (CRM)": "A system for managing customer interactions and data throughout the customer lifecycle, providing a centralized view of customer information and supporting personalized service.",
+    "Smart Meter Data": "Data collected from smart meters, providing real-time and historical information on electricity usage patterns.",
+    "Network Management System (NMS)": "A comprehensive system for monitoring and managing the electricity network infrastructure, including substations, transmission lines, and distribution networks.",
+    "Meter Data Management System (MDMS)": "A centralized system for managing and analyzing meter data, supporting accurate billing, load forecasting, and proactive issue detection.",
+    "Advanced Metering Infrastructure (AMI)": "Advanced metering infrastructure provides detailed meter readings and allows for remote monitoring and management of customer electricity consumption."
+  },
+  "appendix": {},
+  "stakeholders": [
+    {
+      "responsibilities": [
+        "Report electricity-related incidents promptly through designated channels (phone [dedicated 24/7 business support line], email [business.support@electricprovider.co.uk with guaranteed response within 1 hour], online portal [with secure login and real-time status updates], dedicated business support line), using available self-service options (e.g., power outage map, FAQ, troubleshooting guides) where appropriate.",
+        "Provide accurate and complete information regarding the incident, including location (site address and specific area/equipment affected with clear labeling), account number, contact details (name, phone number [primary and alternate], email address), time of occurrence, a detailed description of the issue (including any unusual observations, error messages, or equipment malfunctions), and the specific impact on their business operations (e.g., affected equipment, production downtime, financial losses, critical processes impacted).",
+        "Cooperate with the electricity provider during the investigation and resolution process, including providing safe and timely access to relevant facilities and data (e.g., smart meter data, on-site electrical diagrams, access codes), adhering to agreed safety protocols (wearing appropriate PPE, following safety instructions), and providing a designated on-site contact (with decision-making authority) for clear and efficient communication.",
+        "Provide timely feedback on the resolution and overall satisfaction with the incident handling process, participating in post-incident surveys (within 24 hours of resolution via automated email), providing direct feedback to the Account Manager (during regular business reviews), and escalating any unresolved issues or concerns through established escalation channels (clearly defined in the SLA)."
+      ],
+      "role": "Incident Reporter",
+      "stakeholder_name": "Business Customer"
+    },
+    {
+      "responsibilities": [
+        "Receive and log incident reports from business customers via all designated channels, adhering to established service standards for response times (e.g., answering calls within 3 rings, responding to emails within 1 hour) and maintaining a professional and courteous demeanor at all times.",
+        "Verify customer identity and account details using multi-factor authentication methods (e.g., account number, security question, registered phone number, verification code sent via SMS).",
+        "Collect all necessary information to accurately categorize and prioritize incidents based on impact (financial [estimated revenue loss], operational [disruption to critical processes], safety [potential hazards], reputational [potential negative publicity]), urgency (time sensitivity, potential for escalation), and service level agreement (SLA) commitments (response times, resolution targets, guaranteed uptime).",
+        "Provide an initial assessment of the incident's potential impact and urgency, escalating incidents with immediate safety implications (e.g., downed power lines), critical business impact (e.g., complete power outage for a hospital or data center), potential SLA breaches (e.g., exceeding maximum downtime), or incidents requiring immediate attention as a top priority.",
+        "Assign a unique incident ID and communicate it to the customer along with the expected next steps (including initial troubleshooting steps the customer can take), estimated initial response time (with a specific timeframe), and contact information for follow-up (including the name and direct line of the assigned TSE, if available, and a link to the online portal for real-time status updates).",
+        "Escalate urgent, high-impact incidents immediately to Technical Support (via automated alerts and phone calls), the relevant Account Manager (with a detailed summary of the incident and potential business impact within 15 minutes), the Out-of-Hours support team (if applicable), the Health & Safety department (if safety is compromised), and the relevant regulatory authorities (if required by law).",
+        "Maintain clear, professional, empathetic, proactive, and timely communication with the customer throughout the process, providing regular updates on progress (at least every 2 hours for critical incidents and every 4 hours for high-priority incidents), potential delays (with clear explanations and revised estimated completion times), and any changes to the resolution plan (with documented justification and customer approval)."
+      ],
+      "role": "Incident Logger & Initial Assessor",
+      "stakeholder_name": "Customer Service Representative (CSR)"
+    },
+    {
+      "responsibilities": [
+        "Investigate the root cause of reported incidents using available data from multiple sources: remote monitoring tools (SCADA system, advanced metering infrastructure), system logs (event logs, error messages, diagnostic reports), smart meter data (real-time readings, historical patterns, usage trends), weather forecasts (severe weather warnings, lightning strike data), historical incident records (knowledge base articles, past incident reports), and industry best practices (IEEE guidelines, industry standards).",
+        "Diagnose the technical issue and identify appropriate solutions, considering both short-term fixes to restore service quickly (workarounds, temporary repairs) and long-term preventative measures to avoid recurrence (permanent solutions, system upgrades), adhering to established change management procedures (risk assessment, impact analysis, testing, approval).",
+        "Implement solutions remotely whenever possible, using secure remote access tools (VPN, SSH, multi-factor authentication) and following documented procedures (runbooks, standard operating procedures), or dispatch a field technician if on-site intervention is required (following dispatch protocols, safety procedures, and authorization workflows).",
+        "Communicate technical details, progress updates, and resolution plans clearly to the CSR, Account Manager, and the customer, using non-technical language where appropriate, managing expectations realistically, providing estimated restoration times with confidence intervals, and explaining the rationale behind the chosen solution.",
+        "Document all investigation steps, diagnostic findings, resolution actions, system configurations, and any deviations from standard procedures in the incident management system with sufficient detail for future reference, knowledge sharing, auditability, compliance reporting, and problem management analysis.",
+        "Escalate complex, unresolved, or systemic incidents to Specialist Technical Teams (e.g., Network Operations, Protection Engineering, Substation Maintenance, System Planning), providing comprehensive documentation (including detailed technical reports, diagnostic data, and proposed solutions), a clear handover, and actively collaborating on problem resolution, participating in root cause analysis meetings, and contributing to the development of preventative measures."
+      ],
+      "stakeholder_name": "Technical Support Engineer (TSE)",
+      "role": "Incident Investigator & Resolver"
+    },
+    {
+      "responsibilities": [
+        "Travel to the customer's site promptly to investigate and resolve electricity-related issues that cannot be resolved remotely, adhering to pre-defined response times (based on SLA and incident severity), stringent safety protocols (lockout/tagout procedures, electrical safety guidelines), and all applicable regulatory requirements.",
+        "Perform on-site inspections, repairs, replacements, and maintenance as needed, adhering to strict safety protocols (wearing appropriate PPE, following safety instructions), industry best practices (IEEE standards, electrical codes), company procedures (safety manuals, operating procedures), and environmental regulations (waste disposal, spill prevention).",
+        "Communicate findings and actions taken to the Technical Support Engineer, providing detailed reports (including photos and diagrams, accurate measurements, and documentation of all work performed), using mobile tools for real-time updates, and following established communication protocols.",
+        "Ensure minimal disruption to the customer's operations while carrying out on-site work, coordinating access with the designated on-site contact, minimizing downtime through efficient work practices, using appropriate equipment, and communicating progress updates regularly.",
+        "Document all work performed, materials used (with serial numbers and specifications), equipment status (before and after repair), and any safety concerns (near misses, potential hazards, safety violations) in the incident management system, using mobile tools for real-time updates, capturing customer sign-off upon completion, and adhering to all documentation requirements."
+      ],
+      "stakeholder_name": "Field Technician",
+      "role": "On-site Resolver"
+    },
+    {
+      "responsibilities": [
+        "Maintain proactive communication with key business customers, especially during major incidents, providing personalized support, addressing any concerns, acting as their trusted advisor, understanding their business priorities, and ensuring their needs are met throughout the incident lifecycle.",
+        "Provide regular updates on incident resolution progress, estimated timelines, potential impacts on the customer's business operations (including financial implications, production delays, contractual obligations), and any available workarounds or contingency plans (e.g., temporary generator supply, alternative power sources).",
+        "Act as a point of escalation for critical incidents affecting key accounts, ensuring timely and effective resolution, advocating for the customer's needs within the organization, facilitating communication between technical teams and the customer's management, and resolving any conflicts or disputes.",
+        "Address any commercial concerns, service-related inquiries, or contractual issues arising from the incident, negotiating solutions (e.g., service credits, compensation for losses, contract adjustments), resolving disputes fairly, ensuring customer satisfaction, and protecting the company's interests.",
+        "Gather feedback from key accounts to continuously improve incident management processes, overall service delivery, and customer satisfaction, proactively identifying opportunities for service enhancement, account growth, strengthening the relationship, and building customer loyalty."
+      ],
+      "stakeholder_name": "Account Manager",
+      "role": "Key Account Liaison & Escalation Point"
+    },
+    {
+      "stakeholder_name": "Specialist Technical Teams",
+      "responsibilities": [
+        "Provide specialized expertise and advanced troubleshooting capabilities for resolving complex, unusual, or recurring electricity-related incidents that require in-depth analysis, innovative solutions, collaboration across multiple disciplines, and a deep understanding of the electricity network.",
+        "Conduct in-depth analysis and root cause investigations to identify systemic issues, vulnerabilities in the electricity network (e.g., design flaws, aging infrastructure, inadequate protection), underlying causes of recurring incidents, and potential for proactive intervention, using advanced diagnostic tools and analytical techniques.",
+        "Develop and implement advanced solutions, preventative maintenance strategies, system upgrades, proactive monitoring techniques (e.g., predictive analytics, machine learning, anomaly detection), and design improvements to address specific technical challenges, prevent future incidents, improve system reliability, and enhance overall network performance.",
+        "Collaborate with other teams to ensure effective incident resolution, knowledge sharing, consistent application of best practices, and the development of standardized procedures (runbooks, standard operating procedures) to improve incident response and problem management capabilities.",
+        "Document all findings, solutions, preventative measures, system improvements, and lessons learned in the incident management system and knowledge base, contributing to continuous service improvement, proactive problem management, the development of best practices, and the dissemination of knowledge throughout the organization."
+      ],
+      "role": "Complex Incident Resolution & Systemic Issue Management"
+    }
+  ],
+  "process_steps": [
+    {
+      "input": "Incident details from customer",
+      "step_number": 1,
+      "step_name": "Incident Reporting",
+      "activities": [
+        "Customer attempts to resolve the issue using self-service options (e.g., online knowledge base, power outage map, troubleshooting guides, automated diagnostics) and checks for known issues in their area before contacting the electricity provider.",
+        "If self-service is unsuccessful, the customer initiates contact with the electricity provider via phone (dedicated 24/7 business support line with minimal wait times), email (business.support@electricprovider.co.uk with guaranteed response within 1 hour), or online portal (using their secure login credentials for access to personalized information and real-time status updates).",
+        "Customer provides detailed information about the incident, including location (site address and specific area/equipment affected with clear labeling), account number, contact details (name, phone number [primary and alternate], email address), time of occurrence, a detailed description of the issue, and the specific impact on their operations (e.g., affected equipment, production downtime with estimated financial losses, critical processes impacted).",
+        "Customer receives confirmation of receipt (via email and SMS) and a reference number for the incident, along with an estimated initial response time (based on incident severity and SLA) and instructions on any immediate safety precautions to take."
+      ],
+      "output": "Incident report with reference number, estimated response time, confirmation of receipt, and safety instructions",
+      "step_description": "The initial phase of the incident management process involves the business customer actively reporting any electricity-related disruptions or anomalies they experience. This critical step ensures that the electricity provider is promptly alerted to potential issues affecting business operations. Customers are encouraged to leverage available self-service resources, such as online knowledge bases and power outage maps, to potentially resolve common problems independently. If self-service options prove insufficient, customers are expected to utilize the designated communication channels to report the incident, providing comprehensive information that will facilitate an efficient and effective resolution process."
+    },
+    {
+      "step_number": 2,
+      "step_name": "Incident Logging & Triage",
+      "step_description": "Upon receiving an incident report, the Customer Service Representative (CSR) plays a vital role in logging the incident accurately within the designated incident management system. This stage involves more than just recording the reported issue; it also includes a thorough initial assessment or triage process. The CSR carefully categorizes the incident based on its potential impact, urgency, and the specific service level agreement (SLA) in place with the business customer. This initial triage is critical for prioritizing incidents and ensuring that resources are allocated effectively to address the most pressing issues first, thereby minimizing disruption to business operations and upholding contractual obligations.",
+      "activities": [
+        "CSR receives the incident report and verifies customer identity and account details using multi-factor authentication methods to ensure data security and prevent unauthorized access. The IMS supports multi-factor authentication including one-time passwords sent via SMS, verification codes generated by authenticator apps, and knowledge-based security questions. The system should log ALL authentication attempts, successful or failed, with timestamps and user IDs.",
+        "CSR logs the incident in the incident management system (ServiceNow, Remedy), assigning a unique incident ID, capturing all relevant customer information (contact details, service contract, site details, equipment inventory), and documenting the customer's description of the incident. Customer details are pulled from the Customer Relationship Management (CRM) system, linked to the provided account number. The system should automatically record the CSR's user ID and the date/time of logging.",
+        "CSR collects additional information if needed to accurately categorize and prioritize the incident, using a standardized set of questions and criteria (impact, urgency, SLA, safety, regulatory requirements) and leveraging available data sources. Questions include: precise location of the issue within the business premises, specific equipment affected, any error codes displayed, potential safety hazards, and a detailed description of the impact on business operations, including estimated downtime and financial losses. Data sources include: real-time power consumption data, voltage levels, and power quality metrics from the Meter Data Management System (MDMS); and network status, equipment health, and alarm data from the Network Management System (NMS). The questions asked and the customer's answers should be recorded in the incident record.",
+        "CSR assesses the incident's potential impact and urgency based on predefined criteria (financial loss [potential revenue loss per hour of downtime], operational downtime [disruption to critical processes, number of employees affected], safety risk [potential for electrical hazards, equipment malfunctions], reputational damage [potential negative publicity, impact on customer relationships], contractual obligations [SLA penalties for exceeding downtime limits]). The rationale for the assigned priority should be documented in the incident record.",
+        "CSR assigns an initial severity level (e.g., Critical, High, Medium, Low) based on the impact assessment, SLA commitments (specific response and resolution times outlined in the customer's contract), and escalation guidelines, and routes the incident to the appropriate Technical Support team based on skills, availability, pre-defined escalation rules, and automated routing capabilities. Automated routing capabilities utilize a skills-based routing engine that considers the TSE's expertise in resolving similar incidents, their current workload, and their geographical proximity to the customer's site to optimize response times. Real-time availability of TSEs is tracked via the integrated workforce management system. The routing decision and the team to which the incident is assigned should be recorded.",
+        "CSR communicates the incident ID, severity level, expected next steps, estimated response time (based on SLA and resource availability), contact information (including the name and direct line of the assigned TSE, if available), and a link to the online portal for real-time status updates to the customer, setting clear expectations and ensuring transparency. Clear expectations include providing specific timeframes for updates and resolution, and outlining the escalation path if the customer is not satisfied. A record of this communication should be stored (e.g., email sent, SMS confirmation).",
+        "Urgent, high-impact incidents are immediately escalated to Technical Support (via automated alerts, phone calls, and SMS notifications), the relevant Account Manager (with a detailed summary of the incident and potential business impact within 15 minutes), the Out-of-Hours support team (if applicable), the Health & Safety department (if safety is compromised), and the relevant regulatory authorities (if required by law or contractual obligations). The time and method of escalation, and to whom it was escalated, must be recorded."
+      ],
+      "input": "Incident report",
+      "output": "Logged incident with assigned ID, severity, priority, routing information, escalation alerts, initial customer communication, and comprehensive documentation"
+    },
+    {
+      "output": "Root cause analysis, diagnosis of the electrical issue, proposed resolution strategy (remote fix or on-site repair), dispatch order for Field Technician (if required), and comprehensive documentation of the investigation process.",
+      "activities": [
+        "The TSE reviews the incident details, customer history, service level agreement, and all data gathered during the Incident Logging & Triage step. This includes reviewing the customer's description of the problem, the assessed impact and urgency, smart meter data, network monitoring information, and any relevant notes from the CSR.",
+        "The TSE analyzes data from remote monitoring tools such as the SCADA system, advanced metering infrastructure (AMI), and system logs to identify potential causes of the incident. This may involve examining real-time power consumption data, voltage levels, power quality metrics, equipment health indicators, and alarm data.",
+        "The TSE may contact the customer to gather additional information about the incident, such as specific equipment affected, error codes displayed, or any unusual observations. The TSE uses secure remote access tools to perform diagnostics on the customer's electrical systems, if necessary and with the customer's consent.",
+        "If remote diagnostics are insufficient, the TSE may dispatch a Field Technician to the customer's site to conduct on-site investigations and testing. The TSE provides the Field Technician with clear instructions, safety guidelines, and relevant technical information to facilitate the on-site investigation.",
+        "The TSE meticulously documents all investigation steps taken, diagnostic findings, potential solutions considered, and the final diagnosis in the incident management system (IMS). This documentation ensures a comprehensive record of the investigation process for future reference and analysis."
+      ],
+      "input": "Logged incident details, customer history, service level agreement, data from MDMS and NMS, notes from CSR.",
+      "step_description": "Following the logging and triage of the incident, the Technical Support Engineer (TSE) undertakes a thorough investigation and diagnosis to identify the root cause of the reported electrical issue. This critical step involves a detailed analysis of available data, leveraging diagnostic tools, and potentially engaging with the customer to gather further information. The goal is to accurately pinpoint the source of the problem, enabling the selection and implementation of the most appropriate resolution strategy while minimizing further disruption to the customer's business operations.",
+      "step_name": "Technical Investigation & Diagnosis",
+      "step_number": 3
+    }
+  ]
+}
