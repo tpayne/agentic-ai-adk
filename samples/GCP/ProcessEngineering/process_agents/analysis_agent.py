@@ -40,6 +40,9 @@ analysis_agent = LlmAgent(
         "- stakeholders and their responsibilities\n"
         "- success_metrics\n"
         "- process_goals\n"
+        "- process_steps with detailed descriptions\n"
+        "- system_requirements\n"
+        "- reporting_and_analytics needs\n"
         "- constraints\n"
         "- assumptions\n\n"
         
