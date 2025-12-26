@@ -9,6 +9,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import logging
 from typing import List, Tuple, Any, Dict
+import sys
 
 logger = logging.getLogger("ProcessArchitect.EdgeInference")
 
@@ -60,7 +61,7 @@ def _order_steps(steps: list[dict]) -> list[dict]:
     Priority:
     1) step_number (numeric)
     2) step_id (numeric or numeric-string)
-    3) step (numeric)              <-- added for schemas like the Scrum example
+    3) step (numeric)
     4) original list order
     """
     if not steps:
@@ -83,7 +84,7 @@ def _order_steps(steps: list[dict]) -> list[dict]:
     if any("step_id" in s for s in steps):
         return sorted(steps, key=lambda s: _parse_id(s.get("step_id")))
 
-    # 3) step (e.g. your Simple Scrum Process JSON)
+    # 3) step
     if any("step" in s for s in steps):
         with_step = [s for s in steps if isinstance(s.get("step"), (int, float))]
         without_step = [s for s in steps if not isinstance(s.get("step"), (int, float))]
@@ -124,6 +125,68 @@ def _normalize_node_label(name: str) -> str:
 
 
 # ============================================================
+#  LABEL ENRICHMENT
+# ============================================================
+
+def _shorten(text: str, max_len: int = 80) -> str:
+    text = text.strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 3].rstrip() + "..."
+
+
+def _extract_step_metrics(step: dict) -> List[str]:
+    """
+    Extract up to 1 metric name from a step-level metrics structure.
+    """
+    metrics = step.get("metrics")
+    if not metrics:
+        return []
+
+    names: List[str] = []
+    if isinstance(metrics, dict):
+        names = list(metrics.keys())
+    elif isinstance(metrics, list):
+        for m in metrics:
+            if isinstance(m, str):
+                names.append(m)
+            elif isinstance(m, dict):
+                n = m.get("name") or m.get("metric_name")
+                if isinstance(n, str) and n.strip():
+                    names.append(n.strip())
+
+    seen = set()
+    deduped = []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            deduped.append(n)
+    return deduped[:1]  # keep it tight
+
+
+def _build_enriched_label(base_name: str, step: dict) -> str:
+    """
+    Build an enriched multi-line label, but intentionally compact:
+
+    base_name
+    Duration: <estimated_duration>
+    Metric: <m1>
+    """
+    lines = [base_name]
+
+    duration = step.get("estimated_duration") or step.get("duration")
+    if isinstance(duration, str) and duration.strip():
+        lines.append(f"Duration: {_shorten(duration, 40)}")
+
+    metric_names = _extract_step_metrics(step)
+    if metric_names:
+        lines.append(f"Metric: {_shorten(metric_names[0], 40)}")
+
+    # Leaving out success criteria here to avoid vertical sprawl.
+    return "\n".join(lines)
+
+
+# ============================================================
 #  DEPENDENCY RESOLUTION (GENERIC)
 # ============================================================
 
@@ -140,22 +203,18 @@ def _build_id_index(steps: list[dict]) -> Dict[str, dict]:
         if not isinstance(s, dict):
             continue
 
-        # step_number
         if "step_number" in s:
             val = s.get("step_number")
             index[f"step_number:{val}"] = s
 
-        # step_id
         if "step_id" in s:
             val = s.get("step_id")
             index[f"step_id:{val}"] = s
 
-        # step
         if "step" in s:
             val = s.get("step")
             index[f"step:{val}"] = s
 
-        # step_name / name
         name = s.get("step_name") or s.get("name")
         if isinstance(name, str) and name.strip():
             index[f"step_name:{name.strip()}"] = s
@@ -187,29 +246,26 @@ def _resolve_dependency(dep: Any, index: Dict[str, dict]) -> dict | None:
 #  EDGE INFERENCE (GENERIC + HARD FALLBACK)
 # ============================================================
 
-def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[str, str]]:
+def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[str, str], Dict[str, str]]:
     """
     Infer:
     - process_name
     - edges (linear + branching)
-    - lane_map (node -> lane)
+    - lane_map (base_name -> lane)
+    - label_map (base_name -> enriched_label)
 
     ALWAYS returns at least one edge.
-
-    For schemas like your Simple Scrum Process, this will produce a
-    meaningful linear flow through the named steps.
     """
     data = _load_process_json()
     if not data or not isinstance(data, dict):
-        return "process", [("Start", "End")], {"Start": "Process", "End": "Process"}
+        return "process", [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     process_name = data.get("process_name") or "process"
 
     raw_steps = data.get("process_steps") or []
     if not isinstance(raw_steps, list):
-        return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}
+        return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
-    # Collect valid steps
     valid_steps: List[dict] = []
     for s in raw_steps:
         if isinstance(s, dict):
@@ -217,40 +273,40 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
             if isinstance(name, str) and name.strip():
                 valid_steps.append(s)
         elif isinstance(s, str) and s.strip():
-            # allow list of bare strings as step names too
             valid_steps.append({"name": s.strip()})
 
     if not valid_steps:
-        return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}
+        return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     ordered_steps = _order_steps(valid_steps)
 
-    # Node labels + lanes
     node_labels: List[str] = []
     lane_map: Dict[str, str] = {}
+    label_map: Dict[str, str] = {}
     for s in ordered_steps:
         raw_name = s.get("step_name") or s.get("name")
         if not isinstance(raw_name, str):
             continue
-        label = _normalize_node_label(raw_name)
-        if not label:
+        base_label = _normalize_node_label(raw_name)
+        if not base_label:
             continue
-        if label not in node_labels:
-            node_labels.append(label)
-        lane_map[label] = _get_lane(s)
+        if base_label not in node_labels:
+            node_labels.append(base_label)
+        lane_map[base_label] = _get_lane(s)
+        label_map[base_label] = _build_enriched_label(base_label, s)
 
-    # Base linear edges
     edges: List[Tuple[str, str]] = []
     if len(node_labels) == 1:
         only = node_labels[0]
         edges = [("Start", only), (only, "End")]
         lane_map["Start"] = "Process"
         lane_map["End"] = "Process"
+        label_map.setdefault("Start", "Start")
+        label_map.setdefault("End", "End")
     else:
         for i in range(len(node_labels) - 1):
             edges.append((node_labels[i], node_labels[i + 1]))
 
-    # Branching edges (if any dependencies exist)
     id_index = _build_id_index(ordered_steps)
     for s in ordered_steps:
         this_name = s.get("step_name") or s.get("name")
@@ -275,24 +331,32 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
                 if edge not in edges:
                     edges.append(edge)
 
-    # Absolute fallback
     if not edges:
         edges = [("Start", "End")]
         lane_map["Start"] = "Process"
         lane_map["End"] = "Process"
+        label_map.setdefault("Start", "Start")
+        label_map.setdefault("End", "End")
 
-    return process_name, edges, lane_map
+    return process_name, edges, lane_map, label_map
 
 
 # ============================================================
-#  LAYOUT (SWIMLANES)
+#  LAYOUT (SWIMLANES + SIMPLE)
 # ============================================================
 
-def _compute_positions(edges: List[Tuple[str, str]], lane_map: Dict[str, str]):
+def _compute_swimlane_positions(
+    edges: List[Tuple[str, str]],
+    lane_map: Dict[str, str],
+    x_spacing: float = 3.0,
+    y_spacing: float = 3.0,
+) -> Dict[str, Tuple[float, float]]:
     """
     Swimlane layout:
-    - y-axis = lane
-    - x-axis = sequence order
+    - y-axis = lane * y_spacing
+    - x-axis = sequence index * x_spacing
+
+    Uses tunable spacing to reduce overlap.
     """
     nodes: List[str] = []
     for s, d in edges:
@@ -312,10 +376,21 @@ def _compute_positions(edges: List[Tuple[str, str]], lane_map: Dict[str, str]):
 
     pos: Dict[str, Tuple[float, float]] = {}
     for lane, items in lane_positions.items():
-        y = float(lane_y[lane])
+        y = lane_y[lane] * y_spacing
         for i, n in enumerate(items):
-            pos[n] = (float(i), y)
+            x = i * x_spacing
+            pos[n] = (x, y)
 
+    return pos
+
+
+def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]]:
+    """
+    Simple spring layout when we don't really have meaningful lanes.
+    """
+    G = nx.DiGraph()
+    G.add_nodes_from(nodes)
+    pos = nx.spring_layout(G, seed=42)
     return pos
 
 
@@ -325,21 +400,18 @@ def _compute_positions(edges: List[Tuple[str, str]], lane_map: Dict[str, str]):
 
 def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
     """
-    Generates a BPMN-style swimlane diagram.
+    Generates a BPMN-style diagram with auto-selected layout.
 
-    ALWAYS produces a diagram, even if:
-    - JSON missing
-    - process_steps empty
-    - LLM output invalid
+    Layout selection:
+    - If multiple lanes -> vertical swimlane layout.
+    - If only one lane -> simple spring layout.
 
-    For your current Simple Scrum Process JSON, this will generate a
-    meaningful flow through the named steps instead of just Start→End.
+    ALWAYS produces a diagram.
     """
     try:
-        inferred_name, inferred_edges, lane_map = _infer_edges_from_json()
+        inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
         final_name = inferred_name or process_name or "process"
 
-        # Optional LLM edges (ignored unless valid)
         parsed_edges: List[Tuple[str, str]] = []
         if isinstance(edge_list_json, str) and edge_list_json.strip():
             clean = re.sub(r'^```json\s*|```$', '', edge_list_json.strip(), flags=re.MULTILINE)
@@ -357,63 +429,158 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
             except Exception:
                 logger.warning("LLM edge list invalid; ignoring")
 
-        # Prefer inferred edges
         edges = inferred_edges or parsed_edges or [("Start", "End")]
 
-        # Build graph
         G = nx.DiGraph()
         G.add_edges_from(edges)
 
-        # Ensure lane_map covers all nodes
         for n in G.nodes():
             lane_map.setdefault(n, "Process")
+            label_map.setdefault(n, n)
 
-        # Layout
-        pos = _compute_positions(edges, lane_map)
-
-        # BPMN-style coloring
         in_deg = dict(G.in_degree())
         out_deg = dict(G.out_degree())
-        colors: List[str] = []
-        for n in G.nodes():
-            if in_deg.get(n, 0) == 0 and out_deg.get(n, 0) > 0:
-                colors.append("green")   # Start-like
-            elif out_deg.get(n, 0) == 0 and in_deg.get(n, 0) > 0:
-                colors.append("red")     # End-like
-            elif out_deg.get(n, 0) > 1:
-                colors.append("orange")  # Gateway-like
-            else:
-                colors.append("lightblue")
+        nodes_in_cycles = set()
+        try:
+            for cycle in nx.simple_cycles(G):
+                for node in cycle:
+                    nodes_in_cycles.add(node)
+        except Exception:
+            pass
+
+        lanes = sorted(set(lane_map.values()))
+        use_swimlanes = len(lanes) > 1
+
+        if use_swimlanes:
+            max_nodes_per_lane = max(
+                sum(1 for n in G.nodes() if lane_map.get(n, "Process") == lane)
+                for lane in lanes
+            )
+            x_spacing = 3.0
+            y_spacing = 3.0
+            pos = _compute_swimlane_positions(edges, lane_map, x_spacing=x_spacing, y_spacing=y_spacing)
+
+            width = max(10.0, max_nodes_per_lane * 2.5)
+            height = max(6.0, len(lanes) * 1.5)
+        else:
+            pos = _compute_simple_positions(list(G.nodes()))
+            width = 10.0
+            height = 7.0
 
         os.makedirs("output", exist_ok=True)
         filename = f"output/{final_name.lower().replace(' ', '_')}_flow.png"
 
-        plt.figure(figsize=(14, 7))
+        plt.figure(figsize=(width, height))
 
-        # Draw swimlane backgrounds
-        lanes = sorted(set(lane_map.values()))
-        yvals = {lane: idx for idx, lane in enumerate(lanes)}
-        xmin = -0.5
-        xmax = max((p[0] for p in pos.values()), default=0) + 0.5
+        if use_swimlanes:
+            yvals = {lane: idx for idx, lane in enumerate(lanes)}
 
-        for lane, y in yvals.items():
-            plt.axhspan(y - 0.5, y + 0.5, facecolor="#f5f5f5", alpha=0.4)
-            plt.text(xmin - 0.3, y, lane, va="center", ha="right", fontsize=8, rotation=90)
+            if pos:
+                xs = [p[0] for p in pos.values()]
+                min_x, max_x = min(xs), max(xs)
+            else:
+                min_x = max_x = 0.0
 
-        plt.xlim(xmin - 0.5, xmax + 0.5)
-        plt.ylim(-0.5, len(lanes) - 0.5)
+            lane_label_margin = 4.0
+            xmin = min_x - 1.0
+            xmax = max_x + 1.0
 
-        # Draw graph
-        nx.draw(
-            G, pos,
-            with_labels=True,
-            node_color=colors,
+            for lane, row in yvals.items():
+                y = row * 3.0
+                plt.axhspan(y - 1.5, y + 1.5, facecolor="#f5f5f5", alpha=0.3)
+                plt.text(
+                    xmin - lane_label_margin,
+                    y,
+                    lane,
+                    va="center",
+                    ha="right",
+                    fontsize=9,
+                    bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
+                )
+
+            plt.xlim(xmin - lane_label_margin, xmax + 1.0)
+            ymin = -1.5
+            ymax = (len(lanes) - 1) * 3.0 + 1.5
+            plt.ylim(ymin, ymax)
+        else:
+            if pos:
+                xs = [p[0] for p in pos.values()]
+                ys = [p[1] for p in pos.values()]
+                xmin, xmax = min(xs), max(xs)
+                ymin, ymax = min(ys), max(ys)
+            else:
+                xmin = ymin = -1.0
+                xmax = ymax = 1.0
+            pad = 0.5
+            plt.xlim(xmin - pad, xmax + pad)
+            plt.ylim(ymin - pad, ymax + pad)
+
+        if G.nodes():
+            max_label_len = max(len(label_map.get(n, str(n))) for n in G.nodes())
+        else:
+            max_label_len = 10
+
+        font_size = max(6, min(10, int(180 / max_label_len)))
+        node_size = max(3500, min(8000, 140 * max_label_len))
+
+        colors: List[str] = []
+        for n in G.nodes():
+            if n in nodes_in_cycles:
+                colors.append("purple")
+            elif out_deg.get(n, 0) > 1:
+                colors.append("orange")
+            elif in_deg.get(n, 0) == 0 and out_deg.get(n, 0) > 0:
+                colors.append("green")
+            elif out_deg.get(n, 0) == 0 and in_deg.get(n, 0) > 0:
+                colors.append("red")
+            else:
+                colors.append("lightblue")
+
+        loop_edges = []
+        normal_edges = []
+        for (u, v) in G.edges():
+            if u in nodes_in_cycles and v in nodes_in_cycles:
+                loop_edges.append((u, v))
+            else:
+                normal_edges.append((u, v))
+
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=normal_edges,
             edge_color="gray",
-            node_size=2500,
-            font_size=8,
             arrows=True,
             arrowstyle="->",
             arrowsize=12,
+        )
+
+        if loop_edges:
+            nx.draw_networkx_edges(
+                G,
+                pos,
+                edgelist=loop_edges,
+                edge_color="gray",
+                style="dashed",
+                arrows=True,
+                arrowstyle="->",
+                arrowsize=12,
+            )
+
+        nx.draw_networkx_nodes(
+            G,
+            pos,
+            node_color=colors,
+            node_size=node_size,
+        )
+
+        nx.draw_networkx_labels(
+            G,
+            pos,
+            labels=label_map,
+            font_size=font_size,
+            verticalalignment="center",
+            horizontalalignment="center",
+            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
         )
 
         plt.title(final_name)
@@ -485,3 +652,44 @@ edge_inference_agent = LlmAgent(
     ),
     tools=[generate_clean_diagram],
 )
+
+
+# ============================================================
+# __main__ TEST HARNESS (DIRECT EXECUTION WITHOUT LLM)
+# ============================================================
+if __name__ == "__main__":
+
+    print("\n=== Edge Inference Agent – Direct Test Harness ===")
+    if len(sys.argv) < 2:
+        print("Usage: python edge_inference_agent.py <path_to_json>")
+        print("Example: python edge_inference_agent.py sample.json")
+        sys.exit(1)
+
+    json_path = sys.argv[1]
+    if not os.path.exists(json_path):
+        print(f"ERROR: File not found: {json_path}")
+        sys.exit(1)
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"ERROR: Failed to parse JSON: {e}")
+        sys.exit(1)
+
+    os.makedirs("output", exist_ok=True)
+    with open("output/process_data.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print(f"Loaded JSON and wrote to output/process_data.json")
+
+    process_name, edges, lane_map, label_map = _infer_edges_from_json()
+    print("\nInferred process name:", process_name)
+    print("Inferred edges:")
+    for e in edges:
+        print(" ", e)
+
+    edges_json_str = json.dumps([[a, b] for a, b in edges])
+    print("\nGenerating diagram...")
+    result = generate_clean_diagram(process_name, edges_json_str)
+    print("\nDiagram saved to:", result)
+    print("=== Done ===\n")
