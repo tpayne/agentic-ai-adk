@@ -37,7 +37,7 @@ analysis_agent = LlmAgent(
         "STEP 3: REQUIREMENTS EXTRACTION\n"
         "Generate a single JSON object containing:\n"
         "- industry_sector\n"
-        "- stakeholders\n"
+        "- stakeholders and their responsibilities\n"
         "- success_metrics\n"
         "- process_goals\n"
         "- constraints\n"
