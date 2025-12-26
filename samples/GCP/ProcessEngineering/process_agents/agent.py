@@ -13,6 +13,7 @@ from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
+from .json_writer_agent import json_writer_agent
 
 # ---------------------------------------------------------
 # LOGGING SETUP
@@ -76,15 +77,16 @@ review_loop = LoopAgent(
     max_iterations=5
 )
 
-json_normalization_loop = LoopAgent(
+json_normalization_loop = SequentialAgent(
     name="JSON_Normalization_Retry_Loop",
     sub_agents=[
-        SequentialAgent(
+        LoopAgent(
             name="Normalizer_Review_Sequence",
-            sub_agents=[json_normalizer_agent, json_review_agent]
-        )
+            sub_agents=[json_normalizer_agent, json_review_agent],
+            max_iterations=10
+        ),
+        json_writer_agent
     ],
-    max_iterations=5
 )
 
 # Main Orchestrator

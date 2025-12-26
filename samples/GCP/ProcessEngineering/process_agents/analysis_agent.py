@@ -8,7 +8,7 @@ logger = logging.getLogger("ProcessArchitect.Analysis")
 
 def log_analysis_metadata(sector: str, goal_count: int):
     """Internal tool to track extraction progress and CLEAN environment."""
-    time.sleep(2)
+    time.sleep(1)
     logger.info(f"Analysis Metadata - Sector: {sector}, Goals Identified: {goal_count}.")
     return f"Analysis started for {sector} with {goal_count} identified objectives."
 
@@ -26,7 +26,7 @@ analysis_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Performs deep analysis of process descriptions.',
     instruction=(
-        "You are a Senior Business Analyst. You operate in three strict phases:\n\n"
+        "You are a Senior Business Analyst. You operate in three strict steps:\n\n"
         
         "STEP 1: TRACEABILITY (MANDATORY)\n"
         "Your very first action MUST be to CALL the tool 'record_analysis_request' with the user's raw input.\n\n"
