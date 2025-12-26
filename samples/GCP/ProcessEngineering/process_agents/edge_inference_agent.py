@@ -1,6 +1,7 @@
 # process_agents/edge_inference_agent.py
 
 from google.adk.agents import LlmAgent
+from google.genai import types
 import os
 import re
 import json
@@ -604,55 +605,40 @@ edge_inference_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Infers flowchart edges from normalized process JSON and generates a BPMN-style swimlane diagram.",
     instruction=(
-        "You are a Process Flow Inference Specialist.\n\n"
-        "CONTEXT:\n"
-        "- The normalized process JSON is stored in output/process_data.json.\n"
-        "- It ALWAYS follows this canonical high-level schema:\n"
-        "  {\n"
-        "    \"process_name\": string,\n"
-        "    \"version\": string,\n"
-        "    \"introduction\": string,\n"
-        "    \"stakeholders\": [],\n"
-        "    \"process_steps\": [],\n"
-        "    \"tools_summary\": {},\n"
-        "    \"metrics\": [],\n"
-        "    \"reporting_and_analytics\": {},\n"
-        "    \"system_requirements\": [],\n"
-        "    \"appendix\": {}\n"
-        "  }\n"
-        "- Each item in process_steps may contain fields like:\n"
-        "    - step_name or name (step label)\n"
-        "    - step_number, step_id, or step (ordering)\n"
-        "    - dependencies (for branching)\n"
-        "    - responsible_party or responsibleRole or lane (for swimlanes)\n\n"
-        "YOUR TASK:\n"
-        "- Conceptually infer a simple directed flow from process_steps.\n"
-        "- Use step_name or name as node labels.\n"
-        "- Order steps using:\n"
-        "    1) step_number if present\n"
-        "    2) step_id if present\n"
-        "    3) step if present\n"
-        "    4) list order\n"
-        "- Construct a JSON array of edges:\n"
-        "    [[\"A\", \"B\"], [\"B\", \"C\"]]\n"
-        "- If only one step exists, use:\n"
-        "    [[\"Start\", S], [S, \"End\"]]\n"
-        "- If no steps exist, use:\n"
-        "    [[\"Start\", \"End\"]]\n\n"
-        "IMPORTANT:\n"
-        "- Python will ALWAYS generate a diagram, even if your edges are empty or imperfect.\n"
-        "- But you MUST still output a valid JSON array of edges to the tool.\n\n"
-        "TOOL CALL CONTRACT:\n"
-        "- Call generate_clean_diagram exactly once.\n"
-        "- First argument: process_name.\n"
-        "- Second argument: your JSON array of edges, as a string.\n"
-        "- Do NOT wrap the JSON in markdown fences.\n"
-        "- Do NOT output any normal text or commentary.\n"
-        "- After the tool call, STOP.\n"
-    ),
-    tools=[generate_clean_diagram],
-)
+        "You MUST produce a single tool call to generate_clean_diagram.\n"
+        "No other output is allowed.\n\n"
 
+        "CONTEXT:\n"
+        "- The normalized process JSON is already saved at output/process_data.json.\n"
+        "- Your job is ONLY to infer a list of directed edges between steps.\n"
+        "- Steps may contain fields like step_name, name, step_number, step_id, step, dependencies.\n"
+        "- The Python backend will ALWAYS generate a diagram even if your edges are imperfect.\n\n"
+
+        "YOUR TASK:\n"
+        "1. Infer a simple directed flow between steps.\n"
+        "2. Construct a JSON array of edges, e.g. [[\"A\",\"B\"],[\"B\",\"C\"]].\n"
+        "3. You MUST wrap this JSON array as a string and pass it as the second argument.\n"
+        "4. You MUST call generate_clean_diagram EXACTLY ONCE.\n"
+        "5. You MUST NOT output JSON directly.\n"
+        "6. You MUST NOT output text, markdown, commentary, or explanations.\n"
+        "7. The ONLY valid output is the tool call.\n\n"
+
+        "TOOL CALL FORMAT (MANDATORY):\n"
+        "generate_clean_diagram(process_name, edge_list_json)\n\n"
+
+        "Where:\n"
+        "- process_name is a plain string.\n"
+        "- edge_list_json is a string containing ONLY the JSON array of edges.\n\n"
+
+        "If you output anything other than a tool call, the system will treat it as an error.\n"
+    ),
+    include_contents="none",
+    tools=[generate_clean_diagram],
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.2,
+        top_p=1,
+    ),
+)
 
 # ============================================================
 # __main__ TEST HARNESS (DIRECT EXECUTION WITHOUT LLM)

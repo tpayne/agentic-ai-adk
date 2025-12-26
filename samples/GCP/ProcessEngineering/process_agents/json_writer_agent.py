@@ -11,20 +11,22 @@ from google.genai import types
 
 logger = logging.getLogger("ProcessArchitect.JsonWriter")
 
+
 # ---------------------------------------------------------------------
-# TOOLS
+# INTERNAL HELPERS (NOT EXPOSED TO LLM)
 # ---------------------------------------------------------------------
 
-def log_agent_activity(message: str):
-    """Internal tool to log agent progress for debugging."""
+def _log_agent_activity(message: str):
+    """Internal logging helper."""
     logger.info(f"--- [DIAGNOSTIC] JSON_Writer: {message} ---")
-    return "Log recorded."
 
 
-def save_raw_data_to_json(json_content) -> str:
+def _save_raw_data_to_json(json_content) -> str:
     """
     Saves the finalized JSON to output/process_data.json.
     Includes robust repair logic for large/truncated LLM payloads.
+
+    This is internal. The only exposed tool is persist_final_json.
     """
     try:
         logger.info("Saving normalized JSON to file...")
@@ -38,42 +40,84 @@ def save_raw_data_to_json(json_content) -> str:
             raw_str = str(json_content).strip()
 
         # 2. Extract JSON from potential "JSON APPROVED" or Markdown wrapper
-        # We look for the first '{' and the last '}'
         start_index = raw_str.find('{')
         end_index = raw_str.rfind('}')
-        
-        if start_index != -1 and end_index != -1:
-            raw_str = raw_str[start_index:end_index+1]
-        
-        # 3. Strip Markdown Fences just in case
+        if start_index != -1 and end_index != -1 and end_index > start_index:
+            raw_str = raw_str[start_index:end_index + 1]
+
+        # 3. Strip Markdown fences
         raw_str = re.sub(r'^```json\s*|```$', "", raw_str, flags=re.MULTILINE)
 
-        # 4. Attempt Validation and Repair
+        # 4. Attempt validation and repair
+        parsed = None
+        used_repair = False
         try:
             parsed = json.loads(raw_str)
         except json.JSONDecodeError as e:
-            logger.warning(f"Standard JSON decode failed at char {e.pos}. Attempting structural repair...")
-            
+            logger.warning(
+                f"Standard JSON decode failed at char {e.pos}. "
+                f"Attempting structural repair..."
+            )
             try:
-                # IMPORTANT: Module name is json_repair, package is json-repair
                 from json_repair import repair_json
                 repaired_str = repair_json(raw_str)
                 parsed = json.loads(repaired_str)
+                used_repair = True
                 logger.info("JSON successfully repaired and loaded.")
             except ImportError:
-                logger.error("json-repair library not found. Install via 'pip install json-repair'")
-                return f"ERROR: JSONDecodeError at {e.pos} and json-repair is not installed."
+                logger.error(
+                    "json-repair library not found. "
+                    "Install via 'pip install json-repair'. "
+                    "Writing raw JSON to output/process_data_raw.json for inspection."
+                )
+                # Write raw content so you at least have something to debug
+                raw_path = "output/process_data_raw.json"
+                with open(raw_path, "w", encoding="utf-8") as rf:
+                    rf.write(raw_str)
+                    rf.flush()
+                return (
+                    f"ERROR: JSONDecodeError at {e.pos} and json-repair is not installed. "
+                    f"Raw JSON written to {raw_path}."
+                )
             except Exception as repair_err:
-                logger.error(f"Repair failed: {str(repair_err)}")
-                return "ERROR: Critical structural failure in JSON payload."
+                logger.error(
+                    f"Repair failed: {str(repair_err)}. "
+                    "Writing raw JSON to output/process_data_raw.json for inspection."
+                )
+                raw_path = "output/process_data_raw.json"
+                with open(raw_path, "w", encoding="utf-8") as rf:
+                    rf.write(raw_str)
+                    rf.flush()
+                return (
+                    "ERROR: Critical structural failure in JSON payload. "
+                    f"Raw JSON written to {raw_path}."
+                )
 
-        # 5. Final Write
+        if parsed is None:
+            # Should not happen, but guard anyway
+            logger.error(
+                "Parsed JSON is None after validation/repair. "
+                "Writing raw JSON to output/process_data_raw.json for inspection."
+            )
+            raw_path = "output/process_data_raw.json"
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(raw_str)
+                rf.flush()
+            return (
+                "ERROR: Unable to obtain valid JSON. "
+                f"Raw JSON written to {raw_path}."
+            )
+
+        # 5. Final write of clean, repaired JSON
         clean_json = json.dumps(parsed, indent=2, ensure_ascii=False)
         with open(path, "w", encoding="utf-8") as f:
             f.write(clean_json)
             f.flush()
 
-        logger.info(f"Successfully saved JSON to {path}")
+        logger.info(
+            f"Successfully saved JSON to {path} "
+            f"({'repaired' if used_repair else 'clean'})."
+        )
         return path
 
     except Exception:
@@ -81,8 +125,34 @@ def save_raw_data_to_json(json_content) -> str:
         logger.error(f"Failed to save JSON: {error_trace}")
         return "ERROR: Failed to save JSON"
 
+
 # ---------------------------------------------------------------------
-# AGENT DEFINITION
+# EXPOSED TOOL (SINGLE ENTRYPOINT FOR LLM)
+# ---------------------------------------------------------------------
+
+def persist_final_json(json_content) -> str:
+    """
+    Public tool for the LLM:
+
+    - Logs that final persistence is starting.
+    - Calls the internal saver with the provided JSON content.
+    - Returns the final path or error message.
+
+    This is the ONLY tool the agent needs to call.
+    """
+    try:
+        _log_agent_activity("Starting final JSON file persistence")
+        result = _save_raw_data_to_json(json_content)
+        _log_agent_activity(f"File persistence result: {result}")
+        return result
+    except Exception:
+        error_trace = traceback.format_exc()
+        logger.error(f"persist_final_json failed: {error_trace}")
+        return "ERROR: persist_final_json encountered an unexpected failure."
+
+
+# ---------------------------------------------------------------------
+# AGENT DEFINITION (SINGLE TOOL, ATOMIC BEHAVIOR)
 # ---------------------------------------------------------------------
 
 json_writer_agent = LlmAgent(
@@ -90,28 +160,31 @@ json_writer_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Final persistence agent that writes approved JSON to the file system.",
     instruction=(
-        "You are a JSON Writing Expert. Your task is to save the finalized business "
-        "process data to a physical file.\n\n"
-
-        "You will strictly follow these three steps to operate:\n\n"
-
-        "STEP 1: LOGGING\n"
-        "Immediately CALL the tool 'log_agent_activity' with the message: 'Starting final JSON file persistence'.\n\n"
-
-        "STEP 2: DATA EXTRACTION\n"
-        "- You will receive input from the Reviewer agent containing a JSON object.\n"
-        "- Extract that JSON object.\n"
-        "- Ensure the JSON is complete.\n\n"
-
-        "STEP 3: FILE WRITING\n"
-        "- You MUST CALL the 'save_raw_data_to_json' tool with the JSON object.\n"
-        "- This tool will handle all validation and repair logic.\n"
-        "- Await the tool's response which will confirm the file path or report errors.\n\n"
-
+        "You are a JSON Writing Expert. Your ONLY job is to persist the finalized, "
+        "normalized business process JSON to disk.\n\n"
+        "CONTEXT:\n"
+        "- You will receive input from the Reviewer agent containing the FINAL, APPROVED "
+        "  JSON object for the business process.\n"
+        "- That JSON must be saved to 'output/process_data.json'.\n\n"
+        "TOOLS:\n"
+        "- You have ONE tool available: persist_final_json(json_content).\n"
+        "- This tool:\n"
+        "    * Logs that final persistence is starting.\n"
+        "    * Validates/repairs the JSON if necessary.\n"
+        "    * Writes it to 'output/process_data.json'.\n"
+        "    * Returns the file path or an error description.\n\n"
+        "YOUR TASK (MANDATORY STEPS):\n"
+        "1) Extract the JSON object from the Reviewer agent's response.\n"
+        "   - If the JSON is already a structured object, pass it directly.\n"
+        "   - If it is embedded in text or markdown, extract the JSON portion.\n"
+        "2) CALL persist_final_json exactly once with that JSON content.\n"
+        "3) Do NOT perform any additional transformations.\n\n"
         "CRITICAL RULES:\n"
-        "- You MUST use the provided tools for logging and file writing.\n"
+        "- You MUST call persist_final_json exactly once.\n"
         "- Do NOT attempt to write files directly.\n"
-        "- Do NOT output any text other than the tool calls and their results.\n"
+        "- Do NOT call any other tools.\n"
+        "- Do NOT output any free-form text. Your output MUST be limited to the tool call "
+        "  and its result.\n"
     ),
-    tools=[save_raw_data_to_json, log_agent_activity]
+    tools=[persist_final_json]
 )
