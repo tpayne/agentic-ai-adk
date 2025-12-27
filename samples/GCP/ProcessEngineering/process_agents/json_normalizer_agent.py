@@ -1,9 +1,18 @@
 from google.adk.agents import LlmAgent
 from google.genai import types
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.tools.tool_context import ToolContext
 
 import logging
 
 logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
+
+# --- Define the tool here as well ---
+def exit_loop(tool_context: ToolContext):
+    """Tool to exit the normalization loop when JSON is approved."""
+    logger.info("JSON approval detected. Terminating loop.")
+    tool_context.actions.escalate = True
+    return "Loop termination signaled."
 
 # -----------------------------
 # JSON NORMALIZER AGENT
@@ -23,7 +32,9 @@ json_normalizer_agent = LlmAgent(
         "Use ONLY the MOST RECENT previous message to determine your behavior.\n\n"
 
         "1. If the most recent previous message begins with 'JSON APPROVED':\n"
-        "     - You MUST NOT output any JSON or text as your task is complete and you can STOP.\n\n"
+        "     - You MUST CALL the 'exit_loop' function immediately.\n"
+        "     - Do NOT output any JSON or text.\n"
+        "     - This is the ONLY way to stop the loop.\n\n"
 
         "2. If the most recent previous message begins with 'REVISION REQUIRED':\n"
         "     - Read the list of issues.\n"
@@ -81,6 +92,7 @@ json_normalizer_agent = LlmAgent(
         "- NO commentary.\n"
         "- MUST start with '{' and end with '}'.\n"
     ),
+    tools=[exit_loop],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.4,
         top_p=1,

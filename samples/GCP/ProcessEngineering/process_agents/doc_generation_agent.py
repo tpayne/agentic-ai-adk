@@ -439,41 +439,237 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
         traceback.print_exc()
 
 
-def _add_reporting_and_analytics(doc: docx.Document, ra: dict) -> None:
+def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
     """
-    6.0 Reporting & Analytics.
+    6.0 Reporting & Analytics (schema-aware, data-agnostic).
 
-    For your current normalized JSON, 'reporting_and_analytics' is a dict of
-    report-type -> description. Render each as a subsection.
+    Supports ANY structure:
+    - dict of {key: value}
+    - list of strings
+    - list of dicts with arbitrary keys
+    - nested dicts/lists
+    - mixed types
+
+    Rendering rules:
+    - dict → table (key → flattened value)
+    - list of primitives → bullet list
+    - list of dicts → infer columns → table
+    - mixed/nested → recursive readable fallback
     """
     try:
-        if not isinstance(ra, dict) or not ra:
+        if ra is None:
             return
 
         doc.add_heading("6.0 Reporting and Analytics", level=1)
 
-        for label, text in ra.items():
-            # Use the key as a subsection heading
-            doc.add_heading(str(label), level=2)
-            doc.add_paragraph(str(text))
+        # -----------------------------------------
+        # Helper: flatten nested values
+        # -----------------------------------------
+        def flatten_value(v):
+            if isinstance(v, dict):
+                parts = []
+                for k2, v2 in v.items():
+                    parts.append(f"{k2.replace('_',' ').title()}: {flatten_value(v2)}")
+                return "; ".join(parts)
+            elif isinstance(v, list):
+                return ", ".join(flatten_value(x) for x in v)
+            else:
+                return str(v)
 
+        # -----------------------------------------
+        # Case 1: dict → table
+        # -----------------------------------------
+        if isinstance(ra, dict):
+            table = doc.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+            hdr = table.rows[0].cells
+            hdr[0].text = "Metric / Key"
+            hdr[1].text = "Description / Value"
+
+            for key, value in ra.items():
+                row = table.add_row().cells
+                row[0].text = key.replace("_", " ").title()
+                row[1].text = flatten_value(value)
+
+            doc.add_paragraph()
+            return
+
+        # -----------------------------------------
+        # Case 2: list of primitives → bullets
+        # -----------------------------------------
+        if isinstance(ra, list) and all(isinstance(x, (str, int, float)) for x in ra):
+            for item in ra:
+                doc.add_paragraph(str(item), style="List Bullet")
+            doc.add_paragraph()
+            return
+
+        # -----------------------------------------
+        # Case 3: list of dicts → infer columns → table
+        # -----------------------------------------
+        if isinstance(ra, list) and all(isinstance(x, dict) for x in ra):
+            # Collect all keys across all dicts
+            all_keys = set()
+            for item in ra:
+                all_keys.update(item.keys())
+            all_keys = sorted(all_keys)
+
+            table = doc.add_table(rows=1, cols=len(all_keys))
+            table.style = "Table Grid"
+
+            # Header row
+            hdr = table.rows[0].cells
+            for idx, key in enumerate(all_keys):
+                hdr[idx].text = key.replace("_", " ").title()
+
+            # Data rows
+            for item in ra:
+                row = table.add_row().cells
+                for idx, key in enumerate(all_keys):
+                    val = item.get(key, "")
+                    row[idx].text = flatten_value(val)
+
+            doc.add_paragraph()
+            return
+
+        # -----------------------------------------
+        # Case 4: Mixed or unknown → recursive fallback
+        # -----------------------------------------
+        doc.add_paragraph(
+            "The reporting and analytics structure contains mixed or nested data. "
+            "The following section renders it in a readable hierarchical format."
+        )
+
+        def render_recursive(value, level=0):
+            indent_style = "List Bullet" if level > 0 else "Normal"
+
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    p = doc.add_paragraph(style=indent_style)
+                    r = p.add_run(f"{k.replace('_',' ').title()}: ")
+                    r.bold = True
+                    if isinstance(v, (dict, list)):
+                        render_recursive(v, level + 1)
+                    else:
+                        p.add_run(str(v))
+
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, (dict, list)):
+                        render_recursive(item, level + 1)
+                    else:
+                        doc.add_paragraph(str(item), style=indent_style)
+
+            else:
+                doc.add_paragraph(str(value), style=indent_style)
+
+        render_recursive(ra)
         doc.add_paragraph()
+
     except Exception:
         traceback.print_exc()
 
 
 def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
     """
-    7.0 System Requirements section.
+    7.0 System Requirements (schema-aware, data-agnostic).
+
+    Supports:
+    - list of dicts with arbitrary keys (e.g., name, description, type, etc.)
+    - list of strings
+    - mixed lists
+    - unknown future schema
+
+    Rendering rules:
+    - If list of dicts → infer all keys → render a table
+    - If list of strings → bullet list
+    - If mixed → fallback to recursive readable formatting
     """
     try:
         if not isinstance(system_requirements, list) or not system_requirements:
             return
 
         doc.add_heading("7.0 System Requirements", level=1)
-        for req in system_requirements:
-            doc.add_paragraph(str(req), style="List Bullet")
+
+        # -----------------------------------------
+        # Case 1: list of dicts → infer columns
+        # -----------------------------------------
+        if all(isinstance(item, dict) for item in system_requirements):
+            # Collect all keys across all dicts
+            all_keys = set()
+            for item in system_requirements:
+                all_keys.update(item.keys())
+            all_keys = sorted(all_keys)
+
+            # Build table
+            table = doc.add_table(rows=1, cols=len(all_keys))
+            table.style = "Table Grid"
+
+            # Header row
+            hdr = table.rows[0].cells
+            for idx, key in enumerate(all_keys):
+                hdr[idx].text = key.replace("_", " ").title()
+
+            # Data rows
+            for item in system_requirements:
+                row = table.add_row().cells
+                for idx, key in enumerate(all_keys):
+                    val = item.get(key, "")
+                    if isinstance(val, dict):
+                        # Flatten nested dicts
+                        row[idx].text = "; ".join(
+                            f"{k}: {v}" for k, v in val.items()
+                        )
+                    elif isinstance(val, list):
+                        row[idx].text = ", ".join(str(x) for x in val)
+                    else:
+                        row[idx].text = str(val)
+
+            doc.add_paragraph()
+            return
+
+        # -----------------------------------------
+        # Case 2: list of primitives → bullets
+        # -----------------------------------------
+        if all(isinstance(item, (str, int, float)) for item in system_requirements):
+            for item in system_requirements:
+                doc.add_paragraph(str(item), style="List Bullet")
+            doc.add_paragraph()
+            return
+
+        # -----------------------------------------
+        # Case 3: mixed or unknown → recursive fallback
+        # -----------------------------------------
+        doc.add_paragraph(
+            "The system requirements contain mixed or nested data. "
+            "The following section renders them in a readable hierarchical format."
+        )
+
+        def render_recursive(value, level=0):
+            indent_style = "List Bullet" if level > 0 else "Normal"
+
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    p = doc.add_paragraph(style=indent_style)
+                    r = p.add_run(f"{k.replace('_',' ').title()}: ")
+                    r.bold = True
+                    if isinstance(v, (dict, list)):
+                        render_recursive(v, level + 1)
+                    else:
+                        p.add_run(str(v))
+
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, (dict, list)):
+                        render_recursive(item, level + 1)
+                    else:
+                        doc.add_paragraph(str(item), style=indent_style)
+
+            else:
+                doc.add_paragraph(str(value), style=indent_style)
+
+        render_recursive(system_requirements)
         doc.add_paragraph()
+
     except Exception:
         traceback.print_exc()
 
