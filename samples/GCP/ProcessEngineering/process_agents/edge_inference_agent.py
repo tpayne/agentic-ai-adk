@@ -3,7 +3,6 @@
 from google.adk.agents import LlmAgent
 from google.genai import types
 import os
-import re
 import json
 import traceback
 import networkx as nx
@@ -183,7 +182,6 @@ def _build_enriched_label(base_name: str, step: dict) -> str:
     if metric_names:
         lines.append(f"Metric: {_shorten(metric_names[0], 40)}")
 
-    # Leaving out success criteria here to avoid vertical sprawl.
     return "\n".join(lines)
 
 
@@ -259,12 +257,14 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
     """
     data = _load_process_json()
     if not data or not isinstance(data, dict):
+        logger.warning("No valid process JSON; using fallback Start→End")
         return "process", [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     process_name = data.get("process_name") or "process"
 
     raw_steps = data.get("process_steps") or []
     if not isinstance(raw_steps, list):
+        logger.warning("process_steps is not a list; using fallback Start→End")
         return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     valid_steps: List[dict] = []
@@ -277,6 +277,7 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
             valid_steps.append({"name": s.strip()})
 
     if not valid_steps:
+        logger.warning("No valid steps inferred; using fallback Start→End")
         return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     ordered_steps = _order_steps(valid_steps)
@@ -333,6 +334,7 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
                     edges.append(edge)
 
     if not edges:
+        logger.warning("No edges inferred; using fallback Start→End")
         edges = [("Start", "End")]
         lane_map["Start"] = "Process"
         lane_map["End"] = "Process"
@@ -356,8 +358,6 @@ def _compute_swimlane_positions(
     Swimlane layout:
     - y-axis = lane * y_spacing
     - x-axis = sequence index * x_spacing
-
-    Uses tunable spacing to reduce overlap.
     """
     nodes: List[str] = []
     for s, d in edges:
@@ -399,7 +399,7 @@ def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]
 #  DIAGRAM GENERATION (ALWAYS PRODUCES SOMETHING)
 # ============================================================
 
-def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
+def generate_clean_diagram(process_name: str) -> str:
     """
     Generates a BPMN-style diagram with auto-selected layout.
 
@@ -407,30 +407,15 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
     - If multiple lanes -> vertical swimlane layout.
     - If only one lane -> simple spring layout.
 
-    ALWAYS produces a diagram.
+    All edges and labels are inferred from output/process_data.json.
+    The LLM passes ONLY process_name; no edge list is ever passed.
     """
+    logger.info("Generating clean diagram...")
     try:
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
-        final_name = inferred_name or process_name or "process"
+        final_name = (process_name or inferred_name or "process").strip()
 
-        parsed_edges: List[Tuple[str, str]] = []
-        if isinstance(edge_list_json, str) and edge_list_json.strip():
-            clean = re.sub(r'^```json\s*|```$', '', edge_list_json.strip(), flags=re.MULTILINE)
-            try:
-                obj = json.loads(clean)
-                if isinstance(obj, list):
-                    for item in obj:
-                        if (
-                            isinstance(item, (list, tuple))
-                            and len(item) == 2
-                            and str(item[0]).strip()
-                            and str(item[1]).strip()
-                        ):
-                            parsed_edges.append((str(item[0]).strip(), str(item[1]).strip()))
-            except Exception:
-                logger.warning("LLM edge list invalid; ignoring")
-
-        edges = inferred_edges or parsed_edges or [("Start", "End")]
+        edges = inferred_edges or [("Start", "End")]
 
         G = nx.DiGraph()
         G.add_edges_from(edges)
@@ -447,7 +432,7 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
                 for node in cycle:
                     nodes_in_cycles.add(node)
         except Exception:
-            pass
+            logger.exception("Cycle detection failed; continuing without cycle highlighting")
 
         lanes = sorted(set(lane_map.values()))
         use_swimlanes = len(lanes) > 1
@@ -589,6 +574,7 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
         plt.savefig(filename)
         plt.close()
 
+        logger.info(f"Diagram generated at {filename}")
         return filename
 
     except Exception:
@@ -597,38 +583,35 @@ def generate_clean_diagram(process_name: str, edge_list_json: str) -> str:
 
 
 # ============================================================
-#  LLM AGENT (GENERIC, SAFE, ALWAYS VALID)
+#  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
 
 edge_inference_agent = LlmAgent(
     name="Edge_Inference_Agent",
     model="gemini-2.0-flash-001",
-    description="Infers flowchart edges from normalized process JSON and generates a BPMN-style swimlane diagram.",
+    description="Triggers BPMN-style swimlane diagram generation based only on process_name.",
     instruction=(
         "You MUST produce a single tool call to generate_clean_diagram.\n"
         "No other output is allowed.\n\n"
 
         "CONTEXT:\n"
         "- The normalized process JSON is already saved at output/process_data.json.\n"
-        "- Your job is ONLY to infer a list of directed edges between steps.\n"
+        "- Your job is ONLY to CALL the tool 'generate_clean_diagram' with the inferred process name.\n"
         "- Steps may contain fields like step_name, name, step_number, step_id, step, dependencies.\n"
         "- The Python backend will ALWAYS generate a diagram even if your edges are imperfect.\n\n"
 
         "YOUR TASK:\n"
-        "1. Infer a simple directed flow between steps.\n"
-        "2. Construct a JSON array of edges, e.g. [[\"A\",\"B\"],[\"B\",\"C\"]].\n"
-        "3. You MUST wrap this JSON array as a string and pass it as the second argument.\n"
-        "4. You MUST call generate_clean_diagram EXACTLY ONCE.\n"
-        "5. You MUST NOT output JSON directly.\n"
-        "6. You MUST NOT output text, markdown, commentary, or explanations.\n"
-        "7. The ONLY valid output is the tool call.\n\n"
+        "1. Infer the process name from the input JSON or default to 'Unknown Process'.\n"
+        "2. You MUST call 'generate_clean_diagram' EXACTLY ONCE with the process name.\n"
+        "3. You MUST NOT output JSON directly.\n"
+        "4. You MUST NOT output text, markdown, commentary, or explanations.\n"
+        "5. The ONLY valid output is the tool call.\n\n"
 
         "TOOL CALL FORMAT (MANDATORY):\n"
-        "generate_clean_diagram(process_name, edge_list_json)\n\n"
+        "'generate_clean_diagram(process_name)'\n\n"
 
         "Where:\n"
         "- process_name is a plain string.\n"
-        "- edge_list_json is a string containing ONLY the JSON array of edges.\n\n"
 
         "If you output anything other than a tool call, the system will treat it as an error.\n"
     ),
@@ -639,6 +622,7 @@ edge_inference_agent = LlmAgent(
         top_p=1,
     ),
 )
+
 
 # ============================================================
 # __main__ TEST HARNESS (DIRECT EXECUTION WITHOUT LLM)
@@ -674,8 +658,7 @@ if __name__ == "__main__":
     for e in edges:
         print(" ", e)
 
-    edges_json_str = json.dumps([[a, b] for a, b in edges])
     print("\nGenerating diagram...")
-    result = generate_clean_diagram(process_name, edges_json_str)
+    result = generate_clean_diagram(process_name)
     print("\nDiagram saved to:", result)
     print("=== Done ===\n")
