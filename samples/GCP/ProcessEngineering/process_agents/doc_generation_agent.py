@@ -439,6 +439,71 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
         traceback.print_exc()
 
 
+def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None:
+    """
+    9.0 Process Performance Report.
+    Renders simulation metrics and (optionally) optimization recommendations.
+    """
+    try:
+        if not isinstance(simulation_results, dict) or not simulation_results:
+            return
+
+        doc.add_heading("9.0 Process Performance Report", level=1)
+
+        # Core metrics
+        table = doc.add_table(rows=1, cols=2)
+        table.style = "Table Grid"
+        hdr = table.rows[0].cells
+        hdr[0].text = "Metric"
+        hdr[1].text = "Value"
+
+        for key in ["avg_cycle_time", "cycle_time_variance", "resource_contention_risk"]:
+            if key in simulation_results:
+                row = table.add_row().cells
+                row[0].text = key.replace("_", " ").title()
+                row[1].text = str(simulation_results[key])
+
+        doc.add_paragraph()
+
+        # Bottlenecks
+        if "bottlenecks" in simulation_results:
+            doc.add_heading("Identified Bottlenecks", level=2)
+            for b in simulation_results["bottlenecks"]:
+                doc.add_paragraph(str(b), style="List Bullet")
+
+        # Per-step average durations
+        if "per_step_avg" in simulation_results:
+            doc.add_heading("Per-Step Average Duration", level=2)
+            table2 = doc.add_table(rows=1, cols=2)
+            table2.style = "Table Grid"
+            hdr2 = table2.rows[0].cells
+            hdr2[0].text = "Step"
+            hdr2[1].text = "Average Duration (Simulated Units)"
+
+            for step, avg in simulation_results["per_step_avg"].items():
+                row = table2.add_row().cells
+                row[0].text = str(step)
+                try:
+                    row[1].text = f"{float(avg):.2f}"
+                except Exception:
+                    row[1].text = str(avg)
+
+        doc.add_paragraph()
+
+        # Optional: optimization recommendations (if you choose to persist them later)
+        if "recommendations" in simulation_results and isinstance(simulation_results["recommendations"], list):
+            doc.add_heading("Optimization Recommendations", level=2)
+            for rec in simulation_results["recommendations"]:
+                if not isinstance(rec, dict):
+                    continue
+                step_name = rec.get("step_name", "Step")
+                instruction = rec.get("instruction", "")
+                line = f"{step_name}: {instruction}"
+                doc.add_paragraph(line, style="List Bullet")
+
+    except Exception:
+        traceback.print_exc()
+
 def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
     """
     6.0 Reporting & Analytics (schema-aware, data-agnostic).
@@ -916,6 +981,21 @@ def create_standard_doc_from_file(process_name: str) -> str:
 
         # 8.0 Flow Diagram
         _add_flowchart_section(doc, name)
+
+        # Load simulation results if present
+        simulation_results = None
+        try:
+            sim_path = "output/simulation_results.json"
+            if os.path.exists(sim_path):
+                with open(sim_path, "r", encoding="utf-8") as sf:
+                    simulation_results = json.load(sf)
+        except Exception:
+            traceback.print_exc()
+            simulation_results = None
+
+        # 9.0 Process Performance Report (if we have metrics)
+        if simulation_results:
+            _add_simulation_report(doc, simulation_results)
 
         # Appendix A: Structured appendix from JSON
         if appendix:
