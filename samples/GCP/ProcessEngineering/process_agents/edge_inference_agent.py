@@ -399,7 +399,7 @@ def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]
 #  DIAGRAM GENERATION (ALWAYS PRODUCES SOMETHING)
 # ============================================================
 
-def generate_clean_diagram(process_name: str) -> str:
+def generate_clean_diagram() -> str:
     """
     Generates a BPMN-style diagram with auto-selected layout.
 
@@ -413,7 +413,7 @@ def generate_clean_diagram(process_name: str) -> str:
     logger.info("Generating clean diagram...")
     try:
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
-        final_name = (process_name or inferred_name or "process").strip()
+        final_name = (inferred_name or "process").strip()
 
         edges = inferred_edges or [("Start", "End")]
 
@@ -591,29 +591,12 @@ edge_inference_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Triggers BPMN-style swimlane diagram generation based only on process_name.",
     instruction=(
-        "You MUST produce a single tool call to generate_clean_diagram.\n"
-        "No other output is allowed.\n\n"
+        "You are an expert in process diagramming.\n"
+        "Your only role is to generate diagrams using the provided tool function 'generate_clean_diagram'.\n\n"
 
-        "CONTEXT:\n"
-        "- The normalized process JSON is already saved at output/process_data.json.\n"
-        "- Your job is ONLY to CALL the tool 'generate_clean_diagram' with the inferred process name.\n"
-        "- Steps may contain fields like step_name, name, step_number, step_id, step, dependencies.\n"
-        "- The Python backend will ALWAYS generate a diagram even if your edges are imperfect.\n\n"
-
-        "YOUR TASK:\n"
-        "1. Infer the process name from the input JSON or default to 'Unknown Process'.\n"
-        "2. You MUST call 'generate_clean_diagram' EXACTLY ONCE with the process name.\n"
-        "3. You MUST NOT output JSON directly.\n"
-        "4. You MUST NOT output text, markdown, commentary, or explanations.\n"
-        "5. The ONLY valid output is the tool call.\n\n"
-
-        "TOOL CALL FORMAT (MANDATORY):\n"
-        "'generate_clean_diagram(process_name)'\n\n"
-
-        "Where:\n"
-        "- process_name is a plain string.\n"
-
-        "If you output anything other than a tool call, the system will treat it as an error.\n"
+        "You must perform the following steps ONLY:\n"
+        "1. You MUST CALL the tool function 'generate_clean_diagram' with NO arguments.\n"
+        "2. Do NOT output any text, markdown, commentary, or explanations.\n"
     ),
     include_contents="none",
     tools=[generate_clean_diagram],
@@ -659,6 +642,6 @@ if __name__ == "__main__":
         print(" ", e)
 
     print("\nGenerating diagram...")
-    result = generate_clean_diagram(process_name)
+    result = generate_clean_diagram()
     print("\nDiagram saved to:", result)
     print("=== Done ===\n")
