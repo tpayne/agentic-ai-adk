@@ -21,6 +21,27 @@ def _log_agent_activity(message: str):
     logger.info(f"--- [DIAGNOSTIC] JSON_Writer: {message} ---")
 
 
+def _extract_json_brace_balanced(text: str) -> str:
+    """
+    Extract the FIRST valid JSON object from a text blob using brace counting.
+    Handles reviewer prefixes like 'JSON APPROVED' or 'REVISION REQUIRED'.
+    """
+    start = text.find('{')
+    if start == -1:
+        raise ValueError("No JSON object found in text")
+
+    brace_count = 0
+    for i, ch in enumerate(text[start:], start=start):
+        if ch == '{':
+            brace_count += 1
+        elif ch == '}':
+            brace_count -= 1
+            if brace_count == 0:
+                return text[start:i+1]
+
+    raise ValueError("JSON braces not balanced")
+
+
 def _save_raw_data_to_json(json_content) -> str:
     """
     Saves the finalized JSON to output/process_data.json.
@@ -39,11 +60,17 @@ def _save_raw_data_to_json(json_content) -> str:
         else:
             raw_str = str(json_content).strip()
 
-        # 2. Extract JSON from potential "JSON APPROVED" or Markdown wrapper
-        start_index = raw_str.find('{')
-        end_index = raw_str.rfind('}')
-        if start_index != -1 and end_index != -1 and end_index > start_index:
-            raw_str = raw_str[start_index:end_index + 1]
+        # 2. Extract JSON using brace-balanced logic
+        try:
+            raw_str = _extract_json_brace_balanced(raw_str)
+        except Exception as e:
+            logger.error(f"Failed to extract JSON object: {e}")
+            raw_path = "output/process_data_raw.json"
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(raw_str)
+            return (
+                f"ERROR: Could not extract JSON object. Raw content saved to {raw_path}."
+            )
 
         # 3. Strip Markdown fences
         raw_str = re.sub(r'^```json\s*|```$', "", raw_str, flags=re.MULTILINE)
@@ -70,11 +97,9 @@ def _save_raw_data_to_json(json_content) -> str:
                     "Install via 'pip install json-repair'. "
                     "Writing raw JSON to output/process_data_raw.json for inspection."
                 )
-                # Write raw content so you at least have something to debug
                 raw_path = "output/process_data_raw.json"
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
-                    rf.flush()
                 return (
                     f"ERROR: JSONDecodeError at {e.pos} and json-repair is not installed. "
                     f"Raw JSON written to {raw_path}."
@@ -87,14 +112,12 @@ def _save_raw_data_to_json(json_content) -> str:
                 raw_path = "output/process_data_raw.json"
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
-                    rf.flush()
                 return (
                     "ERROR: Critical structural failure in JSON payload. "
                     f"Raw JSON written to {raw_path}."
                 )
 
         if parsed is None:
-            # Should not happen, but guard anyway
             logger.error(
                 "Parsed JSON is None after validation/repair. "
                 "Writing raw JSON to output/process_data_raw.json for inspection."
@@ -102,7 +125,6 @@ def _save_raw_data_to_json(json_content) -> str:
             raw_path = "output/process_data_raw.json"
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
-                rf.flush()
             return (
                 "ERROR: Unable to obtain valid JSON. "
                 f"Raw JSON written to {raw_path}."
@@ -112,7 +134,6 @@ def _save_raw_data_to_json(json_content) -> str:
         clean_json = json.dumps(parsed, indent=2, ensure_ascii=False)
         with open(path, "w", encoding="utf-8") as f:
             f.write(clean_json)
-            f.flush()
 
         logger.info(
             f"Successfully saved JSON to {path} "

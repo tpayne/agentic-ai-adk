@@ -77,13 +77,14 @@ review_loop = LoopAgent(
     max_iterations=5
 )
 
+# JSON Normalization → Review loop: Stabilizes the process JSON
 json_normalization_loop = SequentialAgent(
     name="JSON_Normalization_Retry_Loop",
     sub_agents=[
         LoopAgent(
             name="Normalizer_Review_Sequence",
             sub_agents=[json_normalizer_agent, json_review_agent],
-            max_iterations=10
+            max_iterations=30
         ),
         json_writer_agent
     ],

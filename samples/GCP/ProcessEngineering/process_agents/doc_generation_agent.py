@@ -313,9 +313,15 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
 
             if success_criteria:
                 p = doc.add_paragraph()
-                r = p.add_run("Success Criteria: ")
+                r = p.add_run("Success Criteria:")
                 r.bold = True
-                doc.add_paragraph(str(success_criteria), style="Normal")
+
+                if isinstance(success_criteria, list):
+                    for crit in success_criteria:
+                        # Proper bullet formatting
+                        doc.add_paragraph(str(crit), style="List Bullet")
+                else:
+                    doc.add_paragraph(str(success_criteria), style="List Bullet")
 
             if kpis:
                 p = doc.add_paragraph()
@@ -395,7 +401,7 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
             if not isinstance(m, dict):
                 continue
 
-            name = m.get("metric_name", f"Metric {idx}")
+            name = ( m.get("name") or m.get("metric_name") or f"Metric {idx}" )
             description = m.get("description", "")
             measurement = (
                 m.get("measurement")
@@ -435,7 +441,10 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
 
 def _add_reporting_and_analytics(doc: docx.Document, ra: dict) -> None:
     """
-    6.0 Reporting & Analytics, if 'reporting_and_analytics' exists.
+    6.0 Reporting & Analytics.
+
+    For your current normalized JSON, 'reporting_and_analytics' is a dict of
+    report-type -> description. Render each as a subsection.
     """
     try:
         if not isinstance(ra, dict) or not ra:
@@ -443,29 +452,10 @@ def _add_reporting_and_analytics(doc: docx.Document, ra: dict) -> None:
 
         doc.add_heading("6.0 Reporting and Analytics", level=1)
 
-        kpis = ra.get("key_performance_indicators")
-        if isinstance(kpis, list) and kpis:
-            p = doc.add_paragraph()
-            r = p.add_run("Key Performance Indicators:")
-            r.bold = True
-            for item in kpis:
-                doc.add_paragraph(str(item), style="List Bullet")
-
-        freq = ra.get("reporting_frequency")
-        if isinstance(freq, list) and freq:
-            p = doc.add_paragraph()
-            r = p.add_run("Reporting Frequency:")
-            r.bold = True
-            for item in freq:
-                doc.add_paragraph(str(item), style="List Bullet")
-
-        dist = ra.get("report_distribution")
-        if isinstance(dist, list) and dist:
-            p = doc.add_paragraph()
-            r = p.add_run("Report Distribution:")
-            r.bold = True
-            for item in dist:
-                doc.add_paragraph(str(item), style="List Bullet")
+        for label, text in ra.items():
+            # Use the key as a subsection heading
+            doc.add_heading(str(label), level=2)
+            doc.add_paragraph(str(text))
 
         doc.add_paragraph()
     except Exception:
@@ -784,3 +774,45 @@ doc_generation_agent = LlmAgent(
     tools=[create_standard_doc_from_file],
 )
 
+# ---------------------------------------------------
+# Standalone execution for local testing
+# ---------------------------------------------------
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python doc_generation_agent.py <path_to_process_json>")
+        sys.exit(1)
+
+    input_path = sys.argv[1]
+
+    if not os.path.exists(input_path):
+        print(f"ERROR: File not found: {input_path}")
+        sys.exit(1)
+
+    # Load the JSON file the same way the ADK pipeline would
+    try:
+        with open(input_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"ERROR: Failed to parse JSON: {e}")
+        sys.exit(1)
+
+    # Determine process name
+    if isinstance(data, dict) and "process_design" in data:
+        process_data = data["process_design"]
+    else:
+        process_data = data
+
+    process_name = str(process_data.get("process_name", "Process_Document"))
+
+    # Save to output/process_data.json so the generator can use it
+    os.makedirs("output", exist_ok=True)
+    with open("output/process_data.json", "w", encoding="utf-8") as f:
+        json.dump(process_data, f, indent=2, ensure_ascii=False)
+
+    print(f"[Standalone] Saved normalized JSON to output/process_data.json")
+
+    # Call the generator directly
+    result = create_standard_doc_from_file(process_name)
+    print(f"[Standalone] {result}")
