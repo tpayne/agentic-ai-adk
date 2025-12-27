@@ -14,6 +14,7 @@ from .json_review_agent import json_review_agent
 from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
+from .simulation_agent import simulation_agent
 
 # ---------------------------------------------------------
 # LOGGING SETUP
@@ -71,7 +72,7 @@ review_loop = LoopAgent(
     sub_agents=[
         SequentialAgent(
             name="Iterative_Design_Stage",
-            sub_agents=[design_agent, compliance_agent]
+            sub_agents=[design_agent, compliance_agent, simulation_agent],
         )
     ],
     max_iterations=5
