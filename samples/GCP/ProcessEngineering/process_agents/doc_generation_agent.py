@@ -170,6 +170,10 @@ def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
             return
 
         doc.add_heading("2.0 Stakeholders and Responsibilities", level=1)
+        doc.add_paragraph(
+            f"The following is a list of key stakeholders involved in this process. "
+            f"Understanding their roles and responsibilities is crucial for successful implementation."
+        )
 
         # Simple list of strings
         if all(isinstance(s, str) for s in stakeholders):
@@ -233,7 +237,9 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
             return
 
         doc.add_heading("3.0 Process Workflow", level=1)
-
+        doc.add_paragraph(
+            f"The following is a list of key steps in the process workflow."
+        )
         for s_idx, step in enumerate(steps, start=1):
             if not isinstance(step, dict):
                 continue
@@ -389,6 +395,11 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
 
         doc.add_heading("5.0 Metrics and Key Performance Indicators (KPIs)", level=1)
 
+        doc.add_paragraph(
+            f"The following is a list of key metrics associated with this process. "
+            f"These metrics help monitor performance and ensure alignment with business objectives."
+        )
+
         if metrics and all(isinstance(m, str) for m in metrics):
             for m in metrics:
                 doc.add_paragraph(m, style="List Bullet")
@@ -442,68 +453,73 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
 def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None:
     """
     9.0 Process Performance Report.
-    Renders simulation metrics and (optionally) optimization recommendations.
+    Renders simulation metrics with appropriate time units.
     """
     try:
         if not isinstance(simulation_results, dict) or not simulation_results:
             return
 
-        doc.add_heading("9.0 Process Performance Report", level=1)
+        # --- FIX: Define the variable at the top to avoid UnboundLocalError ---
+        time_unit = str(simulation_results.get("time_unit", "units"))
 
-        # Core metrics
+        doc.add_heading("9.0 Process Performance Report", level=1)
+        
+        doc.add_paragraph(
+            f"The following metrics are based on a Monte Carlo discrete-event simulation "
+            f"running 2,000 iterations. All time-based values are reported in {time_unit}."
+        )
+
+        # Core Metrics Table
         table = doc.add_table(rows=1, cols=2)
         table.style = "Table Grid"
         hdr = table.rows[0].cells
-        hdr[0].text = "Metric"
-        hdr[1].text = "Value"
+        hdr[0].text = "Operational Metric"
+        hdr[1].text = "Simulated Value"
 
-        for key in ["avg_cycle_time", "cycle_time_variance", "resource_contention_risk"]:
+        metrics_to_show = [
+            ("avg_cycle_time", "Average Cycle Time"),
+            ("cycle_time_variance", "Cycle Time Variance"),
+            ("resource_contention_risk", "Contention Risk Profile")
+        ]
+
+        for key, label in metrics_to_show:
             if key in simulation_results:
                 row = table.add_row().cells
-                row[0].text = key.replace("_", " ").title()
-                row[1].text = str(simulation_results[key])
+                row[0].text = label
+                val = simulation_results[key]
+                
+                # Append unit to time-based metrics
+                if "cycle_time" in key:
+                    try:
+                        row[1].text = f"{float(val):.2f} {time_unit}"
+                    except:
+                        row[1].text = f"{val} {time_unit}"
+                else:
+                    row[1].text = str(val)
 
         doc.add_paragraph()
 
-        # Bottlenecks
-        if "bottlenecks" in simulation_results:
-            doc.add_heading("Identified Bottlenecks", level=2)
-            for b in simulation_results["bottlenecks"]:
-                doc.add_paragraph(str(b), style="List Bullet")
-
-        # Per-step average durations
+        # Per-Step Average Durations Table
         if "per_step_avg" in simulation_results:
-            doc.add_heading("Per-Step Average Duration", level=2)
+            doc.add_heading("Detailed Step Performance", level=2)
             table2 = doc.add_table(rows=1, cols=2)
             table2.style = "Table Grid"
             hdr2 = table2.rows[0].cells
-            hdr2[0].text = "Step"
-            hdr2[1].text = "Average Duration (Simulated Units)"
+            hdr2[0].text = "Process Step"
+            hdr2[1].text = f"Avg. Duration ({time_unit})"
 
             for step, avg in simulation_results["per_step_avg"].items():
                 row = table2.add_row().cells
                 row[0].text = str(step)
                 try:
                     row[1].text = f"{float(avg):.2f}"
-                except Exception:
+                except:
                     row[1].text = str(avg)
 
         doc.add_paragraph()
-
-        # Optional: optimization recommendations (if you choose to persist them later)
-        if "recommendations" in simulation_results and isinstance(simulation_results["recommendations"], list):
-            doc.add_heading("Optimization Recommendations", level=2)
-            for rec in simulation_results["recommendations"]:
-                if not isinstance(rec, dict):
-                    continue
-                step_name = rec.get("step_name", "Step")
-                instruction = rec.get("instruction", "")
-                line = f"{step_name}: {instruction}"
-                doc.add_paragraph(line, style="List Bullet")
-
-    except Exception:
-        traceback.print_exc()
-
+        
+    except Exception as e:
+        logger.error(f"Error rendering simulation report: {e}")
 def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
     """
     6.0 Reporting & Analytics (schema-aware, data-agnostic).
@@ -526,6 +542,9 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             return
 
         doc.add_heading("6.0 Reporting and Analytics", level=1)
+        doc.add_paragraph(
+            f"The following are key reporting and analytics associated with this process."
+        )
 
         # -----------------------------------------
         # Helper: flatten nested values
@@ -654,6 +673,9 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
             return
 
         doc.add_heading("7.0 System Requirements", level=1)
+        doc.add_paragraph(
+            f"The following system requirements are essential for the successful implementation of this process."
+        )
 
         # -----------------------------------------
         # Case 1: list of dicts → infer columns
@@ -763,7 +785,9 @@ def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
             return
 
         doc.add_heading("Appendix A: Reference Documents", level=1)
-
+        doc.add_paragraph(
+            f"The following appendix contains reference materials related to the process."
+        )
         for key, val in appendix.items():
             section_title = str(key).replace("_", " ").title()
             doc.add_heading(section_title, level=2)
@@ -981,6 +1005,21 @@ def create_standard_doc_from_file(process_name: str) -> str:
 
         # 8.0 Flow Diagram
         _add_flowchart_section(doc, name)
+
+        # Load simulation results if present
+        simulation_results = None
+        try:
+            sim_path = "output/simulation_results.json"
+            if os.path.exists(sim_path):
+                with open(sim_path, "r", encoding="utf-8") as sf:
+                    simulation_results = json.load(sf)
+        except Exception:
+            traceback.print_exc()
+            simulation_results = None
+
+        # 9.0 Process Performance Report (if we have metrics)
+        if simulation_results:
+            _add_simulation_report(doc, simulation_results)
 
         # Load simulation results if present
         simulation_results = None
