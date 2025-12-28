@@ -20,43 +20,51 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
     Internal: runs the discrete-event Monte Carlo simulation
     on a normalized process JSON dict and returns a metrics dict.
     """
+    from collections import Counter
+    
     steps = data.get("process_steps", [])
     if not isinstance(steps, list) or not steps:
         raise ValueError('No valid "process_steps" array found.')
 
     # -----------------------------------------------
-    # STEP METADATA EXTRACTION
+    # STEP METADATA EXTRACTION & UNIT DETECTION
     # -----------------------------------------------
     step_info = []
+    all_units = []
+    
     for step in steps:
         if not isinstance(step, dict):
             continue
 
         name = step.get("step_name") or step.get("name") or "Unnamed Task"
 
+        # Parse duration and unit (e.g., "4 hours" -> 4.0, "hours")
         dur_str = step.get("estimated_duration", "1")
         tokens = str(dur_str).split()
         base_val = 1.0
+        
         if tokens:
             try:
                 base_val = float(tokens[0].replace(",", "."))
             except Exception:
                 base_val = 1.0
+            
+            # Capture the unit if present
+            if len(tokens) > 1:
+                all_units.append(tokens[1].lower())
 
         deps = step.get("dependencies") or []
         if isinstance(deps, str):
             deps = [deps]
-        if not isinstance(deps, list):
-            deps = []
-
+        
         step_info.append({
             "name": name,
             "base": base_val,
             "deps": [str(d).strip() for d in deps if str(d).strip()]
         })
 
-    if not step_info:
-        raise ValueError("No valid steps could be extracted for simulation.")
+    # Determine the dominant unit (default to 'hours' if none found)
+    dominant_unit = Counter(all_units).most_common(1)[0][0] if all_units else "hours"
 
     # -----------------------------------------------
     # MONTE CARLO DISCRETE-EVENT SIMULATION
@@ -65,14 +73,14 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
     per_step_times = {s["name"]: [] for s in step_info}
 
     for _ in range(iterations):
-        completed = {}  # completed[name] = finish_time
-
+        completed = {} 
         for s in step_info:
+            # Wait for all dependencies
             dep_finish = 0.0
             if s["deps"]:
                 dep_finish = max([completed.get(dep, 0.0) for dep in s["deps"]] or [0.0])
 
-            # triangular distribution: low, high, mode = base
+            # Triangular Distribution: real-world variance modeling
             low = s["base"] * 0.8
             high = s["base"] * 2.2
             mode = s["base"]
@@ -84,6 +92,9 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
 
         cycle_times.append(max(completed.values()))
 
+    # -----------------------------------------------
+    # METRIC CALCULATION
+    # -----------------------------------------------
     avg_cycle = float(mean(cycle_times))
     variance = float(pstdev(cycle_times)) if len(cycle_times) > 1 else 0.0
 
@@ -105,11 +116,11 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
     return {
         "avg_cycle_time": avg_cycle,
         "cycle_time_variance": variance,
+        "time_unit": dominant_unit,
         "bottlenecks": bottlenecks,
         "resource_contention_risk": contention_risk,
-        "per_step_avg": per_step_avg,
+        "per_step_avg": per_step_avg
     }
-
 
 def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
     """
