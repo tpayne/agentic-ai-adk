@@ -1041,21 +1041,6 @@ def create_standard_doc_from_file(process_name: str) -> str:
         if simulation_results:
             _add_simulation_report(doc, simulation_results)
 
-        # Load simulation results if present
-        simulation_results = None
-        try:
-            sim_path = "output/simulation_results.json"
-            if os.path.exists(sim_path):
-                with open(sim_path, "r", encoding="utf-8") as sf:
-                    simulation_results = json.load(sf)
-        except Exception:
-            traceback.print_exc()
-            simulation_results = None
-
-        # 9.0 Process Performance Report (if we have metrics)
-        if simulation_results:
-            _add_simulation_report(doc, simulation_results)
-
         # Appendix A: Structured appendix from JSON
         if appendix:
             _add_appendix_from_json(doc, appendix)
