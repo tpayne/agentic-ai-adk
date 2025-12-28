@@ -499,6 +499,13 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
 
         doc.add_paragraph()
 
+        # Bottlenecks
+        if "bottlenecks" in simulation_results:
+            doc.add_heading("Identified Bottlenecks", level=2)
+            for b in simulation_results["bottlenecks"]:
+                doc.add_paragraph(str(b), style="List Bullet")
+
+
         # Per-Step Average Durations Table
         if "per_step_avg" in simulation_results:
             doc.add_heading("Detailed Step Performance", level=2)
@@ -517,9 +524,22 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
                     row[1].text = str(avg)
 
         doc.add_paragraph()
-        
+
+        # Optional: optimization recommendations (if you choose to persist them later)
+        if "recommendations" in simulation_results and isinstance(simulation_results["recommendations"], list):
+            doc.add_heading("Optimization Recommendations", level=2)
+            for rec in simulation_results["recommendations"]:
+                if not isinstance(rec, dict):
+                    continue
+                step_name = rec.get("step_name", "Step")
+                instruction = rec.get("instruction", "")
+                line = f"{step_name}: {instruction}"
+                doc.add_paragraph(line, style="List Bullet")
+
     except Exception as e:
         logger.error(f"Error rendering simulation report: {e}")
+        traceback.print_exc()
+
 def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
     """
     6.0 Reporting & Analytics (schema-aware, data-agnostic).
