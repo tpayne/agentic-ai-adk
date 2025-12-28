@@ -61,6 +61,17 @@ else:
 
 logger.info(f"Pipeline initialized. {cleanup_status}")
 
+state_file = "output/simulation_results.json"
+if os.path.exists(state_file):
+    try:
+        os.remove(state_file)
+        cleanup_status = "Existing simulation file cleared."
+    except Exception as e:
+        cleanup_status = f"Cleanup failed: {str(e)}"
+else:
+    cleanup_status = "No previous simulation file found. Starting clean."
+
+logger.info(f"Pipeline initialized. {cleanup_status}")
 
 # ---------------------------------------------------------
 # PIPELINE DEFINITION
