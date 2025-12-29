@@ -15,6 +15,7 @@ from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
+from .subprocess_driver_agent import subprocess_driver_agent
 
 # ---------------------------------------------------------
 # LOGGING SETUP
@@ -104,14 +105,16 @@ json_normalization_loop = SequentialAgent(
 
 # Main Orchestrator
 # Added edge_inference_agent back into the sequence
+subprocess_stage = subprocess_driver_agent
 root_agent = SequentialAgent(
     name="Automated_Process_Architect_Pipeline",
     sub_agents=[
         analysis_agent,          # Stage 1: Requirements
         review_loop,             # Stage 2: Design/Audit Loop
-        json_normalization_loop, # Stage 3: Stabilization (Writes process_data.json)
-        edge_inference_agent,    # Stage 4: Logical Flow (Writes flow.png)
-        doc_generation_agent     # Stage 5: Artifact Build (Writes .docx)
+        json_normalization_loop, # Stage 3: Stabilization (writes process_data.json)
+        subprocess_stage,        # Stage 4: Per-step subprocess generation (writes output/subprocesses/*.json)
+        edge_inference_agent,    # Stage 5: Logical Flow
+        doc_generation_agent     # Stage 6: Artifact Build
     ]
 )
 
