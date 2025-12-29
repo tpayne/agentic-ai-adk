@@ -1,6 +1,9 @@
+# process_agents/simulation_agent.py
+
 import logging
 import json
 import random
+import re
 from statistics import mean, pstdev
 from typing import Dict, Any
 
@@ -12,75 +15,206 @@ SIM_RESULTS_PATH = "output/simulation_results.json"
 
 
 # ============================================================
+# JSON EXTRACTION + REPAIR + VALIDATION
+# ============================================================
+
+def _attempt_json_repair(raw: str) -> str:
+    """
+    Lightweight JSON repair:
+    - removes trailing commas
+    - fixes ',]' and ',}'
+    - strips BOM or weird whitespace
+    """
+    cleaned = raw.strip()
+
+    # Remove trailing commas before ] or }
+    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+
+    # Remove BOM if present
+    cleaned = cleaned.replace("\ufeff", "")
+
+    return cleaned
+
+
+def _extract_valid_json(raw: str):
+    """
+    Extracts the largest valid JSON object from an LLM response.
+    Handles:
+    - trailing commentary
+    - leading text
+    - nested braces
+    - multiple JSON blocks
+    - malformed endings
+
+    Returns:
+        dict if valid JSON found
+        raises ValueError otherwise
+    """
+    raw = raw.strip()
+    logger.debug(f"Raw LLM output received for simulation (first 5000 chars): {raw[:5000]}")
+
+    stack = []
+    start_idx = None
+    candidates = []
+
+    # Greedy brace matcher
+    for i, ch in enumerate(raw):
+        if ch == "{":
+            if not stack:
+                start_idx = i
+            stack.append("{")
+        elif ch == "}":
+            if stack:
+                stack.pop()
+                if not stack and start_idx is not None:
+                    candidates.append(raw[start_idx:i+1])
+                    start_idx = None
+
+    # Try each candidate from longest to shortest
+    for block in sorted(candidates, key=len, reverse=True):
+        try:
+            return json.loads(block)
+        except Exception:
+            repaired = _attempt_json_repair(block)
+            try:
+                return json.loads(repaired)
+            except Exception:
+                continue
+
+    raise ValueError("No valid JSON object found in LLM output.")
+
+
+def _validate_process_json(data: Dict[str, Any]):
+    """
+    Ensures the extracted JSON has the required structure.
+    Auto-repairs common LLM drift cases:
+    - process_steps is a dict instead of a list
+    - process_steps is a JSON string
+    - process_steps is None
+    """
+
+    if "process_steps" not in data:
+        raise ValueError("JSON missing required key: process_steps")
+
+    steps = data["process_steps"]
+
+    # --- Auto-repair: process_steps is a JSON string ---
+    if isinstance(steps, str):
+        try:
+            parsed = json.loads(steps)
+            steps = parsed
+            data["process_steps"] = parsed
+        except Exception:
+            raise ValueError("process_steps is a string but not valid JSON")
+
+    # --- Auto-repair: process_steps is a dict ---
+    if isinstance(steps, dict):
+        # Convert dict → list of step objects
+        repaired = list(steps.values())
+        data["process_steps"] = repaired
+        steps = repaired
+
+    # --- Auto-repair: process_steps is None ---
+    if steps is None:
+        raise ValueError("process_steps is null — cannot repair automatically")
+
+    # --- Final strict validation ---
+    if not isinstance(steps, list):
+        raise ValueError("process_steps must be a list after repair")
+
+    for step in steps:
+        if not isinstance(step, dict):
+            raise ValueError("Each process step must be an object")
+        if "step_name" not in step:
+            raise ValueError("Each step must contain step_name")
+
+
+def _detect_cycles(step_info):
+    """
+    Detects circular dependencies in the process graph.
+    """
+    graph = {s["name"]: s["deps"] for s in step_info}
+
+    visited = set()
+    stack = set()
+
+    def visit(node):
+        if node in stack:
+            raise ValueError(f"Circular dependency detected at step: {node}")
+        if node in visited:
+            return
+        stack.add(node)
+        for dep in graph.get(node, []):
+            visit(dep)
+        stack.remove(node)
+        visited.add(node)
+
+    for node in graph:
+        visit(node)
+
+
+# ============================================================
 # CORE DISCRETE-EVENT MONTE CARLO SIMULATION
 # ============================================================
 
 def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[str, Any]:
-    """
-    Internal: runs the discrete-event Monte Carlo simulation
-    on a normalized process JSON dict and returns a metrics dict.
-    """
     from collections import Counter
     
     steps = data.get("process_steps", [])
     if not isinstance(steps, list) or not steps:
         raise ValueError('No valid "process_steps" array found.')
 
-    # -----------------------------------------------
-    # STEP METADATA EXTRACTION & UNIT DETECTION
-    # -----------------------------------------------
     step_info = []
     all_units = []
-    
+
+    # Extract step metadata
     for step in steps:
         if not isinstance(step, dict):
             continue
 
         name = step.get("step_name") or step.get("name") or "Unnamed Task"
 
-        # Parse duration and unit (e.g., "4 hours" -> 4.0, "hours")
+        # Parse duration
         dur_str = step.get("estimated_duration", "1")
         tokens = str(dur_str).split()
         base_val = 1.0
-        
+
         if tokens:
             try:
                 base_val = float(tokens[0].replace(",", "."))
             except Exception:
                 base_val = 1.0
-            
-            # Capture the unit if present
+
+            # Clamp insane durations
+            base_val = max(0.1, min(base_val, 1000))
+
             if len(tokens) > 1:
                 all_units.append(tokens[1].lower())
 
         deps = step.get("dependencies") or []
         if isinstance(deps, str):
             deps = [deps]
-        
+
         step_info.append({
             "name": name,
             "base": base_val,
             "deps": [str(d).strip() for d in deps if str(d).strip()]
         })
 
-    # Determine the dominant unit (default to 'hours' if none found)
+    # Detect circular dependencies
+    _detect_cycles(step_info)
+
     dominant_unit = Counter(all_units).most_common(1)[0][0] if all_units else "hours"
 
-    # -----------------------------------------------
-    # MONTE CARLO DISCRETE-EVENT SIMULATION
-    # -----------------------------------------------
     cycle_times = []
     per_step_times = {s["name"]: [] for s in step_info}
 
+    # Monte Carlo simulation
     for _ in range(iterations):
-        completed = {} 
+        completed = {}
         for s in step_info:
-            # Wait for all dependencies
-            dep_finish = 0.0
-            if s["deps"]:
-                dep_finish = max([completed.get(dep, 0.0) for dep in s["deps"]] or [0.0])
+            dep_finish = max([completed.get(dep, 0.0) for dep in s["deps"]] or [0.0])
 
-            # Triangular Distribution: real-world variance modeling
             low = s["base"] * 0.8
             high = s["base"] * 2.2
             mode = s["base"]
@@ -92,9 +226,6 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
 
         cycle_times.append(max(completed.values()))
 
-    # -----------------------------------------------
-    # METRIC CALCULATION
-    # -----------------------------------------------
     avg_cycle = float(mean(cycle_times))
     variance = float(pstdev(cycle_times)) if len(cycle_times) > 1 else 0.0
 
@@ -122,11 +253,8 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
         "per_step_avg": per_step_avg
     }
 
+
 def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
-    """
-    Internal: persist metrics (and optionally recommendations later)
-    to output/simulation_results.json
-    """
     try:
         import os
         os.makedirs("output", exist_ok=True)
@@ -140,29 +268,16 @@ def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
 # ============================================================
 # TOOL 1: BASELINE PROCESS SIMULATION
 # ============================================================
+
 def simulate_process_performance(process_json_str) -> str:
-    """
-    Accepts:
-    - a JSON string
-    - a Python dict
-    - a message containing JSON after a prefix (e.g. 'COMPLIANCE APPROVED\n{...}')
-    """
     try:
-        # If already a dict, use it directly
         if isinstance(process_json_str, dict):
             data = process_json_str
-
         else:
             raw = str(process_json_str).strip()
+            data = _extract_valid_json(raw)
 
-            # Find the first '{'
-            brace_index = raw.find("{")
-            if brace_index == -1:
-                raise ValueError("No JSON object found in input")
-
-            json_str = raw[brace_index:]
-
-            data = json.loads(json_str)
+        _validate_process_json(data)
 
         metrics = _run_core_simulation(data, iterations=2000)
         _persist_simulation_metrics(metrics)
@@ -170,54 +285,39 @@ def simulate_process_performance(process_json_str) -> str:
 
     except Exception as e:
         logger.exception("Simulation failed.")
-        return f"SIMULATION_ERROR: Unable to parse JSON. Error: {str(e)}"
+        return json.dumps({
+            "error": "simulation_failed",
+            "detail": str(e)
+        })
+
 
 # ============================================================
 # TOOL 2: SCENARIO SIMULATION
 # ============================================================
 
 def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
-    """
-    Applies a scenario to the process JSON, runs the same simulation,
-    and returns metrics as JSON.
-
-    scenario_json_str example:
-    {
-      "override_durations": {"Development & Testing": 3.5},
-      "remove_dependencies": {"Deployment": ["Sprint Review (Demo)"]},
-      "parallelize": ["Development & Testing"]
-    }
-    """
     try:
         data = json.loads(process_json_str)
         scenario = json.loads(scenario_json_str)
 
         steps = data.get("process_steps", [])
 
-        # Duration overrides
         overrides = scenario.get("override_durations", {})
         for step in steps:
             name = step.get("step_name")
             if name in overrides:
                 step["estimated_duration"] = str(overrides[name])
 
-        # Remove dependencies
         dep_removals = scenario.get("remove_dependencies", {})
         for step in steps:
             name = step.get("step_name")
-            if not name:
-                continue
             to_remove = dep_removals.get(name, [])
             if to_remove:
                 deps = step.get("dependencies") or []
                 if isinstance(deps, str):
                     deps = [deps]
-                if isinstance(deps, list):
-                    step["dependencies"] = [
-                        d for d in deps if d not in to_remove
-                    ]
+                step["dependencies"] = [d for d in deps if d not in to_remove]
 
-        # Parallelization hint: reduce durations by 30%
         parallel = scenario.get("parallelize", [])
         for step in steps:
             name = step.get("step_name")
@@ -233,12 +333,14 @@ def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
                 step["estimated_duration"] = str(base * 0.7)
 
         metrics = _run_core_simulation(data, iterations=2000)
-        # Do NOT overwrite the baseline metrics file here
         return json.dumps(metrics)
 
     except Exception as e:
         logger.exception("Scenario simulation failed.")
-        return f"SCENARIO_ERROR: {str(e)}"
+        return json.dumps({
+            "error": "scenario_simulation_failed",
+            "detail": str(e)
+        })
 
 
 # ============================================================
@@ -261,75 +363,33 @@ simulation_agent = LlmAgent(
         "   - Pass the FULL process JSON as a string.\n"
         "   - Wait for the tool result.\n\n"
         "SIMULATION RESULT INTERPRETATION:\n"
-        "- The tool returns either a JSON string with metrics or a string starting with 'SIMULATION_ERROR'.\n"
-        "- If you receive 'SIMULATION_ERROR':\n"
+        "- The tool returns either a JSON metrics object or an error object.\n"
+        "- If you receive an error object:\n"
         "    * Output EXACTLY:\n"
         "        OPTIMIZATION REQUIRED\n"
         "        [{\"error_type\": \"simulation_error\", \"detail\": \"<the error message>\"}]\n\n"
-        "- If you receive a valid JSON metrics object, parse it and inspect:\n"
+        "- If you receive valid metrics, inspect:\n"
         "    * avg_cycle_time\n"
         "    * cycle_time_variance\n"
-        "    * bottlenecks (list of step names)\n"
-        "    * resource_contention_risk (Low/Medium/High)\n"
-        "    * per_step_avg (map of step -> average duration)\n\n"
+        "    * bottlenecks\n"
+        "    * resource_contention_risk\n"
+        "    * per_step_avg\n\n"
         "DECISION LOGIC:\n"
-        "You MUST choose ONE of two response types:\n\n"
         "A) If ANY of the following are true:\n"
         "   - 'resource_contention_risk' is 'Medium' or 'High', OR\n"
         "   - 'bottlenecks' is non-empty, OR\n"
-        "   - 'cycle_time_variance' is more than 25% of 'avg_cycle_time',\n"
-        "   THEN you MUST output EXACTLY:\n"
+        "   - 'cycle_time_variance' > 25% of 'avg_cycle_time',\n"
+        "   THEN output EXACTLY:\n"
         "       OPTIMIZATION REQUIRED\n"
-        "       [\n"
-        "         {\"step_name\": \"...\", \"issue\": \"bottleneck\", \"instruction\": \"...\"},\n"
-        "         {\"step_name\": \"...\", \"issue\": \"variance\", \"instruction\": \"...\"},\n"
-        "         ...\n"
-        "       ]\n\n"
-        "B) If NONE of the above conditions are true (process is stable and efficient):\n"
-        "   THEN you MUST output EXACTLY:\n"
+        "       [ {\"step_name\": \"...\", \"issue\": \"...\", \"instruction\": \"...\"}, ... ]\n\n"
+        "B) Otherwise output EXACTLY:\n"
         "       PERFORMANCE APPROVED\n"
         "       {<FULL JSON OBJECT OF THE ORIGINAL PROCESS>}\n\n"
-        "STRUCTURE RULES (CRITICAL):\n"
-        "- Your response MUST consist of exactly TWO parts:\n"
-        "    1) A single line: either 'OPTIMIZATION REQUIRED' or 'PERFORMANCE APPROVED'.\n"
-        "    2) Immediately after that line, ONE and only ONE JSON structure:\n"
-        "       - A JSON ARRAY of recommendation objects (if optimization is required), OR\n"
-        "       - A FULL JSON OBJECT of the process (if performance is approved).\n"
-        "- Do NOT output any other text, commentary, or markdown.\n"
-        "- Do NOT wrap JSON in ``` fences.\n"
-        "- Do NOT output tool calls.\n"
-        "- Do NOT truncate the JSON.\n"
-    ),
-)
-
-
-# ============================================================
-# OPTIONAL: SCENARIO TESTING AGENT (MANUAL USE)
-# ============================================================
-
-scenario_testing_agent = LlmAgent(
-    name="Scenario_Testing_Agent",
-    model="gemini-2.0-flash-001",
-    description="Converts what-if scenarios into structured simulation runs.",
-    tools=[simulate_scenario],
-    instruction=(
-        "You are a Process Scenario Analyst.\n\n"
-        "INPUT:\n"
-        "- The user will describe a 'what-if' scenario, such as:\n"
-        "   * Reduce sprint planning duration by 50%.\n"
-        "   * Remove a dependency between two steps.\n"
-        "   * Parallelize Development & Testing and Code Review.\n\n"
-        "YOUR TASK:\n"
-        "1) Convert the scenario into a JSON object with keys like:\n"
-        "   {\n"
-        "     \"override_durations\": {\"Step Name\": 3.5},\n"
-        "     \"remove_dependencies\": {\"Step Name\": [\"Other Step\"]},\n"
-        "     \"parallelize\": [\"Step Name\"]\n"
-        "   }\n"
-        "2) CALL 'simulate_scenario' with:\n"
-        "   - The FULL process JSON as a string.\n"
-        "   - The scenario JSON as a string.\n"
-        "3) Output ONLY the metrics JSON returned by 'simulate_scenario'.\n"
-        "4) Do NOT output commentary, markdown, or prose.\n"
+        "STRUCTURE RULES:\n"
+        "- Response MUST be exactly two parts:\n"
+        "    1) A single line: 'OPTIMIZATION REQUIRED' or 'PERFORMANCE APPROVED'.\n"
+        "    2) ONE JSON structure.\n"
+        "- No commentary, no markdown, no tool calls.\n"
+        "- Do NOT truncate JSON.\n"
     ),
 )

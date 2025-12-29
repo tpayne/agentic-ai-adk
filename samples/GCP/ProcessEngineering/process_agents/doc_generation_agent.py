@@ -16,6 +16,40 @@ import logging
 logger = logging.getLogger("ProcessArchitect.DocGen")
 
 # -----------------------------------
+# Subprocess support
+# -----------------------------------
+
+def _load_subprocesses() -> dict:
+    """
+    Loads all subprocess JSON files from output/subprocesses/.
+    Returns a dict: { step_name: subprocess_json }
+    """
+    logger.info("Loading subprocess JSON files...")
+    subprocess_dir = "output/subprocesses"
+    subprocesses = {}
+
+    if not os.path.isdir(subprocess_dir):
+        return subprocesses
+
+    for filename in os.listdir(subprocess_dir):
+        if not filename.endswith(".json"):
+            continue
+
+        path = os.path.join(subprocess_dir, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            parent = data.get("parent_step_name") or data.get("step_name")
+            if parent:
+                subprocesses[parent] = data
+
+        except Exception:
+            logger.exception(f"Failed to load subprocess file: {path}")
+
+    return subprocesses
+
+# -----------------------------------
 # Helpers: Document building blocks
 # -----------------------------------
 
@@ -345,9 +379,134 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
                 r.bold = True
                 doc.add_paragraph(str(escalation), style="Normal")
 
+            # --- Subprocess render (if attached) ---
+            subprocess_json = step.get("subprocess")
+            if isinstance(subprocess_json, dict):
+                _add_subprocess_section(doc, name, subprocess_json)
+
             doc.add_paragraph()
     except Exception:
         traceback.print_exc()
+
+
+def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json: dict) -> None:
+    """
+    Fully hardened subprocess renderer.
+    Accepts ANY reasonable subprocess schema and renders it safely.
+
+    Supports:
+    - subprocess_flow
+    - subprocess_steps
+    - steps
+    - flow
+    - phases
+    - arbitrary nested structures
+
+    Also supports substep_name, step_name, name, title, etc.
+    """
+    logger.info(f"Rendering subprocess for step: {step_name}")
+    try:
+        doc.add_heading(f"Required Sub Process(es) for the Step \"{step_name}\"", level=3)
+        doc.add_paragraph(f"The following details the subprocess flows for the step \"{step_name}\".")
+        # Optional high-level description
+        desc = subprocess_json.get("description")
+        if desc:
+            doc.add_paragraph(str(desc))
+
+        # --- Identify substep container keys (max compatibility) ---
+        candidate_keys = [
+            "subprocess_steps",
+            "subprocess_flow",
+            "steps",
+            "flow",
+            "phases",
+            "substeps",
+            "activities",   # fallback if LLM outputs activities as substeps
+        ]
+
+        substeps = None
+        for key in candidate_keys:
+            if key in subprocess_json and isinstance(subprocess_json[key], list):
+                substeps = subprocess_json[key]
+                break
+
+        # If still nothing, try to detect any list of dicts
+        if substeps is None:
+            for k, v in subprocess_json.items():
+                if isinstance(v, list) and all(isinstance(x, dict) for x in v):
+                    substeps = v
+                    break
+
+        # If STILL nothing, render the whole subprocess JSON generically
+        if not substeps:
+            doc.add_paragraph("No structured subprocess steps found. Rendering raw subprocess data:")
+            _render_generic_value(doc, subprocess_json, level=1)
+            doc.add_paragraph()
+            return
+
+        # --- Render each substep ---
+        for idx, s in enumerate(substeps, start=1):
+            if not isinstance(s, dict):
+                continue
+
+            # Identify substep name field
+            name_fields = [
+                "substep_name",
+                "step_name",
+                "name",
+                "title",
+                "label",
+            ]
+            sname = None
+            for nf in name_fields:
+                if nf in s:
+                    sname = s[nf]
+                    break
+            if not sname:
+                sname = f"Sub-step {idx}"
+
+            doc.add_heading(f"{step_name} – {sname}", level=4)
+
+            # Known fields
+            known_fields = {
+                "description": "Description",
+                "responsible_party": "Responsible Parties",
+                "inputs": "Inputs",
+                "outputs": "Outputs",
+                "dependencies": "Dependencies",
+                "estimated_duration": "Estimated Duration",
+                "success_criteria": "Success Criteria",
+            }
+
+            # Render known fields first
+            for field, label in known_fields.items():
+                if field not in s:
+                    continue
+
+                value = s[field]
+                p = doc.add_paragraph()
+                r = p.add_run(f"{label}: ")
+                r.bold = True
+
+                if isinstance(value, list):
+                    for item in value:
+                        doc.add_paragraph(str(item), style="List Bullet")
+                else:
+                    p.add_run(str(value))
+
+            # Render any unknown fields (schema drift protection)
+            extra = {
+                k: v for k, v in s.items()
+                if k not in known_fields and k not in name_fields
+            }
+            if extra:
+                doc.add_paragraph().add_run("Additional Details:").bold = True
+                _render_generic_value(doc, extra, level=1)
+
+            doc.add_paragraph()
+
+    except Exception:
+        logger.exception(f"Failed to render subprocess for {step_name}")
 
 
 def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> None:
@@ -459,7 +618,6 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
         if not isinstance(simulation_results, dict) or not simulation_results:
             return
 
-        # --- FIX: Define the variable at the top to avoid UnboundLocalError ---
         time_unit = str(simulation_results.get("time_unit", "units"))
 
         doc.add_heading("9.0 Process Performance Report", level=1)
@@ -469,7 +627,6 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
             f"running 2,000 iterations. All time-based values are reported in {time_unit}."
         )
 
-        # Core Metrics Table
         table = doc.add_table(rows=1, cols=2)
         table.style = "Table Grid"
         hdr = table.rows[0].cells
@@ -488,7 +645,6 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
                 row[0].text = label
                 val = simulation_results[key]
                 
-                # Append unit to time-based metrics
                 if "cycle_time" in key:
                     try:
                         row[1].text = f"{float(val):.2f} {time_unit}"
@@ -499,14 +655,11 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
 
         doc.add_paragraph()
 
-        # Bottlenecks
         if "bottlenecks" in simulation_results:
             doc.add_heading("Identified Bottlenecks", level=2)
             for b in simulation_results["bottlenecks"]:
                 doc.add_paragraph(str(b), style="List Bullet")
 
-
-        # Per-Step Average Durations Table
         if "per_step_avg" in simulation_results:
             doc.add_heading("Detailed Step Performance", level=2)
             table2 = doc.add_table(rows=1, cols=2)
@@ -525,7 +678,6 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
 
         doc.add_paragraph()
 
-        # Optional: optimization recommendations (if you choose to persist them later)
         if "recommendations" in simulation_results and isinstance(simulation_results["recommendations"], list):
             doc.add_heading("Optimization Recommendations", level=2)
             for rec in simulation_results["recommendations"]:
@@ -540,23 +692,8 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
         logger.error(f"Error rendering simulation report: {e}")
         traceback.print_exc()
 
+
 def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
-    """
-    6.0 Reporting & Analytics (schema-aware, data-agnostic).
-
-    Supports ANY structure:
-    - dict of {key: value}
-    - list of strings
-    - list of dicts with arbitrary keys
-    - nested dicts/lists
-    - mixed types
-
-    Rendering rules:
-    - dict → table (key → flattened value)
-    - list of primitives → bullet list
-    - list of dicts → infer columns → table
-    - mixed/nested → recursive readable fallback
-    """
     try:
         if ra is None:
             return
@@ -566,9 +703,6 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             f"The following are key reporting and analytics associated with this process."
         )
 
-        # -----------------------------------------
-        # Helper: flatten nested values
-        # -----------------------------------------
         def flatten_value(v):
             if isinstance(v, dict):
                 parts = []
@@ -580,9 +714,6 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             else:
                 return str(v)
 
-        # -----------------------------------------
-        # Case 1: dict → table
-        # -----------------------------------------
         if isinstance(ra, dict):
             table = doc.add_table(rows=1, cols=2)
             table.style = "Table Grid"
@@ -598,20 +729,13 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             doc.add_paragraph()
             return
 
-        # -----------------------------------------
-        # Case 2: list of primitives → bullets
-        # -----------------------------------------
         if isinstance(ra, list) and all(isinstance(x, (str, int, float)) for x in ra):
             for item in ra:
                 doc.add_paragraph(str(item), style="List Bullet")
             doc.add_paragraph()
             return
 
-        # -----------------------------------------
-        # Case 3: list of dicts → infer columns → table
-        # -----------------------------------------
         if isinstance(ra, list) and all(isinstance(x, dict) for x in ra):
-            # Collect all keys across all dicts
             all_keys = set()
             for item in ra:
                 all_keys.update(item.keys())
@@ -620,12 +744,10 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             table = doc.add_table(rows=1, cols=len(all_keys))
             table.style = "Table Grid"
 
-            # Header row
             hdr = table.rows[0].cells
             for idx, key in enumerate(all_keys):
                 hdr[idx].text = key.replace("_", " ").title()
 
-            # Data rows
             for item in ra:
                 row = table.add_row().cells
                 for idx, key in enumerate(all_keys):
@@ -635,9 +757,6 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
             doc.add_paragraph()
             return
 
-        # -----------------------------------------
-        # Case 4: Mixed or unknown → recursive fallback
-        # -----------------------------------------
         doc.add_paragraph(
             "The reporting and analytics structure contains mixed or nested data. "
             "The following section renders it in a readable hierarchical format."
@@ -674,20 +793,6 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
 
 
 def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
-    """
-    7.0 System Requirements (schema-aware, data-agnostic).
-
-    Supports:
-    - list of dicts with arbitrary keys (e.g., name, description, type, etc.)
-    - list of strings
-    - mixed lists
-    - unknown future schema
-
-    Rendering rules:
-    - If list of dicts → infer all keys → render a table
-    - If list of strings → bullet list
-    - If mixed → fallback to recursive readable formatting
-    """
     try:
         if not isinstance(system_requirements, list) or not system_requirements:
             return
@@ -697,32 +802,24 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
             f"The following system requirements are essential for the successful implementation of this process."
         )
 
-        # -----------------------------------------
-        # Case 1: list of dicts → infer columns
-        # -----------------------------------------
         if all(isinstance(item, dict) for item in system_requirements):
-            # Collect all keys across all dicts
             all_keys = set()
             for item in system_requirements:
                 all_keys.update(item.keys())
             all_keys = sorted(all_keys)
 
-            # Build table
             table = doc.add_table(rows=1, cols=len(all_keys))
             table.style = "Table Grid"
 
-            # Header row
             hdr = table.rows[0].cells
             for idx, key in enumerate(all_keys):
                 hdr[idx].text = key.replace("_", " ").title()
 
-            # Data rows
             for item in system_requirements:
                 row = table.add_row().cells
                 for idx, key in enumerate(all_keys):
                     val = item.get(key, "")
                     if isinstance(val, dict):
-                        # Flatten nested dicts
                         row[idx].text = "; ".join(
                             f"{k}: {v}" for k, v in val.items()
                         )
@@ -734,18 +831,12 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
             doc.add_paragraph()
             return
 
-        # -----------------------------------------
-        # Case 2: list of primitives → bullets
-        # -----------------------------------------
         if all(isinstance(item, (str, int, float)) for item in system_requirements):
             for item in system_requirements:
                 doc.add_paragraph(str(item), style="List Bullet")
             doc.add_paragraph()
             return
 
-        # -----------------------------------------
-        # Case 3: mixed or unknown → recursive fallback
-        # -----------------------------------------
         doc.add_paragraph(
             "The system requirements contain mixed or nested data. "
             "The following section renders them in a readable hierarchical format."
@@ -924,6 +1015,14 @@ def create_standard_doc_from_file(process_name: str) -> str:
             data = raw_data
         else:
             data = {"root": raw_data}
+
+        # Attach subprocesses to steps (if any)
+        subprocesses = _load_subprocesses()
+        for step in data.get("process_steps", []):
+            if isinstance(step, dict):
+                name = step.get("step_name")
+                if name in subprocesses:
+                    step["subprocess"] = subprocesses[name]
 
         name = str(data.get("process_name", process_name))
         description = data.get("description") or data.get("process_description") or data.get("introduction")
@@ -1110,6 +1209,7 @@ if __name__ == "__main__":
         print(f"ERROR: File not found: {input_path}")
         sys.exit(1)
 
+    logger.info(f"[Standalone] Loading process JSON from {input_path}...")
     # Load the JSON file the same way the ADK pipeline would
     try:
         with open(input_path, "r", encoding="utf-8") as f:
