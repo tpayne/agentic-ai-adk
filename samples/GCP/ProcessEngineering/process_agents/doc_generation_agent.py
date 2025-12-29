@@ -5,6 +5,10 @@ from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
+from step_diagram_agent import ( 
+    generate_step_diagram_for_step, 
+)
+
 import os
 import json
 
@@ -101,6 +105,36 @@ def _add_version_history_table(doc: docx.Document, version: str, author: str) ->
     except Exception:
         traceback.print_exc()
 
+def _add_process_step_summary(doc, step: dict) -> None:
+    """Render a clean, human-readable summary of a process step."""
+    name = step.get("step_name") or step.get("name")
+    if name:
+        doc.add_heading(name, level=2)
+
+    desc = step.get("description")
+    if desc:
+        doc.add_paragraph(desc)
+
+    duration = step.get("estimated_duration")
+    if duration:
+        doc.add_paragraph(f"Estimated Duration: {duration}")
+
+    parties = step.get("responsible_party")
+    if parties:
+        doc.add_paragraph(f"Responsible Parties: {parties}")
+
+    activities = step.get("activities")
+    if activities:
+        doc.add_paragraph("Key Activities:")
+        for a in activities:
+            doc.add_paragraph(f"- {a}", style="List Bullet")
+
+    criteria = step.get("success_criteria")
+    if criteria:
+        doc.add_paragraph("Success Criteria:")
+        for c in criteria:
+            doc.add_paragraph(f"- {c}", style="List Bullet")
+
 
 def _render_generic_value(doc: docx.Document, value, level: int = 0) -> None:
     """
@@ -142,18 +176,20 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
     """
     1.0 Process Overview.
 
-    For normalized JSON:
-    - Prefer `introduction` for the main narrative.
-    - Fall back to `description` or `process_description` if present.
+    Renders:
+    - introduction or description
+    - assumptions
+    - constraints
+    - high-level metadata (purpose, scope, etc.)
+
+    It intentionally does NOT render full step details; those live in 3.0.
     """
     try:
         doc.add_heading("1.0 Process Overview", level=1)
 
+        # --- Intro / Description ---
         introduction = data.get("introduction")
-        description = (
-            data.get("description")
-            or data.get("process_description")
-        )
+        description = data.get("description") or data.get("process_description")
 
         if introduction:
             doc.add_paragraph(str(introduction))
@@ -161,15 +197,28 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
             doc.add_paragraph(str(description))
         else:
             doc.add_paragraph(
-                "This section provides a high-level overview of the business process as defined in the source data."
+                "This section provides a high-level overview of the business process."
             )
 
+        # --- Assumptions ---
+        assumptions = data.get("assumptions")
+        if isinstance(assumptions, list) and assumptions:
+            doc.add_paragraph("Assumptions:")
+            for a in assumptions:
+                doc.add_paragraph(f"{a}", style="List Bullet")
+
+        # --- Constraints ---
+        constraints = data.get("constraints")
+        if isinstance(constraints, list) and constraints:
+            doc.add_paragraph("Constraints:")
+            for c in constraints:
+                doc.add_paragraph(f"{c}", style="List Bullet")
+
+        # --- High-level metadata ---
         high_level_keys = [
             "purpose",
             "scope",
             "out_of_scope",
-            "assumptions",
-            "constraints",
             "industry_sector",
             "business_unit",
             "owner",
@@ -181,6 +230,9 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
                 r = p.add_run(f"{key.replace('_', ' ').title()}: ")
                 r.bold = True
                 p.add_run(str(data.get(key)))
+
+        # NOTE: No step summaries here. 3.0 already covers process_steps.
+
     except Exception:
         traceback.print_exc()
 
@@ -408,6 +460,10 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
     try:
         doc.add_heading(f"Required Sub Process(es) for the Step \"{step_name}\"", level=3)
         doc.add_paragraph(f"The following details the subprocess flows for the step \"{step_name}\".")
+
+        # 🔥 NEW: generate and embed a subprocess diagram (per-step micro-BPMN)
+        _add_step_diagram_if_available(doc, step_name, subprocess_json)
+
         # Optional high-level description
         desc = subprocess_json.get("description")
         if desc:
@@ -872,6 +928,29 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
         traceback.print_exc()
 
 
+def _add_step_diagram_if_available(
+    doc: docx.Document,
+    step_name: str,
+    subprocess_json: dict,
+) -> None:
+    """
+    Generate and embed a subprocess diagram for the given step, if possible.
+    Uses the micro-BPMN generator by default.
+    """
+    try:
+        diagram_path = generate_step_diagram_for_step(step_name, subprocess_json)
+
+        if not diagram_path:
+            return
+        if not os.path.exists(diagram_path):
+            return
+
+        doc.add_picture(diagram_path, width=Inches(5.5))
+        doc.add_paragraph()  # spacer
+    except Exception:
+        traceback.print_exc()
+
+
 def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
     """8.0 Flow diagram section if a PNG already exists. Defensive."""
     try:
@@ -1037,20 +1116,21 @@ def create_standard_doc_from_file(process_name: str) -> str:
         system_requirements = data.get("system_requirements")
         appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
 
-        consumed_keys = {
+        consumed_keys = { 
             "process_name", 
             "description", 
             "process_description", 
-            "introduction", ""
-            "version",
+            "introduction", 
+            "version", 
             "industry_sector", 
-            "business_unit",
-            "stakeholders",
-            "process_steps",
-            "tools_summary",
-            "metrics", "success_metrics",
-            "reporting_and_analytics",
-            "system_requirements",
+            "business_unit", 
+            "stakeholders", 
+            "process_steps", 
+            "tools_summary", 
+            "metrics", 
+            "success_metrics", 
+            "reporting_and_analytics", 
+            "system_requirements", 
             "appendix",
         }
 
