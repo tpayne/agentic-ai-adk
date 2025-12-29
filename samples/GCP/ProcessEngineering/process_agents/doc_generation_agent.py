@@ -406,8 +406,8 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
     """
     logger.info(f"Rendering subprocess for step: {step_name}")
     try:
-        doc.add_heading(f"Subprocess: {step_name}", level=3)
-
+        doc.add_heading(f"Required Sub Process(es) for the Step \"{step_name}\"", level=3)
+        doc.add_paragraph(f"The following details the subprocess flows for the step \"{step_name}\".")
         # Optional high-level description
         desc = subprocess_json.get("description")
         if desc:
