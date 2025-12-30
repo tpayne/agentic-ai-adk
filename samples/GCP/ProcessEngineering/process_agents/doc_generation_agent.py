@@ -208,6 +208,7 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
                    doc.add_paragraph(item, style='List Bullet')
 
         # --- Constraints ---
+        constraints = data.get("constraints")
         if "constraints" in process_data and process_data["constraints"]:
             if isinstance(constraints, list) and constraints:
                doc.add_heading("1.2 Constraints", level=2)
@@ -1043,7 +1044,9 @@ def _add_glossary(doc: docx.Document) -> None:
     """Appendix C: Generic glossary for common process terminology."""
     try:
         doc.add_heading("Appendix C: Glossary", level=1)
-
+        doc.add_paragraph(
+            "This glossary contains definitions of common terms used in the process documentation."
+        )
         terms = {
             "Business Process": "A set of related activities or tasks performed to achieve a specific organizational goal.",
             "KPI": "Key Performance Indicator used to measure the success or health of a process.",
@@ -1051,11 +1054,17 @@ def _add_glossary(doc: docx.Document) -> None:
             "Continuous Improvement": "Ongoing effort to improve products, services or processes.",
         }
 
+        # Render glossary as a table instead of a list
+        table = doc.add_table(rows=1, cols=2)
+        table.style = "Table Grid"
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = "Term"
+        hdr_cells[1].text = "Definition"
+
         for term, definition in terms.items():
-            p = doc.add_paragraph()
-            r = p.add_run(f"{term}: ")
-            r.bold = True
-            p.add_run(definition)
+            row_cells = table.add_row().cells
+            row_cells[0].text = term
+            row_cells[1].text = definition
     except Exception:
         traceback.print_exc()
 
@@ -1171,6 +1180,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
         # DOCUMENT CONTROL + TOC
         _add_version_history_table(doc, version=version, author="Process Architect")
 
+        doc.add_page_break()
         doc.add_heading("Table of Contents", level=1)
         _add_table_of_contents(doc)
         doc.add_page_break()
@@ -1181,10 +1191,12 @@ def create_standard_doc_from_file(process_name: str) -> str:
 
         # 2.0 Stakeholders
         _add_stakeholders_section(doc, stakeholders)
+        doc.add_page_break()
 
         # 3.0 Process Steps
         if process_steps:
             _add_process_steps_section(doc, process_steps)
+            doc.add_page_break()
 
         # 4.0 Tools / Systems (from tools_summary)
         if tools_summary:
@@ -1193,17 +1205,21 @@ def create_standard_doc_from_file(process_name: str) -> str:
         # 5.0 Metrics
         if isinstance(metrics, list) and metrics:
             _add_metrics_section(doc, metrics)
+            doc.add_page_break()
 
         # 6.0 Reporting & Analytics
         if reporting_and_analytics:
             _add_reporting_and_analytics(doc, reporting_and_analytics)
+            doc.add_page_break()
 
         # 7.0 System Requirements
         if system_requirements:
             _add_system_requirements(doc, system_requirements)
+            doc.add_page_break()
 
         # 8.0 Flow Diagram
         _add_flowchart_section(doc, name)
+        doc.add_page_break()
 
         # Load simulation results if present
         simulation_results = None
@@ -1219,6 +1235,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
         # 9.0 Process Performance Report (if we have metrics)
         if simulation_results:
             _add_simulation_report(doc, simulation_results)
+            doc.add_page_break()
 
         # Appendix A: Structured appendix from JSON
         if appendix:
@@ -1226,9 +1243,11 @@ def create_standard_doc_from_file(process_name: str) -> str:
             consumed_keys.add("appendix")
 
         # Appendix B: Remaining JSON
+        doc.add_page_break()
         _add_additional_data_section(doc, data, consumed_keys)
 
         # Appendix C: Glossary
+        doc.add_page_break()
         _add_glossary(doc)
 
         try:
