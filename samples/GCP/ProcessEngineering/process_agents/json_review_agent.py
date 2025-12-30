@@ -40,7 +40,7 @@ json_review_agent = LlmAgent(
         "     \"industry_sector\": string,\n"
         "     \"version\": string,\n"
         "     \"introduction\": string,\n"
-        "     \"stakeholders\": [],\n"
+        "     \"stakeholders\": [ {\"responsibilities\": [string], \"role\": string, \"stakeholder_name\": string} ],\n"
         "     \"process_steps\": [],\n"
         "     \"tools_summary\": {},\n"
         "     \"metrics\": [],\n"
@@ -50,7 +50,8 @@ json_review_agent = LlmAgent(
         "   }\n"
         "2. COMPLETENESS: No empty strings or empty arrays if data exists in context.\n"
         "3. ENRICHMENT: The 'introduction' and all step descriptions must be multi-sentence, "
-        "   professional paragraphs. Reject bullet points in these fields.\n"
+        "   professional paragraphs. Reject bullet points in these fields. Stakeholders must have all their potential "
+        "   responsibilities listed.\n"
         "4. QUALITY: Verify English grammar, spelling, and logical flow between steps.\n"
         "5. CONSISTENCY: Ensure tool names in 'tools_summary' match those mentioned in 'process_steps'.\n\n"
 

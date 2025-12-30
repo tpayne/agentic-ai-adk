@@ -1201,7 +1201,8 @@ def create_standard_doc_from_file(process_name: str) -> str:
         # 4.0 Tools / Systems (from tools_summary)
         if tools_summary:
             _add_tools_section_from_summary(doc, tools_summary)
-
+            doc.add_page_break()
+            
         # 5.0 Metrics
         if isinstance(metrics, list) and metrics:
             _add_metrics_section(doc, metrics)
