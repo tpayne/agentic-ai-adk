@@ -37,6 +37,7 @@ json_review_agent = LlmAgent(
         "1. SCHEMA: Must match exactly:\n"
         "   {\n"
         "     \"process_name\": string,\n"
+        "     \"industry_sector\": string,\n"
         "     \"version\": string,\n"
         "     \"introduction\": string,\n"
         "     \"stakeholders\": [],\n"

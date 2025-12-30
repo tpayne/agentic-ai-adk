@@ -50,6 +50,7 @@ json_normalizer_agent = LlmAgent(
         "You MUST transform the input into this EXACT schema:\n"
         "{\n"
         "  \"process_name\": string,\n"
+        "  \"industry_sector\": string,\n"
         "  \"version\": string,\n"
         "  \"introduction\": string,\n"
         "  \"stakeholders\": [\n"

@@ -135,7 +135,6 @@ def _add_process_step_summary(doc, step: dict) -> None:
         for c in criteria:
             doc.add_paragraph(f"- {c}", style="List Bullet")
 
-
 def _render_generic_value(doc: docx.Document, value, level: int = 0) -> None:
     """
     Generic recursive renderer for unknown structures.
@@ -202,17 +201,18 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
         # --- Assumptions ---
         assumptions = data.get("assumptions")
-        if isinstance(assumptions, list) and assumptions:
-            doc.add_paragraph("Assumptions:")
-            for a in assumptions:
-                doc.add_paragraph(f"{a}", style="List Bullet")
+        if "assumptions" in process_data and process_data["assumptions"]:
+            if isinstance(assumptions, list) and assumptions:
+               doc.add_heading("1.1 Assumptions", level=2)
+               for item in assumptions:
+                   doc.add_paragraph(item, style='List Bullet')
 
         # --- Constraints ---
-        constraints = data.get("constraints")
-        if isinstance(constraints, list) and constraints:
-            doc.add_paragraph("Constraints:")
-            for c in constraints:
-                doc.add_paragraph(f"{c}", style="List Bullet")
+        if "constraints" in process_data and process_data["constraints"]:
+            if isinstance(constraints, list) and constraints:
+               doc.add_heading("1.2 Constraints", level=2)
+               for item in constraints:
+                   doc.add_paragraph(item, style='List Bullet')
 
         # --- High-level metadata ---
         high_level_keys = [
@@ -1106,7 +1106,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
         name = str(data.get("process_name", process_name))
         description = data.get("description") or data.get("process_description") or data.get("introduction")
         version = str(data.get("version", "1.0"))
-        sector = data.get("industry_sector", data.get("business_unit", "")) or "N/A"
+        sector = data.get("industry_sector", data.get("business_unit", data.get("sector", ""))) or "N/A"
 
         stakeholders = data.get("stakeholders")
         process_steps = data.get("process_steps")
