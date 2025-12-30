@@ -162,16 +162,40 @@ def persist_final_json(json_content) -> str:
     This is the ONLY tool the agent needs to call.
     """
     try:
+        output_path = "output/process_data.json"
+        if not os.path.exists(output_path):
+            _log_agent_activity("Starting final JSON file persistence")
+            result = _save_raw_data_to_json(json_content)
+            _log_agent_activity(f"File persistence result: {result}")
+            return result
+        else:
+            _log_agent_activity(f"File '{output_path}' already exists. Skipping persistence.")
+            return f"SKIPPED: '{output_path}' already exists."
+    except Exception:
+        error_trace = traceback.format_exc()
+        logger.error(f"persist_final_json failed: {error_trace}")
+        return "ERROR: persist_final_json encountered an unexpected failure."
+
+def persist_final_json_override(json_content) -> str:
+    """
+    Public tool for the LLM:
+
+    - Logs that final persistence is starting.
+    - Calls the internal saver with the provided JSON content.
+    - Returns the final path or error message.
+
+    This is the ONLY tool the agent needs to call.
+    """
+    try:
         _log_agent_activity("Starting final JSON file persistence")
         result = _save_raw_data_to_json(json_content)
         _log_agent_activity(f"File persistence result: {result}")
         return result
     except Exception:
         error_trace = traceback.format_exc()
-        logger.error(f"persist_final_json failed: {error_trace}")
-        return "ERROR: persist_final_json encountered an unexpected failure."
-
-
+        logger.error(f"persist_final_json_override failed: {error_trace}")
+        return "ERROR: persist_final_json_override encountered an unexpected failure."
+    
 # ---------------------------------------------------------------------
 # AGENT DEFINITION (SINGLE TOOL, ATOMIC BEHAVIOR)
 # ---------------------------------------------------------------------
@@ -188,7 +212,7 @@ json_writer_agent = LlmAgent(
         "  JSON object for the business process.\n"
         "- That JSON must be saved to 'output/process_data.json'.\n\n"
         "TOOLS:\n"
-        "- You have ONE tool available: persist_final_json(json_content).\n"
+        "- You have ONE tool available: persist_final_json_override(json_content).\n"
         "- This tool:\n"
         "    * Logs that final persistence is starting.\n"
         "    * Validates/repairs the JSON if necessary.\n"
@@ -198,14 +222,14 @@ json_writer_agent = LlmAgent(
         "1) Extract the JSON object from the Reviewer agent's response.\n"
         "   - If the JSON is already a structured object, pass it directly.\n"
         "   - If it is embedded in text or markdown, extract the JSON portion.\n"
-        "2) CALL persist_final_json exactly once with that JSON content.\n"
+        "2) CALL persist_final_json_override exactly once with that JSON content.\n"
         "3) Do NOT perform any additional transformations.\n\n"
         "CRITICAL RULES:\n"
-        "- You MUST call persist_final_json exactly once.\n"
+        "- You MUST call persist_final_json_override exactly once.\n"
         "- Do NOT attempt to write files directly.\n"
         "- Do NOT call any other tools.\n"
         "- Do NOT output any free-form text. Your output MUST be limited to the tool call "
         "  and its result.\n"
     ),
-    tools=[persist_final_json]
+    tools=[persist_final_json_override],  # Use the exposed tool only
 )

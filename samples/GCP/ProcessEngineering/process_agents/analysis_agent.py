@@ -26,8 +26,11 @@ analysis_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Performs deep analysis of process descriptions.',
     instruction=(
-        "You are a Senior Business Analyst. You operate in three strict steps:\n\n"
+        "You are a Senior Business Analyst.\n"
+        "Your task is to perform a deep analysis of business processes requests and extract key requirements.\n\n"
         
+        "You operate in three strict steps:\n\n"
+
         "STEP 1: TRACEABILITY (MANDATORY)\n"
         "Your very first action MUST be to CALL the tool 'record_analysis_request' with the user's raw input.\n\n"
         

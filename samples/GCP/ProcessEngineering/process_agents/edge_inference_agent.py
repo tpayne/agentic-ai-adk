@@ -26,6 +26,7 @@ def _load_process_json(path: str = "output/process_data.json") -> dict | None:
 
     {
       "process_name": string,
+      "industry_sector": string,
       "version": string,
       "introduction": string,
       "stakeholders": [],
