@@ -137,3 +137,4 @@ docker run -it --rm \
 
 - If you are using the free tier of Gemini to run this app, i.e. the `GOOGLE_API_KEY`, then you may well run into resource limits if you attempt to generate a "real" portfolio of 10+ stocks etc. Other operations requiring many tokens may also hit similar limits.
 - As this sample code is presented for demo purposes only, NO WARRANTY OR OTHER GUARANTEES OF FUNCTIONALITY ARE PROVIDED. See [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE) for more details.
+- You must ALWAYS validate the process designed and ensure it complies to any required standards before using it. You can also modify the process JSON directly if you wish and then use `python` to run the diagramming agents and documentation agents directly. This will regenerate the artifacts as required.
