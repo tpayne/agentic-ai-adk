@@ -1,25 +1,34 @@
-# Dockerfile
 ARG pythonVersion=3.12.9
-FROM python:${pythonVersion}-alpine AS builder
+FROM python:${pythonVersion}-slim AS builder
 
-# Added graphviz and ttf-freefont for diagram generation
-RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main \
-    && apk -U upgrade \
-    && apk add --no-cache curl cargo graphviz ttf-freefont
+# System dependencies for matplotlib, numpy, pandas, graphviz, docx, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    graphviz \
+    gcc \
+    g++ \
+    build-essential \
+    libfreetype6-dev \
+    libpng-dev \
+    libjpeg-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt .
 COPY process_agents ./process_agents
 
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
 
 ARG account=adk_process_user
-RUN addgroup --system ${account} && adduser --system ${account}
-RUN adduser ${account} ${account}
+RUN useradd -ms /bin/bash ${account}
+
+# Ensure output directories exist
+RUN mkdir -p /app/output/logs /app/output/subprocesses /app/output/docs \
+    && chown -R ${account}:${account} /app/ \
+    && chmod -R o+rwx /app/
 
 USER ${account}
 
-# Run the root agent module
-ENTRYPOINT ["python3", "-m", "process_agents.agent"]
-CMD []
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["rm -rf .venv && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && .venv/bin/adk run process_agents"]

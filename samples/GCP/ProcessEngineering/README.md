@@ -1,23 +1,26 @@
 # ADK Business Process Architect
 
-A specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering—from initial requirement analysis and logical design to compliance auditing and professional document generation.
+This repo is for hosting a specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering from defining the initial requirement analysis, to designing a process based on those requirements, testing it to ensure compliance with best industry standards, running simulations of the process to identify potential bottlenecks and then finally, creating a process document hosting the design.
 
 **NOTE**
-This ADK sample should be regarded as BETA quality only as the results is generates are unpredictable
+This ADK sample should be regarded as PoC status only. The LLMs can sometimes fail with unpredictable results.
 
 ## ⚙️ Features
 
-- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" pipeline that moves from raw requirements to final artifacts without requiring manual intervention. The **Analysis Agent** sets the scope, the **Design/Compliance Loop** iteratively refines the logic, and the **Normalizer** locks the data for production.
-- **Zero-Loss Data Normalization**: Features a specialized **JSON Normalizer Agent** that acts as a data-sanitization gate. It transforms free-form architectural designs into a stabilized, enriched document schema, ensuring that complex workflows (30+ steps) are preserved with 100% integrity.
-- **Self-Auditing Compliance Gate**: The **Compliance Agent** acts as an automated "Release Manager." It forces the Design Agent into a recursive revision loop if regulatory or security gaps are detected, only releasing the process to the documentation stage once "COMPLIANCE APPROVED" is achieved.
+The ADK pipeline offers the following key features:
+
+- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" workflow that transforms raw requirements into final artifacts without manual intervention. The **Analysis Agent** defines the scope, while the **Design/Compliance Loop** iteratively refines the logic to ensure alignment with governance standards. The **Normalizer Agent** then locks the data into JSON format for production use.
+- **Zero-Loss Data Normalization**: Utilizes a specialized **JSON Normalizer Agent** as a data-sanitization gate. It converts free-form architectural designs into a stable, enriched document schema, preserving complex workflows (30+ steps) with complete integrity. This JSON drives document and artifact creation.
+- **Self-Auditing Compliance Gate**: The **Compliance Agent** acts as an automated "Release Manager," triggering recursive revisions if regulatory or security gaps are found. The process advances to documentation only after achieving "COMPLIANCE APPROVED" status.
+- **Self-Auditing Simulation Gate**: The **Simulation Agent** subjects the compliant process to rigorous Monte Carlo simulations to identify bottlenecks. It then optimizes the process or reports issues in the final documentation.
 - **Automated High-Fidelity Artifacts**: 
-  - **Process Diagrams**: Dynamically infers workflow sequences from normalized data to generate high-resolution PNG flowcharts via **NetworkX**.
-  - **Engineering Specifications**: Generates professional `.docx` files using a logic-driven rendering engine. Includes **Automated Table of Contents**, **Stakeholder Matrix Tables**, and structured **Appendix** sections for deep-dive technical data.
+    - **Process Diagrams**: Automatically generates level 1 and 2 workflow diagrams and embeds them in the process document.
+    - **Process Document**: Produces a detailed Word document — adhering to ITIL and ISO standards — describing the requested business process and related information.
 
 ### 🚀 Autonomous Execution Flow
 
 1.  **Requirement Extraction**: The Analysis Agent converts user intent into a machine-readable JSON Requirements Specification.
-2.  **Iterative Refinement**: The Design and Compliance agents cycle automatically, refining the process until all operational and regulatory criteria are met.
+2.  **Iterative Refinement**: The Design and Compliance agents cycle automatically, refining the process until all operational and regulatory criteria are met. This also includes testing and optimizing the process for potential bottlenecks. 
 3.  **Schema Stabilization**: The Normalizer Agent maps the finalized design to a strict documentation contract, saving the state to `process_data.json`.
 4.  **Artifact Engineering**: The Documentation Agent reads the local state to render complex diagrams and the final professional specification.
 
@@ -36,12 +39,6 @@ This ADK sample should be regarded as BETA quality only as the results is genera
 │   └── EnergyProvider
 │       ├── Business_Customer_Incident_Management.docx
 │       └── process_data.json
-├── output
-│   ├── data_center_migration_flow.png
-│   ├── Data_Center_Migration.docx
-│   └── logs
-│       ├── pipeline_20251226_023119.log
-│       └── runtime_errors.log
 ├── process_agents
 │   ├── __init__.py
 │   ├── agent.py
@@ -52,7 +49,12 @@ This ADK sample should be regarded as BETA quality only as the results is genera
 │   ├── edge_inference_agent.py
 │   ├── json_normalizer_agent.py
 │   ├── json_review_agent.py
-│   └── json_writer_agent.py
+│   ├── json_writer_agent.py
+│   ├── simulation_agent.py
+│   ├── step_diagram_agent.py
+│   ├── subprocess_driver_agent.py
+│   ├── subprocess_generator_agent.py
+│   └── subprocess_writer_agent.py
 ├── README.md
 └── requirements.txt
 
@@ -62,12 +64,9 @@ This ADK sample should be regarded as BETA quality only as the results is genera
 
 ## 🛠 Requirements
 
-- **Graphviz**: Required for advanced layout and alternative diagram generation formats.
-    - **macOS**: `brew install graphviz`
-    - **Linux**: `sudo apt install graphviz`
 - **Google API Key**: An active Gemini API key (set as `GOOGLE_API_KEY` in your environment).
 - **Python 3.12+**: A stable Python environment is recommended for consistent execution of the `docx` and `networkx` libraries.
-- **Dependencies**: See `requirements.txt` for specific version constraints, including `python-docx`, `networkx`, and `matplotlib`.
+- **Dependencies**: See `requirements.txt` for specific version constraints and required Python packages.
 
 ---
 
@@ -75,7 +74,7 @@ This ADK sample should be regarded as BETA quality only as the results is genera
 
 To setup and test the agent, you can do the following.
 
-This will allow the agent to run as a simple invocable script and not use a REST API to drive it.
+This will allow the agent to run as a simple invocable script.
 
 ```bash
     rm -r .venv
@@ -83,9 +82,10 @@ This will allow the agent to run as a simple invocable script and not use a REST
     source .venv/bin/activate
     pip install -r requirements.txt
     export GOOGLE_API_KEY=<YourKey>
+    .venv/bin/adk run process_agents
 ```
 
-## Test Deployment Emulation
+## Test Deployment Emulation using WebUI
 
 To check that the agent is working correctly in the GCP ADK environment, you can use the web service.
 
@@ -107,29 +107,15 @@ docker build . -t adkprocesseng
 **Interactive run:**
 
 ```bash
-docker run -it --rm \
-  -v $(pwd)/output:/app/output \
-  -e GOOGLE_API_KEY="your_api_key" \
-  process-architect "Design a customer refund process for an e-commerce platform." \
-  adkprocesseng:latest
+docker run -it --rm \          
+    -v $(pwd)/output:/app/output \
+    -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+    adkprocesseng:latest
 ```
 
 **Notes:**
 
-- None
-
----
-
-## 🔄 The Workflow Pattern
-
-The system follows a high-precision, four-stage autonomous pipeline designed to move from unstructured intent to professional documentation without human intervention.
-
-- **Analyze**: The **Analysis Agent** performs a deep scan of raw descriptions to identify the industry sector, core stakeholders, and success metrics, outputting a machine-readable Requirements Specification.
-- **Design & Refine**: The **Design Agent** architects a logical, step-by-step workflow. This is immediately passed to the **Compliance Agent** for a recursive audit. If regulatory gaps or security risks are detected, the system triggers an automatic redesign loop (up to 5 iterations) until a "COMPLIANCE APPROVED" state is reached.
-- **Normalize**: Once the design is locked, the **JSON Normalizer Agent** sanitizes and enriches the data. It maps free-form architectural ideas into a strict, document-ready schema, ensuring that complex details—such as toolchains, metrics, and extended steps—are preserved for the final artifact.
-- **Publish**: The **Document Generation Agent** executes the final build. It reads the local state and uses a specialized rendering engine to:
-    - **Render** a high-resolution PNG flowchart using NetworkX logic.
-    - **Compile** a professional Business Specification (`.docx`) featuring a dynamic Table of Contents, stakeholder matrix, and recursive formatting that ensures zero data loss.
+- The ADK will install as part of the run and you will be using the `adk run` interface
 
 ---
 
