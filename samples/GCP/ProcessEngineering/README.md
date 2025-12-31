@@ -1,6 +1,6 @@
 # ADK Business Process Architect
 
-This repo is for hosting a specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering from defining the initial requirement analysis, to designing a process based on those requirements, testing it to ensure compliance with best industry standards, running simulations of the process to identify potential bottlenecks and then finally, creating a process document hosting the design.
+This repo is for hosting a specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering from defining the initial requirement analysis to designing a process based on those requirements, testing it to ensure compliance with best industry standards, running simulations of the process to identify potential bottlenecks, and then finally, creating a process document hosting the design.
 
 **NOTE**
 This ADK sample should be regarded as PoC status only. The LLMs can sometimes fail with unpredictable results.
@@ -27,6 +27,8 @@ The ADK pipeline offers the following key features:
 ---
 
 ## 🏗️ Repository Layout
+
+The contents of this sample repo are as follows.
 
 ```text
 .
@@ -72,7 +74,7 @@ The ADK pipeline offers the following key features:
 
 ## Setup and Test Agent
 
-To setup and test the agent, you can do the following.
+To set up and test the agent, you can do the following.
 
 This will allow the agent to run as a simple invocable script.
 
@@ -98,6 +100,10 @@ To check that the agent is working correctly in the GCP ADK environment, you can
 
 ## Docker Usage
 
+A simple Docker image is provided that allows you to build and run the agent pipeline stand-alone.
+
+You can use the following commands to build and then run the image.
+
 **Build:**
 
 ```bash
@@ -115,19 +121,19 @@ docker run -it --rm \
 
 **Notes:**
 
-- The ADK will install as part of the run and you will be using the `adk run` interface
+- The ADK will install as part of the run, and you will be using the `adk run` interface.
 
 ---
 
 ## Sample Prompts
 
-- "Create me an Enterprise Archotecture and Business enterprise architecture SDLC process. I need to be able to track EA decisions, outcomes, progress and escalate when required."
+- "Create me an Enterprise Architecture and Business Enterprise Architecture SDLC process. I need to be able to track EA decisions, outcomes, progress, and escalate when required."
 - "Design a detailed business process for managing inventory stock-outs in a retail environment."
-- "Create an SDLC development and release process for a WebDev application and microservices using an Agile Scrum 2.0 base"
+- "Create an SDLC development and release process for a WebDev application and microservices using an Agile Scrum 2.0 base."
 
 --- 
 
 ## Issues to keep in mind
 
 - If you are using the free tier of Gemini to run this app, i.e. the `GOOGLE_API_KEY`, then you may well run into resource limits if you attempt to generate a "real" portfolio of 10+ stocks etc. Other operations requiring many tokens may also hit similar limits.
-- As this sample code is presented for demo purposes only, NO WARRANTY OR OTHER GUARANTEES OF FUNCATIONALITY ARE PROVIDED. See [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE) for more details.
+- As this sample code is presented for demo purposes only, NO WARRANTY OR OTHER GUARANTEES OF FUNCTIONALITY ARE PROVIDED. See [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE) for more details.
