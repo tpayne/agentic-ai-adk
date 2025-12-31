@@ -70,7 +70,7 @@ def exit_loop(tool_context: ToolContext):
         persist_final_json(parsed)
         logger.info("Final JSON persisted successfully.")
     except Exception as e:
-        logger.error(f"Failed to persist final JSON: {e}")
+        logger.error(f"Failed to persist final JSON: {e}. Ignored")
         return "Loop termination signaled, but persistence failed."
 
     return "Loop termination signaled and final JSON persisted."
