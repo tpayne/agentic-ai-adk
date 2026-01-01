@@ -79,6 +79,8 @@ logger.info(f"Pipeline initialized. {cleanup_status}")
 # ---------------------------------------------------------
 
 # Design → Compliance loop: Iteratively refines the process 
+# Note: This loop needs an exit_loop added to optimize termination,
+# currently it relies on max_iterations and burns unnecessary tokens.
 review_loop = LoopAgent(
     name="Design_Compliance_Loop",
     sub_agents=[
