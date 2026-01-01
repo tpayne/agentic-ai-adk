@@ -89,7 +89,7 @@ review_loop = LoopAgent(
             sub_agents=[design_agent, compliance_agent, simulation_agent],
         )
     ],
-    max_iterations=5
+    max_iterations=5 # The max iterations for this loop. Adjust as needed.
 )
 
 # JSON Normalization → Review loop: Stabilizes the process JSON
@@ -99,7 +99,7 @@ json_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Normalizer_Review_Sequence",
             sub_agents=[json_normalizer_agent, json_review_agent],
-            max_iterations=30
+            max_iterations=30 # The max iterations for this loop. Adjust as needed.
         ),
         json_writer_agent
     ],
