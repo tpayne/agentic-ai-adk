@@ -5,7 +5,7 @@ from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-from step_diagram_agent import ( 
+from .step_diagram_agent import ( 
     generate_step_diagram_for_step, 
 )
 
