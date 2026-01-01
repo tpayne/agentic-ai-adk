@@ -3,7 +3,8 @@
 This repo is for hosting a specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering from defining the initial requirement analysis to designing a process based on those requirements, testing it to ensure compliance with best industry standards, running simulations of the process to identify potential bottlenecks, and then finally, creating a process document hosting the design.
 
 **NOTE**
-This ADK sample should be regarded as PoC status only. The LLMs can sometimes fail with unpredictable results.
+* This ADK sample should be regarded as PoC status only. The LLMs can sometimes fail with unpredictable results.
+* The code used in this sample could also be better refined. There are currently safeguards and functions which could be optimised, removed or trimmed down in size.
 
 ## ⚙️ Features
 
