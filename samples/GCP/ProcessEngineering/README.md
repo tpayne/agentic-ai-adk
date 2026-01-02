@@ -1,66 +1,63 @@
 # ADK Business Process Architect
 
-This repo is for hosting a specialized multi-agent suite built on the Google Agent Development Kit (ADK). This system automates the lifecycle of business process engineering from defining the initial requirement analysis to designing a process based on those requirements, testing it to ensure compliance with best industry standards, running simulations of the process to identify potential bottlenecks, and then finally, creating a process document hosting the design.
+This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to production-quality artifacts.
 
-**NOTE**
-* This ADK sample should be regarded as PoC status only. The LLMs can sometimes fail with unpredictable results.
-* The code used in this sample could also be better refined. There are currently safeguards and functions which could be optimised, removed or trimmed down in size.
+> NOTE
+> - Treat this ADK sample as a proof-of-concept. Large language models can produce unpredictable results.
+> - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
 
 ## ⚙️ Features
 
-The ADK pipeline offers the following key features:
+The ADK pipeline provides:
 
-- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" workflow that transforms raw requirements into final artifacts without manual intervention. The **Analysis Agent** defines the scope, while the **Design/Compliance Loop** iteratively refines the logic to ensure alignment with governance standards. The **Normalizer Agent** then locks the data into JSON format for production use.
-- **Zero-Loss Data Normalization**: Utilizes a specialized **JSON Normalizer Agent** as a data-sanitization gate. It converts free-form architectural designs into a stable, enriched document schema, preserving complex workflows (30+ steps) with complete integrity. This JSON drives document and artifact creation.
-- **Self-Auditing Compliance Gate**: The **Compliance Agent** acts as an automated "Release Manager," triggering recursive revisions if regulatory or security gaps are found. The process advances to documentation only after achieving "COMPLIANCE APPROVED" status.
-- **Self-Auditing Simulation Gate**: The **Simulation Agent** subjects the compliant process to rigorous Monte Carlo simulations to identify bottlenecks. It then optimizes the process or reports issues in the final documentation.
-- **Automated High-Fidelity Artifacts**: 
-    - **Process Diagrams**: Automatically generates level 1 and 2 workflow diagrams and embeds them in the process document.
-    - **Process Document**: Produces a detailed Word document — adhering to ITIL and ISO standards — describing the requested business process and related information.
+- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" workflow that transforms raw requirements into final artifacts without manual intervention. The Analysis Agent converts natural language requirements into a structured specification, and downstream agents iteratively refine the design.
+- **Zero-Loss Data Normalization**: A JSON Normalizer Agent sanitizes and stabilizes free-form design outputs to a fixed, enriched document schema.
+- **Self-Auditing Compliance Gate**: A Compliance Agent acts as an automated release manager, triggering recursive revisions if regulatory or security gaps are found and preventing progression until requirements are met.
+- **Self-Auditing Simulation Gate**: A Simulation Agent runs Monte Carlo-style simulations to identify bottlenecks and suggests optimizations or reports unresolved issues.
+- **Automated High-Fidelity Artifacts**:
+  - Process diagrams (level 1 and 2) embedded in the process document.
+  - A professional Word document describing the business process and related information, aligned to ITIL and ISO-style conventions.
 
 ### 🚀 Autonomous Execution Flow
 
-1.  **Requirement Extraction**: The Analysis Agent converts user intent into a machine-readable JSON Requirements Specification.
-2.  **Iterative Refinement**: The Design and Compliance agents cycle automatically, refining the process until all operational and regulatory criteria are met. This also includes testing and optimizing the process for potential bottlenecks. 
-3.  **Schema Stabilization**: The Normalizer Agent maps the finalized design to a strict documentation contract, saving the state to `process_data.json`.
-4.  **Artifact Engineering**: The Documentation Agent reads the local state to render complex diagrams and the final professional specification.
+1. **Requirement Extraction**: The Analysis Agent converts user intent into a machine-readable JSON Requirements Specification.
+2. **Iterative Refinement**: Design and Compliance agents loop, refining the process until operational and regulatory criteria are satisfied. This cycle includes testing and optimization.
+3. **Schema Stabilization**: The Normalizer Agent maps the finalized design to a stable documentation contract and saves the state to `process_data.json`.
+4. **Artifact Engineering**: The Documentation Agent renders diagrams and generates the final specification (Word document) from the local state.
 
 ---
 
 ## 🏗️ Repository Layout
 
-The contents of this sample repo are as follows.
-
-```text
+```
 .
 ├── Dockerfile
 ├── examples
-│   ├── DataCentreMigration
-│   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
-│   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
-│   │   └── process_data.json
-│   └── EnergyProvider
-│       ├── Business_Customer_Incident_Management.docx
-│       └── process_data.json
+│   ├── DataCentreMigration
+│   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
+│   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
+│   │   └── process_data.json
+│   └── EnergyProvider
+│       ├── Business_Customer_Incident_Management.docx
+│       └── process_data.json
 ├── process_agents
-│   ├── __init__.py
-│   ├── agent.py
-│   ├── analysis_agent.py
-│   ├── compliance_agent.py
-│   ├── design_agent.py
-│   ├── doc_generation_agent.py
-│   ├── edge_inference_agent.py
-│   ├── json_normalizer_agent.py
-│   ├── json_review_agent.py
-│   ├── json_writer_agent.py
-│   ├── simulation_agent.py
-│   ├── step_diagram_agent.py
-│   ├── subprocess_driver_agent.py
-│   ├── subprocess_generator_agent.py
-│   └── subprocess_writer_agent.py
+│   ├── __init__.py
+│   ├── agent.py
+│   ├── analysis_agent.py
+│   ├── compliance_agent.py
+│   ├── design_agent.py
+│   ├── doc_generation_agent.py
+│   ├── edge_inference_agent.py
+│   ├── json_normalizer_agent.py
+│   ├── json_review_agent.py
+│   ├── json_writer_agent.py
+│   ├── simulation_agent.py
+│   ├── step_diagram_agent.py
+│   ├── subprocess_driver_agent.py
+│   ├── subprocess_generator_agent.py
+│   └── subprocess_writer_agent.py
 ├── README.md
 └── requirements.txt
-
 ```
 
 ---
@@ -68,76 +65,78 @@ The contents of this sample repo are as follows.
 ## 🛠 Requirements
 
 - **Google API Key**: An active Gemini API key (set as `GOOGLE_API_KEY` in your environment).
-- **Python 3.12+**: A stable Python environment is recommended for consistent execution of the `docx` and `networkx` libraries.
-- **Dependencies**: See `requirements.txt` for specific version constraints and required Python packages.
+- **Python 3.12+**.
+- **Dependencies**: See `requirements.txt`. Note: some packages (e.g., graphviz, python-docx) may require system packages (graphviz binary, LibreOffice for advanced doc conversions, etc.) — document these if your environment needs them.
 
 ---
 
-## Setup and Test Agent
+## Setup and Run Locally
 
-To set up and test the agent, you can do the following.
-
-This will allow the agent to run as a simple invocable script.
+Suggested local setup (non-destructive):
 
 ```bash
-    rm -r .venv
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    export GOOGLE_API_KEY=<YourKey>
-    .venv/bin/adk run process_agents
+# create a venv (do not delete an existing venv unless you mean to)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# set your API key (consider using a .env or secrets manager in production)
+export GOOGLE_API_KEY="<YourKey>"
+
+# run the pipeline
+.venv/bin/adk run process_agents
 ```
+
+Notes:
+- Avoid running `rm -r .venv` unless you are sure you want to remove the virtual environment.
+- Consider storing secrets in a secure location or using a .env file and a tool like direnv.
 
 ## Test Deployment Emulation using WebUI
 
-To check that the agent is working correctly in the GCP ADK environment, you can use the web service.
+To run the web UI locally (emulates the GCP ADK environment):
 
 ```bash
-    .venv/bin/python -m pip install --force-reinstall --no-cache-dir google-adk
-    .venv/bin/adk web
+.venv/bin/python -m pip install --force-reinstall --no-cache-dir google-adk
+.venv/bin/adk web
 ```
 
 ---
 
 ## Docker Usage
 
-A simple Docker image is provided that allows you to build and run the agent pipeline stand-alone.
-
-You can use the following commands to build and then run the image.
-
-**Build:**
+Build:
 
 ```bash
 docker build . -t adkprocesseng
 ```
 
-**Interactive run:**
+Interactive run (persist output to local output/ directory):
 
 ```bash
-docker run -it --rm \          
-    -v $(pwd)/output:/app/output \
-    -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
-    adkprocesseng:latest
+docker run -it --rm \
+  -v "$(pwd)/output:/app/output" \
+  -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+  adkprocesseng:latest
 ```
 
-**Notes:**
-
-- The ADK will install as part of the run, and you will be using the `adk run` interface.
+Notes:
+- The ADK CLI is installed during container startup and used via `adk run`.
+- Ensure your host `output` folder is writable by the container user.
 
 ---
 
 ## Sample Prompts
 
-- "Create me an Enterprise Architecture and Business Enterprise Architecture SDLC process. I need to be able to track EA decisions, outcomes, progress, and escalate when required."
-- "Design a detailed business process for managing inventory stock-outs in a retail environment."
-- "Create an SDLC development and release process for a WebDev application and microservices using an Agile Scrum 2.0 base."
+- "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
+- "Design a detailed business process for handling inventory stock-outs in a retail environment."
+- "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 
---- 
+---
 
-## Issues to keep in mind
+## Known issues and caveats
 
-- If you are using the free tier of Gemini to run this app, i.e. the `GOOGLE_API_KEY`, then you may well run into resource limits if you attempt to generate a "real" portfolio of 10+ stocks etc. Other operations requiring many tokens may also hit similar limits.
-- As this sample code is presented for demo purposes only, NO WARRANTY OR OTHER GUARANTEES OF FUNCTIONALITY ARE PROVIDED. See [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE) for more details.
-- You must ALWAYS validate the process designed and ensure it complies to any required standards before using it. You can also modify the process JSON directly if you wish and then use `python` to run the diagramming agents and documentation agents directly. This will regenerate the artifacts as required.
-- The exit loop logic needs tuning as sometimes it will not be invoked and burn needless tokens. This effects both the design agent loop and the JSON normalization loop. Sometimes it is caused by the size of the LLM payloads, sometimes by hallucinations and sometimes by LLMs not calling tools.
-- If the LLM fails to call a tool, then you might need to rephrase the prompt or rerun the process. The document generation - including the diagrammer and Word document generator can be run manually if so required. See the Python code with "__main__" routines.
+- If you use a free tier Gemini key you may encounter resource limits when generating large artifacts or portfolios.
+- This sample is for demo purposes only; NO WARRANTY OR GUARANTEE OF FUNCTIONALITY IS PROVIDED. See [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE).
+- Always validate the generated process for compliance before production use. You can modify the JSON directly and re-run the local pipeline.
+- The exit/loop logic may need tuning — sometimes loops do not exit properly which can consume tokens.
+- If the LLM fails to call a tool, rephrase the prompt or rerun the process. Document generation (diagramming and Word export) can be run manually if needed.
