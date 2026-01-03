@@ -9,6 +9,8 @@ from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
 
+from .utils import load_instruction
+
 logger = logging.getLogger("ProcessArchitect.Simulation")
 
 SIM_RESULTS_PATH = "output/simulation_results.json"
@@ -352,44 +354,5 @@ simulation_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities.",
     tools=[simulate_process_performance],
-    instruction=(
-        "You are a Lean Six Sigma Simulation Expert.\n\n"
-        "INPUT:\n"
-        "- You receive a COMPLETE, normalized process JSON from the previous agent.\n"
-        "- It includes at least 'process_steps' with 'step_name', 'estimated_duration', "
-        "  and optional 'dependencies'.\n\n"
-        "MANDATORY TOOL USE:\n"
-        "1) You MUST call 'simulate_process_performance' exactly once.\n"
-        "   - Pass the FULL process JSON as a string.\n"
-        "   - Wait for the tool result.\n\n"
-        "SIMULATION RESULT INTERPRETATION:\n"
-        "- The tool returns either a JSON metrics object or an error object.\n"
-        "- If you receive an error object:\n"
-        "    * Output EXACTLY:\n"
-        "        OPTIMIZATION REQUIRED\n"
-        "        [{\"error_type\": \"simulation_error\", \"detail\": \"<the error message>\"}]\n\n"
-        "- If you receive valid metrics, inspect:\n"
-        "    * avg_cycle_time\n"
-        "    * cycle_time_variance\n"
-        "    * bottlenecks\n"
-        "    * resource_contention_risk\n"
-        "    * per_step_avg\n\n"
-        "DECISION LOGIC:\n"
-        "A) If ANY of the following are true:\n"
-        "   - 'resource_contention_risk' is 'Medium' or 'High', OR\n"
-        "   - 'bottlenecks' is non-empty, OR\n"
-        "   - 'cycle_time_variance' > 25% of 'avg_cycle_time',\n"
-        "   THEN output EXACTLY:\n"
-        "       OPTIMIZATION REQUIRED\n"
-        "       [ {\"step_name\": \"...\", \"issue\": \"...\", \"instruction\": \"...\"}, ... ]\n\n"
-        "B) Otherwise output EXACTLY:\n"
-        "       PERFORMANCE APPROVED\n"
-        "       {<FULL JSON OBJECT OF THE ORIGINAL PROCESS>}\n\n"
-        "STRUCTURE RULES:\n"
-        "- Response MUST be exactly two parts:\n"
-        "    1) A single line: 'OPTIMIZATION REQUIRED' or 'PERFORMANCE APPROVED'.\n"
-        "    2) ONE JSON structure.\n"
-        "- No commentary, no markdown, no tool calls.\n"
-        "- Do NOT truncate JSON.\n"
-    ),
+    instruction=load_instruction("simulation_agent.txt"),
 )

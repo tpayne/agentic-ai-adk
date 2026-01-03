@@ -16,6 +16,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 COPY process_agents ./process_agents
+COPY instructions ./instructions
 
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt

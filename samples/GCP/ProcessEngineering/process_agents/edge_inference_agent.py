@@ -11,6 +11,8 @@ import logging
 from typing import List, Tuple, Any, Dict
 import sys
 
+from .utils import load_instruction
+
 logger = logging.getLogger("ProcessArchitect.EdgeInference")
 
 
@@ -586,19 +588,11 @@ def generate_clean_diagram() -> str:
 # ============================================================
 #  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
-
 edge_inference_agent = LlmAgent(
     name="Edge_Inference_Agent",
     model="gemini-2.0-flash-001",
     description="Triggers BPMN-style swimlane diagram generation based only on process_name.",
-    instruction=(
-        "You are an expert in process diagramming.\n"
-        "Your only role is to generate diagrams using the provided tool function 'generate_clean_diagram'.\n\n"
-
-        "You must perform the following steps ONLY:\n"
-        "1. You MUST CALL the tool function 'generate_clean_diagram' with NO arguments.\n"
-        "2. Do NOT output any text, markdown, commentary, or explanations.\n"
-    ),
+    instruction=load_instruction("edge_inference_agent.txt"),
     include_contents="none",
     tools=[generate_clean_diagram],
     generate_content_config=types.GenerateContentConfig(

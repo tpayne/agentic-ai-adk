@@ -9,6 +9,8 @@ from .step_diagram_agent import (
     generate_step_diagram_for_step, 
 )
 
+from .utils import load_instruction
+
 import os
 import json
 
@@ -1267,29 +1269,11 @@ def create_standard_doc_from_file(process_name: str) -> str:
 # --------------------------
 # Agent definition
 # --------------------------
-
 doc_generation_agent = LlmAgent(
     name="Document_Generation_Agent",
     model="gemini-2.0-flash-001",
     description="Generates a professional Word document from normalized JSON.",
-    instruction=(
-        "You are a Documentation Automation Specialist.\n\n"
-        "CONTEXT:\n"
-        "- The normalized process JSON has already been saved to output/process_data.json.\n"
-        "- A process flow diagram PNG may already exist in the output folder, generated "
-        "  by another agent.\n\n"
-        "YOUR TASK:\n"
-        "- Call create_standard_doc_from_file exactly once using the process_name.\n"
-        "- The function will:\n"
-        "    * Load output/process_data.json\n"
-        "    * Build a professional, structured Word document\n"
-        "    * Embed the flow diagram if the PNG exists\n\n"
-        "INTERACTION RULES:\n"
-        "- You MUST NOT ask the user any questions.\n"
-        "- You MUST NOT output intermediate natural language reasoning.\n"
-        "- After calling create_standard_doc_from_file, you may output a short final "
-        "  confirmation message summarizing success or failure.\n"
-    ),
+    instruction=load_instruction("doc_generation_agent.txt"),
     tools=[create_standard_doc_from_file],
 )
 

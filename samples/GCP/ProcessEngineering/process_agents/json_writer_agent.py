@@ -9,6 +9,8 @@ import traceback
 from google.adk.agents import LlmAgent
 from google.genai import types
 
+from .utils import load_instruction
+
 logger = logging.getLogger("ProcessArchitect.JsonWriter")
 
 
@@ -204,32 +206,6 @@ json_writer_agent = LlmAgent(
     name="JSON_Writer_Agent",
     model="gemini-2.0-flash-001",
     description="Final persistence agent that writes approved JSON to the file system.",
-    instruction=(
-        "You are a JSON Writing Expert. Your ONLY job is to persist the finalized, "
-        "normalized business process JSON to disk.\n\n"
-        "CONTEXT:\n"
-        "- You will receive input from the Reviewer agent containing the FINAL, APPROVED "
-        "  JSON object for the business process.\n"
-        "- That JSON must be saved to 'output/process_data.json'.\n\n"
-        "TOOLS:\n"
-        "- You have ONE tool available: persist_final_json_override(json_content).\n"
-        "- This tool:\n"
-        "    * Logs that final persistence is starting.\n"
-        "    * Validates/repairs the JSON if necessary.\n"
-        "    * Writes it to 'output/process_data.json'.\n"
-        "    * Returns the file path or an error description.\n\n"
-        "YOUR TASK (MANDATORY STEPS):\n"
-        "1) Extract the JSON object from the Reviewer agent's response.\n"
-        "   - If the JSON is already a structured object, pass it directly.\n"
-        "   - If it is embedded in text or markdown, extract the JSON portion.\n"
-        "2) CALL persist_final_json_override exactly once with that JSON content.\n"
-        "3) Do NOT perform any additional transformations.\n\n"
-        "CRITICAL RULES:\n"
-        "- You MUST call persist_final_json_override exactly once.\n"
-        "- Do NOT attempt to write files directly.\n"
-        "- Do NOT call any other tools.\n"
-        "- Do NOT output any free-form text. Your output MUST be limited to the tool call "
-        "  and its result.\n"
-    ),
+    instruction=load_instruction("json_writer_agent.txt"),
     tools=[persist_final_json_override],  # Use the exposed tool only
 )

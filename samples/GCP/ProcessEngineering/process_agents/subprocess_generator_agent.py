@@ -3,12 +3,16 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+from .utils import load_instruction
+
 from google.adk.agents import LlmAgent
 from google.genai import types
 
 MODEL = "gemini-2.0-flash"
 
-
+#-----------------------------
+# SUBPROCESS DATA SCHEMAS
+#-----------------------------
 class SubprocessStep(BaseModel):
     """Single sub-step in a level-2/3 subprocess flow."""
     substep_name: str = Field(description="Name of the sub-step.")
@@ -37,32 +41,9 @@ class SubprocessFlow(BaseModel):
         description="Ordered list of sub-steps that make up this subprocess."
     )
 
-
-subprocess_instruction = (
-    "You are an expert process engineer. You are given a single top-level process step "
-    "from a broader SDLC, migration, or business process. Your task is to expand that step "
-    "into a detailed level-2/3 subprocess.\n\n"
-    "You will be given these fields:\n"
-    "- step_name: name of the top-level step (e.g., 'Planning')\n"
-    "- description: narrative of what happens in this step\n"
-    "- responsible_party: roles or teams responsible\n"
-    "- deliverables: list of key deliverables\n"
-    "- success_criteria: list of success measures\n\n"
-    "Your job is to break this into 3–10 ordered sub-steps that could be implemented "
-    "by a delivery team. For each sub-step, specify:\n"
-    "- substep_name\n"
-    "- description\n"
-    "- responsible_party\n"
-    "- inputs (relevant artifacts, information, or outputs from previous steps)\n"
-    "- outputs (artifacts or decisions produced)\n"
-    "- estimated_duration (rough, human-friendly)\n"
-    "- dependencies (names of prior sub-steps, if any)\n"
-    "- success_criteria (how to know the sub-step is complete)\n\n"
-    "Return ONLY a JSON object matching the SubprocessFlow schema. Do not include any "
-    "extra text, explanations, or formatting."
-)
-
-
+#-----------------------------
+# SUBPROCESS GENERATOR AGENT
+#-----------------------------
 subprocess_generator_agent = LlmAgent(
     name="Subprocess_Generator_Agent",
     model=MODEL,
@@ -70,10 +51,7 @@ subprocess_generator_agent = LlmAgent(
         temperature=0.6,
         top_p=0.9,
     ),
-    instruction=(
-        subprocess_instruction +
-        "\n\nThe current top-level step JSON is in {{current_process_step}}."
-    ),
+    instruction=load_instruction("subprocess_generator_agent.txt"),
     input_schema=None,
     output_schema=SubprocessFlow,
     output_key="current_subprocess_flow",
