@@ -17,6 +17,8 @@ from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .subprocess_driver_agent import subprocess_driver_agent
 
+from .utils import validate_instruction_files
+
 # ---------------------------------------------------------
 # LOGGING SETUP
 # ---------------------------------------------------------
@@ -50,29 +52,37 @@ if os.path.exists(runtime_file):
 sys.stderr = open(runtime_file, "a")
 
 # Reset process_data.json
-state_file = "output/process_data.json"
-if os.path.exists(state_file):
-    try:
-        os.remove(state_file)
-        cleanup_status = "Existing state file cleared."
-    except Exception as e:
-        cleanup_status = f"Cleanup failed: {str(e)}"
-else:
-    cleanup_status = "No previous state file found. Starting clean."
+if not os.environ.get("RUN_DEBUG"):
+    # Remove process_data.json if RUN_DEBUG is not set
+    logger.info("Removing state files...")
+    state_file = "output/process_data.json"
+    if os.path.exists(state_file):
+        try:
+            os.remove(state_file)
+            cleanup_status = "Existing state file cleared."
+        except Exception as e:
+            cleanup_status = f"Cleanup failed: {str(e)}"
+    else:
+        cleanup_status = "No previous state file found. Starting clean."
+    logger.info(f"Pipeline initialized. {cleanup_status}")
 
-logger.info(f"Pipeline initialized. {cleanup_status}")
+    state_file = "output/simulation_results.json"
+    if os.path.exists(state_file):
+        try:
+            os.remove(state_file)
+            cleanup_status = "Existing simulation file cleared."
+        except Exception as e:
+            cleanup_status = f"Cleanup failed: {str(e)}"
+    else:
+        cleanup_status = "No previous simulation file found. Starting clean."
 
-state_file = "output/simulation_results.json"
-if os.path.exists(state_file):
-    try:
-        os.remove(state_file)
-        cleanup_status = "Existing simulation file cleared."
-    except Exception as e:
-        cleanup_status = f"Cleanup failed: {str(e)}"
-else:
-    cleanup_status = "No previous simulation file found. Starting clean."
+    logger.info(f"Pipeline initialized. {cleanup_status}")
 
-logger.info(f"Pipeline initialized. {cleanup_status}")
+# Validate instruction files before proceeding
+logger.info("Validating instruction files...")
+if not validate_instruction_files():
+    logger.error("Instruction file validation failed. Aborting pipeline.")
+    sys.exit(1)
 
 # ---------------------------------------------------------
 # PIPELINE DEFINITION

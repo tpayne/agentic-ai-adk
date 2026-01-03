@@ -21,3 +21,50 @@ def load_instruction(filename: str) -> str:
     except Exception as e:
         logger.error(f"Error loading instruction file {filename}: {e}")
         raise
+
+# Validate that all required instruction files exist and are readable
+def validate_instruction_files():
+    """
+    Validates that all instruction files exist and are readable.
+    Logs a single consolidated error if any are missing.
+    """
+    instruction_dir = os.path.join(PROJECT_ROOT, "instructions")
+
+    required_files = [
+        "analysis_agent.txt",
+        "compliance_agent.txt",
+        "design_agent.txt",
+        "doc_generation_agent.txt",
+        "edge_inference_agent.txt",
+        "json_normalizer_agent.txt",
+        "json_review_agent.txt",
+        "json_writer_agent.txt",
+        "simulation_agent.txt",
+        "subprocess_generator_agent.txt",
+    ]
+
+    missing = []
+    unreadable = []
+
+    for filename in required_files:
+        path = os.path.join(instruction_dir, filename)
+        if not os.path.exists(path):
+            missing.append(filename)
+            continue
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                _ = f.read(50)  # sanity check
+        except Exception as e:
+            unreadable.append((filename, str(e)))
+
+    if missing or unreadable:
+        logger.error("Instruction file validation failed.")
+        if missing:
+            logger.error(f"Missing: {missing}")
+        if unreadable:
+            logger.error(f"Unreadable: {unreadable}")
+        return False
+    else:
+        logger.info("All instruction files validated successfully.")
+        return True

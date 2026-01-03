@@ -169,21 +169,17 @@ def _extract_step_metrics(step: dict) -> List[str]:
 
 def _build_enriched_label(base_name: str, step: dict) -> str:
     """
-    Build an enriched multi-line label, but intentionally compact:
-
-    base_name
-    Duration: <estimated_duration>
-    Metric: <m1>
+    Build a multi-line label with full text, no truncation.
     """
     lines = [base_name]
 
     duration = step.get("estimated_duration") or step.get("duration")
     if isinstance(duration, str) and duration.strip():
-        lines.append(f"Duration: {_shorten(duration, 40)}")
+        lines.append(f"Duration: {duration.strip()}")
 
     metric_names = _extract_step_metrics(step)
     if metric_names:
-        lines.append(f"Metric: {_shorten(metric_names[0], 40)}")
+        lines.append(f"Metric: {metric_names[0]}")
 
     return "\n".join(lines)
 
@@ -354,13 +350,15 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
 def _compute_swimlane_positions(
     edges: List[Tuple[str, str]],
     lane_map: Dict[str, str],
-    x_spacing: float = 3.0,
-    y_spacing: float = 3.0,
+    x_spacing: float = 4.5,
+    y_spacing: float = 4.0,
 ) -> Dict[str, Tuple[float, float]]:
     """
     Swimlane layout:
     - y-axis = lane * y_spacing
     - x-axis = sequence index * x_spacing
+
+    Spacing is intentionally generous to reduce overlap and clipping.
     """
     nodes: List[str] = []
     for s, d in edges:
@@ -403,21 +401,10 @@ def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]
 # ============================================================
 
 def generate_clean_diagram() -> str:
-    """
-    Generates a BPMN-style diagram with auto-selected layout.
-
-    Layout selection:
-    - If multiple lanes -> vertical swimlane layout.
-    - If only one lane -> simple spring layout.
-
-    All edges and labels are inferred from output/process_data.json.
-    The LLM passes ONLY process_name; no edge list is ever passed.
-    """
     logger.info("Generating clean diagram...")
     try:
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
         final_name = (inferred_name or "process").strip()
-
         edges = inferred_edges or [("Start", "End")]
 
         G = nx.DiGraph()
@@ -440,79 +427,47 @@ def generate_clean_diagram() -> str:
         lanes = sorted(set(lane_map.values()))
         use_swimlanes = len(lanes) > 1
 
-        if use_swimlanes:
-            max_nodes_per_lane = max(
-                sum(1 for n in G.nodes() if lane_map.get(n, "Process") == lane)
-                for lane in lanes
-            )
-            x_spacing = 3.0
-            y_spacing = 3.0
-            pos = _compute_swimlane_positions(edges, lane_map, x_spacing=x_spacing, y_spacing=y_spacing)
+        max_label_len = max(len(label_map.get(n, str(n))) for n in G.nodes()) if G.nodes() else 10
 
-            width = max(10.0, max_nodes_per_lane * 2.5)
-            height = max(6.0, len(lanes) * 1.5)
+        if use_swimlanes:
+            x_spacing = 5.0
+            y_spacing = 4.0
+            pos = _compute_swimlane_positions(edges, lane_map, x_spacing=x_spacing, y_spacing=y_spacing)
         else:
             pos = _compute_simple_positions(list(G.nodes()))
-            width = 10.0
-            height = 7.0
 
         os.makedirs("output", exist_ok=True)
         filename = f"output/{final_name.lower().replace(' ', '_')}_flow.png"
 
-        plt.figure(figsize=(width, height))
+        fig, ax = plt.subplots(figsize=(20, 12))
+        ax.margins(x=0.3, y=0.3)
+        ax.axis("off")
 
-        if use_swimlanes:
-            yvals = {lane: idx for idx, lane in enumerate(lanes)}
+        if use_swimlanes and pos:
+            lanes = sorted(set(lane_map.values()))
+            lane_y_values = {lane: idx * y_spacing for idx, lane in enumerate(lanes)}
+            for n, (x, _) in list(pos.items()):
+                lane = lane_map.get(n, "Process")
+                pos[n] = (x, lane_y_values.get(lane, 0.0))
 
-            if pos:
-                xs = [p[0] for p in pos.values()]
-                min_x, max_x = min(xs), max(xs)
-            else:
-                min_x = max_x = 0.0
-
-            lane_label_margin = 4.0
-            xmin = min_x - 1.0
-            xmax = max_x + 1.0
-
-            for lane, row in yvals.items():
-                y = row * 3.0
-                plt.axhspan(y - 1.5, y + 1.5, facecolor="#f5f5f5", alpha=0.3)
-                plt.text(
-                    xmin - lane_label_margin,
+            xs = [p[0] for p in pos.values()]
+            xmin, xmax = min(xs), max(xs)
+            for lane, y in lane_y_values.items():
+                ax.axhspan(y - 2.0, y + 2.0, facecolor="#f5f5f5", alpha=0.3)
+                ax.text(
+                    xmin - 6.0,
                     y,
                     lane,
                     va="center",
                     ha="right",
-                    fontsize=9,
+                    fontsize=10,
                     bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
                 )
 
-            plt.xlim(xmin - lane_label_margin, xmax + 1.0)
-            ymin = -1.5
-            ymax = (len(lanes) - 1) * 3.0 + 1.5
-            plt.ylim(ymin, ymax)
-        else:
-            if pos:
-                xs = [p[0] for p in pos.values()]
-                ys = [p[1] for p in pos.values()]
-                xmin, xmax = min(xs), max(xs)
-                ymin, ymax = min(ys), max(ys)
-            else:
-                xmin = ymin = -1.0
-                xmax = ymax = 1.0
-            pad = 0.5
-            plt.xlim(xmin - pad, xmax + pad)
-            plt.ylim(ymin - pad, ymax + pad)
+        font_size = max(8, min(12, int(240 / max_label_len)))
+        node_size = max(4000, min(9000, 160 * max_label_len))
 
-        if G.nodes():
-            max_label_len = max(len(label_map.get(n, str(n))) for n in G.nodes())
-        else:
-            max_label_len = 10
-
-        font_size = max(6, min(10, int(180 / max_label_len)))
-        node_size = max(3500, min(8000, 140 * max_label_len))
-
-        colors: List[str] = []
+        colors = []
         for n in G.nodes():
             if n in nodes_in_cycles:
                 colors.append("purple")
@@ -533,49 +488,23 @@ def generate_clean_diagram() -> str:
             else:
                 normal_edges.append((u, v))
 
-        nx.draw_networkx_edges(
-            G,
-            pos,
-            edgelist=normal_edges,
-            edge_color="gray",
-            arrows=True,
-            arrowstyle="->",
-            arrowsize=12,
-        )
+        nx.draw_networkx_edges(G, pos, edgelist=normal_edges, edge_color="gray", arrows=True,
+                               arrowstyle="->", arrowsize=12, ax=ax)
 
         if loop_edges:
-            nx.draw_networkx_edges(
-                G,
-                pos,
-                edgelist=loop_edges,
-                edge_color="gray",
-                style="dashed",
-                arrows=True,
-                arrowstyle="->",
-                arrowsize=12,
-            )
+            nx.draw_networkx_edges(G, pos, edgelist=loop_edges, edge_color="gray", style="dashed",
+                                   arrows=True, arrowstyle="->", arrowsize=12, ax=ax)
 
-        nx.draw_networkx_nodes(
-            G,
-            pos,
-            node_color=colors,
-            node_size=node_size,
-        )
+        nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=node_size, ax=ax)
 
-        nx.draw_networkx_labels(
-            G,
-            pos,
-            labels=label_map,
-            font_size=font_size,
-            verticalalignment="center",
-            horizontalalignment="center",
-            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
-        )
+        nx.draw_networkx_labels(G, pos, labels=label_map, font_size=font_size,
+                                verticalalignment="center", horizontalalignment="center",
+                                bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
+                                ax=ax)
 
-        plt.title(final_name)
-        plt.tight_layout()
-        plt.savefig(filename)
-        plt.close()
+        fig.suptitle(final_name, fontsize=14)
+        fig.savefig(filename, dpi=150)
+        plt.close(fig)
 
         logger.info(f"Diagram generated at {filename}")
         return filename

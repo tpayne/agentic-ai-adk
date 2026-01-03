@@ -80,12 +80,11 @@ def _is_gateway(sub: dict) -> bool:
 
 def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str:
     """
-    Pure Python diagram generator for subprocess flows.
-    Uses the SAME rendering engine as edge_inference_agent:
-    - matplotlib
-    - networkx
-    - swimlane layout
-    - PNG output
+    Robust subprocess diagram generator.
+    - No label clipping
+    - Labels drawn OUTSIDE nodes
+    - Auto-wrap long labels
+    - Larger canvas
     """
     try:
         substeps = _extract_substeps(subprocess_json)
@@ -99,13 +98,11 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
         lane_map: Dict[str, str] = {}
         label_map: Dict[str, str] = {}
 
-        # Root node
-        root = f"{step_name}"
+        root = step_name
         nodes.append(root)
         lane_map[root] = "Process"
         label_map[root] = root
 
-        # Substep nodes
         for idx, sub in enumerate(substeps, start=1):
             name = (
                 sub.get("substep_name")
@@ -118,56 +115,54 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
             lane_map[name] = _get_lane(sub)
             label_map[name] = name
 
-        # Default linear flow
         for i in range(len(substeps)):
             if i == 0:
                 edges.append((root, nodes[i + 1]))
             else:
                 edges.append((nodes[i], nodes[i + 1]))
 
-        # Build graph
         G = nx.DiGraph()
         G.add_edges_from(edges)
 
-        # Compute swimlane layout (same logic as edge agent)
         lanes = sorted(set(lane_map.values()))
         use_swimlanes = len(lanes) > 1
 
+        # Layout
         if use_swimlanes:
             lane_y = {lane: idx for idx, lane in enumerate(lanes)}
-            pos: Dict[str, Tuple[float, float]] = {}
-            lane_positions: Dict[str, List[str]] = {lane: [] for lane in lanes}
-
+            pos = {}
+            lane_positions = {lane: [] for lane in lanes}
             for n in nodes:
                 lane_positions[lane_map[n]].append(n)
-
             for lane, items in lane_positions.items():
                 for i, n in enumerate(items):
-                    pos[n] = (i * 3.0, lane_y[lane] * 3.0)
+                    pos[n] = (i * 4.0, lane_y[lane] * 4.0)
         else:
             pos = nx.spring_layout(G, seed=42)
 
-        # Render
+        # Output path
         safe_name = step_name.replace(" ", "_").replace("/", "_")
         out_path = os.path.join(OUTPUT_DIR, f"{safe_name}.png")
 
-        plt.figure(figsize=(10, 6))
+        # Large canvas
+        fig, ax = plt.subplots(figsize=(18, 10))
+        ax.axis("off")
 
-        # Draw swimlane backgrounds
+        # Swimlane shading
         if use_swimlanes:
             yvals = {lane: idx for idx, lane in enumerate(lanes)}
             xs = [p[0] for p in pos.values()]
-            min_x, max_x = min(xs), max(xs)
+            xmin, xmax = min(xs), max(xs)
             for lane, row in yvals.items():
-                y = row * 3.0
-                plt.axhspan(y - 1.5, y + 1.5, facecolor="#f5f5f5", alpha=0.3)
-                plt.text(
-                    min_x - 2.0,
+                y = row * 4.0
+                ax.axhspan(y - 2.0, y + 2.0, facecolor="#f5f5f5", alpha=0.3)
+                ax.text(
+                    xmin - 5.0,
                     y,
                     lane,
                     va="center",
                     ha="right",
-                    fontsize=9,
+                    fontsize=10,
                     bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
                 )
 
@@ -179,36 +174,41 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
             arrows=True,
             arrowstyle="->",
             arrowsize=12,
+            ax=ax,
         )
 
-        # Draw nodes
-        node_colors = []
-        for n in nodes:
-            if n == root:
-                node_colors.append("lightgray")
-            else:
-                node_colors.append("lightblue")
-
+        # Draw nodes (NO LABELS)
+        node_colors = ["lightgray" if n == root else "lightblue" for n in nodes]
         nx.draw_networkx_nodes(
             G,
             pos,
             node_color=node_colors,
-            node_size=4000,
+            node_size=5000,
+            ax=ax,
         )
 
-        # Draw labels
-        nx.draw_networkx_labels(
-            G,
-            pos,
-            labels=label_map,
-            font_size=9,
-            bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
-        )
+        # Draw labels OUTSIDE nodes
+        for n, (x, y) in pos.items():
+            label = label_map[n]
 
-        plt.title(step_name)
-        plt.subplots_adjust(left=0.15, right=0.95, top=0.90, bottom=0.10)
-        plt.savefig(out_path)
-        plt.close()
+            # Wrap long labels
+            import textwrap
+            wrapped = "\n".join(textwrap.wrap(label, width=28))
+
+            ax.text(
+                x,
+                y,
+                wrapped,
+                ha="center",
+                va="center",
+                fontsize=10,
+                bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
+            )
+
+        fig.suptitle(step_name, fontsize=14)
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
 
         logger.info(f"Step diagram generated at {out_path}")
         return out_path
