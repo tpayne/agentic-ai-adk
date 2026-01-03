@@ -28,7 +28,7 @@ def exit_loop(tool_context: ToolContext):
     raw = getattr(tool_context, "llm_response", None)
 
     if not raw:
-        logger.error("No LLM response found in tool_context; cannot persist JSON.")
+        logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
         return "Loop termination signaled, but no JSON persisted."
 
     # --- Attempt to parse JSON strictly ---
