@@ -162,3 +162,4 @@ edit the relevant `.txt` file as appropriate.
 - Always validate the generated process for compliance before production use. You can modify the JSON directly and re-run the local pipeline.
 - The exit/loop logic may need tuning — sometimes loops do not exit properly which can consume tokens.
 - If the LLM fails to call a tool, rephrase the prompt or rerun the process. Document generation (diagramming and Word export) can be run manually if needed.
+- The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels.
