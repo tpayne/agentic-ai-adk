@@ -133,6 +133,28 @@ Notes:
 
 ---
 
+## Running the document generator manually
+
+To run the document generator manually, you must: -
+1. Ensure `process_data.json` is present in the `output/` directory.
+2. Run the following code snippet:
+
+```python
+export RUN_DEBUG=d
+python -m process_agents.doc_generation_agent output/process_data.json
+```
+
+This will regenerate the documents without deleting any process files.
+
+---
+
+## Tuning Instructions
+
+To modify the instructions used for the LLMs, see the `instructions` directory and
+edit the relevant `.txt` file as appropriate.
+
+---
+
 ## Known issues and caveats
 
 - If you use a free tier Gemini key you may encounter resource limits when generating large artifacts or portfolios.
