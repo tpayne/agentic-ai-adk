@@ -1,0 +1,111 @@
+{
+  "step_name": "Verification and Documentation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Receive Stock-out Report",
+      "description": "The Inventory Management Team receives the stock-out report from the sales associate, either manually or electronically.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Stock-out report (manual or electronic)"
+      ],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [],
+      "success_criteria": [
+        "Stock-out report is successfully received by the Inventory Management Team."
+      ]
+    },
+    {
+      "substep_name": "Check Physical Inventory (Back Stock)",
+      "description": "The Inventory Management Team checks the back stock area for the product identified in the stock-out report.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "3-5 minutes",
+      "dependencies": [
+        "Receive Stock-out Report"
+      ],
+      "success_criteria": [
+        "Back stock area has been thoroughly checked for the product."
+      ]
+    },
+    {
+      "substep_name": "Check Physical Inventory (Sales Floor)",
+      "description": "If the product is not found in the back stock, the Inventory Management Team re-verifies the stock-out location on the sales floor to ensure the initial report was accurate and that no remaining items are present.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "2-3 minutes",
+      "dependencies": [
+        "Check Physical Inventory (Back Stock)"
+      ],
+      "success_criteria": [
+        "Sales floor location has been re-verified for the product."
+      ]
+    },
+    {
+      "substep_name": "Verify System Records",
+      "description": "The Inventory Management Team verifies the inventory levels in the Inventory Management System to confirm the stock-out and check for any discrepancies between physical inventory and system records.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "2-3 minutes",
+      "dependencies": [
+        "Check Physical Inventory (Sales Floor)"
+      ],
+      "success_criteria": [
+        "Inventory levels in the system have been verified against the physical inventory."
+      ]
+    },
+    {
+      "substep_name": "Confirm Stock-out",
+      "description": "Based on the physical inventory checks and system record verification, the Inventory Management Team confirms whether a true stock-out has occurred.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Stock-out confirmation"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Verify System Records"
+      ],
+      "success_criteria": [
+        "A decision has been made whether the reported issue is a valid stock-out."
+      ]
+    },
+    {
+      "substep_name": "Document Stock-out Details",
+      "description": "If the stock-out is confirmed, the Inventory Management Team documents all relevant details, including product ID, quantity out of stock, time of occurrence, potential causes (if known), and the sales associate who reported the stock-out. They should also note the verification steps taken.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Stock-out confirmation"
+      ],
+      "outputs": [
+        "Verified stock-out documentation"
+      ],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Confirm Stock-out"
+      ],
+      "success_criteria": [
+        "Complete and accurate documentation of the stock-out details."
+      ]
+    },
+    {
+      "substep_name": "Store Documentation",
+      "description": "The verified stock-out documentation is stored in the designated location (either physical or electronic) for later review and analysis.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Verified stock-out documentation"
+      ],
+      "outputs": [],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Document Stock-out Details"
+      ],
+      "success_criteria": [
+        "Stock-out documentation is stored in the correct location and is easily accessible."
+      ]
+    }
+  ]
+}

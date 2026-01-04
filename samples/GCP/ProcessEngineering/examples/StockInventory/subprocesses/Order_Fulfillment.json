@@ -1,0 +1,117 @@
+{
+  "step_name": "Order Fulfillment",
+  "subprocess_flow": [
+    {
+      "substep_name": "Receive Replenishment Order",
+      "description": "The Purchasing Department receives the replenishment order from the Inventory Management Team.",
+      "responsible_party": "Purchasing Department",
+      "inputs": [
+        "Replenishment order"
+      ],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [],
+      "success_criteria": [
+        "Replenishment order is received by the Purchasing Department."
+      ]
+    },
+    {
+      "substep_name": "Verify Order Details",
+      "description": "The Purchasing Department verifies the order details, including product ID, quantity, and delivery instructions, against the pre-approved order templates (if used) and current supplier agreements.",
+      "responsible_party": "Purchasing Department",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Receive Replenishment Order"
+      ],
+      "success_criteria": [
+        "Order details are verified for accuracy and compliance."
+      ]
+    },
+    {
+      "substep_name": "Send Order to Warehouse",
+      "description": "The Purchasing Department sends the verified replenishment order to the warehouse for fulfillment.",
+      "responsible_party": "Purchasing Department",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [
+        "Verify Order Details"
+      ],
+      "success_criteria": [
+        "Replenishment order is sent to the warehouse."
+      ]
+    },
+    {
+      "substep_name": "Warehouse Receives Order",
+      "description": "Warehouse staff receives the replenishment order from the Purchasing Department.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [
+        "Send Order to Warehouse"
+      ],
+      "success_criteria": [
+        "Replenishment order is received by the warehouse staff."
+      ]
+    },
+    {
+      "substep_name": "Picking and Packing",
+      "description": "The dedicated picking and packing team picks the inventory from the warehouse shelves, packs it securely, and prepares it for shipment to the store.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "Warehouse Receives Order"
+      ],
+      "success_criteria": [
+        "Inventory is accurately picked and securely packed for shipment."
+      ]
+    },
+    {
+      "substep_name": "Update Inventory Management System",
+      "description": "Warehouse staff updates the inventory management system to account for the reduced stock amounts in the warehouse.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Picking and Packing"
+      ],
+      "success_criteria": [
+        "Inventory management system is updated with accurate stock levels."
+      ]
+    },
+    {
+      "substep_name": "Ship Inventory to Store",
+      "description": "The warehouse ships the packed inventory to the store using expedited shipping options.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "6-48 hours",
+      "dependencies": [
+        "Update Inventory Management System"
+      ],
+      "success_criteria": [
+        "Inventory is shipped to the store within the agreed lead time."
+      ]
+    },
+    {
+      "substep_name": "Track Order",
+      "description": "The Purchasing Department tracks the order and communicates any delays or issues to the Inventory Management Team.",
+      "responsible_party": "Purchasing Department",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Ship Inventory to Store"
+      ],
+      "success_criteria": [
+        "Order is tracked and any issues are communicated promptly."
+      ]
+    }
+  ]
+}

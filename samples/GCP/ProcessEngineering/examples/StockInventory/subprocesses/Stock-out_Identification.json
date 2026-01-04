@@ -1,0 +1,93 @@
+{
+  "step_name": "Stock-out Identification",
+  "subprocess_flow": [
+    {
+      "substep_name": "Observe Sales Floor/Customer Inquiries",
+      "description": "Sales associates continuously monitor the sales floor visually, paying attention to shelf emptiness and customer inquiries about product availability.",
+      "responsible_party": "Sales Associates",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Ongoing",
+      "dependencies": [],
+      "success_criteria": [
+        "Sales associates actively scan the sales floor during their shifts.",
+        "Customer inquiries are promptly addressed."
+      ]
+    },
+    {
+      "substep_name": "Receive RFID Alerts",
+      "description": "Sales associates receive automated alerts on their handheld devices when RFID sensors detect a stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Real-time",
+      "dependencies": [],
+      "success_criteria": [
+        "RFID system is functioning correctly and sending alerts.",
+        "Sales associates are receiving and acknowledging alerts."
+      ]
+    },
+    {
+      "substep_name": "Verify Stock-out",
+      "description": "Upon observation or alert, sales associates physically verify the stock-out by checking the shelf and immediate surrounding area.",
+      "responsible_party": "Sales Associates",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "30-60 seconds",
+      "dependencies": [
+        "Observe Sales Floor/Customer Inquiries",
+        "Receive RFID Alerts"
+      ],
+      "success_criteria": [
+        "Physical confirmation of stock-out on the shelf."
+      ]
+    },
+    {
+      "substep_name": "Gather Product Information",
+      "description": "Sales associates gather necessary product information, including product ID, location on the sales floor (aisle, shelf number), and estimated time the stock-out was noticed.",
+      "responsible_party": "Sales Associates",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "30-60 seconds",
+      "dependencies": [
+        "Verify Stock-out"
+      ],
+      "success_criteria": [
+        "All required product information is accurately collected."
+      ]
+    },
+    {
+      "substep_name": "Report Stock-out",
+      "description": "Sales associates report the stock-out to the Inventory Management Team using either the manual stock-out reporting form or the electronic reporting function on their handheld devices.",
+      "responsible_party": "Sales Associates",
+      "inputs": [],
+      "outputs": [
+        "Stock-out report (manual or electronic)"
+      ],
+      "estimated_duration": "1-2 minutes",
+      "dependencies": [
+        "Gather Product Information"
+      ],
+      "success_criteria": [
+        "Stock-out report is submitted to the Inventory Management Team.",
+        "Report includes all necessary product and location details."
+      ]
+    },
+    {
+      "substep_name": "Acknowledge Report (Inventory Management)",
+      "description": "The Inventory Management Team acknowledges receipt of the stock-out report.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Stock-out report (manual or electronic)"
+      ],
+      "outputs": [],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Report Stock-out"
+      ],
+      "success_criteria": [
+        "Inventory Management Team has acknowledged receipt of the report."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "step_name": "Inventory Replenishment",
+  "subprocess_flow": [
+    {
+      "substep_name": "Receive Inventory Shipment",
+      "description": "The Inventory Management Team receives the inventory shipment from the warehouse.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Inventory shipment to the store"
+      ],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [],
+      "success_criteria": [
+        "Inventory shipment is received by the Inventory Management Team."
+      ]
+    },
+    {
+      "substep_name": "Verify Shipment Quantity",
+      "description": "The Inventory Management Team verifies the received quantity against the original order and packing slip to ensure accuracy.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Receive Inventory Shipment"
+      ],
+      "success_criteria": [
+        "Received quantity matches the order and packing slip."
+      ]
+    },
+    {
+      "substep_name": "Update System Records",
+      "description": "The Inventory Management Team updates the inventory management system to reflect the received inventory.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Verify Shipment Quantity"
+      ],
+      "success_criteria": [
+        "Inventory management system is updated with accurate stock levels."
+      ]
+    },
+    {
+      "substep_name": "Prioritize Restocking",
+      "description": "Determine the products which need to be restocked urgently, based on sales data and stock-out duration.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Verify Shipment Quantity"
+      ],
+      "success_criteria": [
+        "Prioritization of products to be restocked is completed"
+      ]
+    },
+    {
+      "substep_name": "Prepare Restocking Area",
+      "description": "Clear the designated restocking area and gather necessary equipment (e.g., carts, shelf labels).",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Prioritize Restocking"
+      ],
+      "success_criteria": [
+        "Restocking area is prepared and ready for restocking."
+      ]
+    },
+    {
+      "substep_name": "Restock Shelves",
+      "description": "The dedicated overnight restocking crew and sales associates restock the shelves, ensuring products are placed in the correct location and updating shelf labels as needed.",
+      "responsible_party": "Inventory Management Team, Sales Associates",
+      "inputs": [],
+      "outputs": [
+        "Replenished shelves"
+      ],
+      "estimated_duration": "30-90 minutes",
+      "dependencies": [
+        "Prepare Restocking Area"
+      ],
+      "success_criteria": [
+        "Shelves are replenished with the received inventory.",
+        "Products are placed in the correct location.",
+        "Shelf labels are updated as needed."
+      ]
+    },
+    {
+      "substep_name": "Monitor Sales Floor",
+      "description": "The Inventory Management Team monitors the sales floor to ensure that shelves are adequately stocked and that stock-outs are avoided.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Restock Shelves"
+      ],
+      "success_criteria": [
+        "Sales floor is regularly monitored for stock levels.",
+        "Stock-outs are avoided."
+      ]
+    }
+  ]
+}

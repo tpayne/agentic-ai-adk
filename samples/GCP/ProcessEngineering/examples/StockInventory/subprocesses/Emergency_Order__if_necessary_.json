@@ -1,0 +1,123 @@
+{
+  "step_name": "Emergency Order (if necessary)",
+  "subprocess_flow": [
+    {
+      "substep_name": "Assess Stock-out Criticality",
+      "description": "The Inventory Manager assesses the criticality of the stock-out based on pre-defined criteria, such as product demand, potential lost sales, customer impact, and strategic importance of the product.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [],
+      "outputs": [
+        "Determination of stock-out criticality (critical or not critical)"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [],
+      "success_criteria": [
+        "Stock-out criticality is determined based on pre-defined criteria"
+      ]
+    },
+    {
+      "substep_name": "Obtain Required Approvals (if necessary)",
+      "description": "If the stock-out is deemed critical and requires additional approval based on company policy (e.g., exceeding a certain dollar amount), the Inventory Manager obtains the necessary approvals from the designated approvers (e.g., senior management).",
+      "responsible_party": "Inventory Manager",
+      "inputs": [],
+      "outputs": [
+        "Required approvals obtained (if applicable)"
+      ],
+      "estimated_duration": "2 minutes",
+      "dependencies": [
+        "Assess Stock-out Criticality"
+      ],
+      "success_criteria": [
+        "All required approvals are obtained according to company policy"
+      ]
+    },
+    {
+      "substep_name": "Initiate Emergency Purchase Order",
+      "description": "Using the mobile solution, the Inventory Manager initiates an emergency purchase order for the out-of-stock product, specifying the required quantity and desired delivery date.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [],
+      "outputs": [
+        "Emergency purchase order initiated"
+      ],
+      "estimated_duration": "2 minutes",
+      "dependencies": [
+        "Assess Stock-out Criticality",
+        "Obtain Required Approvals (if necessary)"
+      ],
+      "success_criteria": [
+        "Emergency purchase order is initiated with accurate product and quantity information"
+      ]
+    },
+    {
+      "substep_name": "Select Expedited Shipping Option",
+      "description": "The Inventory Manager selects an expedited shipping option from a pre-approved list of suppliers offering expedited services, ensuring the fastest possible delivery time.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [],
+      "outputs": [
+        "Expedited shipping option selected"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Initiate Emergency Purchase Order"
+      ],
+      "success_criteria": [
+        "An appropriate expedited shipping option is selected to minimize delivery time"
+      ]
+    },
+    {
+      "substep_name": "Automatic Purchase Order Generation",
+      "description": "The inventory management system automatically generates the complete purchase order based on the information provided by the Inventory Manager, including product details, quantity, shipping instructions, and selected supplier.",
+      "responsible_party": "Inventory Management System",
+      "inputs": [
+        "Emergency purchase order initiated",
+        "Expedited shipping option selected"
+      ],
+      "outputs": [
+        "Complete purchase order generated"
+      ],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Select Expedited Shipping Option"
+      ],
+      "success_criteria": [
+        "A complete and accurate purchase order is automatically generated"
+      ]
+    },
+    {
+      "substep_name": "Notify Purchasing Department",
+      "description": "The Inventory Manager sends an automatic notification to the Purchasing Department, alerting them to the urgent need to process the emergency purchase order.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Complete purchase order generated"
+      ],
+      "outputs": [
+        "Notification sent to Purchasing Department"
+      ],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Automatic Purchase Order Generation"
+      ],
+      "success_criteria": [
+        "Purchasing Department is successfully notified of the emergency purchase order"
+      ]
+    },
+    {
+      "substep_name": "Submit Purchase Order",
+      "description": "The Inventory Manager formally submits the emergency purchase order to the Purchasing Department for processing, ensuring that all required information is included.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Complete purchase order generated"
+      ],
+      "outputs": [
+        "Emergency purchase order submitted to the Purchasing Department"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Automatic Purchase Order Generation"
+      ],
+      "success_criteria": [
+        "Emergency purchase order is formally submitted to the Purchasing Department"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "step_name": "Immediate Action",
+  "subprocess_flow": [
+    {
+      "substep_name": "Receive Root Cause Analysis Report",
+      "description": "The designated Inventory Management Team member receives the Root Cause Analysis Report to understand the reason for the stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Root cause analysis report"
+      ],
+      "outputs": [],
+      "estimated_duration": "Instantaneous",
+      "dependencies": [],
+      "success_criteria": [
+        "Designated team member has received the Root Cause Analysis Report."
+      ]
+    },
+    {
+      "substep_name": "Evaluate Immediate Options",
+      "description": "The designated team member evaluates the available options for immediate action based on the root cause and current inventory levels.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Receive Root Cause Analysis Report"
+      ],
+      "success_criteria": [
+        "Possible immediate actions have been identified and assessed."
+      ]
+    },
+    {
+      "substep_name": "Check Back Stock",
+      "description": "The team member checks the back stock for any additional inventory of the stocked-out product.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Evaluate Immediate Options"
+      ],
+      "success_criteria": [
+        "Back stock has been thoroughly checked for the product."
+      ]
+    },
+    {
+      "substep_name": "Contact Other Stores",
+      "description": "If back stock is unavailable, the team member contacts other store locations to inquire about inventory transfer possibilities.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "5-15 minutes",
+      "dependencies": [
+        "Check Back Stock"
+      ],
+      "success_criteria": [
+        "Other store locations have been contacted regarding inventory transfer."
+      ]
+    },
+    {
+      "substep_name": "Expedite Supplier Order",
+      "description": "If inventory transfer is not possible, the team member contacts the supplier to expedite the next order of the stocked-out product.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Contact Other Stores"
+      ],
+      "success_criteria": [
+        "Supplier has been contacted to expedite the next order."
+      ]
+    },
+    {
+      "substep_name": "Communicate with Sales Associates",
+      "description": "The team member communicates the actions taken to sales associates and provides them with alternative product suggestions to offer to customers.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "2-5 minutes",
+      "dependencies": [
+        "Check Back Stock",
+        "Contact Other Stores",
+        "Expedite Supplier Order"
+      ],
+      "success_criteria": [
+        "Sales associates are informed of the situation and provided with alternative product suggestions."
+      ]
+    },
+    {
+      "substep_name": "Document Actions Taken",
+      "description": "The team member documents all actions taken to address the stock-out, including the outcome of each action.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Documentation of immediate actions"
+      ],
+      "estimated_duration": "2-5 minutes",
+      "dependencies": [
+        "Communicate with Sales Associates"
+      ],
+      "success_criteria": [
+        "All actions taken have been documented."
+      ]
+    }
+  ]
+}

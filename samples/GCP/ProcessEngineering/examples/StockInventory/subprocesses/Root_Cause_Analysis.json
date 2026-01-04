@@ -1,0 +1,126 @@
+{
+  "step_name": "Root Cause Analysis",
+  "subprocess_flow": [
+    {
+      "substep_name": "Review Stock-out Documentation",
+      "description": "The Inventory Management Team reviews the verified stock-out documentation to understand the initial circumstances surrounding the stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Verified stock-out documentation"
+      ],
+      "outputs": [],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "The Inventory Management Team has reviewed the stock-out documentation."
+      ]
+    },
+    {
+      "substep_name": "Analyze Sales Data",
+      "description": "The team analyzes recent sales data for the product to identify any unusual trends or spikes in demand that may have contributed to the stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "10-15 minutes",
+      "dependencies": [
+        "Review Stock-out Documentation"
+      ],
+      "success_criteria": [
+        "Sales data for the product has been analyzed for recent trends."
+      ]
+    },
+    {
+      "substep_name": "Review Past Orders",
+      "description": "The team reviews past orders for the product to check for any delays, discrepancies, or unusual order patterns.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "10-15 minutes",
+      "dependencies": [
+        "Review Stock-out Documentation"
+      ],
+      "success_criteria": [
+        "Past orders for the product have been reviewed for any issues."
+      ]
+    },
+    {
+      "substep_name": "Check Inventory Records",
+      "description": "The team checks inventory records for discrepancies, errors, or inconsistencies that may have led to the stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "10-15 minutes",
+      "dependencies": [
+        "Review Stock-out Documentation"
+      ],
+      "success_criteria": [
+        "Inventory records have been thoroughly checked for errors."
+      ]
+    },
+    {
+      "substep_name": "Investigate Supply Chain Issues",
+      "description": "The team investigates potential supply chain issues, such as delays in delivery, supplier shortages, or transportation problems.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "10-20 minutes",
+      "dependencies": [
+        "Review Stock-out Documentation"
+      ],
+      "success_criteria": [
+        "Potential supply chain issues have been investigated."
+      ]
+    },
+    {
+      "substep_name": "Consult Standardized Checklist/Decision Tree",
+      "description": "The team uses the standardized checklist and decision tree to guide the root cause analysis process and ensure all relevant factors are considered.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Analyze Sales Data",
+        "Review Past Orders",
+        "Check Inventory Records",
+        "Investigate Supply Chain Issues"
+      ],
+      "success_criteria": [
+        "The standardized checklist and decision tree have been consulted."
+      ]
+    },
+    {
+      "substep_name": "Identify Primary Root Cause",
+      "description": "Based on the analysis and checklist, the team identifies the primary root cause of the stock-out.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Primary root cause of stock-out"
+      ],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Consult Standardized Checklist/Decision Tree"
+      ],
+      "success_criteria": [
+        "The primary root cause of the stock-out has been identified."
+      ]
+    },
+    {
+      "substep_name": "Document Root Cause Analysis",
+      "description": "The team documents the entire root cause analysis process, including the identified root cause, supporting evidence, and any shortfalls or errors encountered during the analysis.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Primary root cause of stock-out"
+      ],
+      "outputs": [
+        "Root cause analysis report"
+      ],
+      "estimated_duration": "5-10 minutes",
+      "dependencies": [
+        "Identify Primary Root Cause"
+      ],
+      "success_criteria": [
+        "The root cause analysis report is complete and accurate."
+      ]
+    }
+  ]
+}

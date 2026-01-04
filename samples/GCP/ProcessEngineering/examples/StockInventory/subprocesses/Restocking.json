@@ -1,0 +1,119 @@
+{
+  "step_name": "Restocking",
+  "subprocess_flow": [
+    {
+      "substep_name": "Receive Restock Notification",
+      "description": "Warehouse staff receives a notification indicating that new inventory for the out-of-stock product has arrived and is ready for restocking.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [],
+      "success_criteria": [
+        "Warehouse staff receives notification of new inventory arrival"
+      ]
+    },
+    {
+      "substep_name": "Prioritize Restock Task",
+      "description": "Warehouse staff prioritizes the restocking task based on the urgency of the stock-out and any pre-defined prioritization rules.",
+      "responsible_party": "Warehouse Staff",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Receive Restock Notification"
+      ],
+      "success_criteria": [
+        "Restock task is appropriately prioritized"
+      ]
+    },
+    {
+      "substep_name": "Retrieve Inventory with AGV",
+      "description": "Automated Guided Vehicles (AGVs) are dispatched to retrieve the required quantity of the out-of-stock product from its designated storage location in the warehouse.",
+      "responsible_party": "AGV System",
+      "inputs": [],
+      "outputs": [
+        "Inventory retrieved from warehouse"
+      ],
+      "estimated_duration": "3 minutes",
+      "dependencies": [
+        "Prioritize Restock Task"
+      ],
+      "success_criteria": [
+        "AGVs successfully retrieve the required inventory"
+      ]
+    },
+    {
+      "substep_name": "Transport Inventory to Sales Floor",
+      "description": "The AGVs transport the retrieved inventory to the designated restocking location on the sales floor, following optimized routes to minimize travel time.",
+      "responsible_party": "AGV System",
+      "inputs": [
+        "Inventory retrieved from warehouse"
+      ],
+      "outputs": [
+        "Inventory transported to sales floor"
+      ],
+      "estimated_duration": "3 minutes",
+      "dependencies": [
+        "Retrieve Inventory with AGV"
+      ],
+      "success_criteria": [
+        "Inventory is transported to the correct sales floor location"
+      ]
+    },
+    {
+      "substep_name": "Place Inventory on Shelves",
+      "description": "Sales associates receive the inventory from the AGVs and place it on the shelves or displays, ensuring proper placement and presentation.",
+      "responsible_party": "Sales Associate",
+      "inputs": [
+        "Inventory transported to sales floor"
+      ],
+      "outputs": [
+        "Shelves restocked with the product"
+      ],
+      "estimated_duration": "3 minutes",
+      "dependencies": [
+        "Transport Inventory to Sales Floor"
+      ],
+      "success_criteria": [
+        "Inventory is correctly placed on shelves and displays"
+      ]
+    },
+    {
+      "substep_name": "Update POS System",
+      "description": "Sales associates update the POS system to reflect the new stock levels, ensuring accurate inventory data is available for sales and reporting.",
+      "responsible_party": "Sales Associate",
+      "inputs": [
+        "Shelves restocked with the product"
+      ],
+      "outputs": [
+        "POS system updated with new stock levels"
+      ],
+      "estimated_duration": "2 minutes",
+      "dependencies": [
+        "Place Inventory on Shelves"
+      ],
+      "success_criteria": [
+        "POS system accurately reflects the new stock levels"
+      ]
+    },
+    {
+      "substep_name": "Notify Sales Associates (Confirmation)",
+      "description": "The inventory management system automatically notifies sales associates (via mobile devices) upon completion of the restocking process, confirming that the product is now available for sale.",
+      "responsible_party": "Inventory Management System",
+      "inputs": [
+        "POS system updated with new stock levels"
+      ],
+      "outputs": [
+        "Notification sent to sales associates"
+      ],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Update POS System"
+      ],
+      "success_criteria": [
+        "Sales associates receive confirmation of restocking completion"
+      ]
+    }
+  ]
+}

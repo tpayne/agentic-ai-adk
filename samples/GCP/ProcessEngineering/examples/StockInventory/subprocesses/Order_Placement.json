@@ -1,0 +1,107 @@
+{
+  "step_name": "Order Placement",
+  "subprocess_flow": [
+    {
+      "substep_name": "Determine Order Need",
+      "description": "Confirm that the stock-out cannot be resolved through immediate actions (back stock, transfers, etc.) and that a replenishment order is necessary.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Documentation of immediate actions"
+      ],
+      "outputs": [],
+      "estimated_duration": "2 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Confirmation that a replenishment order is required."
+      ]
+    },
+    {
+      "substep_name": "Select Order Template (if applicable)",
+      "description": "If the stocked-out item is a frequently stocked-out item, select the pre-approved order template for that item.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "1-2 minutes",
+      "dependencies": [
+        "Determine Order Need"
+      ],
+      "success_criteria": [
+        "Appropriate order template has been selected (if available)."
+      ]
+    },
+    {
+      "substep_name": "Determine Order Quantity",
+      "description": "Determine the order quantity based on demand forecasts, lead times, safety stock levels, and the identified root cause of the stock-out. Adjust the quantity from the template if needed.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "3-5 minutes",
+      "dependencies": [
+        "Determine Order Need"
+      ],
+      "success_criteria": [
+        "Order quantity is accurately calculated based on relevant factors."
+      ]
+    },
+    {
+      "substep_name": "Complete Replenishment Order",
+      "description": "Complete the replenishment order form (either manual or electronic) with all necessary information, including product ID, order quantity, and delivery instructions.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Replenishment order"
+      ],
+      "estimated_duration": "2-3 minutes",
+      "dependencies": [
+        "Determine Order Quantity"
+      ],
+      "success_criteria": [
+        "Replenishment order form is complete and accurate."
+      ]
+    },
+    {
+      "substep_name": "Justify Order Urgency",
+      "description": "Provide sufficient justification for the urgency of the order, referencing the stock-out situation and potential impact on sales and customer satisfaction.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "1-2 minutes",
+      "dependencies": [
+        "Complete Replenishment Order"
+      ],
+      "success_criteria": [
+        "Clear and compelling justification for order urgency is provided."
+      ]
+    },
+    {
+      "substep_name": "Submit Order to Purchasing",
+      "description": "Submit the completed replenishment order to the Purchasing Department.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [
+        "Replenishment order"
+      ],
+      "outputs": [],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Justify Order Urgency"
+      ],
+      "success_criteria": [
+        "Replenishment order has been successfully submitted to the Purchasing Department."
+      ]
+    },
+    {
+      "substep_name": "Confirm Order Receipt (Purchasing)",
+      "description": "The Purchasing Department confirms receipt of the replenishment order.",
+      "responsible_party": "Purchasing Department",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Submit Order to Purchasing"
+      ],
+      "success_criteria": [
+        "Purchasing Department has confirmed receipt of the replenishment order."
+      ]
+    }
+  ]
+}

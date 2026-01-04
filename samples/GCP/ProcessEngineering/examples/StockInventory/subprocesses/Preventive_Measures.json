@@ -1,0 +1,123 @@
+{
+  "step_name": "Preventive Measures",
+  "subprocess_flow": [
+    {
+      "substep_name": "Gather Stock-out Data",
+      "description": "Collect all available stock-out data, including frequency, duration, product types, locations, and root causes.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Weekly",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive stock-out data is collected and organized."
+      ]
+    },
+    {
+      "substep_name": "Analyze Stock-out Trends",
+      "description": "Analyze the collected stock-out data to identify patterns, trends, and recurring root causes.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Weekly",
+      "dependencies": [
+        "Gather Stock-out Data"
+      ],
+      "success_criteria": [
+        "Significant stock-out trends and patterns are identified."
+      ]
+    },
+    {
+      "substep_name": "Review Demand Forecasting Methods",
+      "description": "Evaluate the effectiveness of current demand forecasting methods and identify areas for improvement.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Monthly",
+      "dependencies": [
+        "Analyze Stock-out Trends"
+      ],
+      "success_criteria": [
+        "Demand forecasting methods are reviewed and areas for improvement are identified."
+      ]
+    },
+    {
+      "substep_name": "Adjust Safety Stock Levels",
+      "description": "Adjust safety stock levels for specific products based on the analysis of stock-out trends and demand forecasting.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Adjusted safety stock levels"
+      ],
+      "estimated_duration": "Weekly",
+      "dependencies": [
+        "Analyze Stock-out Trends",
+        "Review Demand Forecasting Methods"
+      ],
+      "success_criteria": [
+        "Safety stock levels are adjusted to minimize stock-outs while maintaining optimal inventory turnover."
+      ]
+    },
+    {
+      "substep_name": "Optimize Inventory Control Procedures",
+      "description": "Review and optimize inventory control procedures, such as reorder points, order quantities, and inventory tracking methods.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Optimized inventory control procedures"
+      ],
+      "estimated_duration": "Monthly",
+      "dependencies": [
+        "Analyze Stock-out Trends"
+      ],
+      "success_criteria": [
+        "Inventory control procedures are optimized for efficiency and accuracy."
+      ]
+    },
+    {
+      "substep_name": "Strengthen Supplier Relationships",
+      "description": "Communicate proactively with suppliers to address any supply chain issues, negotiate better lead times, and improve delivery reliability.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [
+        "Strengthened supplier relationships"
+      ],
+      "estimated_duration": "Monthly",
+      "dependencies": [
+        "Analyze Stock-out Trends"
+      ],
+      "success_criteria": [
+        "Supplier relationships are strengthened, leading to improved supply chain performance."
+      ]
+    },
+    {
+      "substep_name": "Provide Staff Training",
+      "description": "Provide additional training to staff on inventory management procedures, stock-out reporting, and the importance of accurate data collection.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Quarterly",
+      "dependencies": [],
+      "success_criteria": [
+        "Staff is adequately trained on inventory management procedures."
+      ]
+    },
+    {
+      "substep_name": "Monitor and Adjust Measures",
+      "description": "Regularly monitor the effectiveness of preventive measures and adjust them as needed based on ongoing stock-out data and performance metrics.",
+      "responsible_party": "Inventory Management Team",
+      "inputs": [],
+      "outputs": [],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Adjust Safety Stock Levels",
+        "Optimize Inventory Control Procedures",
+        "Strengthen Supplier Relationships",
+        "Provide Staff Training"
+      ],
+      "success_criteria": [
+        "Preventive measures are continuously monitored and adjusted for optimal effectiveness."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "step_name": "Backorder Management",
+  "subprocess_flow": [
+    {
+      "substep_name": "Assess Backorder Availability",
+      "description": "The sales associate checks the inventory management system to determine if the out-of-stock product is eligible for backorder and to ascertain the estimated delivery timeframe.",
+      "responsible_party": "Sales Associate",
+      "inputs": [],
+      "outputs": [
+        "Backorder eligibility status",
+        "Estimated delivery timeframe"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [],
+      "success_criteria": [
+        "Backorder eligibility is determined via inventory system",
+        "Estimated delivery timeframe is retrieved from the system"
+      ]
+    },
+    {
+      "substep_name": "Inform Customer of Backorder Option",
+      "description": "The sales associate informs the customer about the backorder option, clearly communicating the estimated delivery timeframe and any associated terms and conditions.",
+      "responsible_party": "Sales Associate",
+      "inputs": [
+        "Backorder eligibility status",
+        "Estimated delivery timeframe"
+      ],
+      "outputs": [],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Assess Backorder Availability"
+      ],
+      "success_criteria": [
+        "Customer is informed about backorder option and estimated delivery timeframe"
+      ]
+    },
+    {
+      "substep_name": "Obtain Customer Consent",
+      "description": "The sales associate obtains the customer's consent to place the product on backorder, ensuring they understand the delivery timeframe and agree to wait for the product.",
+      "responsible_party": "Sales Associate",
+      "inputs": [],
+      "outputs": [
+        "Customer consent to backorder"
+      ],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Inform Customer of Backorder Option"
+      ],
+      "success_criteria": [
+        "Customer provides explicit consent to place the order on backorder"
+      ]
+    },
+    {
+      "substep_name": "Place Backorder in System",
+      "description": "The sales associate places the backorder in the POS system or inventory management system, accurately recording the customer's details, product information, and agreed-upon delivery timeframe.",
+      "responsible_party": "Sales Associate",
+      "inputs": [
+        "Customer consent to backorder"
+      ],
+      "outputs": [
+        "Backorder placed in system"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Obtain Customer Consent"
+      ],
+      "success_criteria": [
+        "Backorder is accurately placed in the system with all required information"
+      ]
+    },
+    {
+      "substep_name": "Provide Order Confirmation",
+      "description": "The sales associate provides the customer with an order confirmation, including the backorder number, product details, estimated delivery timeframe, and contact information for order inquiries.",
+      "responsible_party": "Sales Associate",
+      "inputs": [
+        "Backorder placed in system"
+      ],
+      "outputs": [
+        "Order confirmation provided to customer"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Place Backorder in System"
+      ],
+      "success_criteria": [
+        "Customer receives a clear and complete order confirmation"
+      ]
+    },
+    {
+      "substep_name": "Schedule Follow-up Communication",
+      "description": "The sales associate schedules a follow-up communication with the customer to provide updates on the order status, particularly if there are any changes to the estimated delivery timeframe.",
+      "responsible_party": "Sales Associate",
+      "inputs": [],
+      "outputs": [
+        "Follow-up communication scheduled"
+      ],
+      "estimated_duration": "Less than 1 minute",
+      "dependencies": [
+        "Provide Order Confirmation"
+      ],
+      "success_criteria": [
+        "A follow-up communication is scheduled to provide order status updates"
+      ]
+    }
+  ]
+}

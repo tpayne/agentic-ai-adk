@@ -1,0 +1,127 @@
+{
+  "step_name": "Review and Prevention",
+  "subprocess_flow": [
+    {
+      "substep_name": "Collect Stock-out Data",
+      "description": "The inventory management system automatically collects data on all stock-out incidents, including product details, dates, times, quantities, root causes, and associated lost sales.",
+      "responsible_party": "Inventory Management System",
+      "inputs": [],
+      "outputs": [
+        "Stock-out data"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [],
+      "success_criteria": [
+        "All stock-out incidents are automatically recorded"
+      ]
+    },
+    {
+      "substep_name": "Generate Stock-out Reports",
+      "description": "The inventory manager generates regular reports (e.g., monthly, quarterly) summarizing stock-out frequency by product category, lost sales due to stock-outs, time to restock, and other relevant metrics.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Stock-out data"
+      ],
+      "outputs": [
+        "Stock-out reports"
+      ],
+      "estimated_duration": "1 day per report",
+      "dependencies": [
+        "Collect Stock-out Data"
+      ],
+      "success_criteria": [
+        "Stock-out reports are generated regularly and accurately"
+      ]
+    },
+    {
+      "substep_name": "Analyze Stock-out Trends",
+      "description": "The inventory manager analyzes the stock-out reports to identify trends, patterns, and recurring root causes. This may involve statistical analysis, data visualization, and comparison to historical data.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Stock-out reports"
+      ],
+      "outputs": [
+        "Analysis of stock-out trends"
+      ],
+      "estimated_duration": "2 days per analysis",
+      "dependencies": [
+        "Generate Stock-out Reports"
+      ],
+      "success_criteria": [
+        "Stock-out trends and patterns are identified and documented"
+      ]
+    },
+    {
+      "substep_name": "Refine AI Prediction Model",
+      "description": "The AI-powered predictive analysis system is continuously refined and improved based on the latest stock-out data and analysis, enhancing its ability to predict future stock-out risks.",
+      "responsible_party": "AI System Administrator",
+      "inputs": [
+        "Analysis of stock-out trends",
+        "Stock-out data"
+      ],
+      "outputs": [
+        "Refined AI prediction model"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Analyze Stock-out Trends",
+        "Collect Stock-out Data"
+      ],
+      "success_criteria": [
+        "AI prediction accuracy improves over time"
+      ]
+    },
+    {
+      "substep_name": "Implement Preventative Measures",
+      "description": "Based on the stock-out analysis and AI recommendations, the inventory manager implements preventative measures to minimize future stock-outs. This may include adjusting safety stock levels, improving demand forecasting accuracy, diversifying suppliers, or optimizing inventory replenishment strategies.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Analysis of stock-out trends",
+        "Refined AI prediction model"
+      ],
+      "outputs": [
+        "Implemented preventative measures"
+      ],
+      "estimated_duration": "Varies",
+      "dependencies": [
+        "Analyze Stock-out Trends",
+        "Refine AI Prediction Model"
+      ],
+      "success_criteria": [
+        "Preventative measures are implemented effectively"
+      ]
+    },
+    {
+      "substep_name": "Monitor Effectiveness of Measures",
+      "description": "The inventory manager monitors the effectiveness of the implemented preventative measures by tracking key metrics, such as stock-out frequency, lost sales, and customer satisfaction.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [
+        "Implemented preventative measures"
+      ],
+      "outputs": [],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Implement Preventative Measures"
+      ],
+      "success_criteria": [
+        "Effectiveness of preventative measures is continuously monitored"
+      ]
+    },
+    {
+      "substep_name": "Adjust Strategies as Needed",
+      "description": "The inventory manager adjusts inventory management strategies and preventative measures as needed based on the monitored metrics, ensuring continuous improvement in stock-out prevention and customer satisfaction.",
+      "responsible_party": "Inventory Manager",
+      "inputs": [],
+      "outputs": [
+        "Adjusted inventory management strategies"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Monitor Effectiveness of Measures"
+      ],
+      "success_criteria": [
+        "Inventory management strategies are continuously adjusted to optimize performance"
+      ]
+    }
+  ]
+}
