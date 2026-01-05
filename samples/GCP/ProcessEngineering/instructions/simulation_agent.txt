@@ -13,7 +13,7 @@ SIMULATION RESULT INTERPRETATION:
 - The tool returns either a JSON metrics object or an error object.
 - If you receive an error object:
     * Output EXACTLY:
-        OPTIMIZATION REQUIRED
+        REVISION REQUIRED
         [{"error_type": "simulation_error", "detail": "<the error message>"}]
 
 - If you receive valid metrics, inspect:
@@ -29,16 +29,16 @@ A) If ANY of the following are true:
    - 'bottlenecks' is non-empty, OR
    - 'cycle_time_variance' > 25% of 'avg_cycle_time',
    THEN output EXACTLY:
-       OPTIMIZATION REQUIRED
+       REVISION REQUIRED
        [{"step_name": "...", "issue": "...", "instruction": "..."}]
 
 B) Otherwise output EXACTLY:
-       PERFORMANCE APPROVED
+       SIMULATION_ALL_APPROVED
        {<FULL JSON OBJECT OF THE ORIGINAL PROCESS>}
 
 STRUCTURE RULES:
 - Response MUST be exactly two parts:
-    1) A single line: 'OPTIMIZATION REQUIRED' or 'PERFORMANCE APPROVED'.
+    1) A single line: 'REVISION REQUIRED' or 'SIMULATION_ALL_APPROVED'.
     2) ONE JSON structure.
 - No commentary, no markdown, no tool calls.
 - Do NOT truncate JSON.

@@ -8,40 +8,38 @@ from .utils import load_instruction
 
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 
 def exit_loop(tool_context: ToolContext):
-    """
-    Paranoid exit tool:
-    - Ensures loop termination
-    - Validates final JSON
-    - Parses safely
-    - Persists only if JSON is clean and complete
-    - Logs every branch for traceability
-    """
-
     logger.info("JSON approval detected. Terminating loop.")
     tool_context.actions.escalate = True
 
-    # --- Extract LLM response safely ---
-    raw = getattr(tool_context, "llm_response", None)
+    candidate = None
 
-    if not raw:
-        logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
+    try:
+        candidate = tool_context.state['approved_json']
+        if candidate is None:
+            logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
+            return "Loop termination signaled, but no JSON persisted."
+    except Exception as e:
+        logger.error(f"Error retrieving 'approved_json' from tool_context: {e}")
         return "Loop termination signaled, but no JSON persisted."
 
-    # --- Attempt to parse JSON strictly ---
-    parsed = None
-    try:
-        parsed = json.loads(raw)
-        logger.info("Final LLM response successfully parsed as JSON.")
-    except Exception as e:
-        logger.error(f"Final LLM response is NOT valid JSON. Error: {e}")
-        logger.debug(f"Raw content received:\n{raw}")
-        return "Loop termination signaled, but JSON was invalid and not persisted."
+    # If candidate is already parsed JSON (dict/list), use it directly
+    if isinstance(candidate, (dict, list)):
+        parsed = candidate
+    else:
+        # candidate is likely a string; try strict parse
+        try:
+            parsed = json.loads(candidate)
+            logger.info("Final LLM response successfully parsed as JSON.")
+        except Exception as e:
+            logger.error(f"Final LLM response is NOT valid JSON. Error: {e}")
+            logger.info(f"Raw content received:\n{candidate[:100]}")  # log first 100 chars
+            return "Loop termination signaled, but JSON was invalid and not persisted."
 
-    # --- Validate top-level structure ---
     if not isinstance(parsed, dict):
         logger.error("Parsed JSON is not an object; refusing to persist.")
         return "Loop termination signaled, but JSON structure invalid."
@@ -61,13 +59,11 @@ def exit_loop(tool_context: ToolContext):
     ]
 
     missing = [k for k in required_keys if k not in parsed]
-
     if missing:
         logger.error(f"Final JSON missing required keys: {missing}")
         logger.debug(f"JSON content:\n{json.dumps(parsed, indent=2)}")
         return "Loop termination signaled, but JSON missing required fields."
 
-    # --- Persist only if everything is clean ---
     try:
         persist_final_json(parsed)
         logger.info("Final JSON persisted successfully.")
@@ -83,12 +79,13 @@ def exit_loop(tool_context: ToolContext):
 json_normalizer_agent = LlmAgent(
     name="JSON_Normalizer_Agent",
     model="gemini-2.0-flash-001",
+    tools=[exit_loop],
     include_contents="default",
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",
     instruction=load_instruction("json_normalizer_agent.txt"),
-    tools=[exit_loop],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.4,
         top_p=1,
     ),
+    output_key="approved_json",
 )
