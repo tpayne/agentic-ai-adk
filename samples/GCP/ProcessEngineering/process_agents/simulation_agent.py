@@ -8,12 +8,14 @@ from statistics import mean, pstdev
 from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
+from google.adk.tools.tool_context import ToolContext
 
 from .utils import load_instruction
 
 logger = logging.getLogger("ProcessArchitect.Simulation")
 
 SIM_RESULTS_PATH = "output/simulation_results.json"
+PROCESS_JSON = "output/process_data.json"
 
 # ============================================================
 # JSON EXTRACTION + REPAIR + VALIDATION
@@ -82,7 +84,7 @@ def _extract_valid_json(raw: str):
             except Exception:
                 continue
 
-    raise ValueError("No valid JSON object found in LLM output.")
+    raise ValueError(f"No valid JSON object found in LLM output {raw[:100]}.")
 
 
 def _validate_process_json(data: Dict[str, Any]):
@@ -266,6 +268,16 @@ def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
         logger.exception("Failed to persist simulation metrics.")
 
 
+def _persist_process_data(data: Dict[str, Any]) -> None:
+    try:
+        import os
+        os.makedirs("output", exist_ok=True)
+        with open(PROCESS_JSON, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Process data saved to {PROCESS_JSON}")
+    except Exception:
+        logger.exception("Failed to persist process data.")
+
 # ============================================================
 # TOOL 1: BASELINE PROCESS SIMULATION
 # ============================================================
@@ -282,6 +294,7 @@ def simulate_process_performance(process_json_str) -> str:
 
         metrics = _run_core_simulation(data, iterations=2000)
         _persist_simulation_metrics(metrics)
+        _persist_process_data(data)
         return json.dumps(metrics)
 
     except Exception as e:

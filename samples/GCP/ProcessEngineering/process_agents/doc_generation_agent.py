@@ -203,7 +203,7 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
         # --- Assumptions ---
         assumptions = data.get("assumptions")
-        if "assumptions" in process_data and process_data["assumptions"]:
+        if assumptions:
             if isinstance(assumptions, list) and assumptions:
                doc.add_heading("1.1 Assumptions", level=2)
                for item in assumptions:
@@ -211,7 +211,7 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
         # --- Constraints ---
         constraints = data.get("constraints")
-        if "constraints" in process_data and process_data["constraints"]:
+        if constraints:
             if isinstance(constraints, list) and constraints:
                doc.add_heading("1.2 Constraints", level=2)
                for item in constraints:

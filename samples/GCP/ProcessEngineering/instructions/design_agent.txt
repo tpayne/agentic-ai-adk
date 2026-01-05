@@ -33,6 +33,7 @@ OUTPUT CONTRACT:
 - The JSON must be fully self-contained and ready for compliance review.
 - All stakeholder responsibilities must be explicitly listed.
 - All step descriptions and the introduction must be well-written, multi-sentence paragraphs.
+- All step names should be as concise as possible, but not too simplistic or vague.
 - Do NOT output natural-language explanations, drafts, or internal reasoning.
 - Do NOT ask the user questions.
 - Do NOT wait for confirmation.
@@ -44,3 +45,7 @@ REVISION RULE:
 - The updated output MUST again be a single, complete JSON object.
 
 Your output must ALWAYS be the final JSON design, nothing else.
+
+EXIT RULE (CRITICAL):
+- ONLY if you receive feedback containing the string 'SIMULATION_ALL_APPROVED', then you 
+  MUST CALL the function 'exit_loop', OTHERWISE CONTINUE PROCESSING

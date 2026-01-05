@@ -13,36 +13,37 @@ import logging
 logger = logging.getLogger("ProcessArchitect.JsonReview")
 
 def exit_loop(tool_context: ToolContext):
-    """
-    Paranoid exit tool:
-    - Ensures loop termination
-    - Validates final JSON
-    - Parses safely
-    - Persists only if JSON is clean and complete
-    - Logs every branch for traceability
-    """
-
     logger.info("JSON approval detected. Terminating loop.")
     tool_context.actions.escalate = True
+    candidate = None
 
-    # --- Extract LLM response safely ---
-    raw = getattr(tool_context, "llm_response", None)
-
-    if not raw:
-        logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
-        return "Loop termination signaled, but no JSON persisted."
-
-    # --- Attempt to parse JSON strictly ---
-    parsed = None
     try:
-        parsed = json.loads(raw)
-        logger.info("Final LLM response successfully parsed as JSON.")
+        candidate = tool_context.state['approved_json']
+        if candidate is None:
+            logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
+            return "Loop termination signaled, but no JSON persisted."
+        else:
+            start_index = candidate.find('{')
+            if start_index != -1:
+                candidate = candidate[start_index:]
+        logger.debug(f"LLM response to be persisted: {str(candidate)[:100]}...")  # log first 100 chars
     except Exception as e:
-        logger.error(f"Final LLM response is NOT valid JSON. Error: {e}")
-        logger.debug(f"Raw content received:\n{raw}")
-        return "Loop termination signaled, but JSON was invalid and not persisted."
+        logger.error(f"Error retrieving 'approved_json' from tool_context: {e}")
+        return "Loop termination signaled, but no JSON persisted."
+    
+    # If candidate is already parsed JSON (dict/list), use it directly
+    if isinstance(candidate, (dict, list)):
+        parsed = candidate
+    else:
+        # candidate is likely a string; try strict parse
+        try:
+            parsed = json.loads(candidate)
+            logger.info("Final LLM response successfully parsed as JSON.")
+        except Exception as e:
+            logger.error(f"Final LLM response is NOT valid JSON. Error: {e}")
+            logger.info(f"Raw content received:\n{candidate[:100]}")  # log first 100 chars
+            return "Loop termination signaled, but JSON was invalid and not persisted."
 
-    # --- Validate top-level structure ---
     if not isinstance(parsed, dict):
         logger.error("Parsed JSON is not an object; refusing to persist.")
         return "Loop termination signaled, but JSON structure invalid."
@@ -62,13 +63,11 @@ def exit_loop(tool_context: ToolContext):
     ]
 
     missing = [k for k in required_keys if k not in parsed]
-
     if missing:
         logger.error(f"Final JSON missing required keys: {missing}")
         logger.debug(f"JSON content:\n{json.dumps(parsed, indent=2)}")
         return "Loop termination signaled, but JSON missing required fields."
 
-    # --- Persist only if everything is clean ---
     try:
         persist_final_json(parsed)
         logger.info("Final JSON persisted successfully.")
@@ -78,7 +77,6 @@ def exit_loop(tool_context: ToolContext):
 
     return "Loop termination signaled and final JSON persisted."
 
-
 # -----------------------------
 # JSON REVIEW AGENT
 # -----------------------------
@@ -87,6 +85,7 @@ json_review_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Review JSON for validity, compliance, and best practices.',
     include_contents="default",
+    output_key="approved_json",
     tools=[exit_loop],
     instruction=load_instruction("json_review_agent.txt"),
     generate_content_config=types.GenerateContentConfig(

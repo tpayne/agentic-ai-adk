@@ -19,4 +19,7 @@ Your job is to break this into 3–10 ordered sub-steps that could be implemente
 
 Return ONLY a JSON object matching the SubprocessFlow schema. Do not include any extra text, explanations, or formatting.
 
+When `step_name` is long, then make the `substep_name` values as tight and concise as possible. 
+However do not make the `substep_name` values too simplistic or vague.
+
 The current top-level step JSON is in {{current_process_step}}.
