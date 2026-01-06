@@ -402,31 +402,41 @@ def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]
 
 def generate_clean_diagram() -> str:
     """
-    Refined diagram generator:
-    1. Removes 'zorder' to prevent NetworkX version errors.
-    2. Implements textwrap (width=28) for professional labels.
-    3. Manually expands axis limits to stop clipping.
+    Generates a refined process architecture diagram as a PNG image.
+    This function restores circular node styles and the original color schema, 
+    retains swimlane backgrounds for organizational clarity, and implements 
+    text wrapping for node labels to prevent clipping. The diagram is laid out 
+    with nodes grouped by swimlanes, edges drawn with arrows, and nodes styled 
+    for readability. The output image is saved to 'output/process_flow.png'.
+    Returns:
+        str: A message indicating the success or failure of the diagram generation.
+    """
+def generate_clean_diagram() -> str:
+    """
+    Final Refinement: 
+    1. Clean Box Layout (width=28 wrapping).
+    2. Integrated decorative circle for the 'Node' feel.
+    3. Expanded margins to prevent clipping.
     """
     import textwrap
-    logger.info("Generating clean diagram with refined spacing...")
+    logger.info("Generating refined diagram: Bisected Circle with Box style...")
     
     try:
-        # Load data using your existing helpers
+        # Load data using existing helpers in your file
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
-        final_name = (inferred_name or "Process Flow").strip()
+        final_name = (inferred_name or "Process Architecture").strip()
         edges = inferred_edges or []
         
         G = nx.DiGraph()
         G.add_edges_from(edges)
         
-        # Ensure all nodes have data (prevents KeyErrors)
         for n in G.nodes():
             lane_map.setdefault(n, "Process")
             label_map.setdefault(n, n)
 
-        # 1. POSITIONING (Uses your existing x_spacing/y_spacing logic)
-        x_spacing = 3.5
-        y_spacing = -3.5
+        # 1. POSITIONING (Uses your file's logic)
+        x_spacing = 4.5  # Increased for bisected node width
+        y_spacing = -4.0 # Increased for vertical clearance
         nodes = list(G.nodes())
         lanes = sorted(list(set(lane_map.get(n, "Process") for n in nodes)))
         lane_y_indices = {lane: idx for idx, lane in enumerate(lanes)}
@@ -446,52 +456,58 @@ def generate_clean_diagram() -> str:
         # 2. SETUP CANVAS
         fig, ax = plt.subplots(figsize=(16, 10))
 
-        # 3. DRAW SWIMLANES (Preserving your color scheme)
-        color_map_lanes = plt.cm.get_cmap("Pastel1", len(lanes))
+        # 3. DRAW SWIMLANES
+        lane_colors = plt.cm.get_cmap("Pastel1", len(lanes))
         for i, lane in enumerate(lanes):
             y_coord = lane_y_indices[lane] * y_spacing
-            # Use ax.fill_between or axhspan for lanes
-            ax.axhspan(y_coord - 1.5, y_coord + 1.5, color=color_map_lanes(i), alpha=0.15)
-            ax.text(-2.5, y_coord, lane.upper(), va='center', ha='right', 
+            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.15)
+            ax.text(-3.0, y_coord, lane.upper(), va='center', ha='right', 
                     fontsize=11, fontweight='bold', color="#444444")
 
-        # 4. DRAW EDGES (ZORDER REMOVED TO PREVENT ERRORS)
+        # 4. DRAW EDGES (Clean lines)
         nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color="#95a5a6", 
-            arrows=True, arrowsize=18, width=1.2, 
+            G, pos, ax=ax, edge_color="#bdc3c7", 
+            arrows=True, arrowsize=15, width=1.0, 
             connectionstyle="arc3,rad=0.1"
         )
 
-        # 5. DRAW NODES & WRAPPED LABELS (Refined for spacing)
+        # 5. DRAW BISECTED NODES
         for node, (x, y) in pos.items():
             label = label_map.get(node, node)
-            
-            # Wrap logic to match your step_diagram_agent
             wrapped_text = "\n".join(textwrap.wrap(label, width=28))
 
+            # STEP A: Draw the Large Color Circle (The background)
+            # This uses the specific blue schema from your previous preference
+            ax.plot(x, y, marker='o', markersize=60, 
+                    markeredgecolor='#2980b9', markerfacecolor='#d5e8f7', 
+                    linestyle='None')
+
+            # STEP B: Draw the Text Box (The bisector)
+            # White facecolor 'bisects' the circle visually
             ax.text(
                 x, y, wrapped_text,
                 ha="center", va="center",
                 fontsize=9,
+                fontweight='medium',
                 bbox=dict(
                     facecolor="white", 
-                    edgecolor="#34495e", 
+                    edgecolor="#2980b9", 
                     boxstyle="round,pad=0.5", 
                     linewidth=1.2
                 )
             )
 
-        # 6. FIX CLIPPING (Manual Viewport Expansion)
+        # 6. FIX CLIPPING (Expanded Viewport for large circles)
         if pos:
             x_vals = [p[0] for p in pos.values()]
             y_vals = [p[1] for p in pos.values()]
-            ax.set_xlim(min(x_vals) - 4.5, max(x_vals) + 4.5)
-            ax.set_ylim(min(y_vals) - 2.5, max(y_vals) + 2.5)
+            ax.set_xlim(min(x_vals) - 5.5, max(x_vals) + 5.5)
+            ax.set_ylim(min(y_vals) - 4.0, max(y_vals) + 4.0)
         
-        plt.title(f"Process Architecture: {final_name}", fontsize=14, pad=20)
+        plt.title(f"Process Architecture: {final_name}", fontsize=14, pad=30)
         plt.axis("off")
 
-        # 7. SAVE WITH TIGHT BOUNDS
+        # 7. SAVE
         out_path = "output/process_flow.png"
         fig.tight_layout()
         plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
