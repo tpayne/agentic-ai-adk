@@ -419,7 +419,7 @@ def generate_clean_diagram() -> str:
     3. Expanded margins to prevent clipping.
     """
     import textwrap
-    logger.info("Generating refined diagram: Bisected Circle with Box style...")
+    logger.info("Generating final diagram: Tidied Bisected Circle with visible Arrowheads...")
     
     try:
         # Load data using existing helpers in your file
@@ -434,9 +434,9 @@ def generate_clean_diagram() -> str:
             lane_map.setdefault(n, "Process")
             label_map.setdefault(n, n)
 
-        # 1. POSITIONING (Uses your file's logic)
-        x_spacing = 4.5  # Increased for bisected node width
-        y_spacing = -4.0 # Increased for vertical clearance
+        # 1. POSITIONING
+        x_spacing = 5.0  
+        y_spacing = -4.0 
         nodes = list(G.nodes())
         lanes = sorted(list(set(lane_map.get(n, "Process") for n in nodes)))
         lane_y_indices = {lane: idx for idx, lane in enumerate(lanes)}
@@ -454,41 +454,44 @@ def generate_clean_diagram() -> str:
                 pos[n] = (x, y)
 
         # 2. SETUP CANVAS
-        fig, ax = plt.subplots(figsize=(16, 10))
+        fig, ax = plt.subplots(figsize=(18, 10))
 
         # 3. DRAW SWIMLANES
         lane_colors = plt.cm.get_cmap("Pastel1", len(lanes))
         for i, lane in enumerate(lanes):
             y_coord = lane_y_indices[lane] * y_spacing
-            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.15)
+            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.12)
             ax.text(-3.0, y_coord, lane.upper(), va='center', ha='right', 
-                    fontsize=11, fontweight='bold', color="#444444")
+                    fontsize=11, fontweight='bold', color="#555555")
 
-        # 4. DRAW EDGES (Clean lines)
+        # 4. DRAW EDGES (ZORDER REMOVED, MARGINS TUNED FOR ARROWS)
         nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color="#bdc3c7", 
-            arrows=True, arrowsize=15, width=1.0, 
-            connectionstyle="arc3,rad=0.1"
+            G, pos, ax=ax, 
+            edge_color="#7f8c8d", 
+            arrows=True, 
+            arrowstyle='-|>', 
+            arrowsize=20, 
+            width=1.5, 
+            connectionstyle="arc3,rad=0.1",
+            min_source_margin=30,
+            min_target_margin=30 # Fixed: Stops arrow at the circle edge
         )
 
-        # 5. DRAW BISECTED NODES
+        # 5. DRAW BISECTED NODES (Manual z-order via drawing sequence)
         for node, (x, y) in pos.items():
             label = label_map.get(node, node)
             wrapped_text = "\n".join(textwrap.wrap(label, width=28))
 
-            # STEP A: Draw the Large Color Circle (The background)
-            # This uses the specific blue schema from your previous preference
-            ax.plot(x, y, marker='o', markersize=60, 
+            # A. Draw the Background Circle first
+            ax.plot(x, y, marker='o', markersize=62, 
                     markeredgecolor='#2980b9', markerfacecolor='#d5e8f7', 
                     linestyle='None')
 
-            # STEP B: Draw the Text Box (The bisector)
-            # White facecolor 'bisects' the circle visually
+            # B. Draw the Text Box on top
             ax.text(
                 x, y, wrapped_text,
                 ha="center", va="center",
                 fontsize=9,
-                fontweight='medium',
                 bbox=dict(
                     facecolor="white", 
                     edgecolor="#2980b9", 
@@ -497,14 +500,14 @@ def generate_clean_diagram() -> str:
                 )
             )
 
-        # 6. FIX CLIPPING (Expanded Viewport for large circles)
+        # 6. VIEWPORT & TIDYING
         if pos:
             x_vals = [p[0] for p in pos.values()]
             y_vals = [p[1] for p in pos.values()]
             ax.set_xlim(min(x_vals) - 5.5, max(x_vals) + 5.5)
-            ax.set_ylim(min(y_vals) - 4.0, max(y_vals) + 4.0)
+            ax.set_ylim(min(y_vals) - 3.5, max(y_vals) + 3.5)
         
-        plt.title(f"Process Architecture: {final_name}", fontsize=14, pad=30)
+        plt.title(f"Process Architecture: {final_name}", fontsize=15, pad=30, fontweight='bold')
         plt.axis("off")
 
         # 7. SAVE
@@ -518,7 +521,7 @@ def generate_clean_diagram() -> str:
     except Exception as e:
         logger.error(f"Failed to generate diagram: {e}")
         return f"Diagram generation failed: {str(e)}"
-    
+        
 # ============================================================
 #  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
