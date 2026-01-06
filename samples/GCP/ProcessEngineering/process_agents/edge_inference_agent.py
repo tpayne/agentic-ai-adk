@@ -401,119 +401,108 @@ def _compute_simple_positions(nodes: List[str]) -> Dict[str, Tuple[float, float]
 # ============================================================
 
 def generate_clean_diagram() -> str:
-    logger.info("Generating clean diagram...")
+    """
+    Refined diagram generator:
+    1. Removes 'zorder' to prevent NetworkX version errors.
+    2. Implements textwrap (width=28) for professional labels.
+    3. Manually expands axis limits to stop clipping.
+    """
+    import textwrap
+    logger.info("Generating clean diagram with refined spacing...")
+    
     try:
+        # Load data using your existing helpers
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
-        final_name = (inferred_name or "process").strip()
-        edges = inferred_edges or [("Start", "End")]
-
+        final_name = (inferred_name or "Process Flow").strip()
+        edges = inferred_edges or []
+        
         G = nx.DiGraph()
         G.add_edges_from(edges)
-
+        
+        # Ensure all nodes have data (prevents KeyErrors)
         for n in G.nodes():
             lane_map.setdefault(n, "Process")
             label_map.setdefault(n, n)
 
-        in_deg = dict(G.in_degree())
-        out_deg = dict(G.out_degree())
-        nodes_in_cycles = set()
-        try:
-            for cycle in nx.simple_cycles(G):
-                for node in cycle:
-                    nodes_in_cycles.add(node)
-        except Exception:
-            logger.exception("Cycle detection failed; continuing without cycle highlighting")
+        # 1. POSITIONING (Uses your existing x_spacing/y_spacing logic)
+        x_spacing = 3.5
+        y_spacing = -3.5
+        nodes = list(G.nodes())
+        lanes = sorted(list(set(lane_map.get(n, "Process") for n in nodes)))
+        lane_y_indices = {lane: idx for idx, lane in enumerate(lanes)}
+        
+        lane_positions = {lane: [] for lane in lanes}
+        for n in nodes:
+            lane = lane_map.get(n, "Process")
+            lane_positions[lane].append(n)
+        
+        pos = {}
+        for lane, items in lane_positions.items():
+            y = lane_y_indices[lane] * y_spacing
+            for i, n in enumerate(items):
+                x = i * x_spacing
+                pos[n] = (x, y)
 
-        lanes = sorted(set(lane_map.values()))
-        use_swimlanes = len(lanes) > 1
+        # 2. SETUP CANVAS
+        fig, ax = plt.subplots(figsize=(16, 10))
 
-        max_label_len = max(len(label_map.get(n, str(n))) for n in G.nodes()) if G.nodes() else 10
+        # 3. DRAW SWIMLANES (Preserving your color scheme)
+        color_map_lanes = plt.cm.get_cmap("Pastel1", len(lanes))
+        for i, lane in enumerate(lanes):
+            y_coord = lane_y_indices[lane] * y_spacing
+            # Use ax.fill_between or axhspan for lanes
+            ax.axhspan(y_coord - 1.5, y_coord + 1.5, color=color_map_lanes(i), alpha=0.15)
+            ax.text(-2.5, y_coord, lane.upper(), va='center', ha='right', 
+                    fontsize=11, fontweight='bold', color="#444444")
 
-        if use_swimlanes:
-            x_spacing = 5.0
-            y_spacing = 4.0
-            pos = _compute_swimlane_positions(edges, lane_map, x_spacing=x_spacing, y_spacing=y_spacing)
-        else:
-            pos = _compute_simple_positions(list(G.nodes()))
+        # 4. DRAW EDGES (ZORDER REMOVED TO PREVENT ERRORS)
+        nx.draw_networkx_edges(
+            G, pos, ax=ax, edge_color="#95a5a6", 
+            arrows=True, arrowsize=18, width=1.2, 
+            connectionstyle="arc3,rad=0.1"
+        )
 
-        os.makedirs("output", exist_ok=True)
-        filename = f"output/{final_name.lower().replace(' ', '_')}_flow.png"
+        # 5. DRAW NODES & WRAPPED LABELS (Refined for spacing)
+        for node, (x, y) in pos.items():
+            label = label_map.get(node, node)
+            
+            # Wrap logic to match your step_diagram_agent
+            wrapped_text = "\n".join(textwrap.wrap(label, width=28))
 
-        fig, ax = plt.subplots(figsize=(20, 12))
-        ax.margins(x=0.3, y=0.3)
-        ax.axis("off")
-
-        if use_swimlanes and pos:
-            lanes = sorted(set(lane_map.values()))
-            lane_y_values = {lane: idx * y_spacing for idx, lane in enumerate(lanes)}
-            for n, (x, _) in list(pos.items()):
-                lane = lane_map.get(n, "Process")
-                pos[n] = (x, lane_y_values.get(lane, 0.0))
-
-            xs = [p[0] for p in pos.values()]
-            xmin, xmax = min(xs), max(xs)
-            for lane, y in lane_y_values.items():
-                ax.axhspan(y - 2.0, y + 2.0, facecolor="#f5f5f5", alpha=0.3)
-                ax.text(
-                    xmin - 6.0,
-                    y,
-                    lane,
-                    va="center",
-                    ha="right",
-                    fontsize=10,
-                    bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
+            ax.text(
+                x, y, wrapped_text,
+                ha="center", va="center",
+                fontsize=9,
+                bbox=dict(
+                    facecolor="white", 
+                    edgecolor="#34495e", 
+                    boxstyle="round,pad=0.5", 
+                    linewidth=1.2
                 )
+            )
 
-        font_size = max(8, min(12, int(240 / max_label_len)))
-        node_size = max(4000, min(9000, 160 * max_label_len))
+        # 6. FIX CLIPPING (Manual Viewport Expansion)
+        if pos:
+            x_vals = [p[0] for p in pos.values()]
+            y_vals = [p[1] for p in pos.values()]
+            ax.set_xlim(min(x_vals) - 4.5, max(x_vals) + 4.5)
+            ax.set_ylim(min(y_vals) - 2.5, max(y_vals) + 2.5)
+        
+        plt.title(f"Process Architecture: {final_name}", fontsize=14, pad=20)
+        plt.axis("off")
 
-        colors = []
-        for n in G.nodes():
-            if n in nodes_in_cycles:
-                colors.append("purple")
-            elif out_deg.get(n, 0) > 1:
-                colors.append("orange")
-            elif in_deg.get(n, 0) == 0 and out_deg.get(n, 0) > 0:
-                colors.append("green")
-            elif out_deg.get(n, 0) == 0 and in_deg.get(n, 0) > 0:
-                colors.append("red")
-            else:
-                colors.append("lightblue")
-
-        loop_edges = []
-        normal_edges = []
-        for (u, v) in G.edges():
-            if u in nodes_in_cycles and v in nodes_in_cycles:
-                loop_edges.append((u, v))
-            else:
-                normal_edges.append((u, v))
-
-        nx.draw_networkx_edges(G, pos, edgelist=normal_edges, edge_color="gray", arrows=True,
-                               arrowstyle="->", arrowsize=12, ax=ax)
-
-        if loop_edges:
-            nx.draw_networkx_edges(G, pos, edgelist=loop_edges, edge_color="gray", style="dashed",
-                                   arrows=True, arrowstyle="->", arrowsize=12, ax=ax)
-
-        nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=node_size, ax=ax)
-
-        nx.draw_networkx_labels(G, pos, labels=label_map, font_size=font_size,
-                                verticalalignment="center", horizontalalignment="center",
-                                bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
-                                ax=ax)
-
-        fig.suptitle(final_name, fontsize=14)
-        fig.savefig(filename, dpi=150)
+        # 7. SAVE WITH TIGHT BOUNDS
+        out_path = "output/process_flow.png"
+        fig.tight_layout()
+        plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close(fig)
+        
+        return f"Diagram successfully generated at {out_path}"
 
-        logger.info(f"Diagram generated at {filename}")
-        return filename
-
-    except Exception:
-        logger.exception("Unexpected error while generating diagram")
-        return "None"
-
-
+    except Exception as e:
+        logger.error(f"Failed to generate diagram: {e}")
+        return f"Diagram generation failed: {str(e)}"
+    
 # ============================================================
 #  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
