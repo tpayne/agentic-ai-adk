@@ -10,9 +10,13 @@ import json
 import logging
 from typing import Any
 
+import time
+import random 
+
 logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 
 def exit_loop(tool_context: ToolContext):
+    time.sleep(0.5 + random.random() * 0.75)
     logger.info("JSON approval detected. Terminating loop.")
     tool_context.actions.escalate = True
 
@@ -23,6 +27,11 @@ def exit_loop(tool_context: ToolContext):
         if candidate is None:
             logger.error("No LLM response found in tool_context; cannot persist JSON. Ignored")
             return "Loop termination signaled, but no JSON persisted."
+        else:
+            start_index = candidate.find('{')
+            if start_index != -1:
+                candidate = candidate[start_index:]
+        logger.debug(f"LLM response to be persisted: {str(candidate)[:100]}...")  # log first 100 chars
     except Exception as e:
         logger.error(f"Error retrieving 'approved_json' from tool_context: {e}")
         return "Loop termination signaled, but no JSON persisted."

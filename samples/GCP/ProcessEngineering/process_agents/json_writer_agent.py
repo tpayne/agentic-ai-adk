@@ -11,6 +11,9 @@ from google.genai import types
 
 from .utils import load_instruction
 
+import time
+import random  
+
 logger = logging.getLogger("ProcessArchitect.JsonWriter")
 
 
@@ -20,6 +23,7 @@ logger = logging.getLogger("ProcessArchitect.JsonWriter")
 
 def _log_agent_activity(message: str):
     """Internal logging helper."""
+    time.sleep(0.5 + random.random() * 0.75)
     logger.info(f"--- [DIAGNOSTIC] JSON_Writer: {message} ---")
 
 
@@ -188,6 +192,7 @@ def persist_final_json_override(json_content) -> str:
 
     This is the ONLY tool the agent needs to call.
     """
+    time.sleep(0.5 + random.random() * 0.75)
     try:
         _log_agent_activity("Starting final JSON file persistence")
         result = _save_raw_data_to_json(json_content)

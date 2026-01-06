@@ -18,6 +18,8 @@ from datetime import datetime
 import traceback
 
 import logging
+import random
+import time
 
 logger = logging.getLogger("ProcessArchitect.DocGen")
 
@@ -1088,6 +1090,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
       * Render overview, stakeholders, workflow, tools, metrics, reporting,
         system requirements, flow diagram, and appendices.
     """
+    time.sleep(0.5 + random.random() * 0.75)
     print(f"Creating document for process: {process_name}...")
     logger.info(f"Creating document for process: {process_name}...")
     try:

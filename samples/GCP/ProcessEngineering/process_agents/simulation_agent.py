@@ -12,6 +12,9 @@ from google.adk.tools.tool_context import ToolContext
 
 from .utils import load_instruction
 
+import time
+import random
+
 logger = logging.getLogger("ProcessArchitect.Simulation")
 
 SIM_RESULTS_PATH = "output/simulation_results.json"
@@ -310,6 +313,10 @@ def simulate_process_performance(process_json_str) -> str:
 # ============================================================
 
 def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
+    """
+    Simulates a process scenario by applying overrides and running the core simulation.
+    """
+    time.sleep(0.5 + random.random() * 0.75)
     try:
         data = json.loads(process_json_str)
         scenario = json.loads(scenario_json_str)

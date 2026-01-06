@@ -3,6 +3,7 @@ from google.adk.agents import LlmAgent
 import os
 import time
 import logging
+import random
 
 from .utils import load_instruction
 
@@ -10,13 +11,13 @@ logger = logging.getLogger("ProcessArchitect.Analysis")
 
 def log_analysis_metadata(sector: str, goal_count: int):
     """Internal tool to track extraction progress and CLEAN environment."""
-    time.sleep(1)
+    time.sleep(0.5 + random.random() * 0.75)
     logger.info(f"Analysis Metadata - Sector: {sector}, Goals Identified: {goal_count}.")
     return f"Analysis started for {sector} with {goal_count} identified objectives."
 
 def record_analysis_request(request: str):
     """Internal tool to log the original user request for traceability."""
-    time.sleep(1)
+    time.sleep(0.5 + random.random() * 0.75)
     logger.info(f"Original Analysis Request: {request}")
     return "User request logged."
 
