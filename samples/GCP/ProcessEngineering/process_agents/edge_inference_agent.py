@@ -411,13 +411,6 @@ def generate_clean_diagram() -> str:
     Returns:
         str: A message indicating the success or failure of the diagram generation.
     """
-def generate_clean_diagram() -> str:
-    """
-    Final Refinement: 
-    1. Clean Box Layout (width=28 wrapping).
-    2. Integrated decorative circle for the 'Node' feel.
-    3. Expanded margins to prevent clipping.
-    """
     import textwrap
     logger.info("Generating final diagram: Tidied Bisected Circle with visible Arrowheads...")
     
