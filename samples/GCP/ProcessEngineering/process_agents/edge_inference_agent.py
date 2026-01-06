@@ -422,7 +422,7 @@ def generate_clean_diagram() -> str:
     logger.info("Generating final diagram: Tidied Bisected Circle with visible Arrowheads...")
     
     try:
-        # Load data using existing helpers in your file
+        # LOAD DATA
         inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
         final_name = (inferred_name or "Process Architecture").strip()
         edges = inferred_edges or []
@@ -434,9 +434,13 @@ def generate_clean_diagram() -> str:
             lane_map.setdefault(n, "Process")
             label_map.setdefault(n, n)
 
+        # IDENTIFY START AND END (Logic-based)
+        # Start = No incoming edges; End = No outgoing edges
+        start_nodes = [n for n, d in G.in_degree() if d == 0]
+        end_nodes = [n for n, d in G.out_degree() if d == 0]
+
         # 1. POSITIONING
-        x_spacing = 5.0  
-        y_spacing = -4.0 
+        x_spacing, y_spacing = 5.0, -4.0 
         nodes = list(G.nodes())
         lanes = sorted(list(set(lane_map.get(n, "Process") for n in nodes)))
         lane_y_indices = {lane: idx for idx, lane in enumerate(lanes)}
@@ -460,50 +464,59 @@ def generate_clean_diagram() -> str:
         lane_colors = plt.cm.get_cmap("Pastel1", len(lanes))
         for i, lane in enumerate(lanes):
             y_coord = lane_y_indices[lane] * y_spacing
-            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.12)
+            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.10)
             ax.text(-3.0, y_coord, lane.upper(), va='center', ha='right', 
                     fontsize=11, fontweight='bold', color="#555555")
 
-        # 4. DRAW EDGES (ZORDER REMOVED, MARGINS TUNED FOR ARROWS)
+        # 4. DRAW EDGES
         nx.draw_networkx_edges(
-            G, pos, ax=ax, 
-            edge_color="#7f8c8d", 
-            arrows=True, 
-            arrowstyle='-|>', 
-            arrowsize=20, 
-            width=1.5, 
-            connectionstyle="arc3,rad=0.1",
-            min_source_margin=30,
-            min_target_margin=30 # Fixed: Stops arrow at the circle edge
+            G, pos, ax=ax, edge_color="#7f8c8d", arrows=True, 
+            arrowstyle='-|>', arrowsize=20, width=1.5, 
+            connectionstyle="arc3,rad=0.1", min_source_margin=30, min_target_margin=30 
         )
 
-        # 5. DRAW BISECTED NODES (Manual z-order via drawing sequence)
-        for node, (x, y) in pos.items():
+        # 5. DRAW BISECTED NODES
+        for node in nodes:
+            x, y = pos[node]
             label = label_map.get(node, node)
             wrapped_text = "\n".join(textwrap.wrap(label, width=28))
 
-            # A. Draw the Background Circle first
+            # BOLD COLOR LOGIC
+# BOLD PURE COLOR LOGIC
+            if node in start_nodes:
+                fill_color = "#15B615" # Pure Green
+                line_color = "#006400" # Deep Green Border
+                text_weight = "bold"
+            elif node in end_nodes:
+                fill_color = "#FF0000" # Pure Red
+                line_color = "#8B0000" # Deep Red Border
+                text_weight = "bold"
+            else:
+                fill_color = "#D5E8F7" # Standard Blue
+                line_color = "#2980B9" # Standard Steel Blue
+                text_weight = "medium"
+
+            # A. Background Circle
             ax.plot(x, y, marker='o', markersize=62, 
-                    markeredgecolor='#2980b9', markerfacecolor='#d5e8f7', 
+                    markeredgecolor=line_color, markerfacecolor=fill_color, 
                     linestyle='None')
 
-            # B. Draw the Text Box on top
+            # B. Bisecting Text Box
             ax.text(
                 x, y, wrapped_text,
                 ha="center", va="center",
-                fontsize=9,
+                fontsize=9, fontweight=text_weight,
                 bbox=dict(
                     facecolor="white", 
-                    edgecolor="#2980b9", 
+                    edgecolor=line_color, 
                     boxstyle="round,pad=0.5", 
-                    linewidth=1.2
+                    linewidth=1.5
                 )
             )
 
-        # 6. VIEWPORT & TIDYING
+        # 6. VIEWPORT
         if pos:
-            x_vals = [p[0] for p in pos.values()]
-            y_vals = [p[1] for p in pos.values()]
+            x_vals, y_vals = [p[0] for p in pos.values()], [p[1] for p in pos.values()]
             ax.set_xlim(min(x_vals) - 5.5, max(x_vals) + 5.5)
             ax.set_ylim(min(y_vals) - 3.5, max(y_vals) + 3.5)
         
