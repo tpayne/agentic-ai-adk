@@ -145,6 +145,7 @@ To run the document generator manually, you must: -
 
 ```python
 export RUN_DEBUG=d
+python -m process_agents.edge_inference_agent output/process_data.json 
 python -m process_agents.doc_generation_agent output/process_data.json
 ```
 
