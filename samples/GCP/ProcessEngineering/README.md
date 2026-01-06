@@ -206,11 +206,5 @@ We appreciate contributions of any size — thanks for helping improve this samp
 - Always validate the generated process for compliance before production use. You can modify the JSON directly and re-run the local pipeline.
 - The exit/loop logic may need tuning — sometimes loops do not exit properly which can consume tokens.
 - If the LLM fails to call a tool, rephrase the prompt or rerun the process. Document generation (diagramming and Word export) can be run manually if needed.
-- The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels. You can also change the LLM ins[...]
-``` ````
+- The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels or instruct the LLMs to make the step names more concise.
 
-Next steps
-- I can commit this change for you. Tell me whether you prefer:
-  - Commit directly to the main branch, or
-  - Create a new branch (I will name it `docs/add-contributing-readme`) and open a pull request (preferred for review).
-- If you want a different wording or additional rules (CI commands, exact linter tools, or a CLA note), tell me and I’ll update the section before committing.

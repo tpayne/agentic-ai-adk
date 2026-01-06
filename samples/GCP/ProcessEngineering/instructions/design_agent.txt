@@ -29,6 +29,8 @@ You MUST output a single, complete JSON object. NO markdown, NO code blocks, NO 
   "metrics": [],
   "reporting_and_analytics": {},
   "system_requirements": [],
+  "assumptions": [],
+  "constraints": [],
   "appendix": {}
 }
 

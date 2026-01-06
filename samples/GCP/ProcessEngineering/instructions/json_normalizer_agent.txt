@@ -49,6 +49,8 @@ You MUST transform the input into this EXACT schema:
   ],
   "reporting_and_analytics": {},
   "system_requirements": [string],
+  "assumptions": [string],
+  "constraints": [string],  
   "appendix": {}
 }
 
