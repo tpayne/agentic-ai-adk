@@ -481,8 +481,7 @@ def generate_clean_diagram() -> str:
             label = label_map.get(node, node)
             wrapped_text = "\n".join(textwrap.wrap(label, width=28))
 
-            # BOLD COLOR LOGIC
-# BOLD PURE COLOR LOGIC
+            # BOLD PURE COLOR LOGIC
             if node in start_nodes:
                 fill_color = "#15B615" # Pure Green
                 line_color = "#006400" # Deep Green Border
