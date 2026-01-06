@@ -1,6 +1,6 @@
 # ADK Business Process Architect
 
-This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to production-quality artifacts.
+This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through [...]
 
 Basically, this agent will take a raw prompt and design, test and document a full end-to-end process based on that business process request.
 
@@ -14,9 +14,9 @@ In other words, this agent is used for automated process engineering - going fro
 
 The ADK pipeline provides:
 
-- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" workflow that transforms raw requirements into final artifacts without manual intervention. The Analysis Agent converts natural language requirements into a structured specification, and downstream agents iteratively refine the design.
+- **Autonomous Multi-Agent Pipeline**: A high-velocity "Process Architect" workflow that transforms raw requirements into final artifacts without manual intervention. The Analysis Agent converts natur[...]
 - **Zero-Loss Data Normalization**: A JSON Normalizer Agent sanitizes and stabilizes free-form design outputs to a fixed, enriched document schema.
-- **Self-Auditing Compliance Gate**: A Compliance Agent acts as an automated release manager, triggering recursive revisions if regulatory or security gaps are found and preventing progression until requirements are met.
+- **Self-Auditing Compliance Gate**: A Compliance Agent acts as an automated release manager, triggering recursive revisions if regulatory or security gaps are found and preventing progression until r[...]
 - **Self-Auditing Simulation Gate**: A Simulation Agent runs Monte Carlo-style simulations to identify bottlenecks and suggests optimizations or reports unresolved issues.
 - **Automated High-Fidelity Artifacts**:
   - Process diagrams (level 1 and 2) embedded in the process document.
@@ -70,7 +70,7 @@ The ADK pipeline provides:
 
 - **Google API Key**: An active Gemini API key (set as `GOOGLE_API_KEY` in your environment).
 - **Python 3.12+**.
-- **Dependencies**: See `requirements.txt`. Note: some packages (e.g., graphviz, python-docx) may require system packages (graphviz binary, LibreOffice for advanced doc conversions, etc.) — document these if your environment needs them.
+- **Dependencies**: See `requirements.txt`. Note: some packages (e.g., graphviz, python-docx) may require system packages (graphviz binary, LibreOffice for advanced doc conversions, etc.) — document[...]
 
 ---
 
@@ -160,6 +160,45 @@ edit the relevant `.txt` file as appropriate.
 
 ---
 
+## Contributing
+
+Thank you for your interest in improving this sample! To make contributing simple and consistent, please follow these guidelines.
+
+Please see [CONTRIBUTORS.md](CONTRIBUTORS.md) for more info as the following is just a summary.
+
+- Setup
+  - Fork the repository and work on a feature branch named with a clear prefix, e.g. `feat/`, `fix/`, `docs/`, `chore/` (example: `feat/process-diagram-layout`).
+- Code style
+  - Follow PEP 8 and general Python best practices.
+  - If you use automatic formatting, prefer tools like `black` and `isort`.
+  - Run linters (e.g., `flake8`) if present in your workflow.
+- Tests
+  - Add or update tests for your changes where appropriate. Run tests with `pytest` (or the test runner used in this repo).
+  - Verify that any automated checks (CI) pass before requesting review.
+- Documentation
+  - Update relevant README files, examples, and instruction text for changes that affect usage or setup.
+  - If you change behavior or add new sample outputs, include updated example files under `examples/` where appropriate.
+- Commit messages
+  - Use clear, descriptive commit messages. Consider using the Conventional Commits format: `type(scope): short description` (e.g., `fix(doc): clarify setup instructions`).
+- Pull requests
+  - Open a pull request against the `main` branch.
+  - In the PR description include: a summary of the change, why it’s needed, any migration or compatibility notes, and links to related issues.
+  - Mark the PR as draft if it’s a work-in-progress.
+  - Request a review from the maintainers and respond to requested changes.
+- Small edits
+  - For small typos or docs-only fixes you may use the GitHub web UI to edit a file and propose a PR directly from the browser.
+- Licensing and contribution terms
+  - By submitting a PR you agree that your contribution will be licensed under this repository’s license (see the LICENSE file).
+  - If a Contributor License Agreement (CLA) or other process is required later, maintainers will add instructions.
+- CI and checks
+  - Ensure all CI checks pass; maintainers may require changes or additional tests if checks fail.
+- Need help?
+  - Open an issue describing the change you want to make or tag maintainers in the PR for guidance. For larger changes, early discussion via an issue saves time.
+
+We appreciate contributions of any size — thanks for helping improve this sample.
+
+---
+
 ## Known issues and caveats
 
 - If you use a free tier Gemini key you may encounter resource limits when generating large artifacts or portfolios.
@@ -167,4 +206,11 @@ edit the relevant `.txt` file as appropriate.
 - Always validate the generated process for compliance before production use. You can modify the JSON directly and re-run the local pipeline.
 - The exit/loop logic may need tuning — sometimes loops do not exit properly which can consume tokens.
 - If the LLM fails to call a tool, rephrase the prompt or rerun the process. Document generation (diagramming and Word export) can be run manually if needed.
-- The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels. You can also change the LLM instructions to shorten the step and substep names if it becomes an issue.
+- The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels. You can also change the LLM ins[...]
+``` ````
+
+Next steps
+- I can commit this change for you. Tell me whether you prefer:
+  - Commit directly to the main branch, or
+  - Create a new branch (I will name it `docs/add-contributing-readme`) and open a pull request (preferred for review).
+- If you want a different wording or additional rules (CI commands, exact linter tools, or a CLA note), tell me and I’ll update the section before committing.
