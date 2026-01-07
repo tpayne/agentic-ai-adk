@@ -40,8 +40,9 @@ class SubprocessDriverAgent(BaseAgent):
         writer = build_subprocess_writer_agent()
 
         # Build the per-step pipeline with fresh agents
+        # Added 'f' prefix to make it an f-string
         per_step_pipeline = SequentialAgent(
-            name="Per_Step_Subprocess_Pipeline",
+            name=f"Per_Step_Subprocess_Pipeline_{name}", 
             sub_agents=[generator, writer],
         )
 
@@ -50,7 +51,7 @@ class SubprocessDriverAgent(BaseAgent):
             sub_agents=[per_step_pipeline],
             per_step_pipeline=per_step_pipeline,
         )
-
+        
     # ---------------------------------------------------------
     # Load process steps directly from the final JSON file
     # ---------------------------------------------------------
