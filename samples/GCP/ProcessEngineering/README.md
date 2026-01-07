@@ -172,7 +172,10 @@ open localhost:8080
 
 This will launch a simple web server that will let you view the JSON process flow in a browser.
 
-![Example](./images/image001.png)
+![Example 1](./images/image001.png)
+
+
+![Example 2](./images/image002.png)
 ---
 
 ## Contributing
