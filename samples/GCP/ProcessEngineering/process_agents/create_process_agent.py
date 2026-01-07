@@ -17,7 +17,7 @@ from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
-from .subprocess_driver_agent import subprocess_driver_agent
+from .subprocess_driver_agent import SubprocessDriverAgent
 
 logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 
@@ -72,7 +72,8 @@ json_normalization_loop = SequentialAgent(
 )
 
 # Build the full design pipeline
-subprocess_stage = subprocess_driver_agent
+subprocess_stage = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Create")
+
 full_design_pipeline = SequentialAgent(
     name="Full_Design_Pipeline",
     description="Use this tool ONLY when the user wants to CREATE, DESIGN, or GENERATE a new business process from scratch.",

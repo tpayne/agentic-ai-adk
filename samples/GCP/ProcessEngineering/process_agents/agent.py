@@ -9,6 +9,7 @@ from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 from .consultant_agent import consultant_agent
 from .create_process_agent import full_design_pipeline
 from .scenario_agent import scenario_tester_agent
+from .update_process_agent import update_design_pipeline
 
 from .utils import load_instruction
 from .utils import validate_instruction_files
@@ -89,7 +90,8 @@ root_agent = LlmAgent(
     sub_agents=[
         full_design_pipeline, 
         consultant_agent,     
-        scenario_tester_agent 
+        scenario_tester_agent,
+        update_design_pipeline,
     ]
 )
 

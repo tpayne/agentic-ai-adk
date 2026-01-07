@@ -15,7 +15,7 @@ import random
 logger = logging.getLogger("ProcessArchitect.JsonReview")
 
 def exit_loop(tool_context: ToolContext):
-    time.sleep(0.5 + random.random() * 0.75)
+    time.sleep(0.75 + random.random() * 0.75)
     logger.info("JSON approval detected. Terminating loop.")
     tool_context.actions.escalate = True
     candidate = None

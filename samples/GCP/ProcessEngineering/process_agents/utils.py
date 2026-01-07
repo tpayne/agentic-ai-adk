@@ -83,6 +83,7 @@ def validate_instruction_files():
         "scenario_tester_agent.txt",
         "simulation_agent.txt",
         "subprocess_generator_agent.txt",
+        "update_analysis_agent.txt"
     ]
 
     missing = []

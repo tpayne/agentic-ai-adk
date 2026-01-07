@@ -16,7 +16,7 @@ def exit_loop(tool_context: ToolContext):
     - Sets escalate to True to terminate the loop.
     - Logs the exit action for traceability.
     """
-    time.sleep(0.5 + random.random() * 0.75)
+    time.sleep(0.75 + random.random() * 0.75)
     logger.info("Received ALL_APPROVED signal. Exiting design loop.")
     tool_context.actions.escalate = True
     return {}

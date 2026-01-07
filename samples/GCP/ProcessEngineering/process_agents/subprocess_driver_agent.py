@@ -13,34 +13,42 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 
-from .subprocess_generator_agent import subprocess_generator_agent
-from .subprocess_writer_agent import subprocess_writer_agent
+# IMPORTANT:
+# We now import FACTORY FUNCTIONS instead of singletons.
+from .subprocess_generator_agent import build_subprocess_generator_agent
+from .subprocess_writer_agent import build_subprocess_writer_agent
 
-#---------------------------------------------------------
+
+# ---------------------------------------------------------
 # SUBPROCESS DRIVER AGENT
-#---------------------------------------------------------
+# ---------------------------------------------------------
 class SubprocessDriverAgent(BaseAgent):
     """
     Orchestrates subprocess generation for each top-level process step.
     Loads process_steps directly from output/process_data.json
     instead of relying on ADK session state.
+
+    This version is SAFE to instantiate multiple times because
+    it creates fresh LLM agents internally.
     """
 
     per_step_pipeline: SequentialAgent
 
     def __init__(self, name: str = "Subprocess_Driver_Agent"):
+        # 🔥 Create fresh LLMs for this instance
+        generator = build_subprocess_generator_agent()
+        writer = build_subprocess_writer_agent()
+
+        # Build the per-step pipeline with fresh agents
         per_step_pipeline = SequentialAgent(
             name="Per_Step_Subprocess_Pipeline",
-            sub_agents=[
-                subprocess_generator_agent,
-                subprocess_writer_agent,
-            ],
+            sub_agents=[generator, writer],
         )
 
         super().__init__(
             name=name,
             sub_agents=[per_step_pipeline],
-            per_step_pipeline=per_step_pipeline
+            per_step_pipeline=per_step_pipeline,
         )
 
     # ---------------------------------------------------------
@@ -110,7 +118,7 @@ class SubprocessDriverAgent(BaseAgent):
             ctx.session.state["current_process_step"] = step
 
             # 🔥 Rate limit protection for subprocess generation
-            time.sleep(0.5 + random.random() * 0.75)
+            time.sleep(0.75 + random.random() * 0.75)
 
             async for event in self.per_step_pipeline.run_async(ctx):
                 yield event
@@ -124,4 +132,5 @@ class SubprocessDriverAgent(BaseAgent):
         )
 
 
+# Default instance for the CREATE pipeline
 subprocess_driver_agent = SubprocessDriverAgent()
