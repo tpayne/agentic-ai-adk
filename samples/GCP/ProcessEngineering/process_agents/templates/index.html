@@ -317,12 +317,34 @@
         let currentLevel = 1;
         let currentParentStep = null;
 
-        const lanes = [
-            "Sales Associates",
-            "Store Manager",
-            "Inventory Management Team",
-            "Process"
-        ];
+        let lanes = [];
+
+        function buildLanesFromProcess(processModel) {
+            const laneSet = new Set();
+
+            // Level 1
+            (processModel.level1_steps || []).forEach(step => {
+                const r = normalizeResponsible(step.responsible_party);
+                if (r) laneSet.add(r);
+            });
+
+            // Level 2
+            Object.values(processModel.subprocess_index || {}).forEach(substeps => {
+                substeps.forEach(sub => {
+                    const r = normalizeResponsible(sub.responsible_party);
+                    if (r) laneSet.add(r);
+                });
+            });
+
+            // Convert to array
+            lanes = Array.from(laneSet);
+
+            // Fallback if JSON has no responsible_party fields
+            if (lanes.length === 0) {
+                lanes = ["Process"];
+            }
+        }
+
 
         let zoomScale = 1;
         let panX = 0;
@@ -354,6 +376,7 @@
         async function loadProcess() {
             const res = await fetch("/api/process");
             processModel = await res.json();
+            buildLanesFromProcess(processModel);
             document.getElementById("process-title").textContent = processModel.process_name || "Process";
             renderLevel1();
             enableZoomPan();
@@ -617,7 +640,8 @@
             const width = svg.clientWidth || 1000;
             const height = svg.clientHeight || 600;
 
-            const laneHeight = height / lanes.length;
+            const minLaneHeight = 170;
+            const laneHeight = Math.max(minLaneHeight, height / lanes.length);
             drawLanes(viewport, width, laneHeight);
 
             const steps = processModel.level1_steps || [];
@@ -650,7 +674,8 @@
             const width = svg.clientWidth || 1000;
             const height = svg.clientHeight || 600;
 
-            const laneHeight = height / lanes.length;
+            const minLaneHeight = 170;
+            const laneHeight = Math.max(minLaneHeight, height / lanes.length);
             drawLanes(viewport, width, laneHeight);
 
             const flow = processModel.subprocess_index[parentStepName] || [];
@@ -770,6 +795,18 @@
         // --- Lane filters ---
         function enableLaneFilters() {
             const container = document.getElementById("lane-filters");
+            container.innerHTML = "<strong>Show lanes:</strong>";
+
+            lanes.forEach(lane => {
+                const id = "lane-" + lane.replace(/\s+/g, "-");
+                const label = document.createElement("label");
+                label.innerHTML = `
+                    <input type="checkbox" id="${id}" data-lane="${lane}" checked>
+                    ${lane}
+                `;
+                container.appendChild(label);
+            });
+
             container.querySelectorAll("input[type=checkbox]").forEach(cb => {
                 cb.addEventListener("change", () => {
                     const lane = cb.getAttribute("data-lane");
