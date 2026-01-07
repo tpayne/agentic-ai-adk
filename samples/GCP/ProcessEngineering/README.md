@@ -161,6 +161,19 @@ edit the relevant `.txt` file as appropriate.
 
 ---
 
+## Process Viewer
+
+I added a *simple* process viewer for the process JSON. You can invoke it using...
+
+```bash
+python -m process_agents.app
+open localhost:8080
+```
+
+This will launch a simple web server that will let you view the JSON process flow in a browser.
+
+---
+
 ## Contributing
 
 Thank you for your interest in improving this sample! To make contributing simple and consistent, please follow these guidelines.

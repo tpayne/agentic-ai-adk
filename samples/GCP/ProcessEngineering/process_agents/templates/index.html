@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Process Viewer</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 0; }
+    #breadcrumb { padding: 8px 12px; background: #eee; border-bottom: 1px solid #ccc; }
+    #container { display: flex; height: calc(100vh - 40px); }
+    #canvas-container { flex: 1; position: relative; background: #f5f5f5; overflow: hidden; }
+    #info-panel { width: 320px; border-left: 1px solid #ccc; padding: 10px; overflow-y: auto; }
+
+    .lane-label { font-weight: bold; }
+
+    .node rect {
+      fill: #fff;
+      stroke: #333;
+      stroke-width: 1.4;
+    }
+
+    .node text {
+      pointer-events: none;
+    }
+
+    .info-icon {
+      cursor: pointer;
+      font-size: 16px;
+      fill: #0077cc;
+    }
+
+    #modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: none; align-items: center; justify-content: center;
+    }
+    #modal {
+      background: white; padding: 16px; max-width: 500px; max-height: 70vh;
+      overflow-y: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    #minimap {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 200px;
+      height: 120px;
+      border: 1px solid #999;
+      background: white;
+      opacity: 0.85;
+      z-index: 20;
+    }
+    #minimap-viewport {
+      fill: none;
+      stroke: red;
+      stroke-width: 1.5;
+      pointer-events: none;
+    }
+
+    #search-box {
+      margin-bottom: 10px;
+      width: 100%;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    .highlight {
+      stroke: #ff6600 !important;
+      stroke-width: 3 !important;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Breadcrumb -->
+<div id="breadcrumb">
+  <span id="crumb-level1" style="cursor:pointer; font-weight:bold;">Level 1</span>
+  <span id="crumb-sep" style="display:none;"> → </span>
+  <span id="crumb-step" style="cursor:pointer; display:none;"></span>
+</div>
+
+<div id="container">
+  <div id="canvas-container">
+    <svg id="diagram" width="100%" height="100%">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <path d="M0,0 L10,3.5 L0,7 Z" fill="#555"></path>
+        </marker>
+      </defs>
+      <g id="viewport"></g>
+    </svg>
+
+    <svg id="minimap">
+      <g id="minimap-content"></g>
+      <rect id="minimap-viewport"></rect>
+    </svg>
+
+    <button onclick="resetZoom()" style="position:absolute; top:10px; right:10px; z-index:10;">
+      Reset Zoom
+    </button>
+  </div>
+
+  <div id="info-panel">
+    <h2 id="process-title">Loading...</h2>
+
+    <input id="search-box" placeholder="Search steps..." />
+
+    <p>Double-click a Level 1 step to drill into its subprocess.</p>
+    <p>Click the ℹ️ icon on a step to see details.</p>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-backdrop">
+  <div id="modal">
+    <h3 id="modal-title"></h3>
+    <pre id="modal-body"></pre>
+    <button onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<script>
+  let processModel = null;
+  let currentLevel = 1;
+  let currentParentStep = null;
+
+  const lanes = [
+    "Sales Associates",
+    "Store Manager",
+    "Inventory Management Team",
+    "Process"
+  ];
+
+  let zoomScale = 1;
+  let panX = 0;
+  let panY = 0;
+  let isPanning = false;
+  let panStart = { x: 0, y: 0 };
+
+  async function loadProcess() {
+    const res = await fetch("/api/process");
+    processModel = await res.json();
+    document.getElementById("process-title").textContent = processModel.process_name;
+    renderLevel1();
+    enableZoomPan();
+    enableSearch();
+  }
+
+  function clearDiagram() {
+    const viewport = document.getElementById("viewport");
+    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+  }
+
+  function renderLevel1() {
+    currentLevel = 1;
+    currentParentStep = null;
+    clearDiagram();
+    updateBreadcrumb(1);
+    resetZoom();
+
+    const svg = document.getElementById("diagram");
+    const viewport = document.getElementById("viewport");
+    const width = svg.clientWidth || 1000;
+    const height = svg.clientHeight || 600;
+
+    const laneHeight = height / lanes.length;
+    const marginX = 150;
+    const nodeWidth = 260;
+    const nodeHeight = 70;
+    const hGap = 120;
+
+    drawLanes(viewport, width, laneHeight);
+
+    const steps = processModel.level1_steps || [];
+    steps.forEach((step, idx) => {
+      const laneName = normalizeResponsible(step.responsible_party);
+      const laneIndex = laneName ? lanes.indexOf(laneName) : 3;
+      const yCenter = laneIndex * laneHeight + laneHeight / 2;
+      const x = marginX + idx * (nodeWidth + hGap);
+      const y = yCenter - nodeHeight / 2;
+
+      drawNode(viewport, {
+        x, y, width: nodeWidth, height: nodeHeight,
+        label: step.step_name,
+        duration: step.estimated_duration || "",
+        inputs: step.inputs || [],
+        outputs: step.deliverables || [],
+        laneIndex,
+        step,
+        level: 1
+      });
+
+      if (idx > 0) {
+        drawArrow(viewport, {
+          x1: marginX + (idx - 1) * (nodeWidth + hGap) + nodeWidth,
+          y1: yCenter,
+          x2: x,
+          y2: yCenter
+        });
+      }
+    });
+
+    updateMinimap();
+  }
+
+  function renderLevel2(parentStepName) {
+    currentLevel = 2;
+    currentParentStep = parentStepName;
+    clearDiagram();
+    updateBreadcrumb(2, parentStepName);
+    resetZoom();
+
+    const svg = document.getElementById("diagram");
+    const viewport = document.getElementById("viewport");
+    const width = svg.clientWidth || 1000;
+    const height = svg.clientHeight || 600;
+
+    const laneHeight = height / lanes.length;
+    const marginX = 150;
+    const nodeWidth = 280;
+    const nodeHeight = 70;
+    const hGap = 100;
+
+    drawLanes(viewport, width, laneHeight);
+
+    const flow = (processModel.subprocess_index[parentStepName] || []);
+    flow.forEach((substep, idx) => {
+      const laneName = normalizeResponsible(substep.responsible_party);
+      const laneIndex = laneName ? lanes.indexOf(laneName) : 3;
+      const yCenter = laneIndex * laneHeight + laneHeight / 2;
+      const x = marginX + idx * (nodeWidth + hGap);
+      const y = yCenter - nodeHeight / 2;
+
+      drawNode(viewport, {
+        x, y, width: nodeWidth, height: nodeHeight,
+        label: substep.substep_name,
+        duration: substep.estimated_duration || "",
+        inputs: substep.inputs || [],
+        outputs: substep.outputs || [],
+        laneIndex,
+        step: substep,
+        level: 2
+      });
+
+      if (idx > 0) {
+        drawArrow(viewport, {
+          x1: marginX + (idx - 1) * (nodeWidth + hGap) + nodeWidth,
+          y1: yCenter,
+          x2: x,
+          y2: yCenter
+        });
+      }
+    });
+
+    updateMinimap();
+  }
+
+  function drawLanes(viewport, width, laneHeight) {
+    lanes.forEach((lane, i) => {
+      const y = i * laneHeight;
+
+      const laneRect = createSvgElement("rect", {
+        x: 0, y, width, height: laneHeight,
+        fill: i % 2 === 0 ? "#ffffff" : "#f0f0f0",
+        stroke: "#ddd"
+      });
+      viewport.appendChild(laneRect);
+
+      const label = createSvgElement("text", {
+        x: 10, y: y + 20, class: "lane-label"
+      });
+      label.textContent = lane;
+      viewport.appendChild(label);
+    });
+  }
+
+  function drawArrow(viewport, { x1, y1, x2, y2 }) {
+    const arrow = createSvgElement("line", {
+      x1, y1, x2, y2,
+      stroke: "#555",
+      "stroke-width": 2,
+      "marker-end": "url(#arrowhead)"
+    });
+    viewport.appendChild(arrow);
+  }
+
+  function normalizeResponsible(responsible) {
+    if (!responsible) return null;
+    if (Array.isArray(responsible)) return responsible[0];
+    return responsible;
+  }
+
+  function drawNode(viewport, opts) {
+    const { x, y, width, height, label, duration, inputs, outputs, step, level } = opts;
+
+    const group = createSvgElement("g", { class: "node", "data-label": label });
+    group.addEventListener("dblclick", () => {
+      if (level === 1) renderLevel2(label);
+    });
+
+    const rect = createSvgElement("rect", {
+      x, y, width, height, rx: 6, ry: 6
+    });
+    group.appendChild(rect);
+
+    const text = createSvgElement("text", {
+      x: x + 10, y: y + 25, "font-size": "14px"
+    });
+    text.textContent = label;
+    group.appendChild(text);
+
+    if (duration) {
+      const durText = createSvgElement("text", {
+        x: x + 10, y: y + 45, "font-size": "12px", fill: "#555"
+      });
+      durText.textContent = `Duration: ${duration}`;
+      group.appendChild(durText);
+    }
+
+    inputs.forEach((inp, idx) => {
+      const t = createSvgElement("text", {
+        x: x + width / 2,
+        y: y - 10 - idx * 12,
+        "font-size": "11px",
+        fill: "#0077aa",
+        "text-anchor": "middle"
+      });
+      t.textContent = `↑ ${inp}`;
+      group.appendChild(t);
+    });
+
+    outputs.forEach((out, idx) => {
+      const t = createSvgElement("text", {
+        x: x + width / 2,
+        y: y + height + 15 + idx * 12,
+        "font-size": "11px",
+        fill: "#aa7700",
+        "text-anchor": "middle"
+      });
+      t.textContent = `${out} ↓`;
+      group.appendChild(t);
+    });
+
+    const info = createSvgElement("text", {
+      x: x + width - 18, y: y + 20,
+      class: "info-icon"
+    });
+    info.textContent = "ℹ️";
+    info.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showInfo(step, label);
+    });
+    group.appendChild(info);
+
+    viewport.appendChild(group);
+  }
+
+  function createSvgElement(tag, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+
+  function showInfo(step, title) {
+    document.getElementById("modal-title").textContent = title;
+    document.getElementById("modal-body").textContent = JSON.stringify(step, null, 2);
+    document.getElementById("modal-backdrop").style.display = "flex";
+  }
+
+  function closeModal() {
+    document.getElementById("modal-backdrop").style.display = "none";
+  }
+
+  function updateBreadcrumb(level, parentStep = null) {
+    const c1 = document.getElementById("crumb-level1");
+    const sep = document.getElementById("crumb-sep");
+    const cStep = document.getElementById("crumb-step");
+
+    if (level === 1) {
+      sep.style.display = "none";
+      cStep.style.display = "none";
+    } else {
+      sep.style.display = "inline";
+      cStep.style.display = "inline";
+      cStep.textContent = parentStep;
+    }
+  }
+
+  document.getElementById("crumb-level1").onclick = () => {
+    renderLevel1();
+  };
+
+  document.getElementById("crumb-step").onclick = () => {
+    if (currentParentStep) renderLevel2(currentParentStep);
+  };
+
+  function enableZoomPan() {
+    const svg = document.getElementById("diagram");
+
+    svg.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const scaleAmount = e.deltaY * -0.001;
+      zoomScale = Math.min(Math.max(0.2, zoomScale + scaleAmount), 3);
+      updateTransform();
+      updateMinimap();
+    });
+
+    svg.addEventListener("mousedown", (e) => {
+      isPanning = true;
+      panStart = { x: e.clientX - panX, y: e.clientY - panY };
+    });
+
+    svg.addEventListener("mousemove", (e) => {
+      if (!isPanning) return;
+      panX = e.clientX - panStart.x;
+      panY = e.clientY - panStart.y;
+      updateTransform();
+      updateMinimap();
+    });
+
+    svg.addEventListener("mouseup", () => { isPanning = false; });
+    svg.addEventListener("mouseleave", () => { isPanning = false; });
+  }
+
+  function updateTransform() {
+    const viewport = document.getElementById("viewport");
+    viewport.setAttribute("transform", `translate(${panX},${panY}) scale(${zoomScale})`);
+  }
+
+  function resetZoom() {
+    zoomScale = 1;
+    panX = 0;
+    panY = 0;
+    updateTransform();
+    updateMinimap();
+  }
+
+  function updateMinimap() {
+    const minimap = document.getElementById("minimap");
+    const mmContent = document.getElementById("minimap-content");
+    const mmViewport = document.getElementById("minimap-viewport");
+
+    while (mmContent.firstChild) mmContent.removeChild(mmContent.firstChild);
+
+    const viewport = document.getElementById("viewport");
+    const clone = viewport.cloneNode(true);
+    clone.removeAttribute("transform");
+    clone.setAttribute("transform", "scale(0.1)");
+    mmContent.appendChild(clone);
+
+    mmViewport.setAttribute("x", -panX * 0.1);
+    mmViewport.setAttribute("y", -panY * 0.1);
+    mmViewport.setAttribute("width", minimap.clientWidth * 0.1 / zoomScale);
+    mmViewport.setAttribute("height", minimap.clientHeight * 0.1 / zoomScale);
+  }
+
+  function enableSearch() {
+    const box = document.getElementById("search-box");
+    box.addEventListener("input", () => {
+      const query = box.value.toLowerCase();
+      const nodes = document.querySelectorAll(".node rect");
+
+      nodes.forEach(rect => rect.classList.remove("highlight"));
+
+      if (!query) return;
+
+      const matches = [];
+      document.querySelectorAll(".node").forEach(node => {
+        const label = node.getAttribute("data-label").toLowerCase();
+        if (label.includes(query)) {
+          const rect = node.querySelector("rect");
+          rect.classList.add("highlight");
+          matches.push(node);
+        }
+      });
+
+      if (matches.length > 0) {
+        const rect = matches[0].querySelector("rect");
+        const x = parseFloat(rect.getAttribute("x"));
+        const y = parseFloat(rect.getAttribute("y"));
+        panX = -x + 200;
+        panY = -y + 200;
+        updateTransform();
+        updateMinimap();
+      }
+    });
+  }
+
+  window.closeModal = closeModal;
+  window.addEventListener("load", loadProcess);
+</script>
+</body>
+</html>
