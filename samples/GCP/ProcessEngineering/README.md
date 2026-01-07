@@ -2,13 +2,14 @@
 
 This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through [...]
 
-Basically, this agent will take a raw prompt and design, test and document a full end-to-end process based on that business process request.
+Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process based on that business process request.
 
-In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A very useful tool for consultants.
+In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
 
 > NOTE
 > - Treat this ADK sample as a proof-of-concept. Large language models can produce unpredictable results.
 > - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
+> - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. 
 
 ## ⚙️ Features
 
