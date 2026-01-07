@@ -9,6 +9,7 @@ from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 from .analysis_agent import analysis_agent
 from .design_agent import design_agent as design_agent
 from .compliance_agent import compliance_agent
+from .consultant_agent import consultant_agent
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .edge_inference_agent import edge_inference_agent
@@ -16,7 +17,9 @@ from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .subprocess_driver_agent import subprocess_driver_agent
+from .scenario_agent import scenario_tester_agent
 
+from .utils import load_instruction
 from .utils import validate_instruction_files
 
 # ---------------------------------------------------------
@@ -53,18 +56,18 @@ sys.stderr = open(runtime_file, "a")
 
 # Reset process_data.json
 if not os.environ.get("RUN_DEBUG"):
-    # Remove process_data.json if RUN_DEBUG is not set
-    logger.info("Removing state files...")
-    state_file = "output/process_data.json"
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-            cleanup_status = "Existing state file cleared."
-        except Exception as e:
-            cleanup_status = f"Cleanup failed: {str(e)}"
-    else:
-        cleanup_status = "No previous state file found. Starting clean."
-    logger.info(f"Pipeline initialized. {cleanup_status}")
+#     # Remove process_data.json if RUN_DEBUG is not set
+#     logger.info("Removing state files...")
+#     state_file = "output/process_data.json"
+#     if os.path.exists(state_file):
+#         try:
+#             os.remove(state_file)
+#             cleanup_status = "Existing state file cleared."
+#         except Exception as e:
+#             cleanup_status = f"Cleanup failed: {str(e)}"
+#     else:
+#         cleanup_status = "No previous state file found. Starting clean."
+#     logger.info(f"Pipeline initialized. {cleanup_status}")
 
     state_file = "output/simulation_results.json"
     if os.path.exists(state_file):
@@ -134,11 +137,11 @@ json_normalization_loop = SequentialAgent(
     ],
 )
 
-# Main Orchestrator
-# Added edge_inference_agent back into the sequence
+# Build the full design pipeline
 subprocess_stage = subprocess_driver_agent
-root_agent = SequentialAgent(
-    name="Automated_Process_Architect_Pipeline",
+full_design_pipeline = SequentialAgent(
+    name="Full_Design_Pipeline",
+    description="Use this tool ONLY when the user wants to CREATE, DESIGN, or GENERATE a new business process from scratch.",
     sub_agents=[
         analysis_agent,          # Stage 1: Requirements
         review_loop,             # Stage 2: Design/Audit Loop
@@ -146,6 +149,21 @@ root_agent = SequentialAgent(
         subprocess_stage,        # Stage 4: Per-step subprocess generation (writes output/subprocesses/*.json)
         edge_inference_agent,    # Stage 5: Logical Flow
         doc_generation_agent     # Stage 6: Artifact Build
+    ]
+)
+
+# ---------------------------------------------------------
+# ROOT AGENT
+# ---------------------------------------------------------
+root_agent = LlmAgent(
+    name="Process_Architect_Orchestrator",
+    model="gemini-2.0-flash-001",
+    instruction=load_instruction("agent.txt"),
+    # Ensure sub_agents are provided so the LLM can route to them
+    sub_agents=[
+        full_design_pipeline, 
+        consultant_agent,     
+        scenario_tester_agent 
     ]
 )
 
