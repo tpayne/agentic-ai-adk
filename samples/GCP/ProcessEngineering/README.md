@@ -172,6 +172,7 @@ open localhost:8080
 
 This will launch a simple web server that will let you view the JSON process flow in a browser.
 
+(./images/image001.png)
 ---
 
 ## Contributing
