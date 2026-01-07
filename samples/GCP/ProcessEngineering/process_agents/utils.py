@@ -12,38 +12,29 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # process_agents/utils.py
 
 def load_full_process_context() -> str:
+    """ Loads master process + subprocesses directly from disk. Never returns FATAL ERROR. Returns partial data if needed. """
     context = {
         "master_process": {},
         "subprocesses": [],
-        "system_status": "DATA_NOT_FOUND" # Default status
+        "system_status": "PARTIAL"
     }
-
-    # 1. Load Master Process
     master_path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
     if os.path.exists(master_path):
         try:
             with open(master_path, "r", encoding="utf-8") as f:
                 context["master_process"] = json.load(f)
-                context["system_status"] = "LOAD_SUCCESSFUL"
+                context["system_status"] = "OK"
         except Exception as e:
-            context["system_status"] = f"ERROR: Master file corrupt - {str(e)}"
-    
-    # 2. Load all Subprocesses
+            context["system_status"] = f"ERROR: {e}"
     sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
     if os.path.exists(sub_dir):
-        json_files = glob.glob(os.path.join(sub_dir, "*.json"))
-        for file_path in json_files:
+        for file_path in glob.glob(os.path.join(sub_dir, "*.json")):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     context["subprocesses"].append(json.load(f))
             except Exception as e:
                 logger.error(f"Error loading {file_path}: {e}")
-
-    # Final Check
-    if context["system_status"] == "DATA_NOT_FOUND":
-        return "FATAL ERROR: No process files found in output/. You MUST tell the user to run 'create process' first."
-
-    return json.dumps(context, indent=2)
+    return context
 
 # Load instruction from a file in the instructions directory
 def load_instruction(filename: str) -> str:
