@@ -10,13 +10,19 @@ from .utils import load_instruction
 
 logger = logging.getLogger("ProcessArchitect.Design")
 
+def log_design_metadata(process_name: str, goal_count: int):
+    """Internal tool to track design progress."""
+    time.sleep(1.25 + random.random() * 0.75)
+    logger.info(f"Design Metadata - Process: {process_name}, Goals Identified: {goal_count}.")
+    return f"Design started for {process_name} with {goal_count} identified objectives."
+
 def exit_loop(tool_context: ToolContext):
     """
     Exit tool for the Design Agent:
     - Sets escalate to True to terminate the loop.
     - Logs the exit action for traceability.
     """
-    time.sleep(0.75 + random.random() * 0.75)
+    time.sleep(1.25 + random.random() * 0.75)
     logger.info("Received ALL_APPROVED signal. Exiting design loop.")
     tool_context.actions.escalate = True
     return {}
@@ -29,6 +35,6 @@ design_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Architects detailed business process workflows.",
     instruction=load_instruction("design_agent.txt"),
-    tools=[exit_loop],
+    tools=[exit_loop, log_design_metadata],
     output_key="approved_json",
 )

@@ -316,7 +316,7 @@ def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
     """
     Simulates a process scenario by applying overrides and running the core simulation.
     """
-    time.sleep(0.75 + random.random() * 0.75)
+    time.sleep(1.25 + random.random() * 0.75)
     try:
         data = json.loads(process_json_str)
         scenario = json.loads(scenario_json_str)

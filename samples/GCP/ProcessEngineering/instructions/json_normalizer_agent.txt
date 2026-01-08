@@ -36,7 +36,7 @@ You MUST transform the input into this EXACT schema:
     {
       "step_name": string,
       "description": string,
-      "responsible_party": string or list,
+      "responsible_party": string,
       "estimated_duration": string,
       "deliverables": [string],
       "dependencies": [string],

@@ -23,7 +23,7 @@ logger = logging.getLogger("ProcessArchitect.JsonWriter")
 
 def _log_agent_activity(message: str):
     """Internal logging helper."""
-    time.sleep(0.75 + random.random() * 0.75)
+    time.sleep(1.25 + random.random() * 0.75)
     logger.info(f"--- [DIAGNOSTIC] JSON_Writer: {message} ---")
 
 
@@ -167,32 +167,7 @@ def persist_final_json(json_content) -> str:
 
     This is the ONLY tool the agent needs to call.
     """
-    try:
-        output_path = "output/process_data.json"
-        if not os.path.exists(output_path):
-            _log_agent_activity("Starting final JSON file persistence")
-            result = _save_raw_data_to_json(json_content)
-            _log_agent_activity(f"File persistence result: {result}")
-            return result
-        else:
-            _log_agent_activity(f"File '{output_path}' already exists. Skipping persistence.")
-            return f"SKIPPED: '{output_path}' already exists."
-    except Exception:
-        error_trace = traceback.format_exc()
-        logger.error(f"persist_final_json failed: {error_trace}")
-        return "ERROR: persist_final_json encountered an unexpected failure."
-
-def persist_final_json_override(json_content) -> str:
-    """
-    Public tool for the LLM:
-
-    - Logs that final persistence is starting.
-    - Calls the internal saver with the provided JSON content.
-    - Returns the final path or error message.
-
-    This is the ONLY tool the agent needs to call.
-    """
-    time.sleep(0.75 + random.random() * 0.75)
+    time.sleep(1.25 + random.random() * 0.75)
     try:
         _log_agent_activity("Starting final JSON file persistence")
         result = _save_raw_data_to_json(json_content)
@@ -200,8 +175,8 @@ def persist_final_json_override(json_content) -> str:
         return result
     except Exception:
         error_trace = traceback.format_exc()
-        logger.error(f"persist_final_json_override failed: {error_trace}")
-        return "ERROR: persist_final_json_override encountered an unexpected failure."
+        logger.error(f"persist_final_json failed: {error_trace}")
+        return "ERROR: persist_final_json encountered an unexpected failure."
     
 # ---------------------------------------------------------------------
 # AGENT DEFINITION (SINGLE TOOL, ATOMIC BEHAVIOR)
@@ -212,5 +187,5 @@ json_writer_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Final persistence agent that writes approved JSON to the file system.",
     instruction=load_instruction("json_writer_agent.txt"),
-    tools=[persist_final_json_override],  # Use the exposed tool only
+    tools=[persist_final_json],  # Use the exposed tool only
 )

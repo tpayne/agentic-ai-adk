@@ -51,7 +51,7 @@ class SubprocessDriverAgent(BaseAgent):
             sub_agents=[per_step_pipeline],
             per_step_pipeline=per_step_pipeline,
         )
-        
+
     # ---------------------------------------------------------
     # Load process steps directly from the final JSON file
     # ---------------------------------------------------------
@@ -119,7 +119,7 @@ class SubprocessDriverAgent(BaseAgent):
             ctx.session.state["current_process_step"] = step
 
             # 🔥 Rate limit protection for subprocess generation
-            time.sleep(0.75 + random.random() * 0.75)
+            time.sleep(1.25 + random.random() * 0.75)
 
             async for event in self.per_step_pipeline.run_async(ctx):
                 yield event
