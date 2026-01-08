@@ -1,0 +1,146 @@
+{
+  "step_name": "Sprint Review",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prep Environment",
+      "description": "The Development Team prepares the demonstration environment, ensuring that all necessary software, hardware, and data are properly configured and accessible. This includes setting up any required test environments or staging areas.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Completed Work",
+        "Sprint Goal"
+      ],
+      "outputs": [
+        "Prepared Demo Environment"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "The demonstration environment is fully configured and ready for use."
+      ]
+    },
+    {
+      "substep_name": "Demo Preparation",
+      "description": "The Development Team selects the most relevant and impactful features to demonstrate, aligning with the Sprint Goal and showcasing the value delivered. They rehearse the demonstration to ensure a smooth and engaging presentation.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Prepared Demo Environment"
+      ],
+      "outputs": [
+        "Rehearsed Demo"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Prep Environment"
+      ],
+      "success_criteria": [
+        "The team is prepared to demonstrate the key features completed during the sprint."
+      ]
+    },
+    {
+      "substep_name": "Stakeholder Invitation",
+      "description": "The Product Owner invites key stakeholders to the Sprint Review, ensuring that all relevant parties are informed and available to attend. This includes sending out meeting invitations and providing any necessary context or pre-reading materials.",
+      "responsible_party": "Product Owner",
+      "inputs": [],
+      "outputs": [
+        "Stakeholder Attendance"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Key stakeholders are invited and confirm their attendance."
+      ]
+    },
+    {
+      "substep_name": "Review Sprint Goal",
+      "description": "The Product Owner restates the Sprint Goal at the beginning of the Sprint Review, reminding everyone of the objectives for the sprint. This sets the context for the demonstration and helps stakeholders understand the value delivered.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Sprint Goal"
+      ],
+      "outputs": [
+        "Restated Sprint Goal"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Stakeholder Invitation"
+      ],
+      "success_criteria": [
+        "The Sprint Goal is clearly restated and understood by all attendees."
+      ]
+    },
+    {
+      "substep_name": "Feature Demonstration",
+      "description": "The Development Team demonstrates the completed work, showcasing the new features and functionality that were delivered during the sprint. The demonstration should be interactive and engaging, allowing stakeholders to ask questions and provide feedback.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Restated Sprint Goal",
+        "Rehearsed Demo"
+      ],
+      "outputs": [
+        "Demonstrated Features"
+      ],
+      "estimated_duration": "45 minutes",
+      "dependencies": [
+        "Review Sprint Goal"
+      ],
+      "success_criteria": [
+        "All key features completed during the sprint are demonstrated effectively."
+      ]
+    },
+    {
+      "substep_name": "Gather Feedback",
+      "description": "The Product Owner actively solicits feedback from stakeholders on the demonstrated features, capturing their thoughts, suggestions, and concerns. This feedback is crucial for informing future sprints and ensuring that the product aligns with stakeholder expectations.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Demonstrated Features"
+      ],
+      "outputs": [
+        "Collected Feedback"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Feature Demonstration"
+      ],
+      "success_criteria": [
+        "Stakeholders provide valuable and actionable feedback on the demonstrated features."
+      ]
+    },
+    {
+      "substep_name": "Update Backlog",
+      "description": "The Product Owner updates the Product Backlog based on the feedback received from stakeholders, adding new user stories, modifying existing ones, or reprioritizing items as necessary. This ensures that the backlog reflects the latest stakeholder input and business priorities.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Collected Feedback",
+        "Prioritized Product Backlog"
+      ],
+      "outputs": [
+        "Updated Product Backlog"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Gather Feedback"
+      ],
+      "success_criteria": [
+        "The Product Backlog is updated to reflect stakeholder feedback and current business priorities."
+      ]
+    },
+    {
+      "substep_name": "Review Outcomes",
+      "description": "The Product Owner summarizes the key outcomes of the Sprint Review, including the feedback received, the changes made to the Product Backlog, and any action items identified. This ensures that everyone is aligned on the next steps and that the Sprint Review has a clear conclusion.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Updated Product Backlog"
+      ],
+      "outputs": [
+        "Summarized Outcomes"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Update Backlog"
+      ],
+      "success_criteria": [
+        "The key outcomes of the Sprint Review are summarized and communicated to all attendees."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "step_name": "Sprint Retrospective",
+  "subprocess_flow": [
+    {
+      "substep_name": "Set the Stage",
+      "description": "The Scrum Master sets the stage for the Sprint Retrospective by explaining the purpose of the meeting, emphasizing the importance of open and honest communication, and establishing a safe environment for sharing feedback. They may also review the ground rules for the retrospective.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Sprint Review Feedback",
+        "Team Observations"
+      ],
+      "outputs": [
+        "Established Safe Environment"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "A safe and open environment is established for the retrospective."
+      ]
+    },
+    {
+      "substep_name": "Review Sprint Goals",
+      "description": "The team reviews the Sprint Goal and the Sprint Backlog to refresh their memories of what they set out to achieve and what they actually accomplished. This provides context for the discussion and helps the team identify areas for improvement.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Established Safe Environment"
+      ],
+      "outputs": [
+        "Refreshed Sprint Context"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Set the Stage"
+      ],
+      "success_criteria": [
+        "The team has a shared understanding of the sprint goals and accomplishments."
+      ]
+    },
+    {
+      "substep_name": "Gather Data",
+      "description": "The team gathers data about the sprint, focusing on what went well, what could have been better, and what puzzles remain. This can be done using various techniques, such as brainstorming, sticky notes, or online collaboration tools. Examples include: What went well?, What could be improved?, What did we learn?, What still puzzles us?",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Refreshed Sprint Context"
+      ],
+      "outputs": [
+        "Collected Data Points"
+      ],
+      "estimated_duration": "20 minutes",
+      "dependencies": [
+        "Review Sprint Goals"
+      ],
+      "success_criteria": [
+        "A diverse range of data points are collected, representing different perspectives on the sprint."
+      ]
+    },
+    {
+      "substep_name": "Identify Key Issues",
+      "description": "The team analyzes the collected data points and identifies the key issues that had the most significant impact on the sprint. This involves grouping similar data points, identifying common themes, and prioritizing the issues based on their importance.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Collected Data Points"
+      ],
+      "outputs": [
+        "Identified Key Issues"
+      ],
+      "estimated_duration": "20 minutes",
+      "dependencies": [
+        "Gather Data"
+      ],
+      "success_criteria": [
+        "The most impactful issues are identified and prioritized."
+      ]
+    },
+    {
+      "substep_name": "Discuss Root Causes",
+      "description": "For each key issue, the team discusses the underlying root causes, exploring the factors that contributed to the issue. This involves asking 'why' repeatedly to drill down to the fundamental reasons behind the problem.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Identified Key Issues"
+      ],
+      "outputs": [
+        "Understood Root Causes"
+      ],
+      "estimated_duration": "20 minutes",
+      "dependencies": [
+        "Identify Key Issues"
+      ],
+      "success_criteria": [
+        "The root causes of the key issues are understood and documented."
+      ]
+    },
+    {
+      "substep_name": "Brainstorm Solutions",
+      "description": "The team brainstorms potential solutions to address the root causes, generating a wide range of ideas without judgment. This encourages creative thinking and helps the team explore different approaches to solving the problems.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Understood Root Causes"
+      ],
+      "outputs": [
+        "Brainstormed Solutions"
+      ],
+      "estimated_duration": "20 minutes",
+      "dependencies": [
+        "Discuss Root Causes"
+      ],
+      "success_criteria": [
+        "A variety of potential solutions are brainstormed for each key issue."
+      ]
+    },
+    {
+      "substep_name": "Create Action Items",
+      "description": "The team selects the most promising solutions and translates them into concrete action items, assigning ownership and deadlines for each action item. This ensures that the solutions are implemented and that progress is tracked.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Brainstormed Solutions"
+      ],
+      "outputs": [
+        "Action Items for Improvement"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Brainstorm Solutions"
+      ],
+      "success_criteria": [
+        "Specific, measurable, achievable, relevant, and time-bound (SMART) action items are created and assigned."
+      ]
+    },
+    {
+      "substep_name": "Close Retrospective",
+      "description": "The Scrum Master closes the Sprint Retrospective by summarizing the key takeaways, thanking the team for their participation, and reminding them of the importance of implementing the action items. They may also ask for feedback on the retrospective itself to improve future retrospectives.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Action Items for Improvement"
+      ],
+      "outputs": [
+        "Retrospective Closure"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Create Action Items"
+      ],
+      "success_criteria": [
+        "The retrospective is closed with a clear summary of the key takeaways and action items."
+      ]
+    }
+  ]
+}

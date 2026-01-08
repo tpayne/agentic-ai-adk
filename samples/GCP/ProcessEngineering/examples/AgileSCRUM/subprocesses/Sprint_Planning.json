@@ -1,0 +1,151 @@
+{
+  "step_name": "Sprint Planning",
+  "subprocess_flow": [
+    {
+      "substep_name": "Review Product Backlog",
+      "description": "The Development Team, Scrum Master, and Product Owner review the prioritized Product Backlog to understand the available user stories, their estimates, and acceptance criteria. This ensures everyone has a shared understanding of the work to be considered for the sprint.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Prioritized Product Backlog",
+        "Team Velocity"
+      ],
+      "outputs": [
+        "Understood Product Backlog"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "All team members have a clear understanding of the product backlog items."
+      ]
+    },
+    {
+      "substep_name": "Define Sprint Goal",
+      "description": "The Development Team collaborates with the Product Owner to define a clear and concise Sprint Goal that aligns with the overall product vision and business objectives. The Sprint Goal provides focus and direction for the sprint.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Understood Product Backlog"
+      ],
+      "outputs": [
+        "Draft Sprint Goal"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Review Product Backlog"
+      ],
+      "success_criteria": [
+        "A draft sprint goal is defined."
+      ]
+    },
+    {
+      "substep_name": "Select User Stories",
+      "description": "The Development Team selects user stories from the Product Backlog that align with the Sprint Goal and can be realistically completed within the sprint timeframe, considering team capacity and velocity. The team discusses dependencies and potential risks associated with each user story.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Draft Sprint Goal",
+        "Understood Product Backlog"
+      ],
+      "outputs": [
+        "Candidate User Stories for Sprint"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Define Sprint Goal"
+      ],
+      "success_criteria": [
+        "A set of candidate user stories is selected."
+      ]
+    },
+    {
+      "substep_name": "Breakdown into Tasks",
+      "description": "The Development Team breaks down the selected user stories into smaller, actionable tasks required for implementation. Each task should be clearly defined and estimated in hours.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Candidate User Stories for Sprint"
+      ],
+      "outputs": [
+        "Sprint Backlog Tasks"
+      ],
+      "estimated_duration": "1.5 hours",
+      "dependencies": [
+        "Select User Stories"
+      ],
+      "success_criteria": [
+        "User stories are broken down into tasks."
+      ]
+    },
+    {
+      "substep_name": "Estimate Tasks",
+      "description": "The Development Team estimates the effort required to complete each task in the Sprint Backlog, typically in hours. This ensures that the team has a realistic understanding of the workload for the sprint.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Sprint Backlog Tasks"
+      ],
+      "outputs": [
+        "Estimated Sprint Backlog Tasks"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Breakdown into Tasks"
+      ],
+      "success_criteria": [
+        "All tasks have effort estimates assigned."
+      ]
+    },
+    {
+      "substep_name": "Confirm Sprint Capacity",
+      "description": "The Scrum Master verifies that the total estimated effort for all tasks in the Sprint Backlog does not exceed the Development Team's capacity for the sprint, considering any planned time off or other commitments. If the workload is too high, user stories may need to be removed or tasks re-estimated.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Estimated Sprint Backlog Tasks",
+        "Team Capacity"
+      ],
+      "outputs": [
+        "Confirmed Sprint Capacity"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Estimate Tasks"
+      ],
+      "success_criteria": [
+        "Sprint workload aligns with team capacity."
+      ]
+    },
+    {
+      "substep_name": "Finalize Sprint Backlog",
+      "description": "The Development Team, Product Owner, and Scrum Master finalize the Sprint Backlog, ensuring that it contains all the necessary tasks to achieve the Sprint Goal and that the workload is realistic and achievable. The Sprint Backlog is then committed to by the Development Team.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Confirmed Sprint Capacity"
+      ],
+      "outputs": [
+        "Final Sprint Backlog"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Confirm Sprint Capacity"
+      ],
+      "success_criteria": [
+        "The sprint backlog is finalized."
+      ]
+    },
+    {
+      "substep_name": "Document Plan",
+      "description": "Document the final Sprint Goal and Sprint Backlog in the project management tool. Make it visible to the entire team and stakeholders, ensuring transparency and alignment.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Final Sprint Backlog",
+        "Draft Sprint Goal"
+      ],
+      "outputs": [
+        "Documented Sprint Plan"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Finalize Sprint Backlog"
+      ],
+      "success_criteria": [
+        "Sprint plan is documented and visible."
+      ]
+    }
+  ]
+}

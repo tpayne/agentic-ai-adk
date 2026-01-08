@@ -1,0 +1,148 @@
+{
+  "step_name": "Daily Scrum",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare for Scrum",
+      "description": "Each Development Team member prepares to share their updates by reviewing their progress on assigned tasks and identifying any impediments encountered.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Sprint Backlog"
+      ],
+      "outputs": [
+        "Prepared Updates"
+      ],
+      "estimated_duration": "2 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Team members are ready to provide concise updates."
+      ]
+    },
+    {
+      "substep_name": "Stand-Up Meeting",
+      "description": "The Development Team gathers for the Daily Scrum, typically standing up to encourage brevity. The Scrum Master ensures the meeting stays within the 15-minute timebox and focuses on the three key questions.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Prepared Updates"
+      ],
+      "outputs": [
+        "Meeting in Progress"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Prepare for Scrum"
+      ],
+      "success_criteria": [
+        "The team gathers promptly for the Daily Scrum."
+      ]
+    },
+    {
+      "substep_name": "Yesterday's Accomplishments",
+      "description": "Each Development Team member answers the first question: What specific tasks did I accomplish yesterday that contributed to the Sprint Goal? Updates should be concise and focused on completed work.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Meeting in Progress"
+      ],
+      "outputs": [
+        "Shared Accomplishments"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Stand-Up Meeting"
+      ],
+      "success_criteria": [
+        "Each team member shares their accomplishments from the previous day."
+      ]
+    },
+    {
+      "substep_name": "Today's Plan",
+      "description": "Each Development Team member answers the second question: What tasks will I focus on today to move closer to achieving the Sprint Goal? Plans should be realistic and aligned with the Sprint Backlog.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Shared Accomplishments"
+      ],
+      "outputs": [
+        "Shared Plans"
+      ],
+      "estimated_duration": "5 minutes",
+      "dependencies": [
+        "Yesterday's Accomplishments"
+      ],
+      "success_criteria": [
+        "Each team member shares their plan for the current day."
+      ]
+    },
+    {
+      "substep_name": "Identify Impediments",
+      "description": "Each Development Team member answers the third question: Are there any impediments currently hindering my progress or blocking me from completing my tasks? Impediments should be clearly identified and articulated.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Shared Plans"
+      ],
+      "outputs": [
+        "Identified Impediments"
+      ],
+      "estimated_duration": "2 minutes",
+      "dependencies": [
+        "Today's Plan"
+      ],
+      "success_criteria": [
+        "Any impediments are identified and clearly stated."
+      ]
+    },
+    {
+      "substep_name": "Record Impediments",
+      "description": "The Scrum Master captures all identified impediments and assigns ownership for resolution. This ensures that no impediment is overlooked and that someone is responsible for addressing it.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Identified Impediments"
+      ],
+      "outputs": [
+        "Recorded Impediments"
+      ],
+      "estimated_duration": "1 minute",
+      "dependencies": [
+        "Identify Impediments"
+      ],
+      "success_criteria": [
+        "All impediments are recorded and assigned for resolution."
+      ]
+    },
+    {
+      "substep_name": "Post-Scrum Discussion",
+      "description": "If necessary, team members engage in brief discussions to clarify points or offer assistance. However, detailed problem-solving is deferred to after the Daily Scrum to maintain the timebox.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Recorded Impediments"
+      ],
+      "outputs": [
+        "Clarified Issues"
+      ],
+      "estimated_duration": "Up to 3 minutes",
+      "dependencies": [
+        "Record Impediments"
+      ],
+      "success_criteria": [
+        "Issues are clarified without exceeding the timebox."
+      ]
+    },
+    {
+      "substep_name": "Impediment Resolution",
+      "description": "The Scrum Master takes immediate action to remove any identified impediments, escalating as necessary. The goal is to keep the Development Team focused and productive.",
+      "responsible_party": "Scrum Master",
+      "inputs": [
+        "Recorded Impediments",
+        "Clarified Issues"
+      ],
+      "outputs": [
+        "Resolved Impediments"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Post-Scrum Discussion"
+      ],
+      "success_criteria": [
+        "Impediments are actively addressed and resolved in a timely manner."
+      ]
+    }
+  ]
+}

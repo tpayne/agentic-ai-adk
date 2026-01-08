@@ -1,0 +1,19 @@
+{
+  "avg_cycle_time": 34.53654936103591,
+  "cycle_time_variance": 4.819079492964203,
+  "time_unit": "hours",
+  "bottlenecks": [
+    "Daily Scrum",
+    "Sprint Planning",
+    "Sprint Review"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Product Backlog Creation": 1.3372321086628638,
+    "Sprint Planning": 5.346822465316056,
+    "Daily Scrum": 19.827303469675527,
+    "Sprint Review": 2.682404485443307,
+    "Sprint Retrospective": 2.671456418595522,
+    "Backlog Refinement": 2.6713304133426328
+  }
+}

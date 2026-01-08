@@ -1,0 +1,149 @@
+{
+  "step_name": "Backlog Refinement",
+  "subprocess_flow": [
+    {
+      "substep_name": "Review Action Items",
+      "description": "The Product Owner and Development Team review action items from the Sprint Retrospective to ensure they are being addressed and incorporated into the backlog refinement process. This ensures continuous improvement based on past sprint experiences.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Product Backlog",
+        "User Feedback"
+      ],
+      "outputs": [
+        "Reviewed Action Items"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Action items from the Sprint Retrospective are reviewed and understood."
+      ]
+    },
+    {
+      "substep_name": "Analyze User Feedback",
+      "description": "The Product Owner analyzes user feedback collected from various sources (e.g., Sprint Reviews, user surveys, support tickets) to identify new requirements, pain points, and areas for improvement. This ensures that the backlog reflects the latest user needs and expectations.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Reviewed Action Items"
+      ],
+      "outputs": [
+        "Analyzed User Feedback"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Review Action Items"
+      ],
+      "success_criteria": [
+        "User feedback is analyzed and documented."
+      ]
+    },
+    {
+      "substep_name": "Identify New Stories",
+      "description": "Based on the analyzed user feedback and business priorities, the Product Owner identifies and drafts new user stories to be added to the Product Backlog. These user stories should clearly define the desired functionality and the value they provide.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Analyzed User Feedback"
+      ],
+      "outputs": [
+        "Drafted User Stories"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Analyze User Feedback"
+      ],
+      "success_criteria": [
+        "New user stories are drafted and added to the Product Backlog."
+      ]
+    },
+    {
+      "substep_name": "Detailing Stories",
+      "description": "The Product Owner and Development Team collaborate to add details to the existing and newly drafted user stories, including acceptance criteria, mockups, and any other relevant information. This ensures that the user stories are well-defined and ready for estimation.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Drafted User Stories"
+      ],
+      "outputs": [
+        "Detailed User Stories"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Identify New Stories"
+      ],
+      "success_criteria": [
+        "User stories have clear descriptions and acceptance criteria."
+      ]
+    },
+    {
+      "substep_name": "Estimate Effort",
+      "description": "The Development Team estimates the effort required to implement the detailed user stories, using techniques such as story points or t-shirt sizing. This provides a basis for prioritizing the user stories and planning future sprints.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Detailed User Stories"
+      ],
+      "outputs": [
+        "Estimated User Stories"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Detailing Stories"
+      ],
+      "success_criteria": [
+        "All user stories have effort estimates assigned."
+      ]
+    },
+    {
+      "substep_name": "Re-Prioritize Backlog",
+      "description": "The Product Owner re-prioritizes the Product Backlog based on the estimated effort, business value, and any other relevant factors. This ensures that the most valuable user stories are at the top of the backlog and ready for implementation in the next sprint.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Estimated User Stories",
+        "Product Backlog"
+      ],
+      "outputs": [
+        "Re-Prioritized Backlog"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Estimate Effort"
+      ],
+      "success_criteria": [
+        "User stories are ranked in order of priority."
+      ]
+    },
+    {
+      "substep_name": "Identify Dependencies",
+      "description": "The Development Team identifies any dependencies between user stories or with external systems, and documents them in the Product Backlog. This helps to avoid delays and ensure a smooth development process.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Re-Prioritized Backlog"
+      ],
+      "outputs": [
+        "Documented Dependencies"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [
+        "Re-Prioritize Backlog"
+      ],
+      "success_criteria": [
+        "Dependencies are identified and documented."
+      ]
+    },
+    {
+      "substep_name": "Review Refined Backlog",
+      "description": "The Product Owner and Development Team review the refined Product Backlog to ensure that it is up-to-date, well-organized, and ready for Sprint Planning. This is the final check before the next sprint planning meeting.",
+      "responsible_party": "Product Owner",
+      "inputs": [
+        "Documented Dependencies"
+      ],
+      "outputs": [
+        "Refined Product Backlog"
+      ],
+      "estimated_duration": "10 minutes",
+      "dependencies": [
+        "Identify Dependencies"
+      ],
+      "success_criteria": [
+        "The product backlog is ready for sprint planning."
+      ]
+    }
+  ]
+}
