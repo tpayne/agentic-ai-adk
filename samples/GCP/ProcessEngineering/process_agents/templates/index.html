@@ -305,8 +305,15 @@
     <!-- Modal -->
     <div id="modal-backdrop">
         <div id="modal">
-            <h3 id="modal-title"></h3>
-            <pre id="modal-body"></pre>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 id="modal-title" style="margin:0;"></h3>
+                <span id="modal-close" style="cursor:pointer; font-size:20px; padding:4px 8px; line-height:1;">
+                    ✕
+                </span>
+            </div>
+
+            <div id="modal-body" style="max-height:60vh; overflow-y:auto;"></div>
+
             <button onclick="closeModal()">Close</button>
         </div>
     </div>
@@ -564,10 +571,10 @@
                 style: "pointer-events: all; cursor: pointer;"
             });
 
-            const hitbox = createSvgElement("rect", { 
-                x: 0, y: -13, 
-                width: 15, 
-                height: 15, fill: "transparent" 
+            const hitbox = createSvgElement("rect", {
+                x: 0, y: -13,
+                width: 15,
+                height: 15, fill: "transparent"
             });
 
             infoGroup.appendChild(hitbox);
@@ -607,6 +614,7 @@
             }
         }
 
+        document.getElementById("modal-close").onclick = closeModal;
         document.getElementById("crumb-level1").onclick = () => {
             renderLevel1();
         };
@@ -617,8 +625,90 @@
 
         // --- Modal ---
         function showInfo(step, title) {
-            document.getElementById("modal-title").textContent = title;
-            document.getElementById("modal-body").textContent = JSON.stringify(step, null, 2);
+            const modalTitle = document.getElementById("modal-title");
+            const modalBody = document.getElementById("modal-body");
+
+            modalTitle.textContent = title;
+
+            const FIELD_ORDER = [
+                "step_name",
+                "substep_name",
+                "description",
+                "estimated_duration",
+                "responsible_party",
+                "inputs",
+                "deliverables",
+                "outputs",
+                "dependencies",
+                "success_criteria"
+            ];
+
+            let html = `
+    <table style="
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+    ">
+      <thead>
+        <tr style="background: #444; color: #fff;">
+          <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Key</th>
+          <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+    `;
+
+            const addRow = (key, valueHtml, rowIndex) => {
+                const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
+                html += `
+        <tr style="background: ${bg};">
+          <td style="padding: 6px; border: 1px solid #ccc; vertical-align: top; word-wrap: break-word;">
+            ${key}
+          </td>
+          <td style="padding: 6px; border: 1px solid #ccc; vertical-align: top; word-wrap: break-word;">
+            ${valueHtml}
+          </td>
+        </tr>
+        `;
+            };
+
+            let rowIndex = 0;
+
+            // Render fields in defined order
+            FIELD_ORDER.forEach(key => {
+                if (!(key in step)) return;
+
+                const value = step[key];
+
+                if (Array.isArray(value)) {
+                    if (value.length === 0) return;
+                    const list = value.map(v => `<li>${v}</li>`).join("");
+                    addRow(key, `<ul style="margin:0; padding-left:18px;">${list}</ul>`, rowIndex++);
+                } else if (typeof value === "object" && value !== null) {
+                    addRow(key, `<pre style="margin:0;">${JSON.stringify(value, null, 2)}</pre>`, rowIndex++);
+                } else {
+                    addRow(key, String(value), rowIndex++);
+                }
+            });
+
+            // Render any remaining fields not in FIELD_ORDER
+            Object.entries(step).forEach(([key, value]) => {
+                if (FIELD_ORDER.includes(key)) return;
+
+                if (Array.isArray(value)) {
+                    if (value.length === 0) return;
+                    const list = value.map(v => `<li>${v}</li>`).join("");
+                    addRow(key, `<ul style="margin:0; padding-left:18px;">${list}</ul>`, rowIndex++);
+                } else if (typeof value === "object" && value !== null) {
+                    addRow(key, `<pre style="margin:0;">${JSON.stringify(value, null, 2)}</pre>`, rowIndex++);
+                } else {
+                    addRow(key, String(value), rowIndex++);
+                }
+            });
+
+            html += `</tbody></table>`;
+            modalBody.innerHTML = html;
             document.getElementById("modal-backdrop").style.display = "flex";
         }
 
