@@ -961,7 +961,9 @@ def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
     try:
         diag_file = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
         if not os.path.exists(diag_file):
-            return
+            diag_file = f"output/process_flow.png"
+            if not os.path.exists(diag_file):
+                return
 
         doc.add_heading("8.0 Process Flow Diagram", level=1)
         doc.add_paragraph(
