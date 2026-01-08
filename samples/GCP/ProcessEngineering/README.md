@@ -134,6 +134,12 @@ Notes:
 
 ## Sample Prompts
 
+The following are sample prompts you can use to...
+- Creating new processes
+- Update existing processes
+- Investigate existing processes
+- Reviewing "what-if" scenarios on existing processes
+
 ### Creating Processes
 - "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
 - "Design a detailed business process for handling inventory stock-outs in a retail environment."
