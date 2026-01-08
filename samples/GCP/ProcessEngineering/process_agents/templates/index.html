@@ -184,8 +184,7 @@
             pointer-events: none;
         }
 
-        #reset-zoom-btn,
-        #export-btn {
+        #reset-zoom-btn {
             position: absolute;
             top: 10px;
             z-index: 10;
@@ -205,19 +204,15 @@
         }
 
         #zoom-in-btn {
-            right: 230px;
+            right: 130px;
         }
 
         #zoom-out-btn {
-            right: 200px;
+            right: 100px;
         }
 
         #reset-zoom-btn {
             right: 10px;
-        }
-
-        #export-btn {
-            right: 100px;
         }
 
         #modal-backdrop {
@@ -297,7 +292,6 @@
             <button id="zoom-in-btn">+</button>
             <button id="zoom-out-btn">-</button>
             <button id="reset-zoom-btn">Reset Zoom</button>
-            <button id="export-btn">Export PNG</button>
 
         </div>
 
@@ -408,7 +402,6 @@
             enableSearch();
             enableLaneFilters();
             enableDarkModeToggle();
-            enableExport();
         }
 
         // --- Clear diagram ---
@@ -947,52 +940,6 @@
                 const isDark = root.classList.toggle("dark");
                 btn.textContent = isDark ? "Light mode" : "Dark mode";
             });
-        }
-
-        // --- Export PNG (diagram only) ---
-        function enableExport() {
-            const btn = document.getElementById("export-btn");
-            btn.addEventListener("click", exportDiagramAsPng);
-        }
-
-        function exportDiagramAsPng() {
-            const svg = document.getElementById("diagram");
-            const viewport = document.getElementById("viewport");
-
-            const cloneSvg = svg.cloneNode(false);
-            const cloneViewport = viewport.cloneNode(true);
-            cloneViewport.removeAttribute("transform");
-            cloneSvg.appendChild(cloneViewport);
-
-            const bbox = viewport.getBBox();
-            cloneSvg.setAttribute("viewBox", `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
-            cloneSvg.setAttribute("width", bbox.width);
-            cloneSvg.setAttribute("height", bbox.height);
-
-            const serializer = new XMLSerializer();
-            const svgString = serializer.serializeToString(cloneSvg);
-            const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-            const url = URL.createObjectURL(svgBlob);
-
-            const img = new Image();
-            img.onload = function () {
-                const canvas = document.createElement("canvas");
-                canvas.width = bbox.width;
-                canvas.height = bbox.height;
-                const ctx = canvas.getContext("2d");
-                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--bg") || "#ffffff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                URL.revokeObjectURL(url);
-
-                canvas.toBlob(blob => {
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = "process-diagram.png";
-                    a.click();
-                }, "image/png");
-            };
-            img.src = url;
         }
 
         // --- Init ---
