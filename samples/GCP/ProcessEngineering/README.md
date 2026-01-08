@@ -134,9 +134,26 @@ Notes:
 
 ## Sample Prompts
 
+### Creating Processes
 - "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
 - "Design a detailed business process for handling inventory stock-outs in a retail environment."
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
+
+### Reviewing or Querying Existing Processes
+- "Tell me what happens when a security audit is triggered?"
+- "What roles are needed for a sprint planning session?"
+- "Who is responsible for the escalation process being closed?"
+- "Describe the overall process flow"
+
+### Running What-If Scenarios on Existing Processes
+- "What would happen if a security audit failed?"
+- "What would be the impact on a delivery if releases did not happen on time?"
+- "I need to look at the security reviews on the process - where do they need to be added?"
+
+### Applying Updates to Existing Processes & Regenerating the Documentation
+- "Update the process to add security reviews at key stages"
+- "Add a code review process to the development steps"
+- "Modify the process to add test quality review steps prior to releases being done"
 
 ---
 
