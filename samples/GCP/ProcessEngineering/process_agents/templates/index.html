@@ -194,6 +194,24 @@
             cursor: pointer;
         }
 
+        #zoom-in-btn,
+        #zoom-out-btn {
+            position: absolute;
+            top: 10px;
+            z-index: 100;
+            padding: 4px 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        #zoom-in-btn {
+            right: 230px;
+        }
+
+        #zoom-out-btn {
+            right: 200px;
+        }
+
         #reset-zoom-btn {
             right: 10px;
         }
@@ -276,8 +294,11 @@
                 <rect id="minimap-viewport"></rect>
             </svg>
 
+            <button id="zoom-in-btn">+</button>
+            <button id="zoom-out-btn">-</button>
             <button id="reset-zoom-btn">Reset Zoom</button>
             <button id="export-btn">Export PNG</button>
+
         </div>
 
         <div id="info-panel">
@@ -285,14 +306,7 @@
 
             <input id="search-box" placeholder="Search steps..." />
 
-            <div id="lane-filters">
-                <strong>Show lanes:</strong>
-                <label><input type="checkbox" data-lane="Sales Associates" checked> Sales Associates</label>
-                <label><input type="checkbox" data-lane="Store Manager" checked> Store Manager</label>
-                <label><input type="checkbox" data-lane="Inventory Management Team" checked> Inventory Management
-                    Team</label>
-                <label><input type="checkbox" data-lane="Process" checked> Process</label>
-            </div>
+            <div id="lane-filters"></div>
 
             <p style="font-size:13px; color:var(--muted);">
                 Double-click a Level 1 step to drill into its subprocess.<br>
@@ -793,6 +807,20 @@
                 e.preventDefault();
                 const scaleAmount = e.deltaY * -0.001;
                 zoomScale = Math.min(Math.max(0.2, zoomScale + scaleAmount), 3);
+                updateTransform();
+                updateMinimap();
+            });
+
+            // Zoom In button
+            document.getElementById("zoom-in-btn").addEventListener("click", () => {
+                zoomScale = Math.min(zoomScale + 0.1, 3);
+                updateTransform();
+                updateMinimap();
+            });
+
+            // Zoom Out button
+            document.getElementById("zoom-out-btn").addEventListener("click", () => {
+                zoomScale = Math.max(zoomScale - 0.1, 0.2);
                 updateTransform();
                 updateMinimap();
             });
