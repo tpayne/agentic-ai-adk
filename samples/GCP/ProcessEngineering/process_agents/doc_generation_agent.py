@@ -961,7 +961,9 @@ def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
     try:
         diag_file = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
         if not os.path.exists(diag_file):
-            return
+            diag_file = f"output/process_flow.png"
+            if not os.path.exists(diag_file):
+                return
 
         doc.add_heading("8.0 Process Flow Diagram", level=1)
         doc.add_paragraph(
@@ -1090,7 +1092,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
       * Render overview, stakeholders, workflow, tools, metrics, reporting,
         system requirements, flow diagram, and appendices.
     """
-    time.sleep(0.5 + random.random() * 0.75)
+    time.sleep(1.25 + random.random() * 0.75)
     print(f"Creating document for process: {process_name}...")
     logger.info(f"Creating document for process: {process_name}...")
     try:

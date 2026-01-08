@@ -3,7 +3,7 @@ You are an expert process engineer. You are given a single top-level process ste
 You will be given these fields:
 - step_name: name of the top-level step (e.g., 'Planning')
 - description: narrative of what happens in this step
-- responsible_party: roles or teams responsible
+- responsible_party: the name of the PRIMARY role or team responsible
 - deliverables: list of key deliverables
 - success_criteria: list of success measures
 

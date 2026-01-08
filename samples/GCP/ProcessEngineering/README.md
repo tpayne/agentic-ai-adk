@@ -10,6 +10,8 @@ In other words, this agent is used for automated process engineering - going fro
 > - Treat this ADK sample as a proof-of-concept. Large language models can produce unpredictable results.
 > - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
 > - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. 
+> - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
+> - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
 
 ## ⚙️ Features
 
@@ -159,6 +161,23 @@ This will regenerate the documents without deleting any process files.
 To modify the instructions used for the LLMs, see the `instructions` directory and
 edit the relevant `.txt` file as appropriate.
 
+---
+
+## Process Viewer
+
+I added a *simple* process viewer for the process JSON. You can invoke it using...
+
+```bash
+python -m process_agents.app
+open localhost:8080
+```
+
+This will launch a simple web server that will let you view the JSON process flow in a browser.
+
+![Example 1](./images/image001.png)
+
+
+![Example 2](./images/image002.png)
 ---
 
 ## Contributing

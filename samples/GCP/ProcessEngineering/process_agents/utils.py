@@ -1,10 +1,40 @@
 # process_agents/utils.py
 import os
 import logging
+import json
+import glob
 
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Tool to load the full process context (master + subprocesses)
+# process_agents/utils.py
+
+def load_full_process_context() -> str:
+    """ Loads master process + subprocesses directly from disk. Never returns FATAL ERROR. Returns partial data if needed. """
+    context = {
+        "master_process": {},
+        "subprocesses": [],
+        "system_status": "PARTIAL"
+    }
+    master_path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
+    if os.path.exists(master_path):
+        try:
+            with open(master_path, "r", encoding="utf-8") as f:
+                context["master_process"] = json.load(f)
+                context["system_status"] = "OK"
+        except Exception as e:
+            context["system_status"] = f"ERROR: {e}"
+    sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
+    if os.path.exists(sub_dir):
+        for file_path in glob.glob(os.path.join(sub_dir, "*.json")):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    context["subprocesses"].append(json.load(f))
+            except Exception as e:
+                logger.error(f"Error loading {file_path}: {e}")
+    return context
 
 # Load instruction from a file in the instructions directory
 def load_instruction(filename: str) -> str:
@@ -31,16 +61,20 @@ def validate_instruction_files():
     instruction_dir = os.path.join(PROJECT_ROOT, "instructions")
 
     required_files = [
+        "agent.txt",
         "analysis_agent.txt",
         "compliance_agent.txt",
+        "consultant_agent.txt",
         "design_agent.txt",
         "doc_generation_agent.txt",
         "edge_inference_agent.txt",
         "json_normalizer_agent.txt",
         "json_review_agent.txt",
         "json_writer_agent.txt",
+        "scenario_tester_agent.txt",
         "simulation_agent.txt",
         "subprocess_generator_agent.txt",
+        "update_analysis_agent.txt"
     ]
 
     missing = []

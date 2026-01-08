@@ -517,6 +517,11 @@ def generate_clean_diagram() -> str:
 
         # 7. SAVE
         out_path = "output/process_flow.png"
+        if process_name:
+            out_path = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
+        else:
+            out_path = "output/process_flow.png"
+
         fig.tight_layout()
         plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close(fig)

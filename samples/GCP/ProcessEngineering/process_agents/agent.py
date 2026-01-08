@@ -6,17 +6,12 @@ from datetime import datetime
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 
 # Import sub-agents
-from .analysis_agent import analysis_agent
-from .design_agent import design_agent as design_agent
-from .compliance_agent import compliance_agent
-from .json_normalizer_agent import json_normalizer_agent
-from .json_review_agent import json_review_agent
-from .edge_inference_agent import edge_inference_agent
-from .doc_generation_agent import doc_generation_agent
-from .json_writer_agent import json_writer_agent
-from .simulation_agent import simulation_agent
-from .subprocess_driver_agent import subprocess_driver_agent
+from .consultant_agent import consultant_agent
+from .create_process_agent import full_design_pipeline
+from .scenario_agent import scenario_tester_agent
+from .update_process_agent import update_design_pipeline
 
+from .utils import load_instruction
 from .utils import validate_instruction_files
 
 # ---------------------------------------------------------
@@ -53,18 +48,18 @@ sys.stderr = open(runtime_file, "a")
 
 # Reset process_data.json
 if not os.environ.get("RUN_DEBUG"):
-    # Remove process_data.json if RUN_DEBUG is not set
-    logger.info("Removing state files...")
-    state_file = "output/process_data.json"
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-            cleanup_status = "Existing state file cleared."
-        except Exception as e:
-            cleanup_status = f"Cleanup failed: {str(e)}"
-    else:
-        cleanup_status = "No previous state file found. Starting clean."
-    logger.info(f"Pipeline initialized. {cleanup_status}")
+#     # Remove process_data.json if RUN_DEBUG is not set
+#     logger.info("Removing state files...")
+#     state_file = "output/process_data.json"
+#     if os.path.exists(state_file):
+#         try:
+#             os.remove(state_file)
+#             cleanup_status = "Existing state file cleared."
+#         except Exception as e:
+#             cleanup_status = f"Cleanup failed: {str(e)}"
+#     else:
+#         cleanup_status = "No previous state file found. Starting clean."
+#     logger.info(f"Pipeline initialized. {cleanup_status}")
 
     state_file = "output/simulation_results.json"
     if os.path.exists(state_file):
@@ -85,67 +80,18 @@ if not validate_instruction_files():
     sys.exit(1)
 
 # ---------------------------------------------------------
-# PIPELINE DEFINITION
+# ROOT AGENT
 # ---------------------------------------------------------
-
-# Design → Compliance loop: Iteratively refines the process 
-# Note: This loop needs an exit_loop added to optimize termination,
-# currently it relies on max_iterations and burns unnecessary tokens.
-
-design_instance = LlmAgent(
-    name=design_agent.name + '_Design_Instance',
-    model=design_agent.model,
-    description=design_agent.description,
-    instruction=design_agent.instruction,
-    tools=design_agent.tools,
-    output_key=design_agent.output_key,
-)
-
-design_compliance_instance = LlmAgent(
-    name=design_agent.name + '_Compliance_Instance',
-    model=design_agent.model,
-    description=design_agent.description,
-    instruction=design_agent.instruction,
-    tools=design_agent.tools,
-    output_key=design_agent.output_key,
-)
-
-review_loop = LoopAgent(
-    name="Design_Compliance_Loop",
+root_agent = LlmAgent(
+    name="Process_Architect_Orchestrator",
+    model="gemini-2.0-flash-001",
+    instruction=load_instruction("agent.txt"),
+    # Ensure sub_agents are provided so the LLM can route to them
     sub_agents=[
-        SequentialAgent(
-            name="Iterative_Design_Stage",
-            sub_agents=[design_instance, compliance_agent, design_compliance_instance, simulation_agent],
-        )
-    ],
-    max_iterations=7 # The max iterations for this loop. Adjust as needed.
-)
-
-# JSON Normalization → Review loop: Stabilizes the process JSON
-json_normalization_loop = SequentialAgent(
-    name="JSON_Normalization_Retry_Loop",
-    sub_agents=[
-        LoopAgent(
-            name="Normalizer_Review_Sequence",
-            sub_agents=[json_normalizer_agent, json_review_agent],
-            max_iterations=20 # The max iterations for this loop. Adjust as needed.
-        ),
-        json_writer_agent
-    ],
-)
-
-# Main Orchestrator
-# Added edge_inference_agent back into the sequence
-subprocess_stage = subprocess_driver_agent
-root_agent = SequentialAgent(
-    name="Automated_Process_Architect_Pipeline",
-    sub_agents=[
-        analysis_agent,          # Stage 1: Requirements
-        review_loop,             # Stage 2: Design/Audit Loop
-        json_normalization_loop, # Stage 3: Stabilization (writes process_data.json)
-        subprocess_stage,        # Stage 4: Per-step subprocess generation (writes output/subprocesses/*.json)
-        edge_inference_agent,    # Stage 5: Logical Flow
-        doc_generation_agent     # Stage 6: Artifact Build
+        full_design_pipeline, 
+        consultant_agent,     
+        scenario_tester_agent,
+        update_design_pipeline,
     ]
 )
 
