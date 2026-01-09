@@ -39,6 +39,6 @@ design_agent = LlmAgent(
     tools=[exit_loop, log_design_metadata],
     output_key="approved_json",
     generate_content_config=types.GenerateContentConfig(
-        max_output_tokens=8192
+        # max_output_tokens=8192
     ),
 )
