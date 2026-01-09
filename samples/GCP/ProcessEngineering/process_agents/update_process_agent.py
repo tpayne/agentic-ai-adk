@@ -2,6 +2,8 @@
 
 import logging
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+from google.genai import types
+
 from .utils import load_instruction, load_full_process_context
 
 # Import the base agents to access their configuration
@@ -39,6 +41,7 @@ design_inst = LlmAgent(
     description=design_agent.description,
     instruction=design_agent.instruction,
     tools=design_agent.tools,
+    generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
 )
 
@@ -66,6 +69,7 @@ normalizer_inst = LlmAgent(
     description=json_normalizer_agent.description,
     instruction=json_normalizer_agent.instruction,
     tools=json_normalizer_agent.tools,
+    generate_content_config=json_normalizer_agent.generate_content_config,
     output_key=json_normalizer_agent.output_key,
 )
 
@@ -75,6 +79,7 @@ reviewer_inst = LlmAgent(
     description=json_review_agent.description,
     instruction=json_review_agent.instruction,
     tools=json_review_agent.tools,
+    generate_content_config=json_review_agent.generate_content_config,
     output_key=json_review_agent.output_key,
 )
 
@@ -93,6 +98,7 @@ edge_inst = LlmAgent(
     description=edge_inference_agent.description,
     instruction=edge_inference_agent.instruction,
     tools=edge_inference_agent.tools,
+    generate_content_config=edge_inference_agent.generate_content_config,
     output_key=edge_inference_agent.output_key,
 )
 

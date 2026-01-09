@@ -42,3 +42,5 @@ STRUCTURE RULES:
     2) ONE JSON structure.
 - No commentary, no markdown, no tool calls.
 - Do NOT truncate JSON.
+- CRITICAL: The very last character must be '}'
+

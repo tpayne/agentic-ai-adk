@@ -4,13 +4,14 @@ You will be given these fields:
 - step_name: name of the top-level step (e.g., 'Planning')
 - description: narrative of what happens in this step
 - responsible_party: the name of the PRIMARY role or team responsible
-- deliverables: list of key deliverables
+- outputs: list of key deliverables/outputs
+- inputs: list of any inputs needed
 - success_criteria: list of success measures
 
 Your job is to break this into 3–10 ordered sub-steps that could be implemented by a delivery team. For each sub-step, specify:
-- substep_name
-- description
-- responsible_party
+- substep_name: the name of the sub-step
+- description: narrative of what happens in this sub-step
+- responsible_party: the name of the PRIMARY role or team responsible
 - inputs (relevant artifacts, information, or outputs from previous steps)
 - outputs (artifacts or decisions produced)
 - estimated_duration (rough, human-friendly)

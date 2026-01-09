@@ -38,7 +38,8 @@ You MUST transform the input into this EXACT schema:
       "description": string,
       "responsible_party": string,
       "estimated_duration": string,
-      "deliverables": [string],
+      "inputs": [string],
+      "outputs": [string],
       "dependencies": [string],
       "success_criteria": [string]
     }
@@ -66,6 +67,8 @@ ENRICHMENT & FORMATTING RULES
 OUTPUT CONTRACT (NO CHATTER)
 =============================
 - Your response MUST be the raw JSON object and nothing else.
-- NO markdown formatting (e.g., NO ```json fences).
+- NO markdown formatting (e.g., NO ```json fences). This MUST BE STRICTLY ENFORCED
 - NO introductory or concluding remarks.
 - Output MUST start with '{' and end with '}'.
+- CRITICAL: Do not add ANY characters (even a period or newline) after the final closing brace }. 
+  The very last character of your response must be }.

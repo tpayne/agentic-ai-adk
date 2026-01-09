@@ -416,7 +416,11 @@ def generate_clean_diagram() -> str:
     
     try:
         # LOAD DATA
-        inferred_name, inferred_edges, lane_map, label_map = _infer_edges_from_json()
+        result = _infer_edges_from_json()
+        if not result:
+            return "ERROR: Could not infer edges. Ensure output/process_data.json exists."
+            
+        inferred_name, inferred_edges, lane_map, label_map = result
         final_name = (inferred_name or "Process Architecture").strip()
         edges = inferred_edges or []
         
@@ -515,10 +519,12 @@ def generate_clean_diagram() -> str:
         plt.title(f"Process Architecture: {final_name}", fontsize=15, pad=30, fontweight='bold')
         plt.axis("off")
 
+        logger.info("Diagram generation complete. Saving output...")
+
         # 7. SAVE
         out_path = "output/process_flow.png"
-        if process_name:
-            out_path = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
+        if final_name:
+            out_path = f"output/{final_name.lower().replace(' ', '_')}_flow.png"
         else:
             out_path = "output/process_flow.png"
 
