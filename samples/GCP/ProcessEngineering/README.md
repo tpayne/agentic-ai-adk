@@ -1,6 +1,6 @@
 # ADK Business Process Architect
 
-This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through [...]
+This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to generating professional process documentation and validated workflows.
 
 Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process based on that business process request.
 
