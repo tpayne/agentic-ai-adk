@@ -1,0 +1,253 @@
+:root {
+    --bg: #f5f5f5;
+    --bg-panel: #ffffff;
+    --bg-lane-even: #ffffff;
+    --bg-lane-odd: #f0f0f0;
+    --border: #cccccc;
+    --text: #222222;
+    --muted: #555555;
+    --accent: #0077cc;
+    --accent-2: #ff6600;
+    --node-fill: #ffffff;
+    --node-stroke: #333333;
+    --minimap-bg: #ffffff;
+}
+
+:root.dark {
+    --bg: #111111;
+    --bg-panel: #1e1e1e;
+    --bg-lane-even: #1a1a1a;
+    --bg-lane-odd: #151515;
+    --border: #444444;
+    --text: #f0f0f0;
+    --muted: #aaaaaa;
+    --accent: #4ea3ff;
+    --accent-2: #ffb347;
+    --node-fill: #222222;
+    --node-stroke: #dddddd;
+    --minimap-bg: #222222;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+#breadcrumb {
+    padding: 8px 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#breadcrumb span {
+    cursor: default;
+}
+
+#breadcrumb .crumb-clickable {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+#top-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+
+#top-controls button {
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+#container {
+    display: flex;
+    height: calc(100vh - 40px);
+}
+
+#canvas-container {
+    flex: 1;
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+}
+
+#info-panel {
+    width: 340px;
+    border-left: 1px solid var(--border);
+    background: var(--bg-panel);
+    padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+#process-title {
+    margin-top: 0;
+    margin-bottom: 6px;
+    font-size: 18px;
+}
+
+#search-box {
+    margin-bottom: 10px;
+    width: 100%;
+    padding: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+#lane-filters {
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+#lane-filters label {
+    display: block;
+    cursor: pointer;
+}
+
+.lane-label {
+    font-weight: bold;
+    fill: var(--text);
+}
+
+.node rect {
+    fill: var(--node-fill);
+    stroke: var(--node-stroke);
+    stroke-width: 1.4;
+}
+
+.node text {
+    pointer-events: none;
+    fill: var(--text);
+}
+
+.info-icon {
+    cursor: pointer;
+    font-size: 14px;
+    fill: var(--accent);
+    pointer-events: all;
+}
+
+.duration-text {
+    fill: var(--muted);
+    font-size: 12px;
+}
+
+.io-text-input {
+    fill: var(--accent);
+    font-size: 11px;
+}
+
+.io-text-output {
+    fill: var(--accent-2);
+    font-size: 11px;
+}
+
+.highlight {
+    stroke: var(--accent-2) !important;
+    stroke-width: 3 !important;
+}
+
+#diagram {
+    background: var(--bg);
+}
+
+#minimap {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 200px;
+    height: 120px;
+    border: 1px solid var(--border);
+    background: var(--minimap-bg);
+    opacity: 0.85;
+    z-index: 20;
+}
+
+#minimap-viewport {
+    fill: none;
+    stroke: red;
+    stroke-width: 1.5;
+    pointer-events: none;
+}
+
+#reset-zoom-btn {
+    position: absolute;
+    top: 10px;
+    z-index: 10;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+#zoom-in-btn,
+#zoom-out-btn {
+    position: absolute;
+    top: 10px;
+    z-index: 100;
+    padding: 4px 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#zoom-in-btn {
+    right: 130px;
+}
+
+#zoom-out-btn {
+    right: 100px;
+}
+
+#reset-zoom-btn {
+    right: 10px;
+}
+
+#modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#modal {
+    background: var(--bg-panel);
+    color: var(--text);
+    padding: 16px;
+    max-width: 520px;
+    max-height: 70vh;
+    overflow-y: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+}
+
+#modal h3 {
+    margin-top: 0;
+}
+
+#modal pre {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 8px;
+    font-size: 12px;
+    overflow-x: auto;
+}
+
+#modal button {
+    margin-top: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+a {
+    color: var(--accent);
+}
