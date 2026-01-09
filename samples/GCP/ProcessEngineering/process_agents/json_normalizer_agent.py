@@ -100,7 +100,7 @@ json_normalizer_agent = LlmAgent(
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",
     instruction=load_instruction("json_normalizer_agent.txt"),
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.4,
+        temperature=0.1,
         top_p=1,
         max_output_tokens=8192,
     ),

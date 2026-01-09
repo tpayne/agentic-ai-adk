@@ -148,7 +148,7 @@ json_update_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Update_Normalizer_Sequence",
             sub_agents=[normalizer_inst, reviewer_inst],
-            max_iterations=10,
+            max_iterations=5,
         ),
         writer_inst,
     ],
