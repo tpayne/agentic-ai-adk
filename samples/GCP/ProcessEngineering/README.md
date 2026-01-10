@@ -9,7 +9,7 @@ In other words, this agent is used for automated process engineering - going fro
 > NOTE
 > - Treat this ADK sample as a proof-of-concept. Large language models can produce unpredictable results.
 > - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
-> - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. 
+> - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 > - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
 > - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
 
