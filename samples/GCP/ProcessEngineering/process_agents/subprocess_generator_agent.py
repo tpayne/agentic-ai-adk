@@ -39,7 +39,6 @@ def build_subprocess_generator_agent():
         generate_content_config=types.GenerateContentConfig(
             temperature=0.6,
             top_p=0.9,
-            # put_tokens=8192
         ),
         instruction=load_instruction("subprocess_generator_agent.txt"),
         input_schema=None,

@@ -33,4 +33,8 @@ json_writer_agent = LlmAgent(
         persist_final_json,
         load_master_process_json
     ],  # Use the exposed tool only
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.1,
+        top_p=1,
+    ),
 )

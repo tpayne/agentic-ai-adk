@@ -39,7 +39,7 @@ json_review_agent = LlmAgent(
     ],
     instruction=load_instruction("json_review_agent.txt"),
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.2,
+        temperature=0.1,
         top_p=1,
     ),
 )

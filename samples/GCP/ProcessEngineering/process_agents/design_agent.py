@@ -50,6 +50,5 @@ design_agent = LlmAgent(
     output_key="approved_json",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2,
-        # max_output_tokens=8192
     ),
 )
