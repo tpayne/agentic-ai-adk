@@ -5,7 +5,11 @@ import time
 import logging
 import random
 
-from .utils import load_instruction
+from .utils import (
+    load_instruction,
+    save_iteration_feedback,
+)
+
 
 logger = logging.getLogger("ProcessArchitect.Analysis")
 
@@ -29,5 +33,9 @@ analysis_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Performs deep analysis of process descriptions.',
     instruction=load_instruction("analysis_agent.txt"),
-    tools=[log_analysis_metadata, record_analysis_request],
+    tools=[
+        log_analysis_metadata,
+        record_analysis_request,
+        save_iteration_feedback
+    ],
 )

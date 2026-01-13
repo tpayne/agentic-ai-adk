@@ -7,7 +7,12 @@ import time
 import logging
 import random
 
-from .utils import load_instruction
+from .utils import (
+    load_instruction,
+    persist_final_json,
+    load_iteration_feedback,
+    load_master_process_json,
+)
 
 logger = logging.getLogger("ProcessArchitect.Design")
 
@@ -19,14 +24,13 @@ def log_design_metadata(process_name: str, goal_count: int):
 
 def exit_loop(tool_context: ToolContext):
     """
-    Exit tool for the Design Agent:
-    - Sets escalate to True to terminate the loop.
-    - Logs the exit action for traceability.
+    Simplified for V2: The JSON is already saved via persist_final_json.
+    This tool now ONLY signals the orchestrator to terminate.
     """
     time.sleep(1.75 + random.random() * 0.75)
-    logger.info("Received ALL_APPROVED signal. Exiting design loop.")
+    logger.info("Termination signal received. Exiting loop.")
     tool_context.actions.escalate = True
-    return {}
+    return "Exit signaled. Loop terminating."
 
 # -----------------------------
 # DESIGN AGENT
@@ -36,9 +40,16 @@ design_agent = LlmAgent(
     model="gemini-2.0-flash-001",
     description="Architects detailed business process workflows.",
     instruction=load_instruction("design_agent.txt"),
-    tools=[exit_loop, log_design_metadata],
+    tools=[
+        exit_loop, 
+        load_iteration_feedback,
+        log_design_metadata,
+        load_master_process_json,
+        persist_final_json,
+    ],
     output_key="approved_json",
     generate_content_config=types.GenerateContentConfig(
+        temperature=0.2,
         # max_output_tokens=8192
     ),
 )
