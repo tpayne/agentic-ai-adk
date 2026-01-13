@@ -34,7 +34,7 @@ You MUST choose exactly ONE of the following response formats:
 
 --- OPTION A: REVISION REQUIRED ---
 Use this if ANY criteria fail:
-- You MUST CALL the tool 'save_iteration_feedback' with the following JSON output
+- FIRST, you MUST CALL the tool 'save_iteration_feedback' with the following JSON output
   [
     {
       "error_type": "schema|enrichment|stakeholders|consistency|quality|other",
@@ -42,8 +42,7 @@ Use this if ANY criteria fail:
       "instruction": "detailed fix instruction"
     }
   ]
-- THEN you must output EXACTLY
-    REVISION REQUIRED
+- SECOND, you MUST ONLY output the string 'REVISION REQUIRED'. DO NOT OUTPUT ANY JSON.
 
 --- OPTION B: JSON APPROVED ---
 Use this if and ONLY if ALL criteria are met:
@@ -53,7 +52,7 @@ Use this if and ONLY if ALL criteria are met:
     "notes": "The JSON is approved."
   }
 - SECOND, CALL the tool 'exit_loop' to signal the end of the normalization stage.
-- Your only chat output should be the string 'JSON APPROVED'
+- Your ONLY chat output MUST be the string 'JSON APPROVED'. DO NOT OUTPUT ANY JSON.
 
 # RULES OF ENGAGEMENT:
 - NO MARKDOWN: Never use ```json or any other markdown fences.

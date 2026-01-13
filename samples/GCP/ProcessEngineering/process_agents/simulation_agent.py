@@ -9,6 +9,7 @@ from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
 from .utils import (
     load_instruction,
@@ -381,5 +382,9 @@ simulation_agent = LlmAgent(
         save_iteration_feedback,
         simulate_process_performance
     ],
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.1,
+        top_p=1,
+    ),
     instruction=load_instruction("simulation_agent.txt"),
 )

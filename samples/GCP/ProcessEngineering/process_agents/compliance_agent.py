@@ -27,7 +27,6 @@ compliance_agent = LlmAgent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
         top_p=1,
-        # max_output_tokens=8192,
     ),
     output_key="compliance_report",
 )

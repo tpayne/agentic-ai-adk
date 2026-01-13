@@ -144,6 +144,8 @@ The following are sample prompts you can use to...
 - "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
 - "Design a detailed business process for handling inventory stock-outs in a retail environment."
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
+- "Please create me a data governance and management process strategy for managing corporate data that will be used in AI strategies"
+
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
