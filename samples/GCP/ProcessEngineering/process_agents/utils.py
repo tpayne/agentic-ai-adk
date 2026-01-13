@@ -3,6 +3,10 @@ import os
 import logging
 import json
 import glob
+import time
+import random
+import re
+import traceback
 
 from typing import Any
 
@@ -17,7 +21,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 def _log_agent_activity(message: str):
     """Internal logging helper."""
     time.sleep(1.75 + random.random() * 0.75)
-    logger.info(f"--- [DIAGNOSTIC] JSON_Writer: {message} ---")
+    logger.info(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
 
 def _extract_json_brace_balanced(text: str) -> str:
@@ -49,7 +53,7 @@ def _save_raw_data_to_json(json_content) -> str:
     This is internal. The only exposed tool is persist_final_json.
     """
     try:
-        logger.info("Saving normalized JSON to file...")
+        _log_agent_activity("Saving normalized JSON to file...")
         os.makedirs("output", exist_ok=True)
         path = "output/process_data.json"
 
@@ -134,7 +138,7 @@ def _save_raw_data_to_json(json_content) -> str:
         with open(path, "w", encoding="utf-8") as f:
             f.write(clean_json)
 
-        logger.info(
+        _log_agent_activity(
             f"Successfully saved JSON to {path} "
             f"({'repaired' if used_repair else 'clean'})."
         )
@@ -205,6 +209,7 @@ def load_iteration_feedback() -> dict:
     Loads feedback, metrics, and compliance violations from iteration_feedback.json.
     This is the 'Inbox' for the Design Agent to see what other agents have requested.
     """
+    _log_agent_activity("Loading iteration feedback from disk...")
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     if os.path.exists(path):
         try:
@@ -220,12 +225,13 @@ def save_iteration_feedback(feedback_data: Any) -> str:
     Accepts Any type and handles conversion from string or dict to valid JSON.
     """
     try:
+        _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
+
         os.makedirs("output", exist_ok=True)
         path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
         
         # Artificial delay to prevent API burst issues in the loop
         time.sleep(1.75 + random.random() * 0.75)
-        logger.info(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
 
         # Type Handling Logic
         if isinstance(feedback_data, dict):
@@ -246,7 +252,7 @@ def save_iteration_feedback(feedback_data: Any) -> str:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(final_content, f, indent=2, ensure_ascii=False)
             
-        logger.info(f"Feedback successfully saved to {path}")
+        _log_agent_activity(f"Feedback successfully saved to {path}")
         return f"SUCCESS: Feedback persisted to {path}"
 
     except Exception as e:
@@ -273,7 +279,7 @@ def load_master_process_json() -> dict:
 
 # Load instruction from a file in the instructions directory
 def load_instruction(filename: str) -> str:
-    logger.info(f"Loading instruction from {filename}")
+    _log_agent_activity(f"Loading instruction from {filename}")
     try:
         instruction_path = os.path.join(PROJECT_ROOT, "instructions", filename)
         with open(instruction_path, "r", encoding="utf-8") as f:
@@ -335,5 +341,5 @@ def validate_instruction_files():
             logger.error(f"Unreadable: {unreadable}")
         return False
     else:
-        logger.info("All instruction files validated successfully.")
+        _log_agent_activity("All instruction files validated successfully.")
         return True

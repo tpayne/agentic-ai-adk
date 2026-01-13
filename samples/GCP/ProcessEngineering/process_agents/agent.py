@@ -3,6 +3,14 @@ import os
 import sys
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load variables from .env file into os.environ
+load_dotenv()
+
+if not os.getenv("GOOGLE_API_KEY"):
+    raise EnvironmentError("GOOGLE_API_KEY is not set in environment variables.")
+
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 
 # Import sub-agents
@@ -78,6 +86,7 @@ logger.info("Validating instruction files...")
 if not validate_instruction_files():
     logger.error("Instruction file validation failed. Aborting pipeline.")
     sys.exit(1)
+
 
 # ---------------------------------------------------------
 # ROOT AGENT
