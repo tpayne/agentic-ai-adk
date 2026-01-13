@@ -1,0 +1,94 @@
+{
+  "step_name": "Provide Data Literacy Training",
+  "subprocess_flow": [
+    {
+      "substep_name": "Identify Training Needs",
+      "description": "Assess the data literacy skills and knowledge of different stakeholder groups. This involves conducting surveys, interviews, and skill assessments to identify training gaps and tailor training content to specific needs. Understanding the audience is crucial for effective training delivery.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Training needs assessment report"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive training needs assessment report"
+      ]
+    },
+    {
+      "substep_name": "Develop Training Materials",
+      "description": "Develop training materials that cover key data literacy concepts, such as data quality, data security, data privacy, and data ethics. This involves creating presentations, handouts, exercises, and case studies. The materials should be engaging, informative, and tailored to the specific needs of each stakeholder group.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Training needs assessment report"
+      ],
+      "outputs": [
+        "Training materials"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [
+        "Identify Training Needs"
+      ],
+      "success_criteria": [
+        "High-quality and relevant training materials"
+      ]
+    },
+    {
+      "substep_name": "Schedule Training Sessions",
+      "description": "Schedule training sessions for different stakeholder groups, taking into account their availability and preferences. This involves coordinating with department heads, securing training facilities, and communicating the training schedule to participants. The schedule should be designed to maximize participation and minimize disruption to business operations.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Training materials"
+      ],
+      "outputs": [
+        "Training schedule"
+      ],
+      "estimated_duration": "0.25 week",
+      "dependencies": [
+        "Develop Training Materials"
+      ],
+      "success_criteria": [
+        "Well-organized and communicated training schedule"
+      ]
+    },
+    {
+      "substep_name": "Conduct Training Sessions",
+      "description": "Conduct the training sessions, delivering the training materials in an engaging and interactive manner. This involves facilitating discussions, answering questions, and providing hands-on exercises. The training sessions should be designed to promote active learning and knowledge retention.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Training schedule",
+        "Training materials"
+      ],
+      "outputs": [
+        "Trained staff"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [
+        "Schedule Training Sessions"
+      ],
+      "success_criteria": [
+        "Effective delivery of training content and active participant engagement"
+      ]
+    },
+    {
+      "substep_name": "Evaluate Training Effectiveness",
+      "description": "Evaluate the effectiveness of the training sessions by collecting feedback from participants and assessing their knowledge retention. This involves administering surveys, quizzes, and post-training assessments. The evaluation results should be used to improve future training sessions.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Trained staff"
+      ],
+      "outputs": [
+        "Training evaluation report"
+      ],
+      "estimated_duration": "0.25 week",
+      "dependencies": [
+        "Conduct Training Sessions"
+      ],
+      "success_criteria": [
+        "Comprehensive training evaluation report with actionable recommendations"
+      ]
+    }
+  ]
+}

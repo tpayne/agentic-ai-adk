@@ -1,0 +1,114 @@
+{
+  "step_name": "Regularly Audit and Update Data Governance Practices",
+  "subprocess_flow": [
+    {
+      "substep_name": "Schedule Regular Audits",
+      "description": "Establish a schedule for regular audits of data governance practices. This involves defining the audit frequency, scope, and methodology. The schedule should align with the organization's risk profile and regulatory requirements. A well-defined schedule ensures consistent monitoring and evaluation.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [],
+      "outputs": [
+        "Audit schedule"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Approved audit schedule"
+      ]
+    },
+    {
+      "substep_name": "Conduct Data Governance Audits",
+      "description": "Conduct comprehensive audits of data governance policies, procedures, and technologies. This involves reviewing documentation, interviewing stakeholders, and testing controls. The audits should assess the effectiveness of data governance practices and identify areas for improvement.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Audit schedule",
+        "Data governance policies",
+        "Business requirements",
+        "Regulatory changes"
+      ],
+      "outputs": [
+        "Audit findings"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Schedule Regular Audits"
+      ],
+      "success_criteria": [
+        "Comprehensive audit findings documented"
+      ]
+    },
+    {
+      "substep_name": "Analyze Audit Findings",
+      "description": "Analyze the audit findings to identify root causes of any deficiencies or non-compliance issues. This involves assessing the impact of the findings and prioritizing remediation efforts. A thorough analysis is crucial for developing effective corrective actions.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Audit findings"
+      ],
+      "outputs": [
+        "Root cause analysis report"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [
+        "Conduct Data Governance Audits"
+      ],
+      "success_criteria": [
+        "Clear and actionable root cause analysis report"
+      ]
+    },
+    {
+      "substep_name": "Develop Remediation Plans",
+      "description": "Develop remediation plans to address the audit findings and improve data governance practices. This involves defining specific actions, assigning responsibilities, and setting timelines for completion. The remediation plans should be aligned with the organization's strategic goals and risk tolerance.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Root cause analysis report"
+      ],
+      "outputs": [
+        "Remediation plans"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [
+        "Analyze Audit Findings"
+      ],
+      "success_criteria": [
+        "Comprehensive and actionable remediation plans"
+      ]
+    },
+    {
+      "substep_name": "Implement Remediation Plans",
+      "description": "Implement the remediation plans, taking corrective actions to address the audit findings and improve data governance practices. This involves updating policies, procedures, and technologies. The implementation should be monitored to ensure that it is effective and sustainable.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Remediation plans"
+      ],
+      "outputs": [
+        "Improved data governance practices"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Develop Remediation Plans"
+      ],
+      "success_criteria": [
+        "Effective implementation of remediation plans and improved data governance practices"
+      ]
+    },
+    {
+      "substep_name": "Update Data Governance Policies",
+      "description": "Update data governance policies and standards to reflect changes in business requirements, regulatory requirements, or audit findings. This involves revising existing policies, creating new policies, and communicating the changes to stakeholders. Updated policies ensure that data governance practices remain relevant and effective.",
+      "responsible_party": "Data Governance Committee",
+      "inputs": [
+        "Improved data governance practices",
+        "Business requirements",
+        "Regulatory changes"
+      ],
+      "outputs": [
+        "Updated data governance policies"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Implement Remediation Plans"
+      ],
+      "success_criteria": [
+        "Up-to-date data governance policies aligned with business and regulatory requirements"
+      ]
+    }
+  ]
+}

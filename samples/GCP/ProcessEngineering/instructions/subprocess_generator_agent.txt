@@ -24,19 +24,5 @@ Your task is to expand that step into a detailed level-2/3 subprocess.
      'output' from the parent step.
 
 # OUTPUT CONTRACT
-Return ONLY a JSON object matching the below JSON schema. No conversational filler, no markdown blocks, and no preamble.
-{
-    "step_name": "string",
-    "subprocess_flow": [
-        {
-        "substep_name": "string",
-        "description": "multi-sentence professional paragraph",
-        "responsible_party": "string",
-        "inputs": ["string"],
-        "outputs": ["string"],
-        "estimated_duration": "string",
-        "dependencies": ["string"],
-        "success_criteria": ["string"]
-        }
-    ]
-}
+- Return ONLY a JSON object. No conversational filler, no markdown blocks, and no preamble.
+- CRITICAL: Do not provide any text outside of the JSON object.
