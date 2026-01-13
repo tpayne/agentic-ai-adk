@@ -83,6 +83,7 @@ Suggested local setup (non-destructive):
 
 ```bash
 # create a venv (do not delete an existing venv unless you mean to)
+rm -fr .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
