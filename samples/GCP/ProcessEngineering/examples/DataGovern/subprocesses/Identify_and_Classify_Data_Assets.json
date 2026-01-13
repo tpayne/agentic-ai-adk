@@ -1,0 +1,98 @@
+{
+  "step_name": "Identify and Classify Data Assets",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define Data Asset Scope",
+      "description": "Determine the scope of data assets to be included in the data inventory and classification process. This involves identifying the types of data sources, systems, and applications that will be assessed. The scope should align with the organization's data governance framework and business priorities.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Data governance policies",
+        "Business requirements"
+      ],
+      "outputs": [
+        "Defined data asset scope"
+      ],
+      "estimated_duration": "0.5 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Clearly defined scope of data assets"
+      ]
+    },
+    {
+      "substep_name": "Discover Data Assets",
+      "description": "Utilize automated data discovery tools and manual techniques to identify data assets within the defined scope. This involves scanning data sources, reviewing system documentation, and interviewing data owners and subject matter experts. The goal is to create a comprehensive inventory of all relevant data assets.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Defined data asset scope",
+        "Data sources"
+      ],
+      "outputs": [
+        "Initial data inventory"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Define Data Asset Scope"
+      ],
+      "success_criteria": [
+        "Comprehensive initial data inventory"
+      ]
+    },
+    {
+      "substep_name": "Document Data Lineage",
+      "description": "Trace the origin and flow of data assets through various systems and processes. This involves documenting data transformations, data dependencies, and data integrations. Data lineage provides valuable insights into data quality, data security, and data compliance.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Initial data inventory"
+      ],
+      "outputs": [
+        "Documented data lineage"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Discover Data Assets"
+      ],
+      "success_criteria": [
+        "Complete and accurate data lineage documentation"
+      ]
+    },
+    {
+      "substep_name": "Classify Data Assets",
+      "description": "Classify data assets based on sensitivity, business value, and regulatory requirements. This involves assigning data classification levels (e.g., public, confidential, restricted) to each data asset. The classification should align with the organization's data governance policies and security standards.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Documented data lineage",
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Data classification"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Document Data Lineage"
+      ],
+      "success_criteria": [
+        "Accurate data classification for all data assets"
+      ]
+    },
+    {
+      "substep_name": "Validate and Finalize Data Inventory",
+      "description": "Validate the data inventory and classification with data owners and subject matter experts. Incorporate feedback and revise the inventory and classification as needed. Finalize the data inventory and classification, ensuring that it is complete, accurate, and up-to-date.",
+      "responsible_party": "Data Stewards",
+      "inputs": [
+        "Data classification",
+        "Stakeholder feedback"
+      ],
+      "outputs": [
+        "Final data inventory",
+        "Data classification"
+      ],
+      "estimated_duration": "1.5 weeks",
+      "dependencies": [
+        "Classify Data Assets"
+      ],
+      "success_criteria": [
+        "Complete and accurate data inventory and classification"
+      ]
+    }
+  ]
+}

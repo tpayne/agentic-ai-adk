@@ -34,18 +34,19 @@ class SubprocessFlow(BaseModel):
 # -----------------------------
 def build_subprocess_generator_agent():
     return LlmAgent(
-        name="Subprocess_Generator_Agent",
-        model=MODEL,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=0.6,
-            top_p=0.9,
-            # put_tokens=8192
-        ),
-        instruction=load_instruction("subprocess_generator_agent.txt"),
-        input_schema=None,
-        output_schema=SubprocessFlow,
-        output_key="current_subprocess_flow",
-    )
+            name="Subprocess_Generator_Agent",
+            model=MODEL,
+            generate_content_config=types.GenerateContentConfig(
+                temperature=0.1, # Lowered to 0.1 for maximum structural stability
+                top_p=0.9,
+                # FORCED JSON OUTPUT: This tells the API to only return raw JSON
+                response_mime_type="application/json",
+            ),
+            instruction=load_instruction("subprocess_generator_agent.txt"),
+            input_schema=None,
+            output_schema=SubprocessFlow,
+            output_key="current_subprocess_flow",
+        )
 
 
 # Keep the original singleton for the CREATE pipeline

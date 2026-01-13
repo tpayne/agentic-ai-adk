@@ -9,8 +9,13 @@ from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
 from google.adk.tools.tool_context import ToolContext
+from google.genai import types
 
-from .utils import load_instruction
+from .utils import (
+    load_instruction,
+    load_master_process_json,
+    save_iteration_feedback
+)
 
 import time
 import random
@@ -372,6 +377,14 @@ simulation_agent = LlmAgent(
     name="Simulation_Optimization_Agent",
     model="gemini-2.0-flash-001",
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities.",
-    tools=[simulate_process_performance],
+    tools=[
+        load_master_process_json,
+        save_iteration_feedback,
+        simulate_process_performance
+    ],
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.1,
+        top_p=1,
+    ),
     instruction=load_instruction("simulation_agent.txt"),
 )

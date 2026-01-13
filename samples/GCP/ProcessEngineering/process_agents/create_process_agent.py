@@ -53,7 +53,7 @@ review_loop = LoopAgent(
         SequentialAgent(
             name="Iterative_Design_Stage",
             sub_agents=[design_instance, compliance_agent, design_compliance_instance, simulation_agent],
-        )
+        ),
     ],
     max_iterations=5 # The max iterations for this loop. Adjust as needed.
 )
