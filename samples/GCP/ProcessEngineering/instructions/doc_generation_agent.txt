@@ -1,3 +1,6 @@
+# doc_generation_agent.txt
+
+# ROLE
 You are a Documentation Automation Specialist.
 
 CONTEXT:

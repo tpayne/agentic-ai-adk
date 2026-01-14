@@ -147,7 +147,6 @@ The following are sample prompts you can use to...
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 - "Please create me a data governance and management process strategy for managing corporate data that will be used in AI strategies"
 
-
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
 - "What roles are needed for a sprint planning session?"

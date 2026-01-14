@@ -4,11 +4,20 @@ import logging
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 from google.genai import types
 
-from .utils import load_instruction, load_full_process_context
+from .utils import (
+    load_instruction, 
+    load_full_process_context,
+    load_master_process_json,
+    persist_final_json,
+)
 
 # Import the base agents to access their configuration
 from .design_agent import design_agent
-from .compliance_agent import compliance_agent
+from .compliance_agent import (
+    compliance_agent, 
+    log_compliance_metadata,
+)
+
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .edge_inference_agent import edge_inference_agent
@@ -26,7 +35,7 @@ update_analysis_agent = LlmAgent(
     name="Process_Update_Analyst",
     model="gemini-2.0-flash-001",
     instruction=load_instruction("update_analysis_agent.txt"),
-    tools=[load_full_process_context],
+    tools=[load_full_process_context,persist_final_json],
     output_key="analysis_output",
 )
 
@@ -39,7 +48,12 @@ design_inst = LlmAgent(
     name=design_agent.name + "_Update",
     model=design_agent.model,
     description=design_agent.description,
-    instruction=design_agent.instruction,
+    instruction=(
+        design_agent.instruction +
+        "\n\nCRITICAL: Ignore all previous chat text. Your ONLY valid starting "
+        "point is the data from 'load_master_process_json'. "
+        "DO NOT output JSON to the chat. Use 'persist_final_json' tool only."
+    ), # Comma added, concatenated strings grouped in parentheses for safety
     tools=design_agent.tools,
     generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
@@ -52,6 +66,7 @@ compliance_inst = LlmAgent(
     instruction=compliance_agent.instruction,
     tools=compliance_agent.tools,
     output_key=compliance_agent.output_key,
+    generate_content_config=compliance_agent.generate_content_config,
 )
 
 simulation_inst = LlmAgent(
@@ -61,6 +76,7 @@ simulation_inst = LlmAgent(
     instruction=simulation_agent.instruction,
     tools=simulation_agent.tools,
     output_key=simulation_agent.output_key,
+    generate_content_config=simulation_agent.generate_content_config,
 )
 
 normalizer_inst = LlmAgent(
@@ -81,6 +97,7 @@ reviewer_inst = LlmAgent(
     tools=json_review_agent.tools,
     generate_content_config=json_review_agent.generate_content_config,
     output_key=json_review_agent.output_key,
+    include_contents=json_review_agent.include_contents,
 )
 
 writer_inst = LlmAgent(
@@ -89,7 +106,7 @@ writer_inst = LlmAgent(
     description=json_writer_agent.description,
     instruction=json_writer_agent.instruction,
     tools=json_writer_agent.tools,
-    output_key=json_writer_agent.output_key,
+    generate_content_config=json_writer_agent.generate_content_config,
 )
 
 edge_inst = LlmAgent(
@@ -98,8 +115,8 @@ edge_inst = LlmAgent(
     description=edge_inference_agent.description,
     instruction=edge_inference_agent.instruction,
     tools=edge_inference_agent.tools,
+    include_contents=edge_inference_agent.include_contents,
     generate_content_config=edge_inference_agent.generate_content_config,
-    output_key=edge_inference_agent.output_key,
 )
 
 doc_inst = LlmAgent(
@@ -108,7 +125,6 @@ doc_inst = LlmAgent(
     description=doc_generation_agent.description,
     instruction=doc_generation_agent.instruction,
     tools=doc_generation_agent.tools,
-    output_key=doc_generation_agent.output_key,
 )
 
 # Subprocess driver is NOT an LlmAgent — clone manually
@@ -118,8 +134,9 @@ subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 design_compliance_inst = LlmAgent(
     name="Design_Compliance_Update_Review",
     model=design_agent.model,
-    instruction="Review the design against compliance rules. Suggest fixes if needed.",
-    output_key=design_agent.output_key,
+    instruction="Review the design against compliance rules. Report findings ONLY via log_compliance_metadata. Output ONLY 'REVIEW_COMPLETE'.",
+    output_key="update_compliance_review",
+    tools=[load_master_process_json,log_compliance_metadata],
 )
 
 # ---------------------------------------------------------

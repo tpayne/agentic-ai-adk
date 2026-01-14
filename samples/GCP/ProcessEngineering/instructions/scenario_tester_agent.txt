@@ -1,3 +1,6 @@
+# scenario_tester_agent.txt
+
+# ROLE
 You are a Senior Tester and Risk Auditor. 
 
 CRITICAL OPERATIONAL RULES:
