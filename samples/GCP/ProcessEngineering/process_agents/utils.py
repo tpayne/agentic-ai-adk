@@ -8,7 +8,7 @@ import random
 import re
 import traceback
 
-from typing import Any
+from typing import Any, List, Union
 
 logger = logging.getLogger("ProcessArchitect.Utils")
 
@@ -217,49 +217,55 @@ def load_iteration_feedback() -> dict:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Error loading feedback file: {e}")
+
     return {"status": "No feedback found", "issues": []}
 
-def save_iteration_feedback(feedback_data: Any) -> str:
+def save_iteration_feedback(feedback_data: Any):
     """
-    Saves feedback, metrics, or violations to iteration_feedback.json.
-    Accepts Any type and handles conversion from string or dict to valid JSON.
+    Saves iteration feedback to disk. 
+    Ensures that the 'data' field is saved as a clean JSON list/object, 
+    not a stringified representation.
     """
-    try:
-        _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
+    _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
 
-        os.makedirs("output", exist_ok=True)
-        path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
-        
-        # Artificial delay to prevent API burst issues in the loop
-        time.sleep(1.75 + random.random() * 0.75)
-
-        # Type Handling Logic
-        if isinstance(feedback_data, dict):
-            # Already a dict, use as-is
-            final_content = feedback_data
-        elif isinstance(feedback_data, str):
-            # Attempt to parse if it's a JSON string, otherwise wrap it
-            try:
-                final_content = json.loads(feedback_data)
-            except json.JSONDecodeError:
-                logger.warning("Feedback input is a string but not valid JSON. Wrapping in issue object.")
-                final_content = {"status": "REVISION REQUIRED", "raw_feedback": feedback_data}
-        else:
-            # Fallback for unexpected types (int, list, etc.)
-            final_content = {"status": "REVISION REQUIRED", "data": str(feedback_data)}
-
-        # Write to file
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(final_content, f, indent=2, ensure_ascii=False)
-            
-        _log_agent_activity(f"Feedback successfully saved to {path}")
-        return f"SUCCESS: Feedback persisted to {path}"
-
-    except Exception as e:
-        error_msg = f"ERROR: Failed to save feedback: {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    os.makedirs("output", exist_ok=True)
+    path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     
+    # Artificial delay to prevent API burst issues in the loop
+    time.sleep(1.75 + random.random() * 0.75)
+    
+    # 1. Clean the incoming data
+    # Handle cases where the LLM sends a stringified list/dict
+    processed_data = feedback_data
+    if isinstance(feedback_data, str):
+        try:
+            # Normalize common LLM output issues (single quotes)
+            normalized_str = feedback_data.replace("'", '"')
+            processed_data = json.loads(normalized_str)
+        except Exception:
+            # If parsing fails, treat it as a raw comment string
+            processed_data = feedback_data
+
+    # Determine status based on presence of feedback or approval markers
+    status = "REVISION REQUIRED"
+    if not processed_data or (isinstance(processed_data, dict) and processed_data.get("status") == "JSON APPROVED"):
+        status = "JSON APPROVED"
+
+    payload = {
+        "status": status,
+        "data": processed_data # Saved as a clean JSON structure
+    }
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        
+        logger.info(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
+        return f"SUCCESS: Feedback persisted to {path}"
+    except Exception as e:
+        logger.error(f"Error saving feedback: {e}")
+        return f"ERROR: Could not save feedback: {str(e)}"
+
 # Load the master process JSON from output/process_data.json
 def load_master_process_json() -> dict:
     """
