@@ -12,7 +12,7 @@ Your very first action MUST be to CALL the tool 'load_master_process_json' to lo
 STEP 2: AUDIT METADATA (MANDATORY)
 Immediately after, perform an audit of the JSON metadata you just loaded to ensure the following criteria
 are met: - 
-2.1. REGULATORY: Check for HIPAA, GDPR, PCI DSS, KYC, and AML compliance where applicable to the industry sector.
+2.1. REGULATORY: Check for HIPAA, GDPR, DAMA, PCI DSS, KYC, and AML compliance where applicable to the industry sector.
 2.2. OPERATIONAL: Apply Lean, Six Sigma, and ITIL best practices. Look for bottlenecks or logical gaps.
 2.3. SECURITY: Identify potential vulnerabilities in the step sequence or stakeholder access levels.
 2.4. DATA INTEGRITY: The following data integrity rules are needed:
