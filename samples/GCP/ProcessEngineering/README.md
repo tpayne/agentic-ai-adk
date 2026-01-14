@@ -6,17 +6,23 @@ Basically, this agent will take a raw prompt and design, test, and document a fu
 
 In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
 
+--- 
+
 ## Status
 
 This sample has been tested and is generally stable; however, it may occasionally produce overly verbose chat outputs.
 
 Treat this ADK sample as a BETA. While current Large Language Models (LLMs) are increasingly reliable, you should always verify the tool's output to ensure it meets your specific requirements and remains stable.
 
+---
+
 ## Known issues
 
 The following are a list of known issues: -
 - Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally. You can often improve the visualization by modifying the process JSON and regenerating the diagram.
 - Agent "Chattiness": While agents are instructed to remain quiet, LLMs may occasionally disregard these constraints and output unnecessary JSON or tooling commentary. In most cases, these outputs can be safely ignored.
+
+---
 
 ## Notes
 
@@ -25,6 +31,8 @@ The following are a list of known issues: -
 > - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 > - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
 > - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
+
+---
 
 ## ⚙️ Features
 
@@ -37,6 +45,8 @@ The ADK pipeline provides:
 - **Automated High-Fidelity Artifacts**:
   - Process diagrams (level 1 and 2) embedded in the process document.
   - A professional Word document describing the business process and related information, aligned to ITIL and ISO-style conventions.
+
+---
 
 ### 🚀 Autonomous Execution Flow
 
@@ -273,3 +283,4 @@ We appreciate contributions of any size — thanks for helping improve this samp
 - If the LLM fails to call a tool, rephrase the prompt or rerun the process. Document generation (diagramming and Word export) can be run manually if needed.
 - The diagrams generated can sometimes be clipped or overlapped. To fix this you might need to modify the process or step process JSON to reduce the size of the labels or instruct the LLMs to make the step names more concise.
 
+---
