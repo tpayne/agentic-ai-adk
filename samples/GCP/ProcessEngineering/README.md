@@ -6,8 +6,21 @@ Basically, this agent will take a raw prompt and design, test, and document a fu
 
 In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
 
-> NOTE
-> - Treat this ADK sample as a proof-of-concept. Large language models can produce unpredictable results.
+## Status
+
+This sample has been tested and is generally stable; however, it may occasionally produce overly verbose chat outputs.
+
+Treat this ADK sample as a BETA. While current Large Language Models (LLMs) are increasingly reliable, you should always verify the tool's output to ensure it meets your specific requirements and remains stable.
+
+## Known issues
+
+The following are a list of known issues: -
+- Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally. You can often improve the visualization by modifying the process JSON and regenerating the diagram.
+- Agent "Chattiness": While agents are instructed to remain quiet, LLMs may occasionally disregard these constraints and output unnecessary JSON or tooling commentary. In most cases, these outputs can be safely ignored.
+
+## Notes
+
+> - Treat this ADK sample as a BETA. Large language models can produce unpredictable results.
 > - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
 > - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 > - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
