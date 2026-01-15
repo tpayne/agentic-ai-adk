@@ -135,6 +135,20 @@ def _save_raw_data_to_json(json_content) -> str:
 
         # 5. Final write of clean, repaired JSON
         clean_json = json.dumps(parsed, indent=2, ensure_ascii=False)
+
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as existing:
+                    old = json.load(existing)
+                if _json_equal(old, parsed):
+                    _log_agent_activity(
+                        f"No changes detected; skipping write to {path}."
+                    )
+                    return path
+            except Exception:
+                # If comparison fails, fall through to normal write
+                pass
+
         with open(path, "w", encoding="utf-8") as f:
             f.write(clean_json)
 
@@ -144,10 +158,18 @@ def _save_raw_data_to_json(json_content) -> str:
         )
         return path
 
+
     except Exception:
         error_trace = traceback.format_exc()
         logger.error(f"Failed to save JSON: {error_trace}")
         return "ERROR: Failed to save JSON"
+
+def _json_equal(a: dict, b: dict) -> bool:
+    """Return True if two JSON objects are semantically identical."""
+    try:
+        return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    except Exception:
+        return False
 
 # ---------------------------------------------------------------------
 # EXPOSED TOOL (SINGLE ENTRYPOINT FOR LLM)
@@ -156,25 +178,24 @@ def _save_raw_data_to_json(json_content) -> str:
 def persist_final_json(json_content) -> str:
     """
     Public tool for the LLM:
-
     - Logs that final persistence is starting.
     - Calls the internal saver with the provided JSON content.
     - Returns the final path or error message.
-
-    This is the ONLY tool the agent needs to call.
     """
     time.sleep(1.75 + random.random() * 0.75)
     try:
         _log_agent_activity("Starting final JSON file persistence")
         result = _save_raw_data_to_json(json_content)
-        _log_agent_activity(f"File persistence result: {result}")
+
+        if isinstance(result, str) and "No changes detected" not in result:
+            _log_agent_activity(f"File persistence result: {result}")
+
         return result
     except Exception:
         error_trace = traceback.format_exc()
         logger.error(f"persist_final_json failed: {error_trace}")
         return "ERROR: persist_final_json encountered an unexpected failure."
     
-
 # Tool to load the full process context (master + subprocesses)
 # process_agents/utils.py
 
