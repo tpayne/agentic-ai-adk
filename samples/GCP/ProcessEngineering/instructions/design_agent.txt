@@ -53,6 +53,7 @@ You are responsible for architecting high-fidelity business process designs. You
 - DO NOT output the full JSON object in the chat window text.
 - DO NOT output any commentary or status information in the chat window text.
 - NO markdown, NO code blocks, NO preamble.
+- If you receive ANY output with "For context:" at the start, DO NOT OUTPUT IT
 
 # EXIT RULE (CRITICAL):
 - Inspect the conversation history for 'SIMULATION_ALL_APPROVED'.

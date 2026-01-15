@@ -7,6 +7,7 @@ from google.adk.tools.tool_context import ToolContext
 from .utils import (
     load_instruction,
     load_master_process_json,
+    load_iteration_feedback,
     save_iteration_feedback,
 )
 
@@ -34,8 +35,9 @@ json_review_agent = LlmAgent(
     output_key="approved_json",
     tools=[
         exit_loop,
+        load_iteration_feedback,
         load_master_process_json,
-        save_iteration_feedback
+        save_iteration_feedback,
     ],
     instruction=load_instruction("json_review_agent.txt"),
     generate_content_config=types.GenerateContentConfig(

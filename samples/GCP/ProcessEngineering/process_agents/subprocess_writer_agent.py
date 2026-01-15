@@ -2,43 +2,88 @@
 
 import os
 import json
-import time
+import logging
+from typing import AsyncGenerator
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types
-from typing import AsyncGenerator
 from typing_extensions import override
+
+logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 
 SUBPROCESS_DIR = "output/subprocesses"
 os.makedirs(SUBPROCESS_DIR, exist_ok=True)
 
 
 class SubprocessWriterAgent(BaseAgent):
+    def __init__(self, name="Subprocess_Writer_Agent"):
+        super().__init__(name=name)
+
     @override
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+
+        # ---------------------------------------------------------
+        # Retrieve the subprocess flow from shared session state
+        # ---------------------------------------------------------
         flow = ctx.session.state.get("current_subprocess_flow")
+
         if not flow:
-            msg = "No subprocess flow found in state; nothing to write."
-            yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=msg)]))
+            logger.error(
+                f"[{self.name}] No subprocess flow found in ctx.session.state"
+            )
+            yield Event(
+                author=self.name,
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(text="Writer Error: No subprocess flow found.")],
+                ),
+            )
             return
 
+        # ---------------------------------------------------------
+        # Determine output path
+        # ---------------------------------------------------------
+        step = ctx.session.state.get("current_process_step", {})
+        step_name = step.get("step_name", "unnamed_step").replace(" ", "_")
+
+        output_dir = SUBPROCESS_DIR
+        os.makedirs(output_dir, exist_ok=True)
+
+        output_path = os.path.join(output_dir, f"{step_name}.json")
+
+        # ---------------------------------------------------------
+        # Write the subprocess flow to disk
+        # ---------------------------------------------------------
         try:
-            flow_dict = flow.model_dump() if hasattr(flow, "model_dump") else flow
-            step_name = flow_dict.get("step_name", "UnknownStep")
-            safe_step_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in step_name)
-            filename = f"{safe_step_name}.json"
-            path = os.path.join(SUBPROCESS_DIR, filename)
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(flow, f, indent=2)
 
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(flow_dict, f, indent=2)
+            logger.info(
+                f"[{self.name}] Wrote subprocess file: {output_path}"
+            )
 
-            msg = f"Subprocess flow for '{step_name}' written to {path}."
         except Exception as e:
-            msg = f"Failed to write subprocess flow: {e}"
+            logger.error(
+                f"[{self.name}] Failed to write subprocess file: {e}"
+            )
+            yield Event(
+                author=self.name,
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(text=f"Writer Error: {str(e)}")],
+                ),
+            )
+            return
 
-        yield Event(author=self.name, content=types.Content(role="model", parts=[types.Part(text=msg)]))
+        # ---------------------------------------------------------
+        # Writer produces no visible output unless you want it to
+        # ---------------------------------------------------------
+        if False:
+            yield
 
 
 # -----------------------------

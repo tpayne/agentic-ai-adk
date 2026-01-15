@@ -12,6 +12,7 @@ from google.genai import types
 from .utils import (
     load_instruction,
     load_master_process_json,
+    load_iteration_feedback,
     persist_final_json
 )
 
@@ -31,7 +32,8 @@ json_writer_agent = LlmAgent(
     instruction=load_instruction("json_writer_agent.txt"),
     tools=[
         persist_final_json,
-        load_master_process_json
+        load_master_process_json,
+        load_iteration_feedback,
     ],  # Use the exposed tool only
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,

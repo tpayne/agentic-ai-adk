@@ -11,6 +11,7 @@ logger = logging.getLogger("ProcessArchitect.Compliance")
 from .utils import (
     load_instruction,
     load_master_process_json,
+    load_iteration_feedback,
     save_iteration_feedback
 )
 
@@ -31,6 +32,7 @@ compliance_agent = LlmAgent(
     tools=[
         load_master_process_json,
         save_iteration_feedback,
+        load_iteration_feedback,
         log_compliance_metadata,
     ],
     generate_content_config=types.GenerateContentConfig(

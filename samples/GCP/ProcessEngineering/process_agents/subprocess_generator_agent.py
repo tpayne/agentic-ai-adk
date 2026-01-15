@@ -39,7 +39,6 @@ def build_subprocess_generator_agent():
             generate_content_config=types.GenerateContentConfig(
                 temperature=0.1, # Lowered to 0.1 for maximum structural stability
                 top_p=0.9,
-                # FORCED JSON OUTPUT: This tells the API to only return raw JSON
                 response_mime_type="application/json",
             ),
             instruction=load_instruction("subprocess_generator_agent.txt"),

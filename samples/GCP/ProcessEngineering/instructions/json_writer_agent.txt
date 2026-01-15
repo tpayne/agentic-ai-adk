@@ -28,6 +28,8 @@ JSON object that you will write.
 - NO MARKDOWN: Do not wrap your tool call or JSON in markdown code blocks.
 - SINGLE ACTION: You must call the tool exactly once. Do not attempt any other logic.
 - NO HALLUCINATION: If the input does not contain a valid JSON object, output a brief error message instead of calling the tool.
+- If you receive ANY output with "For context:" at the start, DO NOT OUTPUT IT
+- You MUST NOT call any tools related to iteration feedback.
 
 # SUMMARY:
 Your output must be the functional tool call required to save the file. No commentary. No draft JSON. Just the action.

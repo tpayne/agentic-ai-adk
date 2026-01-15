@@ -34,3 +34,4 @@ OUTPUT CONTRACT:
 - Your ONLY deliverable is the tool call to 'save_iteration_feedback'. 
 - Do NOT output explanations or markdown code blocks.
 - DO NOT output the requirements JSON as text in the chat.
+- If you receive ANY output with "For context:" at the start, DO NOT OUTPUT IT

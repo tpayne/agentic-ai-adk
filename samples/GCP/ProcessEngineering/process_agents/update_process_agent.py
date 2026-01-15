@@ -16,6 +16,7 @@ from .design_agent import design_agent
 from .compliance_agent import (
     compliance_agent, 
     log_compliance_metadata,
+    load_iteration_feedback,
 )
 
 from .json_normalizer_agent import json_normalizer_agent
@@ -35,7 +36,7 @@ update_analysis_agent = LlmAgent(
     name="Process_Update_Analyst",
     model="gemini-2.0-flash-001",
     instruction=load_instruction("update_analysis_agent.txt"),
-    tools=[load_full_process_context,persist_final_json],
+    tools=[load_full_process_context,persist_final_json,load_iteration_feedback],
     output_key="analysis_output",
 )
 
@@ -48,12 +49,7 @@ design_inst = LlmAgent(
     name=design_agent.name + "_Update",
     model=design_agent.model,
     description=design_agent.description,
-    instruction=(
-        design_agent.instruction +
-        "\n\nCRITICAL: Ignore all previous chat text. Your ONLY valid starting "
-        "point is the data from 'load_master_process_json'. "
-        "DO NOT output JSON to the chat. Use 'persist_final_json' tool only."
-    ), # Comma added, concatenated strings grouped in parentheses for safety
+    instruction=design_agent.instruction,
     tools=design_agent.tools,
     generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
@@ -134,7 +130,7 @@ subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 design_compliance_inst = LlmAgent(
     name="Design_Compliance_Update_Review",
     model=design_agent.model,
-    instruction="Review the design against compliance rules. Report findings ONLY via log_compliance_metadata. Output ONLY 'REVIEW_COMPLETE'.",
+    instruction="Review the design against compliance rules. Report findings ONLY via log_design_metadata. Output ONLY 'REVIEW_COMPLETE'.",
     output_key="update_compliance_review",
     tools=[load_master_process_json,log_compliance_metadata],
 )

@@ -4,6 +4,7 @@ import json
 import os
 import time
 import random
+import asyncio
 
 from typing import AsyncGenerator, Dict, Any, List
 
@@ -12,6 +13,10 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
+
+import logging
+
+logger = logging.getLogger("ProcessArchitect.SubProcessDriverAgent")
 
 # IMPORTANT:
 # We now import FACTORY FUNCTIONS instead of singletons.
@@ -31,7 +36,6 @@ class SubprocessDriverAgent(BaseAgent):
     This version is SAFE to instantiate multiple times because
     it creates fresh LLM agents internally.
     """
-
     per_step_pipeline: SequentialAgent
 
     def __init__(self, name: str = "Subprocess_Driver_Agent"):
@@ -39,18 +43,20 @@ class SubprocessDriverAgent(BaseAgent):
         generator = build_subprocess_generator_agent()
         writer = build_subprocess_writer_agent()
 
-        # Build the per-step pipeline with fresh agents
-        # Added 'f' prefix to make it an f-string
-        per_step_pipeline = SequentialAgent(
-            name=f"Per_Step_Subprocess_Pipeline_{name}", 
+        pipeline = SequentialAgent(
+            name=f"Per_Step_Subprocess_Pipeline_{name}",
             sub_agents=[generator, writer],
         )
 
+        # IMPORTANT: pass per_step_pipeline into super().__init__()
         super().__init__(
             name=name,
-            sub_agents=[per_step_pipeline],
-            per_step_pipeline=per_step_pipeline,
+            sub_agents=[pipeline],
+            per_step_pipeline=pipeline,
         )
+
+        # OPTIONAL: assign again for convenience (safe after super())
+        self.per_step_pipeline = pipeline
 
     # ---------------------------------------------------------
     # Load process steps directly from the final JSON file
@@ -76,11 +82,7 @@ class SubprocessDriverAgent(BaseAgent):
     # Main execution
     # ---------------------------------------------------------
     @override
-    async def _run_async_impl(
-        self,
-        ctx: InvocationContext,
-    ) -> AsyncGenerator[Event, None]:
-
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         try:
             steps = self._load_process_steps()
         except Exception as e:
@@ -88,49 +90,61 @@ class SubprocessDriverAgent(BaseAgent):
                 author=self.name,
                 content=types.Content(
                     role="model",
-                    parts=[types.Part(text=f"Failed to load process steps: {str(e)}")]
-                ),
+                    parts=[types.Part(text=f"Subprocess Error: {str(e)}")]
+                )
             )
             return
 
         if not steps:
-            yield Event(
-                author=self.name,
-                content=types.Content(
-                    role="model",
-                    parts=[types.Part(text="No process_steps found in process_data.json; skipping subprocess generation.")]
-                ),
-            )
+            logger.info("No process_steps found; skipping subprocess generation.")
+            if False:
+                yield
             return
 
-        # Iterate through each step and run the per-step pipeline
         for step in steps:
             step_name = step.get("step_name", "Unnamed Step")
+            logger.info(f"Generating subprocess for step: {step_name}")
 
-            yield Event(
-                author=self.name,
-                content=types.Content(
-                    role="model",
-                    parts=[types.Part(text=f"Generating subprocess for step: {step_name}")]
-                ),
-            )
-
-            # Push the current step into session state for downstream agents
+            # Store the current step in shared session state
             ctx.session.state["current_process_step"] = step
 
-            # 🔥 Rate limit protection for subprocess generation
-            time.sleep(1.75 + random.random() * 0.75)
+            # Rate‑limit padding
+            await asyncio.sleep(1.75 + random.random() * 0.75)
 
-            async for event in self.per_step_pipeline.run_async(ctx):
-                yield event
+            # ---------------------------------------------------------
+            # RUN GENERATOR (sub-agent 0) AND CAPTURE ITS OUTPUT
+            # ---------------------------------------------------------
+            generator_agent = self.per_step_pipeline.sub_agents[0]
 
-        yield Event(
-            author=self.name,
-            content=types.Content(
-                role="model",
-                parts=[types.Part(text="Subprocess generation completed for all steps.")]
-            ),
-        )
+            flow = None
+            async for event in generator_agent.run_async(ctx):
+                if event.author == generator_agent.name:
+                    if event.content and event.content.parts:
+                        raw = event.content.parts[0].text
+                        try:
+                            flow = json.loads(raw)
+                        except Exception:
+                            flow = raw
+
+            if not flow:
+                logger.error(f"[{self.name}] Generator produced no subprocess flow for step '{step_name}'.")
+                continue
+
+            # Store the generated subprocess flow in shared session state
+            ctx.session.state["current_subprocess_flow"] = flow
+
+            # ---------------------------------------------------------
+            # RUN WRITER (sub-agent 1)
+            # ---------------------------------------------------------
+            writer_agent = self.per_step_pipeline.sub_agents[1]
+            async for _ in writer_agent.run_async(ctx):
+                pass
+
+        logger.info("Subprocess generation completed for all steps.")
+
+        if False:
+            yield
+
 
 
 # Default instance for the CREATE pipeline

@@ -76,3 +76,4 @@ OUTPUT CONTRACT (NO CHATTER)
   - Do not wrap tool calls in markdown. 
   - Do not provide a JSON object in the chat response if you are calling a tool. 
   - If 'JSON APPROVED' is detected, your output should consist only of the 'persist_final_json' tool call.
+  - If you receive ANY output with "For context:" at the start, DO NOT OUTPUT IT
