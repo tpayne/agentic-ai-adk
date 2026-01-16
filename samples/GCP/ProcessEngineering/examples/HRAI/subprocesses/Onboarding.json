@@ -1,0 +1,139 @@
+{
+  "step_name": "Onboarding",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare Onboarding Package",
+      "description": "The HR Specialist compiles all necessary onboarding documents, including employment contracts, benefits enrollment forms, and company policy manuals. GenAI assists in personalizing these documents with the new hire's information, ensuring accuracy and completeness. This step ensures that all required paperwork is ready for the new employee.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Employee data",
+        "Onboarding materials"
+      ],
+      "outputs": [
+        "Personalized onboarding documents",
+        "Benefits enrollment forms",
+        "Company policy manuals"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "All onboarding documents are personalized and accurate",
+        "Onboarding package is complete and ready for distribution"
+      ]
+    },
+    {
+      "substep_name": "Automate Paperwork via GenAI",
+      "description": "GenAI automates the generation of standard onboarding paperwork, such as tax forms (W-4, I-9) and direct deposit authorization forms. The system pre-fills these forms with available employee data, reducing manual input and potential errors. This automation streamlines the paperwork process and improves efficiency.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Personalized onboarding documents",
+        "Employee data"
+      ],
+      "outputs": [
+        "Automated tax forms",
+        "Direct deposit authorization forms"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Prepare Onboarding Package"
+      ],
+      "success_criteria": [
+        "Tax forms and direct deposit forms are automatically generated",
+        "Reduced manual input and errors in paperwork"
+      ]
+    },
+    {
+      "substep_name": "Deliver Initial Training Materials",
+      "description": "GenAI curates and delivers initial training materials tailored to the new hire's role and department. These materials may include introductory videos, training modules, and access to the company's learning management system (LMS). This step ensures that new hires have the resources they need to start learning about their roles and the company.",
+      "responsible_party": "HR Manager, HR Specialist",
+      "inputs": [
+        "Automated tax forms",
+        "Direct deposit authorization forms",
+        "Role-specific training content"
+      ],
+      "outputs": [
+        "Initial training materials",
+        "Access to LMS",
+        "Introductory videos"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "Automate Paperwork via GenAI"
+      ],
+      "success_criteria": [
+        "New hires receive tailored training materials",
+        "Access to LMS is granted",
+        "Training materials are relevant and up-to-date"
+      ]
+    },
+    {
+      "substep_name": "GenAI FAQ Support",
+      "description": "GenAI provides a chatbot or virtual assistant to answer frequently asked questions from new hires. This system can address common queries about benefits, company policies, and onboarding procedures. This step reduces the burden on HR staff and provides immediate support to new employees.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Initial training materials",
+        "FAQ database"
+      ],
+      "outputs": [
+        "Answers to FAQs",
+        "Chatbot support",
+        "Virtual assistant support"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Deliver Initial Training Materials"
+      ],
+      "success_criteria": [
+        "New hires receive prompt answers to their questions",
+        "HR staff workload is reduced",
+        "Chatbot/virtual assistant is accurate and helpful"
+      ]
+    },
+    {
+      "substep_name": "Conduct In-Person Onboarding Session",
+      "description": "HR conducts an in-person onboarding session to welcome new hires, provide additional information, and answer any remaining questions. This session includes introductions to team members, a tour of the facilities, and a review of company culture and values. This step provides a personal touch and ensures that new hires feel welcomed and supported.",
+      "responsible_party": "HR Manager",
+      "inputs": [
+        "Answers to FAQs",
+        "New hire feedback"
+      ],
+      "outputs": [
+        "In-person onboarding session",
+        "Team introductions",
+        "Facility tour"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "GenAI FAQ Support"
+      ],
+      "success_criteria": [
+        "New hires attend in-person onboarding session",
+        "Team introductions are made",
+        "New hires feel welcomed and supported"
+      ]
+    },
+    {
+      "substep_name": "Gather Feedback and Improve",
+      "description": "HR gathers feedback from new hires about their onboarding experience and uses this feedback to improve the process. This may involve surveys, interviews, or focus groups. GenAI analyzes the feedback to identify trends and areas for improvement. This step ensures that the onboarding process remains effective and relevant.",
+      "responsible_party": "HR Manager, HR Specialist",
+      "inputs": [
+        "In-person onboarding session",
+        "New hire feedback"
+      ],
+      "outputs": [
+        "Feedback analysis",
+        "Process improvements",
+        "Updated onboarding materials"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Conduct In-Person Onboarding Session"
+      ],
+      "success_criteria": [
+        "Feedback is gathered from new hires",
+        "Feedback is analyzed to identify areas for improvement",
+        "Onboarding process is continuously improved"
+      ]
+    }
+  ]
+}

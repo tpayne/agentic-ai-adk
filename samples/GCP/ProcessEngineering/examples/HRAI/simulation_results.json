@@ -1,0 +1,20 @@
+{
+  "avg_cycle_time": 1.7992437000582198,
+  "cycle_time_variance": 0.1953616228964071,
+  "time_unit": "day",
+  "bottlenecks": [
+    "Job Specification Creation",
+    "Training and Development",
+    "HR Reporting"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "CV Review": 1.340791463095803,
+    "Job Specification Creation": 1.3497410545840245,
+    "Employee Reviews": 1.3346791823977375,
+    "Employee Grievances": 1.334938097303035,
+    "Training and Development": 1.344590976508093,
+    "Onboarding": 1.3298201869480637,
+    "HR Reporting": 1.3418702716402655
+  }
+}

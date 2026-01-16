@@ -1,0 +1,107 @@
+{
+  "step_name": "Job Specification Creation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Gather Role Requirements",
+      "description": "The HR Manager initiates the job specification process by collecting detailed role requirements from the hiring manager. This includes the necessary skills, experience, educational background, and key responsibilities for the position. The HR Manager also clarifies any specific needs or expectations for the role to ensure a comprehensive understanding.",
+      "responsible_party": "HR Manager",
+      "inputs": [
+        "Hiring manager input",
+        "Organizational chart",
+        "Department goals"
+      ],
+      "outputs": [
+        "Documented role requirements"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive role requirements documented",
+        "Alignment with department goals"
+      ]
+    },
+    {
+      "substep_name": "GenAI Draft Generation",
+      "description": "Using the documented role requirements and industry standards, the GenAI platform generates an initial draft of the job description. The GenAI tool leverages its training data to create a well-structured and informative job description that includes a summary of the role, key responsibilities, required skills, and qualifications. The draft is designed to be a starting point for further refinement by HR.",
+      "responsible_party": "GenAI Platform",
+      "inputs": [
+        "Documented role requirements",
+        "Industry standards"
+      ],
+      "outputs": [
+        "Draft job description"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Gather Role Requirements"
+      ],
+      "success_criteria": [
+        "GenAI generates a complete draft job description",
+        "Draft includes all key elements (summary, responsibilities, skills)"
+      ]
+    },
+    {
+      "substep_name": "HR Edit and Refinement",
+      "description": "The HR Manager reviews the GenAI-generated draft job description and refines it to ensure accuracy, clarity, and compliance with company policies and legal regulations. This includes verifying the job title, responsibilities, required skills, and qualifications. The HR Manager also adjusts the language to align with the company's tone and culture, ensuring the job description is engaging and attractive to potential candidates.",
+      "responsible_party": "HR Manager",
+      "inputs": [
+        "Draft job description",
+        "Company policies",
+        "Legal regulations"
+      ],
+      "outputs": [
+        "Edited job description"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "GenAI Draft Generation"
+      ],
+      "success_criteria": [
+        "Job description is accurate and clear",
+        "Compliance with company policies and legal regulations",
+        "Alignment with company tone and culture"
+      ]
+    },
+    {
+      "substep_name": "Legal Review (if needed)",
+      "description": "If the role involves sensitive responsibilities or requires specific legal compliance, the edited job description is sent to the Legal Counsel for review. The Legal Counsel ensures that the job description does not contain any discriminatory language or violate any employment laws. This step is crucial for mitigating legal risks and ensuring ethical hiring practices.",
+      "responsible_party": "Legal Counsel",
+      "inputs": [
+        "Edited job description"
+      ],
+      "outputs": [
+        "Legal approval (if needed)"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "HR Edit and Refinement"
+      ],
+      "success_criteria": [
+        "Legal Counsel approves the job description",
+        "No legal risks identified"
+      ]
+    },
+    {
+      "substep_name": "Final Approval",
+      "description": "The HR Manager submits the edited job description (and legal approval, if applicable) to the hiring manager for final approval. The hiring manager reviews the job description to ensure it accurately reflects the role requirements and aligns with their expectations. Once approved, the job description is considered final and ready for use in the recruitment process.",
+      "responsible_party": "HR Manager",
+      "inputs": [
+        "Edited job description",
+        "Legal approval (if needed)",
+        "Hiring manager feedback"
+      ],
+      "outputs": [
+        "Approved job description"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "HR Edit and Refinement",
+        "Legal Review (if needed)"
+      ],
+      "success_criteria": [
+        "Hiring manager approves the job description",
+        "Job description is final and ready for recruitment"
+      ]
+    }
+  ]
+}

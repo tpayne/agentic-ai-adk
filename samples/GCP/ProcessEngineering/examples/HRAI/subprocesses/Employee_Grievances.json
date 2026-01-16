@@ -1,0 +1,148 @@
+{
+  "step_name": "Employee Grievances",
+  "subprocess_flow": [
+    {
+      "substep_name": "Complaint Intake",
+      "description": "The initial step involves receiving employee complaints through various channels such as email, HR portal, or in-person submissions. Each complaint is logged into the HRIS system, and an acknowledgment is sent to the employee to confirm receipt. The intake process ensures that all necessary information is captured for further analysis.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Employee complaints"
+      ],
+      "outputs": [
+        "Logged complaint in HRIS",
+        "Acknowledgment to employee"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "All complaints are logged",
+        "Employees receive acknowledgment within 24 hours"
+      ]
+    },
+    {
+      "substep_name": "Data Anonymization",
+      "description": "Before GenAI processes the complaint, sensitive employee data is anonymized to comply with GDPR and other privacy regulations. This involves removing or masking personally identifiable information (PII) from the complaint details. The anonymized data is then stored securely for analysis.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Logged complaint in HRIS"
+      ],
+      "outputs": [
+        "Anonymized complaint data"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Complaint Intake"
+      ],
+      "success_criteria": [
+        "PII is removed from complaint data",
+        "Data is stored securely"
+      ]
+    },
+    {
+      "substep_name": "GenAI Triage",
+      "description": "GenAI analyzes the anonymized complaint data to identify the nature of the grievance, categorize the issue, and assess its severity. The AI uses natural language processing (NLP) to understand the context and extract relevant information. This triage process helps in prioritizing complaints and routing them to the appropriate HR personnel.",
+      "responsible_party": "GenAI Platform",
+      "inputs": [
+        "Anonymized complaint data",
+        "Company policies"
+      ],
+      "outputs": [
+        "Categorized grievance",
+        "Severity assessment"
+      ],
+      "estimated_duration": "30-60 minutes",
+      "dependencies": [
+        "Data Anonymization"
+      ],
+      "success_criteria": [
+        "Grievances are accurately categorized",
+        "Severity is correctly assessed"
+      ]
+    },
+    {
+      "substep_name": "Resolution Suggestion",
+      "description": "Based on the triage results, GenAI suggests potential resolutions that align with company policies and legal requirements. These suggestions are tailored to the specific nature and severity of the grievance. The AI considers past cases and best practices to provide effective and fair resolution options.",
+      "responsible_party": "GenAI Platform",
+      "inputs": [
+        "Categorized grievance",
+        "Severity assessment",
+        "Company policies"
+      ],
+      "outputs": [
+        "Proposed resolutions"
+      ],
+      "estimated_duration": "30-60 minutes",
+      "dependencies": [
+        "GenAI Triage"
+      ],
+      "success_criteria": [
+        "Resolutions align with company policies",
+        "Resolutions are fair and effective"
+      ]
+    },
+    {
+      "substep_name": "HR Review and Investigation",
+      "description": "An HR Specialist reviews the GenAI's triage and resolution suggestions. The HR Specialist conducts a thorough investigation, gathering additional information if necessary, and validates the AI's findings. This step ensures human oversight and prevents over-reliance on AI-generated outputs.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Categorized grievance",
+        "Severity assessment",
+        "Proposed resolutions"
+      ],
+      "outputs": [
+        "Validated grievance report",
+        "Investigation findings"
+      ],
+      "estimated_duration": "1-2 days",
+      "dependencies": [
+        "Resolution Suggestion"
+      ],
+      "success_criteria": [
+        "Investigation is thorough",
+        "Findings are accurate and complete"
+      ]
+    },
+    {
+      "substep_name": "Resolution Implementation",
+      "description": "The HR Specialist implements the proposed resolution, ensuring that it is communicated clearly to all parties involved. This may involve mediation, disciplinary action, or policy changes. The implementation process is documented in the HRIS system for future reference.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Validated grievance report",
+        "Investigation findings",
+        "Proposed resolutions"
+      ],
+      "outputs": [
+        "Implemented resolution",
+        "Updated HRIS record"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "HR Review and Investigation"
+      ],
+      "success_criteria": [
+        "Resolution is implemented effectively",
+        "All parties are informed"
+      ]
+    },
+    {
+      "substep_name": "Feedback and Closure",
+      "description": "Feedback is collected from the employee who filed the complaint to assess their satisfaction with the resolution. The grievance case is then closed in the HRIS system. This step ensures that the resolution is satisfactory and provides valuable insights for improving the grievance handling process.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Implemented resolution"
+      ],
+      "outputs": [
+        "Employee feedback",
+        "Closed grievance case"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Resolution Implementation"
+      ],
+      "success_criteria": [
+        "Employee provides feedback",
+        "Grievance case is closed in HRIS"
+      ]
+    }
+  ]
+}

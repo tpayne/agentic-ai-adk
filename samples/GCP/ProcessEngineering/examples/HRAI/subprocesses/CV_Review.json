@@ -1,0 +1,83 @@
+{
+  "step_name": "CV Review",
+  "subprocess_flow": [
+    {
+      "substep_name": "CV Ingestion",
+      "description": "CVs are collected from various sources, such as online job boards, company websites, and recruitment agencies. These CVs are then uploaded into the GenAI platform for initial processing. The system ensures that all CVs are stored securely and in compliance with data privacy regulations.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "CVs",
+        "Job requirements"
+      ],
+      "outputs": [
+        "Uploaded CVs",
+        "Data privacy compliance confirmation"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "All CVs successfully uploaded",
+        "Data privacy compliance confirmed"
+      ]
+    },
+    {
+      "substep_name": "GenAI Initial Screening",
+      "description": "The GenAI platform analyzes the uploaded CVs, extracting key information such as qualifications, experience, and skills. It then ranks the candidates based on how well they match the job requirements. The GenAI system uses natural language processing (NLP) to understand the context of the CVs and identify the most relevant candidates.",
+      "responsible_party": "GenAI Platform",
+      "inputs": [
+        "Uploaded CVs",
+        "Job requirements"
+      ],
+      "outputs": [
+        "Ranked candidate list"
+      ],
+      "estimated_duration": "4-6 hours",
+      "dependencies": [
+        "CV Ingestion"
+      ],
+      "success_criteria": [
+        "CVs screened and ranked based on qualifications and experience",
+        "Reduced time to screen CVs"
+      ]
+    },
+    {
+      "substep_name": "Human Review - Top Candidates",
+      "description": "HR specialists review the top candidates identified by GenAI, focusing on cultural fit, soft skills, and other qualitative aspects that are difficult for AI to assess. This review involves assessing the candidate's communication skills, teamwork abilities, and overall personality. Human reviewers ensure that the shortlisted candidates align with the company's values and culture.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Ranked candidate list"
+      ],
+      "outputs": [
+        "Shortlisted candidates"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [
+        "GenAI Initial Screening"
+      ],
+      "success_criteria": [
+        "Top candidates assessed for cultural fit and soft skills",
+        "Improved candidate quality"
+      ]
+    },
+    {
+      "substep_name": "Feedback to GenAI",
+      "description": "The HR specialists provide feedback to the GenAI platform on the quality of the candidates it identified and ranked. This feedback helps to improve the AI's accuracy and relevance over time. The feedback loop ensures that the GenAI system continuously learns and adapts to the company's specific needs and preferences.",
+      "responsible_party": "HR Specialist",
+      "inputs": [
+        "Shortlisted candidates",
+        "Ranked candidate list"
+      ],
+      "outputs": [
+        "GenAI training data"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Human Review - Top Candidates"
+      ],
+      "success_criteria": [
+        "Feedback provided to GenAI platform",
+        "Improved AI accuracy and relevance"
+      ]
+    }
+  ]
+}
