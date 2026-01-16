@@ -75,6 +75,12 @@ You MUST transform the input into this EXACT schema:
   "metrics": [
     { "name": string, "description": string }
   ],
+  "critical_success_factors": [
+    { "name": string, "description": string }
+  ],
+  "critical_failure_factors": [
+    { "name": string, "description": string }
+  ],
   "reporting_and_analytics": {},
   "system_requirements": [string],
   "assumptions": [string],

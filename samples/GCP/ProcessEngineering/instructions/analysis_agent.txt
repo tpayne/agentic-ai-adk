@@ -20,6 +20,8 @@ Generate a single JSON object containing:
 - industry_sector: The specific business domain.
 - stakeholders: List of roles and their granular responsibilities.
 - metrics: Measurable KPIs for the process.
+- critical_success_factors: Critical Success Factors (CSFs)
+- critical_failure_factors: Critical Failure Factors (CFFs)
 - process_goals: High-level objectives.
 - process_steps: Detailed descriptions of the high-level workflow.
 - system_requirements: Technical stack or software needed.

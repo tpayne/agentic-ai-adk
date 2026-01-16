@@ -92,7 +92,15 @@ You are responsible for architecting high-fidelity business process designs. You
     }
   ],
   "tools_summary": {},
-  "metrics": [],
+  "metrics": [
+    { "name": string, "description": "string (detailed paragraph)" }
+  ],
+  "critical_success_factors": [
+    { "name": string, "description": "string (detailed paragraph)" }
+  ],
+  "critical_failure_factors": [
+    { "name": string, "description": "string (detailed paragraph)" }
+  ],
   "reporting_and_analytics": {},
   "system_requirements": [],
   "assumptions": [],

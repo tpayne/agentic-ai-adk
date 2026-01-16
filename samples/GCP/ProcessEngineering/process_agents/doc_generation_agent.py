@@ -598,6 +598,67 @@ def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> 
     except Exception:
         traceback.print_exc()
 
+def _add_critical_success_factors_section(doc, factors):
+    """Adds Critical Success Factors as a TABLE, matching the metrics format."""
+    if not factors:
+        return
+    
+    doc.add_heading('6.0 Critical Success Factors (CSF)', level=1)
+    doc.add_paragraph(
+        f"The following is a list of key CSFs associated with this process. "
+    )
+    
+    # Create table: 2 columns (Name and Description)
+    table = doc.add_table(rows=1, cols=2)
+    table.style = 'Table Grid' # Matches the standard bordered look
+    
+    # Header Row
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Success Factor'
+    hdr_cells[1].text = 'Description'
+    
+    # Apply Bold to Headers
+    for cell in hdr_cells:
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    # Fill Data
+    for factor in factors:
+        row_cells = table.add_row().cells
+        row_cells[0].text = str(factor.get("name", ""))
+        row_cells[1].text = str(factor.get("description", ""))
+
+def _add_critical_failure_factors_section(doc, factors):
+    """Adds Critical Failure Factors as a TABLE, matching the metrics format."""
+    if not factors:
+        return
+    
+    doc.add_heading('7.0 Critical Failure Factors (CFF)', level=1)
+    doc.add_paragraph(
+        f"The following is a list of key CFFs associated with this process. "
+    )
+    
+    # Create table: 2 columns
+    table = doc.add_table(rows=1, cols=2)
+    table.style = 'Table Grid'
+    
+    # Header Row
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Failure Factor'
+    hdr_cells[1].text = 'Description'
+    
+    # Apply Bold to Headers
+    for cell in hdr_cells:
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    # Fill Data
+    for factor in factors:
+        row_cells = table.add_row().cells
+        row_cells[0].text = str(factor.get("name", ""))
+        row_cells[1].text = str(factor.get("description", ""))
 
 def _add_metrics_section(doc: docx.Document, metrics) -> None:
     """
@@ -681,7 +742,7 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
 
         time_unit = str(simulation_results.get("time_unit", "units"))
 
-        doc.add_heading("9.0 Process Performance Report", level=1)
+        doc.add_heading("11.0 Process Performance Report", level=1)
         
         doc.add_paragraph(
             f"The following metrics are based on a Monte Carlo discrete-event simulation "
@@ -759,7 +820,7 @@ def _add_reporting_and_analytics(doc: docx.Document, ra) -> None:
         if ra is None:
             return
 
-        doc.add_heading("6.0 Reporting and Analytics", level=1)
+        doc.add_heading("8.0 Reporting and Analytics", level=1)
         doc.add_paragraph(
             f"The following are key reporting and analytics associated with this process."
         )
@@ -858,7 +919,7 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
         if not isinstance(system_requirements, list) or not system_requirements:
             return
 
-        doc.add_heading("7.0 System Requirements", level=1)
+        doc.add_heading("9.0 System Requirements", level=1)
         doc.add_paragraph(
             f"The following system requirements are essential for the successful implementation of this process."
         )
@@ -957,7 +1018,7 @@ def _add_step_diagram_if_available(
 
 
 def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
-    """8.0 Flow diagram section if a PNG already exists. Defensive."""
+    """10.0 Flow diagram section if a PNG already exists. Defensive."""
     try:
         diag_file = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
         if not os.path.exists(diag_file):
@@ -965,7 +1026,7 @@ def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
             if not os.path.exists(diag_file):
                 return
 
-        doc.add_heading("8.0 Process Flow Diagram", level=1)
+        doc.add_heading("10.0 Process Flow Diagram", level=1)
         doc.add_paragraph(
             "The following diagram provides a high-level visualization of the process flow as defined in the normalized JSON source."
         )
@@ -1127,6 +1188,8 @@ def create_standard_doc_from_file(process_name: str) -> str:
         stakeholders = data.get("stakeholders")
         process_steps = data.get("process_steps")
         tools_summary = data.get("tools_summary")
+        critical_success_factors = data.get("critical_success_factors")
+        critical_failure_factors = data.get("critical_failure_factors")
         metrics = data.get("metrics") or data.get("success_metrics")
         reporting_and_analytics = data.get("reporting_and_analytics")
         system_requirements = data.get("system_requirements")
@@ -1143,7 +1206,9 @@ def create_standard_doc_from_file(process_name: str) -> str:
             "stakeholders", 
             "process_steps", 
             "tools_summary", 
-            "metrics", 
+            "metrics",
+            "critical_success_factors",
+            "critical_failure_factors", 
             "success_metrics", 
             "reporting_and_analytics", 
             "system_requirements", 
@@ -1215,17 +1280,27 @@ def create_standard_doc_from_file(process_name: str) -> str:
             _add_metrics_section(doc, metrics)
             doc.add_page_break()
 
-        # 6.0 Reporting & Analytics
+        # 6.0 Metrics
+        if isinstance(critical_success_factors, list) and critical_success_factors:
+            _add_critical_success_factors_section(doc, critical_success_factors)
+            doc.add_page_break()
+
+        # 7.0 Metrics
+        if isinstance(critical_failure_factors, list) and critical_failure_factors:
+            _add_critical_failure_factors_section(doc, critical_failure_factors)
+            doc.add_page_break()
+
+        # 8.0 Reporting & Analytics
         if reporting_and_analytics:
             _add_reporting_and_analytics(doc, reporting_and_analytics)
             doc.add_page_break()
 
-        # 7.0 System Requirements
+        # 9.0 System Requirements
         if system_requirements:
             _add_system_requirements(doc, system_requirements)
             doc.add_page_break()
 
-        # 8.0 Flow Diagram
+        # 10.0 Flow Diagram
         _add_flowchart_section(doc, name)
         doc.add_page_break()
 
@@ -1240,7 +1315,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
             traceback.print_exc()
             simulation_results = None
 
-        # 9.0 Process Performance Report (if we have metrics)
+        # 11.0 Process Performance Report (if we have metrics)
         if simulation_results:
             _add_simulation_report(doc, simulation_results)
             doc.add_page_break()
