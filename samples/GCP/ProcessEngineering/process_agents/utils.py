@@ -45,17 +45,105 @@ def _extract_json_brace_balanced(text: str) -> str:
     raise ValueError("JSON braces not balanced")
 
 
+def _validate_process_json(data: dict):
+    if not isinstance(data, dict):
+        logger.error("Process JSON does not contain a JSON object.")
+        return None
+
+    required_top_keys = [
+        "process_name",
+        "industry_sector",
+        "version",
+        "introduction",
+        "stakeholders",
+        "process_steps",
+        "tools_summary",
+        "metrics",
+        "reporting_and_analytics",
+        "system_requirements",
+        "assumptions",
+        "constraints",
+        "appendix",
+        "critical_success_factors",
+        "critical_failure_factors",
+    ]
+
+    for key in required_top_keys:
+        if key not in data:
+            logger.error(f"Missing required top-level key '{key}'.")
+            return None
+
+    if not isinstance(data.get("process_name"), str) or not data["process_name"].strip():
+        logger.error("Invalid or empty 'process_name' in process JSON.")
+        return None
+
+    if not isinstance(data.get("process_steps"), list) or len(data["process_steps"]) == 0:
+        logger.error("Invalid or empty 'process_steps' in process JSON.")
+        return None
+
+    required_step_keys = [
+        "step_name",
+        "description",
+        "responsible_party",
+        "estimated_duration",
+        "deliverables",
+        "inputs",
+        "outputs",
+        "dependencies",
+        "success_criteria"
+    ]
+
+    for idx, step in enumerate(data["process_steps"]):
+        if not isinstance(step, dict):
+            logger.error(f"process_steps[{idx}] is not an object.")
+            return None
+
+        for sk in required_step_keys:
+            if sk not in step:
+                logger.error(f"Missing key '{sk}' in process_steps[{idx}].")
+                return None
+
+    return data
+
 def _save_raw_data_to_json(json_content) -> str:
     """
     Saves the finalized JSON to output/process_data.json.
     Includes robust repair logic for large/truncated LLM payloads.
+    Uses a lock file to prevent race conditions with concurrent reads/writes.
 
     This is internal. The only exposed tool is persist_final_json.
     """
+    path = "output/process_data.json"
+    lock_path = "output/.process_data.lock"
+
+    def acquire_lock(timeout: float = 5.0) -> bool:
+        start = time.time()
+        while time.time() - start < timeout:
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, "w", encoding="utf-8") as lf:
+                        lf.write(str(os.getpid()))
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to create lock file: {e}")
+            time.sleep(0.1)
+        logger.error("Timeout acquiring process_data lock.")
+        return False
+
+    def release_lock():
+        try:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
+        except Exception as e:
+            logger.error(f"Failed to remove lock file: {e}")
+
     try:
         _log_agent_activity("Saving normalized JSON to file...")
         os.makedirs("output", exist_ok=True)
-        path = "output/process_data.json"
+
+        # Acquire lock before writing
+        if not acquire_lock():
+            return "ERROR: Could not acquire lock for JSON persistence."
 
         # 1. Normalize input to string
         if isinstance(json_content, dict):
@@ -133,9 +221,23 @@ def _save_raw_data_to_json(json_content) -> str:
                 f"Raw JSON written to {raw_path}."
             )
 
+        if _validate_process_json(parsed) is None:
+            logger.error(
+                "Parsed JSON is invalid. "
+                "Writing raw JSON to output/process_data_raw.json for inspection."
+            )
+            raw_path = "output/process_data_raw.json"
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(raw_str)
+            return (
+                "ERROR: The JSON to persist was not valid. "
+                f"Raw JSON written to {raw_path}."
+            )
+
         # 5. Final write of clean, repaired JSON
         clean_json = json.dumps(parsed, indent=2, ensure_ascii=False)
 
+        # Skip write if identical
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as existing:
@@ -146,8 +248,7 @@ def _save_raw_data_to_json(json_content) -> str:
                     )
                     return path
             except Exception:
-                # If comparison fails, fall through to normal write
-                pass
+                pass  # If comparison fails, fall through to write
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(clean_json)
@@ -158,11 +259,13 @@ def _save_raw_data_to_json(json_content) -> str:
         )
         return path
 
-
     except Exception:
         error_trace = traceback.format_exc()
         logger.error(f"Failed to save JSON: {error_trace}")
         return "ERROR: Failed to save JSON"
+
+    finally:
+        release_lock()
 
 def _json_equal(a: dict, b: dict) -> bool:
     """Return True if two JSON objects are semantically identical."""
@@ -183,6 +286,7 @@ def persist_final_json(json_content) -> str:
     - Returns the final path or error message.
     """
     time.sleep(1.75 + random.random() * 0.75)
+
     try:
         _log_agent_activity("Starting final JSON file persistence")
         result = _save_raw_data_to_json(json_content)
@@ -191,11 +295,13 @@ def persist_final_json(json_content) -> str:
             _log_agent_activity(f"File persistence result: {result}")
 
         return result
+
     except Exception:
         error_trace = traceback.format_exc()
         logger.error(f"persist_final_json failed: {error_trace}")
         return "ERROR: persist_final_json encountered an unexpected failure."
-    
+
+
 # Tool to load the full process context (master + subprocesses)
 # process_agents/utils.py
 
@@ -240,6 +346,7 @@ def load_iteration_feedback() -> dict:
             logger.error(f"Error loading feedback file: {e}")
 
     return {"status": "No feedback found", "issues": []}
+
 
 def save_iteration_feedback(feedback_data: Any):
     """
@@ -291,18 +398,55 @@ def save_iteration_feedback(feedback_data: Any):
 def load_master_process_json() -> dict:
     """
     Loads and returns the contents of output/process_data.json as a Python dict.
-    Returns an empty dict if the file does not exist or cannot be loaded.
+
+    Returns:
+      - A valid dict if the file exists AND contains a structurally valid process JSON.
+      - None if the file is missing, unreadable, empty, locked, or missing required schema keys.
     """
+
     path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
+    lock_path = os.path.join(PROJECT_ROOT, "output", ".process_data.lock")
+
+    # Wait for lock to clear (writer in progress)
+    start = time.time()
+    while os.path.exists(lock_path):
+        if time.time() - start > 5.0:
+            logger.error("Timeout waiting for lock release in load_master_process_json.")
+            return None
+        time.sleep(0.1)
+
+    # File existence
     if not os.path.exists(path):
         logger.warning(f"{path} does not exist.")
-        return {}
+        return None
+
     try:
+        # Read file content
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            raw = f.read().strip()
+
+        if not raw:
+            logger.error(f"{path} is empty on disk.")
+            return None
+
+        # Parse JSON
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            logger.error(f"Failed to parse JSON in {path}: {e}")
+            return None
+
+        # Validate using your existing validator
+        validated = _validate_process_json(data)
+        if validated is None:
+            logger.error(f"Validation failed for {path}.")
+            return None
+
+        return validated
+    
     except Exception as e:
-        logger.error(f"Failed to load {path}: {e}")
-        return {}
+        logger.error(f"Unexpected error loading {path}: {e}")
+        return None
 
 # Load instruction from a file in the instructions directory
 def load_instruction(filename: str) -> str:

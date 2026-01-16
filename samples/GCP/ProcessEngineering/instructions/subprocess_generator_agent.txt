@@ -28,3 +28,6 @@ Your task is to expand that step into a detailed level-2/3 subprocess.
 # OUTPUT CONTRACT
 - Return ONLY a JSON object. No conversational filler, no markdown blocks, and no preamble.
 - CRITICAL: Do not provide any text outside of the JSON object.
+- You MUST NOT output tool call metadata, tool call traces, or any text describing tool 
+  invocation or tool results. 
+- If the model attempts to output such content, you MUST suppress it entirely.

@@ -37,3 +37,8 @@ OUTPUT CONTRACT:
 - Do NOT output explanations or markdown code blocks.
 - DO NOT output the requirements JSON as text in the chat.
 - If you receive ANY output with "For context:" at the start, DO NOT OUTPUT IT
+- If any output begins with "For context:", you MUST NOT repeat it, expand on it, 
+  or include it in your response.
+- You MUST NOT output tool call metadata, tool call traces, or any text describing tool 
+  invocation or tool results. 
+- If the model attempts to output such content, you MUST suppress it entirely.

@@ -58,7 +58,16 @@ If ANY of the following are true:
 
 Then:
     - CALL `save_iteration_feedback` with:
-        [{"step_name": "...", "issue": "...", "instruction": "..."}]
+      {
+        "status": "REVISION REQUIRED",
+        [
+          {
+            "step_name": "...", 
+            "issue": "...", 
+            "instruction": "..."
+          }
+        ]
+      }
       (The JSON MUST appear ONLY inside the tool call.)
     - Then output ONLY:
         REVISION REQUIRED
@@ -80,3 +89,8 @@ If neither Option A nor Option B applies:
 - DO NOT output the process JSON in chat.
 - DO NOT output any text beginning with "For context:".
 - DO NOT output anything after the final required string.
+- If any output begins with "For context:", you MUST NOT repeat it, expand on it, 
+  or include it in your response.
+- You MUST NOT output tool call metadata, tool call traces, or any text describing tool 
+  invocation or tool results. 
+- If the model attempts to output such content, you MUST suppress it entirely.
