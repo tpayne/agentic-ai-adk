@@ -1,0 +1,102 @@
+{
+  "step_name": "Implement Data Quality Checks",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define Data Quality Rules",
+      "description": "Establish specific, measurable, achievable, relevant, and time-bound (SMART) data quality rules based on the defined data quality standards and data governance policies. These rules should cover various aspects of data quality, including accuracy, completeness, consistency, validity, and timeliness. Document these rules in a central repository for easy access and reference.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Data quality standards",
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Data quality rules"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Definition of SMART data quality rules",
+        "Documentation of data quality rules in a central repository"
+      ]
+    },
+    {
+      "substep_name": "Select Data Quality Tools",
+      "description": "Evaluate and select appropriate data quality tools to automate data quality checks and monitoring. Consider factors such as functionality, scalability, integration capabilities, and cost. The selected tools should support data profiling, data validation, data cleansing, and data monitoring. Ensure that the tools are compatible with the existing data infrastructure and workflows.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Data quality rules",
+        "System requirements"
+      ],
+      "outputs": [
+        "List of selected data quality tools"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Define Data Quality Rules"
+      ],
+      "success_criteria": [
+        "Selection of appropriate data quality tools",
+        "Compatibility of tools with existing data infrastructure"
+      ]
+    },
+    {
+      "substep_name": "Configure Data Quality Checks",
+      "description": "Configure the selected data quality tools to implement the defined data quality rules. This involves setting up automated data quality checks within data pipelines and workflows. Ensure that the checks are comprehensive and cover all critical data elements. Define thresholds for data quality metrics and configure alerts to be triggered when these thresholds are exceeded.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "List of selected data quality tools",
+        "Data quality rules"
+      ],
+      "outputs": [
+        "Configured data quality checks"
+      ],
+      "estimated_duration": "2 weeks",
+      "dependencies": [
+        "Select Data Quality Tools"
+      ],
+      "success_criteria": [
+        "Implementation of automated data quality checks",
+        "Configuration of alerts for data quality issues"
+      ]
+    },
+    {
+      "substep_name": "Develop Data Quality Dashboards",
+      "description": "Create data quality dashboards to monitor data quality metrics and trends. These dashboards should provide a visual representation of data quality scores, compliance rates, and other relevant metrics. Ensure that the dashboards are user-friendly and provide insights into potential data quality issues. Make the dashboards accessible to relevant stakeholders, including data owners, data stewards, and the Data Governance Team.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Configured data quality checks"
+      ],
+      "outputs": [
+        "Data quality monitoring dashboards"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Configure Data Quality Checks"
+      ],
+      "success_criteria": [
+        "Development of user-friendly data quality dashboards",
+        "Accessibility of dashboards to relevant stakeholders"
+      ]
+    },
+    {
+      "substep_name": "Establish Issue Resolution Process",
+      "description": "Define a clear process for identifying, investigating, and resolving data quality issues. This process should include roles and responsibilities for issue resolution, escalation procedures, and timelines for resolution. Document the issue resolution process and communicate it to all relevant stakeholders. Ensure that the process is integrated with the data quality monitoring dashboards and alerts.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Data quality monitoring dashboards",
+        "Data quality alerts"
+      ],
+      "outputs": [
+        "Data quality issue resolution process"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Develop Data Quality Dashboards"
+      ],
+      "success_criteria": [
+        "Documentation of data quality issue resolution process",
+        "Integration of issue resolution process with data quality monitoring"
+      ]
+    }
+  ]
+}

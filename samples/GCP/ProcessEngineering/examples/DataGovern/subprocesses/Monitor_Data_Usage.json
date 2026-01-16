@@ -1,0 +1,118 @@
+{
+  "step_name": "Monitor Data Usage",
+  "subprocess_flow": [
+    {
+      "substep_name": "Configure Data Access Logging",
+      "description": "Establish and configure data access logging mechanisms to capture detailed information about data access events. This includes specifying the types of events to log (e.g., read, write, delete), the data elements to capture (e.g., user ID, timestamp, data accessed), and the storage location for the logs. Ensure that the logging configuration complies with data governance policies and regulatory requirements.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Data governance policies",
+        "Data security protocols",
+        "Data inventory"
+      ],
+      "outputs": [
+        "Data access logging configuration",
+        "Data access logs"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Data access logging is enabled for all critical data assets",
+        "Data access logs are stored securely",
+        "Logging configuration complies with data governance policies"
+      ]
+    },
+    {
+      "substep_name": "Implement Data Usage Reporting",
+      "description": "Develop and implement data usage reporting capabilities to generate reports on data access patterns. This includes defining the types of reports to generate (e.g., daily, weekly, monthly), the data elements to include in the reports (e.g., user ID, data accessed, access frequency), and the distribution list for the reports. Ensure that the reporting configuration complies with data governance policies and regulatory requirements.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Data governance policies",
+        "Data security protocols",
+        "Data access logs"
+      ],
+      "outputs": [
+        "Data usage reporting configuration",
+        "Data usage reports"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Configure Data Access Logging"
+      ],
+      "success_criteria": [
+        "Data usage reporting is enabled for all critical data assets",
+        "Data usage reports are generated on a regular basis",
+        "Reporting configuration complies with data governance policies"
+      ]
+    },
+    {
+      "substep_name": "Deploy Data Loss Prevention (DLP) Tools",
+      "description": "Deploy and configure Data Loss Prevention (DLP) tools to prevent sensitive data from leaving the organization. This includes defining the types of data to protect (e.g., personally identifiable information, financial data, intellectual property), the channels to monitor (e.g., email, web, file transfer), and the actions to take when sensitive data is detected (e.g., block, quarantine, alert). Ensure that the DLP configuration complies with data governance policies and regulatory requirements.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Data governance policies",
+        "Data security protocols",
+        "Data classification"
+      ],
+      "outputs": [
+        "DLP configuration",
+        "DLP alerts"
+      ],
+      "estimated_duration": "2 weeks",
+      "dependencies": [
+        "Implement Data Usage Reporting"
+      ],
+      "success_criteria": [
+        "DLP tools are deployed and configured for all critical data assets",
+        "DLP tools are effective at preventing sensitive data from leaving the organization",
+        "DLP configuration complies with data governance policies"
+      ]
+    },
+    {
+      "substep_name": "Analyze Data Access Patterns",
+      "description": "Analyze data access patterns to identify potential security risks. This includes looking for anomalies in data access patterns, such as users accessing data that they do not normally access, users accessing data outside of normal business hours, or users accessing data from unusual locations. Use data analytics techniques to identify these anomalies and generate alerts for further investigation.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Data access logs",
+        "Data usage reports",
+        "DLP alerts"
+      ],
+      "outputs": [
+        "Security risk assessments",
+        "Security alerts"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Deploy Data Loss Prevention (DLP) Tools"
+      ],
+      "success_criteria": [
+        "Security risks are identified in a timely manner",
+        "Security alerts are generated for all potential security risks",
+        "Security risk assessments are accurate and comprehensive"
+      ]
+    },
+    {
+      "substep_name": "Escalate Security Alerts",
+      "description": "Escalate security alerts to the security incident response team for investigation and resolution. This includes defining the escalation process, the roles and responsibilities of the security incident response team, and the service level agreements (SLAs) for responding to security alerts. Ensure that the escalation process complies with data governance policies and regulatory requirements.",
+      "responsible_party": "IT Department",
+      "inputs": [
+        "Security alerts",
+        "Data governance policies",
+        "Data security protocols"
+      ],
+      "outputs": [
+        "Escalation process",
+        "Security incident reports"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Analyze Data Access Patterns"
+      ],
+      "success_criteria": [
+        "Security alerts are escalated to the security incident response team in a timely manner",
+        "Security incident response team responds to security alerts within the SLAs",
+        "Escalation process complies with data governance policies"
+      ]
+    }
+  ]
+}

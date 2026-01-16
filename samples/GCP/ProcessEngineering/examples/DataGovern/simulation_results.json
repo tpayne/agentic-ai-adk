@@ -1,0 +1,18 @@
+{
+  "avg_cycle_time": 18.607335940514208,
+  "cycle_time_variance": 2.4140102997370523,
+  "time_unit": "weeks",
+  "bottlenecks": [
+    "Implement Data Quality Checks",
+    "Define Data Governance Policies",
+    "Identify Data Owners"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Define Data Governance Policies": 5.289646840372828,
+    "Identify Data Owners": 2.672371215041693,
+    "Implement Data Quality Checks": 7.994826374314299,
+    "Monitor Data Usage": 1.3251572669734644,
+    "Enforce Security Protocols": 1.325334243811924
+  }
+}

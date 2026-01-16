@@ -1,0 +1,123 @@
+{
+  "step_name": "Identify Data Owners",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare Data Inventory",
+      "description": "Compile and validate the existing data inventory to ensure it accurately reflects all critical data assets within the organization. This involves reviewing existing documentation, consulting with data stewards, and performing data discovery exercises to identify any gaps or inconsistencies in the inventory. The data inventory should include details such as data asset names, descriptions, locations, formats, and classifications.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Existing data inventory",
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Validated data inventory"
+      ],
+      "estimated_duration": "3-5 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Data inventory is complete and accurate",
+        "All critical data assets are identified and documented"
+      ]
+    },
+    {
+      "substep_name": "Map Data Assets to Business Functions",
+      "description": "Analyze the validated data inventory and map each data asset to the relevant business functions or processes that utilize it. This involves collaborating with business analysts and subject matter experts to understand how data flows through the organization and which business units rely on specific data assets. The mapping should identify the primary business purpose of each data asset and its role in supporting key business activities.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Validated data inventory",
+        "Business process documentation"
+      ],
+      "outputs": [
+        "Data asset to business function mapping"
+      ],
+      "estimated_duration": "2-3 days",
+      "dependencies": [
+        "Prepare Data Inventory"
+      ],
+      "success_criteria": [
+        "All data assets are mapped to relevant business functions",
+        "Business functions understand their data dependencies"
+      ]
+    },
+    {
+      "substep_name": "Identify Potential Data Owners",
+      "description": "Based on the data asset to business function mapping, identify potential data owners for each critical data asset. This involves identifying individuals who have the most knowledge about and responsibility for the data asset within the relevant business function. Consider individuals who are business unit leaders, subject matter experts, or data stewards with a deep understanding of the data and its usage.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Data asset to business function mapping",
+        "Organizational charts"
+      ],
+      "outputs": [
+        "List of potential data owners"
+      ],
+      "estimated_duration": "1-2 days",
+      "dependencies": [
+        "Map Data Assets to Business Functions"
+      ],
+      "success_criteria": [
+        "Potential data owners are identified for all critical data assets",
+        "Potential data owners have relevant expertise and responsibility"
+      ]
+    },
+    {
+      "substep_name": "Evaluate and Select Data Owners",
+      "description": "Evaluate the list of potential data owners based on predefined criteria, such as their understanding of the data, their ability to influence data quality, and their commitment to data governance. Conduct interviews or discussions with potential data owners to assess their suitability and willingness to take on the responsibilities of a data owner. Select the most appropriate data owner for each critical data asset.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "List of potential data owners",
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Selected data owners"
+      ],
+      "estimated_duration": "2-3 days",
+      "dependencies": [
+        "Identify Potential Data Owners"
+      ],
+      "success_criteria": [
+        "Data owners are selected based on predefined criteria",
+        "Selected data owners are committed to data governance"
+      ]
+    },
+    {
+      "substep_name": "Define Data Owner Responsibilities",
+      "description": "Clearly define the responsibilities of data owners, including their role in ensuring data quality, accuracy, and security. Document these responsibilities in a data ownership matrix or similar document. Ensure that data owners understand their responsibilities and have the necessary training and resources to fulfill them. Responsibilities include approving data access requests, defining data quality rules, and participating in data governance meetings.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Selected data owners",
+        "Data governance policies"
+      ],
+      "outputs": [
+        "Data owner responsibilities"
+      ],
+      "estimated_duration": "1-2 days",
+      "dependencies": [
+        "Evaluate and Select Data Owners"
+      ],
+      "success_criteria": [
+        "Data owner responsibilities are clearly defined and documented",
+        "Data owners understand their responsibilities"
+      ]
+    },
+    {
+      "substep_name": "Communicate Data Ownership Assignments",
+      "description": "Communicate the data ownership assignments to all relevant stakeholders, including data owners, data stewards, business users, and IT personnel. This involves publishing the data ownership matrix, conducting training sessions, and providing ongoing support to data owners. Ensure that stakeholders understand the roles and responsibilities of data owners and how to engage with them.",
+      "responsible_party": "Data Governance Team",
+      "inputs": [
+        "Data owner responsibilities",
+        "Selected data owners"
+      ],
+      "outputs": [
+        "Data ownership assignments communicated"
+      ],
+      "estimated_duration": "2-3 days",
+      "dependencies": [
+        "Define Data Owner Responsibilities"
+      ],
+      "success_criteria": [
+        "Data ownership assignments are communicated to all relevant stakeholders",
+        "Stakeholders understand the roles and responsibilities of data owners"
+      ]
+    }
+  ]
+}
