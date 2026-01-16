@@ -53,8 +53,8 @@ You MUST transform the input into this EXACT schema:
   "introduction": string,
   "stakeholders": [
     {
-      "stakeholder_name": string, 
-      "role": string, 
+      "stakeholder_name": string,
+      "role": string,
       "responsibilities": [string]
     }
   ],
@@ -64,6 +64,7 @@ You MUST transform the input into this EXACT schema:
       "description": string,
       "responsible_party": string,
       "estimated_duration": string,
+      "deliverables": [string],
       "inputs": [string],
       "outputs": [string],
       "dependencies": [string],
@@ -77,7 +78,7 @@ You MUST transform the input into this EXACT schema:
   "reporting_and_analytics": {},
   "system_requirements": [string],
   "assumptions": [string],
-  "constraints": [string],  
+  "constraints": [string],
   "appendix": {}
 }
 
