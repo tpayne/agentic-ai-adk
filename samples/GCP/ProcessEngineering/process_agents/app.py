@@ -58,6 +58,16 @@ def index():
     """
     return render_template("index.html")
 
+# Version GET handler
+@app.route("/version")
+def version() -> Any:
+    return jsonify({"version":"1.0"})
+
+# Status GET probe handler
+@app.route("/status")
+def status() -> Any:
+    return jsonify({"status":"live"})
+
 @app.route("/api/process")
 def api_process():
     """
