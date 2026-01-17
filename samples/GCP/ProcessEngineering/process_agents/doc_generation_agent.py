@@ -61,6 +61,19 @@ def _load_subprocesses() -> dict:
 # Helpers: Document building blocks
 # -----------------------------------
 
+def _add_header(doc, label):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after = Pt(0)
+    p.add_run(label).bold = True
+    return p
+
+def _add_bullet(doc, text):
+    b = doc.add_paragraph(str(text), style="List Bullet")
+    b.paragraph_format.space_before = Pt(0)
+    b.paragraph_format.space_after = Pt(0)
+    return b
+
 def _add_table_of_contents(doc: docx.Document) -> None:
     """
     Insert a Word Table of Contents field (updates inside Word).
@@ -115,29 +128,44 @@ def _add_process_step_summary(doc, step: dict) -> None:
     if name:
         doc.add_heading(name, level=2)
 
-    desc = step.get("description")
-    if desc:
-        doc.add_paragraph(desc)
+    # description
+    desc = step.get("description") 
+    if desc: 
+        _add_header(doc, "Description:") 
+        _add_bullet(doc, desc)
 
+    # Estimated Duration
     duration = step.get("estimated_duration")
     if duration:
-        doc.add_paragraph(f"Estimated Duration: {duration}")
+        _add_header(doc, "Estimated Duration:")
+        _add_bullet(doc, duration)
 
+    # Responsible Parties
     parties = step.get("responsible_party")
     if parties:
-        doc.add_paragraph(f"Responsible Parties: {parties}")
+        _add_header(doc, "Responsible Parties:")
+        if isinstance(parties, list):
+            for p_item in parties:
+                _add_bullet(doc, p_item)
+        else:
+            _add_bullet(doc, parties)
 
+    # Key Activities
     activities = step.get("activities")
     if activities:
-        doc.add_paragraph("Key Activities:")
+        _add_header(doc, "Key Activities:")
         for a in activities:
-            doc.add_paragraph(f"- {a}", style="List Bullet")
+            _add_bullet(doc, a)
 
+    # Success Criteria
     criteria = step.get("success_criteria")
     if criteria:
-        doc.add_paragraph("Success Criteria:")
-        for c in criteria:
-            doc.add_paragraph(f"- {c}", style="List Bullet")
+        _add_header(doc, "Success Criteria:")
+        if isinstance(criteria, list):
+            for c in criteria:
+                _add_bullet(doc, c)
+        else:
+            _add_bullet(doc, criteria)
 
 def _render_generic_value(doc: docx.Document, value, level: int = 0) -> None:
     """
@@ -359,217 +387,250 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
 
             doc.add_heading(f"3.{s_idx} {name}", level=2)
 
+            # Description
             if description:
-                doc.add_paragraph(str(description))
+                _add_header(doc, "Description:")
+                _add_bullet(doc, description)
 
+            # Responsible Parties
             if responsible:
-                p = doc.add_paragraph()
-                r = p.add_run("Responsible Parties: ")
-                r.bold = True
+                _add_header(doc, "Responsible Parties:")
                 if isinstance(responsible, list):
-                    p.add_run(", ".join(str(x) for x in responsible))
+                    for r_item in responsible:
+                        _add_bullet(doc, r_item)
                 else:
-                    p.add_run(str(responsible))
+                    _add_bullet(doc, responsible)
 
+            # Inputs
             if inputs:
-                p = doc.add_paragraph()
-                r = p.add_run("Inputs: ")
-                r.bold = True
+                _add_header(doc, "Inputs:")
                 if isinstance(inputs, list):
                     for i in inputs:
-                        doc.add_paragraph(str(i), style="List Bullet")
+                        _add_bullet(doc, i)
                 else:
-                    doc.add_paragraph(str(inputs), style="List Bullet")
+                    _add_bullet(doc, inputs)
 
+            # Outputs
             if outputs:
-                p = doc.add_paragraph()
-                r = p.add_run("Outputs: ")
-                r.bold = True
+                _add_header(doc, "Outputs:")
                 if isinstance(outputs, list):
                     for o in outputs:
-                        doc.add_paragraph(str(o), style="List Bullet")
+                        _add_bullet(doc, o)
                 else:
-                    doc.add_paragraph(str(outputs), style="List Bullet")
+                    _add_bullet(doc, outputs)
 
+            # Key Activities
             if activities and isinstance(activities, list):
-                p = doc.add_paragraph()
-                r = p.add_run("Key Activities: ")
-                r.bold = True
+                _add_header(doc, "Key Activities:")
                 for a in activities:
-                    doc.add_paragraph(str(a), style="List Bullet")
+                    _add_bullet(doc, a)
 
+            # Sub-Steps
             if sub_steps and isinstance(sub_steps, list):
-                doc.add_paragraph()
-                p = doc.add_paragraph()
-                r = p.add_run("Sub-Steps:")
-                r.bold = True
-
+                _add_header(doc, "Sub-Steps:")
                 for idx_sub, sub in enumerate(sub_steps, start=1):
                     if not isinstance(sub, dict):
                         continue
+
                     ss_name = sub.get("sub_step_name", f"Sub-step {idx_sub}")
                     ss_desc = sub.get("sub_step_description", "")
                     ss_acts = sub.get("activities", [])
 
-                    doc.add_heading(f"3.{s_idx}.{idx_sub} {ss_name}", level=3)
+                    h = doc.add_heading(f"3.{s_idx}.{idx_sub} {ss_name}", level=3)
+                    h.paragraph_format.space_before = Pt(10)
+                    h.paragraph_format.space_after = Pt(0)
+
                     if ss_desc:
-                        doc.add_paragraph(str(ss_desc))
+                        p = doc.add_paragraph(str(ss_desc))
+                        p.paragraph_format.space_before = Pt(0)
+                        p.paragraph_format.space_after = Pt(0)
+
                     if isinstance(ss_acts, list) and ss_acts:
                         for act in ss_acts:
-                            doc.add_paragraph(str(act), style="List Bullet")
+                            _add_bullet(doc, act)
 
+            # Success Criteria
             if success_criteria:
-                p = doc.add_paragraph()
-                r = p.add_run("Success Criteria:")
-                r.bold = True
-
+                _add_header(doc, "Success Criteria:")
                 if isinstance(success_criteria, list):
                     for crit in success_criteria:
-                        # Proper bullet formatting
-                        doc.add_paragraph(str(crit), style="List Bullet")
+                        _add_bullet(doc, crit)
                 else:
-                    doc.add_paragraph(str(success_criteria), style="List Bullet")
+                    _add_bullet(doc, success_criteria)
 
+            # Step KPIs
             if kpis:
-                p = doc.add_paragraph()
-                r = p.add_run("Step KPIs: ")
-                r.bold = True
+                _add_header(doc, "Step KPIs:")
                 if isinstance(kpis, list):
                     for k in kpis:
-                        doc.add_paragraph(str(k), style="List Bullet")
+                        _add_bullet(doc, k)
                 else:
-                    doc.add_paragraph(str(kpis), style="List Bullet")
+                    _add_bullet(doc, kpis)
 
+            # Escalation Procedure
             if escalation:
-                p = doc.add_paragraph()
-                r = p.add_run("Escalation Procedure: ")
-                r.bold = True
-                doc.add_paragraph(str(escalation), style="Normal")
+                _add_header(doc, "Escalation Procedure:")
+                _add_bullet(doc, escalation)
 
-            # --- Subprocess render (if attached) ---
+            # Subprocess render
             subprocess_json = step.get("subprocess")
             if isinstance(subprocess_json, dict):
                 _add_subprocess_section(doc, name, subprocess_json)
 
-            doc.add_paragraph()
+            doc.add_paragraph().paragraph_format.space_after = Pt(0)
     except Exception:
-        traceback.print_exc()
-
+        logger.exception(f"Failed to render subprocess steps for {step_name}")           
 
 def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json: dict) -> None:
     """
-    Fully hardened subprocess renderer.
-    Accepts ANY reasonable subprocess schema and renders it safely.
-
-    Supports:
-    - subprocess_flow
-    - subprocess_steps
-    - steps
-    - flow
-    - phases
-    - arbitrary nested structures
-
-    Also supports substep_name, step_name, name, title, etc.
+    Renders subprocess flows using the new explicit subprocess schema:
+    - substep_name
+    - description
+    - responsible_party
+    - inputs, outputs
+    - estimated_duration
+    - dependencies
+    - success_criteria
+    - purpose, scope, process_owner
+    - triggers, end_conditions
+    - step_risks_and_controls: [{risk, control}]
+    - governance_requirements: [str]
+    - change_management: [{change_request_process, versioning_rules}]
+    - continuous_improvement: [{review_frequency, improvement_inputs}]
     """
     logger.info(f"Rendering subprocess for step: {step_name}")
+
     try:
         doc.add_heading(f"Required Sub Process(es) for the Step \"{step_name}\"", level=3)
         doc.add_paragraph(f"The following details the subprocess flows for the step \"{step_name}\".")
 
-        # 🔥 NEW: generate and embed a subprocess diagram (per-step micro-BPMN)
+        # Optional micro-diagram
         _add_step_diagram_if_available(doc, step_name, subprocess_json)
 
         # Optional high-level description
-        desc = subprocess_json.get("description")
-        if desc:
-            doc.add_paragraph(str(desc))
+        if "description" in subprocess_json:
+            doc.add_paragraph(str(subprocess_json["description"]))
 
-        # --- Identify substep container keys (max compatibility) ---
-        candidate_keys = [
-            "subprocess_steps",
-            "subprocess_flow",
-            "steps",
-            "flow",
-            "phases",
-            "substeps",
-            "activities",   # fallback if LLM outputs activities as substeps
-        ]
-
+        # Identify substep list
         substeps = None
-        for key in candidate_keys:
+        for key in ["subprocess_flow", "subprocess_steps", "steps", "flow", "phases", "substeps", "activities"]:
             if key in subprocess_json and isinstance(subprocess_json[key], list):
                 substeps = subprocess_json[key]
                 break
 
-        # If still nothing, try to detect any list of dicts
+        # Fallback: any list of dicts
         if substeps is None:
             for k, v in subprocess_json.items():
                 if isinstance(v, list) and all(isinstance(x, dict) for x in v):
                     substeps = v
                     break
 
-        # If STILL nothing, render the whole subprocess JSON generically
         if not substeps:
             doc.add_paragraph("No structured subprocess steps found. Rendering raw subprocess data:")
             _render_generic_value(doc, subprocess_json, level=1)
             doc.add_paragraph()
             return
 
-        # --- Render each substep ---
+        # Render each substep
         for idx, s in enumerate(substeps, start=1):
             if not isinstance(s, dict):
                 continue
 
-            # Identify substep name field
-            name_fields = [
-                "substep_name",
-                "step_name",
-                "name",
-                "title",
-                "label",
-            ]
-            sname = None
-            for nf in name_fields:
-                if nf in s:
-                    sname = s[nf]
-                    break
-            if not sname:
-                sname = f"Sub-step {idx}"
+            # Substep name
+            sname = (
+                s.get("substep_name")
+                or s.get("step_name")
+                or s.get("name")
+                or s.get("title")
+                or f"Sub-step {idx}"
+            )
 
             doc.add_heading(f"{step_name} – {sname}", level=4)
 
-            # Known fields
-            known_fields = {
-                "description": "Description",
-                "responsible_party": "Responsible Parties",
-                "inputs": "Inputs",
-                "outputs": "Outputs",
-                "dependencies": "Dependencies",
-                "estimated_duration": "Estimated Duration",
-                "success_criteria": "Success Criteria",
-            }
+            # Ordered fields for consistent rendering
+            ordered_fields = [
+                ("description", "Description"),
+                ("responsible_party", "Responsible Party"),
+                ("inputs", "Inputs"),
+                ("outputs", "Outputs"),
+                ("estimated_duration", "Estimated Duration"),
+                ("dependencies", "Dependencies"),
+                ("success_criteria", "Success Criteria"),
+                ("purpose", "Purpose"),
+                ("scope", "Scope"),
+                ("process_owner", "Process Owner"),
+                ("triggers", "Triggers"),
+                ("end_conditions", "End Conditions"),
+            ]
 
-            # Render known fields first
-            for field, label in known_fields.items():
+            # Render simple fields using helpers
+            for field, label in ordered_fields:
                 if field not in s:
                     continue
 
                 value = s[field]
-                p = doc.add_paragraph()
-                r = p.add_run(f"{label}: ")
-                r.bold = True
 
+                # Header line (10pt before, 0pt after)
+                _add_header(doc, f"{label}:")
+
+                # Bullet(s)
                 if isinstance(value, list):
                     for item in value:
-                        doc.add_paragraph(str(item), style="List Bullet")
+                        _add_bullet(doc, item)
                 else:
-                    p.add_run(str(value))
+                    _add_bullet(doc, value)
 
-            # Render any unknown fields (schema drift protection)
-            extra = {
-                k: v for k, v in s.items()
-                if k not in known_fields and k not in name_fields
+            # --- Complex structured fields ---
+
+            # step_risks_and_controls
+            if "step_risks_and_controls" in s:
+                _add_header(doc, "Step Risks and Controls:")
+
+                for rc in s["step_risks_and_controls"]:
+                    if isinstance(rc, dict):
+                        _add_bullet(doc, f"Risk: {rc.get('risk', '')}")
+                        _add_bullet(doc, f"Control: {rc.get('control', '')}")
+
+
+            # governance_requirements
+            if "governance_requirements" in s:
+                _add_header(doc, "Governance Requirements:")
+                for item in s["governance_requirements"]:
+                    _add_bullet(doc, item)
+
+            # change_management
+            if "change_management" in s:
+                _add_header(doc, "Change Management:")
+                for cm in s["change_management"]:
+                    if isinstance(cm, dict):
+                        _add_bullet(doc, f"Change Request Process: {cm.get('change_request_process', '')}")
+                        _add_bullet(doc, f"Versioning Rules: {cm.get('versioning_rules', '')}")
+
+            # continuous_improvement
+            if "continuous_improvement" in s:
+                _add_header(doc, "Continuous Improvement:")
+                for ci in s["continuous_improvement"]:
+                    if isinstance(ci, dict):
+                        _add_bullet(doc, f"Review Frequency: {ci.get('review_frequency', '')}")
+
+                        inputs = ci.get("improvement_inputs", [])
+                        if inputs:
+                            _add_header(doc, "Improvement Inputs:")
+                            for item in inputs:
+                                _add_bullet(doc, item)
+
+            # Schema drift protection
+            known = {
+                f for f, _ in ordered_fields
+            } | {
+                "substep_name",
+                "step_risks_and_controls",
+                "governance_requirements",
+                "change_management",
+                "continuous_improvement",
             }
+
+            extra = {k: v for k, v in s.items() if k not in known}
             if extra:
                 doc.add_paragraph().add_run("Additional Details:").bold = True
                 _render_generic_value(doc, extra, level=1)
@@ -578,7 +639,6 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
 
     except Exception:
         logger.exception(f"Failed to render subprocess for {step_name}")
-
 
 def _add_tools_section_from_summary(doc: docx.Document, tools_summary) -> None:
     """4.0 Tools section: 'tools_summary' list of {category, tools}."""
@@ -1119,6 +1179,125 @@ def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
     except Exception:
         traceback.print_exc()
 
+def _add_risks_and_controls_section(doc, items):
+    """Adds Risks & Controls as a 2‑column table."""
+
+    doc.add_heading("13.0 Risks and Controls", level=1)
+    doc.add_paragraph("The following risks and associated controls apply to this process.")
+
+    if not items:
+        return
+
+    table = doc.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+
+    # Header row
+    hdr = table.rows[0].cells
+    hdr[0].text = "Risk"
+    hdr[1].text = "Control"
+
+    # Bold headers
+    for cell in hdr:
+        for p in cell.paragraphs:
+            for run in p.runs:
+                run.bold = True
+
+    # Data rows
+    for rc in items:
+        row = table.add_row().cells
+        row[0].text = str(rc.get("risk", ""))
+        row[1].text = str(rc.get("control", ""))
+
+def _add_governance_requirements_section(doc, items):
+    """Adds Governance Requirements as bullets, or a 'none' message."""
+    doc.add_heading("12.0 Governance Requirements", level=1)
+ 
+    if not items:
+        doc.add_paragraph("There are no governance requirements to document.", style="Normal")
+        return
+    else:
+        doc.add_paragraph("There following are the list of governance requirements used in this process.", style="Normal")
+
+    for item in items:
+        _add_bullet(doc, item)
+
+
+def _add_process_end_conditions_section(doc, items):
+    """Adds Process End Conditions as bullets, or a 'none' message."""
+    doc.add_heading("15.0 Process End Conditions", level=1)
+
+    if not items:
+        doc.add_paragraph("There are no process end conditions to document.", style="Normal")
+        return
+    else:
+        doc.add_paragraph("There following are a list of the process end conditions.", style="Normal")
+
+    for item in items:
+        _add_bullet(doc, item)
+
+
+def _add_change_management_section(doc, items):
+    """Adds Change Management details as bullets, or a 'none' message."""
+    doc.add_heading("16.0 Change Management", level=1)
+
+    if not items:
+        doc.add_paragraph("There are no change management items to document.", style="Normal")
+        return
+    else:
+        doc.add_paragraph("There following are list of the change management procedures.", style="Normal")
+
+    for cm in items:
+        if isinstance(cm, dict):
+            crp = cm.get("change_request_process")
+            vr = cm.get("versioning_rules")
+
+            if crp:
+                _add_bullet(doc, f"Change Request Process: {crp}")
+            if vr:
+                _add_bullet(doc, f"Versioning Rules: {vr}")
+
+
+def _add_process_triggers_section(doc, items):
+    """Adds Process Triggers as bullets, or a 'none' message."""
+    doc.add_heading("14.0 Process Triggers", level=1)
+
+    if not items:
+        doc.add_paragraph("There are no process triggers to document.", style="Normal")
+        return
+    else:
+        doc.add_paragraph("There following are triggers that kick processes off.", style="Normal")
+
+    for item in items:
+        _add_bullet(doc, item)
+
+
+def _add_continuous_improvement_section(doc, items):
+    """Adds Continuous Improvement details as bullets, or a 'none' message."""
+    doc.add_heading("17.0 Continuous Improvement", level=1)
+
+    if not items:
+        doc.add_paragraph("There are no continuous improvement items to document.", style="Normal")
+        return
+    else:
+        doc.add_paragraph("The following are the items used for continuous improvement.", style="Normal")
+
+    for ci in items:
+        if not isinstance(ci, dict):
+            continue
+
+        freq = ci.get("review_frequency")
+        inputs = ci.get("improvement_inputs", [])
+
+        if freq:
+            _add_bullet(doc, f"Review Frequency: {freq}")
+
+        if inputs:
+            _add_header(doc, "Improvement Inputs:")
+            for inp in inputs:
+                _add_bullet(doc, inp)
+        else:
+            doc.add_paragraph("There are no improvement inputs to document.", style="Normal")
+
 
 def _add_additional_data_section(doc: docx.Document, data: dict, consumed_keys: set) -> None:
     """
@@ -1231,25 +1410,61 @@ def create_standard_doc_from_file(process_name: str) -> str:
         system_requirements = data.get("system_requirements")
         appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
 
+        governance_requirements = data.get("governance_requirements") 
+        process_end_conditions = data.get("process_end_conditions") 
+        change_management = data.get("change_management") 
+        process_triggers = data.get("process_triggers")
+        continuous_improvement = data.get("continuous_improvement") 
+        risks_and_controls = data.get("risks_and_controls")
+
         consumed_keys = { 
-            "process_name", 
-            "description", 
-            "process_description", 
-            "introduction", 
-            "version", 
-            "industry_sector", 
-            "business_unit", 
-            "stakeholders", 
-            "process_steps", 
-            "tools_summary", 
-            "metrics",
-            "critical_success_factors",
-            "critical_failure_factors", 
-            "success_metrics", 
-            "reporting_and_analytics", 
-            "system_requirements", 
             "appendix",
+            "assumptions",
+            "business_unit", 
+            "change_management",
+            "constraints",
+            "continuous_improvement",
+            "critical_failure_factors", 
+            "critical_success_factors",
+            "description", 
+            "governance_requirements",
+            "industry_sector", 
+            "introduction", 
+            "metrics",
+            "process_description", 
+            "process_end_conditions",
+            "process_name", 
+            "process_steps", 
+            "process_triggers",
+            "reporting_and_analytics", 
+            "risks_and_controls",
+            "stakeholders", 
+            "success_metrics", 
+            "system_requirements", 
+            "tools_summary", 
+            "version", 
         }
+
+#         for key in consumed_keys:
+#             value = data.get(key)
+#             print(f"\n=== {key} ===")
+
+#             if value is None:
+#                 print("  (missing)")
+#                 continue
+
+#             # Show type
+#             print(f"  type: {type(value).__name__}")
+
+#             # Pretty-print lists and dicts
+#             if isinstance(value, dict):
+#                 for k, v in value.items():
+#                     print(f"    {k}: {v}")
+#             elif isinstance(value, list):
+#                 for i, item in enumerate(value):
+#                     print(f"    [{i}] {item}")
+#             else:
+#                 print(f"  value: {value}")
 
         doc = docx.Document()
         try:
@@ -1354,6 +1569,36 @@ def create_standard_doc_from_file(process_name: str) -> str:
         # 11.0 Process Performance Report (if we have metrics)
         if simulation_results:
             _add_simulation_report(doc, simulation_results)
+            doc.add_page_break()
+
+        # 12.0
+        if governance_requirements: 
+            _add_governance_requirements_section(doc, governance_requirements) 
+            doc.add_page_break() 
+
+        # 13.0
+        if risks_and_controls: 
+            _add_risks_and_controls_section(doc, risks_and_controls) 
+            doc.add_page_break() 
+
+        # 14.0
+        if process_triggers: 
+            _add_process_triggers_section(doc, process_triggers) 
+            doc.add_page_break() 
+
+        # 15.0
+        if process_end_conditions: 
+            _add_process_end_conditions_section(doc, process_end_conditions) 
+            doc.add_page_break()
+
+        # 16.0
+        if change_management: 
+            _add_change_management_section(doc, change_management) 
+            doc.add_page_break() 
+
+        # 17.0
+        if continuous_improvement: 
+            _add_continuous_improvement_section(doc, continuous_improvement) 
             doc.add_page_break()
 
         # Appendix A: Structured appendix from JSON
