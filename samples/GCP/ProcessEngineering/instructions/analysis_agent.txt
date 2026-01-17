@@ -26,8 +26,17 @@ Generate a single JSON object containing:
 - process_steps: Detailed descriptions of the high-level workflow.
 - system_requirements: Technical stack or software needed.
 - reporting_and_analytics: Data visibility needs.
-- constraints: MANDATORY field. Identify at least 3 regulatory, budget, or resource limitations. Professionalize or infer if not provided by the user
-- assumptions: MANDATORY field. Identify at least 3 conditions that must be true for the process to work. Professionalize or infer if not provided by the user
+- constraints: MANDATORY field. Identify at least 3 regulatory, budget, or resource limitations. Professionalize or infer if not provided by the user.
+- assumptions: MANDATORY field. Identify at least 3 conditions that must be true for the process to work. Professionalize or infer if not provided by the user.
+- purpose: A concise statement describing why the process exists.
+- scope: The boundaries of the process.
+- process_owner: The accountable role for the process.
+- process_triggers: Events that initiate the process.
+- process_end_conditions: Conditions that define completion.
+- risks_and_controls: Identified risks and their mitigating controls.
+- governance_requirements: Oversight, audit, and compliance needs.
+- change_management: How changes to the process are controlled.
+- continuous_improvement: How the process is reviewed and improved.
 
 STEP 4: SAVING THE RESULTS (MANADATORY)
 After generating the JSON object, CALL the tool 'save_iteration_feedback' with the JSON output to log your analysis results.

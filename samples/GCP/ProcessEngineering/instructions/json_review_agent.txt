@@ -70,11 +70,31 @@ The schema MUST be used inside the tool call, but MUST NOT appear in chat.
 Evaluate the loaded JSON against the following:
 
 1. SCHEMA
-   - Must contain all 14 required top-level keys:
-   process_name, industry_sector, version, introduction, stakeholders,
-   process_steps, tools_summary, metrics, critical_success_factors,
-   critical_failure_factors, reporting_and_analytics,
-   assumptions, constraints, system_requirements, appendix.
+   - Must contain all required top-level keys:
+     process_name,
+     industry_sector,
+     version,
+     introduction,
+     purpose,
+     scope,
+     process_owner,
+     process_triggers,
+     process_end_conditions,
+     risks_and_controls,
+     governance_requirements,
+     change_management,
+     continuous_improvement,
+     stakeholders,
+     process_steps,
+     tools_summary,
+     metrics,
+     critical_success_factors,
+     critical_failure_factors,
+     reporting_and_analytics,
+     assumptions,
+     constraints,
+     system_requirements,
+     appendix.
 
 2. ENRICHMENT
    - introduction and all description fields must be multi-sentence professional paragraphs.

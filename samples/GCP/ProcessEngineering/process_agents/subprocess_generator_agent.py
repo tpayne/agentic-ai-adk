@@ -13,6 +13,19 @@ MODEL = "gemini-2.0-flash"
 # -----------------------------
 # SUBPROCESS DATA SCHEMAS
 # -----------------------------
+
+class StepRiskControl(BaseModel):
+    risk: str
+    control: str
+
+class ChangeManagement(BaseModel):
+    change_request_process: str
+    versioning_rules: str
+
+class ContinuousImprovement(BaseModel):
+    review_frequency: str
+    improvement_inputs: List[str]
+
 class SubprocessStep(BaseModel):
     substep_name: str = Field(description="Name of the sub-step.")
     description: str = Field(description="What happens in this sub-step.")
@@ -22,12 +35,36 @@ class SubprocessStep(BaseModel):
     estimated_duration: Optional[str] = None
     dependencies: List[str] = Field(default_factory=list)
     success_criteria: List[str] = Field(default_factory=list)
+    purpose: str = Field(description="Why this sub-step exists.")
+    scope: str = Field(description="Boundaries or limits of this sub-step.")
+    process_owner: str = Field(description="Accountable role for this sub-step.")
+    triggers: List[str] = Field(default_factory=list, description="Events that initiate this sub-step.")
+    end_conditions: List[str] = Field(default_factory=list, description="Conditions defining completion.")
+
+    step_risks_and_controls: List[StepRiskControl] = Field(
+        default_factory=list,
+        description="List of risks and their corresponding controls."
+    )
+
+    governance_requirements: List[str] = Field(
+        default_factory=list,
+        description="Oversight or compliance requirements for this sub-step."
+    )
+
+    change_management: List[ChangeManagement] = Field(
+        default_factory=list,
+        description="Change management processes for this sub-step."
+    )
+
+    continuous_improvement: List[ContinuousImprovement] = Field(
+        default_factory=list,
+        description="Continuous improvement processes for this sub-step."
+    )
 
 
 class SubprocessFlow(BaseModel):
     step_name: str
     subprocess_flow: List[SubprocessStep]
-
 
 # -----------------------------
 # FACTORY FUNCTION (NEW)

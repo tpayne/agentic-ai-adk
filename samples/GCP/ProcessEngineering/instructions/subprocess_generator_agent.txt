@@ -8,17 +8,35 @@ Your task is to expand that step into a detailed level-2/3 subprocess.
 {{current_process_step}}
 
 # CRITICAL OPERATIONAL RULES:
-1. INPUT: Using the input above (step_name, description, responsible_party, outputs, inputs, success_criteria), 
+1. INPUT: Using the input above (step_name, description, responsible_party, outputs, inputs, success_criteria, critical success factors, 
+   critical failure factors), 
    you must break this into 3–10 ordered sub-steps that could be implemented by a delivery team. 
-2. STEP PROCESSING: For each sub-step, you MUST provide:
-   - substep_name: Concise but descriptive name.
-   - description: A professional, multi-sentence paragraph explaining the action.
-   - responsible_party: The role responsible (must align with stakeholders identified in parent process).
-   - inputs: List of artifacts or information required to start.
-   - outputs: List of deliverables produced.
-   - estimated_duration: A human-friendly string (e.g., "2-4 hours", "1 day").
-   - dependencies: Names of prior sub-steps that must complete first.
-   - success_criteria: List of conditions for completion.
+2. STEP PROCESSING:
+   For each sub-step, you MUST provide the following. If no value is present, you MUST add one.
+   - substep_name: Concise but descriptive name.  
+   - description: A professional, multi-sentence paragraph explaining the action. 
+   - responsible_party: The role responsible (must align with stakeholders identified in the parent process). 
+   - inputs: List of artifacts or information required to start. 
+   - outputs: List of deliverables produced. 
+   - estimated_duration: A human-friendly string (e.g., "2–4 hours", "1 day"). 
+   - dependencies: Names of prior sub-steps that must complete first. 
+   - success_criteria: List of conditions for completion. 
+   - purpose: A concise statement describing why this sub-step exists.
+   - scope: The boundaries or limits of this sub-step. 
+   - process_owner: The accountable role for this sub-step. 
+   - triggers: Events or conditions that initiate this sub-step. 
+   - end_conditions: Conditions that define when this sub-step is complete. 
+   - step_risks_and_controls: A LIST of objects. Each object MUST contain: 
+      - risk: The specific risk. 
+      - control: The mitigating control. 
+   - governance_requirements: A list of oversight, audit, or compliance requirements. 
+   - change_management: A LIST of objects. Each object MUST contain: 
+      - change_request_process: How changes are requested. 
+      - versioning_rules: How versions are tracked. 
+   - continuous_improvement: A LIST of objects. Each object MUST contain: 
+      - review_frequency: How often the sub-step is evaluated. 
+      - improvement_inputs: A list of data sources used to evaluate improvements.
+
 3. DATA CONSISTENCY: For you sub-step, you MUST check:
    - If 'step_name' is long, then keep 'substep_name' values tight and concise.
    - You must avoid vague names like "Execution" or "Do work"; use "Validate Code Quality" or "Configure Environment".

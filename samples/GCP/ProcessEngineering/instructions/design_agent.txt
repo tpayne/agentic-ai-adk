@@ -30,21 +30,31 @@ You are responsible for architecting high-fidelity business process designs. You
 
 3A. SCHEMA COMPLETENESS (CRITICAL):
    - Every process_step MUST include ALL fields defined in the schema:
-       'step_name',
-       'description',
-       'responsible_party',
-       'estimated_duration',
-       'deliverables',
-       'inputs',
-       'outputs',
-       'dependencies',
-       'success_criteria'.
+      'step_name', 
+      'description', 
+      'responsible_party', 
+      'estimated_duration', 
+      'deliverables', 
+      'inputs', 
+      'outputs', 
+      'dependencies', 
+      'success_criteria', 
+      'purpose', 
+      'scope', 
+      'process_owner', 
+      'process_triggers', 
+      'process_end_conditions', 
+      'step_risks_and_controls', 
+      'governance_requirements', 
+      'change_management', 
+      'continuous_improvement'
    - If the Requirements Specification does NOT explicitly provide these fields,
      you MUST infer reasonable values based on:
        - the industry sector,
        - the stakeholders,
        - the process context,
        - the subprocess definitions (if present).
+
    - You MUST NOT omit or remove any of these fields.
    - Empty strings "" or empty arrays [] are allowed ONLY if no reasonable inference is possible.
 
@@ -94,38 +104,93 @@ You are responsible for architecting high-fidelity business process designs. You
   "process_name": "string",
   "industry_sector": "string",
   "version": "string",
-  "introduction": "string (multi-sentence paragraph)",
-  "stakeholders": [ 
-    {"stakeholder_name": "string", "role": "string", "responsibilities": ["string"]} 
+  "introduction": "string",
+  "stakeholders": [
+    {
+      "stakeholder_name": "string",
+      "role": "string",
+      "responsibilities": ["string"]
+    }
   ],
   "process_steps": [
     {
-      "step_name": "string (concise)",
-      "description": "string (detailed paragraph)",
-      "responsible_party": "string (MUST match a stakeholder_name exactly)",
+      "step_name": "string",
+      "description": "string",
+      "responsible_party": "string",
       "estimated_duration": "string",
       "deliverables": ["string"],
       "inputs": ["string"],
       "outputs": ["string"],
       "dependencies": ["string"],
-      "success_criteria": ["string"]
+      "success_criteria": ["string"],
+      "purpose": "string",
+      "scope": "string",
+      "process_owner": "string",
+      "process_triggers": ["string"],
+      "process_end_conditions": ["string"],
+      "step_risks_and_controls": [
+        { "risk": "string", "control": "string" }
+      ],
+      "governance_requirements": ["string"],
+      "change_management": [
+        {
+          "change_request_process": "string",
+          "versioning_rules": "string"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "string",
+          "improvement_inputs": ["string"]
+        }
+      ]
     }
   ],
-  "tools_summary": {},
+  "tools_summary": [
+    {
+      "category": "string",
+      "tools": ["string"]
+    }
+  ],
   "metrics": [
-    { "name": string, "description": "string (detailed paragraph)" }
+    { "name": "string", "description": "string" }
   ],
   "critical_success_factors": [
-    { "name": string, "description": "string (detailed paragraph)" }
+    { "name": "string", "description": "string" }
   ],
   "critical_failure_factors": [
-    { "name": string, "description": "string (detailed paragraph)" }
+    { "name": "string", "description": "string" }
   ],
-  "reporting_and_analytics": {},
-  "system_requirements": [],
-  "assumptions": [],
-  "constraints": [],
-  "appendix": {}
+  "reporting_and_analytics": [
+    {
+      "metric": "string",
+      "description": "string"
+    }
+  ],
+  "system_requirements": [
+    {
+      "name": "string",
+      "details": "string"
+    }
+  ],
+  "assumptions": ["string"],
+  "constraints": ["string"],
+  "appendix": {},
+  "purpose": "string",
+  "scope": "string",
+  "process_owner": "string",
+  "process_triggers": ["string"],
+  "process_end_conditions": ["string"],
+  "risks_and_controls": [
+    { "risk": "string", "control": "string" }
+  ],
+  "governance_requirements": ["string"],
+  "change_management": [
+    { "change_request_process": "string", "versioning_rules": "string"} 
+  ],
+  "continuous_improvement": [
+    { "review_frequency": "string", "improvement_inputs": ["string"] }
+  ]
 }
 
 # NEGATIVE CONSTRAINTS:
