@@ -54,19 +54,6 @@ if os.path.exists(runtime_file):
 
 sys.stderr = open(runtime_file, "a")
 
-# Reset process_data.json
-if not os.environ.get("RUN_DEBUG"):
-    state_file = "output/simulation_results.json"
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-            cleanup_status = "Existing simulation file cleared."
-        except Exception as e:
-            cleanup_status = f"Cleanup failed: {str(e)}"
-    else:
-        cleanup_status = "No previous simulation file found. Starting clean."
-
-    logger.info(f"Pipeline initialized. {cleanup_status}")
 
 # Validate instruction files before proceeding
 logger.info("Validating instruction files...")
@@ -74,6 +61,7 @@ if not validate_instruction_files():
     logger.error("Instruction file validation failed. Aborting pipeline.")
     sys.exit(1)
 
+logger.info("Pipeline initialised...")
 
 # ---------------------------------------------------------
 # ROOT AGENT

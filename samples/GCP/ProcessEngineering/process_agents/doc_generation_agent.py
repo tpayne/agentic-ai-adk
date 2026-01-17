@@ -183,9 +183,7 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
     - introduction or description
     - assumptions
     - constraints
-    - high-level metadata (purpose, scope, etc.)
-
-    It intentionally does NOT render full step details; those live in 3.0.
+    - high-level metadata (purpose, scope, industry_sector) as numbered subheadings
     """
     try:
         doc.add_heading("1.0 Process Overview", level=1)
@@ -203,40 +201,52 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
                 "This section provides a high-level overview of the business process."
             )
 
+        # Track next subsection number
+        subsection_number = 1
+
         # --- Assumptions ---
         assumptions = data.get("assumptions")
-        if assumptions:
-            if isinstance(assumptions, list) and assumptions:
-               doc.add_heading("1.1 Assumptions", level=2)
-               for item in assumptions:
-                   doc.add_paragraph(item, style='List Bullet')
+        if isinstance(assumptions, list) and assumptions:
+            doc.add_heading(f"1.{subsection_number} Assumptions", level=2)
+            subsection_number += 1
+            for item in assumptions:
+                doc.add_paragraph(item, style='List Bullet')
 
         # --- Constraints ---
         constraints = data.get("constraints")
-        if constraints:
-            if isinstance(constraints, list) and constraints:
-               doc.add_heading("1.2 Constraints", level=2)
-               for item in constraints:
-                   doc.add_paragraph(item, style='List Bullet')
+        if isinstance(constraints, list) and constraints:
+            doc.add_heading(f"1.{subsection_number} Constraints", level=2)
+            subsection_number += 1
+            for item in constraints:
+                doc.add_paragraph(item, style='List Bullet')
 
-        # --- High-level metadata ---
-        high_level_keys = [
-            "purpose",
-            "scope",
+        # --- High-level metadata as numbered subsections ---
+        ordered_metadata = [
+            ("purpose", "Purpose"),
+            ("scope", "Scope"),
+            ("industry_sector", "Industry Sector"),
+        ]
+
+        for key, label in ordered_metadata:
+            value = data.get(key)
+            if value:
+                doc.add_heading(f"1.{subsection_number} {label}", level=2)
+                subsection_number += 1
+                doc.add_paragraph(str(value))
+
+        # --- Remaining metadata (non-numbered key/value pairs) ---
+        remaining_keys = [
             "out_of_scope",
-            "industry_sector",
             "business_unit",
             "owner",
         ]
 
-        for key in high_level_keys:
+        for key in remaining_keys:
             if key in data:
                 p = doc.add_paragraph()
                 r = p.add_run(f"{key.replace('_', ' ').title()}: ")
                 r.bold = True
                 p.add_run(str(data.get(key)))
-
-        # NOTE: No step summaries here. 3.0 already covers process_steps.
 
     except Exception:
         traceback.print_exc()
@@ -570,10 +580,10 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
         logger.exception(f"Failed to render subprocess for {step_name}")
 
 
-def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> None:
-    """4.0 Tools section: 'tools_summary' dict."""
+def _add_tools_section_from_summary(doc: docx.Document, tools_summary) -> None:
+    """4.0 Tools section: 'tools_summary' list of {category, tools}."""
     try:
-        if not isinstance(tools_summary, dict) or not tools_summary:
+        if not isinstance(tools_summary, list) or not tools_summary:
             return
 
         doc.add_heading("4.0 Supporting Systems and Tools", level=1)
@@ -585,9 +595,12 @@ def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> 
         hdr_cells[0].text = "Category"
         hdr_cells[1].text = "Tools"
 
-        for category, tools in tools_summary.items():
+        for entry in tools_summary:
+            category = entry.get("category", "")
+            tools = entry.get("tools", [])
+
             row_cells = table.add_row().cells
-            row_cells[0].text = str(category).replace("_", " ").title()
+            row_cells[0].text = str(category)
 
             if isinstance(tools, list):
                 row_cells[1].text = ", ".join(str(x) for x in tools)
@@ -595,6 +608,7 @@ def _add_tools_section_from_summary(doc: docx.Document, tools_summary: dict) -> 
                 row_cells[1].text = str(tools)
 
         doc.add_paragraph()
+
     except Exception:
         traceback.print_exc()
 
@@ -662,38 +676,57 @@ def _add_critical_failure_factors_section(doc, factors):
 
 def _add_metrics_section(doc: docx.Document, metrics) -> None:
     """
-    5.0 Metrics & KPIs section.
-
-    Normalized expectation:
-    - metrics: list of dicts with keys like:
-      metric_name, description, measurement_frequency, target
-    or
-    - metrics: list of strings.
+    5.0 Metrics & KPIs section rendered as a table.
+    Supports:
+      - list of strings
+      - list of dicts with keys: name, description, measurement_frequency, target, sub_metrics
     """
     try:
         if not isinstance(metrics, list) or not metrics:
             return
 
         doc.add_heading("5.0 Metrics and Key Performance Indicators (KPIs)", level=1)
-
         doc.add_paragraph(
-            f"The following is a list of key metrics associated with this process. "
-            f"These metrics help monitor performance and ensure alignment with business objectives."
+            "The following is a list of key metrics associated with this process. "
+            "These metrics help monitor performance and ensure alignment with business objectives."
         )
 
-        if metrics and all(isinstance(m, str) for m in metrics):
+        # If it's a simple list of strings, render as bullets
+        if all(isinstance(m, str) for m in metrics):
             for m in metrics:
                 doc.add_paragraph(m, style="List Bullet")
             return
 
+        # Otherwise: build a table
+        table = doc.add_table(rows=1, cols=4)
+        table.style = "Table Grid"
+
+        hdr = table.rows[0].cells
+        hdr[0].text = "Metric"
+        hdr[1].text = "Description"
+        hdr[2].text = "Measurement / Frequency"
+        hdr[3].text = "Target"
+
+        # Bold headers
+        for cell in hdr:
+            for p in cell.paragraphs:
+                for r in p.runs:
+                    r.bold = True
+
         for idx, m in enumerate(metrics, start=1):
             if isinstance(m, str):
-                doc.add_paragraph(m, style="List Bullet")
+                # Convert string metric into a single-column row
+                row = table.add_row().cells
+                row[0].text = m
+                row[1].text = ""
+                row[2].text = ""
+                row[3].text = ""
                 continue
+
             if not isinstance(m, dict):
                 continue
 
-            name = ( m.get("name") or m.get("metric_name") or f"Metric {idx}" )
+            name = m.get("name") or m.get("metric_name") or f"Metric {idx}"
             description = m.get("description", "")
             measurement = (
                 m.get("measurement")
@@ -701,32 +734,35 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
                 or ""
             )
             target = m.get("target", "")
+
+            # Build row
+            row = table.add_row().cells
+            row[0].text = str(name)
+            row[1].text = str(description)
+            row[2].text = str(measurement)
+            row[3].text = str(target)
+
+            # Handle sub-metrics (if any)
             sub_metrics = m.get("sub_metrics", [])
-
-            doc.add_heading(str(name), level=2)
-            if description:
-                doc.add_paragraph(str(description))
-            if measurement:
-                p = doc.add_paragraph()
-                r = p.add_run("Measurement / Frequency: ")
-                r.bold = True
-                p.add_run(str(measurement))
-            if target:
-                p = doc.add_paragraph()
-                r = p.add_run("Target: ")
-                r.bold = True
-                p.add_run(str(target))
-
             if isinstance(sub_metrics, list) and sub_metrics:
-                doc.add_paragraph().add_run("Sub-metrics:").bold = True
+                # Add a new row spanning all columns
+                sub_row = table.add_row().cells
+                sub_row[0].merge(sub_row[1]).merge(sub_row[2]).merge(sub_row[3])
+                p = sub_row[0].paragraphs[0]
+                run = p.add_run("Sub-metrics:\n")
+                run.bold = True
+
                 for sm in sub_metrics:
                     if isinstance(sm, str):
-                        doc.add_paragraph(sm, style="List Bullet")
+                        p.add_run(f"• {sm}\n")
                     elif isinstance(sm, dict):
                         line = sm.get("metric_name", "Sub-metric")
                         if "description" in sm:
                             line = f"{line} – {sm['description']}"
-                        doc.add_paragraph(line, style="List Bullet")
+                        p.add_run(f"• {line}\n")
+
+        doc.add_paragraph()
+
     except Exception:
         traceback.print_exc()
 
