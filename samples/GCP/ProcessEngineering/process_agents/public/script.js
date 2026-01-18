@@ -310,8 +310,50 @@ function showInfo(step, title) {
 
   modalTitle.textContent = title;
 
-  // Recursive renderer for ANY JSON structure
+  // Clear modal body
+  modalBody.innerHTML = "";
+
+  // --- Create tab bar ---
+  const tabBar = document.createElement("div");
+  tabBar.style.display = "flex";
+  tabBar.style.gap = "12px";
+  tabBar.style.marginBottom = "10px";
+
+  const tabFormatted = document.createElement("button");
+  tabFormatted.textContent = "Formatted";
+  tabFormatted.style.padding = "4px 8px";
+  tabFormatted.style.cursor = "pointer";
+  tabFormatted.style.fontSize = "13px";
+  tabFormatted.style.border = "1px solid var(--border)";
+  tabFormatted.style.background = "var(--bg-panel)";
+  tabFormatted.style.color = "var(--text)";
+  tabFormatted.dataset.active = "true";
+
+  const tabRaw = document.createElement("button");
+  tabRaw.textContent = "Raw JSON";
+  tabRaw.style.padding = "4px 8px";
+  tabRaw.style.cursor = "pointer";
+  tabRaw.style.fontSize = "13px";
+  tabRaw.style.border = "1px solid var(--border)";
+  tabRaw.style.background = "var(--bg-panel)";
+  tabRaw.style.color = "var(--text)";
+  tabRaw.dataset.active = "false";
+
+  tabBar.appendChild(tabFormatted);
+  tabBar.appendChild(tabRaw);
+  modalBody.appendChild(tabBar);
+
+  // --- Content containers ---
+  const formattedContainer = document.createElement("div");
+  const rawContainer = document.createElement("div");
+  rawContainer.style.display = "none";
+
+  modalBody.appendChild(formattedContainer);
+  modalBody.appendChild(rawContainer);
+
+  // --- Recursive renderer with collapsible sections ---
   function renderValue(value) {
+    // Null / undefined
     if (value === null || value === undefined) {
       return "<i>None</i>";
     }
@@ -327,41 +369,74 @@ function showInfo(step, title) {
 
       // Array of primitives
       if (value.every(v => typeof v !== "object")) {
-        return `<ul style="margin:0; padding-left:18px;">${value
-          .map(v => `<li>${renderValue(v)}</li>`)
-          .join("")}</ul>`;
+        return `
+          <ul style="margin:0; padding-left:18px;">
+            ${value.map(v => `<li>${renderValue(v)}</li>`).join("")}
+          </ul>
+        `;
       }
 
-      // Array of objects
+      // Array of objects → collapsible per item
       return value
-        .map(
-          (obj, idx) => `
-            <div style="margin-bottom:6px; border:1px solid #ccc; padding:6px;">
-              <strong>Item ${idx + 1}</strong>
-              ${renderValue(obj)}
-            </div>`
-        )
+        .map((obj, idx) => {
+          const id = "col-" + Math.random().toString(36).slice(2);
+          return `
+            <div style="margin-bottom:6px;">
+              <div style="cursor:pointer; user-select:none;"
+                   onclick="document.getElementById('${id}').style.display =
+                            document.getElementById('${id}').style.display === 'none' ? 'block' : 'none';
+                            this.querySelector('.arrow').textContent =
+                            document.getElementById('${id}').style.display === 'none' ? '▶' : '▼';">
+                <span class="arrow">▶</span>
+                <strong>Item ${idx + 1}</strong>
+              </div>
+              <div id="${id}" style="display:none; margin-left:14px; border-left:2px solid var(--border); padding-left:8px;">
+                ${renderValue(obj)}
+              </div>
+            </div>
+          `;
+        })
         .join("");
     }
 
-    // Object
+    // Object → collapsible table
+    const id = "col-" + Math.random().toString(36).slice(2);
+
     const rows = Object.entries(value)
-      .map(
-        ([k, v]) => `
+      .map(([k, v]) => {
+        return `
           <tr>
-            <td style="padding:4px; border:1px solid #ccc; vertical-align:top; width:30%;"><strong>${k}</strong></td>
-            <td style="padding:4px; border:1px solid #ccc; vertical-align:top;">${renderValue(v)}</td>
-          </tr>`
-      )
+            <td style="padding:4px; border:1px solid #ccc; vertical-align:top; width:30%;">
+              <strong>${k}</strong>
+            </td>
+            <td style="padding:4px; border:1px solid #ccc; vertical-align:top;">
+              ${renderValue(v)}
+            </td>
+          </tr>
+        `;
+      })
       .join("");
 
     return `
-      <table style="width:100%; border-collapse:collapse; font-size:12px; margin:4px 0;">
-        ${rows}
-      </table>`;
-  }
+      <div style="margin-bottom:6px;">
+        <div style="cursor:pointer; user-select:none;"
+             onclick="document.getElementById('${id}').style.display =
+                      document.getElementById('${id}').style.display === 'none' ? 'block' : 'none';
+                      this.querySelector('.arrow').textContent =
+                      document.getElementById('${id}').style.display === 'none' ? '▶' : '▼';">
+          <span class="arrow">▶</span>
+          <strong>Details</strong>
+        </div>
 
-  // FIELD ORDER stays the same
+        <div id="${id}" style="display:none; margin-left:14px; border-left:2px solid var(--border); padding-left:8px;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px; margin:4px 0;">
+            ${rows}
+          </table>
+        </div>
+      </div>
+    `;
+  }
+  // --- FIELD ORDER (same as your original) ---
   const FIELD_ORDER = [
     "step_name",
     "substep_name",
@@ -375,58 +450,172 @@ function showInfo(step, title) {
     "success_criteria",
   ];
 
-  let html = `
-    <table style="
+  // --- Build formatted table ---
+  function buildFormattedTable(step) {
+    let html = `
+      <table style="
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
         table-layout: fixed;
-    ">
-      <thead>
-        <tr style="background: #444; color: #fff;">
-          <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Key</th>
-          <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Value</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  let rowIndex = 0;
-
-  function addRow(key, valueHtml) {
-    const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
-    html += `
-      <tr style="background:${bg};">
-        <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
-          ${key}
-        </td>
-        <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
-          ${valueHtml}
-        </td>
-      </tr>
+      ">
+        <thead>
+          <tr style="background: #444; color: #fff;">
+            <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Key</th>
+            <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Value</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
-    rowIndex++;
+
+    let rowIndex = 0;
+
+    function addRow(key, valueHtml) {
+      const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
+      html += `
+        <tr style="background:${bg};">
+          <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+            ${key}
+          </td>
+          <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+            ${valueHtml}
+          </td>
+        </tr>
+      `;
+      rowIndex++;
+    }
+
+    // Render fields in defined order
+    FIELD_ORDER.forEach((key) => {
+      if (key in step) {
+        addRow(key, renderValue(step[key]));
+      }
+    });
+
+    // Render remaining fields
+    Object.entries(step).forEach(([key, value]) => {
+      if (!FIELD_ORDER.includes(key)) {
+        addRow(key, renderValue(value));
+      }
+    });
+
+    html += `</tbody></table>`;
+    return html;
   }
 
-  // Render fields in defined order
-  FIELD_ORDER.forEach((key) => {
-    if (key in step) {
-      addRow(key, renderValue(step[key]));
-    }
-  });
+  // Insert formatted table into container
+  formattedContainer.innerHTML = buildFormattedTable(step);
+  // --- RAW JSON VIEW ---
 
-  // Render remaining fields
-  Object.entries(step).forEach(([key, value]) => {
-    if (!FIELD_ORDER.includes(key)) {
-      addRow(key, renderValue(value));
+  // Simple syntax highlighter (no external libs)
+  function syntaxHighlight(json) {
+    if (typeof json !== "string") {
+      json = JSON.stringify(json, null, 2);
     }
-  });
 
-  html += `</tbody></table>`;
-  modalBody.innerHTML = html;
+    json = json
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    return json.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      function (match) {
+        let cls = "json-number";
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = "json-key";
+          } else {
+            cls = "json-string";
+          }
+        } else if (/true|false/.test(match)) {
+          cls = "json-boolean";
+        } else if (/null/.test(match)) {
+          cls = "json-null";
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
+  }
+
+  // Inject minimal inline styles for syntax highlighting
+  const style = document.createElement("style");
+  style.textContent = `
+    .json-key { color: #c792ea; }
+    .json-string { color: #a5e844; }
+    .json-number { color: #f78c6c; }
+    .json-boolean { color: #82aaff; }
+    .json-null { color: #ff5370; }
+  `;
+  document.head.appendChild(style);
+
+  // Build raw JSON block
+  const rawJson = JSON.stringify(step, null, 2);
+
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy JSON";
+  copyBtn.style.marginBottom = "8px";
+  copyBtn.style.padding = "4px 8px";
+  copyBtn.style.cursor = "pointer";
+  copyBtn.style.fontSize = "12px";
+  copyBtn.style.border = "1px solid var(--border)";
+  copyBtn.style.background = "var(--bg-panel)";
+  copyBtn.style.color = "var(--text)";
+
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(rawJson);
+    copyBtn.textContent = "Copied!";
+    setTimeout(() => (copyBtn.textContent = "Copy JSON"), 1200);
+  };
+
+  const pre = document.createElement("pre");
+  pre.style.background = "rgba(0,0,0,0.1)";
+  pre.style.padding = "10px";
+  pre.style.fontSize = "12px";
+  pre.style.overflowX = "auto";
+  pre.innerHTML = syntaxHighlight(rawJson);
+
+  rawContainer.appendChild(copyBtn);
+  rawContainer.appendChild(pre);
+  // --- TAB SWITCHING LOGIC ---
+
+  function activateTab(which) {
+    if (which === "formatted") {
+      formattedContainer.style.display = "block";
+      rawContainer.style.display = "none";
+
+      tabFormatted.dataset.active = "true";
+      tabRaw.dataset.active = "false";
+
+      tabFormatted.style.background = "var(--accent)";
+      tabFormatted.style.color = "#fff";
+
+      tabRaw.style.background = "var(--bg-panel)";
+      tabRaw.style.color = "var(--text)";
+    } else {
+      formattedContainer.style.display = "none";
+      rawContainer.style.display = "block";
+
+      tabFormatted.dataset.active = "false";
+      tabRaw.dataset.active = "true";
+
+      tabRaw.style.background = "var(--accent)";
+      tabRaw.style.color = "#fff";
+
+      tabFormatted.style.background = "var(--bg-panel)";
+      tabFormatted.style.color = "var(--text)";
+    }
+  }
+
+  tabFormatted.onclick = () => activateTab("formatted");
+  tabRaw.onclick = () => activateTab("raw");
+
+  // Default tab
+  activateTab("formatted");
+
+  // --- OPEN MODAL ---
   document.getElementById("modal-backdrop").style.display = "flex";
 }
-
 
 function closeModal() {
   document.getElementById("modal-backdrop").style.display = "none";
