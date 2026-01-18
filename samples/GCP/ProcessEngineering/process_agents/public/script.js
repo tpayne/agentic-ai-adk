@@ -310,6 +310,58 @@ function showInfo(step, title) {
 
   modalTitle.textContent = title;
 
+  // Recursive renderer for ANY JSON structure
+  function renderValue(value) {
+    if (value === null || value === undefined) {
+      return "<i>None</i>";
+    }
+
+    // Primitive
+    if (typeof value !== "object") {
+      return String(value);
+    }
+
+    // Array
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "<i>Empty list</i>";
+
+      // Array of primitives
+      if (value.every(v => typeof v !== "object")) {
+        return `<ul style="margin:0; padding-left:18px;">${value
+          .map(v => `<li>${renderValue(v)}</li>`)
+          .join("")}</ul>`;
+      }
+
+      // Array of objects
+      return value
+        .map(
+          (obj, idx) => `
+            <div style="margin-bottom:6px; border:1px solid #ccc; padding:6px;">
+              <strong>Item ${idx + 1}</strong>
+              ${renderValue(obj)}
+            </div>`
+        )
+        .join("");
+    }
+
+    // Object
+    const rows = Object.entries(value)
+      .map(
+        ([k, v]) => `
+          <tr>
+            <td style="padding:4px; border:1px solid #ccc; vertical-align:top; width:30%;"><strong>${k}</strong></td>
+            <td style="padding:4px; border:1px solid #ccc; vertical-align:top;">${renderValue(v)}</td>
+          </tr>`
+      )
+      .join("");
+
+    return `
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin:4px 0;">
+        ${rows}
+      </table>`;
+  }
+
+  // FIELD ORDER stays the same
   const FIELD_ORDER = [
     "step_name",
     "substep_name",
@@ -337,69 +389,36 @@ function showInfo(step, title) {
         </tr>
       </thead>
       <tbody>
-    `;
-
-  const addRow = (key, valueHtml, rowIndex) => {
-    const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
-    html += `
-        <tr style="background: ${bg};">
-          <td style="padding: 6px; border: 1px solid #ccc; vertical-align: top; word-wrap: break-word;">
-            ${key}
-          </td>
-          <td style="padding: 6px; border: 1px solid #ccc; vertical-align: top; word-wrap: break-word;">
-            ${valueHtml}
-          </td>
-        </tr>
-        `;
-  };
+  `;
 
   let rowIndex = 0;
 
+  function addRow(key, valueHtml) {
+    const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
+    html += `
+      <tr style="background:${bg};">
+        <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+          ${key}
+        </td>
+        <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+          ${valueHtml}
+        </td>
+      </tr>
+    `;
+    rowIndex++;
+  }
+
   // Render fields in defined order
   FIELD_ORDER.forEach((key) => {
-    if (!(key in step)) return;
-
-    const value = step[key];
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) return;
-      const list = value.map((v) => `<li>${v}</li>`).join("");
-      addRow(
-        key,
-        `<ul style="margin:0; padding-left:18px;">${list}</ul>`,
-        rowIndex++
-      );
-    } else if (typeof value === "object" && value !== null) {
-      addRow(
-        key,
-        `<pre style="margin:0;">${JSON.stringify(value, null, 2)}</pre>`,
-        rowIndex++
-      );
-    } else {
-      addRow(key, String(value), rowIndex++);
+    if (key in step) {
+      addRow(key, renderValue(step[key]));
     }
   });
 
-  // Render any remaining fields not in FIELD_ORDER
+  // Render remaining fields
   Object.entries(step).forEach(([key, value]) => {
-    if (FIELD_ORDER.includes(key)) return;
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) return;
-      const list = value.map((v) => `<li>${v}</li>`).join("");
-      addRow(
-        key,
-        `<ul style="margin:0; padding-left:18px;">${list}</ul>`,
-        rowIndex++
-      );
-    } else if (typeof value === "object" && value !== null) {
-      addRow(
-        key,
-        `<pre style="margin:0;">${JSON.stringify(value, null, 2)}</pre>`,
-        rowIndex++
-      );
-    } else {
-      addRow(key, String(value), rowIndex++);
+    if (!FIELD_ORDER.includes(key)) {
+      addRow(key, renderValue(value));
     }
   });
 
@@ -407,6 +426,7 @@ function showInfo(step, title) {
   modalBody.innerHTML = html;
   document.getElementById("modal-backdrop").style.display = "flex";
 }
+
 
 function closeModal() {
   document.getElementById("modal-backdrop").style.display = "none";

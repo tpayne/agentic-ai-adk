@@ -18,16 +18,7 @@ app = Flask(
 )
 
 def build_process_model():
-    """
-    Loads the full process context and constructs a model dictionary
-    for use in the API response.
-
-    Returns:
-        dict: Process model containing process name, stakeholders,
-              level 1 steps, and a subprocess index.
-    """
     ctx = load_full_process_context()
-    # If context is a JSON string, parse it
     if isinstance(ctx, str):
         try:
             ctx = json.loads(ctx)
@@ -37,15 +28,29 @@ def build_process_model():
     master = ctx.get("master_process", {})
     subprocesses = ctx.get("subprocesses", [])
 
-    # Build an index mapping step names to their subprocess flows
+    # Index subprocesses by their parent step name
     subprocess_index = {
         sp.get("step_name"): sp.get("subprocess_flow", [])
-        for sp in subprocesses
-        if sp.get("step_name")
+        for sp in subprocesses if sp.get("step_name")
     }
 
     return {
+        # Core Identity
         "process_name": master.get("process_name", "Unknown Process"),
+        "version": master.get("version", "1.0"),
+        "owner": master.get("owner", "N/A"),
+        "domain": master.get("domain", "N/A"),
+        
+        # Global Metadata for Sidebar
+        "assumptions": master.get("assumptions", []),
+        "constraints": master.get("constraints", []),
+        "goals": master.get("goals", []),
+        "metrics": master.get("metrics", []),
+        "infrastructure": master.get("infrastructure_requirements", []),
+        "global_change_mgmt": master.get("change_management", []),
+        "global_improvement": master.get("continuous_improvement", []),
+        
+        # Process Structure
         "stakeholders": master.get("stakeholders", []),
         "level1_steps": master.get("process_steps", []),
         "subprocess_index": subprocess_index,
