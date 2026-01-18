@@ -302,7 +302,6 @@ def simulate_process_performance(process_json_str) -> str:
 
         metrics = _run_core_simulation(data, iterations=2000)
         _persist_simulation_metrics(metrics)
-        _persist_process_data(data)
         return json.dumps(metrics)
 
     except Exception as e:
@@ -387,4 +386,19 @@ simulation_agent = LlmAgent(
         top_p=1,
     ),
     instruction=load_instruction("simulation_agent.txt"),
+)
+
+simulation_query_agent = LlmAgent(
+    name="Simulation_Optimization_Query_Agent",
+    model="gemini-2.0-flash-001",
+    description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities in response to queries.",
+    tools=[
+        load_master_process_json,
+        simulate_process_performance
+    ],
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.5,
+        top_p=1,
+    ),
+    instruction=load_instruction("simulation_query_agent.txt"),
 )

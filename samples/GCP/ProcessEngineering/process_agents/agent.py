@@ -18,6 +18,7 @@ from .consultant_agent import consultant_agent
 from .create_process_agent import full_design_pipeline
 from .scenario_agent import scenario_tester_agent
 from .update_process_agent import update_design_pipeline
+from .simulation_agent import simulation_query_agent
 
 from .utils import load_instruction
 from .utils import validate_instruction_files
@@ -54,7 +55,6 @@ if os.path.exists(runtime_file):
 
 sys.stderr = open(runtime_file, "a")
 
-
 # Validate instruction files before proceeding
 logger.info("Validating instruction files...")
 if not validate_instruction_files():
@@ -76,6 +76,7 @@ root_agent = LlmAgent(
         consultant_agent,     
         scenario_tester_agent,
         update_design_pipeline,
+        simulation_query_agent,
     ]
 )
 
