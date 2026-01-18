@@ -218,15 +218,17 @@ body {
     z-index: 100;
 }
 
+/* ⭐ Updated modal styling */
 #modal {
     background: var(--bg-panel);
     color: var(--text);
-    padding: 16px;
-    max-width: 520px;
-    max-height: 70vh;
+    padding: 20px;
+    width: 90vw;
+    max-width: 900px;
+    max-height: 80vh;
     overflow-y: auto;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
     box-sizing: border-box;
 }
 
@@ -236,7 +238,7 @@ body {
 
 #modal pre {
     background: rgba(0, 0, 0, 0.05);
-    padding: 8px;
+    padding: 10px;
     font-size: 12px;
     overflow-x: auto;
 }

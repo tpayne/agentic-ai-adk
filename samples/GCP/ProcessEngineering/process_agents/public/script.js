@@ -406,10 +406,10 @@ function showInfo(step, title) {
       .map(([k, v]) => {
         return `
           <tr>
-            <td style="padding:4px; border:1px solid #ccc; vertical-align:top; width:30%;">
+            <td style="padding:4px; border:1px solid var(--border); vertical-align:top; width:30%;">
               <strong>${k}</strong>
             </td>
-            <td style="padding:4px; border:1px solid #ccc; vertical-align:top;">
+            <td style="padding:4px; border:1px solid var(--border); vertical-align:top;">
               ${renderValue(v)}
             </td>
           </tr>
@@ -460,7 +460,7 @@ function showInfo(step, title) {
         table-layout: fixed;
       ">
         <thead>
-          <tr style="background: #444; color: #fff;">
+          <tr style="background: var(--border); color: var(--bg-panel);">
             <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Key</th>
             <th style="padding: 6px; border: 1px solid #ccc; text-align: left;">Value</th>
           </tr>
@@ -471,13 +471,13 @@ function showInfo(step, title) {
     let rowIndex = 0;
 
     function addRow(key, valueHtml) {
-      const bg = rowIndex % 2 === 0 ? "#fff" : "#f2f2f2";
+      const bg = rowIndex % 2 === 0 ? "var(--bg-panel)" : "var(--bg-lane-odd)";
       html += `
         <tr style="background:${bg};">
-          <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+          <td style="padding:6px; border:1px solid var(--border); vertical-align:top; word-wrap:break-word;">
             ${key}
           </td>
-          <td style="padding:6px; border:1px solid #ccc; vertical-align:top; word-wrap:break-word;">
+          <td style="padding:6px; border:1px solid var(--border); vertical-align:top; word-wrap:break-word;">
             ${valueHtml}
           </td>
         </tr>
@@ -569,7 +569,7 @@ function showInfo(step, title) {
   };
 
   const pre = document.createElement("pre");
-  pre.style.background = "rgba(0,0,0,0.1)";
+  pre.style.background = "var(--bg-lane-odd)";
   pre.style.padding = "10px";
   pre.style.fontSize = "12px";
   pre.style.overflowX = "auto";
