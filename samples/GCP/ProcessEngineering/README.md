@@ -169,7 +169,7 @@ The following are sample prompts you can use to...
 - "Design a detailed business process for handling inventory stock-outs in a retail environment."
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 - "Please create me a data governance and management process strategy for managing corporate data that will be used in AI strategies"
-- "Please compose an HR process that utilizes generative artificial intelligence (GenAI) to augment tasks such as curriculum vitae (CV) review, job specification creation, employee reviews, employee grievance processes and any other standard HR process. Implement robust safeguards to ensure that human intervention is utilized when necessary, and prevent GenAI from adversely affecting processes or reputation by being excessively employed in areas where human expertise is required. Additionally, ensure that all training data or AI-generated results adhere to privacy and ethical usage regulations."
+- "Please compose an HR process that utilizes generative artificial intelligence (GenAI) to augment tasks such as curriculum vitae (CV) review, job specification creation, employee reviews, employee grievance processes and ALL other standard HR process. Implement robust safeguards to ensure that human intervention is utilized when necessary, and prevent GenAI from adversely affecting processes or reputation by being excessively employed in areas where human expertise is required. Additionally, ensure that all training data or AI-generated results adhere to privacy and ethical usage regulations."
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
