@@ -163,7 +163,70 @@ def _detect_cycles(step_info):
     for node in graph:
         visit(node)
 
+# ============================================================
+# TOOL 3: SENSITIVITY ANALYSIS (LEVERAGE IDENTIFICATION)
+# ============================================================
 
+def perform_sensitivity_analysis(process_json_str: str) -> str:
+    """
+    Identifies which step reduction (10%) provides the greatest 
+    improvement to total cycle time. Handles range strings like '1-2'.
+    """
+    try:
+        if isinstance(process_json_str, dict):
+            data = process_json_str
+        else:
+            data = _extract_valid_json(process_json_str)
+
+        baseline = _run_core_simulation(data, iterations=500)
+        base_time = baseline["avg_cycle_time"]
+        
+        steps = data.get("process_steps", [])
+        impact_results = []
+
+        for step in steps:
+            modified_data = json.loads(json.dumps(data))
+            step_name = step.get("step_name")
+            
+            for s in modified_data["process_steps"]:
+                if s.get("step_name") == step_name:
+                    raw_dur = str(s.get("estimated_duration", "1")).split()[0]
+                    
+                    # New robust parsing logic
+                    try:
+                        if "-" in raw_dur:
+                            parts = raw_dur.split("-")
+                            val = (float(parts[0]) + float(parts[1])) / 2
+                        else:
+                            val = float(raw_dur.replace(",", "."))
+                        
+                        s["estimated_duration"] = str(val * 0.9)
+                    except (ValueError, IndexError):
+                        s["estimated_duration"] = "1.0" # Fallback
+
+            sim = _run_core_simulation(modified_data, iterations=500)
+            improvement = base_time - sim["avg_cycle_time"]
+            
+            impact_results.append({
+                "step_name": step_name,
+                "improvement_value": improvement,
+                "new_cycle_time": sim["avg_cycle_time"]
+            })
+
+        impact_results.sort(key=lambda x: x["improvement_value"], reverse=True)
+        top_leverage = impact_results[0] if impact_results else {}
+
+        return json.dumps({
+            "baseline_avg": base_time,
+            "top_leverage_step": top_leverage.get("step_name"),
+            "potential_saving": top_leverage.get("improvement_value"),
+            "time_unit": baseline.get("time_unit", "units"),
+            "full_analysis": impact_results[:3]
+        })
+
+    except Exception as e:
+        logger.exception("Sensitivity analysis failed.")
+        return json.dumps({"error": str(e)})
 # ============================================================
 # CORE DISCRETE-EVENT MONTE CARLO SIMULATION
 # ============================================================
@@ -394,10 +457,11 @@ simulation_query_agent = LlmAgent(
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities in response to queries.",
     tools=[
         load_master_process_json,
-        simulate_process_performance
+        simulate_process_performance,
+        perform_sensitivity_analysis,
     ],
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.5,
+        temperature=0.2,
         top_p=1,
     ),
     instruction=load_instruction("simulation_query_agent.txt"),
