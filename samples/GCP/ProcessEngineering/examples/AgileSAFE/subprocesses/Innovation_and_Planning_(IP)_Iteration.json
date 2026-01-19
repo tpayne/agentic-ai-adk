@@ -1,0 +1,208 @@
+{
+  "step_name": "Innovation and Planning (IP) Iteration",
+  "subprocess_flow": [
+    {
+      "substep_name": "Technology Exploration",
+      "description": "Development teams dedicate time to explore new technologies relevant to the program's architectural runway and future product capabilities. This involves researching emerging trends, evaluating potential tools and frameworks, and conducting proof-of-concept experiments to assess their feasibility and value. The goal is to identify technologies that can enhance the program's ability to deliver innovative solutions and improve its overall technical agility.",
+      "responsible_party": "Development Teams",
+      "inputs": [],
+      "outputs": [
+        "Technology evaluation reports",
+        "Proof-of-concept prototypes"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Relevant new technologies are identified and evaluated.",
+        "Proof-of-concept prototypes demonstrate the feasibility of selected technologies."
+      ],
+      "purpose": "Identify and evaluate new technologies for potential adoption within the program.",
+      "scope": "Team level",
+      "process_owner": "Development Teams",
+      "triggers": [
+        "Scheduled IP Iteration"
+      ],
+      "end_conditions": [
+        "Technology evaluation reports and proof-of-concept prototypes are completed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Selection of inappropriate technologies",
+          "control": "Conduct thorough evaluations and involve system architects in the decision-making process."
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Innovation request",
+          "versioning_rules": "Track technology changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-IP Iteration",
+          "improvement_inputs": [
+            "Team feedback",
+            "Technology performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Experimentation and Prototyping",
+      "description": "Teams engage in experimentation and prototyping to explore new ideas and validate potential solutions. This involves creating rapid prototypes, conducting user testing, and gathering feedback to iterate on designs and refine concepts. The focus is on fostering a culture of experimentation and learning, where teams are empowered to take risks and explore unconventional approaches to problem-solving.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Technology evaluation reports"
+      ],
+      "outputs": [
+        "Innovation prototypes",
+        "User feedback summaries"
+      ],
+      "estimated_duration": "5 days",
+      "dependencies": [
+        "Technology Exploration"
+      ],
+      "success_criteria": [
+        "Innovation prototypes are created and tested with users.",
+        "User feedback is gathered and incorporated into prototype designs."
+      ],
+      "purpose": "Explore new ideas and validate potential solutions through experimentation and prototyping.",
+      "scope": "Team level",
+      "process_owner": "Development Teams",
+      "triggers": [
+        "Scheduled IP Iteration"
+      ],
+      "end_conditions": [
+        "Innovation prototypes are tested and user feedback is summarized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Wasting time on unpromising ideas",
+          "control": "Establish clear criteria for evaluating ideas and conduct regular reviews to assess progress."
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Innovation request",
+          "versioning_rules": "Track prototype changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-IP Iteration",
+          "improvement_inputs": [
+            "Team feedback",
+            "User feedback summaries"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Learning and Knowledge Sharing",
+      "description": "Teams document their learning and share their knowledge with the broader organization. This involves creating learning summaries, conducting presentations, and participating in knowledge-sharing sessions. The goal is to disseminate insights gained during the IP Iteration and promote a culture of continuous learning and improvement across the program.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "User feedback summaries",
+        "Innovation prototypes"
+      ],
+      "outputs": [
+        "Learning summaries",
+        "Presentation materials"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Experimentation and Prototyping"
+      ],
+      "success_criteria": [
+        "Learning summaries are created and shared with the organization.",
+        "Presentations are conducted to disseminate insights gained during the IP Iteration."
+      ],
+      "purpose": "Disseminate insights gained during the IP Iteration and promote a culture of continuous learning.",
+      "scope": "Team level",
+      "process_owner": "Development Teams",
+      "triggers": [
+        "Scheduled IP Iteration"
+      ],
+      "end_conditions": [
+        "Learning summaries and presentation materials are completed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Knowledge is not effectively shared",
+          "control": "Establish clear guidelines for documenting learning and provide incentives for knowledge sharing."
+        }
+      ],
+      "governance_requirements": [
+        "Innovation showcase"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Innovation request",
+          "versioning_rules": "Track learning changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-IP Iteration",
+          "improvement_inputs": [
+            "Team feedback",
+            "Feedback from knowledge-sharing sessions"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "PI Planning Preparation",
+      "description": "Teams prepare for the upcoming PI Planning session by reviewing the program backlog, identifying dependencies, and estimating the effort required for each feature. This involves collaborating with product management and other stakeholders to refine the backlog and ensure that it is aligned with strategic objectives. The goal is to ensure that the PI Planning session is productive and efficient, and that teams are able to commit to realistic PI Objectives.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Learning summaries",
+        "Program backlog"
+      ],
+      "outputs": [
+        "PI Planning inputs"
+      ],
+      "estimated_duration": "4 days",
+      "dependencies": [
+        "Learning and Knowledge Sharing"
+      ],
+      "success_criteria": [
+        "PI Planning inputs are created and shared with stakeholders.",
+        "Teams are prepared to commit to realistic PI Objectives."
+      ],
+      "purpose": "Prepare for the upcoming PI Planning session and ensure that teams are able to commit to realistic PI Objectives.",
+      "scope": "Team level",
+      "process_owner": "Development Teams",
+      "triggers": [
+        "Scheduled IP Iteration"
+      ],
+      "end_conditions": [
+        "PI Planning inputs are completed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inadequate preparation for PI Planning",
+          "control": "Establish clear guidelines for PI Planning preparation and provide teams with the necessary resources and support."
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Innovation request",
+          "versioning_rules": "Track PI Planning input changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-IP Iteration",
+          "improvement_inputs": [
+            "Team feedback",
+            "Feedback from PI Planning session"
+          ]
+        }
+      ]
+    }
+  ]
+}

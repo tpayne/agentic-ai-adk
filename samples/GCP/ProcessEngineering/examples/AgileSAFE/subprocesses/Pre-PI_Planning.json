@@ -1,0 +1,443 @@
+{
+  "step_name": "Pre-PI Planning",
+  "subprocess_flow": [
+    {
+      "substep_name": "Analyze Business Strategy",
+      "description": "The Product Management team analyzes the current business strategy to identify key objectives and priorities for the upcoming Program Increment (PI). This involves reviewing market trends, customer feedback, and competitive analysis to ensure that the program backlog aligns with the overall business direction. The team also assesses any new business opportunities or regulatory requirements that may impact the program backlog.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Business strategy",
+        "Market analysis"
+      ],
+      "outputs": [
+        "Business strategy summary",
+        "Market analysis summary"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Business strategy is clearly understood",
+        "Market analysis is completed"
+      ],
+      "purpose": "To ensure alignment with business objectives.",
+      "scope": "Analysis of business strategy and market trends.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "New business strategy",
+        "Market change"
+      ],
+      "end_conditions": [
+        "Business strategy summary completed",
+        "Market analysis summary completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of business strategy",
+          "control": "Regular meetings with business stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of business strategy summary"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Refine Program Vision",
+      "description": "Based on the business strategy analysis, the Product Management team refines the program vision to articulate the desired future state of the product. This involves defining the key themes and objectives for the upcoming PI, ensuring that they align with the overall business goals. The team also identifies any potential risks or dependencies that may impact the program vision.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Business strategy summary",
+        "Market analysis summary"
+      ],
+      "outputs": [
+        "Refined program vision",
+        "Key themes and objectives"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Analyze Business Strategy"
+      ],
+      "success_criteria": [
+        "Program vision is clearly defined",
+        "Key themes and objectives are identified"
+      ],
+      "purpose": "To articulate the desired future state of the product.",
+      "scope": "Refinement of program vision and identification of key themes.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Business strategy summary completed",
+        "Market analysis summary completed"
+      ],
+      "end_conditions": [
+        "Refined program vision completed",
+        "Key themes and objectives completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unclear program vision",
+          "control": "Regular communication with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of program vision"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Identify Features",
+      "description": "The Product Management team identifies potential features that align with the refined program vision and key themes. This involves brainstorming sessions, reviewing customer feedback, and analyzing market trends to generate a comprehensive list of potential features. The team also considers any technical constraints or dependencies that may impact the feasibility of each feature.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Refined program vision",
+        "Key themes and objectives"
+      ],
+      "outputs": [
+        "List of potential features",
+        "Feature descriptions"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Refine Program Vision"
+      ],
+      "success_criteria": [
+        "Comprehensive list of potential features is generated",
+        "Feature descriptions are created"
+      ],
+      "purpose": "To generate a comprehensive list of potential features.",
+      "scope": "Identification of potential features and creation of descriptions.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Refined program vision completed",
+        "Key themes and objectives completed"
+      ],
+      "end_conditions": [
+        "List of potential features completed",
+        "Feature descriptions completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing key features",
+          "control": "Regular brainstorming sessions with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of potential features"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Prioritize Features",
+      "description": "The Product Management team prioritizes the identified features based on their alignment with the program vision, business value, and technical feasibility. This involves using a prioritization framework such as Weighted Shortest Job First (WSJF) or MoSCoW to rank the features and determine which ones should be included in the upcoming PI. The team also considers any dependencies or constraints that may impact the prioritization process.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "List of potential features",
+        "Feature descriptions"
+      ],
+      "outputs": [
+        "Prioritized feature list",
+        "Feature ranking"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Identify Features"
+      ],
+      "success_criteria": [
+        "Features are prioritized based on business value and technical feasibility",
+        "Feature ranking is completed"
+      ],
+      "purpose": "To prioritize features based on business value and technical feasibility.",
+      "scope": "Prioritization of features and creation of ranking.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "List of potential features completed",
+        "Feature descriptions completed"
+      ],
+      "end_conditions": [
+        "Prioritized feature list completed",
+        "Feature ranking completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect prioritization of features",
+          "control": "Regular review of prioritization with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of prioritized feature list"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Define Acceptance Criteria",
+      "description": "For each prioritized feature, the Product Management team defines clear and measurable acceptance criteria to ensure that the feature meets the desired requirements. This involves collaborating with stakeholders to define the specific conditions that must be met for the feature to be considered complete. The team also considers any potential risks or dependencies that may impact the acceptance criteria.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Prioritized feature list",
+        "Feature ranking"
+      ],
+      "outputs": [
+        "Acceptance criteria for each feature",
+        "Feature acceptance tests"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Prioritize Features"
+      ],
+      "success_criteria": [
+        "Acceptance criteria are clearly defined for each feature",
+        "Feature acceptance tests are created"
+      ],
+      "purpose": "To define clear and measurable acceptance criteria for each feature.",
+      "scope": "Definition of acceptance criteria and creation of acceptance tests.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Prioritized feature list completed",
+        "Feature ranking completed"
+      ],
+      "end_conditions": [
+        "Acceptance criteria for each feature completed",
+        "Feature acceptance tests completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unclear acceptance criteria",
+          "control": "Regular review of acceptance criteria with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of acceptance criteria"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Estimate Feature Effort",
+      "description": "The Development Teams estimate the effort required to develop and test each feature. This involves using estimation techniques such as story points or t-shirt sizing to assign a relative size to each feature. The team also considers any technical complexities or dependencies that may impact the estimation process. The System Architect provides guidance on architectural runway and technical feasibility.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Acceptance criteria for each feature",
+        "Feature acceptance tests"
+      ],
+      "outputs": [
+        "Effort estimates for each feature",
+        "Feature story points"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Define Acceptance Criteria"
+      ],
+      "success_criteria": [
+        "Effort estimates are completed for each feature",
+        "Feature story points are assigned"
+      ],
+      "purpose": "To estimate the effort required to develop and test each feature.",
+      "scope": "Estimation of feature effort and assignment of story points.",
+      "process_owner": "Development Team",
+      "triggers": [
+        "Acceptance criteria for each feature completed",
+        "Feature acceptance tests completed"
+      ],
+      "end_conditions": [
+        "Effort estimates for each feature completed",
+        "Feature story points completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate effort estimates",
+          "control": "Regular review of estimates with development teams"
+        }
+      ],
+      "governance_requirements": [
+        "Development Team review of effort estimates"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Iteration change request",
+          "versioning_rules": "Version control system"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprint retrospective",
+          "improvement_inputs": [
+            "Team feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Refine Program Backlog",
+      "description": "The Product Management team refines the program backlog based on the prioritized features, acceptance criteria, and effort estimates. This involves creating user stories for each feature, adding them to the program backlog, and ensuring that they are properly tagged and categorized. The team also identifies any dependencies or constraints that may impact the program backlog.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Effort estimates for each feature",
+        "Feature story points"
+      ],
+      "outputs": [
+        "Refined program backlog",
+        "User stories for each feature"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Estimate Feature Effort"
+      ],
+      "success_criteria": [
+        "Program backlog is refined with user stories",
+        "User stories are properly tagged and categorized"
+      ],
+      "purpose": "To refine the program backlog with user stories.",
+      "scope": "Refinement of program backlog and creation of user stories.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Effort estimates for each feature completed",
+        "Feature story points completed"
+      ],
+      "end_conditions": [
+        "Refined program backlog completed",
+        "User stories for each feature completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete program backlog",
+          "control": "Regular review of program backlog with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of program backlog"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Prepare PI Planning Inputs",
+      "description": "The Product Management team prepares the inputs for the upcoming PI Planning session. This involves creating a draft PI plan, identifying any potential risks or dependencies, and communicating the program vision and key themes to the Agile Release Train (ART). The team also ensures that all necessary documentation and resources are available for the PI Planning session.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Refined program backlog",
+        "User stories for each feature"
+      ],
+      "outputs": [
+        "Draft PI plan",
+        "PI Planning inputs"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Refine Program Backlog"
+      ],
+      "success_criteria": [
+        "Draft PI plan is created",
+        "PI Planning inputs are prepared"
+      ],
+      "purpose": "To prepare the inputs for the upcoming PI Planning session.",
+      "scope": "Preparation of PI Planning inputs and creation of draft PI plan.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Refined program backlog completed",
+        "User stories for each feature completed"
+      ],
+      "end_conditions": [
+        "Draft PI plan completed",
+        "PI Planning inputs completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inadequate PI Planning inputs",
+          "control": "Regular review of PI Planning inputs with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of PI Planning inputs"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+{
+  "step_name": "Inspect and Adapt",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare for I&A Workshop",
+      "description": "The Release Train Engineer (RTE) schedules the Inspect and Adapt (I&A) workshop, ensuring all relevant stakeholders are invited, including representatives from each team, product management, system architects, and business owners. The RTE also prepares the agenda, ensuring it covers the demonstration of the current solution, data review, problem-solving workshop, and identification of improvement items. Finally, the RTE ensures the necessary tools and materials are available, such as collaboration platforms, whiteboards, and data reports.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [],
+      "outputs": [
+        "I&A Workshop agenda",
+        "List of attendees",
+        "Required tools and materials"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Workshop scheduled with all stakeholders",
+        "Agenda prepared and communicated",
+        "Tools and materials ready"
+      ],
+      "purpose": "To ensure the I&A workshop is well-organized and productive.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "End of PI"
+      ],
+      "end_conditions": [
+        "Workshop agenda finalized",
+        "Attendees confirmed",
+        "Materials prepared"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Poor attendance",
+          "control": "Send reminders and emphasize the importance of the workshop"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder attendance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Email to RTE",
+          "versioning_rules": "Track changes to agenda"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-workshop",
+          "improvement_inputs": [
+            "Attendee feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Solution Demo",
+      "description": "The System Team, along with representatives from the development teams, demonstrates the current state of the solution to all stakeholders. This demonstration should cover all key features and functionalities delivered during the PI, highlighting any significant achievements or challenges encountered. The demonstration should be interactive, allowing stakeholders to ask questions and provide feedback on the solution's performance and usability. The System Architect provides context on architectural decisions.",
+      "responsible_party": "System Team",
+      "inputs": [],
+      "outputs": [
+        "Working system demo",
+        "Stakeholder feedback"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Prepare for I&A Workshop"
+      ],
+      "success_criteria": [
+        "All key features demonstrated",
+        "Stakeholder feedback collected"
+      ],
+      "purpose": "To provide stakeholders with a clear understanding of the current state of the solution.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "Start of I&A Workshop"
+      ],
+      "end_conditions": [
+        "Solution demo completed",
+        "Feedback documented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Demo failure",
+          "control": "Prepare backup plans and dry runs"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder attendance and feedback"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Verbal feedback during demo",
+          "versioning_rules": "Track feedback and changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Review",
+      "description": "The RTE presents data related to the PI's performance, including metrics such as program predictability, team velocity, defect density, and release frequency. This data should be presented in a clear and concise manner, highlighting any trends or areas of concern. The RTE facilitates a discussion around the data, encouraging stakeholders to share their insights and perspectives on the PI's performance. The RTE also presents data on dependencies and risks encountered during the PI.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [],
+      "outputs": [
+        "PI performance data",
+        "Stakeholder insights"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Solution Demo"
+      ],
+      "success_criteria": [
+        "PI performance data presented",
+        "Stakeholder insights documented"
+      ],
+      "purpose": "To provide stakeholders with a data-driven understanding of the PI's performance.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "Completion of Solution Demo"
+      ],
+      "end_conditions": [
+        "Data review completed",
+        "Insights documented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data misinterpretation",
+          "control": "Provide clear explanations and context"
+        }
+      ],
+      "governance_requirements": [
+        "Data accuracy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Email to RTE",
+          "versioning_rules": "Track changes to data presentation"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-workshop",
+          "improvement_inputs": [
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Problem-Solving Workshop",
+      "description": "Facilitated by the RTE, stakeholders participate in a structured problem-solving workshop to identify the root causes of any issues or challenges encountered during the PI. This workshop should follow a defined process, such as the 5 Whys or Fishbone diagram, to ensure a thorough analysis. The workshop should be collaborative, encouraging all stakeholders to contribute their ideas and perspectives. The System Architect provides technical insights.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [],
+      "outputs": [
+        "Identified root causes",
+        "Potential solutions"
+      ],
+      "estimated_duration": "3 hours",
+      "dependencies": [
+        "Data Review"
+      ],
+      "success_criteria": [
+        "Root causes identified",
+        "Potential solutions generated"
+      ],
+      "purpose": "To identify the root causes of issues and generate potential solutions.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "Completion of Data Review"
+      ],
+      "end_conditions": [
+        "Problem-solving workshop completed",
+        "Root causes and solutions documented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of participation",
+          "control": "Encourage active participation and create a safe environment"
+        }
+      ],
+      "governance_requirements": [
+        "Action item tracking"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Verbal feedback during workshop",
+          "versioning_rules": "Track feedback and changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-workshop",
+          "improvement_inputs": [
+            "Attendee feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Identify Improvement Items",
+      "description": "Based on the identified root causes and potential solutions, stakeholders identify specific improvement items that can be implemented in the next PI. These improvement items should be actionable, measurable, achievable, relevant, and time-bound (SMART). The improvement items should be prioritized based on their potential impact and feasibility. The RTE ensures that the improvement items are documented and assigned to responsible parties.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [
+        "Identified root causes",
+        "Potential solutions"
+      ],
+      "outputs": [
+        "Prioritized improvement items",
+        "Assigned responsible parties"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Problem-Solving Workshop"
+      ],
+      "success_criteria": [
+        "SMART improvement items identified",
+        "Improvement items prioritized",
+        "Responsible parties assigned"
+      ],
+      "purpose": "To identify and prioritize actionable improvement items for the next PI.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "Completion of Problem-Solving Workshop"
+      ],
+      "end_conditions": [
+        "Improvement items documented",
+        "Priorities set",
+        "Assignments made"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unrealistic improvement items",
+          "control": "Ensure improvement items are SMART"
+        }
+      ],
+      "governance_requirements": [
+        "Action item tracking"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Email to RTE",
+          "versioning_rules": "Track changes to improvement items"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI",
+          "improvement_inputs": [
+            "Team feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Create Improvement Plan",
+      "description": "The RTE compiles all identified improvement items into a comprehensive improvement plan. This plan should include a description of each improvement item, the responsible party, the expected benefits, and the timeline for implementation. The improvement plan should be communicated to all stakeholders and incorporated into the next PI Planning session. The RTE tracks the progress of the improvement plan and reports on its effectiveness.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [
+        "Prioritized improvement items",
+        "Assigned responsible parties"
+      ],
+      "outputs": [
+        "Improvement plan"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Identify Improvement Items"
+      ],
+      "success_criteria": [
+        "Improvement plan created",
+        "Plan communicated to stakeholders"
+      ],
+      "purpose": "To create a roadmap for implementing the identified improvement items.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "Completion of Improvement Item Identification"
+      ],
+      "end_conditions": [
+        "Improvement plan finalized",
+        "Plan communicated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of implementation",
+          "control": "Track progress and report on effectiveness"
+        }
+      ],
+      "governance_requirements": [
+        "Action item tracking"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Email to RTE",
+          "versioning_rules": "Track changes to improvement plan"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Ongoing",
+          "improvement_inputs": [
+            "Team feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

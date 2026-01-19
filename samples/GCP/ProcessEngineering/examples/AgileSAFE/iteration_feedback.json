@@ -1,0 +1,11 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "error_type": "quality",
+      "instruction": "The introduction is good, but consider adding a sentence about the target audience for this SDLC (e.g., large enterprises, specific industries).",
+      "location": "introduction",
+      "status": "REVISION REQUIRED"
+    }
+  ]
+}

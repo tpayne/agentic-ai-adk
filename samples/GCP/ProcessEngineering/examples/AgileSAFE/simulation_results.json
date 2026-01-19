@@ -1,0 +1,20 @@
+{
+  "avg_cycle_time": 12.098015722797088,
+  "cycle_time_variance": 1.2032926366566186,
+  "time_unit": "weeks",
+  "bottlenecks": [
+    "Pre-PI Planning",
+    "PI Planning",
+    "Iteration Execution"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Pre-PI Planning": 2.700475266717198,
+    "PI Planning": 2.692284114629,
+    "Iteration Execution": 2.687696168724185,
+    "System Demos": 1.3468778266383539,
+    "Release": 1.3357863344938319,
+    "Inspect and Adapt": 1.3348960115945188,
+    "Innovation and Planning (IP) Iteration": 2.667634608999472
+  }
+}

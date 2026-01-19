@@ -26,11 +26,15 @@ The following are a list of known issues: -
 
 ## Notes
 
-> - Treat this ADK sample as a BETA. Large language models can produce unpredictable results.
-> - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
-> - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
-> - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
-> - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
+- Treat this ADK sample as a BETA. Large language models can produce unpredictable results.
+- The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
+- This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
+- If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
+- However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
+- Sometimes the root agent gets confused as to which agent to use to address a query. If you get this, you can change to prompt to something like **"using the Consulting Agent...."** and it will use the right one. Agents available are: -
+    * Consulting Agent for general queries
+    * Simulation Agent for running simulations
+    * Scenario Testing Agent for running "what if" type queries
 
 ---
 
@@ -163,6 +167,7 @@ The following are sample prompts you can use to...
 - Update existing processes
 - Investigate existing processes
 - Reviewing "what-if" scenarios on existing processes
+- Running simualtions on process flows to detect issues, bottlenecks or optimisation issues
 
 ### Creating Processes
 - "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
@@ -170,12 +175,14 @@ The following are sample prompts you can use to...
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 - "Please create me a data governance and management process strategy for managing corporate data that will be used in AI strategies"
 - "Please compose an HR process that utilizes generative artificial intelligence (GenAI) to augment tasks such as curriculum vitae (CV) review, job specification creation, employee reviews, employee grievance processes and ALL other standard HR process. Implement robust safeguards to ensure that human intervention is utilized when necessary, and prevent GenAI from adversely affecting processes or reputation by being excessively employed in areas where human expertise is required. Additionally, ensure that all training data or AI-generated results adhere to privacy and ethical usage regulations."
+- "Please create me an SDLC process for developing products at the Enterprise/Program-level using the latest Agile SAFe framework. I want the process to include - Program level management, release train management, big room planning, deployment management of releases, processes for handling dependencies be groups, processes for interacting with the System Team and anything else I might have missed that is relevant to SAFe."
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
 - "What roles are needed for a sprint planning session?"
 - "Who is responsible for the escalation process being closed?"
 - "Describe the overall process flow"
+- "Using the Consulting Agent, review the process and let me know of any issues areas relative to SAFe 4.0 standards."
 
 ### Running What-If Scenarios on Existing Processes
 - "What would happen if a security audit failed?"
@@ -187,6 +194,9 @@ The following are sample prompts you can use to...
 - "Add a code review process to the development steps"
 - "Modify the process to add test quality review steps prior to releases being done"
 
+### Running Simulations
+- "Dry-run the process and identify any issues"
+
 ---
 
 ## Running the document generator manually
@@ -196,7 +206,6 @@ To run the document generator manually, you must: -
 2. Run the following code snippet:
 
 ```python
-export RUN_DEBUG=d
 python -m process_agents.edge_inference_agent output/process_data.json 
 python -m process_agents.doc_generation_agent output/process_data.json
 ```

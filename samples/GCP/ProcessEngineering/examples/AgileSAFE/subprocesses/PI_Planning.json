@@ -1,0 +1,417 @@
+{
+  "step_name": "PI Planning",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare PI Planning Logistics",
+      "description": "The Release Train Engineer (RTE) is responsible for coordinating and preparing the logistics for the PI Planning event. This includes scheduling the event, booking the venue, arranging for necessary equipment (projectors, whiteboards, collaboration tools), and communicating the event details to all participants. Ensuring smooth logistics is crucial for a productive and efficient PI Planning session.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [],
+      "outputs": [
+        "PI Planning schedule",
+        "Venue booking confirmation",
+        "Equipment checklist",
+        "Communication to participants"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "PI Planning event is scheduled and confirmed",
+        "Venue is booked and equipped",
+        "Participants are informed of event details"
+      ],
+      "purpose": "Ensure all logistical aspects of PI Planning are in place for a smooth event.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "Scheduled PI Planning event"
+      ],
+      "end_conditions": [
+        "Logistics are confirmed and communicated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Venue unavailability",
+          "control": "Book venue well in advance and have backup options"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to logistics require RTE approval",
+          "versioning_rules": "Track changes to schedule and venue"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on logistics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Review Program Backlog",
+      "description": "Product Management reviews the program backlog with key stakeholders to ensure it is prioritized and reflects the current business needs. This involves refining user stories, defining acceptance criteria, and estimating story points. A well-groomed backlog ensures that teams have clear and actionable items to plan during PI Planning.",
+      "responsible_party": "Product Management",
+      "inputs": [
+        "Business strategy",
+        "Market analysis",
+        "Customer feedback"
+      ],
+      "outputs": [
+        "Prioritized program backlog",
+        "Refined user stories"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Prepare PI Planning Logistics"
+      ],
+      "success_criteria": [
+        "Program backlog is prioritized and refined",
+        "User stories have clear acceptance criteria",
+        "Story points are estimated"
+      ],
+      "purpose": "Ensure the program backlog is ready for teams to plan their iterations.",
+      "scope": "Program level",
+      "process_owner": "Product Management",
+      "triggers": [
+        "Scheduled PI Planning event"
+      ],
+      "end_conditions": [
+        "Program backlog is reviewed and prioritized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misaligned priorities",
+          "control": "Regular backlog refinement sessions with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder review of backlog"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to backlog require Product Management approval",
+          "versioning_rules": "Track changes to user stories and priorities"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on backlog clarity"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Present Business Context and Vision",
+      "description": "Business Owners and Product Management present the current business context, strategic vision, and top priorities to the Agile Release Train (ART). This provides teams with the necessary information to make informed decisions during planning. A clear understanding of the business context is essential for aligning team efforts with overall business goals.",
+      "responsible_party": "Business Owners, Product Management",
+      "inputs": [
+        "Prioritized program backlog",
+        "Business strategy",
+        "Market analysis"
+      ],
+      "outputs": [
+        "Business context presentation",
+        "Vision document"
+      ],
+      "estimated_duration": "2\u20134 hours",
+      "dependencies": [
+        "Review Program Backlog"
+      ],
+      "success_criteria": [
+        "Business context and vision are clearly communicated",
+        "Teams understand top priorities"
+      ],
+      "purpose": "Provide teams with the necessary context to align their planning with business goals.",
+      "scope": "Program level",
+      "process_owner": "Product Management",
+      "triggers": [
+        "Start of PI Planning event"
+      ],
+      "end_conditions": [
+        "Business context and vision are presented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misunderstanding of business goals",
+          "control": "Interactive Q&A session after presentation"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to vision require Business Owner approval",
+          "versioning_rules": "Track changes to vision document"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on presentation clarity"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Team Breakout Sessions",
+      "description": "Teams break out to plan their individual iterations for the upcoming Program Increment (PI). This involves selecting user stories from the program backlog, identifying dependencies, and estimating the work required. Effective team breakout sessions are crucial for creating realistic and achievable iteration plans.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Business context presentation",
+        "Vision document",
+        "Prioritized program backlog"
+      ],
+      "outputs": [
+        "Team iteration plans",
+        "Identified dependencies"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Present Business Context and Vision"
+      ],
+      "success_criteria": [
+        "Teams create realistic iteration plans",
+        "Dependencies are identified and documented"
+      ],
+      "purpose": "Enable teams to create detailed plans for their iterations within the PI.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "After business context presentation"
+      ],
+      "end_conditions": [
+        "Team iteration plans are created"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unrealistic commitments",
+          "control": "Capacity planning and risk assessment"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to iteration plans require team agreement",
+          "versioning_rules": "Track changes to iteration plans"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on planning process"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Draft Plan Review",
+      "description": "Each team presents their draft iteration plans to the rest of the Agile Release Train (ART) for review and feedback. This allows teams to identify potential dependencies and conflicts early in the planning process. Constructive feedback during the draft plan review is essential for ensuring a cohesive and aligned PI plan.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Team iteration plans",
+        "Identified dependencies"
+      ],
+      "outputs": [
+        "Feedback on iteration plans",
+        "Identified dependencies and conflicts"
+      ],
+      "estimated_duration": "2\u20134 hours",
+      "dependencies": [
+        "Team Breakout Sessions"
+      ],
+      "success_criteria": [
+        "Teams present their draft plans",
+        "Feedback is provided and documented",
+        "Dependencies and conflicts are identified"
+      ],
+      "purpose": "Identify dependencies and conflicts early in the planning process.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "After team breakout sessions"
+      ],
+      "end_conditions": [
+        "Draft plans are reviewed and feedback is provided"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of participation",
+          "control": "Encourage active participation from all teams"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to plans based on feedback require team agreement",
+          "versioning_rules": "Track changes to plans based on feedback"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on review process"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Final Plan Adjustments",
+      "description": "Teams adjust their iteration plans based on the feedback received during the draft plan review. This involves resolving dependencies, addressing conflicts, and ensuring that the plans are realistic and achievable. Making necessary adjustments is crucial for creating a final PI plan that is aligned and executable.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Feedback on iteration plans",
+        "Identified dependencies and conflicts",
+        "Team iteration plans"
+      ],
+      "outputs": [
+        "Adjusted team iteration plans"
+      ],
+      "estimated_duration": "2\u20134 hours",
+      "dependencies": [
+        "Draft Plan Review"
+      ],
+      "success_criteria": [
+        "Iteration plans are adjusted based on feedback",
+        "Dependencies and conflicts are resolved"
+      ],
+      "purpose": "Create a final PI plan that is aligned and executable.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "After draft plan review"
+      ],
+      "end_conditions": [
+        "Iteration plans are adjusted"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete resolution of dependencies",
+          "control": "Facilitate dependency resolution workshops"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to plans require team agreement",
+          "versioning_rules": "Track changes to plans"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on adjustment process"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Commitment and Confidence Vote",
+      "description": "Teams commit to their final iteration plans and provide a confidence vote indicating their level of confidence in achieving the PI Objectives. This provides a transparent view of the ART's overall commitment and identifies potential risks. A high level of commitment and confidence is essential for a successful PI.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Adjusted team iteration plans"
+      ],
+      "outputs": [
+        "Committed iteration plans",
+        "Confidence vote results"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Final Plan Adjustments"
+      ],
+      "success_criteria": [
+        "Teams commit to their plans",
+        "Confidence vote is conducted"
+      ],
+      "purpose": "Provide a transparent view of the ART's overall commitment and identify potential risks.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "After final plan adjustments"
+      ],
+      "end_conditions": [
+        "Teams commit to plans and confidence vote is conducted"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Low confidence",
+          "control": "Address concerns and adjust plans as needed"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes after commitment require RTE approval",
+          "versioning_rules": "Track changes to plans after commitment"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on commitment process"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Create Program Board",
+      "description": "The Release Train Engineer (RTE) creates a program board that visualizes the PI Objectives, dependencies, and risks for the upcoming Program Increment (PI). This provides a clear and transparent view of the overall plan and facilitates communication across teams. A well-maintained program board is crucial for tracking progress and managing dependencies throughout the PI.",
+      "responsible_party": "Release Train Engineer (RTE)",
+      "inputs": [
+        "Committed iteration plans",
+        "Confidence vote results",
+        "Identified dependencies"
+      ],
+      "outputs": [
+        "Program board"
+      ],
+      "estimated_duration": "2\u20134 hours",
+      "dependencies": [
+        "Commitment and Confidence Vote"
+      ],
+      "success_criteria": [
+        "Program board is created and visualized",
+        "PI Objectives, dependencies, and risks are clearly displayed"
+      ],
+      "purpose": "Visualize the PI plan and facilitate communication across teams.",
+      "scope": "Program level",
+      "process_owner": "Release Train Engineer (RTE)",
+      "triggers": [
+        "After commitment and confidence vote"
+      ],
+      "end_conditions": [
+        "Program board is created"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate representation of dependencies",
+          "control": "Validate dependencies with teams"
+        }
+      ],
+      "governance_requirements": [],
+      "change_management": [
+        {
+          "change_request_process": "Changes to program board require RTE approval",
+          "versioning_rules": "Track changes to program board"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-PI Planning",
+          "improvement_inputs": [
+            "Team feedback on program board clarity"
+          ]
+        }
+      ]
+    }
+  ]
+}

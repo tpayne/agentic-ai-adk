@@ -1,0 +1,341 @@
+{
+  "step_name": "System Demos",
+  "subprocess_flow": [
+    {
+      "substep_name": "Prepare Demo Environment",
+      "description": "The System Team prepares the demo environment by ensuring all necessary components are correctly configured and running. This includes deploying the latest build, configuring necessary data, and verifying network connectivity. A stable and representative environment is crucial for a successful demo.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "Test Results",
+        "Feature Documentation",
+        "Deployment Scripts"
+      ],
+      "outputs": [
+        "Prepared Demo Environment",
+        "Environment Configuration Documentation"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Environment is stable and representative",
+        "All components are correctly configured",
+        "Network connectivity is verified"
+      ],
+      "purpose": "To ensure a stable and representative environment for the system demo.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "End of iteration",
+        "Notification of upcoming demo"
+      ],
+      "end_conditions": [
+        "Demo environment is fully configured and tested"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Environment instability",
+          "control": "Automated deployment and configuration scripts"
+        }
+      ],
+      "governance_requirements": [
+        "Environment configuration documentation",
+        "Change management approval for environment changes"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Version control for environment configuration scripts"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Demo feedback",
+            "Environment performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Develop Demo Script",
+      "description": "The System Team develops a demo script that showcases the integrated system functionality and highlights key features. This script should be concise, engaging, and tailored to the interests of the stakeholders. The script should also include contingency plans for potential issues that may arise during the demo.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "Feature Documentation",
+        "Iteration Review Feedback",
+        "Stakeholder Profiles"
+      ],
+      "outputs": [
+        "Demo Script",
+        "Contingency Plans"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Demo script is concise and engaging",
+        "Key features are highlighted",
+        "Contingency plans are in place"
+      ],
+      "purpose": "To create a structured and engaging presentation of the system functionality.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "End of iteration",
+        "Feature completion"
+      ],
+      "end_conditions": [
+        "Demo script is finalized and approved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Demo script is not engaging",
+          "control": "Review and feedback from stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder approval of demo script"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Demo script change request process",
+          "versioning_rules": "Version control for demo script"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Demo effectiveness metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Conduct Dry Runs",
+      "description": "The System Team conducts dry runs of the demo to identify and resolve any potential issues. This includes practicing the demo script, verifying environment stability, and testing contingency plans. Dry runs are essential for ensuring a smooth and professional demo.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "Demo Script",
+        "Prepared Demo Environment"
+      ],
+      "outputs": [
+        "Identified Issues",
+        "Revised Demo Script",
+        "Environment Fixes"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "Prepare Demo Environment",
+        "Develop Demo Script"
+      ],
+      "success_criteria": [
+        "Demo runs smoothly without issues",
+        "Environment is stable during the demo",
+        "Contingency plans are tested and effective"
+      ],
+      "purpose": "To identify and resolve any potential issues before the actual demo.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "Completion of demo script",
+        "Availability of demo environment"
+      ],
+      "end_conditions": [
+        "Dry runs are completed and all issues are resolved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unidentified issues during the demo",
+          "control": "Multiple dry runs with different team members"
+        }
+      ],
+      "governance_requirements": [
+        "Documentation of dry run results"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Demo script change request process",
+          "versioning_rules": "Version control for demo script"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Dry run results",
+            "Team feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Present System Demo",
+      "description": "The System Team presents the system demo to stakeholders, showcasing the integrated system functionality and highlighting key features. This includes following the demo script, engaging with the audience, and addressing any questions or concerns. A professional and engaging presentation is crucial for gathering valuable feedback.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "Demo Script",
+        "Prepared Demo Environment"
+      ],
+      "outputs": [
+        "Stakeholder Feedback",
+        "Identified Issues"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [
+        "Conduct Dry Runs"
+      ],
+      "success_criteria": [
+        "Integrated system functionality is demonstrated",
+        "Stakeholders are engaged and provide feedback",
+        "Questions and concerns are addressed"
+      ],
+      "purpose": "To showcase the integrated system functionality and gather feedback from stakeholders.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "End of iteration",
+        "Scheduled demo time"
+      ],
+      "end_conditions": [
+        "Demo is completed and stakeholder feedback is received"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Technical issues during the demo",
+          "control": "Backup environment and contingency plans"
+        }
+      ],
+      "governance_requirements": [
+        "Stakeholder attendance and feedback"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Demo feedback process",
+          "versioning_rules": "Track feedback and changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Demo effectiveness metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Gather Stakeholder Feedback",
+      "description": "The System Team actively gathers feedback from stakeholders following the system demo. This includes soliciting feedback on the system functionality, user interface, and overall value. Gathering comprehensive feedback is crucial for identifying areas for improvement and ensuring that the system meets the needs of its users.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "System Demo",
+        "Stakeholder Attendance"
+      ],
+      "outputs": [
+        "Compiled Stakeholder Feedback",
+        "Feedback Summary Report"
+      ],
+      "estimated_duration": "30 minutes - 1 hour",
+      "dependencies": [
+        "Present System Demo"
+      ],
+      "success_criteria": [
+        "Feedback is gathered from all key stakeholders",
+        "Feedback is comprehensive and addresses key areas",
+        "Feedback is documented and summarized"
+      ],
+      "purpose": "To collect comprehensive feedback from stakeholders to identify areas for improvement.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "Completion of system demo"
+      ],
+      "end_conditions": [
+        "Stakeholder feedback is compiled and summarized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or biased feedback",
+          "control": "Structured feedback forms and follow-up interviews"
+        }
+      ],
+      "governance_requirements": [
+        "Documentation of stakeholder feedback"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Demo feedback process",
+          "versioning_rules": "Track feedback and changes"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Feedback analysis"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Analyze Feedback and Identify Improvements",
+      "description": "The System Team analyzes the stakeholder feedback to identify potential issues and areas for improvement. This includes categorizing feedback, prioritizing issues, and developing action plans. Analyzing feedback and identifying improvements is crucial for ensuring that the system continuously evolves to meet the needs of its users.",
+      "responsible_party": "System Team",
+      "inputs": [
+        "Compiled Stakeholder Feedback",
+        "Test Results"
+      ],
+      "outputs": [
+        "Prioritized Issues List",
+        "Action Plans",
+        "Updated Backlog Items"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "Gather Stakeholder Feedback"
+      ],
+      "success_criteria": [
+        "Feedback is categorized and prioritized",
+        "Action plans are developed for key issues",
+        "Backlog items are updated to reflect feedback"
+      ],
+      "purpose": "To analyze stakeholder feedback and identify actionable improvements for the system.",
+      "scope": "Program level",
+      "process_owner": "System Team",
+      "triggers": [
+        "Completion of feedback gathering"
+      ],
+      "end_conditions": [
+        "Feedback is analyzed, and action plans are developed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of feedback",
+          "control": "Cross-validation with stakeholders and product owners"
+        }
+      ],
+      "governance_requirements": [
+        "Documentation of feedback analysis and action plans"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Track changes to backlog items"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-demo",
+          "improvement_inputs": [
+            "Action plan effectiveness",
+            "Stakeholder satisfaction"
+          ]
+        }
+      ]
+    }
+  ]
+}

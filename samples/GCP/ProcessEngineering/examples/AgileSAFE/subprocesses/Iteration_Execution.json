@@ -1,0 +1,245 @@
+{
+  "step_name": "Iteration Execution",
+  "subprocess_flow": [
+    {
+      "substep_name": "Code Development",
+      "description": "Development teams begin writing code based on the user stories and tasks defined in the iteration plan. This involves adhering to coding standards, utilizing appropriate design patterns, and implementing the necessary functionality to meet the acceptance criteria. Developers work collaboratively, often using pair programming or code reviews, to ensure code quality and knowledge sharing.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Iteration Plan",
+        "User Stories",
+        "Acceptance Criteria"
+      ],
+      "outputs": [
+        "Source Code",
+        "Code Documentation"
+      ],
+      "estimated_duration": "3-5 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Code meets acceptance criteria",
+        "Code adheres to coding standards",
+        "Code is documented"
+      ],
+      "purpose": "To implement the features and functionalities defined in the iteration plan.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "Start of iteration"
+      ],
+      "end_conditions": [
+        "Code development complete for all tasks"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Code defects",
+          "control": "Code reviews and unit testing"
+        },
+        {
+          "risk": "Misinterpretation of requirements",
+          "control": "Daily stand-ups and clarification with product owner"
+        }
+      ],
+      "governance_requirements": [
+        "Coding standards compliance",
+        "Code review sign-off"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Iteration change request",
+          "versioning_rules": "Version control system"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprint retrospective",
+          "improvement_inputs": [
+            "Team feedback",
+            "Code quality metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Unit Testing",
+      "description": "Developers create and execute unit tests to verify the correctness of individual components and functions. This involves writing test cases that cover various scenarios, including positive and negative cases, boundary conditions, and error handling. Unit tests are automated and integrated into the CI/CD pipeline to ensure continuous feedback on code quality.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Source Code",
+        "Test Cases"
+      ],
+      "outputs": [
+        "Unit Test Results",
+        "Code Coverage Metrics"
+      ],
+      "estimated_duration": "1-2 days",
+      "dependencies": [
+        "Code Development"
+      ],
+      "success_criteria": [
+        "Unit tests pass",
+        "Code coverage meets defined threshold",
+        "No critical defects found"
+      ],
+      "purpose": "To ensure the correctness and reliability of individual code components.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "Code development complete for a component"
+      ],
+      "end_conditions": [
+        "Unit testing complete for all components"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Insufficient test coverage",
+          "control": "Code coverage analysis and test case review"
+        },
+        {
+          "risk": "Flaky tests",
+          "control": "Test isolation and retry mechanisms"
+        }
+      ],
+      "governance_requirements": [
+        "Test case documentation",
+        "Code coverage reporting"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Iteration change request",
+          "versioning_rules": "Version control system"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprint retrospective",
+          "improvement_inputs": [
+            "Team feedback",
+            "Test execution metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Code Integration",
+      "description": "Integrated code changes into the shared repository. This involves resolving conflicts, merging code branches, and ensuring that the integrated code builds successfully. Continuous integration practices are followed to automate the integration process and provide rapid feedback on integration issues. The System Team may be involved to assist with environment provisioning and build automation.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Source Code",
+        "Unit Test Results"
+      ],
+      "outputs": [
+        "Integrated Codebase",
+        "Build Status"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Unit Testing"
+      ],
+      "success_criteria": [
+        "Code integrates without conflicts",
+        "Build is successful",
+        "All unit tests pass after integration"
+      ],
+      "purpose": "To combine code changes from multiple developers into a single, working codebase.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "Completion of unit testing"
+      ],
+      "end_conditions": [
+        "Code integration complete and build is successful"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Integration conflicts",
+          "control": "Frequent integration and automated conflict resolution tools"
+        },
+        {
+          "risk": "Build failures",
+          "control": "Automated build verification and rollback mechanisms"
+        }
+      ],
+      "governance_requirements": [
+        "Build automation compliance",
+        "Version control system compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Iteration change request",
+          "versioning_rules": "Version control system"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprint retrospective",
+          "improvement_inputs": [
+            "Team feedback",
+            "Build success rate"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "System Testing",
+      "description": "The integrated codebase is subjected to system testing to verify that the system as a whole meets the defined requirements and acceptance criteria. This involves executing test cases that cover various aspects of the system, including functionality, performance, security, and usability. The System Team often assists with setting up the test environment and providing test automation support.",
+      "responsible_party": "Development Teams",
+      "inputs": [
+        "Integrated Codebase",
+        "Test Cases",
+        "Acceptance Criteria"
+      ],
+      "outputs": [
+        "System Test Results",
+        "Defect Reports"
+      ],
+      "estimated_duration": "2-3 days",
+      "dependencies": [
+        "Code Integration"
+      ],
+      "success_criteria": [
+        "System meets acceptance criteria",
+        "No critical defects found",
+        "Performance meets defined thresholds"
+      ],
+      "purpose": "To validate that the integrated system meets the defined requirements and acceptance criteria.",
+      "scope": "Team level",
+      "process_owner": "Development Team",
+      "triggers": [
+        "Successful code integration"
+      ],
+      "end_conditions": [
+        "System testing complete and all critical defects resolved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "System defects",
+          "control": "Thorough test case design and execution"
+        },
+        {
+          "risk": "Performance bottlenecks",
+          "control": "Performance testing and optimization"
+        }
+      ],
+      "governance_requirements": [
+        "Test execution reporting",
+        "Defect tracking and resolution"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Iteration change request",
+          "versioning_rules": "Version control system"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprint retrospective",
+          "improvement_inputs": [
+            "Team feedback",
+            "Defect density"
+          ]
+        }
+      ]
+    }
+  ]
+}
