@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Copy files
 COPY requirements.txt .
 COPY process_agents ./process_agents
 COPY instructions ./instructions
