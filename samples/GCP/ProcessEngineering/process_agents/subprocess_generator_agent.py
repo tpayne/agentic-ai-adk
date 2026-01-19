@@ -3,12 +3,15 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-from .utils import load_instruction
+from .utils import (
+    load_instruction,
+    getProperty
+)
 
 from google.adk.agents import LlmAgent
 from google.genai import types
 
-MODEL = "gemini-2.0-flash"
+MODEL = getProperty("MODEL")
 
 # -----------------------------
 # SUBPROCESS DATA SCHEMAS

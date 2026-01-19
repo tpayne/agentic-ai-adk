@@ -7,8 +7,15 @@ This app loads process context data, exposes it via a REST API, and serves a web
 """
 
 from flask import Flask, render_template, jsonify
-from process_agents.utils import load_full_process_context
+from process_agents.utils import (
+    load_full_process_context,
+    getProperty
+)
+
 import json
+
+import logging
+logger = logging.getLogger("ProcessArchitect.Apps")
 
 # Initialize Flask app with static folder mapped to root URL
 app = Flask(
@@ -85,7 +92,12 @@ def main():
     Entry point for running the Flask app.
     Uses 0.0.0.0 for container/remote visibility.
     """
-    app.run(debug=True, host="0.0.0.0", port=8080)
+    applicationName = getProperty("APP")
+    logger.info(f"Application {applicationName} running...")    
+
+    app.run(debug=getProperty("debug"), 
+            host=getProperty("host"), 
+            port=getProperty("port"))
 
 if __name__ == "__main__":
     main()

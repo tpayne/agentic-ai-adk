@@ -1,6 +1,5 @@
 # process_agents/utils.py
 import os
-import logging
 import json
 import glob
 import time
@@ -10,9 +9,54 @@ import traceback
 
 from typing import Any, List, Union
 
+import logging
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+import configparser
+import os
+
+# Internal cache
+_PROPERTY_CACHE = None
+PROPERTIES_FILE = 'properties/app.properties'
+
+def getProperty(prop: str, section: str = 'SETTINGS') -> any:
+    """
+    Retrieves a property value from cache. 
+    If cache is empty, reads the file once.
+    """
+import configparser
+import os
+
+_CACHE = None
+PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'app.properties')
+
+def getProperty(prop: str, section: str = 'SETTINGS'):
+    global _CACHE
+    if _CACHE is None:
+        # One-time disk read with error handling for path
+        config = configparser.ConfigParser()
+        if os.path.exists(PROPERTIES_FILE):
+            config.read(PROPERTIES_FILE)
+        _CACHE = config
+    
+    try:
+        val = _CACHE.get(section, prop)
+        # Clean up quotes (strips the " " around your strings in app.properties)
+        val = val.strip('"').strip("'")
+
+        # Handle Boolean conversion
+        if val.lower() in ['true', 'yes', 'on']: return True
+        if val.lower() in ['false', 'no', 'off']: return False
+        
+        # Handle Integer conversion
+        if val.isdigit(): return int(val)
+        
+        return val
+    except (configparser.NoOptionError, configparser.NoSectionError):
+        logger.warning(f"Property {prop} not found in {section}. Returning None.")
+        return None
 
 # ---------------------------------------------------------------------
 # INTERNAL HELPERS (NOT EXPOSED TO LLM)
