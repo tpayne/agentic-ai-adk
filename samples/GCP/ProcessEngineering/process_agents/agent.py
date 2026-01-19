@@ -22,6 +22,7 @@ from .simulation_agent import simulation_query_agent
 
 from .utils import load_instruction
 from .utils import validate_instruction_files
+from .utils import getProperty
 
 # ---------------------------------------------------------
 # LOGGING SETUP
@@ -68,7 +69,7 @@ logger.info("Pipeline initialised...")
 # ---------------------------------------------------------
 root_agent = LlmAgent(
     name="Process_Architect_Orchestrator",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     instruction=load_instruction("agent.txt"),
     # Ensure sub_agents are provided so the LLM can route to them
     sub_agents=[

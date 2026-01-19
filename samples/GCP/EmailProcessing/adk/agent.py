@@ -20,11 +20,7 @@ from google.adk.sessions import VertexAiSessionService
 from pydantic import BaseModel, Field, ValidationError
 
 from . import utils
-from .utils import (
-    load_properties, 
-    getValue, 
-    getProperty
-)
+from .utils import load_properties, getValue
 
 import sys
 import google.auth
@@ -33,7 +29,7 @@ import google.auth.transport.requests
 # --- Constants ---
 # The application name for ADK. This should be unique to your application.
 APP_NAME = "email_processing_app"
-MODEL=MODEL = getProperty("MODEL")
+MODEL="gemini-2.0-flash"
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.WARNING)
