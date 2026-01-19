@@ -30,7 +30,7 @@ import configparser
 import os
 
 _CACHE = None
-PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'app.properties')
+PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'agentapp.properties')
 
 def getProperty(prop: str, section: str = 'SETTINGS'):
     global _CACHE
