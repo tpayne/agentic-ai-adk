@@ -40,14 +40,52 @@ You are a specialist in transforming raw business process data into professional
    ----------------------------------------------------------------------
    REQUIRED-FIELD REPAIR (ALWAYS PERFORM THIS FIRST)
    ----------------------------------------------------------------------
-   Required-field repair MUST be performed even if feedback.status  == "JSON APPROVED".
-   - Before applying any feedback, you MUST ensure that the baseline JSON
-     contains ALL required top-level fields defined in the schema.
-     - If any required field is missing, you MUST add it with an empty or
-       default value (e.g., "", [], {}).
-     - This repair step is ALWAYS allowed, even if feedback does not
-       mention these fields explicitly.
-     - This repair step does NOT count as “regeneration”.
+   Required-field repair MUST be performed even if feedback.status == "JSON APPROVED".
+
+   Before applying any feedback, you MUST ensure that the baseline JSON contains ALL
+   required fields defined in the schema. This includes:
+
+   1. All required top‑level fields.
+   2. All required fields inside every object in arrays such as:
+      - stakeholders[]
+      - process_steps[]
+      - tools_summary[]
+      - metrics[]
+      - critical_success_factors[]
+      - critical_failure_factors[]
+      - reporting_and_analytics[]
+      - system_requirements[]
+      - risks_and_controls[]
+      - change_management[]
+      - continuous_improvement[]
+
+   For each object in these arrays:
+     - If any required field is missing, you MUST add it with an empty or default value
+       (e.g., "", [], {}).
+     - For process_steps[], you MUST ensure the presence of ALL schema‑required fields:
+         "step_name",
+         "description",
+         "responsible_party",
+         "estimated_duration",
+         "deliverables",
+         "inputs",
+         "outputs",
+         "dependencies",
+         "success_criteria",
+         "purpose",
+         "scope",
+         "process_owner",
+         "process_triggers",
+         "process_end_conditions",
+         "step_risks_and_controls",
+         "governance_requirements",
+         "change_management",
+         "continuous_improvement"
+
+   This repair step is ALWAYS allowed, even if feedback does not mention these fields.
+   This repair step does NOT count as regeneration.
+
+
    ----------------------------------------------------------------------
    FEEDBACK HANDLING
    ----------------------------------------------------------------------
