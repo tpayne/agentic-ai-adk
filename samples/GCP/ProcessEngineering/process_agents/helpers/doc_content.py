@@ -1,12 +1,14 @@
 # process_agents/helpers/doc_content.py
 
 import docx
-
-from docx.shared import Pt
+import os
+from docx.shared import Inches, Pt
 
 import traceback
 import logging
 from .doc_structure import _add_header, _add_bullet
+
+from ..step_diagram_agent import generate_step_diagram_for_step
 
 logger = logging.getLogger("ProcessArchitect.DocContent")
 
@@ -301,7 +303,6 @@ def _add_step_diagram_if_available(
     """
     try:
         diagram_path = generate_step_diagram_for_step(step_name, subprocess_json)
-
         if not diagram_path:
             return
         if not os.path.exists(diagram_path):
@@ -470,7 +471,6 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
 
     except Exception:
         logger.exception(f"Failed to render subprocess for {step_name}")
-
 
 def _render_generic_value(doc: docx.Document, value, level: int = 0) -> None:
     """

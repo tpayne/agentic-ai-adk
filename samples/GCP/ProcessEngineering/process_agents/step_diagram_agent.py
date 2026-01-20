@@ -143,7 +143,6 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
         # Output path
         safe_name = step_name.replace(" ", "_").replace("/", "_")
         out_path = os.path.join(OUTPUT_DIR, f"{safe_name}.png")
-
         # Large canvas
         fig, ax = plt.subplots(figsize=(18, 10))
         ax.axis("off")

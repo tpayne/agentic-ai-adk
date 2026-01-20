@@ -4,6 +4,9 @@ import os
 import json
 import logging
 from typing import AsyncGenerator
+import time
+import random
+import asyncio
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -54,6 +57,7 @@ class SubprocessWriterAgent(BaseAgent):
         os.makedirs(output_dir, exist_ok=True)
 
         output_path = os.path.join(output_dir, f"{step_name}.json")
+        await asyncio.sleep(1.75 + random.random() * 0.75)
 
         # ---------------------------------------------------------
         # Write the subprocess flow to disk

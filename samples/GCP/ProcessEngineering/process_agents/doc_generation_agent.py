@@ -61,7 +61,7 @@ def _load_subprocesses() -> dict:
     logger.info("Loading subprocess JSON files...")
     subprocess_dir = "output/subprocesses"
     subprocesses = {}
-
+ 
     if not os.path.isdir(subprocess_dir):
         return subprocesses
 
@@ -76,6 +76,7 @@ def _load_subprocesses() -> dict:
 
             parent = data.get("parent_step_name") or data.get("step_name")
             if parent:
+                data["step_name"] = parent
                 subprocesses[parent] = data
 
         except Exception:

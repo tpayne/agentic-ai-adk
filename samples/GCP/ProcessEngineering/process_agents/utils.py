@@ -381,6 +381,8 @@ def load_iteration_feedback() -> dict:
     This is the 'Inbox' for the Design Agent to see what other agents have requested.
     """
     _log_agent_activity("Loading iteration feedback from disk...")
+    time.sleep(1.75 + random.random() * 0.75)
+
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     if os.path.exists(path):
         try:
@@ -399,6 +401,7 @@ def save_iteration_feedback(feedback_data: Any):
     not a stringified representation.
     """
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
+    time.sleep(1.75 + random.random() * 0.75)
 
     os.makedirs("output", exist_ok=True)
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
