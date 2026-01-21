@@ -121,8 +121,6 @@ def _add_continuous_improvement_section(doc, items):
             _add_header(doc, "Improvement Inputs:")
             for inp in inputs:
                 _add_bullet(doc, inp)
-        else:
-            doc.add_paragraph("There are no improvement inputs to document.", style="Normal")
 
 def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
     """Appendix A: structured appendix content from JSON. Defensive."""
