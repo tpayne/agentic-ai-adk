@@ -14,7 +14,8 @@ from google.genai import types
 from .utils import (
     load_instruction,
     load_master_process_json,
-    save_iteration_feedback
+    save_iteration_feedback,
+    getProperty
 )
 
 import time
@@ -334,7 +335,7 @@ def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
         os.makedirs("output", exist_ok=True)
         with open(SIM_RESULTS_PATH, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2, ensure_ascii=False)
-        logger.info(f"Simulation metrics saved to {SIM_RESULTS_PATH}")
+        logger.debug(f"Simulation metrics saved to {SIM_RESULTS_PATH}")
     except Exception:
         logger.exception("Failed to persist simulation metrics.")
 
@@ -345,7 +346,7 @@ def _persist_process_data(data: Dict[str, Any]) -> None:
         os.makedirs("output", exist_ok=True)
         with open(PROCESS_JSON, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info(f"Process data saved to {PROCESS_JSON}")
+        logger.debug(f"Process data saved to {PROCESS_JSON}")
     except Exception:
         logger.exception("Failed to persist process data.")
 
@@ -383,7 +384,7 @@ def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
     """
     Simulates a process scenario by applying overrides and running the core simulation.
     """
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     try:
         data = json.loads(process_json_str)
         scenario = json.loads(scenario_json_str)

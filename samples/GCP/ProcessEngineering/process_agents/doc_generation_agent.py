@@ -6,7 +6,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 
-from .utils import load_instruction
+from .utils import load_instruction, getProperty
 
 import os
 import json
@@ -58,7 +58,7 @@ def _load_subprocesses() -> dict:
     Loads all subprocess JSON files from output/subprocesses/.
     Returns a dict: { step_name: subprocess_json }
     """
-    logger.info("Loading subprocess JSON files...")
+    logger.debug("Loading subprocess JSON files...")
     subprocess_dir = "output/subprocesses"
     subprocesses = {}
  
@@ -82,7 +82,7 @@ def _load_subprocesses() -> dict:
         except Exception:
             logger.exception(f"Failed to load subprocess file: {path}")
 
-    logger.info("Subprocesses loaded...")
+    logger.debug("Subprocesses loaded...")
     return subprocesses
 
 # ---------------------------------------------------
@@ -102,11 +102,11 @@ def create_standard_doc_from_file(process_name: str) -> str:
       * Render overview, stakeholders, workflow, tools, metrics, reporting,
         system requirements, flow diagram, and appendices.
     """
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     print(f"Creating document for process: {process_name}...")
-    logger.info(f"Creating document for process: {process_name}...")
+    logger.debug(f"Creating document for process: {process_name}...")
     try:
-        logger.info(f"Loading process data from output/process_data.json...")
+        logger.debug(f"Loading process data from output/process_data.json...")
         with open("output/process_data.json", 'r', encoding="utf-8") as f:
             try:
                 raw_data = json.load(f)
@@ -388,7 +388,7 @@ if __name__ == "__main__":
         print(f"ERROR: File not found: {input_path}")
         sys.exit(1)
 
-    logger.info(f"[Standalone] Loading process JSON from {input_path}...")
+    logger.debug(f"[Standalone] Loading process JSON from {input_path}...")
     # Load the JSON file the same way the ADK pipeline would
     try:
         with open(input_path, "r", encoding="utf-8") as f:

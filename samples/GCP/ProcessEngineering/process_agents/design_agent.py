@@ -12,14 +12,15 @@ from .utils import (
     persist_final_json,
     load_iteration_feedback,
     load_master_process_json,
+    getProperty
 )
 
 logger = logging.getLogger("ProcessArchitect.Design")
 
 def log_design_metadata(process_name: str, goal_count: int):
     """Internal tool to track design progress."""
-    time.sleep(1.75 + random.random() * 0.75)
-    logger.info(f"Design Metadata - Process: {process_name}, Goals Identified: {goal_count}.")
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"Design Metadata - Process: {process_name}, Goals Identified: {goal_count}.")
     return f"Design started for {process_name} with {goal_count} identified objectives."
 
 def exit_loop(tool_context: ToolContext):
@@ -27,8 +28,8 @@ def exit_loop(tool_context: ToolContext):
     Simplified for V2: The JSON is already saved via persist_final_json.
     This tool now ONLY signals the orchestrator to terminate.
     """
-    time.sleep(1.75 + random.random() * 0.75)
-    logger.info("Termination signal received. Exiting loop.")
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug("Termination signal received. Exiting loop.")
     tool_context.actions.escalate = True
     return "Exit signaled. Loop terminating."
 

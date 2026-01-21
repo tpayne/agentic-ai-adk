@@ -42,20 +42,38 @@ def getProperty(prop: str, section: str = 'SETTINGS'):
         _CACHE = config
     
     try:
+        # 1. Fetch the raw string
         val = _CACHE.get(section, prop)
-        # Clean up quotes (strips the " " around your strings in app.properties)
+        
+        # 2. Clean up quotes (e.g., "5" -> 5)
         val = val.strip('"').strip("'")
 
-        # Handle Boolean conversion
-        if val.lower() in ['true', 'yes', 'on']: return True
-        if val.lower() in ['false', 'no', 'off']: return False
+        # 3. Handle Boolean conversion
+        val_lower = val.lower()
+        if val_lower in ['true', 'yes', 'on']: return True
+        if val_lower in ['false', 'no', 'off']: return False
         
-        # Handle Integer conversion
-        if val.isdigit(): return int(val)
-        
+        # 4. Handle Integer conversion
+        # We use a try block because .isdigit() doesn't handle negative numbers
+        try:
+            return int(val)
+        except ValueError:
+            pass
+
+        # 5. Handle Float conversion
+        try:
+            return float(val)
+        except ValueError:
+            pass
+            
+        # 6. Default: Return as string
         return val
+
     except (configparser.NoOptionError, configparser.NoSectionError):
-        logger.warning(f"Property {prop} not found in {section}. Returning None.")
+        logger.warning(f"Property '{prop}' not found in section [{section}]")
+        return None
+    except Exception as e:
+        logger.error(f"Error retrieving property '{prop}': {e}")
         return None
 
 # ---------------------------------------------------------------------
@@ -64,8 +82,8 @@ def getProperty(prop: str, section: str = 'SETTINGS'):
 
 def _log_agent_activity(message: str):
     """Internal logging helper."""
-    time.sleep(1.75 + random.random() * 0.75)
-    logger.info(f"--- [DIAGNOSTIC] Utils: {message} ---")
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
 
 def _extract_json_brace_balanced(text: str) -> str:
@@ -225,7 +243,7 @@ def _save_raw_data_to_json(json_content) -> str:
                 repaired_str = repair_json(raw_str)
                 parsed = json.loads(repaired_str)
                 used_repair = True
-                logger.info("JSON successfully repaired and loaded.")
+                logger.debug("JSON successfully repaired and loaded.")
             except ImportError:
                 logger.error(
                     "json-repair library not found. "
@@ -329,7 +347,7 @@ def persist_final_json(json_content) -> str:
     - Calls the internal saver with the provided JSON content.
     - Returns the final path or error message.
     """
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
     try:
         _log_agent_activity("Starting final JSON file persistence")
@@ -381,7 +399,7 @@ def load_iteration_feedback() -> dict:
     This is the 'Inbox' for the Design Agent to see what other agents have requested.
     """
     _log_agent_activity("Loading iteration feedback from disk...")
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     if os.path.exists(path):
@@ -401,13 +419,13 @@ def save_iteration_feedback(feedback_data: Any):
     not a stringified representation.
     """
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
     os.makedirs("output", exist_ok=True)
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     
     # Artificial delay to prevent API burst issues in the loop
-    time.sleep(1.75 + random.random() * 0.75)
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     
     # 1. Clean the incoming data
     # Handle cases where the LLM sends a stringified list/dict
@@ -435,7 +453,7 @@ def save_iteration_feedback(feedback_data: Any):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
         
-        logger.info(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
+        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
         return f"SUCCESS: Feedback persisted to {path}"
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")

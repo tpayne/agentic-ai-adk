@@ -41,10 +41,18 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_format)
 
 logger = logging.getLogger("ProcessArchitect")
-logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 logger.propagate = False
+
+# Suppress the specific ADK warning about output_schema and agent transfers
+logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
+# Get log level from environment variable, default to WARNING
+LOGLEVEL = getProperty("LOGLEVEL")
+if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    LOGLEVEL = "WARNING"
+if logger:
+    logger.setLevel(LOGLEVEL)
 
 # Reset runtime error log
 runtime_file = os.path.join(log_dir, "runtime_errors.log")
@@ -57,12 +65,12 @@ if os.path.exists(runtime_file):
 sys.stderr = open(runtime_file, "a")
 
 # Validate instruction files before proceeding
-logger.info("Validating instruction files...")
+logger.debug("Validating instruction files...")
 if not validate_instruction_files():
     logger.error("Instruction file validation failed. Aborting pipeline.")
     sys.exit(1)
 
-logger.info("Pipeline initialised...")
+logger.debug("Pipeline initialised...")
 
 # ---------------------------------------------------------
 # ROOT AGENT
@@ -82,5 +90,5 @@ root_agent = LlmAgent(
 )
 
 if __name__ == "__main__":
-    logger.info("Pipeline initialized and ready for execution.")
+    logger.debug("Pipeline initialized and ready for execution.")
     print("Automated Standard Pipeline Initialized. Logs writing to output/logs/")

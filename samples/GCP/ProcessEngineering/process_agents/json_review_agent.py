@@ -20,7 +20,7 @@ logger = logging.getLogger("ProcessArchitect.JsonReview")
 
 def exit_loop(tool_context: ToolContext):
     """Signals that the JSON has been reviewed and approved."""
-    logger.info("JSON Review Approved. Terminating normalization loop.")
+    logger.debug("JSON Review Approved. Terminating normalization loop.")
     tool_context.actions.escalate = True
     return "Normalization loop terminated."
 

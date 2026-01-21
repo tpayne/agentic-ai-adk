@@ -412,7 +412,7 @@ def generate_clean_diagram() -> str:
         str: A message indicating the success or failure of the diagram generation.
     """
     import textwrap
-    logger.info("Generating final diagram: Tidied Bisected Circle with visible Arrowheads...")
+    logger.debug("Generating final diagram: Tidied Bisected Circle with visible Arrowheads...")
     
     try:
         # LOAD DATA
@@ -519,7 +519,7 @@ def generate_clean_diagram() -> str:
         plt.title(f"Process Architecture: {final_name}", fontsize=15, pad=30, fontweight='bold')
         plt.axis("off")
 
-        logger.info("Diagram generation complete. Saving output...")
+        logger.debug("Diagram generation complete. Saving output...")
 
         # 7. SAVE
         out_path = "output/process_flow.png"

@@ -18,6 +18,7 @@ from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
+from .utils import getProperty
 
 logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 
@@ -55,7 +56,7 @@ review_loop = LoopAgent(
             sub_agents=[design_instance, compliance_agent, design_compliance_instance, simulation_agent],
         ),
     ],
-    max_iterations=5 # The max iterations for this loop. Adjust as needed.
+    max_iterations=getProperty("loopInterations") # The max iterations for this loop. Adjust as needed.
 )
 
 # JSON Normalization → Review loop: Stabilizes the process JSON
@@ -65,7 +66,7 @@ json_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Normalizer_Review_Sequence",
             sub_agents=[json_normalizer_agent, json_review_agent],
-            max_iterations=5 # The max iterations for this loop. Adjust as needed.
+            max_iterations=getProperty("loopInterations") # The max iterations for this loop. Adjust as needed.
         ),
         json_writer_agent
     ],

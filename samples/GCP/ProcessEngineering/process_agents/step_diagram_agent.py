@@ -89,7 +89,7 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
     try:
         substeps = _extract_substeps(subprocess_json)
         if not substeps:
-            logger.info(f"No substeps for '{step_name}', skipping diagram.")
+            logger.debug(f"No substeps for '{step_name}', skipping diagram.")
             return ""
 
         # Build nodes + edges
@@ -209,7 +209,7 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
         fig.savefig(out_path, dpi=150)
         plt.close(fig)
 
-        logger.info(f"Step diagram generated at {out_path}")
+        logger.debug(f"Step diagram generated at {out_path}")
         return out_path
 
     except Exception:

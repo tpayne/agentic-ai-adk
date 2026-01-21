@@ -12,13 +12,14 @@ from .utils import (
     load_instruction,
     load_master_process_json,
     load_iteration_feedback,
-    save_iteration_feedback
+    save_iteration_feedback,
+    getProperty
 )
 
 def log_compliance_metadata(status: str):
     """Internal tool to report status."""
-    time.sleep(1.75 + random.random() * 0.75)
-    logger.info(f"Compliance Metadata - Status: {status},")
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"Compliance Metadata - Status: {status},")
     return {}
 
 # -----------------------------

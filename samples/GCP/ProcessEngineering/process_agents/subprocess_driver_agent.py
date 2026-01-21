@@ -13,6 +13,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
+from .utils import getProperty
 
 import logging
 
@@ -96,20 +97,20 @@ class SubprocessDriverAgent(BaseAgent):
             return
 
         if not steps:
-            logger.info("No process_steps found; skipping subprocess generation.")
+            logger.debug("No process_steps found; skipping subprocess generation.")
             if False:
                 yield
             return
 
         for step in steps:
             step_name = step.get("step_name", "Unnamed Step")
-            logger.info(f"Generating subprocess for step: {step_name}")
+            logger.debug(f"Generating subprocess for step: {step_name}")
 
             # Store the current step in shared session state
             ctx.session.state["current_process_step"] = step
 
             # Rate‑limit padding
-            await asyncio.sleep(1.75 + random.random() * 0.75)
+            await asyncio.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
             # ---------------------------------------------------------
             # RUN GENERATOR (sub-agent 0) AND CAPTURE ITS OUTPUT
@@ -140,7 +141,7 @@ class SubprocessDriverAgent(BaseAgent):
             async for _ in writer_agent.run_async(ctx):
                 pass
 
-        logger.info("Subprocess generation completed for all steps.")
+        logger.debug("Subprocess generation completed for all steps.")
 
         if False:
             yield

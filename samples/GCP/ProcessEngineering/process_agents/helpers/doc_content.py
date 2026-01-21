@@ -167,7 +167,7 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
           "escalation_procedure": "..."
         }
     """
-    logger.info("Process sub steps...")
+    logger.debug("Process sub steps...")
     try:
         if not isinstance(steps, list) or not steps:
             return
@@ -330,7 +330,7 @@ def _add_subprocess_section(doc: docx.Document, step_name: str, subprocess_json:
     - change_management: [{change_request_process, versioning_rules}]
     - continuous_improvement: [{review_frequency, improvement_inputs}]
     """
-    logger.info(f"Rendering subprocess for step: {step_name}")
+    logger.debug(f"Rendering subprocess for step: {step_name}")
 
     try:
         doc.add_heading(f"Required Sub Process(es) for the Step \"{step_name}\"", level=3)

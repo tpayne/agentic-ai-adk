@@ -93,7 +93,7 @@ def main():
     Uses 0.0.0.0 for container/remote visibility.
     """
     applicationName = getProperty("APP")
-    logger.info(f"Application {applicationName} running...")    
+    logger.debug(f"Application {applicationName} running...")    
 
     app.run(debug=getProperty("debug"), 
             host=getProperty("host"), 

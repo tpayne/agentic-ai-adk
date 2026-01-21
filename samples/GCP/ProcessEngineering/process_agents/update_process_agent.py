@@ -9,6 +9,7 @@ from .utils import (
     load_full_process_context,
     load_master_process_json,
     persist_final_json,
+    getProperty
 )
 
 # Import the base agents to access their configuration
@@ -152,7 +153,7 @@ review_update_loop = LoopAgent(
             ],
         )
     ],
-    max_iterations=5,
+    max_iterations=getProperty("loopInterations"),
 )
 
 json_update_normalization_loop = SequentialAgent(
@@ -161,7 +162,7 @@ json_update_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Update_Normalizer_Sequence",
             sub_agents=[normalizer_inst, reviewer_inst],
-            max_iterations=5,
+            max_iterations=getProperty("loopInterations"),
         ),
         writer_inst,
     ],

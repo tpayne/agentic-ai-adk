@@ -14,6 +14,8 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 
+from .utils import getProperty
+
 logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 
 SUBPROCESS_DIR = "output/subprocesses"
@@ -57,7 +59,7 @@ class SubprocessWriterAgent(BaseAgent):
         os.makedirs(output_dir, exist_ok=True)
 
         output_path = os.path.join(output_dir, f"{step_name}.json")
-        await asyncio.sleep(1.75 + random.random() * 0.75)
+        await asyncio.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
         # ---------------------------------------------------------
         # Write the subprocess flow to disk
@@ -66,7 +68,7 @@ class SubprocessWriterAgent(BaseAgent):
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(flow, f, indent=2)
 
-            logger.info(
+            logger.debug(
                 f"[{self.name}] Wrote subprocess file: {output_path}"
             )
 
