@@ -1,5 +1,6 @@
 # process_agents/doc_generation_agent.py
-from google.adk.agents import LlmAgent
+
+from google.adk.agents import Agent
 import docx
 from docx.shared import Inches, Pt
 from docx.oxml import OxmlElement
@@ -364,9 +365,8 @@ def create_standard_doc_from_file(process_name: str) -> str:
 # --------------------------
 # Agent definition
 # --------------------------
-doc_generation_agent = LlmAgent(
+doc_generation_agent = Agent(
     name="Document_Generation_Agent",
-    model="gemini-2.0-flash-001",
     description="Generates a professional Word document from normalized JSON.",
     instruction=load_instruction("doc_generation_agent.txt"),
     tools=[create_standard_doc_from_file],
