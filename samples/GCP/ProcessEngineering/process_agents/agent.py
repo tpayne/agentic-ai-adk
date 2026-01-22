@@ -1,5 +1,6 @@
 # process_agents/agent.py
 import os
+import signal
 import sys
 import logging
 from datetime import datetime
@@ -71,6 +72,17 @@ if not validate_instruction_files():
     sys.exit(1)
 
 logger.debug("Pipeline initialised...")
+
+# Signal handler for abnormal errors
+def handler(signum, frame):
+    signame= signal.Signals(signum).name
+    logger.warning("Trapped signal %d", signum)
+    sys.exit(1)
+
+signal.signal(signal.SIGBUS, handler)
+signal.signal(signal.SIGABRT, handler)
+signal.signal(signal.SIGILL, handler)
+signal.signal(signal.SIGTERM, handler)
 
 # ---------------------------------------------------------
 # ROOT AGENT
