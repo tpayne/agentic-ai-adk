@@ -1,6 +1,6 @@
 # process_agents/edge_inference_agent.py
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import Agent
 from google.genai import types
 import os
 import json
@@ -541,19 +541,12 @@ def generate_clean_diagram() -> str:
 # ============================================================
 #  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
-edge_inference_agent = LlmAgent(
-    name="Edge_Inference_Agent",
-    model="gemini-2.0-flash-001",
-    description="Triggers BPMN-style swimlane diagram generation based only on process_name.",
-    instruction=load_instruction("edge_inference_agent.txt"),
-    include_contents="none",
-    tools=[generate_clean_diagram],
-    generate_content_config=types.GenerateContentConfig(
-        temperature=0.2,
-        top_p=1,
-    ),
+edge_inference_agent = Agent( 
+    name="Edge_Inference_Agent", 
+    description="Triggers BPMN-style swimlane diagram generation based only on process_name.", 
+    instruction=load_instruction("edge_inference_agent.txt"), 
+    tools=[generate_clean_diagram], 
 )
-
 
 # ============================================================
 # __main__ TEST HARNESS (DIRECT EXECUTION WITHOUT LLM)

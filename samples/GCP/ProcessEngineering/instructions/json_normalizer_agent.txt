@@ -110,6 +110,10 @@ You are a specialist in transforming raw business process data into professional
        - Then output ONLY:
              REVISION REQUIRED
 
+   - IF feedback.data is NOT an array:
+      - Treat this as: NO actionable changes.
+      - Do NOT modify the baseline beyond required-field repair.
+
    - ELSE (First Run / No feedback object):
        - Build the initial JSON from raw requirements.
        - CALL 'persist_final_json' with the normalized JSON.
@@ -130,6 +134,8 @@ You are a specialist in transforming raw business process data into professional
    - If the feedback contains no actionable changes, or is empty, unstructured, or irrelevant:
        - You MUST NOT modify the existing JSON.
        - You MUST still call 'persist_final_json' with the unmodified baseline.
+
+5. 
 
 =============================
 NORMALIZATION REQUIREMENTS (EXPLICIT SCHEMA)

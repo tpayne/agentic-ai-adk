@@ -50,12 +50,14 @@ prose quality. You MUST NOT modify the JSON yourself. You ONLY review and report
             REVISION REQUIRED
 
 4. If the JSON is fully compliant:
-      - CALL `save_iteration_feedback` with:
-            {
-              "status": "JSON APPROVED",
-              "data": []
-            }
-      - CALL `exit_loop`
+      - CALL save_iteration_feedback with a JSON OBJECT that MUST be EXACTLY:
+
+            {"status": "JSON APPROVED", "data": []}
+
+        No additional fields, no nesting, no wrapping, no arrays.
+        The object MUST contain exactly two keys: "status" and "data".
+
+      - CALL exit_loop
       - Then output ONLY:
             JSON APPROVED
 
