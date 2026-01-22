@@ -1,7 +1,9 @@
 # Sample of the query and simulation agents
 
 Running agent Process_Architect_Orchestrator, type exit to exit.
+
 [user]: explain to me this process, what is it about? what levels does it operate at and what functions does it call?
+
 [Consultant_Agent]: The process is a SaaS L0 Value Chain, outlining the key phases and processes involved in delivering and supporting SaaS products and services. It operates at a high level, encompassing strategic management, product strategy, go-to-market, SDLC (software development life cycle), customer success, and corporate functions.
 
 Here's a breakdown:
@@ -27,6 +29,7 @@ Here's a breakdown:
 Each of these process steps has defined inputs, outputs, deliverables, dependencies, triggers, responsible parties, and success criteria. Also, subprocesses with more detailed substeps exist for Strategic Management, Go-To-Market, Product Strategy, Corporate Functions, SDLC, and Customer Success.
 
 [user]: explain to me the Customer Level process
+
 [Consultant_Agent]: The "Customer Success" process focuses on onboarding, supporting, and retaining customers to ensure they are successful with the SaaS product and remain loyal. The Process Owner is the VP of Customer Success, and the scope encompasses all activities related to customer onboarding, support, and retention.
 
 Here's a breakdown of the subprocesses within Customer Success:
@@ -88,6 +91,7 @@ Here's a breakdown of the subprocesses within Customer Success:
     *   **Triggers:** High churn rate, Customer feedback, Market trends.
 
 [user]: run a simulation on that process
+
 [Scenario_Tester]: Okay, I will run a simulation on the "Customer Success" process based on the provided information.
 
 First, I need to load the full process context to ensure I have the most up-to-date information.
