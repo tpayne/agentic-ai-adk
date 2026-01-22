@@ -1,3 +1,5 @@
+# Sample of the query and simulation agents
+
 Running agent Process_Architect_Orchestrator, type exit to exit.
 [user]: explain to me this process, what is it about? what levels does it operate at and what functions does it call?
 [Consultant_Agent]: The process is a SaaS L0 Value Chain, outlining the key phases and processes involved in delivering and supporting SaaS products and services. It operates at a high level, encompassing strategic management, product strategy, go-to-market, SDLC (software development life cycle), customer success, and corporate functions.
