@@ -1,0 +1,304 @@
+{
+  "step_name": "Customer Success",
+  "subprocess_flow": [
+    {
+      "substep_name": "Customer Onboarding",
+      "description": "The customer onboarding process begins immediately after a new customer signs up for the SaaS product. This involves setting up the customer's account, providing initial training, and ensuring they understand the basic functionalities of the software. The goal is to make the customer feel welcome and confident in using the product.",
+      "responsible_party": "Customer Success Manager",
+      "inputs": [
+        "New customer data",
+        "Sales handover notes"
+      ],
+      "outputs": [
+        "Customer account setup",
+        "Onboarding completion report",
+        "Initial training materials"
+      ],
+      "estimated_duration": "1-3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Customer account successfully set up",
+        "Customer completes initial training",
+        "Positive initial customer feedback"
+      ],
+      "purpose": "To ensure new customers are properly set up and trained to use the SaaS product.",
+      "scope": "Encompasses all activities related to setting up a new customer's account and providing initial training.",
+      "process_owner": "VP of Customer Success",
+      "triggers": [
+        "New customer acquisition"
+      ],
+      "end_conditions": [
+        "Customer completes onboarding process"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete onboarding leading to customer frustration",
+          "control": "Standardized onboarding checklist and process"
+        }
+      ],
+      "governance_requirements": [
+        "Regular review of onboarding process",
+        "Customer satisfaction surveys"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Onboarding completion rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ongoing Customer Support",
+      "description": "Providing ongoing support to customers is crucial for addressing their questions, resolving issues, and ensuring they continue to derive value from the SaaS product. This includes responding to support tickets, providing technical assistance, and offering guidance on best practices. The aim is to maintain high levels of customer satisfaction and prevent churn.",
+      "responsible_party": "Support Team",
+      "inputs": [
+        "Support tickets",
+        "Customer inquiries",
+        "Usage data"
+      ],
+      "outputs": [
+        "Resolved support tickets",
+        "Customer satisfaction ratings",
+        "Knowledge base articles"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Customer Onboarding"
+      ],
+      "success_criteria": [
+        "Timely resolution of support tickets",
+        "High customer satisfaction ratings",
+        "Reduced churn rate"
+      ],
+      "purpose": "To provide continuous support and assistance to customers, ensuring they derive maximum value from the SaaS product.",
+      "scope": "Encompasses all activities related to addressing customer inquiries, resolving issues, and providing technical assistance.",
+      "process_owner": "VP of Customer Success",
+      "triggers": [
+        "Support requests",
+        "Customer feedback"
+      ],
+      "end_conditions": [
+        "Support ticket resolved",
+        "Customer issue addressed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Delayed or inadequate support leading to customer dissatisfaction",
+          "control": "Service level agreements (SLAs) and support ticket prioritization"
+        }
+      ],
+      "governance_requirements": [
+        "Regular monitoring of support ticket resolution times",
+        "Customer satisfaction surveys"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Support ticket analysis",
+            "Customer satisfaction ratings"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Customer Training Programs",
+      "description": "Developing and delivering customer training programs is essential for ensuring customers fully understand and utilize the SaaS product's features. These programs can include webinars, online courses, and in-person training sessions. The goal is to empower customers to maximize their use of the product and achieve their desired outcomes.",
+      "responsible_party": "Training Specialist",
+      "inputs": [
+        "Customer feedback",
+        "Usage data",
+        "Product updates"
+      ],
+      "outputs": [
+        "Training materials",
+        "Webinar recordings",
+        "Training completion reports"
+      ],
+      "estimated_duration": "1 week per program",
+      "dependencies": [
+        "Customer Onboarding"
+      ],
+      "success_criteria": [
+        "High attendance rates for training programs",
+        "Positive customer feedback on training content",
+        "Increased product usage among trained customers"
+      ],
+      "purpose": "To provide comprehensive training programs that enable customers to fully utilize the SaaS product.",
+      "scope": "Encompasses all activities related to developing and delivering customer training programs.",
+      "process_owner": "VP of Customer Success",
+      "triggers": [
+        "Product updates",
+        "Customer feedback",
+        "Low product usage"
+      ],
+      "end_conditions": [
+        "Training program completed",
+        "Training materials updated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Irrelevant or outdated training content",
+          "control": "Regular review and update of training materials"
+        }
+      ],
+      "governance_requirements": [
+        "Regular review of training program effectiveness",
+        "Customer feedback surveys"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Training completion rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Proactive Customer Engagement",
+      "description": "Proactively engaging with customers helps identify potential issues before they escalate and ensures customers are continuously deriving value from the SaaS product. This involves regular check-in calls, usage data analysis, and personalized recommendations. The objective is to build strong customer relationships and foster long-term loyalty.",
+      "responsible_party": "Customer Success Manager",
+      "inputs": [
+        "Usage data",
+        "Customer feedback",
+        "Support tickets"
+      ],
+      "outputs": [
+        "Customer engagement reports",
+        "Personalized recommendations",
+        "Customer success stories"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Customer Onboarding",
+        "Ongoing Customer Support"
+      ],
+      "success_criteria": [
+        "Increased customer engagement",
+        "Reduced churn rate",
+        "Positive customer feedback"
+      ],
+      "purpose": "To proactively engage with customers, identify potential issues, and ensure they continuously derive value from the SaaS product.",
+      "scope": "Encompasses all activities related to proactively engaging with customers and providing personalized support.",
+      "process_owner": "VP of Customer Success",
+      "triggers": [
+        "Low product usage",
+        "Customer feedback",
+        "Upcoming contract renewal"
+      ],
+      "end_conditions": [
+        "Customer issue addressed",
+        "Customer engagement goals achieved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of proactive engagement leading to customer churn",
+          "control": "Regular check-in calls and usage data analysis"
+        }
+      ],
+      "governance_requirements": [
+        "Regular monitoring of customer engagement metrics",
+        "Customer satisfaction surveys"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Customer engagement metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Customer Retention Strategies",
+      "description": "Implementing effective customer retention strategies is critical for minimizing churn and maximizing customer lifetime value. This includes loyalty programs, personalized offers, and continuous improvement of the SaaS product based on customer feedback. The goal is to ensure customers remain satisfied and continue to renew their subscriptions.",
+      "responsible_party": "Customer Success Team",
+      "inputs": [
+        "Customer feedback",
+        "Churn analysis",
+        "Usage data"
+      ],
+      "outputs": [
+        "Loyalty program materials",
+        "Personalized offers",
+        "Retention reports"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Proactive Customer Engagement"
+      ],
+      "success_criteria": [
+        "Reduced churn rate",
+        "Increased customer lifetime value (CLTV)",
+        "High customer satisfaction"
+      ],
+      "purpose": "To implement effective strategies that minimize churn and maximize customer lifetime value.",
+      "scope": "Encompasses all activities related to implementing customer retention strategies.",
+      "process_owner": "VP of Customer Success",
+      "triggers": [
+        "High churn rate",
+        "Customer feedback",
+        "Market trends"
+      ],
+      "end_conditions": [
+        "Retention goals achieved",
+        "Customer contract renewed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ineffective retention strategies leading to customer churn",
+          "control": "Regular review and optimization of retention strategies"
+        }
+      ],
+      "governance_requirements": [
+        "Regular monitoring of churn rate and CLTV",
+        "Customer satisfaction surveys"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Churn analysis"
+          ]
+        }
+      ]
+    }
+  ]
+}

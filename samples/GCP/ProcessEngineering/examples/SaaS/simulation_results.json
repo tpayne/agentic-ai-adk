@@ -1,0 +1,19 @@
+{
+  "avg_cycle_time": 5.5034461385785365,
+  "cycle_time_variance": 0.6048222971598523,
+  "time_unit": "hours",
+  "bottlenecks": [
+    "SDLC",
+    "Strategic Management",
+    "Product Strategy"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Strategic Management": 1.3363908000836342,
+    "Product Strategy": 1.3281950050532423,
+    "Go-To-Market": 1.3252684083975548,
+    "SDLC": 1.349845018950107,
+    "Customer Success": 1.3255464895693259,
+    "Corporate Functions": 1.326355077496909
+  }
+}

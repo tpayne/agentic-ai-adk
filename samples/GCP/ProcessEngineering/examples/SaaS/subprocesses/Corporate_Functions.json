@@ -1,0 +1,194 @@
+{
+  "step_name": "Corporate Functions",
+  "subprocess_flow": [
+    {
+      "substep_name": "Financial Planning",
+      "description": "Develop the annual budget and financial forecasts. This includes projecting revenue, expenses, and cash flow. The finance team analyzes market trends, historical data, and strategic initiatives to create realistic and achievable financial targets. They also monitor performance against the budget and make adjustments as needed.",
+      "responsible_party": "CFO, Finance Director",
+      "inputs": [
+        "Business strategy document",
+        "Market analysis report",
+        "Historical financial data"
+      ],
+      "outputs": [
+        "Annual budget",
+        "Financial forecasts",
+        "Capital expenditure plan"
+      ],
+      "estimated_duration": "2-4 weeks",
+      "dependencies": [],
+      "success_criteria": [
+        "Realistic and achievable financial targets",
+        "Alignment with business strategy",
+        "Accurate financial forecasts"
+      ],
+      "purpose": "To establish a financial roadmap for the company and ensure financial stability.",
+      "scope": "Encompasses all financial planning activities, including budgeting, forecasting, and capital expenditure planning.",
+      "process_owner": "CFO",
+      "triggers": [
+        "Annual planning cycle",
+        "Significant market changes",
+        "Strategic initiatives"
+      ],
+      "end_conditions": [
+        "Approval of annual budget",
+        "Completion of financial forecasts"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate financial forecasts",
+          "control": "Conduct thorough market research and analysis"
+        },
+        {
+          "risk": "Budget overruns",
+          "control": "Regularly monitor performance against the budget"
+        }
+      ],
+      "governance_requirements": [
+        "Regular financial audits",
+        "Compliance with accounting standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Financial performance data",
+            "Market feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Talent Acquisition",
+      "description": "Manage the recruitment and hiring process for all positions within the company. This includes sourcing candidates, conducting interviews, and making job offers. The HR team works closely with hiring managers to understand their needs and ensure that the company attracts and retains top talent. They also manage onboarding to ensure new employees are set up for success.",
+      "responsible_party": "HR Director",
+      "inputs": [
+        "Approved headcount",
+        "Job descriptions",
+        "Recruitment budget"
+      ],
+      "outputs": [
+        "Job postings",
+        "Candidate resumes",
+        "Job offers"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [],
+      "success_criteria": [
+        "Timely filling of open positions",
+        "High-quality hires",
+        "Positive candidate experience"
+      ],
+      "purpose": "To attract and retain top talent to support the company's growth and success.",
+      "scope": "Encompasses all activities related to recruitment, hiring, and onboarding.",
+      "process_owner": "HR Director",
+      "triggers": [
+        "Employee attrition",
+        "Business growth",
+        "New projects"
+      ],
+      "end_conditions": [
+        "Filling of open positions",
+        "Completion of onboarding process"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Difficulty attracting top talent",
+          "control": "Offer competitive compensation and benefits"
+        },
+        {
+          "risk": "High employee turnover",
+          "control": "Provide opportunities for professional development"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with employment laws",
+        "Regular HR audits"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Employee feedback",
+            "Turnover rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Security Threat Management",
+      "description": "Monitor and respond to security threats to protect company data and systems. This includes conducting regular security audits, implementing security measures, and responding to security incidents. The security team works closely with IT to ensure that the company's infrastructure is secure and compliant with industry standards. They also provide security awareness training to employees.",
+      "responsible_party": "Security Director",
+      "inputs": [
+        "Security threat intelligence",
+        "Security audit reports",
+        "Security incident reports"
+      ],
+      "outputs": [
+        "Security protocols",
+        "Security incident reports",
+        "Security awareness training programs"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [],
+      "success_criteria": [
+        "Minimal security incidents",
+        "Compliance with security standards",
+        "High level of security awareness among employees"
+      ],
+      "purpose": "To protect company data and systems from security threats and ensure a secure operating environment.",
+      "scope": "Encompasses all activities related to security threat management, including monitoring, prevention, and response.",
+      "process_owner": "Security Director",
+      "triggers": [
+        "Security threats",
+        "Security incidents",
+        "Regulatory changes"
+      ],
+      "end_conditions": [
+        "Resolution of security incidents",
+        "Implementation of security measures"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data breach",
+          "control": "Implement security measures and regular security audits"
+        },
+        {
+          "risk": "Inadequate security awareness",
+          "control": "Provide security awareness training to employees"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with data privacy policies",
+        "Regular security audits"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Security incident reports",
+            "Security audit reports"
+          ]
+        }
+      ]
+    }
+  ]
+}

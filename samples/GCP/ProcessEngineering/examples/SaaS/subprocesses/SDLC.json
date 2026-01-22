@@ -1,0 +1,359 @@
+{
+  "step_name": "SDLC",
+  "subprocess_flow": [
+    {
+      "substep_name": "Requirements Gathering",
+      "description": "The initial phase involves collecting and documenting the detailed requirements for the software product. This includes understanding user needs, business objectives, and technical constraints. The Product Manager collaborates with stakeholders to create comprehensive user stories and acceptance criteria.",
+      "responsible_party": "Product Manager",
+      "inputs": [
+        "Product specifications",
+        "User stories",
+        "Market research data"
+      ],
+      "outputs": [
+        "Detailed requirements document",
+        "User stories",
+        "Acceptance criteria"
+      ],
+      "estimated_duration": "1\u20132 weeks",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive requirements documentation",
+        "Stakeholder agreement on requirements",
+        "Clear user stories and acceptance criteria"
+      ],
+      "purpose": "To define the scope and functionality of the software product.",
+      "scope": "Encompasses all activities related to gathering and documenting software requirements.",
+      "process_owner": "Product Manager",
+      "triggers": [
+        "Product roadmap",
+        "Customer requests",
+        "Market analysis"
+      ],
+      "end_conditions": [
+        "Approved requirements document",
+        "Signed-off user stories"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or ambiguous requirements",
+          "control": "Conduct thorough stakeholder interviews and workshops"
+        }
+      ],
+      "governance_requirements": [
+        "Regular review of requirements by stakeholders",
+        "Compliance with data privacy regulations"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Usage data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "System Design",
+      "description": "In this phase, the architecture and design of the software system are created based on the documented requirements. This includes defining the system components, data structures, interfaces, and security considerations. The Architect works closely with the development team to ensure the design is scalable, maintainable, and secure.",
+      "responsible_party": "Architect",
+      "inputs": [
+        "Detailed requirements document",
+        "User stories",
+        "Acceptance criteria"
+      ],
+      "outputs": [
+        "System architecture diagram",
+        "Database schema",
+        "API specifications"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Requirements Gathering"
+      ],
+      "success_criteria": [
+        "Scalable and maintainable system design",
+        "Secure architecture",
+        "Clear API specifications"
+      ],
+      "purpose": "To create a blueprint for the software development process.",
+      "scope": "Encompasses all activities related to designing the software system architecture.",
+      "process_owner": "Architect",
+      "triggers": [
+        "Approved requirements document"
+      ],
+      "end_conditions": [
+        "Approved system design document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Poorly designed architecture",
+          "control": "Conduct architecture reviews and refactoring"
+        }
+      ],
+      "governance_requirements": [
+        "Regular architecture reviews",
+        "Compliance with security standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Document versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Performance test results",
+            "Code quality metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Code Development",
+      "description": "This phase involves writing the actual software code based on the system design. Developers follow coding standards and best practices to ensure code quality and maintainability. Regular code reviews and unit testing are conducted to identify and fix defects early in the development process.",
+      "responsible_party": "VP of Engineering",
+      "inputs": [
+        "System architecture diagram",
+        "Database schema",
+        "API specifications"
+      ],
+      "outputs": [
+        "Software code",
+        "Unit tests",
+        "Code review reports"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "System Design"
+      ],
+      "success_criteria": [
+        "High-quality code",
+        "Minimal defects",
+        "Adherence to coding standards"
+      ],
+      "purpose": "To implement the software functionality as designed.",
+      "scope": "Encompasses all activities related to writing and reviewing software code.",
+      "process_owner": "VP of Engineering",
+      "triggers": [
+        "Approved system design document"
+      ],
+      "end_conditions": [
+        "Completed software code",
+        "Passed unit tests"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Technical debt and software defects",
+          "control": "Implement code reviews and refactoring"
+        }
+      ],
+      "governance_requirements": [
+        "Regular code audits",
+        "Compliance with security standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Code versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Sprintly",
+          "improvement_inputs": [
+            "Code quality metrics",
+            "Performance test results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Testing and QA",
+      "description": "This phase involves testing the software to ensure it meets the specified requirements and is free of defects. Various testing methods, including unit testing, integration testing, system testing, and user acceptance testing (UAT), are employed. The QA team works closely with the development team to resolve any identified issues.",
+      "responsible_party": "QA Lead",
+      "inputs": [
+        "Software code",
+        "Unit tests",
+        "Code review reports"
+      ],
+      "outputs": [
+        "Test plans",
+        "Test results",
+        "Bug reports"
+      ],
+      "estimated_duration": "1\u20132 weeks",
+      "dependencies": [
+        "Code Development"
+      ],
+      "success_criteria": [
+        "Minimal defects",
+        "Successful completion of all test cases",
+        "User acceptance"
+      ],
+      "purpose": "To ensure the software meets quality standards and user expectations.",
+      "scope": "Encompasses all activities related to testing and ensuring the quality of the software.",
+      "process_owner": "QA Lead",
+      "triggers": [
+        "Completed software code"
+      ],
+      "end_conditions": [
+        "Passed all test cases",
+        "Approved test results"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Software defects",
+          "control": "Implement thorough testing and bug fixing processes"
+        }
+      ],
+      "governance_requirements": [
+        "Regular testing audits",
+        "Compliance with testing standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Code versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Test results",
+            "Bug reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Deployment",
+      "description": "In this phase, the tested software is deployed to the production environment. This includes configuring the environment, deploying the code, and performing final testing to ensure everything is working as expected. The DevOps team automates the deployment process to ensure it is efficient and reliable.",
+      "responsible_party": "DevOps Engineer",
+      "inputs": [
+        "Software code",
+        "Test plans",
+        "Test results"
+      ],
+      "outputs": [
+        "Deployment plans",
+        "Configuration files",
+        "Deployment reports"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Testing and QA"
+      ],
+      "success_criteria": [
+        "Successful deployment to production",
+        "Minimal downtime",
+        "Stable environment"
+      ],
+      "purpose": "To make the software available to users.",
+      "scope": "Encompasses all activities related to deploying the software to the production environment.",
+      "process_owner": "DevOps Engineer",
+      "triggers": [
+        "Approved test results"
+      ],
+      "end_conditions": [
+        "Successful deployment",
+        "Verified functionality"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Deployment failures",
+          "control": "Implement automated deployment processes and rollback plans"
+        }
+      ],
+      "governance_requirements": [
+        "Regular deployment audits",
+        "Compliance with security standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Code versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Deployment reports",
+            "Performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Maintenance and Support",
+      "description": "This ongoing phase involves providing maintenance and support for the deployed software. This includes monitoring the system, fixing bugs, and providing customer support. The support team works closely with the development team to resolve any issues and ensure the software continues to meet user needs.",
+      "responsible_party": "Support Team",
+      "inputs": [
+        "Customer feedback",
+        "Bug reports",
+        "Performance data"
+      ],
+      "outputs": [
+        "Bug fixes",
+        "Performance improvements",
+        "Support documentation"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Deployment"
+      ],
+      "success_criteria": [
+        "High customer satisfaction",
+        "Minimal downtime",
+        "Timely bug fixes"
+      ],
+      "purpose": "To ensure the software continues to meet user needs and remains stable.",
+      "scope": "Encompasses all activities related to maintaining and supporting the deployed software.",
+      "process_owner": "Support Team Lead",
+      "triggers": [
+        "Customer feedback",
+        "Bug reports"
+      ],
+      "end_conditions": [
+        "Resolved issues",
+        "Satisfied customers"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Software defects and performance issues",
+          "control": "Implement monitoring and bug fixing processes"
+        }
+      ],
+      "governance_requirements": [
+        "Regular support audits",
+        "Compliance with service level agreements (SLAs)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change control process",
+          "versioning_rules": "Code versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Support ticket analysis"
+          ]
+        }
+      ]
+    }
+  ]
+}
