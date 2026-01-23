@@ -35,7 +35,7 @@ logger = logging.getLogger("ProcessArchitect.UpdateProcessPipeline")
 # ---------------------------------------------------------
 update_analysis_agent = LlmAgent(
     name="Process_Update_Analyst",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     instruction=load_instruction("update_analysis_agent.txt"),
     tools=[load_full_process_context,persist_final_json,load_iteration_feedback],
     output_key="analysis_output",

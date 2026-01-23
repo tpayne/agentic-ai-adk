@@ -1,0 +1,315 @@
+{
+  "step_name": "Commercialization",
+  "subprocess_flow": [
+    {
+      "substep_name": "Market Analysis & Segmentation",
+      "description": "The Commercial Team conducts a thorough analysis of the target market to identify key segments and their specific needs. This involves gathering data on patient demographics, disease prevalence, treatment patterns, and competitive landscape. The team also assesses market access barriers and opportunities to inform the development of targeted commercialization strategies.",
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Drug product",
+        "Market research data"
+      ],
+      "outputs": [
+        "Market segmentation report",
+        "Target customer profiles"
+      ],
+      "estimated_duration": "2-4 weeks",
+      "dependencies": [],
+      "success_criteria": [
+        "Identification of key market segments",
+        "Development of target customer profiles"
+      ],
+      "purpose": "To understand the market landscape and identify the most promising customer segments for the drug product.",
+      "scope": "Global commercial markets.",
+      "process_owner": "VP, Commercial",
+      "triggers": [
+        "Availability of drug product for commercial distribution"
+      ],
+      "end_conditions": [
+        "Completion of market segmentation report"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate market segmentation",
+          "control": "Conduct thorough market research and data analysis."
+        },
+        {
+          "risk": "Failure to identify key market segments",
+          "control": "Engage with key opinion leaders and patient advocacy groups."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with market research regulations"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the market analysis and segmentation strategy require approval from the VP, Commercial.",
+          "versioning_rules": "Market analysis reports are version controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Sales data",
+            "Market feedback",
+            "Customer surveys"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Pricing & Market Access Strategy",
+      "description": "The Commercial Team develops a comprehensive pricing and market access strategy to ensure optimal reimbursement and patient access. This involves analyzing pricing benchmarks, negotiating with payers, and developing value propositions that highlight the drug product's clinical and economic benefits. The team also works to secure formulary listings and navigate regulatory hurdles to facilitate market access.",
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Market segmentation report",
+        "Target customer profiles",
+        "Clinical trial data",
+        "Economic models"
+      ],
+      "outputs": [
+        "Pricing strategy document",
+        "Market access plan",
+        "Payer negotiation strategy"
+      ],
+      "estimated_duration": "4-6 weeks",
+      "dependencies": [
+        "Market Analysis & Segmentation"
+      ],
+      "success_criteria": [
+        "Development of a pricing strategy that maximizes revenue and market share",
+        "Securing favorable reimbursement terms with payers",
+        "Gaining formulary listings"
+      ],
+      "purpose": "To establish a pricing and market access strategy that ensures optimal reimbursement and patient access.",
+      "scope": "Global commercial markets.",
+      "process_owner": "VP, Commercial",
+      "triggers": [
+        "Completion of market analysis and segmentation"
+      ],
+      "end_conditions": [
+        "Approval of pricing strategy and market access plan"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unfavorable reimbursement terms",
+          "control": "Develop strong value propositions and negotiate effectively with payers."
+        },
+        {
+          "risk": "Market access barriers",
+          "control": "Engage with regulatory agencies and patient advocacy groups to address market access hurdles."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with pricing regulations",
+        "Compliance with anti-kickback statutes"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the pricing and market access strategy require approval from the VP, Commercial and CFO.",
+          "versioning_rules": "Pricing strategy documents are version controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Sales data",
+            "Reimbursement rates",
+            "Market feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Sales Force Training & Deployment",
+      "description": "The Commercial Team trains and deploys a sales force to promote the drug product to healthcare providers. This involves developing training materials, conducting sales training sessions, and establishing sales territories. The team also sets sales targets and monitors sales performance to ensure that the sales force is effectively reaching target customers.",
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Pricing strategy document",
+        "Market access plan",
+        "Target customer profiles",
+        "Sales training materials"
+      ],
+      "outputs": [
+        "Trained sales force",
+        "Sales territories",
+        "Sales targets"
+      ],
+      "estimated_duration": "2-4 weeks",
+      "dependencies": [
+        "Pricing & Market Access Strategy"
+      ],
+      "success_criteria": [
+        "Completion of sales force training",
+        "Establishment of sales territories",
+        "Setting of sales targets"
+      ],
+      "purpose": "To train and deploy a sales force to effectively promote the drug product to healthcare providers.",
+      "scope": "Global commercial markets.",
+      "process_owner": "VP, Commercial",
+      "triggers": [
+        "Approval of pricing strategy and market access plan"
+      ],
+      "end_conditions": [
+        "Deployment of trained sales force"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ineffective sales force",
+          "control": "Provide ongoing sales training and coaching."
+        },
+        {
+          "risk": "Failure to meet sales targets",
+          "control": "Monitor sales performance and adjust sales strategies as needed."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with marketing regulations",
+        "Compliance with ethical guidelines for pharmaceutical sales"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the sales force training and deployment strategy require approval from the VP, Commercial.",
+          "versioning_rules": "Sales training materials are version controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Sales data",
+            "Sales force feedback",
+            "Customer feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Marketing Campaign Execution",
+      "description": "The Commercial Team executes a comprehensive marketing campaign to raise awareness of the drug product and drive demand. This involves developing marketing materials, conducting promotional events, and engaging with healthcare providers and patients through various channels. The team also tracks marketing campaign performance and adjusts marketing strategies as needed to maximize impact.",
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Sales training materials",
+        "Marketing materials",
+        "Promotional event plans"
+      ],
+      "outputs": [
+        "Marketing campaign materials",
+        "Promotional events",
+        "Marketing campaign performance reports"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Sales Force Training & Deployment"
+      ],
+      "success_criteria": [
+        "Successful execution of marketing campaign",
+        "Increased awareness of the drug product",
+        "Increased demand for the drug product"
+      ],
+      "purpose": "To raise awareness of the drug product and drive demand through a comprehensive marketing campaign.",
+      "scope": "Global commercial markets.",
+      "process_owner": "VP, Commercial",
+      "triggers": [
+        "Deployment of trained sales force"
+      ],
+      "end_conditions": [
+        "Completion of marketing campaign"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ineffective marketing campaign",
+          "control": "Monitor marketing campaign performance and adjust marketing strategies as needed."
+        },
+        {
+          "risk": "Negative publicity",
+          "control": "Develop a crisis communication plan and respond promptly to any negative publicity."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with marketing regulations",
+        "Compliance with advertising standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the marketing campaign require approval from the VP, Commercial.",
+          "versioning_rules": "Marketing materials are version controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Sales data",
+            "Marketing campaign performance reports",
+            "Customer feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Sales Monitoring & Reporting",
+      "description": "The Commercial Team monitors sales performance and generates regular sales reports to track progress against sales targets. This involves collecting sales data, analyzing sales trends, and identifying areas for improvement. The team also uses sales reports to inform decision-making and adjust commercialization strategies as needed.",
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Sales data",
+        "Marketing campaign performance reports",
+        "Customer feedback"
+      ],
+      "outputs": [
+        "Sales reports",
+        "Sales forecasts",
+        "Commercial performance dashboards"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Marketing Campaign Execution"
+      ],
+      "success_criteria": [
+        "Regular generation of sales reports",
+        "Accurate tracking of sales performance",
+        "Identification of areas for improvement"
+      ],
+      "purpose": "To monitor sales performance and generate regular sales reports to track progress against sales targets.",
+      "scope": "Global commercial markets.",
+      "process_owner": "VP, Commercial",
+      "triggers": [
+        "Ongoing sales activity"
+      ],
+      "end_conditions": [
+        "Regular generation of sales reports"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate sales data",
+          "control": "Implement robust data collection and validation procedures."
+        },
+        {
+          "risk": "Failure to identify areas for improvement",
+          "control": "Conduct regular sales performance reviews and solicit feedback from the sales force."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with data privacy regulations"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the sales monitoring and reporting process require approval from the VP, Commercial.",
+          "versioning_rules": "Sales reports are version controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Sales data",
+            "Sales force feedback",
+            "Customer feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

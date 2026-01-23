@@ -1,0 +1,217 @@
+{
+  "step_name": "Discovery and Pre-Clinical",
+  "subprocess_flow": [
+    {
+      "substep_name": "Target Identification",
+      "description": "The initial phase involves identifying potential drug targets based on scientific literature, disease understanding, and technological advancements. Research scientists analyze disease pathways, genetic data, and protein structures to pinpoint molecules that play a critical role in disease progression. This step requires collaboration across multiple scientific disciplines to ensure a comprehensive understanding of the target's relevance and potential for therapeutic intervention.",
+      "responsible_party": "Research Scientists",
+      "inputs": [
+        "New scientific findings",
+        "Unmet medical need",
+        "Disease pathways",
+        "Genetic data",
+        "Protein structures"
+      ],
+      "outputs": [
+        "Identified drug target"
+      ],
+      "estimated_duration": "3-6 months",
+      "dependencies": [],
+      "success_criteria": [
+        "Identification of a relevant drug target with a clear role in disease progression"
+      ],
+      "purpose": "To identify a specific biological target for therapeutic intervention.",
+      "scope": "Analysis of scientific data and literature to identify potential drug targets.",
+      "process_owner": "VP, Research",
+      "triggers": [
+        "New scientific findings",
+        "Unmet medical need"
+      ],
+      "end_conditions": [
+        "Selection of a drug target for further validation"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Selection of an irrelevant or non-druggable target",
+          "control": "Thorough target validation and assessment of druggability"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with ethical guidelines for scientific research"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the target identification process require review and approval by the VP, Research.",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Pre-clinical study results",
+            "Literature review"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Target Validation",
+      "description": "Once a potential drug target is identified, it undergoes rigorous validation to confirm its role in the disease and its suitability for therapeutic intervention. This involves conducting in vitro and in vivo experiments to assess the target's function, expression, and impact on disease-related phenotypes. Successful validation provides confidence in the target's relevance and increases the likelihood of developing effective therapies.",
+      "responsible_party": "Research Scientists",
+      "inputs": [
+        "Identified drug target"
+      ],
+      "outputs": [
+        "Validated drug target"
+      ],
+      "estimated_duration": "6-12 months",
+      "dependencies": [
+        "Target Identification"
+      ],
+      "success_criteria": [
+        "Confirmation of the target's role in disease progression through in vitro and in vivo experiments"
+      ],
+      "purpose": "To confirm the relevance and suitability of the identified drug target for therapeutic intervention.",
+      "scope": "In vitro and in vivo experiments to validate the target's function and expression.",
+      "process_owner": "VP, Research",
+      "triggers": [
+        "Identification of a potential drug target"
+      ],
+      "end_conditions": [
+        "Validation of the drug target's role in disease progression"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to validate the target's role in disease",
+          "control": "Employ multiple validation methods and orthogonal approaches"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GLP (Good Laboratory Practice)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the target validation process require review and approval by the VP, Research.",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Pre-clinical study results",
+            "Literature review"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Lead Discovery",
+      "description": "With a validated drug target in hand, the next step is to identify lead compounds that can modulate the target's activity. This involves screening large libraries of chemical compounds using high-throughput screening (HTS) assays or employing structure-based drug design techniques. Promising lead compounds are then optimized to improve their potency, selectivity, and pharmacokinetic properties.",
+      "responsible_party": "Research Scientists",
+      "inputs": [
+        "Validated drug target"
+      ],
+      "outputs": [
+        "Lead compound"
+      ],
+      "estimated_duration": "6-12 months",
+      "dependencies": [
+        "Target Validation"
+      ],
+      "success_criteria": [
+        "Identification of a lead compound with favorable potency, selectivity, and pharmacokinetic properties"
+      ],
+      "purpose": "To identify chemical compounds that can modulate the activity of the validated drug target.",
+      "scope": "Screening of chemical libraries and optimization of lead compounds.",
+      "process_owner": "VP, Research",
+      "triggers": [
+        "Validation of the drug target"
+      ],
+      "end_conditions": [
+        "Identification of a lead compound for further development"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Identification of a lead compound with poor drug-like properties",
+          "control": "Employ rigorous screening and optimization strategies"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with ethical guidelines for chemical compound handling"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the lead discovery process require review and approval by the VP, Research.",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Pre-clinical study results",
+            "Literature review"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Pre-Clinical Studies",
+      "description": "The final phase involves conducting pre-clinical studies to evaluate the safety and efficacy of the lead compound in relevant animal models. These studies assess the compound's pharmacokinetic and pharmacodynamic properties, as well as its potential toxicity. Successful pre-clinical studies provide critical data to support the advancement of the lead compound into clinical development.",
+      "responsible_party": "Research Scientists",
+      "inputs": [
+        "Lead compound"
+      ],
+      "outputs": [
+        "Pre-clinical data"
+      ],
+      "estimated_duration": "6-12 months",
+      "dependencies": [
+        "Lead Discovery"
+      ],
+      "success_criteria": [
+        "Demonstration of safety and efficacy in relevant animal models"
+      ],
+      "purpose": "To evaluate the safety and efficacy of the lead compound in relevant animal models.",
+      "scope": "In vivo studies to assess the compound's pharmacokinetic, pharmacodynamic, and toxicity properties.",
+      "process_owner": "VP, Research",
+      "triggers": [
+        "Identification of a lead compound"
+      ],
+      "end_conditions": [
+        "Completion of pre-clinical studies with favorable safety and efficacy data"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Pre-clinical toxicity",
+          "control": "Thorough pre-clinical safety testing"
+        },
+        {
+          "risk": "Lack of efficacy in animal models",
+          "control": "Use of relevant and predictive animal models"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GLP (Good Laboratory Practice)",
+        "Adherence to animal welfare regulations"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the pre-clinical study protocols require review and approval by the VP, Research and the Institutional Animal Care and Use Committee (IACUC).",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Pre-clinical study results",
+            "Literature review"
+          ]
+        }
+      ]
+    }
+  ]
+}

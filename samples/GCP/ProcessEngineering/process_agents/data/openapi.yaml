@@ -1,0 +1,140 @@
+# openapi: 3.1.0
+# info:
+#   title: Grounding Reality API
+#   version: 1.0.0
+
+# servers:
+#   - url: https://api.reality.example.com
+
+# components:
+#   securitySchemes:
+#     defaultAuth:
+#       type: http
+#       scheme: bearer
+
+# paths:
+
+#   /entities:
+#     get:
+#       summary: Lookup entities by type and name.
+#       description: >
+#         Generic entity lookup. Can represent people, teams, systems, products,
+#         datasets, services, or any other named entity type.
+#       security:
+#         - defaultAuth: []
+#       parameters:
+#         - name: type
+#           in: query
+#           required: true
+#           schema: { type: string }
+#         - name: name
+#           in: query
+#           required: true
+#           schema: { type: string }
+#       responses:
+#         "200":
+#           description: Matching entities (possibly empty).
+#           content:
+#             application/json:
+#               schema:
+#                 type: array
+#                 items:
+#                   type: object
+#                   additionalProperties: true
+
+#   /relationships:
+#     get:
+#       summary: Lookup relationships between entities.
+#       description: >
+#         Generic relationship lookup. Can represent ownership, dependencies,
+#         responsibilities, approvals, access, or any other relation.
+#       security:
+#         - defaultAuth: []
+#       parameters:
+#         - name: source_type
+#           in: query
+#           required: true
+#           schema: { type: string }
+#         - name: source_name
+#           in: query
+#           required: true
+#           schema: { type: string }
+#         - name: relation
+#           in: query
+#           required: true
+#           schema: { type: string }
+#         - name: target_type
+#           in: query
+#           required: false
+#           schema: { type: string }
+#         - name: target_name
+#           in: query
+#           required: false
+#           schema: { type: string }
+#       responses:
+#         "200":
+#           description: Matching relationships (possibly empty).
+#           content:
+#             application/json:
+#               schema:
+#                 type: array
+#                 items:
+#                   type: object
+#                   additionalProperties: true
+
+#   /policies/check:
+#     post:
+#       summary: Evaluate a policy or rule against a context.
+#       description: >
+#         Generic policy evaluation endpoint. The context can include any fields
+#         relevant to the policy engine (e.g. process, step, entity, risk, etc.).
+#       security:
+#         - defaultAuth: []
+#       requestBody:
+#         required: true
+#         content:
+#           application/json:
+#             schema:
+#               type: object
+#               additionalProperties: true
+#       responses:
+#         "200":
+#           description: Policy evaluation result.
+#           content:
+#             application/json:
+#               schema:
+#                 type: object
+#                 properties:
+#                   compliant:
+#                     type: boolean
+#                   violations:
+#                     type: array
+#                     items:
+#                       type: object
+#                       additionalProperties: true
+#                   details:
+#                     type: string
+
+#   /systems:
+#     get:
+#       summary: Lookup systems and their attributes.
+#       description: >
+#         Generic system lookup. Can be used to validate existence, ownership,
+#         criticality, or other attributes.
+#       security:
+#         - defaultAuth: []
+#       parameters:
+#         - name: name
+#           in: query
+#           required: true
+#           schema: { type: string }
+#       responses:
+#         "200":
+#           description: Matching systems (possibly empty).
+#           content:
+#             application/json:
+#               schema:
+#                 type: array
+#                 items:
+#                   type: object
+#                   additionalProperties: true

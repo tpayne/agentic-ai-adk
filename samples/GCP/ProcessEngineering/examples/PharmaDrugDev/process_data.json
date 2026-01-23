@@ -1,0 +1,578 @@
+{
+  "industry_sector": "Pharmaceuticals",
+  "metrics": [
+    {
+      "description": "Time from target identification to market launch",
+      "target": "<10 years",
+      "measurement_frequency": "Annual",
+      "name": "Time to market"
+    },
+    {
+      "measurement_frequency": "Annual",
+      "description": "Total R&D expenditure",
+      "name": "R&D spend",
+      "target": "<$1 billion"
+    },
+    {
+      "target": ">50%",
+      "measurement_frequency": "Annual",
+      "name": "Clinical trial success rate",
+      "description": "Percentage of clinical trials that are successful"
+    },
+    {
+      "measurement_frequency": "Annual",
+      "name": "Regulatory approval rate",
+      "description": "Percentage of regulatory submissions that are approved",
+      "target": ">90%"
+    },
+    {
+      "measurement_frequency": "Quarterly",
+      "target": "<$10 per dose",
+      "description": "Cost of manufacturing per dose",
+      "name": "Manufacturing cost"
+    },
+    {
+      "target": ">10%",
+      "description": "Percentage of the market captured",
+      "name": "Market share",
+      "measurement_frequency": "Annual"
+    },
+    {
+      "target": ">15%",
+      "name": "Return on investment (ROI)",
+      "description": "Return on investment",
+      "measurement_frequency": "Annual"
+    },
+    {
+      "description": "Number of patients treated",
+      "name": "Patient reach",
+      "measurement_frequency": "Annual",
+      "target": ">1 million patients"
+    }
+  ],
+  "purpose": "To discover, develop, manufacture, and commercialize innovative drugs to improve patient health and generate shareholder value.",
+  "reporting_and_analytics": [
+    {
+      "description": "Reports on the status of the R&D pipeline",
+      "metric": "R&D pipeline reports"
+    },
+    {
+      "description": "Reports on the results of clinical trials",
+      "metric": "Clinical trial results"
+    },
+    {
+      "metric": "Regulatory submission status",
+      "description": "Reports on the status of regulatory submissions"
+    },
+    {
+      "description": "Reports on manufacturing yield",
+      "metric": "Manufacturing yield"
+    },
+    {
+      "metric": "Sales data",
+      "description": "Reports on sales data"
+    },
+    {
+      "description": "Reports on market analysis",
+      "metric": "Market analysis"
+    }
+  ],
+  "introduction": "End-to-end Level 0 Value Chain for a drug development company, covering the lifecycle from Discovery and Pre-Clinical testing through Clinical Development, Regulatory approval, Manufacturing, and Commercial market access.",
+  "governance_requirements": [
+    "Compliance with regulations (e.g., GCP, GMP)",
+    "Internal audits",
+    "External inspections"
+  ],
+  "system_requirements": [
+    {
+      "details": "System for managing laboratory data",
+      "name": "LIMS (Laboratory Information Management System)"
+    },
+    {
+      "details": "System for managing clinical trials",
+      "name": "CTMS (Clinical Trial Management System)"
+    },
+    {
+      "details": "System for managing regulatory information",
+      "name": "Regulatory Information Management System (RIMS)"
+    },
+    {
+      "details": "System for enterprise resource planning",
+      "name": "ERP (Enterprise Resource Planning)"
+    },
+    {
+      "details": "System for customer relationship management",
+      "name": "CRM (Customer Relationship Management)"
+    }
+  ],
+  "tools_summary": [
+    {
+      "tools": [
+        "LIMS (Laboratory Information Management System)"
+      ],
+      "category": "Laboratory"
+    },
+    {
+      "category": "Clinical",
+      "tools": [
+        "CTMS (Clinical Trial Management System)"
+      ]
+    },
+    {
+      "category": "Regulatory",
+      "tools": [
+        "Regulatory Information Management System (RIMS)"
+      ]
+    },
+    {
+      "category": "Enterprise",
+      "tools": [
+        "ERP (Enterprise Resource Planning)",
+        "CRM (Customer Relationship Management)"
+      ]
+    }
+  ],
+  "process_owner": "Chief Operating Officer (COO)",
+  "risks_and_controls": [
+    {
+      "risk": "Clinical trial failure",
+      "control": "Robust trial design, data monitoring, and adaptive trial design"
+    },
+    {
+      "risk": "Regulatory rejection",
+      "control": "Early engagement with regulatory agencies, thorough documentation, and compliance"
+    },
+    {
+      "control": "Redundant manufacturing capacity, quality control, and supply chain management",
+      "risk": "Manufacturing disruptions"
+    }
+  ],
+  "change_management": [
+    {
+      "versioning_rules": "Versioning rules",
+      "change_request_process": "Change control procedures"
+    }
+  ],
+  "stakeholders": [
+    {
+      "responsibilities": [
+        "Target identification and validation",
+        "Lead discovery and optimization",
+        "Pre-clinical study design and execution"
+      ],
+      "stakeholder_name": "Research Scientists",
+      "role": "Research Scientists"
+    },
+    {
+      "responsibilities": [
+        "Clinical trial design and management",
+        "Data analysis and reporting",
+        "Medical affairs"
+      ],
+      "stakeholder_name": "Clinical Development Team",
+      "role": "Clinical Development Team"
+    },
+    {
+      "responsibilities": [
+        "Regulatory submissions and approvals",
+        "Liaison with regulatory agencies",
+        "Compliance management"
+      ],
+      "stakeholder_name": "Regulatory Affairs",
+      "role": "Regulatory Affairs"
+    },
+    {
+      "role": "Manufacturing Team",
+      "stakeholder_name": "Manufacturing Team",
+      "responsibilities": [
+        "Drug substance and drug product manufacturing",
+        "Quality control and assurance",
+        "Supply chain management"
+      ]
+    },
+    {
+      "stakeholder_name": "Commercial Team",
+      "role": "Commercial Team",
+      "responsibilities": [
+        "Market access and pricing",
+        "Sales and marketing",
+        "Distribution and logistics"
+      ]
+    },
+    {
+      "stakeholder_name": "Executive Leadership",
+      "responsibilities": [
+        "Strategic direction and resource allocation",
+        "Portfolio management",
+        "Risk management"
+      ],
+      "role": "Executive Leadership"
+    }
+  ],
+  "version": "1.0",
+  "scope": "End-to-end drug development lifecycle from discovery to commercialization.",
+  "assumptions": [
+    "Scientific breakthroughs will occur\", \"Clinical trials will be successful\", \"Regulatory approval will be granted\", \"Manufacturing processes will be scalable\", \"Market demand will exist\", \"Funding will be available"
+  ],
+  "process_end_conditions": [
+    "Drug is successfully commercialized and generating revenue",
+    "Drug is discontinued due to safety or efficacy concerns",
+    "Patent expires and generic competition enters the market"
+  ],
+  "process_steps": [
+    {
+      "process_triggers": [
+        "New scientific findings",
+        "Unmet medical need"
+      ],
+      "deliverables": [
+        "Identified drug target",
+        "Lead compound",
+        "Pre-clinical data"
+      ],
+      "responsible_party": "Research Scientists",
+      "estimated_duration": "1-3 years",
+      "dependencies": [],
+      "step_name": "Discovery and Pre-Clinical",
+      "success_criteria": "Identification of a promising drug target and lead compound with favorable pre-clinical data.",
+      "process_end_conditions": [
+        "Selection of a lead compound for clinical development"
+      ],
+      "scope": "Laboratory research and pre-clinical testing.",
+      "change_management": [
+        {
+          "versioning_rules": "Document versioning.",
+          "change_request_process": "The change control process for laboratory procedures is a systematic approach to managing changes to laboratory documents, equipment, and processes. This process ensures that all changes are properly evaluated, approved, implemented, and documented to maintain the integrity and reliability of laboratory operations. It involves a multidisciplinary team that reviews the proposed changes, assesses their potential impact, and ensures that the changes are implemented in a controlled and documented manner."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GLP (Good Laboratory Practice)"
+      ],
+      "inputs": [],
+      "outputs": [
+        "Identified drug target",
+        "Lead compound",
+        "Pre-clinical data"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": "Continuous improvement in the Discovery and Pre-Clinical phase involves a systematic review of pre-clinical study results and relevant scientific literature to identify areas for process optimization and innovation. This includes analyzing data from experiments, identifying trends, and implementing corrective actions to improve the efficiency and effectiveness of target identification and lead compound development. The goal is to enhance the quality of pre-clinical data and accelerate the selection of promising drug candidates for clinical development."
+        }
+      ],
+      "purpose": "To identify and validate potential drug targets and develop lead compounds for further development.",
+      "process_owner": "VP, Research",
+      "description": "Target identification, lead discovery, pre-clinical studies",
+      "step_risks_and_controls": [
+        {
+          "control": "Invest in cutting-edge technologies and talent.",
+          "risk": "Lack of scientific innovation"
+        },
+        {
+          "control": "Thorough pre-clinical safety testing.",
+          "risk": "Pre-clinical toxicity"
+        }
+      ]
+    },
+    {
+      "process_end_conditions": [
+        "Successful completion of clinical trials"
+      ],
+      "outputs": [
+        "Clinical trial data",
+        "Clinical study reports"
+      ],
+      "deliverables": [
+        "Clinical trial data",
+        "Clinical study reports"
+      ],
+      "process_triggers": [
+        "Selection of a lead compound for clinical development"
+      ],
+      "governance_requirements": [
+        "Compliance with GCP (Good Clinical Practice)"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": "Continuous improvement in the Clinical Development phase involves the ongoing analysis of clinical trial data and feedback from investigators to identify areas for process optimization and enhanced patient outcomes. This includes monitoring trial performance, identifying trends, and implementing corrective actions to improve trial efficiency, data quality, and patient safety. The goal is to ensure that clinical trials are conducted in a rigorous and ethical manner, generating reliable data to support regulatory submissions and inform clinical practice.",
+          "review_frequency": "Ongoing"
+        }
+      ],
+      "success_criteria": "Demonstration of safety and efficacy in clinical trials.",
+      "description": "Phase 1, 2, and 3 clinical trials",
+      "dependencies": [
+        "Discovery and Pre-Clinical"
+      ],
+      "purpose": "To evaluate the safety and efficacy of the drug candidate in humans.",
+      "step_name": "Clinical Development",
+      "inputs": [
+        "Lead compound",
+        "Pre-clinical data"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Protocol versioning.",
+          "change_request_process": "The clinical trial protocol amendment process is a formal procedure for managing changes to the clinical trial protocol. This process ensures that any modifications to the protocol are thoroughly reviewed, scientifically justified, and ethically sound. It involves a multidisciplinary team that assesses the potential impact of the changes on patient safety, data integrity, and the overall objectives of the clinical trial. All amendments must be approved by the relevant regulatory authorities and ethics committees before implementation."
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Robust trial design, data monitoring, and adaptive trial design.",
+          "risk": "Clinical trial failure"
+        },
+        {
+          "control": "Comprehensive recruitment strategy.",
+          "risk": "Patient recruitment challenges"
+        }
+      ],
+      "estimated_duration": "3-7 years",
+      "scope": "Clinical trials in different phases.",
+      "process_owner": "VP, Clinical Development",
+      "responsible_party": "Clinical Development Team"
+    },
+    {
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "scope": "Regulatory submissions and interactions.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Regulatory rejection",
+          "control": "Early engagement with regulatory agencies, thorough documentation, and compliance."
+        },
+        {
+          "control": "Proactive communication with regulatory agencies.",
+          "risk": "Delays in review process"
+        }
+      ],
+      "responsible_party": "Regulatory Affairs",
+      "success_criteria": "Obtaining regulatory approval from relevant authorities (e.g., FDA, EMA).",
+      "deliverables": [
+        "Regulatory submission",
+        "Approval letter"
+      ],
+      "description": "Submission and review of regulatory filings",
+      "outputs": [
+        "Regulatory approval"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": "Continuous improvement in the Regulatory Approval phase involves the systematic review of regulatory feedback and post-approval data to identify areas for process optimization and enhanced compliance. This includes analyzing feedback from regulatory agencies, monitoring post-market surveillance data, and implementing corrective actions to improve the quality and completeness of regulatory submissions. The goal is to ensure that regulatory requirements are met and that the drug product remains safe and effective throughout its lifecycle."
+        }
+      ],
+      "purpose": "To obtain permission to market the drug product.",
+      "process_triggers": [
+        "Successful completion of clinical trials"
+      ],
+      "process_end_conditions": [
+        "Regulatory approval"
+      ],
+      "inputs": [
+        "Clinical trial data",
+        "Clinical study reports"
+      ],
+      "dependencies": [
+        "Clinical Development"
+      ],
+      "step_name": "Regulatory Approval",
+      "process_owner": "VP, Regulatory Affairs",
+      "change_management": [
+        {
+          "versioning_rules": "Submission versioning.",
+          "change_request_process": "The regulatory submission amendment process is a structured approach for managing changes to regulatory submissions. This process ensures that any modifications to the submission documents are thoroughly reviewed, scientifically justified, and compliant with regulatory requirements. It involves a multidisciplinary team that assesses the potential impact of the changes on the review timeline and the overall approval process. All amendments must be approved by the relevant regulatory authorities before implementation."
+        }
+      ],
+      "estimated_duration": "1-2 years"
+    },
+    {
+      "outputs": [
+        "Drug substance",
+        "Drug product"
+      ],
+      "inputs": [
+        "Regulatory approval"
+      ],
+      "scope": "Manufacturing facilities and processes.",
+      "change_management": [
+        {
+          "versioning_rules": "Batch record versioning.",
+          "change_request_process": "The manufacturing change control process is a systematic approach for managing changes to manufacturing processes, equipment, and facilities. This process ensures that all changes are properly evaluated, approved, implemented, and documented to maintain product quality and compliance with regulatory requirements. It involves a multidisciplinary team that reviews the proposed changes, assesses their potential impact, and ensures that the changes are implemented in a controlled and documented manner."
+        }
+      ],
+      "estimated_duration": "1-2 years",
+      "process_triggers": [
+        "Regulatory approval"
+      ],
+      "dependencies": [
+        "Regulatory Approval"
+      ],
+      "purpose": "To produce the drug product at the required scale and quality.",
+      "step_name": "Manufacturing",
+      "process_end_conditions": [
+        "Availability of drug product for commercial distribution"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Manufacturing disruptions",
+          "control": "Redundant manufacturing capacity, quality control, and supply chain management."
+        },
+        {
+          "control": "Robust quality control procedures.",
+          "risk": "Quality defects"
+        }
+      ],
+      "description": "Scale-up and commercial manufacturing",
+      "deliverables": [
+        "Drug substance",
+        "Drug product",
+        "Manufacturing batch records"
+      ],
+      "process_owner": "VP, Manufacturing",
+      "success_criteria": "Successful scale-up and commercial manufacturing of the drug product.",
+      "governance_requirements": [
+        "Compliance with GMP (Good Manufacturing Practice)"
+      ],
+      "responsible_party": "Manufacturing Team",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Ongoing",
+          "improvement_inputs": "Continuous improvement in the Manufacturing phase involves the ongoing analysis of manufacturing yield data and quality control data to identify areas for process optimization and enhanced product quality. This includes monitoring manufacturing performance, identifying trends, and implementing corrective actions to improve manufacturing efficiency, reduce waste, and ensure product consistency. The goal is to optimize manufacturing processes and ensure that the drug product meets the required quality standards."
+        }
+      ]
+    },
+    {
+      "purpose": "To generate revenue and improve patient outcomes.",
+      "process_triggers": [
+        "Availability of drug product for commercial distribution"
+      ],
+      "scope": "Commercial markets globally.",
+      "governance_requirements": [
+        "Compliance with marketing regulations"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": "Continuous improvement in the Commercialization phase involves the systematic review of sales data and market analysis to identify areas for process optimization and enhanced market access. This includes monitoring sales performance, analyzing market trends, and implementing corrective actions to improve sales effectiveness, market penetration, and patient outcomes. The goal is to optimize commercialization strategies and ensure that the drug product reaches the target patient population.",
+          "review_frequency": "Quarterly"
+        }
+      ],
+      "process_owner": "VP, Commercial",
+      "change_management": [
+        {
+          "change_request_process": "The marketing campaign change control process is a structured approach for managing changes to marketing campaigns and materials. This process ensures that any modifications to the marketing strategy are thoroughly reviewed, aligned with regulatory requirements, and consistent with the overall brand messaging. It involves a multidisciplinary team that assesses the potential impact of the changes on sales, market share, and brand reputation. All amendments must be approved by the relevant stakeholders before implementation.",
+          "versioning_rules": "Marketing material versioning."
+        }
+      ],
+      "description": "Market launch and sales",
+      "success_criteria": "Successful market launch and achievement of sales targets.",
+      "step_name": "Commercialization",
+      "dependencies": [
+        "Manufacturing"
+      ],
+      "outputs": [
+        "Sales revenue",
+        "Market share"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Poor market access",
+          "control": "Effective market access strategy and pricing."
+        },
+        {
+          "control": "Differentiation and competitive pricing.",
+          "risk": "Competition"
+        }
+      ],
+      "responsible_party": "Commercial Team",
+      "inputs": [
+        "Drug product"
+      ],
+      "estimated_duration": "Ongoing",
+      "process_end_conditions": [
+        "Drug is successfully commercialized and generating revenue"
+      ],
+      "deliverables": [
+        "Sales revenue",
+        "Market share"
+      ]
+    }
+  ],
+  "critical_success_factors": [
+    {
+      "description": "Experienced and innovative scientific leadership",
+      "name": "Strong scientific leadership"
+    },
+    {
+      "name": "Efficient clinical trial execution",
+      "description": "Well-designed and executed clinical trials"
+    },
+    {
+      "name": "Successful regulatory submissions",
+      "description": "High-quality regulatory submissions"
+    },
+    {
+      "name": "Robust manufacturing processes",
+      "description": "Reliable and scalable manufacturing processes"
+    },
+    {
+      "description": "Well-executed commercialization strategy",
+      "name": "Effective commercialization strategy"
+    },
+    {
+      "description": "Securing sufficient funding",
+      "name": "Access to funding"
+    }
+  ],
+  "process_triggers": [
+    "Identification of a new drug target",
+    "Positive pre-clinical data",
+    "Successful clinical trial results",
+    "Regulatory approval"
+  ],
+  "constraints": [
+    "Regulatory requirements (e.g., FDA, EMA)",
+    "Budget limitations",
+    "Resource constraints (e.g., personnel, equipment)",
+    "Patent protection",
+    "Competition",
+    "Ethical considerations"
+  ],
+  "appendix": {},
+  "process_name": "Drug Development Value Chain",
+  "continuous_improvement": [
+    {
+      "review_frequency": "Process monitoring",
+      "improvement_inputs": [
+        "Data analysis",
+        "Root cause analysis",
+        "Implementation of corrective actions"
+      ]
+    }
+  ],
+  "critical_failure_factors": [
+    {
+      "name": "Lack of scientific innovation",
+      "description": "Insufficient innovation in drug discovery"
+    },
+    {
+      "description": "Failure to demonstrate safety and efficacy in clinical trials",
+      "name": "Clinical trial failures"
+    },
+    {
+      "description": "Delays or rejection of regulatory submissions",
+      "name": "Regulatory delays or rejection"
+    },
+    {
+      "name": "Manufacturing disruptions",
+      "description": "Disruptions in manufacturing processes"
+    },
+    {
+      "name": "Poor market access",
+      "description": "Limited market access"
+    },
+    {
+      "name": "Insufficient funding",
+      "description": "Lack of sufficient funding"
+    }
+  ]
+}

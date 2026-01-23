@@ -1,0 +1,290 @@
+{
+  "step_name": "Regulatory Approval",
+  "subprocess_flow": [
+    {
+      "substep_name": "Submission Preparation",
+      "description": "The Regulatory Submission Preparation sub-step involves gathering, organizing, and formatting all necessary documentation and data required for submission to regulatory agencies. This includes clinical trial data, manufacturing information, pre-clinical study reports, and any other relevant information. The goal is to ensure that the submission is complete, accurate, and compliant with all applicable regulatory guidelines and requirements, facilitating a smooth and efficient review process.",
+      "responsible_party": "Regulatory Affairs",
+      "inputs": [
+        "Clinical trial data",
+        "Clinical study reports",
+        "Manufacturing information",
+        "Pre-clinical study reports"
+      ],
+      "outputs": [
+        "Draft regulatory submission"
+      ],
+      "estimated_duration": "2-4 months",
+      "dependencies": [],
+      "success_criteria": [
+        "Complete and accurate draft submission",
+        "Compliance with regulatory guidelines"
+      ],
+      "purpose": "To compile all necessary information for regulatory review.",
+      "scope": "Preparation of the initial regulatory submission package.",
+      "process_owner": "VP, Regulatory Affairs",
+      "triggers": [
+        "Completion of clinical trials",
+        "Availability of all required data"
+      ],
+      "end_conditions": [
+        "Draft regulatory submission is complete and ready for review"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete submission",
+          "control": "Checklists and thorough review processes."
+        },
+        {
+          "risk": "Data errors",
+          "control": "Data validation and verification procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the submission preparation process are managed through a formal change control process, ensuring that all changes are documented, reviewed, and approved before implementation.",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from regulatory agencies",
+            "Internal audit results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Internal Review",
+      "description": "The Internal Review sub-step involves a thorough review of the draft regulatory submission by internal stakeholders, including medical, scientific, and regulatory experts. This review ensures that the submission is scientifically sound, medically accurate, and compliant with all applicable regulatory requirements. The goal is to identify and address any potential issues or gaps in the submission before it is formally submitted to regulatory agencies.",
+      "responsible_party": "Regulatory Affairs",
+      "inputs": [
+        "Draft regulatory submission"
+      ],
+      "outputs": [
+        "Revised regulatory submission"
+      ],
+      "estimated_duration": "1-2 months",
+      "dependencies": [
+        "Submission Preparation"
+      ],
+      "success_criteria": [
+        "Internal stakeholders approve the submission",
+        "All identified issues are addressed"
+      ],
+      "purpose": "To ensure the quality and accuracy of the submission.",
+      "scope": "Internal review and approval of the regulatory submission.",
+      "process_owner": "VP, Regulatory Affairs",
+      "triggers": [
+        "Completion of draft regulatory submission"
+      ],
+      "end_conditions": [
+        "Internal stakeholders approve the submission"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Errors in submission",
+          "control": "Multi-disciplinary review team."
+        },
+        {
+          "risk": "Oversight of critical data",
+          "control": "Checklists and verification processes."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes identified during the internal review are managed through a formal change control process, ensuring that all changes are documented, reviewed, and approved before implementation.",
+          "versioning_rules": "Document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from internal stakeholders",
+            "Root cause analysis of identified issues"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Agency Submission",
+      "description": "The Agency Submission sub-step involves the formal submission of the regulatory filing to the appropriate regulatory agency (e.g., FDA, EMA). This includes submitting the required documentation and data in the specified format and through the designated submission portal. The goal is to ensure that the submission is received and accepted by the regulatory agency, initiating the review process.",
+      "responsible_party": "Regulatory Affairs",
+      "inputs": [
+        "Revised regulatory submission"
+      ],
+      "outputs": [
+        "Submission confirmation"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Internal Review"
+      ],
+      "success_criteria": [
+        "Submission is successfully received by the regulatory agency",
+        "Confirmation of receipt is obtained"
+      ],
+      "purpose": "To formally submit the application to the regulatory agency.",
+      "scope": "Submission of the regulatory filing to the agency.",
+      "process_owner": "VP, Regulatory Affairs",
+      "triggers": [
+        "Approval from internal stakeholders"
+      ],
+      "end_conditions": [
+        "Submission confirmation is received from the regulatory agency"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Submission errors",
+          "control": "Validation of submission format and content."
+        },
+        {
+          "risk": "System failures",
+          "control": "Backup submission methods and technical support."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Any changes required after submission are managed through a formal amendment process, ensuring that all changes are documented, reviewed, and approved before implementation.",
+          "versioning_rules": "Submission versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from regulatory agencies",
+            "Analysis of submission errors"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Agency Interaction",
+      "description": "The Agency Interaction sub-step involves ongoing communication and interaction with the regulatory agency during the review process. This includes responding to requests for additional information, clarifying any questions or concerns, and participating in meetings or teleconferences with agency reviewers. The goal is to facilitate a timely and positive review outcome by providing the agency with all necessary information and addressing any issues that may arise.",
+      "responsible_party": "Regulatory Affairs",
+      "inputs": [
+        "Submission confirmation",
+        "Agency requests for information"
+      ],
+      "outputs": [
+        "Responses to agency requests",
+        "Meeting minutes"
+      ],
+      "estimated_duration": "6-18 months",
+      "dependencies": [
+        "Agency Submission"
+      ],
+      "success_criteria": [
+        "Timely and accurate responses to agency requests",
+        "Positive and productive interactions with agency reviewers"
+      ],
+      "purpose": "To address agency questions and facilitate the review process.",
+      "scope": "Communication and interaction with the regulatory agency.",
+      "process_owner": "VP, Regulatory Affairs",
+      "triggers": [
+        "Receipt of agency requests for information"
+      ],
+      "end_conditions": [
+        "All agency requests are addressed",
+        "Review process is completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Delays in response",
+          "control": "Dedicated regulatory affairs team and tracking system."
+        },
+        {
+          "risk": "Misinterpretation of data",
+          "control": "Clear and concise communication with agency reviewers."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the submission based on agency feedback are managed through a formal amendment process, ensuring that all changes are documented, reviewed, and approved before implementation.",
+          "versioning_rules": "Submission versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from regulatory agencies",
+            "Analysis of agency requests and responses"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Approval and Post-Approval",
+      "description": "The Approval and Post-Approval sub-step involves receiving the regulatory approval letter from the agency and ensuring compliance with any post-approval requirements. This includes implementing any required post-market surveillance studies, submitting periodic safety reports, and complying with any other conditions of approval. The goal is to ensure that the drug product remains safe and effective throughout its lifecycle and that all regulatory requirements are met.",
+      "responsible_party": "Regulatory Affairs",
+      "inputs": [
+        "Agency approval letter"
+      ],
+      "outputs": [
+        "Post-approval compliance reports"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Agency Interaction"
+      ],
+      "success_criteria": [
+        "Receipt of regulatory approval letter",
+        "Compliance with all post-approval requirements"
+      ],
+      "purpose": "To obtain final approval and maintain compliance.",
+      "scope": "Post-approval activities and compliance.",
+      "process_owner": "VP, Regulatory Affairs",
+      "triggers": [
+        "Receipt of agency approval letter"
+      ],
+      "end_conditions": [
+        "All post-approval requirements are met"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Non-compliance with post-approval requirements",
+          "control": "Dedicated regulatory affairs team and tracking system."
+        },
+        {
+          "risk": "Safety issues",
+          "control": "Post-market surveillance and adverse event reporting."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with regulatory requirements (e.g., FDA, EMA)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to post-approval activities are managed through a formal change control process, ensuring that all changes are documented, reviewed, and approved before implementation.",
+          "versioning_rules": "Submission versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from regulatory agencies",
+            "Analysis of post-market surveillance data"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -438,7 +438,7 @@ def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
 
 simulation_agent = LlmAgent(
     name="Simulation_Optimization_Agent",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"), 
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities.",
     tools=[
         load_master_process_json,
@@ -454,7 +454,7 @@ simulation_agent = LlmAgent(
 
 simulation_query_agent = LlmAgent(
     name="Simulation_Optimization_Query_Agent",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities in response to queries.",
     tools=[
         load_master_process_json,

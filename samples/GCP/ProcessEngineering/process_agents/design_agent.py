@@ -38,7 +38,7 @@ def exit_loop(tool_context: ToolContext):
 # -----------------------------
 design_agent = LlmAgent(
     name="Design_Agent",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     description="Architects detailed business process workflows.",
     instruction=load_instruction("design_agent.txt"),
     tools=[

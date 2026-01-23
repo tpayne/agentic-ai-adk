@@ -1,0 +1,18 @@
+{
+  "avg_cycle_time": 6.656989588874416,
+  "cycle_time_variance": 0.6895350653722137,
+  "time_unit": "years",
+  "bottlenecks": [
+    "Commercialization",
+    "Discovery and Pre-Clinical",
+    "Clinical Development"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Discovery and Pre-Clinical": 1.3358090199565642,
+    "Clinical Development": 1.3317912173913848,
+    "Regulatory Approval": 1.325534087118338,
+    "Manufacturing": 1.3233606781512042,
+    "Commercialization": 1.3404945862569244
+  }
+}

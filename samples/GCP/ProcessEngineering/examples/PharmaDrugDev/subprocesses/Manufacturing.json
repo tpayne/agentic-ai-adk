@@ -1,0 +1,393 @@
+{
+  "step_name": "Manufacturing",
+  "subprocess_flow": [
+    {
+      "substep_name": "Raw Material Procurement",
+      "description": "The initial sub-step involves the procurement of all necessary raw materials, including active pharmaceutical ingredients (APIs), excipients, and packaging components. This includes vendor selection, quality assessment of materials, and ensuring compliance with regulatory standards. Robust supply chain management is critical to mitigate risks associated with material availability and quality.",
+      "responsible_party": "Manufacturing Team",
+      "inputs": [
+        "Regulatory approval",
+        "Bill of Materials (BOM)",
+        "Quality specifications"
+      ],
+      "outputs": [
+        "Raw materials",
+        "Vendor documentation",
+        "Material certificates of analysis"
+      ],
+      "estimated_duration": "2-4 weeks",
+      "dependencies": [],
+      "success_criteria": [
+        "Availability of all required raw materials",
+        "Materials meet quality specifications",
+        "Vendor compliance with regulatory standards"
+      ],
+      "purpose": "To ensure the availability of high-quality raw materials for drug product manufacturing.",
+      "scope": "Sourcing, qualification, and procurement of raw materials.",
+      "process_owner": "Supply Chain Manager",
+      "triggers": [
+        "Regulatory approval",
+        "Production schedule"
+      ],
+      "end_conditions": [
+        "Raw materials received and quarantined"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Supply chain disruptions",
+          "control": "Multiple qualified vendors, safety stock levels."
+        },
+        {
+          "risk": "Material quality defects",
+          "control": "Vendor audits, material testing, and certificates of analysis."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Vendor qualification audits"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to raw material vendors or specifications require a formal change control process, including impact assessment and approval by quality assurance.",
+          "versioning_rules": "Raw material specifications and vendor documentation are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Vendor performance data",
+            "Material quality data",
+            "Audit findings"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Drug Substance Manufacturing",
+      "description": "This sub-step involves the actual manufacturing of the drug substance (API) according to validated manufacturing processes. This includes weighing, mixing, reaction, purification, and drying of the drug substance. In-process controls and monitoring are implemented to ensure product quality and consistency. Equipment validation and calibration are also critical components.",
+      "responsible_party": "Manufacturing Team",
+      "inputs": [
+        "Raw materials",
+        "Validated manufacturing process",
+        "Equipment validation reports"
+      ],
+      "outputs": [
+        "Drug substance (API)",
+        "In-process control data",
+        "Batch records"
+      ],
+      "estimated_duration": "1-6 months",
+      "dependencies": [
+        "Raw Material Procurement"
+      ],
+      "success_criteria": [
+        "Drug substance meets quality specifications",
+        "Manufacturing process adheres to validated parameters",
+        "Complete and accurate batch records"
+      ],
+      "purpose": "To produce the drug substance (API) at the required quality and yield.",
+      "scope": "Manufacturing of the drug substance from raw materials.",
+      "process_owner": "Production Manager",
+      "triggers": [
+        "Availability of raw materials",
+        "Production schedule"
+      ],
+      "end_conditions": [
+        "Drug substance released by quality control"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Process deviations",
+          "control": "Validated manufacturing process, trained personnel, and deviation management system."
+        },
+        {
+          "risk": "Equipment malfunction",
+          "control": "Preventive maintenance, equipment validation, and backup equipment."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Batch record review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the manufacturing process or equipment require a formal change control process, including impact assessment and approval by quality assurance.",
+          "versioning_rules": "Manufacturing process documents and equipment validation reports are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Ongoing",
+          "improvement_inputs": [
+            "Manufacturing yield data",
+            "In-process control data",
+            "Deviation reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Drug Product Manufacturing",
+      "description": "The drug product manufacturing sub-step involves formulating the drug substance into the final drug product dosage form (e.g., tablets, capsules, injections). This includes blending, granulation, tableting, encapsulation, filling, and packaging. Stringent quality control measures are implemented throughout the process to ensure product quality, safety, and efficacy. Environmental monitoring and cleaning validation are also essential.",
+      "responsible_party": "Manufacturing Team",
+      "inputs": [
+        "Drug substance (API)",
+        "Excipients",
+        "Packaging components",
+        "Validated manufacturing process"
+      ],
+      "outputs": [
+        "Drug product",
+        "Finished product specifications",
+        "Packaging records"
+      ],
+      "estimated_duration": "2-8 weeks",
+      "dependencies": [
+        "Drug Substance Manufacturing"
+      ],
+      "success_criteria": [
+        "Drug product meets quality specifications",
+        "Manufacturing process adheres to validated parameters",
+        "Packaging integrity and labeling accuracy"
+      ],
+      "purpose": "To formulate the drug substance into the final drug product dosage form.",
+      "scope": "Formulation, filling, and packaging of the drug product.",
+      "process_owner": "Production Manager",
+      "triggers": [
+        "Availability of drug substance",
+        "Production schedule"
+      ],
+      "end_conditions": [
+        "Drug product released by quality control"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Cross-contamination",
+          "control": "Dedicated equipment, cleaning validation, and environmental monitoring."
+        },
+        {
+          "risk": "Dosage form defects",
+          "control": "In-process controls, equipment calibration, and trained personnel."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Batch record review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to the manufacturing process, equipment, or packaging require a formal change control process, including impact assessment and approval by quality assurance.",
+          "versioning_rules": "Manufacturing process documents, equipment validation reports, and packaging specifications are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Ongoing",
+          "improvement_inputs": [
+            "Manufacturing yield data",
+            "In-process control data",
+            "Deviation reports",
+            "Customer complaints"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Quality Control Testing",
+      "description": "This sub-step involves rigorous quality control testing of both the drug substance and drug product to ensure compliance with established specifications. This includes analytical testing, microbiological testing, and stability testing. Testing is performed according to validated analytical methods, and results are reviewed and approved by quality control personnel. Reference standards and controls are used to ensure accuracy and reliability.",
+      "responsible_party": "Quality Control Team",
+      "inputs": [
+        "Drug substance (API)",
+        "Drug product",
+        "Validated analytical methods",
+        "Reference standards"
+      ],
+      "outputs": [
+        "Quality control test results",
+        "Certificates of analysis",
+        "Stability data"
+      ],
+      "estimated_duration": "1-4 weeks",
+      "dependencies": [
+        "Drug Substance Manufacturing",
+        "Drug Product Manufacturing"
+      ],
+      "success_criteria": [
+        "Drug substance and drug product meet quality specifications",
+        "Analytical methods are validated and accurate",
+        "Complete and accurate test records"
+      ],
+      "purpose": "To ensure the drug substance and drug product meet established quality specifications.",
+      "scope": "Analytical and microbiological testing of drug substance and drug product.",
+      "process_owner": "Quality Control Manager",
+      "triggers": [
+        "Completion of manufacturing",
+        "Stability testing schedule"
+      ],
+      "end_conditions": [
+        "Drug substance and drug product released by quality control"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Testing errors",
+          "control": "Validated analytical methods, trained personnel, and reference standards."
+        },
+        {
+          "risk": "Out-of-specification results",
+          "control": "Investigation of OOS results, corrective actions, and retesting."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Analytical method validation"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to analytical methods or testing procedures require a formal change control process, including validation and approval by quality assurance.",
+          "versioning_rules": "Analytical methods and testing procedures are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Testing error rates",
+            "OOS investigation reports",
+            "Method validation data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Packaging and Labeling",
+      "description": "This sub-step involves the packaging and labeling of the drug product according to regulatory requirements and marketing specifications. This includes primary packaging (e.g., blister packs, vials), secondary packaging (e.g., cartons), and labeling. Labeling accuracy and packaging integrity are critical to ensure product identification, safety, and compliance. Serialization and track-and-trace systems may be implemented to prevent counterfeiting.",
+      "responsible_party": "Manufacturing Team",
+      "inputs": [
+        "Drug product",
+        "Packaging components",
+        "Labels",
+        "Packaging specifications"
+      ],
+      "outputs": [
+        "Packaged and labeled drug product",
+        "Packaging records",
+        "Serialization data"
+      ],
+      "estimated_duration": "1-2 weeks",
+      "dependencies": [
+        "Quality Control Testing"
+      ],
+      "success_criteria": [
+        "Packaging integrity and labeling accuracy",
+        "Compliance with regulatory requirements",
+        "Serialization and track-and-trace data accuracy"
+      ],
+      "purpose": "To package and label the drug product for distribution and sale.",
+      "scope": "Packaging, labeling, and serialization of the drug product.",
+      "process_owner": "Packaging Supervisor",
+      "triggers": [
+        "Release of drug product by quality control",
+        "Production schedule"
+      ],
+      "end_conditions": [
+        "Packaged and labeled drug product ready for shipment"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Labeling errors",
+          "control": "Automated labeling systems, barcode scanning, and label reconciliation."
+        },
+        {
+          "risk": "Packaging defects",
+          "control": "Automated inspection systems, packaging material testing, and trained personnel."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Label control procedures"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to packaging materials, labels, or packaging processes require a formal change control process, including impact assessment and approval by quality assurance.",
+          "versioning_rules": "Packaging specifications and label artwork are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Packaging defect rates",
+            "Labeling error rates",
+            "Customer complaints"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Release and Distribution",
+      "description": "The final sub-step involves the release of the finished drug product by quality assurance and its subsequent distribution to commercial markets. This includes final product inspection, documentation review, and approval for shipment. Distribution is managed according to established procedures to maintain product integrity and prevent diversion. Temperature monitoring and cold chain management are critical for temperature-sensitive products.",
+      "responsible_party": "Quality Assurance and Logistics Team",
+      "inputs": [
+        "Packaged and labeled drug product",
+        "Quality control test results",
+        "Batch records",
+        "Distribution procedures"
+      ],
+      "outputs": [
+        "Released drug product",
+        "Shipping records",
+        "Temperature monitoring data"
+      ],
+      "estimated_duration": "1-2 weeks",
+      "dependencies": [
+        "Packaging and Labeling"
+      ],
+      "success_criteria": [
+        "Drug product meets all release criteria",
+        "Distribution is managed according to established procedures",
+        "Product integrity is maintained during shipment"
+      ],
+      "purpose": "To release the finished drug product for distribution and sale.",
+      "scope": "Final product inspection, release, and distribution to commercial markets.",
+      "process_owner": "Quality Assurance Manager and Logistics Manager",
+      "triggers": [
+        "Completion of packaging and labeling",
+        "Customer orders"
+      ],
+      "end_conditions": [
+        "Drug product shipped to distribution centers"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Product diversion",
+          "control": "Secure distribution channels, track-and-trace systems, and inventory controls."
+        },
+        {
+          "risk": "Temperature excursions",
+          "control": "Temperature-controlled transportation, temperature monitoring devices, and cold chain management procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GMP",
+        "Distribution agreements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to distribution procedures or transportation methods require a formal change control process, including impact assessment and approval by quality assurance.",
+          "versioning_rules": "Distribution procedures and transportation validation reports are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Distribution deviation reports",
+            "Temperature excursion data",
+            "Customer complaints"
+          ]
+        }
+      ]
+    }
+  ]
+}

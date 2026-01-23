@@ -7,7 +7,8 @@ from .utils import (
     load_instruction,
     load_master_process_json,
     persist_final_json,
-    load_iteration_feedback
+    load_iteration_feedback,
+    getProperty
 )
 
 import json
@@ -24,7 +25,7 @@ logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 # -----------------------------
 json_normalizer_agent = LlmAgent(
     name="JSON_Normalizer_Agent",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     tools=[
         load_master_process_json,
         persist_final_json,

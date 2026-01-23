@@ -8,7 +8,8 @@ import random
 
 from .utils import (
     load_instruction,
-    load_full_process_context
+    load_full_process_context,
+    getProperty
 )
 
 logger = logging.getLogger("ProcessArchitect.Consultant")
@@ -20,7 +21,7 @@ logger = logging.getLogger("ProcessArchitect.Consultant")
 consultant_agent = LlmAgent(
     name="Consultant_Agent",
     description="Use this for questions about EXISTING processes. It cannot create new ones.",
-    model="gemini-2.0-flash-001",
+    model=getProperty("MODEL"),
     instruction=load_instruction("consultant_agent.txt"),
     output_key="consultant_advice",
     tools=[load_full_process_context],
