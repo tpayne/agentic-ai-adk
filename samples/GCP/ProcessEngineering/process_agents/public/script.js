@@ -37,12 +37,7 @@ let panY = 0;
 let isPanning = false;
 let panStart = { x: 0, y: 0 };
 
-let activeLaneVisibility = {
-  "Sales Associates": true,
-  "Store Manager": true,
-  "Inventory Management Team": true,
-  Process: true,
-};
+let activeLaneVisibility = {};
 
 // --- Utility: SVG creation ---
 function createSvgElement(tag, attrs) {
@@ -632,6 +627,8 @@ function renderLevel1() {
 
   const svg = document.getElementById("diagram");
   const viewport = document.getElementById("viewport");
+  // ⭐ Force layout so svg.clientHeight is real 
+  svg.getBoundingClientRect();
   const width = svg.clientWidth || 1000;
   const height = svg.clientHeight || 600;
 
@@ -666,6 +663,8 @@ function renderLevel2(parentStepName) {
 
   const svg = document.getElementById("diagram");
   const viewport = document.getElementById("viewport");
+  // ⭐ Force layout so svg.clientHeight is real 
+  svg.getBoundingClientRect();
   const width = svg.clientWidth || 1000;
   const height = svg.clientHeight || 600;
 
@@ -686,7 +685,12 @@ function renderLevel2(parentStepName) {
   for (let i = 0; i < nodes.length - 1; i++) {
     drawArrow(viewport, nodes[i], nodes[i + 1]);
   }
-
+  // ⭐ Auto‑pan to the first Level‑2 node 
+  if (nodes.length > 0) { 
+    panX = 0; 
+    panY = -nodes[0].y + 200; 
+    updateTransform(); 
+  }
   updateMinimap();
 }
 
