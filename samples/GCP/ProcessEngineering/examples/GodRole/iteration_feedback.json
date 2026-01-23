@@ -1,0 +1,7 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": {
+    "notes": "The process design has passed all simulation performance criteria with no significant bottlenecks or risks identified.",
+    "status": "SIMULATION_ALL_APPROVED"
+  }
+}

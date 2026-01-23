@@ -1,0 +1,21 @@
+{
+  "avg_cycle_time": 40.002088850217255,
+  "cycle_time_variance": 3.2217423099254323,
+  "time_unit": "days",
+  "bottlenecks": [
+    "Geological Formation",
+    "Biodiversity Expansion",
+    "Atmospheric and Hydrological Development"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Conceptualization and Planning": 4.014612274877195,
+    "Geological Formation": 5.385605021580295,
+    "Atmospheric and Hydrological Development": 5.34498206100391,
+    "Ecosystem Creation": 5.284220526283314,
+    "Biodiversity Expansion": 5.371651420757245,
+    "Intelligent Life Development": 5.308879652589518,
+    "World Stabilization": 5.2948780721789435,
+    "Autonomous Operation": 3.9972598209468346
+  }
+}
