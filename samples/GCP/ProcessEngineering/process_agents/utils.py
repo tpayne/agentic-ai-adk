@@ -70,7 +70,7 @@ def getProperty(prop: str, section: str = 'SETTINGS'):
         return val
 
     except (configparser.NoOptionError, configparser.NoSectionError):
-        logger.warning(f"Property '{prop}' not found in section [{section}]")
+        logger.debug(f"Property '{prop}' not found in section [{section}]")
         return None
     except Exception as e:
         logger.error(f"Error retrieving property '{prop}': {e}")
