@@ -189,7 +189,8 @@ First, I need to load the full process context to ensure I have the most up-to-d
 *   **Support Ticket Resolution Time:** Delays in support ticket resolution can lead to customer dissatisfaction and churn.
 *   **Data Accuracy:** Accuracy of "New customer data" and "Sales handover notes" is critical for smooth "Customer Onboarding". Inaccurate data will cause errors and delays.
 
-[user]: what areas are there for optimisations here
+[user]: **what areas are there for optimisations here**
+
 [Scenario_Tester]: Based on the simulation and the process documentation, here are some areas for optimization within the "Customer Success" process:
 
 1.  **Customer Onboarding:**
@@ -254,4 +255,4 @@ First, I need to load the full process context to ensure I have the most up-to-d
 
 By focusing on these areas, the SaaS company can optimize its "Customer Success" process, improve customer satisfaction, reduce churn, and increase customer lifetime value.
 
-[user]: exit
+[user]: **exit**
