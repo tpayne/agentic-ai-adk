@@ -7,7 +7,6 @@ Organizes Word document construction logic into functional modules.
 
 from .doc_structure import (
     _add_header,
-    _add_bullet,
     _add_version_history_table,
     _add_table_of_contents
 )
@@ -16,14 +15,14 @@ from .doc_content import (
     _add_overview_section,
     _add_stakeholders_section,
     _add_process_steps_section,
-    _add_tools_section_from_summary
 )
 
 from .doc_technical import (
+    _add_tools_section_from_summary,
     _add_metrics_section,
     _add_system_requirements,
     _add_flowchart_section,
-    _add_simulation_report
+    _add_simulation_report,
 )
 
 from .doc_governance import (
