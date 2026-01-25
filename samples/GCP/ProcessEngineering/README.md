@@ -226,6 +226,84 @@ edit the relevant `.txt` file as appropriate.
 
 ---
 
+## Theming Support
+
+The document generator includes optional support for applying branded themes to the final Word output. Themes allow users to customise fonts, colours, heading sizes, and footer text without modifying the core rendering logic.
+
+### Overview
+
+The theming system is optional. If a theme is specified in the project property file, the generator loads and applies it. If no theme is specified, the generator uses the default global styling. This ensures predictable output by default while allowing users to introduce their own branding if required.
+
+### Enabling a Theme
+
+In the project property file `properties/agentapp.properties` add...
+
+```bash
+    theme=corporate_standard
+```
+
+If the "theme" property is omitted or empty, theming is skipped.
+
+### Theme File Format
+
+Themes are defined as JSON files stored in the "themes/" directory. Each theme must follow this structure:
+
+```json
+    {
+      "name": "Human-readable theme name",
+      "fonts": {
+        "heading": "Font family for headings",
+        "body": "Font family for normal text"
+      },
+      "colors": {
+        "primary": "HEX colour for H1–H2 or null",
+        "secondary": "HEX colour for H3 or null",
+        "accent": "Optional accent colour or null"
+      },
+      "heading_sizes": {
+        "h1": 22,
+        "h2": 18,
+        "h3": 16,
+        "h4": 14,
+        "h5": 12
+      },
+      "body_size": 11,
+      "footer_text": "Optional footer text or null"
+    }
+```
+
+A theme may also include a "__doc__" block for inline documentation. This is ignored by the loader.
+
+
+### What a Theme Can Change
+
+Themes can modify:
+- heading fonts and sizes
+- body font and size
+- heading colours (if provided)
+- footer text for the first section
+
+### What a Theme Cannot Change
+
+To preserve layout stability, themes do not modify:
+- margins
+- line spacing
+- paragraph spacing
+- page layout
+- section behaviour
+- table formatting beyond font and size
+
+### Fallback Behaviour
+
+If a theme is referenced but cannot be loaded (missing file, invalid JSON, etc.):
+- the generator logs the issue
+- theming is skipped
+- the document is produced using default styling
+
+This ensures the generator always produces a valid output.
+
+---
+
 ## Process Viewer
 
 I added a *simple* process viewer for the process JSON. You can invoke it using...
