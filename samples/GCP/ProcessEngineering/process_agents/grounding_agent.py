@@ -45,35 +45,20 @@ def load_openapi(tool_context: ToolContext):
 
 
 # ---------------------------------------------------------
-# TOOL: Call an OpenAPI-defined endpoint
+# PYTHON-SIDE EXECUTION OF OPENAPI CALLS
 # ---------------------------------------------------------
-def call_openapi(tool_context: ToolContext, path: str, method: str,
-                 params: dict = None, body: dict = None):
+def perform_openapi_call(tool_context: ToolContext, request: dict):
     """
-    Generic OpenAPI caller.
-
-    The agent must supply:
-      - path (e.g. "/entities")
-      - method ("GET" or "POST")
-      - params (dict for query parameters)
-      - body (dict for JSON body)
+    Executes an OpenAPI call requested by the LLM via an `openapi_call` JSON object.
     """
-
     spec = load_openapi(tool_context)
+    logger.debug("Invoking an OpenAPI call {request}...")
 
-    # If spec is empty, return a safe error
     if isinstance(spec, dict) and spec.get("_empty"):
-        return {
-            "ok": False,
-            "error": f"OpenAPI spec unavailable: {spec.get('reason')}",
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-        }
+        return {"ok": False, "error": f"OpenAPI spec unavailable: {spec.get('reason')}"}
 
     server = spec["servers"][0]["url"]
-    url = f"{server}{path}"
+    url = f"{server}{request['path']}"
 
     headers = {
         "Accept": "application/json",
@@ -81,31 +66,23 @@ def call_openapi(tool_context: ToolContext, path: str, method: str,
     }
 
     try:
-        if method.upper() == "GET":
-            resp = requests.get(url, params=params, headers=headers, timeout=10)
+        logger.debug("Calling {url}...")
+        if request["method"].upper() == "GET":
+            resp = requests.get(url, params=request.get("params"), headers=headers, timeout=10)
         else:
-            resp = requests.request(method, url, json=body, headers=headers, timeout=10)
+            resp = requests.request(
+                request["method"],
+                url,
+                json=request.get("body"),
+                headers=headers,
+                timeout=10
+            )
 
         resp.raise_for_status()
-
-        return {
-            "ok": True,
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-            "data": resp.json(),
-        }
+        return {"ok": True, "data": resp.json()}
 
     except Exception as e:
-        return {
-            "ok": False,
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-            "error": str(e),
-        }
+        return {"ok": False, "error": str(e)}
 
 
 # ---------------------------------------------------------
@@ -119,7 +96,6 @@ grounding_agent = LlmAgent(
     output_key="grounding_report",
     tools=[
         load_openapi,
-        call_openapi,
         load_master_process_json,
         save_iteration_feedback,
     ],

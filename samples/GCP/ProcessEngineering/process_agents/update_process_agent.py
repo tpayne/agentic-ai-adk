@@ -26,7 +26,9 @@ from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
+from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
+
 
 logger = logging.getLogger("ProcessArchitect.UpdateProcessPipeline")
 
@@ -124,6 +126,34 @@ doc_inst = LlmAgent(
     tools=doc_generation_agent.tools,
 )
 
+design_simulation_inst = LlmAgent(
+    name=design_agent.name + "_Simulation_Update",
+    model=design_agent.model,
+    description=design_agent.description,
+    instruction=design_agent.instruction,
+    tools=design_agent.tools,
+    output_key=design_agent.output_key,
+)
+
+design_grounding_inst = LlmAgent(
+    name=design_agent.name + "_Grounding_Update",
+    model=design_agent.model,
+    description=design_agent.description,
+    instruction=design_agent.instruction,
+    tools=design_agent.tools,
+    output_key=design_agent.output_key,
+)
+
+grounding_inst = LlmAgent(
+    name=grounding_agent.name + "_Update",
+    model=grounding_agent.model,
+    description=grounding_agent.description,
+    instruction=grounding_agent.instruction,
+    tools=grounding_agent.tools,
+    output_key=grounding_agent.output_key,
+    generate_content_config=grounding_agent.generate_content_config,
+)
+
 # Subprocess driver is NOT an LlmAgent — clone manually
 subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 
@@ -150,6 +180,9 @@ review_update_loop = LoopAgent(
                 compliance_inst,
                 design_compliance_inst,
                 simulation_inst,
+                design_simulation_inst,
+                grounding_inst,
+                design_grounding_inst,
             ],
         )
     ],
