@@ -22,14 +22,15 @@ logger = logging.getLogger("ProcessArchitect.Grounding")
 # ---------------------------------------------------------
 # TOOL: Load OpenAPI spec (with graceful empty handling)
 # ---------------------------------------------------------
-def load_openapi(tool_context: ToolContext):
+def load_openapi(tool_context=None):
     """
-    Returns the OpenAPI specification for the grounding agent.
-    If missing or empty, returns {"_empty": True, "reason": "..."}.
+    Loads the OpenAPI spec from the path defined in properties:
+        OPENAPI_SPEC = "process_agents/data/openapi.yaml"
     """
-    spec_path = Path(tool_context.config["openapi_path"])
-
+    spec_path = Path(getProperty("OPENAPI_SPEC"))
+    logger.debug("OpenApi Spec is {spec_path}")
     if not spec_path.exists():
+        logger.warning("OpenApi Spec is {spec_path} does not exist - Ignored")
         return {"_empty": True, "reason": "missing"}
 
     try:
@@ -41,32 +42,46 @@ def load_openapi(tool_context: ToolContext):
     if not spec or "paths" not in spec or not spec["paths"]:
         return {"_empty": True, "reason": "no_paths"}
 
+    logger.debug("OpenApi Specs loaded")
+
     return spec
+
 
 
 # ---------------------------------------------------------
 # PYTHON-SIDE EXECUTION OF OPENAPI CALLS
 # ---------------------------------------------------------
-def perform_openapi_call(tool_context: ToolContext, request: dict):
+import json
+
+def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
     """
-    Executes an OpenAPI call requested by the LLM via an `openapi_call` JSON object.
+    request_json: a JSON string containing:
+      {
+        "path": "...",
+        "method": "GET|POST",
+        "params": { ... },
+        "body": { ... }
+      }
     """
+    try:
+        request = json.loads(request_json)
+    except Exception as e:
+        return {"ok": False, "error": f"Invalid JSON string: {e}"}
+
     spec = load_openapi(tool_context)
-    logger.debug("Invoking an OpenAPI call {request}...")
 
     if isinstance(spec, dict) and spec.get("_empty"):
         return {"ok": False, "error": f"OpenAPI spec unavailable: {spec.get('reason')}"}
 
     server = spec["servers"][0]["url"]
     url = f"{server}{request['path']}"
-
+    logger.debug("Invoking callback to {url}")
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {tool_context.config.get('api_token', '')}"
+        "Authorization": ""
     }
 
     try:
-        logger.debug("Calling {url}...")
         if request["method"].upper() == "GET":
             resp = requests.get(url, params=request.get("params"), headers=headers, timeout=10)
         else:
@@ -98,6 +113,7 @@ grounding_agent = LlmAgent(
         load_openapi,
         load_master_process_json,
         save_iteration_feedback,
+        perform_openapi_call,
     ],
     instruction=load_instruction("grounding_agent.txt"),
     generate_content_config=types.GenerateContentConfig(
