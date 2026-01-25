@@ -1,0 +1,21 @@
+{
+  "name": "Corporate Standard",
+  "fonts": {
+    "heading": "Segoe UI",
+    "body": "Calibri"
+  },
+  "colors": {
+    "primary": null,
+    "secondary": "2E75B6",
+    "accent": "5B9BD5"
+  },
+  "heading_sizes": {
+    "h1": 18,
+    "h2": 16,
+    "h3": 14,
+    "h4": 12,
+    "h5": 10
+  },
+  "body_size": 11,
+  "footer_text": "Confidential — © 2026 Process Engineering Group"
+}

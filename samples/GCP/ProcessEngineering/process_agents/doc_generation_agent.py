@@ -201,8 +201,13 @@ def create_standard_doc_from_file(process_name: str) -> str:
         }
 
         # Create document
+        from process_agents.helpers.themes import apply_theme 
         doc = docx.Document()
-        _apply_global_styles(doc)
+        theme = getProperty("theme")
+        if theme:
+            apply_theme(doc, theme)
+        else:
+            _apply_global_styles(doc)
 
         # ============================================================
         # COVER PAGE

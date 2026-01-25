@@ -7,6 +7,7 @@ Organizes Word document construction logic into functional modules.
 
 from .doc_structure import (
     _add_header,
+    _add_bullet,
     _add_version_history_table,
     _add_table_of_contents
 )
