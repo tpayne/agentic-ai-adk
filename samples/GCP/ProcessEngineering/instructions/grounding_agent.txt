@@ -24,6 +24,19 @@ Your FIRST visible output MUST be a tool call to load_openapi.
 Your SECOND visible output MUST be a tool call to load_master_process_json.
 You MUST NOT output tool call results.
 
+# TOOL CALL FORMAT (MANDATORY)
+All tool calls MUST use the ADK tool-call format:
+
+{"function": "<tool_name>", "arguments": { ... }}
+
+You MUST NOT output:
+- "path", "method", "body", or any HTTP-style fields
+- JSON objects that are not wrapped in {"function": ..., "arguments": ...}
+- Any markdown fences or ``` blocks
+- Any text before or after the tool call
+
+If you output a tool call, it MUST be the ONLY content in the response.
+
 # OPENAPI USAGE RULES (MANDATORY)
 After load_openapi returns:
 - Extract the list of valid paths from the OpenAPI spec.
@@ -105,4 +118,3 @@ You MUST NOT output:
 - any path not present in the OpenAPI spec
 - any text other than a tool call, JSON APPROVED, or REVISION REQUIRED
 - Tool calls MUST be emitted as plain JSON objects with no surrounding markdown, code fences, or backticks.
-- You MUST NOT wrap tool calls in ``` or any other formatting.

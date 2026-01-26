@@ -2,6 +2,7 @@
 
 import yaml
 import sys
+import json
 import requests
 from pathlib import Path
 import logging
@@ -19,19 +20,12 @@ from .utils import (
 
 logger = logging.getLogger("ProcessArchitect.Grounding")
 
-
 # ---------------------------------------------------------
-# TOOL: Load OpenAPI spec (with graceful empty handling)
+# TOOL: Load OpenAPI spec
 # ---------------------------------------------------------
 def load_openapi(tool_context=None):
-    """
-    Loads the OpenAPI spec from the path defined in properties:
-        OPENAPI_SPEC = "process_agents/data/openapi.yaml"
-    """
     spec_path = Path(getProperty("OPENAPI_SPEC"))
-    logger.debug("OpenApi Spec is {spec_path}")
     if not spec_path.exists():
-        logger.warning("OpenApi Spec is {spec_path} does not exist - Ignored")
         return {"_empty": True, "reason": "missing"}
 
     try:
@@ -43,55 +37,39 @@ def load_openapi(tool_context=None):
     if not spec or "paths" not in spec or not spec["paths"]:
         return {"_empty": True, "reason": "no_paths"}
 
-    logger.debug("OpenApi Specs loaded")
-
     return spec
 
-
-
 # ---------------------------------------------------------
-# PYTHON-SIDE EXECUTION OF OPENAPI CALLS
+# TOOL: OpenAPI Call Execution
 # ---------------------------------------------------------
-import json
-import time
-import random
-
-def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
+def perform_openapi_call(tool_context: ToolContext, request_json: str):
     """
-    request_json: a JSON string containing:
-      {
-        "path": "...",
-        "method": "GET|POST",
-        "params": { ... },
-        "body": { ... }
-      }
+    Executes an OpenAPI call based on a JSON request string.
     """
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-
     try:
         request = json.loads(request_json)
     except Exception as e:
-        return {"ok": False, "error": f"Invalid JSON string: {e}"}
+        return {"ok": False, "error": f"Invalid JSON: {e}"}
 
-    spec = load_openapi(tool_context)
-
-    if isinstance(spec, dict) and spec.get("_empty"):
-        return {"ok": False, "error": f"OpenAPI spec unavailable: {spec.get('reason')}"}
+    spec = load_openapi()
+    if "_empty" in spec:
+        return {"ok": False, "error": "Spec unavailable"}
 
     server = spec["servers"][0]["url"]
     url = f"{server}{request['path']}"
-    logger.debug("Invoking callback to {url}")
+    
     headers = {
         "Accept": "application/json",
-        "User-Agent": "ProcessEngineerApp/1.0 (https://localhost.com)"
+        "Authorization": f"Bearer {tool_context.config.get('api_token', '')}"
     }
 
     try:
-        if request["method"].upper() == "GET":
+        method = request.get("method", "GET").upper()
+        if method == "GET":
             resp = requests.get(url, params=request.get("params"), headers=headers, timeout=10)
         else:
             resp = requests.request(
-                request["method"],
+                method,
                 url,
                 json=request.get("body"),
                 headers=headers,
@@ -101,17 +79,15 @@ def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
         resp.raise_for_status()
         response_data = resp.json()
 
-        logger.debug("Request callout: {request_json}")
-        logger.debug("Response data {json.dumps(response_data, indent=2)}")
+        # FIXED: Added f-strings and json.dumps for readability
+        logger.debug(f"Request callout: {request_json}")
+        logger.debug(f"Response data: {json.dumps(response_data, indent=2)}")
         
         return {"ok": True, "data": response_data}
 
     except Exception as e:
-        errStr = str(e)
-        print(f"DEBUG: {str(e)}")
-        logger.error("Perform OpenAPI call {errStr}")
+        logger.error(f"Perform OpenAPI call error: {str(e)}")
         return {"ok": False, "error": str(e)}
-
 
 # ---------------------------------------------------------
 # GROUNDING VALIDATION AGENT
@@ -119,9 +95,9 @@ def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
 grounding_agent = LlmAgent(
     name="Grounding_Validation_Agent",
     model=getProperty("MODEL"),
-    description="Validates a designed process against external reality using OpenAPI-defined sources of truth.",
+    description="Validates a designed process against external reality.",
     include_contents="default",
-    output_key="grounding_report",
+    # REMOVED: output_key="grounding_report" 
     tools=[
         load_openapi,
         load_master_process_json,
