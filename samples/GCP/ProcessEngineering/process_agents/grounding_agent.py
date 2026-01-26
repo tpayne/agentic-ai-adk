@@ -1,6 +1,7 @@
 # process_agents/grounding_agent.py
 
 import yaml
+import sys
 import requests
 from pathlib import Path
 import logging
@@ -52,6 +53,8 @@ def load_openapi(tool_context=None):
 # PYTHON-SIDE EXECUTION OF OPENAPI CALLS
 # ---------------------------------------------------------
 import json
+import time
+import random
 
 def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
     """
@@ -63,6 +66,8 @@ def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
         "body": { ... }
       }
     """
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+
     try:
         request = json.loads(request_json)
     except Exception as e:
@@ -78,7 +83,7 @@ def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
     logger.debug("Invoking callback to {url}")
     headers = {
         "Accept": "application/json",
-        "Authorization": ""
+        "User-Agent": "ProcessEngineerApp/1.0 (https://localhost.com)"
     }
 
     try:
@@ -94,9 +99,17 @@ def perform_openapi_call(request_json: str, tool_context: ToolContext = None):
             )
 
         resp.raise_for_status()
-        return {"ok": True, "data": resp.json()}
+        response_data = resp.json()
+
+        logger.debug("Request callout: {request_json}")
+        logger.debug("Response data {json.dumps(response_data, indent=2)}")
+        
+        return {"ok": True, "data": response_data}
 
     except Exception as e:
+        errStr = str(e)
+        print(f"DEBUG: {str(e)}")
+        logger.error("Perform OpenAPI call {errStr}")
         return {"ok": False, "error": str(e)}
 
 

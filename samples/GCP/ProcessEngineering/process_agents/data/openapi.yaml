@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: Wikipedia REST API
-  description: API for accessing Wikipedia content, useful for grounding drug development and pharmaceutical terminology.
+  description: API for accessing Wikipedia content, suitable for grounding entities, places, and concepts.
   version: 1.0.0
 
 servers:
@@ -13,7 +13,7 @@ paths:
   /page/summary/{title}:
     get:
       summary: Get page summary
-      description: Returns a summary of a Wikipedia page, including the extract and basic metadata.
+      description: Returns a summary of a Wikipedia page, including extract and metadata.
       parameters:
         - name: title
           in: path
@@ -41,7 +41,7 @@ paths:
   /page/related/{title}:
     get:
       summary: Get related pages
-      description: Returns pages related to the given title, useful for mapping drug relationships.
+      description: Returns pages related to the given title.
       parameters:
         - name: title
           in: path
@@ -66,15 +66,15 @@ paths:
                         extract:
                           type: string
 
-  /search/page:
+  /search/title:
     get:
-      summary: Search for pages
+      summary: Search for pages by title
       description: Searches Wikipedia pages for a given string.
       parameters:
         - name: q
           in: query
           required: true
-          description: The search query (e.g., a drug name or chemical compound).
+          description: The search query (e.g., a place, character, or concept).
           schema:
             type: string
         - name: limit
