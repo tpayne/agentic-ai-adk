@@ -43,7 +43,7 @@ console_handler.setFormatter(log_format)
 
 logger = logging.getLogger("ProcessArchitect")
 logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+#logger.addHandler(console_handler)
 logger.propagate = False
 
 # Suppress the specific ADK warning about output_schema and agent transfers
