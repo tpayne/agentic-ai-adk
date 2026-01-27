@@ -328,6 +328,27 @@ This will launch a simple web server that will let you view the JSON process flo
 
 ---
 
+### ISO Compliance Mapping
+
+The following table outlines the alignment of the process JSON generated with international ISO standards.
+
+| ISO Standard | Description | Compliance Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO 9001:2015** | Quality Management Systems (QMS) | **High** | Integrated PDCA cycle via `metrics`, `continuous_improvement`, and `risks_and_controls`. |
+| **ISO 15378:2017** | QMS for Medicinal Products & GxP | **High** | Explicit inclusion of `governance_requirements` (GMP, GLP, GCP) and rigorous `change_management`. |
+| **ISO 31000:2018** | Risk Management Guidelines | **Medium-High** | Detailed `risks_and_controls` and `critical_failure_factors` mapping to risk identification. |
+| **ISO 13485:2016** | Medical Devices Quality Management | **Medium** | Alignment of `design_control` phases and `system_requirements` (LIMS/CTMS). |
+| **ISO 14001:2015** | Environmental Management | **Low** | Core structure exists, but requires specific environmental impact and waste metrics. |
+| **ISO/IEC 27001** | Information Security Management | **Low** | Requires further detail on digital access controls and data encryption protocols. |
+
+### Primary Compliance Pillars
+
+1. **Quality (ISO 9001):** The process architecture enforces a "Risk-Based Thinking" approach. By defining `process_owners` and `success_criteria` for every stage, the design ensures accountability and measurable performance.
+2. **Regulatory (ISO 15378):** As a pharmaceutical-specific standard, compliance is demonstrated through the mandatory **Change Control** procedures and the enforcement of GxP standards across the Discovery-to-Commercialization lifecycle.
+3. **Risk (ISO 31000):** The design moves beyond simple identification by pairing every identified `risk` with a specific `control` mechanism, creating a resilient operational framework.
+
+---
+
 ## Contributing
 
 Thank you for your interest in improving this sample! To make contributing simple and consistent, please follow these guidelines.
