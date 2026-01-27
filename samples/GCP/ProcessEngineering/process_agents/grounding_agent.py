@@ -55,12 +55,15 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     if "_empty" in spec:
         return {"ok": False, "error": "Spec unavailable"}
 
-    server = spec["servers"][0]["url"]
+    server = spec.get("servers", [])
+    if not server or "url" not in server[0]:
+        return {"ok": False, "error": "No valid server URL in spec"}
+
     url = f"{server}{request['path']}"
     
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {tool_context.config.get('api_token', '')}"
+        "User-Agent": "ProcessAgent 1.0"
     }
 
     try:

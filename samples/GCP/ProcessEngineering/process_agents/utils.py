@@ -482,7 +482,7 @@ def load_master_process_json() -> dict:
 
     # File existence
     if not os.path.exists(path):
-        logger.warning(f"{path} does not exist.")
+        logger.debug(f"{path} does not exist.")
         return None
 
     try:
