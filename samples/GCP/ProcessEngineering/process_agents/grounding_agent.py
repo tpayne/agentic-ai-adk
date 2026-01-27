@@ -55,21 +55,35 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     if "_empty" in spec:
         return {"ok": False, "error": "Spec unavailable"}
 
-    server = spec.get("servers", [])
-    if not server or "url" not in server[0]:
-        return {"ok": False, "error": "No valid server URL in spec"}
-
-    url = f"{server}{request['path']}"
+    # Extract the base URL from the first server object in the list
+    servers = spec.get("servers", [])
+    base_url = ""
+    if servers and isinstance(servers, list):
+        base_url = servers[0].get("url", "")
     
+    # Ensure there is no double slash if the base_url ends with one and path starts with one
+    path = request.get('path', '')
+    params = request.get("params", {})
+
+    for key in list(params.keys()):
+        placeholder = "{" + key + "}"
+        if placeholder in path:
+            path = path.replace(placeholder, str(params[key]))
+            params.pop(key)
+
+    url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+    # Use a clean User-Agent as requested
     headers = {
         "Accept": "application/json",
-        "User-Agent": "ProcessAgent 1.0"
+        "User-Agent": "ProcessEngine/1.0 (contact: your-email@example.com) Python-Requests"
     }
 
     try:
         method = request.get("method", "GET").upper()
         if method == "GET":
-            resp = requests.get(url, params=request.get("params"), headers=headers, timeout=10)
+            # Remaining params not used in path are sent as query strings
+            resp = requests.get(url, params=params, headers=headers, timeout=10)
         else:
             resp = requests.request(
                 method,
