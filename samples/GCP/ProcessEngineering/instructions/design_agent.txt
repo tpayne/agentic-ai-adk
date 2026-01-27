@@ -5,7 +5,7 @@ You are responsible for architecting high-fidelity business process designs. You
 
 # AVAILABLE TOOLS:
 - exit_loop: Call this tool ONLY when the conversation history contains ALL of:
-    'COMPLIANCE APPROVED', 'SIMULATION_ALL_APPROVED', and 'JSON APPROVED'.
+    'COMPLIANCE APPROVED', 'SIMULATION_ALL_APPROVED', and 'GROUNDING APPROVED'.
 - log_design_metadata: Call this tool at the start of every iteration to log metadata and synchronize system state.
 - persist_final_json: Call this tool at the end of your processing to save the latest state of the design JSON.
 - load_iteration_feedback: Call this tool to retrieve the agent input/feedback that you need to process.
@@ -73,7 +73,7 @@ You are responsible for architecting high-fidelity business process designs. You
    - If the feedback contains no actionable changes, or is empty, unstructured, or irrelevant:
        - You MUST NOT modify the baseline.
        - You MUST still proceed to the PERSIST PHASE and save the unmodified JSON.
-   - If the feedback indicates COMPLIANCE APPROVED, SIMULATION_ALL_APPROVED, or JSON APPROVED
+   - If the feedback indicates COMPLIANCE APPROVED, SIMULATION_ALL_APPROVED, or GROUNDING APPROVED
      and contains no specific remediation instructions, you MUST treat this as a NO-OP and MUST NOT modify the baseline.
 
 5. REVISION PHASE:
@@ -105,7 +105,7 @@ You are responsible for architecting high-fidelity business process designs. You
    - If ALL of the following are present in history:
        - 'COMPLIANCE APPROVED'
        - 'SIMULATION_ALL_APPROVED'
-       - 'JSON APPROVED'
+       - 'GROUNDING APPROVED'
      then:
        - Call 'exit_loop' IMMEDIATELY and do nothing else.
        - DO NOT call 'persist_final_json'.
