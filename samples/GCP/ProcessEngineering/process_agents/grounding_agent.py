@@ -1,6 +1,8 @@
 # process_agents/grounding_agent.py
 
 import yaml
+import sys
+import json
 import requests
 from pathlib import Path
 import logging
@@ -18,17 +20,11 @@ from .utils import (
 
 logger = logging.getLogger("ProcessArchitect.Grounding")
 
-
 # ---------------------------------------------------------
-# TOOL: Load OpenAPI spec (with graceful empty handling)
+# TOOL: Load OpenAPI spec
 # ---------------------------------------------------------
-def load_openapi(tool_context: ToolContext):
-    """
-    Returns the OpenAPI specification for the grounding agent.
-    If missing or empty, returns {"_empty": True, "reason": "..."}.
-    """
-    spec_path = Path(tool_context.config["openapi_path"])
-
+def load_openapi(tool_context=None):
+    spec_path = Path(getProperty("OPENAPI_SPEC"))
     if not spec_path.exists():
         return {"_empty": True, "reason": "missing"}
 
@@ -43,70 +39,72 @@ def load_openapi(tool_context: ToolContext):
 
     return spec
 
-
 # ---------------------------------------------------------
-# TOOL: Call an OpenAPI-defined endpoint
+# TOOL: OpenAPI Call Execution
 # ---------------------------------------------------------
-def call_openapi(tool_context: ToolContext, path: str, method: str,
-                 params: dict = None, body: dict = None):
+def perform_openapi_call(tool_context: ToolContext, request_json: str):
     """
-    Generic OpenAPI caller.
-
-    The agent must supply:
-      - path (e.g. "/entities")
-      - method ("GET" or "POST")
-      - params (dict for query parameters)
-      - body (dict for JSON body)
+    Executes an OpenAPI call based on a JSON request string.
     """
+    try:
+        request = json.loads(request_json)
+    except Exception as e:
+        return {"ok": False, "error": f"Invalid JSON: {e}"}
 
-    spec = load_openapi(tool_context)
+    spec = load_openapi()
+    if "_empty" in spec:
+        return {"ok": False, "error": "Spec unavailable"}
 
-    # If spec is empty, return a safe error
-    if isinstance(spec, dict) and spec.get("_empty"):
-        return {
-            "ok": False,
-            "error": f"OpenAPI spec unavailable: {spec.get('reason')}",
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-        }
+    # Extract the base URL from the first server object in the list
+    servers = spec.get("servers", [])
+    base_url = ""
+    if servers and isinstance(servers, list):
+        base_url = servers[0].get("url", "")
+    
+    # Ensure there is no double slash if the base_url ends with one and path starts with one
+    path = request.get('path', '')
+    params = request.get("params", {})
 
-    server = spec["servers"][0]["url"]
-    url = f"{server}{path}"
+    for key in list(params.keys()):
+        placeholder = "{" + key + "}"
+        if placeholder in path:
+            path = path.replace(placeholder, str(params[key]))
+            params.pop(key)
 
+    url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+    # Use a clean User-Agent as requested
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {tool_context.config.get('api_token', '')}"
+        "User-Agent": "ProcessEngine/1.0 (contact: your-email@example.com) Python-Requests"
     }
 
     try:
-        if method.upper() == "GET":
+        method = request.get("method", "GET").upper()
+        if method == "GET":
+            # Remaining params not used in path are sent as query strings
             resp = requests.get(url, params=params, headers=headers, timeout=10)
         else:
-            resp = requests.request(method, url, json=body, headers=headers, timeout=10)
+            resp = requests.request(
+                method,
+                url,
+                json=request.get("body"),
+                headers=headers,
+                timeout=10
+            )
 
         resp.raise_for_status()
+        response_data = resp.json()
 
-        return {
-            "ok": True,
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-            "data": resp.json(),
-        }
+        # FIXED: Added f-strings and json.dumps for readability
+        logger.debug(f"Request callout: {request_json}")
+        logger.debug(f"Response data: {json.dumps(response_data, indent=2)}")
+        
+        return {"ok": True, "data": response_data}
 
     except Exception as e:
-        return {
-            "ok": False,
-            "path": path,
-            "method": method,
-            "params": params,
-            "body": body,
-            "error": str(e),
-        }
-
+        logger.error(f"Perform OpenAPI call error: {str(e)}")
+        return {"ok": False, "error": str(e)}
 
 # ---------------------------------------------------------
 # GROUNDING VALIDATION AGENT
@@ -114,14 +112,14 @@ def call_openapi(tool_context: ToolContext, path: str, method: str,
 grounding_agent = LlmAgent(
     name="Grounding_Validation_Agent",
     model=getProperty("MODEL"),
-    description="Validates a designed process against external reality using OpenAPI-defined sources of truth.",
+    description="Validates a designed process against external reality.",
     include_contents="default",
-    output_key="grounding_report",
+    # REMOVED: output_key="grounding_report" 
     tools=[
         load_openapi,
-        call_openapi,
         load_master_process_json,
         save_iteration_feedback,
+        perform_openapi_call,
     ],
     instruction=load_instruction("grounding_agent.txt"),
     generate_content_config=types.GenerateContentConfig(

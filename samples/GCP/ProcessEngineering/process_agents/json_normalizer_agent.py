@@ -38,5 +38,4 @@ json_normalizer_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
-    output_key="approved_json",
 )

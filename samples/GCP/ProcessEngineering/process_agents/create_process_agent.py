@@ -17,6 +17,7 @@ from .edge_inference_agent import edge_inference_agent
 from .doc_generation_agent import doc_generation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
+from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
 from .utils import getProperty
 
@@ -48,16 +49,43 @@ design_compliance_instance = LlmAgent(
     output_key=design_agent.output_key,
 )
 
+design_simulation_instance = LlmAgent(
+    name=design_agent.name + '_Simulation_Instance',
+    model=design_agent.model,
+    description=design_agent.description,
+    instruction=design_agent.instruction,
+    tools=design_agent.tools,
+    output_key=design_agent.output_key,
+)
+
+design_grounding_instance = LlmAgent(
+    name=design_agent.name + '_Grounding_Instance',
+    model=design_agent.model,
+    description=design_agent.description,
+    instruction=design_agent.instruction,
+    tools=design_agent.tools,
+    output_key=design_agent.output_key,
+)
+
 review_loop = LoopAgent(
     name="Design_Compliance_Loop",
     sub_agents=[
         SequentialAgent(
             name="Iterative_Design_Stage",
-            sub_agents=[design_instance, compliance_agent, design_compliance_instance, simulation_agent],
+            sub_agents=[
+                design_instance,
+                compliance_agent,
+                design_compliance_instance,
+                simulation_agent,
+                design_simulation_instance,
+                grounding_agent,
+                design_grounding_instance,
+            ],
         ),
     ],
-    max_iterations=getProperty("loopInterations") # The max iterations for this loop. Adjust as needed.
+    max_iterations=getProperty("loopInterations")
 )
+
 
 # JSON Normalization → Review loop: Stabilizes the process JSON
 json_normalization_loop = SequentialAgent(
@@ -87,3 +115,5 @@ full_design_pipeline = SequentialAgent(
         doc_generation_agent     # Stage 6: Artifact Build
     ]
 )
+
+
