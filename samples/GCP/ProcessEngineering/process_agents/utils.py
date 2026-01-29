@@ -6,33 +6,20 @@ import time
 import random
 import re
 import traceback
-
-from typing import Any, List, Union
-
 import logging
+import configparser
+from typing import Any, Union
+
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-import configparser
-import os
-
 # Internal cache
-_PROPERTY_CACHE = None
-PROPERTIES_FILE = 'properties/app.properties'
-
-def getProperty(prop: str, section: str = 'SETTINGS') -> any:
-    """
-    Retrieves a property value from cache. 
-    If cache is empty, reads the file once.
-    """
-import configparser
-import os
-
-_CACHE = None
+_CACHE: Union[configparser.ConfigParser, None] = None
 PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'agentapp.properties')
 
-def getProperty(prop: str, section: str = 'SETTINGS'):
+def getProperty(prop: str, section: str = 'SETTINGS',
+                default: Union[str, int, float, bool, None] = None) -> Any:
     global _CACHE
     if _CACHE is None:
         # One-time disk read with error handling for path
@@ -40,51 +27,58 @@ def getProperty(prop: str, section: str = 'SETTINGS'):
         if os.path.exists(PROPERTIES_FILE):
             config.read(PROPERTIES_FILE)
         _CACHE = config
-    
+
     try:
-        # 1. Fetch the raw string
         val = _CACHE.get(section, prop)
-        
-        # 2. Clean up quotes (e.g., "5" -> 5)
-        val = val.strip('"').strip("'")
-
-        # 3. Handle Boolean conversion
-        val_lower = val.lower()
-        if val_lower in ['true', 'yes', 'on']: return True
-        if val_lower in ['false', 'no', 'off']: return False
-        
-        # 4. Handle Integer conversion
-        # We use a try block because .isdigit() doesn't handle negative numbers
-        try:
-            return int(val)
-        except ValueError:
-            pass
-
-        # 5. Handle Float conversion
-        try:
-            return float(val)
-        except ValueError:
-            pass
-            
-        # 6. Default: Return as string
-        return val
-
     except (configparser.NoOptionError, configparser.NoSectionError):
-        logger.debug(f"Property '{prop}' not found in section [{section}]")
-        return None
-    except Exception as e:
-        logger.error(f"Error retrieving property '{prop}': {e}")
-        return None
+        # Fallback to environment variable
+        env_val = os.getenv(prop)
+        if env_val is not None:
+            val = env_val
+        else:
+            return default
+
+    # Clean up quotes (e.g., "5" -> 5)
+    val = val.strip('"').strip("'")
+
+    # Boolean conversion
+    val_lower = val.lower()
+    if val_lower in ['true', 'yes', 'on']:
+        return True
+    if val_lower in ['false', 'no', 'off']:
+        return False
+
+    # Integer conversion
+    try:
+        return int(val)
+    except ValueError:
+        pass
+
+    # Float conversion
+    try:
+        return float(val)
+    except ValueError:
+        pass
+
+    # Default: string (or default if empty)
+    return val if val != '' else default
 
 # ---------------------------------------------------------------------
 # INTERNAL HELPERS (NOT EXPOSED TO LLM)
 # ---------------------------------------------------------------------
 
+def _safe_sleep_from_property(name: str, default: float = 0.25):
+    pv = getProperty(name, default=default)
+    try:
+        base = float(pv)
+    except Exception:
+        base = default
+    time.sleep(base + random.random() * 0.75)
+
 def _log_agent_activity(message: str):
     """Internal logging helper."""
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    _safe_sleep_from_property("modelSleep", default=0.25)
     logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
-
 
 def _extract_json_brace_balanced(text: str) -> str:
     """
@@ -105,7 +99,6 @@ def _extract_json_brace_balanced(text: str) -> str:
                 return text[start:i+1]
 
     raise ValueError("JSON braces not balanced")
-
 
 def _validate_process_json(data: dict):
     if not isinstance(data, dict):
@@ -175,8 +168,9 @@ def _save_raw_data_to_json(json_content) -> str:
 
     This is internal. The only exposed tool is persist_final_json.
     """
-    path = "output/process_data.json"
-    lock_path = "output/.process_data.lock"
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    path = os.path.join(output_dir, "process_data.json")
+    lock_path = os.path.join(output_dir, ".process_data.lock")
 
     def acquire_lock(timeout: float = 5.0) -> bool:
         start = time.time()
@@ -201,7 +195,7 @@ def _save_raw_data_to_json(json_content) -> str:
 
     try:
         _log_agent_activity("Saving normalized JSON to file...")
-        os.makedirs("output", exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
 
         # Acquire lock before writing
         if not acquire_lock():
@@ -218,7 +212,7 @@ def _save_raw_data_to_json(json_content) -> str:
             raw_str = _extract_json_brace_balanced(raw_str)
         except Exception as e:
             logger.error(f"Failed to extract JSON object: {e}")
-            raw_path = "output/process_data_raw.json"
+            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -248,9 +242,8 @@ def _save_raw_data_to_json(json_content) -> str:
                 logger.error(
                     "json-repair library not found. "
                     "Install via 'pip install json-repair'. "
-                    "Writing raw JSON to output/process_data_raw.json for inspection."
                 )
-                raw_path = "output/process_data_raw.json"
+                raw_path = os.path.join(output_dir, "process_data_raw.json")
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
                 return (
@@ -260,9 +253,8 @@ def _save_raw_data_to_json(json_content) -> str:
             except Exception as repair_err:
                 logger.error(
                     f"Repair failed: {str(repair_err)}. "
-                    "Writing raw JSON to output/process_data_raw.json for inspection."
                 )
-                raw_path = "output/process_data_raw.json"
+                raw_path = os.path.join(output_dir, "process_data_raw.json")
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
                 return (
@@ -271,11 +263,8 @@ def _save_raw_data_to_json(json_content) -> str:
                 )
 
         if parsed is None:
-            logger.error(
-                "Parsed JSON is None after validation/repair. "
-                "Writing raw JSON to output/process_data_raw.json for inspection."
-            )
-            raw_path = "output/process_data_raw.json"
+            logger.error("Parsed JSON is None after validation/repair. ")
+            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -284,11 +273,8 @@ def _save_raw_data_to_json(json_content) -> str:
             )
 
         if _validate_process_json(parsed) is None:
-            logger.error(
-                "Parsed JSON is invalid. "
-                "Writing raw JSON to output/process_data_raw.json for inspection."
-            )
-            raw_path = "output/process_data_raw.json"
+            logger.error("Parsed JSON is invalid. ")
+            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -347,7 +333,7 @@ def persist_final_json(json_content) -> str:
     - Calls the internal saver with the provided JSON content.
     - Returns the final path or error message.
     """
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    _safe_sleep_from_property("modelSleep", default=0.25)
 
     try:
         _log_agent_activity("Starting final JSON file persistence")
@@ -363,12 +349,9 @@ def persist_final_json(json_content) -> str:
         logger.error(f"persist_final_json failed: {error_trace}")
         return "ERROR: persist_final_json encountered an unexpected failure."
 
-
 # Tool to load the full process context (master + subprocesses)
-# process_agents/utils.py
-
-def load_full_process_context() -> str:
-    """ Loads master process + subprocesses directly from disk. Never returns FATAL ERROR. Returns partial data if needed. """
+def load_full_process_context() -> dict:
+    """Loads master process + subprocesses directly from disk. Never returns FATAL ERROR. Returns partial data if needed."""
     context = {
         "master_process": {},
         "subprocesses": [],
@@ -399,7 +382,7 @@ def load_iteration_feedback() -> dict:
     This is the 'Inbox' for the Design Agent to see what other agents have requested.
     """
     _log_agent_activity("Loading iteration feedback from disk...")
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    _safe_sleep_from_property("modelSleep", default=0.25)
 
     path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
     if os.path.exists(path):
@@ -411,7 +394,6 @@ def load_iteration_feedback() -> dict:
 
     return {"status": "No feedback found", "issues": []}
 
-
 def save_iteration_feedback(feedback_data: Any):
     """
     Saves iteration feedback to disk. 
@@ -419,16 +401,16 @@ def save_iteration_feedback(feedback_data: Any):
     not a stringified representation.
     """
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    _safe_sleep_from_property("modelSleep", default=0.25)
 
-    os.makedirs("output", exist_ok=True)
-    path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
-    
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "iteration_feedback.json")
+
     # Artificial delay to prevent API burst issues in the loop
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-    
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
     # 1. Clean the incoming data
-    # Handle cases where the LLM sends a stringified list/dict
     processed_data = feedback_data
     if isinstance(feedback_data, str):
         try:
@@ -446,13 +428,13 @@ def save_iteration_feedback(feedback_data: Any):
 
     payload = {
         "status": status,
-        "data": processed_data # Saved as a clean JSON structure
+        "data": processed_data  # Saved as a clean JSON structure
     }
 
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
-        
+
         logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
         return f"SUCCESS: Feedback persisted to {path}"
     except Exception as e:
@@ -460,7 +442,7 @@ def save_iteration_feedback(feedback_data: Any):
         return f"ERROR: Could not save feedback: {str(e)}"
 
 # Load the master process JSON from output/process_data.json
-def load_master_process_json() -> dict:
+def load_master_process_json() -> Union[dict, None]:
     """
     Loads and returns the contents of output/process_data.json as a Python dict.
 
@@ -482,7 +464,7 @@ def load_master_process_json() -> dict:
 
     # File existence
     if not os.path.exists(path):
-        logger.debug(f"{path} does not exist.")
+        logger.warning(f"{path} does not exist.")
         return None
 
     try:
@@ -508,7 +490,7 @@ def load_master_process_json() -> dict:
             return None
 
         return validated
-    
+
     except Exception as e:
         logger.error(f"Unexpected error loading {path}: {e}")
         return None
@@ -530,7 +512,7 @@ def load_instruction(filename: str) -> str:
         raise
 
 # Validate that all required instruction files exist and are readable
-def validate_instruction_files():
+def validate_instruction_files() -> bool:
     """
     Validates that all instruction files exist and are readable.
     Logs a single consolidated error if any are missing.
