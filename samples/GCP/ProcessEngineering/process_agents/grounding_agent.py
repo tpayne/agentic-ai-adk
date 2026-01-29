@@ -5,6 +5,8 @@ import sys
 import json
 import requests
 import certifi
+import time
+import random
 
 import logging
 import os
@@ -16,12 +18,21 @@ from google.adk.agents import LlmAgent
 from google.genai import types
 from google.adk.tools.tool_context import ToolContext
 
+# NEW: import urllib3 and the warning class for conditional suppression
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
 from .utils import (
     load_instruction,
     load_master_process_json,
     save_iteration_feedback,
     getProperty
 )
+
+# Conditionally suppress InsecureRequestWarning ONLY if you’ve explicitly allowed insecure HTTPS.
+# Prefer setting a valid CA bundle so you can keep verification ON.  (See notes below.)
+if str(getProperty("ALLOW_INSECURE_HTTPS", default=False)).lower() in ("1", "true", "yes"):
+    urllib3.disable_warnings(InsecureRequestWarning)  # suppress only this warning
 
 logger = logging.getLogger("ProcessArchitect.Grounding")
 
@@ -52,29 +63,57 @@ def load_openapi(tool_context=None):
     return spec
 
 # ---------------------------------------------------------
-# TOOL: OpenAPI Call Execution
+# TOOL: OpenAPI Call Execution (HTTP retries with sleep + jitter)
 # ---------------------------------------------------------
 
+class JitterAdapter(HTTPAdapter):
+    """
+    Injects sleep between retries using your pattern:
+      time.sleep(modelSleep + random.random() * 0.75 + backoff_sleep)
+    Where:
+      - backoff_sleep is the exponential backoff computed by urllib3.Retry
+      - modelSleep is read from properties (defaults handled in getProperty)
+    """
+    def sleep(self, sleep_time: float):
+        try:
+            base = float(getProperty("modelSleep", default=0.25))  # your pattern baseline
+        except Exception:
+            base = 0.25
+        jitter = random.random() * 0.75  # your pattern jitter
+        adjusted = max(0.0, sleep_time + base + jitter)
+        # Delegate to HTTPAdapter's default sleep (which calls time.sleep)
+        return super().sleep(adjusted)
+
 def _build_session():
-    sess = requests.Session()
+    # Truncated exponential backoff; urllib3 computes sleep for each retry:
+    #   sleep = backoff_factor * (2 ** (retry_num - 1))
+    # With respect_retry_after_header=True, Retry will use server-provided Retry-After when present.
+    # This is recommended for handling 429 bursts in Vertex/LLM workloads and general HTTP APIs. [1](https://developers.googleblog.com/building-agents-with-the-adk-and-the-new-interactions-api/)
     retry = Retry(
-        total=3, connect=3, read=3, backoff_factor=0.5,
+        total=5,
+        connect=5,
+        read=5,
+        status=5,
+        backoff_factor=0.4,                 # baseline; your adapter adds modelSleep + jitter on top
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        raise_on_status=False
+        raise_on_status=False,
+        respect_retry_after_header=True      # honor Retry-After if server sets it
     )
+
+    sess = requests.Session()
+    adapter = JitterAdapter(max_retries=retry)
+    sess.mount("https://", adapter)
+    sess.mount("http://", adapter)
+
     ua = getProperty(
         "USER_AGENT",
         default="ProcessArchitect/1.0 (contact: https://example.com/contact)"
     )
     sess.headers.update({
         "Accept": "application/json",
-        # Wikimedia asks for a contactable UA
-        "User-Agent": str(ua)
+        "User-Agent": str(ua)  # Wikimedia requests a contactable UA
     })
-    adapter = HTTPAdapter(max_retries=retry)
-    sess.mount("https://", adapter)
-    sess.mount("http://", adapter)
     return sess
 
 def _resolve_verify():
@@ -114,7 +153,6 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     method = (request.get("method") or "GET").upper()
     body = request.get("body")
 
-    # Safe timeout cast
     tval = getProperty("HTTP_TIMEOUT_SECONDS", default=15)
     try:
         timeout = float(tval)
@@ -128,7 +166,6 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
             resp = session.request(method, url, json=body, timeout=timeout, verify=verify)
 
         resp.raise_for_status()
-        # Robust JSON parse fallback (in case a non-JSON endpoint is ever added)
         try:
             data = resp.json()
         except ValueError:
@@ -171,7 +208,6 @@ grounding_agent = LlmAgent(
     model=getProperty("MODEL"),
     description="Validates a designed process against external reality.",
     include_contents="default",
-    # REMOVED: output_key="grounding_report"
     tools=[
         load_openapi,
         load_master_process_json,
