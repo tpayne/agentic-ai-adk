@@ -186,7 +186,7 @@ review_update_loop = LoopAgent(
             ],
         )
     ],
-    max_iterations=getProperty("loopInterations"),
+    max_iterations=getProperty("loopIterations"),
 )
 
 json_update_normalization_loop = SequentialAgent(
@@ -195,7 +195,7 @@ json_update_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Update_Normalizer_Sequence",
             sub_agents=[normalizer_inst, reviewer_inst],
-            max_iterations=getProperty("loopInterations"),
+            max_iterations=getProperty("loopIterations"),
         ),
         writer_inst,
     ],
