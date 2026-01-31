@@ -126,6 +126,8 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     """
     Executes an OpenAPI call based on a JSON request string.
     """
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+
     try:
         request = json.loads(request_json)
     except Exception as e:

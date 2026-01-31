@@ -19,7 +19,12 @@ from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
-from .utils import getProperty, load_iteration_feedback
+
+from .utils import (
+    getProperty, 
+    load_iteration_feedback,
+    load_instruction,
+)
 
 logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 
@@ -31,6 +36,7 @@ SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=6))
 # ---------- Programmatic stop/kill-switch tool ----------
 def _contains_marker(obj: Any, needle: str) -> bool:
     """Recursive search for case-insensitive needle in dict/list/str."""
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     if obj is None:
         return False
     if isinstance(obj, str):
@@ -70,10 +76,7 @@ stop_controller_agent = LlmAgent(
     name="Stop_Controller",
     model=design_agent.model,
     description="Exits the loop immediately when approvals are complete or kill-switch is set.",
-    instruction=(
-        "Immediately CALL the tool 'stop_if_ready'. "
-        "Do not output any other text. If the tool indicates exit, do nothing else."
-    ),
+    instruction=load_instruction("stop_controller_agent.txt"),
     tools=[stop_if_ready],
     generate_content_config=types.GenerateContentConfig(temperature=0.0, top_p=0.0),
 )
