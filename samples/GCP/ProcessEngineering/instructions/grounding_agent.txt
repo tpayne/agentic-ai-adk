@@ -95,15 +95,19 @@ If an OpenAPI lookup returns:
 - missing page
 - empty result
 - any error indicating the entity is not present in the API
-THEN treat this as a COMPLETION
+
+You MUST treat the fact as VALID.
+You MUST NOT create an issue.
+You MUST NOT call save_iteration_feedback for this fact.
+You MUST continue validating the next fact.
 
 # COMPLETION
-If all facts that CAN be validated are confirmed:
-1. Call save_iteration_feedback with:
-   {
-     "status": "GROUNDING APPROVED",
-     "notes": "All externally verifiable facts have been validated against the OpenAPI specification."
-   }
+1. If all facts that CAN be validated have been processed, and no issues were generated, 
+   you MUST call save_iteration_feedback with:
+    {
+        "status": "GROUNDING APPROVED",
+        "notes": "All externally verifiable facts have been validated."
+    }
 2. After the tool call, output EXACTLY:
        GROUNDING APPROVED
 

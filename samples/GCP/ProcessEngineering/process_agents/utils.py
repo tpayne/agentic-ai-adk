@@ -430,7 +430,12 @@ def save_iteration_feedback(feedback_data: Any):
         except Exception:
             processed_data = feedback_data
 
-    # --- NEW: Update cumulative approval state ---
+    # Capture inner status BEFORE we mutate processed_data
+    inner_status = None
+    if isinstance(processed_data, dict):
+        inner_status = processed_data.get("status")
+
+    # --- Update cumulative approval state ---
     approval_markers = {
         "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
         "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
@@ -469,14 +474,25 @@ def save_iteration_feedback(feedback_data: Any):
         with open(approval_path, "w", encoding="utf-8") as f:
             json.dump(approval_state, f, indent=2)
 
-    # --- Determine status for iteration_feedback.json ---
+    # --- Determine top-level status ---
+    # Default: revision required
     status = "REVISION REQUIRED"
-    if (
-        not processed_data
-        or (isinstance(processed_data, dict) and processed_data.get("status") == "JSON APPROVED")
-    ):
-        status = "JSON APPROVED"
 
+    # If the agent explicitly set a status we recognise, respect it
+    approved_statuses = {
+        "JSON APPROVED",
+        "COMPLIANCE APPROVED",
+        "SIMULATION_ALL_APPROVED",
+        "GROUNDING APPROVED",
+    }
+    if inner_status in approved_statuses:
+        status = inner_status
+
+    # --- Remove nested status to avoid duplicate keys in final JSON ---
+    if isinstance(processed_data, dict) and "status" in processed_data:
+        processed_data = {k: v for k, v in processed_data.items() if k != "status"}
+
+    # --- Build final payload ---
     payload = {
         "status": status,
         "data": processed_data,

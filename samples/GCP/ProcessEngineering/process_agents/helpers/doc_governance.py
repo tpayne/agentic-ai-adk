@@ -193,10 +193,10 @@ def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
                     if k not in {"summary", "last_reviewed", "review_frequency"}
                 }
                 if extra:
-                    _render_generic_value(doc, extra, level=1)
+                    _render_generic_value(doc, extra)
 
             else:
-                _render_generic_value(doc, val, level=1)
+                _render_generic_value(doc, val)
 
     except Exception:
         traceback.print_exc()
@@ -222,7 +222,7 @@ def _add_additional_data_section(doc: docx.Document, data: dict, consumed_keys: 
             "that is not covered in the main sections."
         )
 
-        _render_generic_value(doc, remaining, level=0)
+        _render_generic_value(doc, remaining)
 
     except Exception:
         traceback.print_exc()

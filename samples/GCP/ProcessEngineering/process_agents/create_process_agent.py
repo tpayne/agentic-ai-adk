@@ -95,12 +95,7 @@ def stop_if_ready(tool_context: ToolContext):
     return "Continue"
 
 # ---------- Minimal controller agent that ALWAYS calls the stop tool ----------
-class SilentAgent(Agent): 
-    def build_prompt(self, *args, **kwargs): 
-        # Completely ignore ADK’s injected context 
-        return ""
-
-stop_controller_agent = SilentAgent(
+stop_controller_agent = Agent(
     name="Stop_Controller",
     model=design_agent.model,
     description="Exits the loop immediately when approvals are complete or kill-switch is set.",

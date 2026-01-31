@@ -55,7 +55,7 @@ def apply_iso_table_formatting(table: docx.table.Table) -> None:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     if p.style is None or p.style.name == "Normal":
-                        p.style = table._tbl.doc.styles["Normal"]
+                        p.style = table._parent.styles["Normal"]
     except Exception:
         traceback.print_exc()
 
