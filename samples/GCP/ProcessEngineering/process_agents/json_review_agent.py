@@ -32,7 +32,6 @@ json_review_agent = LlmAgent(
     model='gemini-2.0-flash-001',
     description='Review JSON for validity, compliance, and best practices.',
     include_contents="default",
-    output_key="approved_json",
     tools=[
         exit_loop,
         load_iteration_feedback,

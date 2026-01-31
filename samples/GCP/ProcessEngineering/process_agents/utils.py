@@ -396,10 +396,21 @@ def load_iteration_feedback() -> dict:
 
 def save_iteration_feedback(feedback_data: Any):
     """
-    Saves iteration feedback to disk. 
-    Ensures that the 'data' field is saved as a clean JSON list/object, 
+    Saves iteration feedback to disk.
+    Ensures that the 'data' field is saved as a clean JSON list/object,
     not a stringified representation.
+
+    Additionally:
+    - If the incoming feedback contains any APPROVED markers:
+        * COMPLIANCE APPROVED
+        * SIMULATION_ALL_APPROVED
+        * GROUNDING APPROVED
+      Then update output/approval.json with the corresponding keys:
+        * "compliance_status": "APPROVED"
+        * "simulation_status": "APPROVED"
+        * "grounding_status": "APPROVED"
     """
+
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
     _safe_sleep_from_property("modelSleep", default=0.25)
 
@@ -410,33 +421,74 @@ def save_iteration_feedback(feedback_data: Any):
     # Artificial delay to prevent API burst issues in the loop
     _safe_sleep_from_property("modelSleep", default=0.25)
 
-    # 1. Clean the incoming data
+    # --- Clean incoming data ---
     processed_data = feedback_data
     if isinstance(feedback_data, str):
         try:
-            # Normalize common LLM output issues (single quotes)
             normalized_str = feedback_data.replace("'", '"')
             processed_data = json.loads(normalized_str)
         except Exception:
-            # If parsing fails, treat it as a raw comment string
             processed_data = feedback_data
 
-    # Determine status based on presence of feedback or approval markers
+    # --- NEW: Update cumulative approval state ---
+    approval_markers = {
+        "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
+        "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
+        "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
+    }
+
+    # Convert feedback to string for scanning
+    feedback_str = (
+        json.dumps(processed_data)
+        if not isinstance(processed_data, str)
+        else processed_data
+    )
+
+    matched = [key for key in approval_markers if key in feedback_str]
+
+    if matched:
+        approval_path = os.path.join(output_dir, "approval.json")
+
+        # Load existing approval state or create new
+        if os.path.exists(approval_path):
+            try:
+                with open(approval_path, "r", encoding="utf-8") as f:
+                    approval_state = json.load(f)
+            except Exception:
+                approval_state = {}
+        else:
+            approval_state = {}
+
+        # Apply updates
+        for marker in matched:
+            key, value = approval_markers[marker]
+            approval_state[key] = value
+
+        # Persist updated approval state
+        with open(approval_path, "w", encoding="utf-8") as f:
+            json.dump(approval_state, f, indent=2)
+
+    # --- Determine status for iteration_feedback.json ---
     status = "REVISION REQUIRED"
-    if not processed_data or (isinstance(processed_data, dict) and processed_data.get("status") == "JSON APPROVED"):
+    if (
+        not processed_data
+        or (isinstance(processed_data, dict) and processed_data.get("status") == "JSON APPROVED")
+    ):
         status = "JSON APPROVED"
 
     payload = {
         "status": status,
-        "data": processed_data  # Saved as a clean JSON structure
+        "data": processed_data,
     }
 
+    # --- Save iteration_feedback.json ---
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
+        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk ---")
         return f"SUCCESS: Feedback persisted to {path}"
+
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"

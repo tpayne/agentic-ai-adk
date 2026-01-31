@@ -40,7 +40,6 @@ update_analysis_agent = LlmAgent(
     model=getProperty("MODEL"),
     instruction=load_instruction("update_analysis_agent.txt"),
     tools=[load_full_process_context,persist_final_json,load_iteration_feedback],
-    output_key="analysis_output",
 )
 
 # ---------------------------------------------------------

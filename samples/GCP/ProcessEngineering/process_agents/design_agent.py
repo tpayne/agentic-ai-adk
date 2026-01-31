@@ -23,16 +23,6 @@ def log_design_metadata(process_name: str, goal_count: int):
     logger.debug(f"Design Metadata - Process: {process_name}, Goals Identified: {goal_count}.")
     return f"Design started for {process_name} with {goal_count} identified objectives."
 
-def exit_loop(tool_context: ToolContext):
-    """
-    Simplified for V2: The JSON is already saved via persist_final_json.
-    This tool now ONLY signals the orchestrator to terminate.
-    """
-    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-    logger.debug("Termination signal received. Exiting loop.")
-    tool_context.actions.escalate = True
-    return "Exit signaled. Loop terminating."
-
 # -----------------------------
 # DESIGN AGENT
 # -----------------------------
@@ -42,14 +32,12 @@ design_agent = LlmAgent(
     description="Architects detailed business process workflows.",
     instruction=load_instruction("design_agent.txt"),
     tools=[
-        exit_loop, 
         load_iteration_feedback,
         log_design_metadata,
         load_master_process_json,
         persist_final_json,
     ],
-    output_key="approved_json",
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.2,
+        temperature=0.2
     ),
 )
