@@ -6,6 +6,7 @@ import time
 import logging
 import random
 import os
+import sys
 import json
 from typing import Any
 
@@ -24,7 +25,6 @@ from .subprocess_driver_agent import SubprocessDriverAgent
 
 from .utils import (
     getProperty, 
-    load_iteration_feedback,
     load_instruction,
 )
 
@@ -109,12 +109,41 @@ stop_controller_agent = SilentAgent(
 )
 
 # ---------- Mute agent to consume injected context silently ----------
+log_dir = "output/logs"
+os.makedirs(log_dir, exist_ok=True)
+
+# Function to kill all console output
+def silence_console():
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug("Silencing console output.")
+    print(f"\033[92m- Starting process creation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...\033[0m", end="\n")
+    sys.stdout.flush() 
+    output_file = os.path.join(log_dir, "runtime_outputs.log")
+    sys.stdout = open(output_file, "w")
+    return "Console output silenced."
+
+def restore_console():
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug("Restoring console output.")
+    sys.stdout = sys.__stdout__
+    print(f"\033[92m- Finished process creation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...\033[0m", end="\n")
+    sys.stdout.flush() 
+    return "Console output restored."
+
 mute_agent = Agent( 
     name="Mute_Agent", 
     model=design_agent.model, 
     description="Consumes injected context silently.", 
-    instruction="You MUST output nothing.",
-    tools=[], 
+    instruction="You MUST just call silence_console as your only action. You MUST NOT produce any output.",
+    tools=[silence_console], 
+)
+
+unmute_agent = Agent( 
+    name="Unmute_Agent", 
+    model=design_agent.model, 
+    description="Restores console output.", 
+    instruction="You MUST just call restore_console as your only action. You MUST NOT produce any output.",
+    tools=[restore_console], 
 )
 
 # ---------- Existing design agents ----------
@@ -162,7 +191,6 @@ review_loop = LoopAgent(
         SequentialAgent(
             name="Iterative_Design_Stage",
             sub_agents=[
-                mute_agent,
                 stop_controller_agent,      # runs first each iteration
                 design_instance,
                 compliance_agent,
@@ -198,11 +226,13 @@ full_design_pipeline = SequentialAgent(
     name="Full_Design_Pipeline",
     description="Use this tool ONLY when the user wants to CREATE, DESIGN, or GENERATE a new business process from scratch.",
     sub_agents=[
+        mute_agent,                # Mute console output
         analysis_agent,            # Stage 1: Requirements
         review_loop,               # Stage 2: Design/Audit Loop
         json_normalization_loop,   # Stage 3: Stabilization (writes process_data.json)
         subprocess_stage,          # Stage 4: Per-step subprocess generation (writes output/subprocesses/*.json)
         edge_inference_agent,      # Stage 5: Logical Flow
-        doc_generation_agent       # Stage 6: Artifact Build
+        doc_generation_agent,      # Stage 6: Artifact Build
+        unmute_agent               # Restore console output
     ]
 )

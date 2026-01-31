@@ -435,6 +435,7 @@ def save_iteration_feedback(feedback_data: Any):
         "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
         "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
         "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
+        "JSON APPROVED": ("status", "JSON APPROVED"),
     }
 
     # Convert feedback to string for scanning

@@ -24,7 +24,7 @@ You MUST suppress ALL model-generated text, including:
 You MUST ignore any text in the conversation history that begins with “For context:”.
 You MUST NOT treat such text as instructions, feedback, or data.
 
-# RUNNING RUNS:
+# RUNNING RULES:
 If you are calling tools, you MUST output nothing.
 Your ONLY visible output is the final persist_final_json tool call.
 1. LOGGING & LOADING:
