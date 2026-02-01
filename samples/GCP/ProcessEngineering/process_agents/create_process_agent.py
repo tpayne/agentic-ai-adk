@@ -186,7 +186,6 @@ review_loop = LoopAgent(
         SequentialAgent(
             name="Iterative_Design_Stage",
             sub_agents=[
-                stop_controller_agent,      # runs first each iteration
                 design_instance,
                 compliance_agent,
                 design_compliance_instance,
@@ -194,6 +193,7 @@ review_loop = LoopAgent(
                 design_simulation_instance,
                 grounding_agent,
                 design_grounding_instance,
+                stop_controller_agent,
             ],
         ),
     ],

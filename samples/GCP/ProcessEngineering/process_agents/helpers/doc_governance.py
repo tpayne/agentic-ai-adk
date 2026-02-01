@@ -54,7 +54,7 @@ def _add_risks_and_controls_section(doc, items):
         row[0].text = str(rc.get("risk", ""))
         row[1].text = str(rc.get("control", ""))
 
-    apply_iso_table_formatting(table)
+    apply_iso_table_formatting(table, doc)
     doc.add_paragraph()
 
 
@@ -255,7 +255,7 @@ def _add_glossary(doc: docx.Document) -> None:
             row[0].text = term
             row[1].text = definition
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
 
     except Exception:
         traceback.print_exc()
@@ -278,7 +278,7 @@ def _add_critical_success_factors_section(doc, factors):
         row[0].text = str(factor.get("name", ""))
         row[1].text = str(factor.get("description", ""))
 
-    apply_iso_table_formatting(table)
+    apply_iso_table_formatting(table, doc)
     doc.add_paragraph()
 
 
@@ -300,7 +300,7 @@ def _add_critical_failure_factors_section(doc, factors):
         row[0].text = str(factor.get("name", ""))
         row[1].text = str(factor.get("description", ""))
 
-    apply_iso_table_formatting(table)
+    apply_iso_table_formatting(table, doc)
     doc.add_paragraph()
 
 def _add_reporting_and_analytics(doc, items):
@@ -339,5 +339,5 @@ def _add_reporting_and_analytics(doc, items):
         row[0].text = str(name)
         row[1].text = str(desc)
 
-    apply_iso_table_formatting(table)
+    apply_iso_table_formatting(table, doc)
     doc.add_paragraph()
