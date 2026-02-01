@@ -1,7 +1,8 @@
 # process_agents/update_process_agent.py
 
 import logging
-from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent, Agent
+from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from .utils import (
@@ -29,8 +30,39 @@ from .simulation_agent import simulation_agent
 from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
 
+from .utils_agent import (
+    mute_agent, 
+    unmute_agent, 
+    stop_controller_agent
+)
+
 
 logger = logging.getLogger("ProcessArchitect.UpdateProcessPipeline")
+
+# ------------------------ UPDATE PIPELINE DEFINITION ------------------------
+mute_agent_instance = Agent(
+    name=mute_agent.name + "_Update",
+    model=mute_agent.model,
+    description=mute_agent.description,
+    instruction=mute_agent.instruction,
+    tools=mute_agent.tools,
+)
+
+unmute_agent_instance = Agent(
+    name=unmute_agent.name + "_Update",
+    model=unmute_agent.model,
+    description=unmute_agent.description,
+    instruction=unmute_agent.instruction,
+    tools=unmute_agent.tools,
+)
+
+stop_controller_agent_instance = Agent(
+    name=stop_controller_agent.name + "_Update",
+    model=stop_controller_agent.model,
+    description=stop_controller_agent.description,
+    instruction=stop_controller_agent.instruction,
+    tools=stop_controller_agent.tools,
+)
 
 # ---------------------------------------------------------
 # STAGE 1: CONTEXT-AWARE ANALYSIS
@@ -182,6 +214,7 @@ review_update_loop = LoopAgent(
                 design_simulation_inst,
                 grounding_inst,
                 design_grounding_inst,
+                stop_controller_agent_instance,
             ],
         )
     ],
@@ -207,11 +240,13 @@ update_design_pipeline = SequentialAgent(
     name="Update_Design_Pipeline",
     description="Use this tool ONLY when the user wants to MODIFY, CHANGE, or UPDATE an existing process.",
     sub_agents=[
+        mute_agent_instance,            # Mute console output
         update_analysis_agent,          # Step 1: Context Loading & Merging
         review_update_loop,             # Step 2: Re-Design & Audit
         json_update_normalization_loop, # Step 3: Stabilization
         subprocess_inst,                # Step 4: Subprocess Regeneration
         edge_inst,                      # Step 5: Logic Flow
         doc_inst,                       # Step 6: Artifact Re-Build
+        unmute_agent_instance,          # Unmute console output
     ],
 )

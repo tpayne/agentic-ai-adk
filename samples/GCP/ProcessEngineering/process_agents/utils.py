@@ -405,10 +405,12 @@ def save_iteration_feedback(feedback_data: Any):
         * COMPLIANCE APPROVED
         * SIMULATION_ALL_APPROVED
         * GROUNDING APPROVED
+        * JSON APPROVED
       Then update output/approval.json with the corresponding keys:
         * "compliance_status": "APPROVED"
         * "simulation_status": "APPROVED"
         * "grounding_status": "APPROVED"
+        * "json_status": "APPROVED"
     """
 
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
