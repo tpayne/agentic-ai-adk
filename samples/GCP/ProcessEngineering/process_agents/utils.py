@@ -10,6 +10,13 @@ import logging
 import configparser
 from typing import Any, Union
 
+from typing import Optional
+
+from google.adk.models import LlmResponse, LlmRequest
+from google.adk.agents import callback_context
+from google.adk.agents.callback_context import CallbackContext
+from google.genai import types
+
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -632,3 +639,31 @@ def validate_instruction_files() -> bool:
     else:
         _log_agent_activity("All instruction files validated successfully.")
         return True
+
+def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    if not llm_request.contents:
+        return None
+    logger.debug("Review messages from LLM request...")
+
+    # Rebuild contents, but only drop if the text is exactly the tag 
+    # and there are no other parts (like JSON or Tool Calls) attached.
+    cleaned_contents = []
+    for content in llm_request.contents:
+        keep_message = True
+        
+        for part in content.parts:
+            # 1. Safety check: does 'text' even exist?
+            if part.text is not None:
+                # 2. Check if this specific text is the filter trigger
+                if "For context:" in part.text:
+                    # If it's just a context header, we mark it for removal
+                    # but only if it doesn't contain other vital data
+                    if len(content.parts) == 1:
+                        keep_message = False
+                        logger.debug("Review messages from LLM request - removing non-wanted text...")
+
+        if keep_message:
+            cleaned_contents.append(content)
+
+    llm_request.contents = cleaned_contents
+    return None

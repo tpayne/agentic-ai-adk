@@ -8,7 +8,8 @@ import random
 from .utils import (
     load_instruction,
     save_iteration_feedback,
-    getProperty
+    getProperty,
+    review_messages
 )
 
 
@@ -44,4 +45,5 @@ analysis_agent = LlmAgent(
         record_analysis_request,
         save_iteration_feedback
     ],
+    before_model_callback=review_messages,
 )

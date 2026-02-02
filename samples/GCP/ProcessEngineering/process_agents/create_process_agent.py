@@ -50,6 +50,7 @@ design_instance = LlmAgent(
     tools=design_agent.tools,
     generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
 )
 
 design_compliance_instance = Agent(
@@ -59,6 +60,7 @@ design_compliance_instance = Agent(
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
 )
 
 design_simulation_instance = Agent(
@@ -68,6 +70,7 @@ design_simulation_instance = Agent(
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback
 )
 
 design_grounding_instance = Agent(
@@ -77,6 +80,7 @@ design_grounding_instance = Agent(
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback
 )
 
 # ---------- Add Stop_Controller FIRST in the loop stage ----------

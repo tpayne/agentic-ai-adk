@@ -26,7 +26,8 @@ from .utils import (
     load_instruction,
     load_master_process_json,
     save_iteration_feedback,
-    getProperty
+    getProperty,
+    review_messages
 )
 
 # Conditionally suppress InsecureRequestWarning ONLY if you’ve explicitly allowed insecure HTTPS.
@@ -221,4 +222,5 @@ grounding_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
+    before_model_callback=review_messages,
 )

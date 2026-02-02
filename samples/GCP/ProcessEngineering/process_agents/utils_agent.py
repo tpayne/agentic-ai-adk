@@ -64,12 +64,22 @@ def stop_if_ready(tool_context: ToolContext):
             approval_state = {}
 
     logger.debug(f"Current approval state: {approval_state}")
-    # --- Check for all three approvals ---
+    # --- Check for all three approvals OR JSON APPROVED ---
     required = {
         "compliance_status": "APPROVED",
         "simulation_status": "APPROVED",
         "grounding_status": "APPROVED",
     }
+
+    if approval_state.get("status") == "JSON APPROVED":
+        tool_context.actions.escalate = True
+        logger.debug("status=JSON APPROVED detected — exiting loop.")
+        return "status=JSON APPROVED detected — exiting loop."
+
+    if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
+        tool_context.actions.escalate = True
+        logger.debug("One or more fields = JSON APPROVED — exiting loop.")
+        return "JSON APPROVED detected — exiting loop."
 
     if all(approval_state.get(k) == v for k, v in required.items()):
         tool_context.actions.escalate = True
@@ -95,7 +105,7 @@ os.makedirs(log_dir, exist_ok=True)
 def silence_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")
-    print(f"\033[92m- Starting process creation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...\033[0m", end="\n")
+    print(f"\033[92m- Starting process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...\033[0m", end="\n")
     sys.stdout.flush() 
     output_file = os.path.join(log_dir, "runtime_outputs.log")
     sys.stdout = open(output_file, "w")
@@ -105,7 +115,7 @@ def restore_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Restoring console output.")
     sys.stdout = sys.__stdout__
-    print(f"\033[92m- Finished process creation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...\033[0m", end="\n")
+    print(f"\033[92m- Finished process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...\033[0m", end="\n")
     sys.stdout.flush() 
     return "Console output restored."
 

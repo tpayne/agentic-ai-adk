@@ -12,7 +12,8 @@ from .utils import (
     persist_final_json,
     load_iteration_feedback,
     load_master_process_json,
-    getProperty
+    getProperty,
+    review_messages
 )
 
 logger = logging.getLogger("ProcessArchitect.Design")
@@ -40,4 +41,5 @@ design_agent = LlmAgent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2
     ),
+    before_model_callback=review_messages,
 )
