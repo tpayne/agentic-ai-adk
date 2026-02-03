@@ -234,12 +234,22 @@ review_update_loop = LoopAgent(
     max_iterations=getProperty("loopIterations"),
 )
 
+json_stop_agent_instance = Agent(
+    name="JSON_Review_Stop_Controller_Update",
+    model=stop_controller_agent.model,
+    description=stop_controller_agent.description,
+    instruction=stop_controller_agent.instruction,
+    tools=stop_controller_agent.tools,
+    output_key=stop_controller_agent.output_key,
+    before_model_callback=stop_controller_agent.before_model_callback,
+)
+
 json_update_normalization_loop = SequentialAgent(
     name="Update_Normalization_Loop",
     sub_agents=[
         LoopAgent(
             name="Update_Normalizer_Sequence",
-            sub_agents=[normalizer_inst, reviewer_inst],
+            sub_agents=[normalizer_inst, reviewer_inst, json_stop_agent_instance],
             max_iterations=getProperty("loopIterations"),
         ),
         writer_inst,
