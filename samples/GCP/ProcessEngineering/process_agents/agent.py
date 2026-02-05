@@ -151,33 +151,34 @@ async def start_local_chat():
 
     while True:
         user_input = input("[user]: ").strip()
-
         if user_input.lower() in ["exit", "quit", "stop"]:
             print("Exiting Process Architect Orchestrator.")
             break
+        try:
+            content = types.Content(
+                role="user",
+                parts=[types.Part(text=user_input)]
+            )
 
-        content = types.Content(
-            role="user",
-            parts=[types.Part(text=user_input)]
-        )
+            events = runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=content
+            )
 
-        events = runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content
-        )
+            final_response = None
 
-        final_response = None
+            async for event in events:
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
 
-        async for event in events:
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
-
-        if final_response:
-            print(f"\nArchitect: {final_response}\n")
-        else:
-            print("\nArchitect: [No final response]\n")
-
+            if final_response:
+                print(f"\nArchitect: {final_response}\n")
+            else:
+                print("\nArchitect: [No final response]\n")
+        except Exception as e:
+            logger.error(f"Error during chat loop: {str(e)}")
+            print("\nAn error occurred. Please check the logs for details.\n")
 # ---------------------------------------------------------
 # MAIN EXECUTION BLOCK
 # ---------------------------------------------------------

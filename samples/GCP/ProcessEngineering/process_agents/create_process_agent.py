@@ -1,4 +1,5 @@
 # process_agents/create_process_agent.py
+from webbrowser import get
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent, Agent
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
@@ -89,21 +90,29 @@ design_grounding_instance = Agent(
 
 
 # ---------- Add Stop_Controller FIRST in the loop stage ----------
+
+sub_agents = [
+    design_instance,
+    compliance_agent,
+    design_compliance_instance,
+    simulation_agent,
+    design_simulation_instance,
+]
+
+if getProperty("enableGroundingAgent", default="true"):
+    sub_agents += [
+        grounding_agent,
+        design_grounding_instance,
+    ]
+
+sub_agents.append(stop_controller_agent)
+
 review_loop = LoopAgent(
     name="Design_Compliance_Loop",
     sub_agents=[
         SequentialAgent(
             name="Iterative_Design_Stage",
-            sub_agents=[
-                design_instance,
-                compliance_agent,
-                design_compliance_instance,
-                simulation_agent,
-                design_simulation_instance,
-                grounding_agent,
-                design_grounding_instance,
-                stop_controller_agent,
-            ],
+            sub_agents=sub_agents,
         ),
     ],
     max_iterations=SAFE_LOOP_ITERS
