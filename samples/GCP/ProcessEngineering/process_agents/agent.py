@@ -173,12 +173,15 @@ async def start_local_chat():
                     final_response = event.content.parts[0].text
 
             if final_response:
-                print(f"\nArchitect: {final_response}\n")
+                print(f"\n[ArchitectBot]: {final_response}")
             else:
-                print("\nArchitect: [No final response]\n")
+                print("\n[ArchitectBot]: [No final response]")
         except Exception as e:
             logger.error(f"Error during chat loop: {str(e)}")
-            print("\nAn error occurred. Please check the logs for details.\n")
+            sys.stdout = sys.__stdout__
+            sys.stdout.flush()
+            print(f"\n\033[0m - An error occurred: {str(e)}", end="\n")
+            
 # ---------------------------------------------------------
 # MAIN EXECUTION BLOCK
 # ---------------------------------------------------------
