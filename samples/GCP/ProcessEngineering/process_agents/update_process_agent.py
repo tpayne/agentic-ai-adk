@@ -87,7 +87,8 @@ design_inst = LlmAgent(
     tools=design_agent.tools,
     generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
-    before_model_callback=design_agent.before_model_callback
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback
 )
 
 compliance_inst = LlmAgent(
@@ -98,7 +99,8 @@ compliance_inst = LlmAgent(
     tools=compliance_agent.tools,
     output_key=compliance_agent.output_key,
     generate_content_config=compliance_agent.generate_content_config,
-    before_model_callback=compliance_agent.before_model_callback
+    before_model_callback=compliance_agent.before_model_callback,
+    after_model_callback=compliance_agent.after_model_callback
 )
 
 simulation_inst = LlmAgent(
@@ -109,7 +111,8 @@ simulation_inst = LlmAgent(
     tools=simulation_agent.tools,
     output_key=simulation_agent.output_key,
     generate_content_config=simulation_agent.generate_content_config,
-    before_model_callback=simulation_agent.before_model_callback
+    before_model_callback=simulation_agent.before_model_callback,
+    after_model_callback=simulation_agent.after_model_callback
 )
 
 normalizer_inst = LlmAgent(
@@ -121,6 +124,8 @@ normalizer_inst = LlmAgent(
     generate_content_config=json_normalizer_agent.generate_content_config,
     output_key=json_normalizer_agent.output_key,
     include_contents=json_normalizer_agent.include_contents,
+    before_model_callback=json_normalizer_agent.before_model_callback,
+    after_model_callback=json_normalizer_agent.after_model_callback
 )
 
 reviewer_inst = LlmAgent(
@@ -133,6 +138,7 @@ reviewer_inst = LlmAgent(
     output_key=json_review_agent.output_key,
     include_contents=json_review_agent.include_contents,
     before_model_callback=json_review_agent.before_model_callback,
+    after_model_callback=json_review_agent.after_model_callback
 )
 
 writer_inst = LlmAgent(
@@ -144,6 +150,7 @@ writer_inst = LlmAgent(
     generate_content_config=json_writer_agent.generate_content_config,
     output_key=json_writer_agent.output_key,
     before_model_callback=json_writer_agent.before_model_callback,
+    after_model_callback=json_writer_agent.after_model_callback
 )
 
 edge_inst = LlmAgent(
@@ -155,6 +162,7 @@ edge_inst = LlmAgent(
     include_contents=edge_inference_agent.include_contents,
     generate_content_config=edge_inference_agent.generate_content_config,
     before_model_callback=edge_inference_agent.before_model_callback,
+    after_model_callback=edge_inference_agent.after_model_callback,
 )
 
 doc_inst = LlmAgent(
@@ -164,6 +172,7 @@ doc_inst = LlmAgent(
     instruction=doc_generation_agent.instruction,
     tools=doc_generation_agent.tools,
     before_model_callback=doc_generation_agent.before_model_callback,
+    after_model_callback=doc_generation_agent.after_model_callback,
 )
 
 design_simulation_inst = LlmAgent(
@@ -174,6 +183,7 @@ design_simulation_inst = LlmAgent(
     tools=design_agent.tools,
     output_key=design_agent.output_key,
     before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 design_grounding_inst = LlmAgent(
@@ -184,6 +194,7 @@ design_grounding_inst = LlmAgent(
     tools=design_agent.tools,
     output_key=design_agent.output_key,
     before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 grounding_inst = LlmAgent(
@@ -195,6 +206,7 @@ grounding_inst = LlmAgent(
     output_key=grounding_agent.output_key,
     generate_content_config=grounding_agent.generate_content_config,
     before_model_callback=grounding_agent.before_model_callback,
+    after_model_callback=grounding_agent.after_model_callback,
 )
 
 # Subprocess driver is NOT an LlmAgent — clone manually
@@ -208,6 +220,7 @@ design_compliance_inst = LlmAgent(
     output_key="update_compliance_review",
     tools=[load_master_process_json,log_compliance_metadata],
     before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 # ---------------------------------------------------------
@@ -242,6 +255,7 @@ json_stop_agent_instance = Agent(
     tools=stop_controller_agent.tools,
     output_key=stop_controller_agent.output_key,
     before_model_callback=stop_controller_agent.before_model_callback,
+    after_model_callback=stop_controller_agent.after_model_callback,
 )
 
 json_update_normalization_loop = SequentialAgent(

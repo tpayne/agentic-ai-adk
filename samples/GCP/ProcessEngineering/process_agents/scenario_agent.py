@@ -10,7 +10,8 @@ from .utils import (
     load_instruction,
     load_full_process_context,
     getProperty,
-    review_messages
+    review_messages,
+    review_outputs
 )
 
 logger = logging.getLogger("ProcessArchitect.ScenarioTester")
@@ -26,4 +27,5 @@ scenario_tester_agent = LlmAgent(
     instruction=load_instruction("scenario_tester_agent.txt"),
     tools=[load_full_process_context],
     before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

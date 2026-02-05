@@ -640,30 +640,125 @@ def validate_instruction_files() -> bool:
         _log_agent_activity("All instruction files validated successfully.")
         return True
 
+# ---------------------------------------------------------------------
+# Shared cleaner
+# ---------------------------------------------------------------------
+import re
+
+def _clean_text(text: str) -> str:
+    if not text:
+        return ""
+
+    # 1. Strip "For context:" prefix from the start of any line
+    # (?m) enables multiline mode so ^ matches the start of every line
+    text = re.sub(r"(?m)^For context:\s*", "", text)
+
+    # 2. Strip ADK tool traces
+    # Remove system metadata lines entirely (called tool / returned result)
+    text = re.sub(r"(?m)^\[.*?\]\s*called tool `.*?` with parameters:.*\n?", "", text)
+    text = re.sub(r"(?m)^\[.*?\]\s*`.*?` tool returned result:.*\n?", "", text)
+    
+    # Remove only the prefix for "said:" to keep the actual message content
+    text = re.sub(r"(?m)^\[.*?\]\s*said:\s*", "", text)
+
+    # 3. Strip markdown fences
+    # Remove opening fences (e.g., ```json) and closing fences
+    text = re.sub(r"```[a-zA-Z]*\n?", "", text)
+    text = text.replace("```", "")
+
+    return text.strip()
+
+def _safe_clean(text: str) -> str:
+    cleaned = _clean_text(text)
+    return cleaned if cleaned.strip() else "<no-op>"
+
+STATUS_MARKERS = [
+    "JSON APPROVED",
+    "REVISION REQUIRED",
+    "COMPLIANCE APPROVED",
+    "SIMULATION_ALL_APPROVED",
+    "GROUNDING APPROVED"
+]
+
+def _is_status_marker(text: str) -> bool:
+    return any(marker in text for marker in STATUS_MARKERS)
+
+
+# ---------------------------------------------------------------------
+# BEFORE MODEL: scrub messages text (for logs / downstream agents)
+# ---------------------------------------------------------------------
+
 def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
-    if not llm_request.contents:
+    if not llm_request or not getattr(llm_request, "contents", None):
         return None
-    logger.debug("Review messages from LLM request...")
 
-    # Rebuild contents, but only drop if the text is exactly the tag 
-    # and there are no other parts (like JSON or Tool Calls) attached.
-    cleaned_contents = []
     for content in llm_request.contents:
-        keep_message = True
-        
+        if not hasattr(content, "parts"):
+            continue
+
         for part in content.parts:
-            # 1. Safety check: does 'text' even exist?
-            if part.text is not None:
-                # 2. Check if this specific text is the filter trigger
-                if "For context:" in part.text:
-                    # If it's just a context header, we mark it for removal
-                    # but only if it doesn't contain other vital data
-                    if len(content.parts) == 1:
-                        keep_message = False
-                        logger.debug("Review messages from LLM request - removing non-wanted text...")
+            # Only touch pure text parts
+            if hasattr(part, "text") and isinstance(part.text, str):
+                # Do NOT touch status markers
+                if _is_status_marker(part.text):
+                    continue
+                # Light clean only – no <no-op>, no dropping
+                cleaned = _clean_text(part.text)
+                part.text = cleaned if cleaned else part.text
 
-        if keep_message:
-            cleaned_contents.append(content)
-
-    llm_request.contents = cleaned_contents
     return None
+
+# ---------------------------------------------------------------------
+# AFTER MODEL: scrub outgoing text (for logs / downstream agents)
+# ---------------------------------------------------------------------
+def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
+    if not llm_response or not getattr(llm_response, "candidates", None):
+        return llm_response
+
+    for candidate in llm_response.candidates:
+        content = getattr(candidate, "content", None)
+        if not content or not hasattr(content, "parts"):
+            continue
+
+        for part in content.parts:
+            if (
+                hasattr(part, "text")
+                and isinstance(part.text, str)
+                and len(part.__dict__.keys()) == 1
+            ):
+                if _is_status_marker(part.text):
+                    continue
+                cleaned = _clean_text(part.text)
+                if cleaned:
+                    part.text = cleaned
+
+    return llm_response
+
+class CleanedStdout:
+    def __init__(self, path: str):
+        self.file = open(path, "w", encoding="utf-8")
+
+    def write(self, text):
+        try:
+            # Convert bytes → str safely
+            if isinstance(text, bytes):
+                text = text.decode("utf-8", errors="replace")
+
+            from .utils import _clean_text, _is_status_marker
+
+            # Preserve status markers exactly
+            if _is_status_marker(text):
+                self.file.write(text)
+                return
+
+            cleaned = _clean_text(text)
+            self.file.write(cleaned)
+
+        except Exception:
+            # Fallback: write raw text (converted to str if needed)
+            if isinstance(text, bytes):
+                text = text.decode("utf-8", errors="replace")
+            self.file.write(text)
+
+    def flush(self):
+        self.file.flush()

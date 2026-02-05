@@ -9,7 +9,8 @@ from .utils import (
     load_instruction,
     save_iteration_feedback,
     getProperty,
-    review_messages
+    review_messages,
+    review_outputs
 )
 
 
@@ -37,7 +38,7 @@ def record_analysis_request(request: str):
 # -----------------------------
 analysis_agent = LlmAgent(
     name='Analysis_Agent',
-    model='gemini-2.0-flash-001',
+    model=getProperty("MODEL"),
     description='Performs deep analysis of process descriptions.',
     instruction=load_instruction("analysis_agent.txt"),
     tools=[
@@ -46,4 +47,5 @@ analysis_agent = LlmAgent(
         save_iteration_feedback
     ],
     before_model_callback=review_messages,
+    after_model_callback=review_outputs,
 )

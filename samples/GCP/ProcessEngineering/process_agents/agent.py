@@ -6,6 +6,13 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
+import pkgutil 
+import google 
+import google.adk 
+
+google.__path__ = pkgutil.extend_path(google.__path__, google.__name__)
+google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name__)
+
 # Load variables from .env file into os.environ
 load_dotenv()
 
@@ -15,11 +22,13 @@ if not os.getenv("GOOGLE_API_KEY"):
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 
 # Import sub-agents
-from .consultant_agent import consultant_agent
-from .create_process_agent import full_design_pipeline
-from .scenario_agent import scenario_tester_agent
-from .update_process_agent import update_design_pipeline
-from .simulation_agent import simulation_query_agent
+from .agent_registry import (
+    full_design_pipeline,
+    consultant_agent,
+    scenario_tester_agent,
+    update_design_pipeline,
+    simulation_query_agent,
+)
 
 from .utils import load_instruction
 from .utils import validate_instruction_files
@@ -101,6 +110,77 @@ root_agent = LlmAgent(
     ]
 )
 
+# ---------------------------------------------------------
+# LOCAL CHAT LOOP SUPPORT (run outside `adk run`)
+# ---------------------------------------------------------
+
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+
+from google.genai import types
+
+import asyncio
+import uuid
+
+async def start_local_chat():
+    """
+    Runs the Process Architect Orchestrator in an interactive loop.
+    Exits when the user types 'exit', 'quit', or 'stop'.
+    """
+
+    print("\nProcess Architect Orchestrator (local mode)")
+    print("Type 'exit' to quit.\n")
+
+    # Create a persistent session for the entire chat
+    user_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+
+    session_service = InMemorySessionService()
+    await session_service.create_session(
+        app_name="ProcessArchitect",
+        user_id=user_id,
+        session_id=session_id,
+        state={}
+    )
+
+    runner = Runner(
+        agent=root_agent,
+        app_name="ProcessArchitect",
+        session_service=session_service
+    )
+
+    while True:
+        user_input = input("[user]: ").strip()
+
+        if user_input.lower() in ["exit", "quit", "stop"]:
+            print("Exiting Process Architect Orchestrator.")
+            break
+
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=user_input)]
+        )
+
+        events = runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content
+        )
+
+        final_response = None
+
+        async for event in events:
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
+
+        if final_response:
+            print(f"\nArchitect: {final_response}\n")
+        else:
+            print("\nArchitect: [No final response]\n")
+
+# ---------------------------------------------------------
+# MAIN EXECUTION BLOCK
+# ---------------------------------------------------------
 if __name__ == "__main__":
     logger.debug("Pipeline initialized and ready for execution.")
-    print("Automated Standard Pipeline Initialized. Logs writing to output/logs/")
+    asyncio.run(start_local_chat())

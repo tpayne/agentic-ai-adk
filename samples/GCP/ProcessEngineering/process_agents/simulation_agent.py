@@ -16,7 +16,8 @@ from .utils import (
     load_master_process_json,
     save_iteration_feedback,
     getProperty,
-    review_messages
+    review_messages,
+    review_outputs
 )
 
 import time
@@ -451,7 +452,8 @@ simulation_agent = LlmAgent(
         top_p=1,
     ),
     instruction=load_instruction("simulation_agent.txt"),
-    before_model_callback=review_messages
+    before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )
 
 simulation_query_agent = LlmAgent(
@@ -469,4 +471,5 @@ simulation_query_agent = LlmAgent(
     ),
     instruction=load_instruction("simulation_query_agent.txt"),
     before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

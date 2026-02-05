@@ -9,7 +9,9 @@ from .utils import (
     load_master_process_json,
     load_iteration_feedback,
     save_iteration_feedback,
-    review_messages
+    review_messages,
+    review_outputs,
+    getProperty
 )
 
 import json
@@ -30,7 +32,7 @@ def exit_loop(tool_context: ToolContext):
 # -----------------------------
 json_review_agent = LlmAgent(
     name='Json_Review_Agent',
-    model='gemini-2.0-flash-001',
+    model=getProperty("MODEL"),
     description='Review JSON for validity, compliance, and best practices.',
     include_contents="default",
     tools=[
@@ -45,4 +47,5 @@ json_review_agent = LlmAgent(
         top_p=1,
     ),
     before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

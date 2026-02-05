@@ -13,7 +13,8 @@ from .utils import (
     load_master_process_json,
     load_iteration_feedback,
     persist_final_json,
-    review_messages
+    review_messages,
+    review_outputs
 )
 
 import time
@@ -35,5 +36,6 @@ json_writer_agent = Agent(
         load_iteration_feedback,
     ],
     before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )
 

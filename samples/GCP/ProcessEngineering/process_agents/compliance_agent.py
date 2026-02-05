@@ -28,7 +28,7 @@ def log_compliance_metadata(status: str):
 # -----------------------------
 compliance_agent = LlmAgent(
     name='Compliance_Review_Agent',
-    model='gemini-2.0-flash-001',
+    model=getProperty("MODEL"),
     description='Audits processes against sector best practices.',
     instruction=load_instruction("compliance_agent.txt"),
     tools=[

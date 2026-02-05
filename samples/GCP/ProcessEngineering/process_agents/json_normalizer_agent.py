@@ -9,7 +9,8 @@ from .utils import (
     persist_final_json,
     load_iteration_feedback,
     getProperty,
-    review_messages
+    review_messages,
+    review_outputs
 )
 
 import json
@@ -40,4 +41,5 @@ json_normalizer_agent = LlmAgent(
         top_p=1,
     ),
     before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

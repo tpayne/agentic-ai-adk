@@ -14,7 +14,8 @@ logger = logging.getLogger("ProcessArchitect.UtilsAgent")
 
 from .utils import (
     load_instruction,
-    getProperty
+    getProperty,
+    CleanedStdout
 )
 
 from .design_agent import design_agent
@@ -106,9 +107,9 @@ def silence_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")
     print(f"\033[92m- Starting process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...\033[0m", end="\n")
-    sys.stdout.flush() 
+    sys.stdout.flush()
     output_file = os.path.join(log_dir, "runtime_outputs.log")
-    sys.stdout = open(output_file, "w")
+    sys.stdout = CleanedStdout(output_file)
     return "Console output silenced."
 
 def restore_console():
@@ -116,7 +117,7 @@ def restore_console():
     logger.debug("Restoring console output.")
     sys.stdout = sys.__stdout__
     print(f"\033[92m- Finished process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...\033[0m", end="\n")
-    sys.stdout.flush() 
+    sys.stdout.flush()
     return "Console output restored."
 
 mute_agent = Agent( 

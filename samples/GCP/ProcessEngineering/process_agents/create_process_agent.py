@@ -51,6 +51,7 @@ design_instance = LlmAgent(
     generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
     before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 design_compliance_instance = Agent(
@@ -61,6 +62,7 @@ design_compliance_instance = Agent(
     tools=design_agent.tools,
     output_key=design_agent.output_key,
     before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 design_simulation_instance = Agent(
@@ -70,7 +72,8 @@ design_simulation_instance = Agent(
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
-    before_model_callback=design_agent.before_model_callback
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
 design_grounding_instance = Agent(
@@ -80,8 +83,10 @@ design_grounding_instance = Agent(
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
-    before_model_callback=design_agent.before_model_callback
-)
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
+) 
+
 
 # ---------- Add Stop_Controller FIRST in the loop stage ----------
 review_loop = LoopAgent(
@@ -104,13 +109,24 @@ review_loop = LoopAgent(
     max_iterations=SAFE_LOOP_ITERS
 )
 
+json_stop_agent = Agent(
+    name="JSON_Review_Stop_Controller",
+    model=stop_controller_agent.model,
+    description=stop_controller_agent.description,
+    instruction=stop_controller_agent.instruction,
+    tools=stop_controller_agent.tools,
+    output_key=stop_controller_agent.output_key,
+    before_model_callback=stop_controller_agent.before_model_callback,
+    after_model_callback=stop_controller_agent.after_model_callback,
+)
+
 # JSON Normalization → Review loop
 json_normalization_loop = SequentialAgent(
     name="JSON_Normalization_Retry_Loop",
     sub_agents=[
         LoopAgent(
             name="Normalizer_Review_Sequence",
-            sub_agents=[json_normalizer_agent, json_review_agent],
+            sub_agents=[json_normalizer_agent, json_review_agent, json_stop_agent],
             max_iterations=SAFE_LOOP_ITERS
         ),
         json_writer_agent
