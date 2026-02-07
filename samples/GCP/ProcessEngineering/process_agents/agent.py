@@ -16,8 +16,18 @@ google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name
 # Load variables from .env file into os.environ
 load_dotenv()
 
-if not os.getenv("GOOGLE_API_KEY"):
-    raise EnvironmentError("GOOGLE_API_KEY is not set in environment variables.")
+
+if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID"):
+    os.environ["ADK_MODEL_PROVIDER"] = "vertex"
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"  # Multi-region for higher quota
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+    os.environ["GOOGLE_CLOUD_PROJECT"] = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID")
+    if not os.environ["GOOGLE_CLOUD_PROJECT"]:
+        raise EnvironmentError("Vertex AI requires GOOGLE_CLOUD_PROJECT to be set in your .env")
+elif os.getenv("GOOGLE_API_KEY"):
+    os.environ["ADK_MODEL_PROVIDER"] = "api_key"
+else:
+    raise EnvironmentError("Either GOOGLE_CLOUD_PROJECT (for Vertex) or GOOGLE_API_KEY must be set in environment variables.")
 
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 
