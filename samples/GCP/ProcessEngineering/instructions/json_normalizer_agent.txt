@@ -230,7 +230,7 @@ You MUST transform the input into this EXACT schema:
   ],
   "governance_requirements": ["string"],
   "change_management": [
-    { "change_request_process": "string", "versioning_rules": "string"} 
+    { "change_request_process": "string", "versioning_rules": "string"}
   ],
   "continuous_improvement": [
     { "review_frequency": "string", "improvement_inputs": ["string"] }

@@ -184,6 +184,7 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         if allow_insecure:
             logger.warning("TLS verification failed. Retrying with verify=False (INSECURE!)")
             try:
+                time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
                 if method == "GET":
                     resp = session.get(url, params=params, timeout=timeout, verify=False)
                 else:
@@ -201,6 +202,7 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         return {"ok": False, "error": f"TLS verification failed: {ssl_err}"}
 
     except Exception as e:
+        time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
         logger.error(f"Perform OpenAPI call error: {e}")
         return {"ok": False, "error": str(e)}
 

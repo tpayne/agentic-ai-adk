@@ -165,20 +165,121 @@ Evaluate the loaded JSON against ALL of the following. ANY violation requires RE
          REVISION REQUIRED
      with at least one issue in data[] describing the missing field and its JSON path.
 
-3. ENRICHMENT
+3. SCHEMA DEFINITION
+   - The schema definition for the JSON is as below.
+   - You MUST validate that the JSON complies with this schema
+
+  {
+    "process_name": "string",
+    "industry_sector": "string",
+    "version": "string",
+    "introduction": "string",
+    "stakeholders": [
+      {
+        "stakeholder_name": "string",
+        "role": "string",
+        "responsibilities": ["string"]
+      }
+    ],
+    "process_steps": [
+      {
+        "step_name": "string",
+        "description": "string",
+        "responsible_party": "string",
+        "estimated_duration": "string",
+        "deliverables": ["string"],
+        "inputs": ["string"],
+        "outputs": ["string"],
+        "dependencies": ["string"],
+        "success_criteria": ["string"],
+        "purpose": "string",
+        "scope": "string",
+        "process_owner": "string",
+        "process_triggers": ["string"],
+        "process_end_conditions": ["string"],
+        "step_risks_and_controls": [
+          { "risk": "string", "control": "string" }
+        ],
+        "governance_requirements": ["string"],
+        "change_management": [
+          {
+            "change_request_process": "string",
+            "versioning_rules": "string"
+          }
+        ],
+        "continuous_improvement": [
+          {
+            "review_frequency": "string",
+            "improvement_inputs": ["string"]
+          }
+        ]
+      }
+    ],
+    "tools_summary": [
+      {
+        "category": "string",
+        "tools": ["string"]
+      }
+    ],
+    "metrics": [
+      { "name": "string", "description": "string", "measurement_frequency": "string", "target": "string" }
+    ],
+    "critical_success_factors": [
+      { "name": "string", "description": "string" }
+    ],
+    "critical_failure_factors": [
+      { "name": "string", "description": "string" }
+    ],
+    "reporting_and_analytics": [
+      {
+        "metric": "string",
+        "description": "string"
+      }
+    ],
+    "system_requirements": [
+      {
+        "name": "string",
+        "details": "string"
+      }
+    ],
+    "assumptions": ["string"],
+    "constraints": ["string"],
+    "appendix": {},
+    "purpose": "string",
+    "scope": "string",
+    "process_owner": "string",
+    "process_triggers": ["string"],
+    "process_end_conditions": ["string"],
+    "risks_and_controls": [
+      { "risk": "string", "control": "string" }
+    ],
+    "governance_requirements": ["string"],
+    "change_management": [
+      { "change_request_process": "string", "versioning_rules": "string"}
+    ],
+    "continuous_improvement": [
+      { "review_frequency": "string", "improvement_inputs": ["string"] }
+    ]
+  }
+
+   - If ANY field is inconsistent with the definition, this is a SCHEMA error and MUST trigger:
+         REVISION REQUIRED
+     with at least one issue in data[] describing the schema error and its JSON path.
+
+4. ENRICHMENT
    - introduction and all description fields MUST be multi-sentence professional paragraphs.
    - Bullet points MUST be rejected in these fields.
    - If enrichment issues exist, set error_type to "enrichment".
 
-4. STAKEHOLDERS
+5. STAKEHOLDERS
    - Every stakeholder MUST have a detailed list of responsibilities.
    - If stakeholder responsibilities are missing or trivial, set error_type to "stakeholders".
 
-5. CONSISTENCY
+6. CONSISTENCY
    - Every tool referenced in process_steps MUST appear in tools_summary.
    - If inconsistencies exist, set error_type to "consistency".
 
-6. QUALITY
+7. QUALITY
    - Grammar MUST be professional.
    - Tone MUST be professional and consistent.
    - Flow MUST be coherent and logically structured.

@@ -266,7 +266,9 @@ def _save_raw_data_to_json(json_content) -> str:
                     rf.write(raw_str)
                 return (
                     "ERROR: Critical structural failure in JSON payload. "
-                    f"Raw JSON written to {raw_path}."
+                    f"Raw JSON written to {raw_path}. "
+                    f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                    f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
                 )
 
         if parsed is None:
@@ -275,8 +277,10 @@ def _save_raw_data_to_json(json_content) -> str:
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
-                "ERROR: Unable to obtain valid JSON. "
-                f"Raw JSON written to {raw_path}."
+                "ERROR: The JSON to persist was not valid. "
+                f"Raw JSON written to {raw_path}. "
+                f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
             )
 
         if _validate_process_json(parsed) is None:
@@ -286,7 +290,9 @@ def _save_raw_data_to_json(json_content) -> str:
                 rf.write(raw_str)
             return (
                 "ERROR: The JSON to persist was not valid. "
-                f"Raw JSON written to {raw_path}."
+                f"Raw JSON written to {raw_path}. "
+                f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
             )
 
         # 5. Final write of clean, repaired JSON
