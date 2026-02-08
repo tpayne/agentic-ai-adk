@@ -10,16 +10,23 @@ import pkgutil
 import google 
 import google.adk 
 
+from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+
 google.__path__ = pkgutil.extend_path(google.__path__, google.__name__)
 google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name__)
 
-# Load variables from .env file into os.environ
-load_dotenv()
+from .utils import (
+    load_instruction,
+    validate_instruction_files,
+    getProperty,
+)
 
+# Load variables from .env file of env into os.environ
+load_dotenv()
 
 if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID"):
     os.environ["ADK_MODEL_PROVIDER"] = "vertex"
-    os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"  # Multi-region for higher quota
+    os.environ["GOOGLE_CLOUD_LOCATION"] = getProperty("GOOGLE_CLOUD_LOCATION", default="us-central1")  # Multi-region for higher quota
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
     os.environ["GOOGLE_CLOUD_PROJECT"] = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID")
     if not os.environ["GOOGLE_CLOUD_PROJECT"]:
@@ -28,21 +35,6 @@ elif os.getenv("GOOGLE_API_KEY"):
     os.environ["ADK_MODEL_PROVIDER"] = "api_key"
 else:
     raise EnvironmentError("Either GOOGLE_CLOUD_PROJECT (for Vertex) or GOOGLE_API_KEY must be set in environment variables.")
-
-from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
-
-# Import sub-agents
-from .agent_registry import (
-    full_design_pipeline,
-    consultant_agent,
-    scenario_tester_agent,
-    update_design_pipeline,
-    simulation_query_agent,
-)
-
-from .utils import load_instruction
-from .utils import validate_instruction_files
-from .utils import getProperty
 
 # ---------------------------------------------------------
 # LOGGING SETUP
@@ -84,6 +76,15 @@ if os.path.exists(runtime_file):
 
 sys.stderr = open(runtime_file, "a")
 
+# Import sub-agents after logging is set up to ensure they use the same logger configuration
+from .agent_registry import (
+    full_design_pipeline,
+    consultant_agent,
+    scenario_tester_agent,
+    update_design_pipeline,
+    simulation_query_agent,
+)
+
 # Validate instruction files before proceeding
 logger.debug("Validating instruction files...")
 if not validate_instruction_files():
@@ -95,6 +96,11 @@ logger.debug("Pipeline initialised...")
 # Signal handler for abnormal errors
 def handler(signum, frame):
     signame= signal.Signals(signum).name
+    sys.stdout = sys.__stdout__
+    sys.stdout.flush()
+    print(f"\n\033[91m - Received signal {signame} ({signum}). Terminating Process Architect Orchestrator.\033[0m", end="\n")
+    sys.stderr = sys.__stderr__
+    sys.stderr.flush()
     logger.warning("Trapped signal %d", signum)
     sys.exit(1)
 
@@ -197,4 +203,5 @@ async def start_local_chat():
 # ---------------------------------------------------------
 if __name__ == "__main__":
     logger.debug("Pipeline initialized and ready for execution.")
+    print("\033[92m- Starting Process Architect Orchestrator in local chat mode...\033[0m", end="\n")
     asyncio.run(start_local_chat())

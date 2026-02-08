@@ -100,11 +100,14 @@ sub_agents = [
 ]
 
 if getProperty("enableGroundingAgent", default="true"):
+    logger.debug("Grounding agent ENABLED in design loop.")
     sub_agents += [
         grounding_agent,
         design_grounding_instance,
     ]
-
+else:
+    logger.debug("Grounding agent DISABLED in design loop.")
+    
 sub_agents.append(stop_controller_agent)
 
 review_loop = LoopAgent(

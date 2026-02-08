@@ -21,6 +21,12 @@ import random
 
 logger = logging.getLogger("ProcessArchitect.JsonReview")
 
+def log_review_metadata(goal_count: int):
+    """Internal tool to track extraction progress and CLEAN environment."""
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"Review Metadata - Goals Identified: {goal_count}.")
+    return f"JSON Review started with {goal_count} identified objectives."
+
 def exit_loop(tool_context: ToolContext):
     """Signals that the JSON has been reviewed and approved."""
     logger.debug("JSON Review Approved. Terminating normalization loop.")
@@ -40,6 +46,7 @@ json_review_agent = LlmAgent(
         load_iteration_feedback,
         load_master_process_json,
         save_iteration_feedback,
+        log_review_metadata
     ],
     instruction=load_instruction("json_review_agent.txt"),
     generate_content_config=types.GenerateContentConfig(

@@ -226,22 +226,33 @@ design_compliance_inst = LlmAgent(
 # ---------------------------------------------------------
 # RE-ASSEMBLE THE UPDATE PIPELINE
 # ---------------------------------------------------------
+# ---------- Add Stop_Controller FIRST in the loop stage ----------
+
+sub_update_agents = [
+    design_inst,
+    compliance_inst,
+    design_compliance_inst,
+    simulation_inst,
+    design_simulation_inst,
+]
+
+if getProperty("enableGroundingAgent", default="true"):
+    logger.debug("Grounding agent ENABLED in design loop.")
+    sub_update_agents += [
+        grounding_inst,
+        design_grounding_inst,
+    ]
+else:
+    logger.debug("Grounding agent DISABLED in design loop.")
+
+sub_update_agents.append(stop_controller_agent_instance)
 
 review_update_loop = LoopAgent(
     name="Update_Compliance_Loop",
     sub_agents=[
         SequentialAgent(
             name="Iterative_Update_Stage",
-            sub_agents=[
-                design_inst,
-                compliance_inst,
-                design_compliance_inst,
-                simulation_inst,
-                design_simulation_inst,
-                grounding_inst,
-                design_grounding_inst,
-                stop_controller_agent_instance,
-            ],
+            sub_agents=sub_update_agents,
         )
     ],
     max_iterations=getProperty("loopIterations"),

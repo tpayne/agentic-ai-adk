@@ -75,8 +75,10 @@ def stop_if_ready(tool_context: ToolContext):
     required = {
         "compliance_status": "APPROVED",
         "simulation_status": "APPROVED",
-        "grounding_status": "APPROVED",
     }
+
+    if (getProperty("enableGroundingAgent", default="true")): 
+        required["grounding_status"] = "APPROVED"
 
     if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
         tool_context.actions.escalate = True
