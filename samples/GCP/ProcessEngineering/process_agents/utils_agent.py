@@ -36,6 +36,12 @@ def _contains_marker(obj: Any, needle: str) -> bool:
         return any(_contains_marker(x, needle) for x in obj)
     return False
 
+def status_logger(goal_count: int):
+    """Internal tool to track progress."""
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"StopAgent - Logger Goals Identified: {goal_count}.")
+    return f"Logging status with {goal_count} identified objectives."
+
 def stop_if_ready(tool_context: ToolContext):
     """
     Hard stop if either:
@@ -72,7 +78,7 @@ def stop_if_ready(tool_context: ToolContext):
         "grounding_status": "APPROVED",
     }
 
-    if approval_state.get("status") == "JSON APPROVED":
+    if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
         tool_context.actions.escalate = True
         logger.debug("status=JSON APPROVED detected — exiting loop.")
         return "status=JSON APPROVED detected — exiting loop."
@@ -95,7 +101,7 @@ stop_controller_agent = Agent(
     model=design_agent.model,
     description="Exits the loop immediately when approvals are complete or kill-switch is set.",
     instruction=load_instruction("stop_controller_agent.txt"),
-    tools=[stop_if_ready],
+    tools=[status_logger,stop_if_ready],
 )
 
 # ---------- Mute agent to consume injected context silently ----------
