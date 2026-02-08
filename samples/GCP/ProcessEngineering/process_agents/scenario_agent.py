@@ -9,7 +9,9 @@ import random
 from .utils import (
     load_instruction,
     load_full_process_context,
-    getProperty
+    getProperty,
+    review_messages,
+    review_outputs
 )
 
 logger = logging.getLogger("ProcessArchitect.ScenarioTester")
@@ -23,6 +25,7 @@ scenario_tester_agent = LlmAgent(
     model=getProperty("MODEL"),
     description="Use this agent to test and simulate scenarios on EXISTING processes. It cannot create new processes.",
     instruction=load_instruction("scenario_tester_agent.txt"),
-    output_key="scenario_analysis",
-    tools=[load_full_process_context]
+    tools=[load_full_process_context],
+    before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

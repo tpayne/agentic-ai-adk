@@ -1,10 +1,14 @@
 # process_agents/create_process_agent.py
-from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+from webbrowser import get
+from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent, Agent
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 import time
 import logging
 import random
+import os
+import sys
+import json
 from typing import Any
 
 # Import sub-agents
@@ -19,7 +23,17 @@ from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
-from .utils import getProperty, load_iteration_feedback
+
+from .utils import (
+    getProperty, 
+    load_instruction,
+)
+
+from .utils_agent import (
+    mute_agent, 
+    unmute_agent, 
+    stop_controller_agent
+)
 
 logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 
@@ -28,56 +42,6 @@ logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 # Safe timebox for loops (correct key + default)
 SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=6))
 
-# ---------- Programmatic stop/kill-switch tool ----------
-def _contains_marker(obj: Any, needle: str) -> bool:
-    """Recursive search for case-insensitive needle in dict/list/str."""
-    if obj is None:
-        return False
-    if isinstance(obj, str):
-        return needle.lower() in obj.lower()
-    if isinstance(obj, dict):
-        return any(_contains_marker(v, needle) for v in obj.values())
-    if isinstance(obj, list):
-        return any(_contains_marker(x, needle) for x in obj)
-    return False
-
-def stop_if_ready(tool_context: ToolContext):
-    """
-    Hard stop if either:
-      - loopHardStop property is "true"/"1"/"on"; OR
-      - ALL three markers are present in the iteration feedback:
-        'COMPLIANCE APPROVED', 'SIMULATION_ALL_APPROVED', 'GROUNDING APPROVED'
-    """
-    hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
-    if hard_stop:
-        tool_context.actions.escalate = True
-        return "loopHardStop activated — exiting loop."
-
-    fb = load_iteration_feedback() or {}
-    approvals = [
-        "COMPLIANCE APPROVED",
-        "SIMULATION_ALL_APPROVED",
-        "GROUNDING APPROVED",
-    ]
-    if all(_contains_marker(fb, m) for m in approvals):
-        tool_context.actions.escalate = True
-        return "All approvals present — exiting loop."
-
-    return "Continue"
-
-# ---------- Minimal controller agent that ALWAYS calls the stop tool ----------
-stop_controller_agent = LlmAgent(
-    name="Stop_Controller",
-    model=design_agent.model,
-    description="Exits the loop immediately when approvals are complete or kill-switch is set.",
-    instruction=(
-        "Immediately CALL the tool 'stop_if_ready'. "
-        "Do not output any other text. If the tool indicates exit, do nothing else."
-    ),
-    tools=[stop_if_ready],
-    generate_content_config=types.GenerateContentConfig(temperature=0.0, top_p=0.0),
-)
-
 # ---------- Existing design agents ----------
 design_instance = LlmAgent(
     name=design_agent.name + '_Design_Instance',
@@ -85,55 +49,87 @@ design_instance = LlmAgent(
     description=design_agent.description,
     instruction=design_agent.instruction,
     tools=design_agent.tools,
+    generate_content_config=design_agent.generate_content_config,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
-design_compliance_instance = LlmAgent(
+design_compliance_instance = Agent(
     name=design_agent.name + '_Compliance_Instance',
     model=design_agent.model,
     description=design_agent.description,
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
-design_simulation_instance = LlmAgent(
+design_simulation_instance = Agent(
     name=design_agent.name + '_Simulation_Instance',
     model=design_agent.model,
     description=design_agent.description,
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
 )
 
-design_grounding_instance = LlmAgent(
+design_grounding_instance = Agent(
     name=design_agent.name + '_Grounding_Instance',
     model=design_agent.model,
     description=design_agent.description,
     instruction=design_agent.instruction,
     tools=design_agent.tools,
     output_key=design_agent.output_key,
-)
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback,
+) 
+
 
 # ---------- Add Stop_Controller FIRST in the loop stage ----------
+
+sub_agents = [
+    design_instance,
+    compliance_agent,
+    design_compliance_instance,
+    simulation_agent,
+    design_simulation_instance,
+]
+
+if getProperty("enableGroundingAgent", default="true"):
+    logger.debug("Grounding agent ENABLED in design loop.")
+    sub_agents += [
+        grounding_agent,
+        design_grounding_instance,
+    ]
+else:
+    logger.debug("Grounding agent DISABLED in design loop.")
+    
+sub_agents.append(stop_controller_agent)
+
 review_loop = LoopAgent(
     name="Design_Compliance_Loop",
     sub_agents=[
         SequentialAgent(
             name="Iterative_Design_Stage",
-            sub_agents=[
-                stop_controller_agent,      # runs first each iteration
-                design_instance,
-                compliance_agent,
-                design_compliance_instance,
-                simulation_agent,
-                design_simulation_instance,
-                grounding_agent,
-                design_grounding_instance,
-            ],
+            sub_agents=sub_agents,
         ),
     ],
     max_iterations=SAFE_LOOP_ITERS
+)
+
+json_stop_agent = Agent(
+    name="JSON_Review_Stop_Controller",
+    model=stop_controller_agent.model,
+    description=stop_controller_agent.description,
+    instruction=stop_controller_agent.instruction,
+    tools=stop_controller_agent.tools,
+    output_key=stop_controller_agent.output_key,
+    before_model_callback=stop_controller_agent.before_model_callback,
+    after_model_callback=stop_controller_agent.after_model_callback,
 )
 
 # JSON Normalization → Review loop
@@ -142,7 +138,7 @@ json_normalization_loop = SequentialAgent(
     sub_agents=[
         LoopAgent(
             name="Normalizer_Review_Sequence",
-            sub_agents=[json_normalizer_agent, json_review_agent],
+            sub_agents=[json_normalizer_agent, json_review_agent, json_stop_agent],
             max_iterations=SAFE_LOOP_ITERS
         ),
         json_writer_agent
@@ -157,11 +153,13 @@ full_design_pipeline = SequentialAgent(
     name="Full_Design_Pipeline",
     description="Use this tool ONLY when the user wants to CREATE, DESIGN, or GENERATE a new business process from scratch.",
     sub_agents=[
+        mute_agent,                # Mute console output
         analysis_agent,            # Stage 1: Requirements
         review_loop,               # Stage 2: Design/Audit Loop
         json_normalization_loop,   # Stage 3: Stabilization (writes process_data.json)
         subprocess_stage,          # Stage 4: Per-step subprocess generation (writes output/subprocesses/*.json)
         edge_inference_agent,      # Stage 5: Logical Flow
-        doc_generation_agent       # Stage 6: Artifact Build
+        doc_generation_agent,      # Stage 6: Artifact Build
+        unmute_agent               # Restore console output
     ]
 )

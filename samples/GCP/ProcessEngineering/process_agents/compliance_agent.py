@@ -13,7 +13,8 @@ from .utils import (
     load_master_process_json,
     load_iteration_feedback,
     save_iteration_feedback,
-    getProperty
+    getProperty,
+    review_messages
 )
 
 def log_compliance_metadata(status: str):
@@ -27,7 +28,7 @@ def log_compliance_metadata(status: str):
 # -----------------------------
 compliance_agent = LlmAgent(
     name='Compliance_Review_Agent',
-    model='gemini-2.0-flash-001',
+    model=getProperty("MODEL"),
     description='Audits processes against sector best practices.',
     instruction=load_instruction("compliance_agent.txt"),
     tools=[
@@ -40,5 +41,5 @@ compliance_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
-    output_key="compliance_report",
+    before_model_callback=review_messages,
 )

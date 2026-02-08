@@ -10,6 +10,13 @@ import logging
 import configparser
 from typing import Any, Union
 
+from typing import Optional
+
+from google.adk.models import LlmResponse, LlmRequest
+from google.adk.agents import callback_context
+from google.adk.agents.callback_context import CallbackContext
+from google.genai import types
+
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -259,7 +266,9 @@ def _save_raw_data_to_json(json_content) -> str:
                     rf.write(raw_str)
                 return (
                     "ERROR: Critical structural failure in JSON payload. "
-                    f"Raw JSON written to {raw_path}."
+                    f"Raw JSON written to {raw_path}. "
+                    f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                    f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
                 )
 
         if parsed is None:
@@ -268,8 +277,10 @@ def _save_raw_data_to_json(json_content) -> str:
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
-                "ERROR: Unable to obtain valid JSON. "
-                f"Raw JSON written to {raw_path}."
+                "ERROR: The JSON to persist was not valid. "
+                f"Raw JSON written to {raw_path}. "
+                f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
             )
 
         if _validate_process_json(parsed) is None:
@@ -279,7 +290,9 @@ def _save_raw_data_to_json(json_content) -> str:
                 rf.write(raw_str)
             return (
                 "ERROR: The JSON to persist was not valid. "
-                f"Raw JSON written to {raw_path}."
+                f"Raw JSON written to {raw_path}. "
+                f"Your last output was corrupted/truncated. You MUST reload the previous valid "
+                f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
             )
 
         # 5. Final write of clean, repaired JSON
@@ -396,10 +409,23 @@ def load_iteration_feedback() -> dict:
 
 def save_iteration_feedback(feedback_data: Any):
     """
-    Saves iteration feedback to disk. 
-    Ensures that the 'data' field is saved as a clean JSON list/object, 
+    Saves iteration feedback to disk.
+    Ensures that the 'data' field is saved as a clean JSON list/object,
     not a stringified representation.
+
+    Additionally:
+    - If the incoming feedback contains any APPROVED markers:
+        * COMPLIANCE APPROVED
+        * SIMULATION_ALL_APPROVED
+        * GROUNDING APPROVED
+        * JSON APPROVED
+      Then update output/approval.json with the corresponding keys:
+        * "compliance_status": "APPROVED"
+        * "simulation_status": "APPROVED"
+        * "grounding_status": "APPROVED"
+        * "json_status": "APPROVED"
     """
+
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
     _safe_sleep_from_property("modelSleep", default=0.25)
 
@@ -410,33 +436,91 @@ def save_iteration_feedback(feedback_data: Any):
     # Artificial delay to prevent API burst issues in the loop
     _safe_sleep_from_property("modelSleep", default=0.25)
 
-    # 1. Clean the incoming data
+    # --- Clean incoming data ---
     processed_data = feedback_data
     if isinstance(feedback_data, str):
         try:
-            # Normalize common LLM output issues (single quotes)
             normalized_str = feedback_data.replace("'", '"')
             processed_data = json.loads(normalized_str)
         except Exception:
-            # If parsing fails, treat it as a raw comment string
             processed_data = feedback_data
 
-    # Determine status based on presence of feedback or approval markers
-    status = "REVISION REQUIRED"
-    if not processed_data or (isinstance(processed_data, dict) and processed_data.get("status") == "JSON APPROVED"):
-        status = "JSON APPROVED"
+    # Capture inner status BEFORE we mutate processed_data
+    inner_status = None
+    if isinstance(processed_data, dict):
+        inner_status = processed_data.get("status")
 
-    payload = {
-        "status": status,
-        "data": processed_data  # Saved as a clean JSON structure
+    # --- Update cumulative approval state ---
+    approval_markers = {
+        "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
+        "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
+        "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
+        "JSON APPROVED": ("status", "JSON APPROVED"),
     }
 
+    # Convert feedback to string for scanning
+    feedback_str = (
+        json.dumps(processed_data)
+        if not isinstance(processed_data, str)
+        else processed_data
+    )
+
+    matched = [key for key in approval_markers if key in feedback_str]
+
+    if matched:
+        approval_path = os.path.join(output_dir, "approval.json")
+
+        # Load existing approval state or create new
+        if os.path.exists(approval_path):
+            try:
+                with open(approval_path, "r", encoding="utf-8") as f:
+                    approval_state = json.load(f)
+            except Exception:
+                approval_state = {}
+        else:
+            approval_state = {}
+
+        # Apply updates
+        for marker in matched:
+            key, value = approval_markers[marker]
+            approval_state[key] = value
+
+        # Persist updated approval state
+        with open(approval_path, "w", encoding="utf-8") as f:
+            json.dump(approval_state, f, indent=2)
+
+    # --- Determine top-level status ---
+    # Default: revision required
+    status = "REVISION REQUIRED"
+
+    # If the agent explicitly set a status we recognise, respect it
+    approved_statuses = {
+        "JSON APPROVED",
+        "COMPLIANCE APPROVED",
+        "SIMULATION_ALL_APPROVED",
+        "GROUNDING APPROVED",
+    }
+    if inner_status in approved_statuses:
+        status = inner_status
+
+    # --- Remove nested status to avoid duplicate keys in final JSON ---
+    if isinstance(processed_data, dict) and "status" in processed_data:
+        processed_data = {k: v for k, v in processed_data.items() if k != "status"}
+
+    # --- Build final payload ---
+    payload = {
+        "status": status,
+        "data": processed_data,
+    }
+
+    # --- Save iteration_feedback.json ---
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk  ---")
+        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk ---")
         return f"SUCCESS: Feedback persisted to {path}"
+
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
@@ -561,3 +645,126 @@ def validate_instruction_files() -> bool:
     else:
         _log_agent_activity("All instruction files validated successfully.")
         return True
+
+# ---------------------------------------------------------------------
+# Shared cleaner
+# ---------------------------------------------------------------------
+import re
+
+def _clean_text(text: str) -> str:
+    if not text:
+        return ""
+
+    # 1. Strip "For context:" prefix from the start of any line
+    # (?m) enables multiline mode so ^ matches the start of every line
+    text = re.sub(r"(?m)^For context:\s*", "", text)
+
+    # 2. Strip ADK tool traces
+    # Remove system metadata lines entirely (called tool / returned result)
+    text = re.sub(r"(?m)^\[.*?\]\s*called tool `.*?` with parameters:.*\n?", "", text)
+    text = re.sub(r"(?m)^\[.*?\]\s*`.*?` tool returned result:.*\n?", "", text)
+    
+    # Remove only the prefix for "said:" to keep the actual message content
+    text = re.sub(r"(?m)^\[.*?\]\s*said:\s*", "", text)
+
+    # 3. Strip markdown fences
+    # Remove opening fences (e.g., ```json) and closing fences
+    text = re.sub(r"```[a-zA-Z]*\n?", "", text)
+    text = text.replace("```", "")
+
+    return text.strip()
+
+def _safe_clean(text: str) -> str:
+    cleaned = _clean_text(text)
+    return cleaned if cleaned.strip() else "<no-op>"
+
+STATUS_MARKERS = [
+    "JSON APPROVED",
+    "REVISION REQUIRED",
+    "COMPLIANCE APPROVED",
+    "SIMULATION_ALL_APPROVED",
+    "GROUNDING APPROVED"
+]
+
+def _is_status_marker(text: str) -> bool:
+    return any(marker in text for marker in STATUS_MARKERS)
+
+
+# ---------------------------------------------------------------------
+# BEFORE MODEL: scrub messages text (for logs / downstream agents)
+# ---------------------------------------------------------------------
+
+def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    if not llm_request or not getattr(llm_request, "contents", None):
+        return None
+
+    for content in llm_request.contents:
+        if not hasattr(content, "parts"):
+            continue
+
+        for part in content.parts:
+            # Only touch pure text parts
+            if hasattr(part, "text") and isinstance(part.text, str):
+                # Do NOT touch status markers
+                if _is_status_marker(part.text):
+                    continue
+                # Light clean only – no <no-op>, no dropping
+                cleaned = _clean_text(part.text)
+                part.text = cleaned if cleaned else part.text
+
+    return None
+
+# ---------------------------------------------------------------------
+# AFTER MODEL: scrub outgoing text (for logs / downstream agents)
+# ---------------------------------------------------------------------
+def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
+    if not llm_response or not getattr(llm_response, "candidates", None):
+        return llm_response
+
+    for candidate in llm_response.candidates:
+        content = getattr(candidate, "content", None)
+        if not content or not hasattr(content, "parts"):
+            continue
+
+        for part in content.parts:
+            if (
+                hasattr(part, "text")
+                and isinstance(part.text, str)
+                and len(part.__dict__.keys()) == 1
+            ):
+                if _is_status_marker(part.text):
+                    continue
+                cleaned = _clean_text(part.text)
+                if cleaned:
+                    part.text = cleaned
+
+    return llm_response
+
+class CleanedStdout:
+    def __init__(self, path: str):
+        self.file = open(path, "w", encoding="utf-8")
+
+    def write(self, text):
+        try:
+            # Convert bytes → str safely
+            if isinstance(text, bytes):
+                text = text.decode("utf-8", errors="replace")
+
+            from .utils import _clean_text, _is_status_marker
+
+            # Preserve status markers exactly
+            if _is_status_marker(text):
+                self.file.write(text)
+                return
+
+            cleaned = _clean_text(text)
+            self.file.write(cleaned)
+
+        except Exception:
+            # Fallback: write raw text (converted to str if needed)
+            if isinstance(text, bytes):
+                text = text.decode("utf-8", errors="replace")
+            self.file.write(text)
+
+    def flush(self):
+        self.file.flush()

@@ -27,7 +27,7 @@ def _add_bullet(doc, text, indent=False):
         p.paragraph_format.left_indent = Inches(0.3)
     p.add_run(f"• {text}")
 
-def apply_iso_table_formatting(table: docx.table.Table) -> None:
+def apply_iso_table_formatting(table: docx.table.Table, document: docx.Document) -> None:
     """
     Apply a consistent ISO-style formatting to a table:
     - Calibri body style via Normal
@@ -50,12 +50,16 @@ def apply_iso_table_formatting(table: docx.table.Table) -> None:
                 shd.set(qn("w:fill"), "D9D9D9")  # light grey
                 tcPr.append(shd)
 
+        # Cache the Normal style once
+        normal_style = document.styles["Normal"]
+
         # Ensure all paragraphs use Normal style for font consistency
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     if p.style is None or p.style.name == "Normal":
-                        p.style = table._tbl.doc.styles["Normal"]
+                        p.style = normal_style
+
     except Exception:
         traceback.print_exc()
 
@@ -91,7 +95,7 @@ def _add_version_history_table(doc: docx.Document, version: str, author: str) ->
         row_cells[2].text = str(author)
         row_cells[3].text = "Initial generated process specification"
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()  # spacer
     except Exception:
         traceback.print_exc()

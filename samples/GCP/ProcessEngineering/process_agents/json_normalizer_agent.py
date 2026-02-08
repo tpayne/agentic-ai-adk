@@ -8,7 +8,9 @@ from .utils import (
     load_master_process_json,
     persist_final_json,
     load_iteration_feedback,
-    getProperty
+    getProperty,
+    review_messages,
+    review_outputs
 )
 
 import json
@@ -20,6 +22,12 @@ import random
 
 logger = logging.getLogger("ProcessArchitect.JsonNormalizer")
 
+def log_normalization_metadata(goal_count: int):
+    """Internal tool to track extraction progress and CLEAN environment."""
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+    logger.debug(f"Normalization Metadata - Goals Identified: {goal_count}.")
+    return f"JSON Normalization started with {goal_count} identified objectives."
+
 # -----------------------------
 # JSON NORMALIZER AGENT
 # -----------------------------
@@ -29,7 +37,8 @@ json_normalizer_agent = LlmAgent(
     tools=[
         load_master_process_json,
         persist_final_json,
-        load_iteration_feedback
+        load_iteration_feedback,
+        log_normalization_metadata
     ],
     include_contents="default",
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",
@@ -38,4 +47,6 @@ json_normalizer_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
+    before_model_callback=review_messages,
+    after_model_callback=review_outputs
 )

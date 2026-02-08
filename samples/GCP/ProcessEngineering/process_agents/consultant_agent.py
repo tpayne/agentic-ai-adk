@@ -9,7 +9,8 @@ import random
 from .utils import (
     load_instruction,
     load_full_process_context,
-    getProperty
+    getProperty,
+    review_messages
 )
 
 logger = logging.getLogger("ProcessArchitect.Consultant")
@@ -25,4 +26,5 @@ consultant_agent = LlmAgent(
     instruction=load_instruction("consultant_agent.txt"),
     output_key="consultant_advice",
     tools=[load_full_process_context],
+    before_model_callback=review_messages,
 )

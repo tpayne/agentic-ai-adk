@@ -93,7 +93,7 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
                             line = f"{line} – {sm['description']}"
                         p.add_run(f"• {line}\n")
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
 
     except Exception:
@@ -154,7 +154,7 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
                     else:
                         row[idx].text = str(val)
 
-            apply_iso_table_formatting(table)
+            apply_iso_table_formatting(table, doc)
             doc.add_paragraph()
             return
 
@@ -273,7 +273,7 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
                 else:
                     row[1].text = str(val)
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
 
         # Bottlenecks
@@ -299,7 +299,7 @@ def _add_simulation_report(doc: docx.Document, simulation_results: dict) -> None
                 except:
                     row[1].text = str(avg)
 
-            apply_iso_table_formatting(table2)
+            apply_iso_table_formatting(table2, doc)
             doc.add_paragraph()
 
         # Recommendations
@@ -341,7 +341,7 @@ def _add_tools_section_from_summary(doc: docx.Document, tools_summary) -> None:
             else:
                 row_cells[1].text = str(tools)
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
 
     except Exception:

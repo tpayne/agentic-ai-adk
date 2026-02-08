@@ -135,7 +135,7 @@ def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
             else:
                 row[1].text = str(responsibilities)
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
 
     except Exception:
@@ -436,7 +436,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
                 else:
                     row[i].text = str(v)
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
         return
 
@@ -460,7 +460,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
             else:
                 row[1].text = str(v)
 
-        apply_iso_table_formatting(table)
+        apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
         return
 

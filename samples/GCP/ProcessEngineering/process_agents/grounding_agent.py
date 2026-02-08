@@ -26,7 +26,9 @@ from .utils import (
     load_instruction,
     load_master_process_json,
     save_iteration_feedback,
-    getProperty
+    getProperty,
+    review_messages,
+    review_outputs
 )
 
 # Conditionally suppress InsecureRequestWarning ONLY if you’ve explicitly allowed insecure HTTPS.
@@ -126,6 +128,8 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     """
     Executes an OpenAPI call based on a JSON request string.
     """
+    time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
+
     try:
         request = json.loads(request_json)
     except Exception as e:
@@ -180,6 +184,7 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         if allow_insecure:
             logger.warning("TLS verification failed. Retrying with verify=False (INSECURE!)")
             try:
+                time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
                 if method == "GET":
                     resp = session.get(url, params=params, timeout=timeout, verify=False)
                 else:
@@ -197,6 +202,7 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         return {"ok": False, "error": f"TLS verification failed: {ssl_err}"}
 
     except Exception as e:
+        time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
         logger.error(f"Perform OpenAPI call error: {e}")
         return {"ok": False, "error": str(e)}
 
@@ -219,4 +225,6 @@ grounding_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
+    before_model_callback=review_messages,
+    after_model_callback=review_outputs,
 )
