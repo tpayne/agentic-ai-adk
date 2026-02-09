@@ -1,0 +1,22 @@
+{
+  "avg_cycle_time": 19.950218512380822,
+  "cycle_time_variance": 1.6383599299523453,
+  "time_unit": "weeks",
+  "bottlenecks": [
+    "3. Information Systems Architecture",
+    "4. Technology Architecture",
+    "2. Business Architecture"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "1. Architecture Vision": 1.32908383611823,
+    "2. Business Architecture": 2.663930978243229,
+    "3. Information Systems Architecture": 3.9832037640723086,
+    "4. Technology Architecture": 2.670208181153372,
+    "5. Opportunities & Solutions": 2.6616010991239887,
+    "6. Migration Planning": 2.6313298753548584,
+    "7. Implementation Governance": 1.3310688735737597,
+    "8. Architecture Change Management": 1.338975619545363,
+    "9. Architecture Monitoring": 1.3408162851957144
+  }
+}

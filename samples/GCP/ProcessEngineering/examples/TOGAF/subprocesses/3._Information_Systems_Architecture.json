@@ -1,0 +1,169 @@
+{
+  "step_name": "3. Information Systems Architecture",
+  "subprocess_flow": [
+    {
+      "substep_name": "3.1 Define Application Portfolio",
+      "description": "Identify and document all applications within the enterprise. This involves gathering information on each application's purpose, functionality, technical specifications, and business value. The application portfolio will serve as a baseline for future architectural decisions.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Business Architecture Document",
+        "Existing Application Inventory (if available)"
+      ],
+      "outputs": [
+        "Draft Application Portfolio"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive list of all enterprise applications",
+        "Each application's purpose and functionality are clearly documented"
+      ],
+      "purpose": "To create a comprehensive inventory of all applications within the enterprise.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Major system upgrades",
+        "New application requests"
+      ],
+      "end_conditions": [
+        "Draft Application Portfolio completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete application inventory",
+          "control": "Cross-validation with IT and business stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Application performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "3.2 Develop Data Model",
+      "description": "Create a conceptual and logical data model that represents the data entities, attributes, and relationships within the enterprise. This involves analyzing the data requirements of the business and defining a standardized data structure. The data model will ensure data consistency and integrity across applications.",
+      "responsible_party": "Data Architect",
+      "inputs": [
+        "Business Architecture Document",
+        "Draft Application Portfolio",
+        "Existing Data Models (if available)"
+      ],
+      "outputs": [
+        "Draft Data Model"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "3.1 Define Application Portfolio"
+      ],
+      "success_criteria": [
+        "Comprehensive data model that represents all key data entities",
+        "Data entities, attributes, and relationships are clearly defined"
+      ],
+      "purpose": "To define a standardized data structure for the enterprise.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Major system upgrades",
+        "New application requests",
+        "Data integration projects"
+      ],
+      "end_conditions": [
+        "Draft Data Model completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inconsistent data definitions",
+          "control": "Data governance policies and standards"
+        }
+      ],
+      "governance_requirements": [
+        "Data Governance Committee review",
+        "Architecture Review Board review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Data quality metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "3.3 Map Applications to Data Model",
+      "description": "Map the applications in the application portfolio to the data entities in the data model. This involves identifying which applications use which data entities and how the data flows between applications. This mapping will help identify data silos and integration opportunities.",
+      "responsible_party": "Solution Architect",
+      "inputs": [
+        "Draft Application Portfolio",
+        "Draft Data Model"
+      ],
+      "outputs": [
+        "Application-Data Mapping Document"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "3.2 Develop Data Model"
+      ],
+      "success_criteria": [
+        "Complete mapping of applications to data entities",
+        "Data flows between applications are clearly documented"
+      ],
+      "purpose": "To understand how applications use and share data.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Major system upgrades",
+        "New application requests",
+        "Data integration projects"
+      ],
+      "end_conditions": [
+        "Application-Data Mapping Document completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate application-data mapping",
+          "control": "Validation with application owners and data stewards"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Data integration project outcomes"
+          ]
+        }
+      ]
+    }
+  ]
+}

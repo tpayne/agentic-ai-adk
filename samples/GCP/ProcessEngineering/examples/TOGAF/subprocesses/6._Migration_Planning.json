@@ -1,0 +1,258 @@
+{
+  "step_name": "6. Migration Planning",
+  "subprocess_flow": [
+    {
+      "substep_name": "6.1 Define Migration Scope",
+      "description": "Clearly define the scope of the migration, including the systems, applications, and data to be migrated. This involves identifying the boundaries of the migration effort and setting realistic expectations. The scope should align with the overall project goals and the solutions architecture document.",
+      "responsible_party": "Project Manager",
+      "inputs": [
+        "Solutions Architecture Document"
+      ],
+      "outputs": [
+        "Migration Scope Definition"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Clearly defined migration scope",
+        "Alignment with project goals"
+      ],
+      "purpose": "To establish the boundaries and focus of the migration effort.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Project initiation"
+      ],
+      "end_conditions": [
+        "Approved Migration Scope Definition"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Scope creep",
+          "control": "Formal scope change request process"
+        }
+      ],
+      "governance_requirements": [
+        "Project Management Office approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "6.2 Assess Current Environment",
+      "description": "Evaluate the current IT environment to understand its complexity and identify potential migration challenges. This includes assessing the existing infrastructure, applications, and data, as well as any dependencies or integrations. The assessment should provide a clear picture of the current state and inform the migration strategy.",
+      "responsible_party": "Technical Lead",
+      "inputs": [
+        "Migration Scope Definition"
+      ],
+      "outputs": [
+        "Current Environment Assessment Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "6.1 Define Migration Scope"
+      ],
+      "success_criteria": [
+        "Comprehensive assessment of current environment",
+        "Identification of migration challenges"
+      ],
+      "purpose": "To understand the current IT environment and identify potential migration challenges.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Approved Migration Scope Definition"
+      ],
+      "end_conditions": [
+        "Completed Current Environment Assessment Report"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate assessment",
+          "control": "Peer review of assessment report"
+        }
+      ],
+      "governance_requirements": [
+        "Technical review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "6.3 Develop Migration Strategy",
+      "description": "Create a detailed migration strategy that outlines the approach, timeline, and resources required for the migration. This involves selecting the appropriate migration method (e.g., lift and shift, re-platform, re-architect), defining the migration phases, and identifying any dependencies or constraints. The strategy should be realistic and achievable, considering the current environment and project goals.",
+      "responsible_party": "Solutions Architect",
+      "inputs": [
+        "Current Environment Assessment Report"
+      ],
+      "outputs": [
+        "Migration Strategy Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "6.2 Assess Current Environment"
+      ],
+      "success_criteria": [
+        "Realistic and achievable migration strategy",
+        "Alignment with project goals and current environment"
+      ],
+      "purpose": "To define the approach, timeline, and resources required for the migration.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Completed Current Environment Assessment Report"
+      ],
+      "end_conditions": [
+        "Approved Migration Strategy Document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unrealistic strategy",
+          "control": "Review by experienced migration consultants"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "6.4 Create Migration Schedule",
+      "description": "Develop a detailed migration schedule that outlines the tasks, dependencies, and timelines for each phase of the migration. This involves breaking down the migration strategy into smaller, manageable tasks, assigning resources, and estimating the duration of each task. The schedule should be realistic and achievable, considering any dependencies or constraints.",
+      "responsible_party": "Project Manager",
+      "inputs": [
+        "Migration Strategy Document"
+      ],
+      "outputs": [
+        "Migration Schedule"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "6.3 Develop Migration Strategy"
+      ],
+      "success_criteria": [
+        "Realistic and achievable migration schedule",
+        "Clear task assignments and timelines"
+      ],
+      "purpose": "To outline the tasks, dependencies, and timelines for each phase of the migration.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Approved Migration Strategy Document"
+      ],
+      "end_conditions": [
+        "Approved Migration Schedule"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Schedule delays",
+          "control": "Regular schedule monitoring and updates"
+        }
+      ],
+      "governance_requirements": [
+        "Project Management Office review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "6.5 Allocate Resources",
+      "description": "Identify and allocate the resources required for the migration, including personnel, hardware, software, and budget. This involves determining the skills and expertise needed for each phase of the migration, securing the necessary resources, and assigning them to specific tasks. Resource allocation should align with the migration schedule and project goals.",
+      "responsible_party": "Resource Manager",
+      "inputs": [
+        "Migration Schedule"
+      ],
+      "outputs": [
+        "Resource Allocation Plan"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "6.4 Create Migration Schedule"
+      ],
+      "success_criteria": [
+        "Adequate resource allocation",
+        "Alignment with migration schedule and project goals"
+      ],
+      "purpose": "To identify and allocate the resources required for the migration.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Approved Migration Schedule"
+      ],
+      "end_conditions": [
+        "Approved Resource Allocation Plan"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Resource constraints",
+          "control": "Contingency planning for resource shortages"
+        }
+      ],
+      "governance_requirements": [
+        "Resource Management Office review"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ]
+    }
+  ]
+}

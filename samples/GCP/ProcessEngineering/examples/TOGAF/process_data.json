@@ -1,0 +1,748 @@
+{
+  "system_requirements": [
+    {
+      "details": "A central repository for storing architecture artifacts.",
+      "name": "Architecture repository"
+    },
+    {
+      "name": "Modeling tools",
+      "details": "Tools for creating architecture models."
+    },
+    {
+      "details": "A platform for collaboration among stakeholders.",
+      "name": "Collaboration platform"
+    },
+    {
+      "details": "A workflow engine for managing architecture processes.",
+      "name": "Workflow engine"
+    },
+    {
+      "name": "Reporting and analytics tools",
+      "details": "Tools for reporting and analyzing architecture data."
+    }
+  ],
+  "appendix": {},
+  "stakeholders": [
+    {
+      "responsibilities": [
+        "Define and maintain the enterprise architecture",
+        "Ensure alignment of IT with business strategy",
+        "Oversee architecture governance"
+      ],
+      "stakeholder_name": "Enterprise Architect",
+      "role": "Enterprise Architect"
+    },
+    {
+      "responsibilities": [
+        "Develop and implement software products",
+        "Adhere to architectural standards",
+        "Coordinate dependencies with other teams"
+      ],
+      "role": "Development Teams",
+      "stakeholder_name": "Development Teams"
+    },
+    {
+      "stakeholder_name": "Architecture Review Board",
+      "responsibilities": [
+        "Review and approve architectural designs",
+        "Enforce architectural standards",
+        "Resolve architectural conflicts"
+      ],
+      "role": "Architecture Review Board"
+    },
+    {
+      "responsibilities": [
+        "Define product vision and roadmap",
+        "Prioritize features",
+        "Manage product backlog"
+      ],
+      "role": "Product Owners",
+      "stakeholder_name": "Product Owners"
+    },
+    {
+      "responsibilities": [
+        "Plan and execute projects",
+        "Manage resources",
+        "Track progress"
+      ],
+      "role": "Project Managers",
+      "stakeholder_name": "Project Managers"
+    }
+  ],
+  "metrics": [
+    {
+      "measurement_frequency": "Monthly",
+      "target": "Less than 5",
+      "name": "Number of architecture violations",
+      "description": "Number of deviations from the defined architecture."
+    },
+    {
+      "measurement_frequency": "Quarterly",
+      "name": "Time to market for new products",
+      "description": "Time taken to release new products.",
+      "target": "Reduce by 10%"
+    },
+    {
+      "target": "90% alignment",
+      "name": "Level of alignment between IT and business strategy",
+      "measurement_frequency": "Annually",
+      "description": "Degree to which IT initiatives support business goals."
+    },
+    {
+      "name": "Team satisfaction with the architecture process",
+      "description": "Satisfaction level of development teams with the architecture process.",
+      "measurement_frequency": "Annually",
+      "target": "4 out of 5"
+    },
+    {
+      "measurement_frequency": "Monthly",
+      "name": "Number of approved architecture changes",
+      "target": "Greater than 10",
+      "description": "Number of architecture changes approved by the Architecture Review Board."
+    }
+  ],
+  "version": "1.0",
+  "industry_sector": "Technology",
+  "process_owner": "Enterprise Architect",
+  "process_name": "TOGAF Enterprise Architecture Management",
+  "tools_summary": [
+    {
+      "category": "Architecture Modeling",
+      "tools": [
+        "Enterprise Architect",
+        "Archi"
+      ]
+    },
+    {
+      "category": "Collaboration",
+      "tools": [
+        "Confluence",
+        "SharePoint"
+      ]
+    },
+    {
+      "category": "Project Management",
+      "tools": [
+        "Jira",
+        "Asana"
+      ]
+    }
+  ],
+  "governance_requirements": [
+    "Architecture Review Board approval",
+    "Compliance audits",
+    "Regular architecture reviews"
+  ],
+  "critical_failure_factors": [
+    {
+      "name": "Lack of communication",
+      "description": "Poor communication among stakeholders."
+    },
+    {
+      "description": "Weak governance processes.",
+      "name": "Poor governance"
+    },
+    {
+      "name": "Resistance to change",
+      "description": "Resistance from stakeholders."
+    },
+    {
+      "name": "Inadequate resources",
+      "description": "Insufficient resources for the architecture process."
+    },
+    {
+      "name": "Lack of alignment",
+      "description": "Misalignment with business strategy."
+    }
+  ],
+  "continuous_improvement": [
+    {
+      "review_frequency": "Regular architecture reviews",
+      "improvement_inputs": [
+        "Feedback from stakeholders",
+        "Performance monitoring"
+      ]
+    }
+  ],
+  "introduction": "This document outlines the TOGAF-based Enterprise Architecture Management process for managing integrated products across different teams and cadences.",
+  "assumptions": [
+    "Stakeholders are committed to the architecture process",
+    "Adequate resources are available",
+    "The business strategy is stable"
+  ],
+  "constraints": [
+    "Regulatory compliance requirements (e.g., data privacy laws)",
+    "Budget limitations for architecture tools and training",
+    "Resource constraints in terms of skilled architects and developers"
+  ],
+  "process_steps": [
+    {
+      "dependencies": [],
+      "process_owner": "Enterprise Architect",
+      "process_triggers": [
+        "New product development",
+        "Major system upgrades"
+      ],
+      "inputs": [
+        "Business Strategy",
+        "IT Strategy"
+      ],
+      "purpose": "To establish the foundation for the architecture effort.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Misalignment with business strategy",
+          "control": "Regular reviews with business stakeholders"
+        }
+      ],
+      "outputs": [
+        "Architecture Principles",
+        "Scope of Architecture"
+      ],
+      "scope": "Enterprise-wide",
+      "process_end_conditions": [
+        "Approved Architecture Vision Document"
+      ],
+      "step_name": "1. Architecture Vision",
+      "success_criteria": [
+        "Clearly defined business goals and strategic drivers"
+      ],
+      "description": "Define the business goals, strategic drivers, and constraints.",
+      "deliverables": [
+        "Architecture Vision Document"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ],
+          "review_frequency": "Annually"
+        }
+      ],
+      "responsible_party": "Enterprise Architect",
+      "estimated_duration": "1 week"
+    },
+    {
+      "purpose": "To understand the business context for the architecture.",
+      "step_risks_and_controls": [
+        {
+          "control": "Validation with business stakeholders",
+          "risk": "Inaccurate business model"
+        }
+      ],
+      "scope": "Enterprise-wide",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ],
+          "review_frequency": "Annually"
+        }
+      ],
+      "inputs": [
+        "Architecture Vision Document"
+      ],
+      "process_owner": "Enterprise Architect",
+      "responsible_party": "Enterprise Architect",
+      "deliverables": [
+        "Business Architecture Document"
+      ],
+      "process_triggers": [
+        "Business strategy changes"
+      ],
+      "dependencies": [
+        "1. Architecture Vision"
+      ],
+      "step_name": "2. Business Architecture",
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "process_end_conditions": [
+        "Approved Business Architecture Document"
+      ],
+      "estimated_duration": "2 weeks",
+      "outputs": [
+        "Business Capabilities Model",
+        "Value Stream Map"
+      ],
+      "description": "Develop a business architecture that describes the organization’s structure, processes, and capabilities.",
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "success_criteria": [
+        "Comprehensive understanding of the business architecture"
+      ]
+    },
+    {
+      "process_end_conditions": [
+        "Approved Information Systems Architecture Document"
+      ],
+      "estimated_duration": "3 weeks",
+      "outputs": [
+        "Application Portfolio",
+        "Data Model"
+      ],
+      "step_name": "3. Information Systems Architecture",
+      "inputs": [
+        "Business Architecture Document"
+      ],
+      "process_triggers": [
+        "Major system upgrades"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "scope": "Enterprise-wide",
+      "step_risks_and_controls": [
+        {
+          "risk": "Data silos",
+          "control": "Data governance policies"
+        }
+      ],
+      "description": "Develop an information systems architecture that describes the data, applications, and technology that support the business.",
+      "purpose": "To define the information systems that support the business.",
+      "process_owner": "Enterprise Architect",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ],
+          "review_frequency": "Annually"
+        }
+      ],
+      "success_criteria": [
+        "Well-defined information systems architecture"
+      ],
+      "dependencies": [
+        "2. Business Architecture"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "responsible_party": "Enterprise Architect",
+      "deliverables": [
+        "Information Systems Architecture Document"
+      ]
+    },
+    {
+      "step_name": "4. Technology Architecture",
+      "description": "Develop a technology architecture that describes the hardware, software, and infrastructure that support the information systems.",
+      "outputs": [
+        "Technology Standards",
+        "Infrastructure Diagram"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ],
+          "review_frequency": "Annually"
+        }
+      ],
+      "process_end_conditions": [
+        "Approved Technology Architecture Document"
+      ],
+      "purpose": "To define the technology infrastructure that supports the information systems.",
+      "process_owner": "Enterprise Architect",
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Technology obsolescence",
+          "control": "Regular technology reviews"
+        }
+      ],
+      "process_triggers": [
+        "Technology upgrades"
+      ],
+      "success_criteria": [
+        "Robust and scalable technology architecture"
+      ],
+      "responsible_party": "Enterprise Architect",
+      "estimated_duration": "2 weeks",
+      "scope": "Enterprise-wide",
+      "dependencies": [
+        "3. Information Systems Architecture"
+      ],
+      "deliverables": [
+        "Technology Architecture Document"
+      ],
+      "inputs": [
+        "Information Systems Architecture Document"
+      ]
+    },
+    {
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ],
+      "inputs": [
+        "Technology Architecture Document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Thorough evaluation process",
+          "risk": "Selection of inappropriate solution"
+        }
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "success_criteria": [
+        "Identification of viable solutions"
+      ],
+      "estimated_duration": "2 weeks",
+      "step_name": "5. Opportunities & Solutions",
+      "deliverables": [
+        "Solutions Architecture Document"
+      ],
+      "process_owner": "Enterprise Architect",
+      "purpose": "To identify and evaluate potential solutions.",
+      "dependencies": [
+        "4. Technology Architecture"
+      ],
+      "outputs": [
+        "Solution Options",
+        "Cost-Benefit Analysis"
+      ],
+      "process_end_conditions": [
+        "Approved Solutions Architecture Document"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "responsible_party": "Enterprise Architect",
+      "description": "Identify and evaluate potential solutions that meet the business needs.",
+      "scope": "Project-specific",
+      "process_triggers": [
+        "New product development"
+      ]
+    },
+    {
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-migration",
+          "improvement_inputs": [
+            "Lessons learned"
+          ]
+        }
+      ],
+      "success_criteria": [
+        "Realistic and achievable migration plan"
+      ],
+      "description": "Develop a plan for migrating to the new architecture.",
+      "outputs": [
+        "Migration Schedule",
+        "Resource Allocation"
+      ],
+      "process_end_conditions": [
+        "Approved Migration Plan Document"
+      ],
+      "deliverables": [
+        "Migration Plan Document"
+      ],
+      "process_triggers": [
+        "Project initiation"
+      ],
+      "dependencies": [
+        "5. Opportunities & Solutions"
+      ],
+      "responsible_party": "Project Manager",
+      "purpose": "To plan the migration to the new architecture.",
+      "governance_requirements": [
+        "Project Management Office approval"
+      ],
+      "scope": "Project-specific",
+      "step_risks_and_controls": [
+        {
+          "control": "Contingency planning",
+          "risk": "Migration delays"
+        }
+      ],
+      "step_name": "6. Migration Planning",
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "inputs": [
+        "Solutions Architecture Document"
+      ],
+      "process_owner": "Project Manager",
+      "estimated_duration": "2 weeks"
+    },
+    {
+      "inputs": [
+        "Migration Plan Document"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board oversight"
+      ],
+      "success_criteria": [
+        "Successful implementation of the new architecture"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "scope": "Project-specific",
+      "process_triggers": [
+        "Project execution"
+      ],
+      "step_name": "7. Implementation Governance",
+      "purpose": "To ensure compliance with the architecture during implementation.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Compliance data"
+          ]
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Architecture violations",
+          "control": "Regular compliance checks"
+        }
+      ],
+      "outputs": [
+        "Architecture Compliance",
+        "Risk Mitigation"
+      ],
+      "process_owner": "Architecture Review Board",
+      "process_end_conditions": [
+        "Compliant implementation"
+      ],
+      "deliverables": [
+        "Compliance Reports"
+      ],
+      "responsible_party": "Architecture Review Board",
+      "description": "Oversee the implementation of the new architecture.",
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "6. Migration Planning"
+      ]
+    },
+    {
+      "scope": "Enterprise-wide",
+      "step_risks_and_controls": [
+        {
+          "control": "Change management process",
+          "risk": "Uncontrolled changes"
+        }
+      ],
+      "outputs": [
+        "Approved Changes",
+        "Architecture Updates"
+      ],
+      "deliverables": [
+        "Change Requests",
+        "Updated Architecture Documents"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Change request data"
+          ]
+        }
+      ],
+      "success_criteria": [
+        "Controlled and documented changes to the architecture"
+      ],
+      "estimated_duration": "Ongoing",
+      "purpose": "To manage changes to the architecture in a controlled manner.",
+      "step_name": "8. Architecture Change Management",
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "process_triggers": [
+        "Change requests"
+      ],
+      "inputs": [
+        "Implementation Feedback"
+      ],
+      "dependencies": [
+        "7. Implementation Governance"
+      ],
+      "process_end_conditions": [
+        "Approved and implemented changes"
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "process_owner": "Enterprise Architect",
+      "responsible_party": "Enterprise Architect",
+      "description": "Manage changes to the architecture."
+    },
+    {
+      "purpose": "To continuously improve the architecture.",
+      "dependencies": [
+        "8. Architecture Change Management"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Major.Minor.Patch",
+          "change_request_process": "Formal change request process"
+        }
+      ],
+      "responsible_party": "Enterprise Architect",
+      "success_criteria": [
+        "Proactive identification of areas for improvement"
+      ],
+      "deliverables": [
+        "Monitoring Reports"
+      ],
+      "description": "Continuously monitor the architecture and identify areas for improvement.",
+      "governance_requirements": [
+        "Regular reporting"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Stagnant architecture",
+          "control": "Regular monitoring and reviews"
+        }
+      ],
+      "step_name": "9. Architecture Monitoring",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Monitoring data"
+          ]
+        }
+      ],
+      "process_owner": "Enterprise Architect",
+      "process_triggers": [
+        "Regular reviews"
+      ],
+      "outputs": [
+        "Improvement Recommendations"
+      ],
+      "estimated_duration": "Ongoing",
+      "inputs": [
+        "Architecture Updates"
+      ],
+      "process_end_conditions": [
+        "Identified improvement areas"
+      ],
+      "scope": "Enterprise-wide"
+    }
+  ],
+  "change_management": [
+    {
+      "versioning_rules": "Major.Minor.Patch",
+      "change_request_process": "Formal change request process"
+    }
+  ],
+  "critical_success_factors": [
+    {
+      "description": "Executive support for the architecture process.",
+      "name": "Strong leadership support"
+    },
+    {
+      "name": "Clear communication",
+      "description": "Effective communication of architecture principles and standards."
+    },
+    {
+      "name": "Effective governance",
+      "description": "Robust governance processes for architecture compliance."
+    },
+    {
+      "description": "Collaboration among stakeholders.",
+      "name": "Collaboration"
+    },
+    {
+      "name": "Automation",
+      "description": "Automation of architecture compliance checks."
+    }
+  ],
+  "reporting_and_analytics": [
+    {
+      "description": "Reports on compliance with architecture standards.",
+      "metric": "Architecture compliance reports"
+    },
+    {
+      "metric": "Project status reports",
+      "description": "Reports on the status of projects implementing the architecture."
+    },
+    {
+      "metric": "Risk assessments",
+      "description": "Assessments of architectural risks."
+    },
+    {
+      "description": "Dashboards displaying key architecture metrics.",
+      "metric": "Performance dashboards"
+    },
+    {
+      "description": "Reports on architecture changes.",
+      "metric": "Change management reports"
+    }
+  ],
+  "process_triggers": [
+    "New product development",
+    "Major system upgrades",
+    "Business strategy changes",
+    "Regulatory changes"
+  ],
+  "purpose": "To manage the enterprise architecture for different integrated products, ensuring alignment with business strategy and coordination among development teams.",
+  "risks_and_controls": [
+    {
+      "risk": "Architecture violations",
+      "control": "Automated compliance checks"
+    },
+    {
+      "control": "Regular architecture reviews",
+      "risk": "Lack of alignment with business strategy"
+    },
+    {
+      "control": "Communication and training",
+      "risk": "Resistance to change"
+    }
+  ],
+  "scope": "The entire enterprise, including all business units, IT systems, and development teams.",
+  "process_end_conditions": [
+    "The new architecture is implemented and operational",
+    "The business goals are achieved",
+    "The architectural risks are mitigated"
+  ]
+}

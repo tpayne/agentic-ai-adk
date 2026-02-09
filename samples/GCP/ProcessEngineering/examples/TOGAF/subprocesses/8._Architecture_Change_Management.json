@@ -1,0 +1,468 @@
+{
+  "step_name": "8. Architecture Change Management",
+  "subprocess_flow": [
+    {
+      "substep_name": "8.1. Change Request Submission",
+      "description": "The process begins with the submission of a formal change request. This request should clearly outline the proposed change to the architecture, the rationale behind it, and the potential impact on existing systems and business processes. The requestor must provide sufficient detail to allow for a thorough evaluation of the change.",
+      "responsible_party": "Requestor (e.g., Development Team, Product Owner)",
+      "inputs": [],
+      "outputs": [
+        "Change Request"
+      ],
+      "estimated_duration": "1-2 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Complete and well-documented change request submitted"
+      ],
+      "purpose": "To formally initiate the change management process.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Identification of a needed architecture change"
+      ],
+      "end_conditions": [
+        "Change request is formally submitted and logged"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or poorly defined change requests",
+          "control": "Standardized change request template and guidelines"
+        }
+      ],
+      "governance_requirements": [
+        "Change request must adhere to the organization's change management policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Change request data",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.2. Initial Impact Assessment",
+      "description": "Upon receiving the change request, an initial impact assessment is conducted by the Enterprise Architect. This assessment aims to identify the potential impact of the proposed change on various aspects of the architecture, including systems, data, and business processes. The assessment also considers the dependencies and potential risks associated with the change.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Change Request"
+      ],
+      "outputs": [
+        "Initial Impact Assessment Report"
+      ],
+      "estimated_duration": "2-4 hours",
+      "dependencies": [
+        "8.1. Change Request Submission"
+      ],
+      "success_criteria": [
+        "Comprehensive initial impact assessment completed"
+      ],
+      "purpose": "To understand the potential impact of the proposed change.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Receipt of a change request"
+      ],
+      "end_conditions": [
+        "Initial impact assessment report is generated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate or incomplete impact assessment",
+          "control": "Experienced architects and thorough review process"
+        }
+      ],
+      "governance_requirements": [
+        "Impact assessment must be documented and auditable"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Impact assessment data",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.3. Architecture Review Board (ARB) Review",
+      "description": "The change request and the initial impact assessment are then presented to the Architecture Review Board (ARB) for review. The ARB evaluates the proposed change against the enterprise architecture principles, standards, and roadmap. They assess the alignment of the change with the business strategy and its potential impact on the overall architecture.",
+      "responsible_party": "Architecture Review Board",
+      "inputs": [
+        "Change Request",
+        "Initial Impact Assessment Report"
+      ],
+      "outputs": [
+        "ARB Review Decision (Approval, Rejection, or Revision Required)"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "8.2. Initial Impact Assessment"
+      ],
+      "success_criteria": [
+        "ARB review completed and decision documented"
+      ],
+      "purpose": "To ensure alignment with architecture principles and standards.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Completion of initial impact assessment"
+      ],
+      "end_conditions": [
+        "ARB decision is formally documented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "ARB decision not aligned with business strategy",
+          "control": "Regular communication between ARB and business stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "ARB review must be documented and auditable"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "ARB review data",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.4. Change Implementation Planning",
+      "description": "If the ARB approves the change, a detailed implementation plan is developed. This plan outlines the specific steps required to implement the change, the resources needed, the timeline for implementation, and the testing and validation procedures. The plan also addresses any potential risks and mitigation strategies.",
+      "responsible_party": "Project Manager / Development Team",
+      "inputs": [
+        "ARB Review Decision (Approval)",
+        "Change Request",
+        "Initial Impact Assessment Report"
+      ],
+      "outputs": [
+        "Change Implementation Plan"
+      ],
+      "estimated_duration": "1-2 weeks",
+      "dependencies": [
+        "8.3. Architecture Review Board (ARB) Review"
+      ],
+      "success_criteria": [
+        "Detailed and realistic implementation plan created"
+      ],
+      "purpose": "To create a roadmap for implementing the approved change.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "ARB approval of the change request"
+      ],
+      "end_conditions": [
+        "Change implementation plan is finalized and approved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unrealistic or incomplete implementation plan",
+          "control": "Experienced project managers and thorough review process"
+        }
+      ],
+      "governance_requirements": [
+        "Implementation plan must be approved by relevant stakeholders"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-implementation",
+          "improvement_inputs": [
+            "Lessons learned",
+            "Implementation data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.5. Change Implementation",
+      "description": "The approved change is then implemented according to the implementation plan. This involves making the necessary modifications to the architecture, systems, and data. Throughout the implementation process, regular monitoring and communication are maintained to ensure that the change is implemented correctly and on schedule.",
+      "responsible_party": "Development Team",
+      "inputs": [
+        "Change Implementation Plan"
+      ],
+      "outputs": [
+        "Implemented Change"
+      ],
+      "estimated_duration": "Varies (depending on the complexity of the change)",
+      "dependencies": [
+        "8.4. Change Implementation Planning"
+      ],
+      "success_criteria": [
+        "Change implemented according to the implementation plan"
+      ],
+      "purpose": "To execute the approved change.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Approval of the change implementation plan"
+      ],
+      "end_conditions": [
+        "Change is fully implemented and tested"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Implementation errors or delays",
+          "control": "Experienced development team and regular monitoring"
+        }
+      ],
+      "governance_requirements": [
+        "Implementation must adhere to the organization's development standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-implementation",
+          "improvement_inputs": [
+            "Implementation data",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.6. Testing and Validation",
+      "description": "After implementation, the change is thoroughly tested and validated to ensure that it functions as expected and does not negatively impact existing systems or data. Testing includes functional testing, performance testing, and security testing. Any issues identified during testing are addressed and resolved.",
+      "responsible_party": "Quality Assurance Team",
+      "inputs": [
+        "Implemented Change"
+      ],
+      "outputs": [
+        "Test Results",
+        "Validation Report"
+      ],
+      "estimated_duration": "1-2 weeks",
+      "dependencies": [
+        "8.5. Change Implementation"
+      ],
+      "success_criteria": [
+        "Change thoroughly tested and validated"
+      ],
+      "purpose": "To ensure the quality and stability of the implemented change.",
+      "scope": "Project-specific",
+      "process_owner": "Project Manager",
+      "triggers": [
+        "Completion of change implementation"
+      ],
+      "end_conditions": [
+        "Validation report is generated and approved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected errors or vulnerabilities",
+          "control": "Comprehensive testing and validation procedures"
+        }
+      ],
+      "governance_requirements": [
+        "Testing must adhere to the organization's testing standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-implementation",
+          "improvement_inputs": [
+            "Test results",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.7. Documentation Update",
+      "description": "Once the change has been successfully tested and validated, the architecture documentation is updated to reflect the implemented change. This includes updating architecture diagrams, specifications, and other relevant documents. Accurate and up-to-date documentation is essential for maintaining the integrity of the architecture.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Validation Report",
+        "Change Implementation Plan"
+      ],
+      "outputs": [
+        "Updated Architecture Documents"
+      ],
+      "estimated_duration": "1-2 days",
+      "dependencies": [
+        "8.6. Testing and Validation"
+      ],
+      "success_criteria": [
+        "Architecture documentation accurately reflects the implemented change"
+      ],
+      "purpose": "To maintain accurate and up-to-date architecture documentation.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Successful validation of the implemented change"
+      ],
+      "end_conditions": [
+        "Architecture documentation is fully updated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Outdated or inaccurate documentation",
+          "control": "Regular documentation reviews and updates"
+        }
+      ],
+      "governance_requirements": [
+        "Documentation must adhere to the organization's documentation standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Documentation feedback",
+            "Usage data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.8. Communication and Training",
+      "description": "Relevant stakeholders are informed about the implemented change and provided with any necessary training or guidance. This ensures that stakeholders are aware of the change and can effectively utilize the updated architecture. Communication channels include email, meetings, and training sessions.",
+      "responsible_party": "Communication Team / Training Team",
+      "inputs": [
+        "Updated Architecture Documents"
+      ],
+      "outputs": [
+        "Communication Materials",
+        "Training Materials"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "8.7. Documentation Update"
+      ],
+      "success_criteria": [
+        "Stakeholders are informed and trained on the implemented change"
+      ],
+      "purpose": "To ensure stakeholders are aware of and can utilize the updated architecture.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Communication Manager / Training Manager",
+      "triggers": [
+        "Completion of documentation update"
+      ],
+      "end_conditions": [
+        "Communication and training activities are completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of awareness or understanding of the change",
+          "control": "Effective communication and training programs"
+        }
+      ],
+      "governance_requirements": [
+        "Communication and training activities must be documented"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from stakeholders",
+            "Training effectiveness data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "8.9. Post-Implementation Review",
+      "description": "A post-implementation review is conducted to evaluate the effectiveness of the change management process and the implemented change. This review assesses whether the change achieved its intended objectives, identified any unexpected issues, and identifies areas for improvement in the change management process. The findings of the review are documented and used to improve future change management activities.",
+      "responsible_party": "Enterprise Architect / Architecture Review Board",
+      "inputs": [
+        "Communication Materials",
+        "Training Materials",
+        "Implementation Feedback"
+      ],
+      "outputs": [
+        "Post-Implementation Review Report"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "8.8. Communication and Training"
+      ],
+      "success_criteria": [
+        "Post-implementation review completed and documented"
+      ],
+      "purpose": "To evaluate the effectiveness of the change and identify areas for improvement.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Completion of communication and training activities"
+      ],
+      "end_conditions": [
+        "Post-implementation review report is finalized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to identify areas for improvement",
+          "control": "Thorough and objective review process"
+        }
+      ],
+      "governance_requirements": [
+        "Review report must be approved by relevant stakeholders"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Review findings",
+            "Feedback from stakeholders"
+          ]
+        }
+      ]
+    }
+  ]
+}

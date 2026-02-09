@@ -1,0 +1,266 @@
+{
+  "step_name": "2. Business Architecture",
+  "subprocess_flow": [
+    {
+      "substep_name": "2.1. Define Business Scope",
+      "description": "Clearly define the scope of the business architecture effort, including the organizational units, geographies, and business functions to be covered. This involves identifying the key stakeholders and their expectations, as well as establishing the boundaries of the architecture domain. The scope should align with the architecture vision and strategic objectives.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Architecture Vision Document"
+      ],
+      "outputs": [
+        "Business Architecture Scope Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Clearly defined business architecture scope",
+        "Stakeholder alignment on scope"
+      ],
+      "purpose": "To establish the boundaries and focus of the business architecture effort.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Business strategy changes"
+      ],
+      "end_conditions": [
+        "Approved Business Architecture Scope Document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Scope creep",
+          "control": "Regular scope reviews with stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "2.2. Develop Capabilities Model",
+      "description": "Create a comprehensive business capabilities model that represents the organization\u2019s key functions and activities. This model should be hierarchical, with high-level capabilities decomposed into more granular sub-capabilities. The capabilities model should be technology-agnostic and focus on what the business does, not how it does it. It serves as a foundation for aligning IT investments with business strategy.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Business Architecture Scope Document"
+      ],
+      "outputs": [
+        "Business Capabilities Model"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "2.1. Define Business Scope"
+      ],
+      "success_criteria": [
+        "Comprehensive and accurate business capabilities model",
+        "Alignment with business strategy"
+      ],
+      "purpose": "To provide a structured view of the organization\u2019s business functions.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Business strategy changes"
+      ],
+      "end_conditions": [
+        "Approved Business Capabilities Model"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate capabilities model",
+          "control": "Validation with business stakeholders"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "2.3. Create Value Stream Map",
+      "description": "Develop a value stream map that illustrates the end-to-end flow of activities required to deliver value to customers. This map should identify the key steps, actors, and information flows involved in the value stream. It should also highlight any bottlenecks, inefficiencies, or pain points in the process. The value stream map provides insights into how the organization creates value and identifies opportunities for improvement.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Business Capabilities Model"
+      ],
+      "outputs": [
+        "Value Stream Map"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "2.2. Develop Capabilities Model"
+      ],
+      "success_criteria": [
+        "Accurate and detailed value stream map",
+        "Identification of key value streams"
+      ],
+      "purpose": "To visualize the flow of value creation within the organization.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Business strategy changes"
+      ],
+      "end_conditions": [
+        "Approved Value Stream Map"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Oversimplification of value streams",
+          "control": "Detailed analysis of value stream components"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "2.4. Analyze Business Processes",
+      "description": "Analyze the organization\u2019s key business processes to understand their structure, inputs, outputs, and dependencies. This analysis should identify any redundancies, inefficiencies, or gaps in the processes. It should also assess the alignment of the processes with the business capabilities and value streams. The process analysis provides insights into how the organization operates and identifies opportunities for process improvement and optimization.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Value Stream Map"
+      ],
+      "outputs": [
+        "Business Process Analysis Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "2.3. Create Value Stream Map"
+      ],
+      "success_criteria": [
+        "Comprehensive analysis of key business processes",
+        "Identification of process improvement opportunities"
+      ],
+      "purpose": "To understand and improve the organization\u2019s business processes.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Business strategy changes"
+      ],
+      "end_conditions": [
+        "Approved Business Process Analysis Report"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete process analysis",
+          "control": "Cross-functional process reviews"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "2.5. Document Business Architecture",
+      "description": "Compile all the artifacts and findings from the previous sub-steps into a comprehensive Business Architecture Document. This document should include the business architecture scope, capabilities model, value stream map, process analysis report, and any other relevant information. The document should be well-organized, clearly written, and easily accessible to stakeholders. It serves as a reference guide for understanding the organization\u2019s business architecture and aligning IT investments with business strategy.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Business Architecture Scope Document",
+        "Business Capabilities Model",
+        "Value Stream Map",
+        "Business Process Analysis Report"
+      ],
+      "outputs": [
+        "Business Architecture Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "2.4. Analyze Business Processes"
+      ],
+      "success_criteria": [
+        "Complete and accurate Business Architecture Document",
+        "Stakeholder approval of the document"
+      ],
+      "purpose": "To create a comprehensive record of the organization\u2019s business architecture.",
+      "scope": "Enterprise-wide",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Business strategy changes"
+      ],
+      "end_conditions": [
+        "Approved Business Architecture Document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Outdated documentation",
+          "control": "Regular document reviews and updates"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request process",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,260 @@
+{
+  "step_name": "5. Opportunities & Solutions",
+  "subprocess_flow": [
+    {
+      "substep_name": "5.1. Identify Potential Solutions",
+      "description": "The Enterprise Architect identifies a range of potential solutions that could address the business needs outlined in the Technology Architecture Document. This involves brainstorming, researching industry best practices, and considering innovative approaches. The solutions should align with the organization's strategic goals and architectural principles.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Technology Architecture Document"
+      ],
+      "outputs": [
+        "List of Potential Solutions"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "A diverse range of potential solutions is identified",
+        "Solutions align with business needs and architectural principles"
+      ],
+      "purpose": "To generate a comprehensive list of possible solutions to address the identified business needs.",
+      "scope": "Project-specific",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Technology Architecture Document completion"
+      ],
+      "end_conditions": [
+        "List of Potential Solutions is compiled"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing viable solutions",
+          "control": "Broad brainstorming and research"
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to architectural principles"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Informal discussion",
+          "versioning_rules": "Draft.Review.Final"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Ad-hoc",
+          "improvement_inputs": [
+            "Feedback from solution evaluation"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "5.2. Evaluate Solution Feasibility",
+      "description": "The Enterprise Architect evaluates the feasibility of each potential solution. This includes assessing technical feasibility, operational feasibility, and financial feasibility. A preliminary assessment of risks and benefits is also conducted to understand the potential impact of each solution.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "List of Potential Solutions"
+      ],
+      "outputs": [
+        "Feasibility Assessment Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "5.1. Identify Potential Solutions"
+      ],
+      "success_criteria": [
+        "Feasibility of each solution is thoroughly assessed",
+        "Risks and benefits are identified"
+      ],
+      "purpose": "To determine which solutions are viable based on technical, operational, and financial considerations.",
+      "scope": "Project-specific",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "List of Potential Solutions completion"
+      ],
+      "end_conditions": [
+        "Feasibility Assessment Report is completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate feasibility assessment",
+          "control": "Expert review and validation"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with financial guidelines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Stakeholder feedback",
+            "Performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "5.3. Conduct Cost-Benefit Analysis",
+      "description": "For the feasible solutions, a detailed cost-benefit analysis is conducted. This involves quantifying the costs associated with implementing and maintaining each solution, as well as quantifying the benefits in terms of increased efficiency, reduced costs, and improved business outcomes. The analysis should consider both short-term and long-term impacts.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Feasibility Assessment Report"
+      ],
+      "outputs": [
+        "Cost-Benefit Analysis"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "5.2. Evaluate Solution Feasibility"
+      ],
+      "success_criteria": [
+        "Costs and benefits are accurately quantified",
+        "Short-term and long-term impacts are considered"
+      ],
+      "purpose": "To provide a financial justification for each viable solution.",
+      "scope": "Project-specific",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Feasibility Assessment Report completion"
+      ],
+      "end_conditions": [
+        "Cost-Benefit Analysis is completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate cost-benefit analysis",
+          "control": "Independent review by finance team"
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with financial reporting standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Actual vs. projected costs and benefits"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "5.4. Document Solution Options",
+      "description": "The Enterprise Architect documents the viable solution options, including their feasibility assessments and cost-benefit analyses. This documentation should provide a clear and concise overview of each solution, its potential benefits, and its associated risks. The documentation serves as the basis for decision-making by the Architecture Review Board.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Feasibility Assessment Report",
+        "Cost-Benefit Analysis"
+      ],
+      "outputs": [
+        "Solution Options Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "5.3. Conduct Cost-Benefit Analysis"
+      ],
+      "success_criteria": [
+        "Solution options are clearly and concisely documented",
+        "Documentation includes feasibility assessments and cost-benefit analyses"
+      ],
+      "purpose": "To create a comprehensive document that presents the viable solution options for review and approval.",
+      "scope": "Project-specific",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Cost-Benefit Analysis completion"
+      ],
+      "end_conditions": [
+        "Solution Options Document is completed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or unclear documentation",
+          "control": "Peer review of documentation"
+        }
+      ],
+      "governance_requirements": [
+        "Document version control"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Feedback from Architecture Review Board"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "5.5. Obtain Architecture Review Board Approval",
+      "description": "The Solution Options Document is presented to the Architecture Review Board for review and approval. The board evaluates the proposed solutions against the organization's architectural principles, strategic goals, and risk tolerance. The board's decision is documented and communicated to the relevant stakeholders.",
+      "responsible_party": "Enterprise Architect",
+      "inputs": [
+        "Solution Options Document"
+      ],
+      "outputs": [
+        "Approved Solutions Architecture Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "5.4. Document Solution Options"
+      ],
+      "success_criteria": [
+        "Architecture Review Board approves the solution options",
+        "Decision is documented and communicated"
+      ],
+      "purpose": "To ensure that the selected solution aligns with the organization's architectural standards and strategic goals.",
+      "scope": "Project-specific",
+      "process_owner": "Enterprise Architect",
+      "triggers": [
+        "Solution Options Document completion"
+      ],
+      "end_conditions": [
+        "Approved Solutions Architecture Document is obtained"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Rejection by Architecture Review Board",
+          "control": "Early engagement with the board"
+        }
+      ],
+      "governance_requirements": [
+        "Architecture Review Board charter"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request",
+          "versioning_rules": "Major.Minor.Patch"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Post-implementation review"
+          ]
+        }
+      ]
+    }
+  ]
+}
