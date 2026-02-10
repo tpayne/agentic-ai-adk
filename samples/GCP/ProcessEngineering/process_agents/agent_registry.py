@@ -4,3 +4,4 @@ from .scenario_agent import scenario_tester_agent
 from .update_process_agent import update_design_pipeline
 from .simulation_agent import simulation_query_agent
 from .doc_creation_agent import build_doc_creation_agent
+from .subprocess_driver_agent import SubprocessDriverAgent

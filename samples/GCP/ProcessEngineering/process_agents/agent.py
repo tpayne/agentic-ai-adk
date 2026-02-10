@@ -84,6 +84,7 @@ from .agent_registry import (
     update_design_pipeline,
     simulation_query_agent,
     build_doc_creation_agent,
+    SubprocessDriverAgent,
 )
 
 # Validate instruction files before proceeding
@@ -125,6 +126,7 @@ root_agent = LlmAgent(
         update_design_pipeline,
         simulation_query_agent,
         build_doc_creation_agent("Create_Doc_Agent"),
+        SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
     ]
 )
 
