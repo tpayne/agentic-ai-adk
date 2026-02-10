@@ -83,6 +83,7 @@ from .agent_registry import (
     scenario_tester_agent,
     update_design_pipeline,
     simulation_query_agent,
+    build_doc_creation_agent,
 )
 
 # Validate instruction files before proceeding
@@ -123,6 +124,7 @@ root_agent = LlmAgent(
         scenario_tester_agent,
         update_design_pipeline,
         simulation_query_agent,
+        build_doc_creation_agent("Create_Doc_Agent"),
     ]
 )
 

@@ -23,8 +23,7 @@ from .compliance_agent import (
 
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
-from .edge_inference_agent import edge_inference_agent
-from .doc_generation_agent import doc_generation_agent
+from .doc_creation_agent import build_doc_creation_agent
 from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .grounding_agent import grounding_agent
@@ -153,28 +152,6 @@ writer_inst = LlmAgent(
     after_model_callback=json_writer_agent.after_model_callback
 )
 
-edge_inst = LlmAgent(
-    name=edge_inference_agent.name + "_Update",
-    model=edge_inference_agent.model,
-    description=edge_inference_agent.description,
-    instruction=edge_inference_agent.instruction,
-    tools=edge_inference_agent.tools,
-    include_contents=edge_inference_agent.include_contents,
-    generate_content_config=edge_inference_agent.generate_content_config,
-    before_model_callback=edge_inference_agent.before_model_callback,
-    after_model_callback=edge_inference_agent.after_model_callback,
-)
-
-doc_inst = LlmAgent(
-    name=doc_generation_agent.name + "_Update",
-    model=doc_generation_agent.model,
-    description=doc_generation_agent.description,
-    instruction=doc_generation_agent.instruction,
-    tools=doc_generation_agent.tools,
-    before_model_callback=doc_generation_agent.before_model_callback,
-    after_model_callback=doc_generation_agent.after_model_callback,
-)
-
 design_simulation_inst = LlmAgent(
     name=design_agent.name + "_Simulation_Update",
     model=design_agent.model,
@@ -288,13 +265,12 @@ update_design_pipeline = SequentialAgent(
     name="Update_Design_Pipeline",
     description="Use this tool ONLY when the user wants to MODIFY, CHANGE, or UPDATE an existing process.",
     sub_agents=[
-        mute_agent_instance,            # Mute console output
-        update_analysis_agent,          # Step 1: Context Loading & Merging
-        review_update_loop,             # Step 2: Re-Design & Audit
-        json_update_normalization_loop, # Step 3: Stabilization
-        subprocess_inst,                # Step 4: Subprocess Regeneration
-        edge_inst,                      # Step 5: Logic Flow
-        doc_inst,                       # Step 6: Artifact Re-Build
-        unmute_agent_instance,          # Unmute console output
+        mute_agent_instance,                    # Mute console output
+        update_analysis_agent,                  # Step 1: Context Loading & Merging
+        review_update_loop,                     # Step 2: Re-Design & Audit
+        json_update_normalization_loop,         # Step 3: Stabilization
+        subprocess_inst,                        # Step 4: Subprocess Regeneration
+        build_doc_creation_agent("Update"),     # Stage 5: Artifact Build        
+        unmute_agent_instance,                  # Unmute console output
     ],
 )
