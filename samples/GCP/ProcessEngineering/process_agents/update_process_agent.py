@@ -191,11 +191,11 @@ subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 
 # Specialized instance for internal compliance logic
 design_compliance_inst = LlmAgent(
-    name="Design_Compliance_Update_Review",
+    name=design_agent.name + "_Compliance_Update_Review",
     model=design_agent.model,
-    instruction="Review the design against compliance rules. Report findings ONLY via log_design_metadata. Output ONLY 'REVIEW_COMPLETE'.",
-    output_key="update_compliance_review",
-    tools=[load_master_process_json,log_compliance_metadata],
+    instruction=design_agent.instruction,
+    output_key=design_agent.output_key,
+    tools=design_agent.tools,
     before_model_callback=design_agent.before_model_callback,
     after_model_callback=design_agent.after_model_callback,
 )
@@ -232,7 +232,7 @@ review_update_loop = LoopAgent(
             sub_agents=sub_update_agents,
         )
     ],
-    max_iterations=getProperty("loopIterations"),
+    max_iterations=int(getProperty("loopIterations", default=6)),
 )
 
 json_stop_agent_instance = Agent(
@@ -252,7 +252,7 @@ json_update_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Update_Normalizer_Sequence",
             sub_agents=[normalizer_inst, reviewer_inst, json_stop_agent_instance],
-            max_iterations=getProperty("loopIterations"),
+            max_iterations=int(getProperty("loopIterations", default=6)),
         ),
         writer_inst,
     ],
@@ -270,7 +270,7 @@ update_design_pipeline = SequentialAgent(
         review_update_loop,                     # Step 2: Re-Design & Audit
         json_update_normalization_loop,         # Step 3: Stabilization
         subprocess_inst,                        # Step 4: Subprocess Regeneration
-        build_doc_creation_agent("Update"),     # Stage 5: Artifact Build        
+        build_doc_creation_agent("Update"),     # Step 5: Artifact Build        
         unmute_agent_instance,                  # Unmute console output
     ],
 )
