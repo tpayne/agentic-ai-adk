@@ -116,6 +116,7 @@ class SubprocessDriverAgent(BaseAgent):
             # RUN GENERATOR (sub-agent 0) AND CAPTURE ITS OUTPUT
             # ---------------------------------------------------------
             generator_agent = self.per_step_pipeline.sub_agents[0]
+            await asyncio.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
             flow = None
             async for event in generator_agent.run_async(ctx):
@@ -137,15 +138,23 @@ class SubprocessDriverAgent(BaseAgent):
             # ---------------------------------------------------------
             # RUN WRITER (sub-agent 1)
             # ---------------------------------------------------------
+            await asyncio.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
             writer_agent = self.per_step_pipeline.sub_agents[1]
             async for _ in writer_agent.run_async(ctx):
                 pass
 
         logger.debug("Subprocess generation completed for all steps.")
-
+        
         if False:
             yield
 
+        yield Event(
+            author=self.name,
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="Completed subprocess generation for all steps.")]
+            )
+        )
 
 
 # Default instance for the CREATE pipeline
