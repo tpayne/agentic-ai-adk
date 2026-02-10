@@ -140,7 +140,7 @@ reviewer_inst = LlmAgent(
     after_model_callback=json_review_agent.after_model_callback
 )
 
-writer_inst = LlmAgent(
+writer_inst = Agent(
     name=json_writer_agent.name + "_Update",
     model=json_writer_agent.model,
     description=json_writer_agent.description,
@@ -152,7 +152,7 @@ writer_inst = LlmAgent(
     after_model_callback=json_writer_agent.after_model_callback
 )
 
-design_simulation_inst = LlmAgent(
+design_simulation_inst = Agent(
     name=design_agent.name + "_Simulation_Update",
     model=design_agent.model,
     description=design_agent.description,
@@ -163,7 +163,7 @@ design_simulation_inst = LlmAgent(
     after_model_callback=design_agent.after_model_callback,
 )
 
-design_grounding_inst = LlmAgent(
+design_grounding_inst = Agent(
     name=design_agent.name + "_Grounding_Update",
     model=design_agent.model,
     description=design_agent.description,
@@ -190,7 +190,7 @@ grounding_inst = LlmAgent(
 subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 
 # Specialized instance for internal compliance logic
-design_compliance_inst = LlmAgent(
+design_compliance_inst = Agent(
     name=design_agent.name + "_Compliance_Update_Review",
     model=design_agent.model,
     instruction=design_agent.instruction,
