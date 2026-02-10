@@ -135,6 +135,33 @@ To run the web UI locally (emulates the GCP ADK environment):
 .venv/bin/adk web
 ```
 
+## Using the Agent Locally
+
+To run the agent application via python, you can do...
+
+```bash
+python -m process_agents.agent
+```
+
+For example...
+
+```bash
+python -m process_agents.agent
+- Starting Process Architect Orchestrator in local chat mode...
+
+Process Architect Orchestrator (local mode)
+Type 'exit' to quit.
+
+[user]: create an End-to-End AI Governance process that includes (RAI + Risk Management + Operating Models + Change Management)      
+- Starting process pipeline at 2026-02-10 13:05:12. This will take some time...
+- Finished process pipeline at 2026-02-10 13:17:19...
+
+[ArchitectBot]: Successfully generated a professional ISO-formatted Word document: output/End-to-End_AI_Governance_Process.docx
+[user]: exit
+Exiting Process Architect Orchestrator.
+```
+
+Then run your commands as appropriately.
 ---
 
 ## Docker Usage
