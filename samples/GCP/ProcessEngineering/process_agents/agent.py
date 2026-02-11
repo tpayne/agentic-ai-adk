@@ -155,6 +155,18 @@ async def process_file(file_path: str):
 
                 print(f"\n[user-file]: {line}")
 
+                if line.lower() in ["exit", "quit", "stop"]:
+                    print("Exiting Process Architect Orchestrator.")
+                    break
+                elif line.startswith("#"):
+                    print(f"\033[94m[Comment]: {line}\033[0m")
+                    continue
+                elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
+                    secs = line.split()[1] if len(line.split()) > 1 else getProperty("modelSleep", default=0.5)
+                    print(f"\033[93m[Action]: Sleeping for {secs} seconds...\033[0m")
+                    await asyncio.sleep(float(secs))
+                    continue
+                
                 content = types.Content(
                     role="user",
                     parts=[types.Part(text=line)]
@@ -209,6 +221,18 @@ async def start_local_chat():
             print("Exiting Process Architect Orchestrator.")
             break
 
+        if user_input.lower() in ["exit", "quit", "stop"]:
+            print("Exiting Process Architect Orchestrator.")
+            break
+        elif user_input.startswith("#"):
+            print(f"\033[94m[Comment]: {user_input}\033[0m")
+            continue
+        elif user_input.lower().startswith("sleep") or user_input.lower().startswith("wait"):
+            secs = user_input.split()[1] if len(user_input.split()) > 1 else getProperty("modelSleep", default=0.5)
+            print(f"\033[93m[Action]: Sleeping for {secs} seconds...\033[0m")
+            await asyncio.sleep(float(secs))
+            continue
+        
         try:
             content = types.Content(role="user", parts=[types.Part(text=user_input)])
             events = runner.run_async(

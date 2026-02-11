@@ -517,7 +517,7 @@ def save_iteration_feedback(feedback_data: Any):
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
-
+        logger.debug(f"Iteration feedback saved with status '{status}'. First 100 chars of payload: {str(payload)[:100]}")
         logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk ---")
         return f"SUCCESS: Feedback persisted to {path}"
 

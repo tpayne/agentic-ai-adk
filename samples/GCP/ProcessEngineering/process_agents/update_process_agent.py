@@ -36,7 +36,6 @@ from .utils_agent import (
     stop_controller_agent
 )
 
-
 logger = logging.getLogger("ProcessArchitect.UpdateProcessPipeline")
 
 # ------------------------ UPDATE PIPELINE DEFINITION ------------------------
@@ -69,9 +68,14 @@ stop_controller_agent_instance = Agent(
 # ---------------------------------------------------------
 update_analysis_agent = LlmAgent(
     name="Process_Update_Analyst",
-    model=getProperty("MODEL"),
+    description="Analyzes user requests for process changes and identifies required revisions against the existing design.",
+    model=design_agent.model,
     instruction=load_instruction("update_analysis_agent.txt"),
     tools=[load_full_process_context,load_iteration_feedback,save_iteration_feedback],
+    generate_content_config=design_agent.generate_content_config,
+    output_key=design_agent.output_key,
+    before_model_callback=design_agent.before_model_callback,
+    after_model_callback=design_agent.after_model_callback
 )
 
 # ---------------------------------------------------------
