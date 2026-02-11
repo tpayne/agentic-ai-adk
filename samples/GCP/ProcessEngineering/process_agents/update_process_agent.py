@@ -6,11 +6,13 @@ from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from .utils import (
+    getProperty,
     load_instruction, 
     load_full_process_context,
     load_master_process_json,
+    load_iteration_feedback,
     persist_final_json,
-    getProperty
+    save_iteration_feedback,
 )
 
 # Import the base agents to access their configuration
@@ -18,7 +20,6 @@ from .design_agent import design_agent
 from .compliance_agent import (
     compliance_agent, 
     log_compliance_metadata,
-    load_iteration_feedback,
 )
 
 from .json_normalizer_agent import json_normalizer_agent
@@ -70,7 +71,7 @@ update_analysis_agent = LlmAgent(
     name="Process_Update_Analyst",
     model=getProperty("MODEL"),
     instruction=load_instruction("update_analysis_agent.txt"),
-    tools=[load_full_process_context,persist_final_json,load_iteration_feedback],
+    tools=[load_full_process_context,load_iteration_feedback,save_iteration_feedback],
 )
 
 # ---------------------------------------------------------
