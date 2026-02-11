@@ -182,9 +182,9 @@ async def process_file(file_path: str):
                         final_response = event.content.parts[0].text
 
                 if final_response:
-                    print(f"[ArchitectBot]: {final_response}")
+                    print(f"\033[94m[ArchitectBot]: {final_response}\033[0m")
                 else:
-                    print("[ArchitectBot]: [No final response]")
+                    print("\033[94m[ArchitectBot]: [No final response]\033[0m")
 
                 await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
 
@@ -247,9 +247,9 @@ async def start_local_chat():
                     final_response = event.content.parts[0].text
 
             if final_response:
-                print(f"\n[ArchitectBot]: {final_response}")
+                print(f"\033[94m[ArchitectBot]: {final_response}\033[0m")
             else:
-                print("\n[ArchitectBot]: [No final response]")
+                print("\033[94m[ArchitectBot]: [No final response]\033[0m")
 
         except Exception as e:
             logger.error(f"Error during chat loop: {str(e)}")

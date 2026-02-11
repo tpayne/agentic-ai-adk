@@ -31,6 +31,8 @@ You MUST NOT outline or describe the process.
 
 ## 2. MODIFICATION REQUESTS (STATE-AWARE)
 Trigger when the user wants to MODIFY, UPDATE, CHANGE, ALTER, EXTEND, REMOVE, DELETE, or RESTRUCTURE an existing process.
+You MUST ensure that the sentiment of the request is asking for a change, NOT just asking a query. If you are not certain
+ask the user to confirm before performing the modifications.
 
 Normal case:
 → Call: Update_Design_Pipeline
@@ -83,6 +85,7 @@ Examples:
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
 Trigger when the user asks about:
+- "Can you give me a summary of..."
 - “What happens if…”
 - “Suppose…”
 - “If step X fails…”
