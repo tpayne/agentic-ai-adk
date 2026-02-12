@@ -1,5 +1,4 @@
 # process_agents/agent.py
-# process_agents/agent.py
 import os
 import signal
 import sys
@@ -10,15 +9,17 @@ import pkgutil
 import google
 import google.adk
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+
 google.__path__ = pkgutil.extend_path(google.__path__, google.__name__)
 google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name__)
+
 from .utils import (
     load_instruction,
     validate_instruction_files,
     getProperty,
 )
 
-import argparse  # NEW
+import argparse  # CLI args
 
 # Load variables from .env file of env into os.environ
 load_dotenv()
@@ -43,11 +44,15 @@ log_file = os.path.join(log_dir, f"pipeline_{datetime.now().strftime('%Y%m%d_%H%
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler = logging.FileHandler(log_file)
 file_handler.setFormatter(log_format)
+# Ensure flush is available
 file_handler.flush = lambda: file_handler.stream.flush()
+
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_format)
+
 logger = logging.getLogger("ProcessArchitect")
 logger.addHandler(file_handler)
+# logger.addHandler(console_handler)  # keep disabled unless needed
 logger.propagate = False
 logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
 
@@ -126,25 +131,106 @@ from google.genai import types
 import asyncio
 import uuid
 
-async def process_file(file_path: str):
+# ------------------- COMMON HELPERS -------------------
+
+async def init_session_and_runner(app_name: str = "ProcessArchitect"):
     """
-    Sends each line of a file to the orchestrator as if typed by a user, one line at a time.
+    Creates a single ADK session and Runner. Reuse across file-mode and chat-mode.
+    Returns: (runner, user_id, session_id)
     """
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
     session_service = InMemorySessionService()
     await session_service.create_session(
-        app_name="ProcessArchitect",
+        app_name=app_name,
         user_id=user_id,
         session_id=session_id,
         state={}
     )
-
     runner = Runner(
         agent=root_agent,
-        app_name="ProcessArchitect",
+        app_name=app_name,
         session_service=session_service
     )
+    return runner, user_id, session_id
+
+
+def is_shell_command(text: str) -> bool:
+    """Detects a host OS command: lines starting with '$ ' or '$<cmd>'."""
+    if text is None:
+        return False
+    stripped = text.strip()
+    return stripped.startswith("$")
+
+
+async def run_shell_command(cmdline: str):
+    """
+    Executes a host OS command and prints output.
+    Accepts lines like: "$ ls /tmp"
+    """
+    import shlex
+    import platform
+
+    # Strip leading '$'
+    stripped = cmdline.strip()
+    command = stripped[1:].strip() if stripped.startswith("$") else stripped
+
+    if not command:
+        print("\033[93m[Shell]: No command to run.\033[0m")
+        return
+
+    print(f"\033[96m[Shell]: {command}\033[0m")
+
+    # Use the system shell to support complex commands, pipes, redirects, etc.
+    # asyncio.create_subprocess_shell is portable across macOS/Linux/Windows (uses cmd.exe on Windows).
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+
+        if stdout:
+            try:
+                print(stdout.decode("utf-8", errors="replace"), end="")
+            except Exception:
+                print(str(stdout))
+        if stderr:
+            try:
+                # print stderr in red
+                sys.stderr.write("\033[91m" + stderr.decode("utf-8", errors="replace") + "\033[0m")
+            except Exception:
+                sys.stderr.write(str(stderr))
+
+        if proc.returncode != 0:
+            print(f"\033[91m[Shell]: Exit code {proc.returncode}\033[0m")
+
+    except FileNotFoundError:
+        print("\033[91m[Shell]: Command not found.\033[0m")
+    except Exception as e:
+        print(f"\033[91m[Shell]: Error executing command: {e}\033[0m")
+
+
+# ------------------- FILE MODE -------------------
+
+async def process_file(file_path: str):
+    """
+    Sends each line of a file to the orchestrator as if typed by a user, one line at a time.
+    Supports:
+      - '# comment' lines (ignored)
+      - 'sleep N' or 'wait N' (delay)
+      - '$ <shell command>' (run OS command and print output)
+      - 'exit/quit/stop' (terminate)
+    """
+    try:
+        with open(file_path, "r", encoding="utf-8-sig") as _:
+            pass
+    except Exception as e:
+        print(f"\033[91m- Error opening file '{file_path}': {e}\033[0m")
+        sys.exit(1)
+
+    runner, user_id, session_id = await init_session_and_runner()
 
     try:
         with open(file_path, "r", encoding="utf-8-sig") as f:
@@ -153,8 +239,7 @@ async def process_file(file_path: str):
                 if not line:
                     continue
 
-                print(f"\n[user-file]: {line}")
-
+                # Commands handled locally
                 if line.lower() in ["exit", "quit", "stop"]:
                     print("Exiting Process Architect Orchestrator.")
                     break
@@ -162,15 +247,20 @@ async def process_file(file_path: str):
                     print(f"\033[94m[Comment]: {line}\033[0m")
                     continue
                 elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
-                    secs = line.split()[1] if len(line.split()) > 1 else getProperty("modelSleep", default=0.5)
+                    parts = line.split()
+                    secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
                     print(f"\033[93m[Action]: Sleeping for {secs} seconds...\033[0m")
                     await asyncio.sleep(float(secs))
                     continue
-                
-                content = types.Content(
-                    role="user",
-                    parts=[types.Part(text=line)]
-                )
+                elif is_shell_command(line):
+                    await run_shell_command(line)
+                    # brief pause to avoid burst
+                    await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+                    continue
+
+                # Otherwise, send to the orchestrator as a user message
+                print(f"\n[user-file]: {line}")
+                content = types.Content(role="user", parts=[types.Part(text=line)])
 
                 final_response = None
                 async for event in runner.run_async(
@@ -189,38 +279,25 @@ async def process_file(file_path: str):
                 await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
 
     except Exception as e:
-        logger.error(f"Error during chat loop: {str(e)}")
+        logger.error(f"Error during file processing: {str(e)}")
         sys.stdout = sys.__stdout__
         sys.stdout.flush()
-        print(f"\n\033[0m - Error processing file: {str(e)}", end="\n")        
+        print(f"\n\033[0m - Error processing file: {str(e)}", end="\n")
         sys.exit(1)
+
+
+# ------------------- INTERACTIVE MODE -------------------
 
 async def start_local_chat():
     print("\nProcess Architect Orchestrator (local mode)")
     print("Type 'exit' to quit.\n")
 
-    user_id = str(uuid.uuid4())
-    session_id = str(uuid.uuid4())
-    session_service = InMemorySessionService()
-    await session_service.create_session(
-        app_name="ProcessArchitect",
-        user_id=user_id,
-        session_id=session_id,
-        state={}
-    )
-
-    runner = Runner(
-        agent=root_agent,
-        app_name="ProcessArchitect",
-        session_service=session_service
-    )
+    runner, user_id, session_id = await init_session_and_runner()
 
     while True:
         user_input = input("[user]: ").strip()
-        if user_input.lower() in ["exit", "quit", "stop"]:
-            print("Exiting Process Architect Orchestrator.")
-            break
 
+        # Local commands
         if user_input.lower() in ["exit", "quit", "stop"]:
             print("Exiting Process Architect Orchestrator.")
             break
@@ -228,11 +305,17 @@ async def start_local_chat():
             print(f"\033[94m[Comment]: {user_input}\033[0m")
             continue
         elif user_input.lower().startswith("sleep") or user_input.lower().startswith("wait"):
-            secs = user_input.split()[1] if len(user_input.split()) > 1 else getProperty("modelSleep", default=0.5)
+            parts = user_input.split()
+            secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
             print(f"\033[93m[Action]: Sleeping for {secs} seconds...\033[0m")
             await asyncio.sleep(float(secs))
             continue
-        
+        elif is_shell_command(user_input):
+            await run_shell_command(user_input)
+            await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            continue
+
+        # Send to orchestrator
         try:
             content = types.Content(role="user", parts=[types.Part(text=user_input)])
             events = runner.run_async(
@@ -247,15 +330,16 @@ async def start_local_chat():
                     final_response = event.content.parts[0].text
 
             if final_response:
-                print(f"\033[94m[ArchitectBot]: {final_response}\033[0m")
+                print(f"\n\033[94m[ArchitectBot]: {final_response}\033[0m")
             else:
-                print("\033[94m[ArchitectBot]: [No final response]\033[0m")
+                print("\n\033[94m[ArchitectBot]: [No final response]\033[0m")
 
         except Exception as e:
             logger.error(f"Error during chat loop: {str(e)}")
             sys.stdout = sys.__stdout__
             sys.stdout.flush()
             print(f"\n\033[0m - An error occurred: {str(e)}", end="\n")
+
 
 # ---------------------------------------------------------
 # CLI Entry (Refactored)
