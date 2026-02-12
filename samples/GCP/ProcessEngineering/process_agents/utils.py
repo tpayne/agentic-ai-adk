@@ -21,6 +21,64 @@ logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# ============================================================
+# ANSI COLOR CONSTANTS
+# ============================================================
+ANSI_RESET = "\033[0m"
+ANSI_RED = "\033[91m"
+ANSI_GREEN = "\033[92m"
+ANSI_YELLOW = "\033[93m"
+ANSI_BLUE = "\033[94m"
+ANSI_CYAN = "\033[96m"
+
+# Standard (non-bright) foreground colors
+ANSI_BLACK = "\033[30m"
+ANSI_RED_NORMAL = "\033[31m"
+ANSI_GREEN_NORMAL = "\033[32m"
+ANSI_YELLOW_NORMAL = "\033[33m"
+ANSI_BLUE_NORMAL = "\033[34m"
+ANSI_MAGENTA = "\033[35m"
+ANSI_CYAN_NORMAL = "\033[36m"
+ANSI_WHITE = "\033[37m"
+
+# Bright foreground colors
+ANSI_BRIGHT_BLACK = "\033[90m"
+ANSI_BRIGHT_RED = "\033[91m"
+ANSI_BRIGHT_GREEN = "\033[92m"
+ANSI_BRIGHT_YELLOW = "\033[93m"
+ANSI_BRIGHT_BLUE = "\033[94m"
+ANSI_BRIGHT_MAGENTA = "\033[95m"
+ANSI_BRIGHT_CYAN = "\033[96m"
+ANSI_BRIGHT_WHITE = "\033[97m"
+
+# Background colors (standard)
+ANSI_BG_BLACK = "\033[40m"
+ANSI_BG_RED = "\033[41m"
+ANSI_BG_GREEN = "\033[42m"
+ANSI_BG_YELLOW = "\033[43m"
+ANSI_BG_BLUE = "\033[44m"
+ANSI_BG_MAGENTA = "\033[45m"
+ANSI_BG_CYAN = "\033[46m"
+ANSI_BG_WHITE = "\033[47m"
+
+# Background colors (bright)
+ANSI_BG_BRIGHT_BLACK = "\033[100m"
+ANSI_BG_BRIGHT_RED = "\033[101m"
+ANSI_BG_BRIGHT_GREEN = "\033[102m"
+ANSI_BG_BRIGHT_YELLOW = "\033[103m"
+ANSI_BG_BRIGHT_BLUE = "\033[104m"
+ANSI_BG_BRIGHT_MAGENTA = "\033[105m"
+ANSI_BG_BRIGHT_CYAN = "\033[106m"
+ANSI_BG_BRIGHT_WHITE = "\033[107m"
+
+# Text styles
+ANSI_BOLD = "\033[1m"
+ANSI_DIM = "\033[2m"
+ANSI_UNDERLINE = "\033[4m"
+ANSI_BLINK = "\033[5m"
+ANSI_REVERSE = "\033[7m"
+ANSI_HIDDEN = "\033[8m"
+
 # Internal cache
 _CACHE: Union[configparser.ConfigParser, None] = None
 PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'agentapp.properties')

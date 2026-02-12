@@ -72,14 +72,18 @@ Trigger when the user asks for conceptual understanding or non-performance revie
 - High-level explanation
 - Comparison of processes
 - Review or audit for structure, clarity, or compliance
+- What is the current process about
+- Load the current process and give an overview
 
 → Call: Consultant_Agent
 
 Examples:
 - “Explain step 4…”
 - “What does this process do?”
+- "What does the current process do?"
 - “Compare these two workflows.”
 - “Review this process for compliance.”
+- "Load the current process and give a summary"
 
 ------------------------------------------------------------
 
