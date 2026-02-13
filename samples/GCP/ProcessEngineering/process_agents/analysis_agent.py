@@ -1,18 +1,14 @@
 # process_agents/analysis_agent.py
-from google.adk.agents import LlmAgent
+
 import os
 import time
 import logging
 import random
 
 from .utils import (
-    load_instruction,
     save_iteration_feedback,
     getProperty,
-    review_messages,
-    review_outputs
 )
-
 
 logger = logging.getLogger("ProcessArchitect.Analysis")
 
@@ -36,16 +32,15 @@ def record_analysis_request(request: str):
 # -----------------------------
 # ANALYSIS AGENT
 # -----------------------------
-analysis_agent = LlmAgent(
-    name='Analysis_Agent',
-    model=getProperty("MODEL"),
-    description='Performs deep analysis of process descriptions.',
-    instruction=load_instruction("analysis_agent.txt"),
+from .agent_wrappers import ProcessLlmAgent
+
+analysis_agent = ProcessLlmAgent(
+    name="Analysis_Agent",
+    description="Performs deep analysis of process descriptions.",
+    instruction_file="analysis_agent.txt",   # auto-loads via load_instruction(...)
     tools=[
         log_analysis_metadata,
         record_analysis_request,
-        save_iteration_feedback
+        save_iteration_feedback,
     ],
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs,
 )

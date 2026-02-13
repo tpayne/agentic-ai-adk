@@ -6,15 +6,10 @@ import json
 import logging
 import traceback
 
-from google.adk.agents import Agent
-
 from .utils import (
-    load_instruction,
     load_master_process_json,
     load_iteration_feedback,
     persist_final_json,
-    review_messages,
-    review_outputs
 )
 
 import time
@@ -25,17 +20,15 @@ logger = logging.getLogger("ProcessArchitect.JsonWriter")
 # ---------------------------------------------------------------------
 # AGENT DEFINITION (DETERMINISTIC UTILITY AGENT)
 # ---------------------------------------------------------------------
-
-json_writer_agent = Agent(
+from .agent_wrappers import ProcessAgent
+json_writer_agent = ProcessAgent(
     name="JSON_Writer_Agent",
     description="Final persistence agent that writes approved JSON to the file system.",
-    instruction=load_instruction("json_writer_agent.txt"),
+    instruction_file="json_writer_agent.txt",
     tools=[
         persist_final_json,
         load_master_process_json,
         load_iteration_feedback,
     ],
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs
 )
 

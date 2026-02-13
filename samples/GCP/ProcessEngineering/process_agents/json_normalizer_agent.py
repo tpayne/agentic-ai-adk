@@ -1,16 +1,10 @@
-from google.adk.agents import LlmAgent
 from google.genai import types
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.tools.tool_context import ToolContext
 
 from .utils import (
-    load_instruction,
     load_master_process_json,
     persist_final_json,
     load_iteration_feedback,
     getProperty,
-    review_messages,
-    review_outputs
 )
 
 import json
@@ -31,9 +25,9 @@ def log_normalization_metadata(goal_count: int):
 # -----------------------------
 # JSON NORMALIZER AGENT
 # -----------------------------
-json_normalizer_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent
+json_normalizer_agent = ProcessLlmAgent(
     name="JSON_Normalizer_Agent",
-    model=getProperty("MODEL"),
     tools=[
         load_master_process_json,
         persist_final_json,
@@ -42,11 +36,9 @@ json_normalizer_agent = LlmAgent(
     ],
     include_contents="default",
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",
-    instruction=load_instruction("json_normalizer_agent.txt"),
+    instruction_file="json_normalizer_agent.txt",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
         top_p=1,
     ),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs
 )

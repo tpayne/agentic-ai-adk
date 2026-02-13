@@ -108,10 +108,13 @@ signal.signal(signal.SIGTERM, handler)
 # ---------------------------------------------------------
 # ROOT AGENT
 # ---------------------------------------------------------
-root_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent  # DefaultLlmAgent shortcut
+
+root_agent = ProcessLlmAgent(
     name="Process_Architect_Orchestrator",
-    model=getProperty("MODEL"),
-    instruction=load_instruction("agent.txt"),
+    instruction_file="agent.txt",
+    before_model_callback=None,  # Disable before callback for root agent
+    after_model_callback=None,   # Disable after callback for root agent
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
@@ -120,7 +123,7 @@ root_agent = LlmAgent(
         simulation_query_agent,
         build_doc_creation_agent("Create_Doc_Agent"),
         SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
-    ]
+    ],
 )
 
 # ---------------------------------------------------------

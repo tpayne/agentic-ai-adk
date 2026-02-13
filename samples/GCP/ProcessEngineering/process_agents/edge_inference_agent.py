@@ -1,6 +1,5 @@
 # process_agents/edge_inference_agent.py
 
-from google.adk.agents import Agent
 from google.genai import types
 import os
 import json
@@ -10,8 +9,6 @@ import matplotlib.pyplot as plt
 import logging
 from typing import List, Tuple, Any, Dict
 import sys
-
-from .utils import load_instruction
 
 logger = logging.getLogger("ProcessArchitect.EdgeInference")
 
@@ -541,10 +538,11 @@ def generate_clean_diagram() -> str:
 # ============================================================
 #  LLM AGENT (NO LARGE ARGS, TOOL CALL BY NAME ONLY)
 # ============================================================
-edge_inference_agent = Agent( 
+from .agent_wrappers import ProcessAgent
+edge_inference_agent = ProcessAgent( 
     name="Edge_Inference_Agent", 
     description="Triggers BPMN-style swimlane diagram generation based only on process_name.", 
-    instruction=load_instruction("edge_inference_agent.txt"), 
+    instruction_file="edge_inference_agent.txt", 
     tools=[generate_clean_diagram], 
 )
 

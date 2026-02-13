@@ -7,17 +7,12 @@ import re
 from statistics import mean, pstdev
 from typing import Dict, Any
 
-from google.adk.agents import LlmAgent
-from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 from .utils import (
-    load_instruction,
     load_master_process_json,
     save_iteration_feedback,
     getProperty,
-    review_messages,
-    review_outputs
 )
 
 import time
@@ -437,10 +432,9 @@ def simulate_scenario(process_json_str: str, scenario_json_str: str) -> str:
 # ============================================================
 # LLM AGENT: LEAN SIX SIGMA SIMULATION EXPERT
 # ============================================================
-
-simulation_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent
+simulation_agent = ProcessLlmAgent(
     name="Simulation_Optimization_Agent",
-    model=getProperty("MODEL"), 
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities.",
     tools=[
         load_master_process_json,
@@ -451,14 +445,11 @@ simulation_agent = LlmAgent(
         temperature=0.1,
         top_p=1,
     ),
-    instruction=load_instruction("simulation_agent.txt"),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs
+    instruction_file="simulation_agent.txt",
 )
 
-simulation_query_agent = LlmAgent(
+simulation_query_agent = ProcessLlmAgent(
     name="Simulation_Optimization_Query_Agent",
-    model=getProperty("MODEL"),
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities in response to queries.",
     tools=[
         load_master_process_json,
@@ -469,7 +460,5 @@ simulation_query_agent = LlmAgent(
         temperature=0.2,
         top_p=1,
     ),
-    instruction=load_instruction("simulation_query_agent.txt"),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs
+    instruction_file="simulation_query_agent.txt",
 )

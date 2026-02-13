@@ -1,27 +1,18 @@
 # process_agents/update_process_agent.py
-
 import logging
-from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent, Agent
-from google.adk.tools.tool_context import ToolContext
-from google.genai import types
-
+from google.adk.agents import LoopAgent, SequentialAgent  # wrappers replace direct LlmAgent/Agent usage
 from .utils import (
-    getProperty,
-    load_instruction, 
     load_full_process_context,
-    load_master_process_json,
-    load_iteration_feedback,
-    persist_final_json,
-    save_iteration_feedback,
+    getProperty,
+    save_iteration_feedback
 )
 
 # Import the base agents to access their configuration
 from .design_agent import design_agent
 from .compliance_agent import (
-    compliance_agent, 
-    log_compliance_metadata,
+    compliance_agent,
+    load_iteration_feedback,
 )
-
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .doc_creation_agent import build_doc_creation_agent
@@ -29,17 +20,20 @@ from .json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from .grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
-
 from .utils_agent import (
-    mute_agent, 
-    unmute_agent, 
+    mute_agent,
+    unmute_agent,
     stop_controller_agent
 )
+
+# NEW: wrapper imports
+from .agent_wrappers import ProcessLlmAgent, ProcessAgent
 
 logger = logging.getLogger("ProcessArchitect.UpdateProcessPipeline")
 
 # ------------------------ UPDATE PIPELINE DEFINITION ------------------------
-mute_agent_instance = Agent(
+
+mute_agent_instance = ProcessAgent(
     name=mute_agent.name + "_Update",
     model=mute_agent.model,
     description=mute_agent.description,
@@ -47,7 +41,7 @@ mute_agent_instance = Agent(
     tools=mute_agent.tools,
 )
 
-unmute_agent_instance = Agent(
+unmute_agent_instance = ProcessAgent(
     name=unmute_agent.name + "_Update",
     model=unmute_agent.model,
     description=unmute_agent.description,
@@ -55,7 +49,7 @@ unmute_agent_instance = Agent(
     tools=unmute_agent.tools,
 )
 
-stop_controller_agent_instance = Agent(
+stop_controller_agent_instance = ProcessAgent(
     name=stop_controller_agent.name + "_Update",
     model=stop_controller_agent.model,
     description=stop_controller_agent.description,
@@ -66,24 +60,19 @@ stop_controller_agent_instance = Agent(
 # ---------------------------------------------------------
 # STAGE 1: CONTEXT-AWARE ANALYSIS
 # ---------------------------------------------------------
-update_analysis_agent = LlmAgent(
+update_analysis_agent = ProcessLlmAgent(
     name="Process_Update_Analyst",
     description="Analyzes user requests for process changes and identifies required revisions against the existing design.",
-    model=design_agent.model,
-    instruction=load_instruction("update_analysis_agent.txt"),
+    instruction_file="update_analysis_agent.txt",
+    generate_content_config=design_agent.generate_content_config,  # auto-loads file
     tools=[load_full_process_context,load_iteration_feedback,save_iteration_feedback],
-    generate_content_config=design_agent.generate_content_config,
-    output_key=design_agent.output_key,
-    before_model_callback=design_agent.before_model_callback,
-    after_model_callback=design_agent.after_model_callback
 )
 
 # ---------------------------------------------------------
 # STAGE 2-6: UNIQUE INSTANCES FOR UPDATE PIPELINE
 # Explicit clones (no clone_agent helper)
 # ---------------------------------------------------------
-
-design_inst = LlmAgent(
+design_inst = ProcessLlmAgent(
     name=design_agent.name + "_Update",
     model=design_agent.model,
     description=design_agent.description,
@@ -95,7 +84,7 @@ design_inst = LlmAgent(
     after_model_callback=design_agent.after_model_callback
 )
 
-compliance_inst = LlmAgent(
+compliance_inst = ProcessLlmAgent(
     name=compliance_agent.name + "_Update",
     model=compliance_agent.model,
     description=compliance_agent.description,
@@ -107,7 +96,7 @@ compliance_inst = LlmAgent(
     after_model_callback=compliance_agent.after_model_callback
 )
 
-simulation_inst = LlmAgent(
+simulation_inst = ProcessLlmAgent(
     name=simulation_agent.name + "_Update",
     model=simulation_agent.model,
     description=simulation_agent.description,
@@ -119,7 +108,7 @@ simulation_inst = LlmAgent(
     after_model_callback=simulation_agent.after_model_callback
 )
 
-normalizer_inst = LlmAgent(
+normalizer_inst = ProcessLlmAgent(
     name=json_normalizer_agent.name + "_Update",
     model=json_normalizer_agent.model,
     description=json_normalizer_agent.description,
@@ -132,7 +121,7 @@ normalizer_inst = LlmAgent(
     after_model_callback=json_normalizer_agent.after_model_callback
 )
 
-reviewer_inst = LlmAgent(
+reviewer_inst = ProcessLlmAgent(
     name=json_review_agent.name + "_Update",
     model=json_review_agent.model,
     description=json_review_agent.description,
@@ -145,7 +134,8 @@ reviewer_inst = LlmAgent(
     after_model_callback=json_review_agent.after_model_callback
 )
 
-writer_inst = Agent(
+# Writer stays a lightweight (non-LLM) agent per your latest version
+writer_inst = ProcessAgent(
     name=json_writer_agent.name + "_Update",
     model=json_writer_agent.model,
     description=json_writer_agent.description,
@@ -157,7 +147,7 @@ writer_inst = Agent(
     after_model_callback=json_writer_agent.after_model_callback
 )
 
-design_simulation_inst = Agent(
+design_simulation_inst = ProcessAgent(
     name=design_agent.name + "_Simulation_Update",
     model=design_agent.model,
     description=design_agent.description,
@@ -168,7 +158,7 @@ design_simulation_inst = Agent(
     after_model_callback=design_agent.after_model_callback,
 )
 
-design_grounding_inst = Agent(
+design_grounding_inst = ProcessAgent(
     name=design_agent.name + "_Grounding_Update",
     model=design_agent.model,
     description=design_agent.description,
@@ -179,7 +169,7 @@ design_grounding_inst = Agent(
     after_model_callback=design_agent.after_model_callback,
 )
 
-grounding_inst = LlmAgent(
+grounding_inst = ProcessLlmAgent(
     name=grounding_agent.name + "_Update",
     model=grounding_agent.model,
     description=grounding_agent.description,
@@ -191,11 +181,11 @@ grounding_inst = LlmAgent(
     after_model_callback=grounding_agent.after_model_callback,
 )
 
-# Subprocess driver is NOT an LlmAgent — clone manually
+# Subprocess driver is NOT an LlmAgent — clone manually (BaseAgent)
 subprocess_inst = SubprocessDriverAgent(name="Subprocess_Driver_Agent_Update")
 
-# Specialized instance for internal compliance logic
-design_compliance_inst = Agent(
+# Specialized instance for internal compliance logic (lightweight Agent)
+design_compliance_inst = ProcessAgent(
     name=design_agent.name + "_Compliance_Update_Review",
     model=design_agent.model,
     instruction=design_agent.instruction,
@@ -208,8 +198,8 @@ design_compliance_inst = Agent(
 # ---------------------------------------------------------
 # RE-ASSEMBLE THE UPDATE PIPELINE
 # ---------------------------------------------------------
-# ---------- Add Stop_Controller FIRST in the loop stage ----------
 
+# ---------- Add Stop_Controller FIRST in the loop stage ----------
 sub_update_agents = [
     design_inst,
     compliance_inst,
@@ -217,7 +207,6 @@ sub_update_agents = [
     simulation_inst,
     design_simulation_inst,
 ]
-
 if getProperty("enableGroundingAgent", default="true"):
     logger.debug("Grounding agent ENABLED in design loop.")
     sub_update_agents += [
@@ -240,7 +229,7 @@ review_update_loop = LoopAgent(
     max_iterations=int(getProperty("loopIterations", default=6)),
 )
 
-json_stop_agent_instance = Agent(
+json_stop_agent_instance = ProcessAgent(
     name="JSON_Review_Stop_Controller_Update",
     model=stop_controller_agent.model,
     description=stop_controller_agent.description,
@@ -270,12 +259,12 @@ update_design_pipeline = SequentialAgent(
     name="Update_Design_Pipeline",
     description="Use this tool ONLY when the user wants to MODIFY, CHANGE, or UPDATE an existing process.",
     sub_agents=[
-        mute_agent_instance,                    # Mute console output
-        update_analysis_agent,                  # Step 1: Context Loading & Merging
-        review_update_loop,                     # Step 2: Re-Design & Audit
-        json_update_normalization_loop,         # Step 3: Stabilization
-        subprocess_inst,                        # Step 4: Subprocess Regeneration
-        build_doc_creation_agent("Update"),     # Step 5: Artifact Build        
-        unmute_agent_instance,                  # Unmute console output
+        mute_agent_instance,                 # Mute console output
+        update_analysis_agent,               # Step 1: Context Loading & Merging
+        review_update_loop,                  # Step 2: Re-Design & Audit
+        json_update_normalization_loop,      # Step 3: Stabilization
+        subprocess_inst,                     # Step 4: Subprocess Regeneration
+        build_doc_creation_agent("Update"),  # Stage 5: Artifact Build
+        unmute_agent_instance,               # Unmute console output
     ],
 )

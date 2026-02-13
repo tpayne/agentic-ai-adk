@@ -1,16 +1,12 @@
 # process_agents/json_review_agent.py
-from google.adk.agents import LlmAgent
+
 from google.genai import types
-from google.adk.agents.invocation_context import InvocationContext
 from google.adk.tools.tool_context import ToolContext
 
 from .utils import (
-    load_instruction,
     load_master_process_json,
     load_iteration_feedback,
     save_iteration_feedback,
-    review_messages,
-    review_outputs,
     getProperty
 )
 
@@ -36,9 +32,9 @@ def exit_loop(tool_context: ToolContext):
 # -----------------------------
 # JSON REVIEW AGENT
 # -----------------------------
-json_review_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent
+json_review_agent = ProcessLlmAgent(
     name='Json_Review_Agent',
-    model=getProperty("MODEL"),
     description='Review JSON for validity, compliance, and best practices.',
     include_contents="default",
     tools=[
@@ -48,11 +44,9 @@ json_review_agent = LlmAgent(
         save_iteration_feedback,
         log_review_metadata
     ],
-    instruction=load_instruction("json_review_agent.txt"),
+    instruction_file="json_review_agent.txt",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
         top_p=1,
     ),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs
 )

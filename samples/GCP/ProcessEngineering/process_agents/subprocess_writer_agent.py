@@ -21,7 +21,6 @@ logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 SUBPROCESS_DIR = "output/subprocesses"
 os.makedirs(SUBPROCESS_DIR, exist_ok=True)
 
-
 class SubprocessWriterAgent(BaseAgent):
     def __init__(self, name="Subprocess_Writer_Agent"):
         super().__init__(name=name)
