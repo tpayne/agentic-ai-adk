@@ -60,12 +60,18 @@ stop_controller_agent_instance = ProcessAgent(
 # ---------------------------------------------------------
 # STAGE 1: CONTEXT-AWARE ANALYSIS
 # ---------------------------------------------------------
+from .analysis_agent import record_analysis_request
 update_analysis_agent = ProcessLlmAgent(
     name="Process_Update_Analyst",
     description="Analyzes user requests for process changes and identifies required revisions against the existing design.",
     instruction_file="update_analysis_agent.txt",
     generate_content_config=design_agent.generate_content_config,  # auto-loads file
-    tools=[load_full_process_context,load_iteration_feedback,save_iteration_feedback],
+    tools=[
+        load_full_process_context,
+        load_iteration_feedback,
+        record_analysis_request,
+        save_iteration_feedback
+    ],
 )
 
 # ---------------------------------------------------------
