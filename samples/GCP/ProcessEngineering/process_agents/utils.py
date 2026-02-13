@@ -470,20 +470,7 @@ def load_iteration_feedback() -> dict:
 def save_iteration_feedback(feedback_data: Any):
     """
     Saves iteration feedback to disk.
-    Ensures that the 'data' field is saved as a clean JSON list/object,
-    not a stringified representation.
-
-    Additionally:
-    - If the incoming feedback contains any APPROVED markers:
-        * COMPLIANCE APPROVED
-        * SIMULATION_ALL_APPROVED
-        * GROUNDING APPROVED
-        * JSON APPROVED
-      Then update output/approval.json with the corresponding keys:
-        * "compliance_status": "APPROVED"
-        * "simulation_status": "APPROVED"
-        * "grounding_status": "APPROVED"
-        * "json_status": "APPROVED"
+    Corrects the double-nesting issue and extracts status from agent payloads.
     """
 
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
@@ -496,21 +483,22 @@ def save_iteration_feedback(feedback_data: Any):
     # Artificial delay to prevent API burst issues in the loop
     _safe_sleep_from_property("modelSleep", default=0.25)
 
-    # --- Clean incoming data ---
+    # --- 1. Clean and Normalize incoming data ---
     processed_data = feedback_data
     if isinstance(feedback_data, str):
         try:
+            # Basic cleanup for common LLM string issues
             normalized_str = feedback_data.replace("'", '"')
             processed_data = json.loads(normalized_str)
         except Exception:
             processed_data = feedback_data
 
-    # Capture inner status BEFORE we mutate processed_data
+    # --- 2. Extract internal status BEFORE restructuring ---
     inner_status = None
     if isinstance(processed_data, dict):
         inner_status = processed_data.get("status")
 
-    # --- Update cumulative approval state ---
+    # --- 3. Update cumulative approval state ---
     approval_markers = {
         "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
         "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
@@ -518,7 +506,7 @@ def save_iteration_feedback(feedback_data: Any):
         "JSON APPROVED": ("status", "JSON APPROVED"),
     }
 
-    # Convert feedback to string for scanning
+    # Convert feedback to string for scanning approval markers
     feedback_str = (
         json.dumps(processed_data)
         if not isinstance(processed_data, str)
@@ -529,31 +517,23 @@ def save_iteration_feedback(feedback_data: Any):
 
     if matched:
         approval_path = os.path.join(output_dir, "approval.json")
-
-        # Load existing approval state or create new
+        approval_state = {}
         if os.path.exists(approval_path):
             try:
                 with open(approval_path, "r", encoding="utf-8") as f:
                     approval_state = json.load(f)
             except Exception:
-                approval_state = {}
-        else:
-            approval_state = {}
+                pass
 
-        # Apply updates
         for marker in matched:
             key, value = approval_markers[marker]
             approval_state[key] = value
 
-        # Persist updated approval state
         with open(approval_path, "w", encoding="utf-8") as f:
             json.dump(approval_state, f, indent=2)
 
-    # --- Determine top-level status ---
-    # Default: revision required
+    # --- 4. Determine top-level status ---
     status = "REVISION REQUIRED"
-
-    # If the agent explicitly set a status we recognise, respect it
     approved_statuses = {
         "JSON APPROVED",
         "COMPLIANCE APPROVED",
@@ -563,28 +543,34 @@ def save_iteration_feedback(feedback_data: Any):
     if inner_status in approved_statuses:
         status = inner_status
 
-    # --- Remove nested status to avoid duplicate keys in final JSON ---
-    if isinstance(processed_data, dict) and "status" in processed_data:
-        processed_data = {k: v for k, v in processed_data.items() if k != "status"}
+    # --- 5. Fix Double-Nesting & Remove Status from Data ---
+    if isinstance(processed_data, dict):
+        # If the agent sent {"issues": [...]}, flatten it so 'data' is the list
+        if "issues" in processed_data:
+            processed_data = processed_data["issues"]
+        else:
+            # Otherwise, just remove the status key to avoid redundancy
+            processed_data = {k: v for k, v in processed_data.items() if k != "status"}
 
-    # --- Build final payload ---
+    # --- 6. Build final payload ---
     payload = {
         "status": status,
         "data": processed_data,
     }
 
-    # --- Save iteration_feedback.json ---
+    # --- 7. Save to disk ---
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
-        logger.debug(f"Iteration feedback saved with status '{status}'. First 100 chars of payload: {str(payload)[:100]}")
+        
+        logger.debug(f"Iteration feedback saved with status '{status}'.")
         logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk ---")
         return f"SUCCESS: Feedback persisted to {path}"
 
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
-
+    
 # Load the master process JSON from output/process_data.json
 def load_master_process_json() -> Union[dict, None]:
     """
