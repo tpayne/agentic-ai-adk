@@ -61,7 +61,7 @@ stop_controller_agent_instance = ProcessAgent(
 # STAGE 1: CONTEXT-AWARE ANALYSIS
 # ---------------------------------------------------------
 from .analysis_agent import record_analysis_request
-update_analysis_agent = ProcessLlmAgent(
+update_analysis_agent = ProcessAgent(
     name="Process_Update_Analyst",
     description="Analyzes user requests for process changes and identifies required revisions against the existing design.",
     instruction_file="update_analysis_agent.txt",

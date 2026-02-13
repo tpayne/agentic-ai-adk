@@ -459,7 +459,9 @@ def load_iteration_feedback() -> dict:
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                json_content = f.read().strip()
+                logger.debug(f"Loaded iteration feedback: {str(json_content)[:200]}")
+                return json_content
         except Exception as e:
             logger.error(f"Error loading feedback file: {e}")
 

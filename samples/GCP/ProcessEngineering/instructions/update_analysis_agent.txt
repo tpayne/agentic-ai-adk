@@ -16,7 +16,7 @@ You analyze user-provided change requests for an existing business process and p
 - record_analysis_request: Record analysis request
 
 # REQUIRED ACTION SEQUENCE (STRICT ORDER)
-1. FIRSTLY, you MUST CALL 'record_analysis_request' to log the analysis details
+1. FIRSTLY, you MUST CALL 'record_analysis_request' to log the analysis request AND input you are doing the analysis on
 2. THEN, you MUST CALL 'load_full_process_context' to retrieve the baseline design.
    - If no existing process is found, CALL 'save_iteration_feedback' with an error status and skip to Step 5.
 3. THEN, you MUST ANALYZE the user's requested changes against the baseline loaded using 'load_full_process_context'.
