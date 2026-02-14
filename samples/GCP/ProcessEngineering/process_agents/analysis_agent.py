@@ -31,16 +31,11 @@ def log_analysis_metadata(sector: str, goal_count: int):
     logger.debug(f"Analysis Metadata - Sector: {sector}, Goals Identified: {goal_count}.")
     return f"Analysis started for {sector} with {goal_count} identified objectives."
 
-def record_analysis_request(request: str, original_input: Any):
+def record_analysis_request(request: str):
     """Internal tool to log the original user request for traceability."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug(f"Original Analysis Request: {request}")
     _remove_previous_approval_logs()
-    if original_input is not None:
-        if (isinstance(original_input, dict) or isinstance(original_input, list)):
-            logger.debug(f"Original Analysis Request Details: {json.dumps(original_input, indent=2)}")
-        else:
-            logger.debug(f"Original Analysis Request Details: {str(original_input)}")
     return "User request logged."
 
 # -----------------------------
