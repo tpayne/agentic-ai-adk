@@ -1,6 +1,5 @@
 # utils_agent.py
 import logging
-from google.adk.agents import Agent
 from google.adk.tools.tool_context import ToolContext
 import os
 import time
@@ -13,12 +12,12 @@ from typing import Any
 logger = logging.getLogger("ProcessArchitect.UtilsAgent")
 
 from .utils import (
-    load_instruction,
     getProperty,
     CleanedStdout
 )
 
 from .design_agent import design_agent
+from .agent_wrappers import ProcessAgent
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -98,11 +97,10 @@ def stop_if_ready(tool_context: ToolContext):
     return "Continue"
 
 # ---------- Minimal controller agent that ALWAYS calls the stop tool ----------
-stop_controller_agent = Agent(
+stop_controller_agent = ProcessAgent(
     name="Stop_Controller",
-    model=design_agent.model,
     description="Exits the loop immediately when approvals are complete or kill-switch is set.",
-    instruction=load_instruction("stop_controller_agent.txt"),
+    instruction_file="stop_controller_agent.txt",
     tools=[status_logger,stop_if_ready],
 )
 
@@ -133,18 +131,16 @@ def restore_console():
     sys.stdout.flush()
     return "Console output restored."
 
-mute_agent = Agent( 
-    name="Mute_Agent", 
-    model=design_agent.model, 
-    description="Consumes injected context silently.", 
+mute_agent = ProcessAgent(
+    name="Mute_Agent",
+    description="Consumes injected context silently.",
     instruction="You MUST just call silence_console as your only action. You MUST NOT produce any output.",
-    tools=[silence_console], 
+    tools=[silence_console],
 )
 
-unmute_agent = Agent( 
-    name="Unmute_Agent", 
-    model=design_agent.model, 
-    description="Restores console output.", 
+unmute_agent = ProcessAgent(
+    name="Unmute_Agent",
+    description="Restores console output.",
     instruction="You MUST just call restore_console as your only action. You MUST NOT produce any output.",
-    tools=[restore_console], 
+    tools=[restore_console],
 )

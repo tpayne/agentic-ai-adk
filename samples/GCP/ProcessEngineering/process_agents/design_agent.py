@@ -1,6 +1,4 @@
 # process_agents/design_agent.py
-from google.adk.agents import LlmAgent
-from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
 import time
@@ -8,13 +6,10 @@ import logging
 import random
 
 from .utils import (
-    load_instruction,
     persist_final_json,
     load_iteration_feedback,
     load_master_process_json,
     getProperty,
-    review_messages,
-    review_outputs
 )
 
 logger = logging.getLogger("ProcessArchitect.Design")
@@ -28,11 +23,11 @@ def log_design_metadata(process_name: str, goal_count: int):
 # -----------------------------
 # DESIGN AGENT
 # -----------------------------
-design_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent
+design_agent = ProcessLlmAgent(
     name="Design_Agent",
-    model=getProperty("MODEL"),
     description="Architects detailed business process workflows.",
-    instruction=load_instruction("design_agent.txt"),
+    instruction_file="design_agent.txt",
     tools=[
         load_iteration_feedback,
         log_design_metadata,
@@ -42,6 +37,4 @@ design_agent = LlmAgent(
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2
     ),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs,
 )

@@ -1,11 +1,10 @@
 # process_agents/doc_generation_agent.py
 
-from google.adk.agents import Agent
 import docx
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from .utils import load_instruction, getProperty
+from .utils import getProperty
 
 import os
 import json
@@ -221,7 +220,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
 
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.add_run("End-to-End Level 0 Value Stream Map").font.size = Pt(18)
+        p.add_run("Process Model Document").font.size = Pt(18)
 
         doc.add_paragraph()
         doc.add_paragraph(f"Industry / Domain: {sector}")
@@ -348,11 +347,11 @@ def create_standard_doc_from_file(process_name: str) -> str:
 # ============================================================
 # AGENT DEFINITION
 # ============================================================
-
-doc_generation_agent = Agent(
+from .agent_wrappers import ProcessAgent
+doc_generation_agent = ProcessAgent(
     name="Document_Generation_Agent",
     description="Generates a professional ISO-formatted Word document from normalized JSON.",
-    instruction=load_instruction("doc_generation_agent.txt"),
+    instruction_file="doc_generation_agent.txt",
     tools=[create_standard_doc_from_file],
 )
 
