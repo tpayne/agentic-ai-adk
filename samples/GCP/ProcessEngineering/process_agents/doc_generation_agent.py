@@ -220,7 +220,7 @@ def create_standard_doc_from_file(process_name: str) -> str:
 
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.add_run("End-to-End Level 0 Value Stream Map").font.size = Pt(18)
+        p.add_run("Process Model Document").font.size = Pt(18)
 
         doc.add_paragraph()
         doc.add_paragraph(f"Industry / Domain: {sector}")
