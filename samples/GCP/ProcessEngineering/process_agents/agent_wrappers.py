@@ -109,7 +109,6 @@ class DefaultLlmAgent(LlmAgent):
         if before_model_callback is _DEFAULT:
             init_kwargs["before_model_callback"] = review_messages
         else:
-            # can be None (to disable) or a custom callable
             init_kwargs["before_model_callback"] = before_model_callback
 
         if after_model_callback is _DEFAULT:
@@ -120,6 +119,31 @@ class DefaultLlmAgent(LlmAgent):
         init_kwargs.update(kwargs)
         super().__init__(**init_kwargs)
 
+    # --- clone() method ---
+    # WARNING - Use this with caution! It does a shallow copy of tools and sub-agents, which may lead to shared
+    # mutable state if those contain mutable objects. Always review the resulting agent's tools and sub-agents 
+    # to ensure they are correctly isolated or shared as intended.
+    # It may also corrupt callbacks if they reference mutable state. This is intended as a convenience for
+    # quickly creating similar agents.
+    def clone(self, **overrides: Any) -> "DefaultLlmAgent":
+        params = {
+            "name": self.name,
+            "model": self.model,
+            "description": self.description,
+            "instruction": self.instruction,
+            "tools": None,
+            "sub_agents": None,
+            "output_key": self.output_key,
+            "include_contents": self.include_contents,
+            "generate_content_config": self.generate_content_config,
+            "before_model_callback": self.before_model_callback,
+            "after_model_callback": self.after_model_callback,
+        }
+
+        params.update(overrides)
+        new_agent = self.__class__(**params)
+        new_agent.tools = list(self.tools) if self.tools else []
+        return new_agent
 
 class DefaultAgent(Agent):
     def __init__(
@@ -169,7 +193,6 @@ class DefaultAgent(Agent):
         if generate_content_config is not None:
             init_kwargs["generate_content_config"] = generate_content_config
 
-        # --- NEW: only apply defaults if sentinel was not overridden ---
         if before_model_callback is _DEFAULT:
             init_kwargs["before_model_callback"] = review_messages
         else:
@@ -183,6 +206,31 @@ class DefaultAgent(Agent):
         init_kwargs.update(kwargs)
         super().__init__(**init_kwargs)
 
+    # --- clone() method ---
+    # WARNING - Use this with caution! It does a shallow copy of tools and sub-agents, which may lead to shared
+    # mutable state if those contain mutable objects. Always review the resulting agent's tools and sub-agents 
+    # to ensure they are correctly isolated or shared as intended.
+    # It may also corrupt callbacks if they reference mutable state. This is intended as a convenience for
+    # quickly creating similar agents.
+    def clone(self, **overrides: Any) -> "DefaultAgent":
+        params = {
+            "name": self.name,
+            "model": self.model,
+            "description": self.description,
+            "instruction": self.instruction,
+            "tools": None,
+            "sub_agents": None,
+            "output_key": self.output_key,
+            "include_contents": self.include_contents,
+            "generate_content_config": self.generate_content_config,
+            "before_model_callback": self.before_model_callback,
+            "after_model_callback": self.after_model_callback,
+        }
+
+        params.update(overrides)
+        new_agent = self.__class__(**params)
+        new_agent.tools = list(self.tools) if self.tools else []
+        return new_agent
 
 # Convenience factories
 def ProcessLlmAgent(name: str, **overrides: Any) -> DefaultLlmAgent:
