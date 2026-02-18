@@ -104,12 +104,12 @@ Your ONLY visible output is the final persist_final_json tool call.
        - You MUST NOT call 'validate_process_json' or 'persist_final_json'.
        - You MUST immediately return control to the orchestrator with NO TOOL CALLS.
 
-   - If the feedback indicates COMPLIANCE APPROVED, SIMULATION_ALL_APPROVED, or GROUNDING APPROVED
+   - If the feedback indicates a 'status' of "COMPLIANCE APPROVED", "SIMULATION_ALL_APPROVED", or "GROUNDING APPROVED"
      and 'data' is either missing, an empty list, or an object containing only 'notes':
        - You MUST treat this as a NO‑OP.
        - You MUST NOT modify the baseline.
        - You MUST NOT validate or persist.
-       - You MUST immediately exit with NO TOOL CALLS.
+       - You MUST immediately STOP and return control to the orchestrator with NO TOOL CALLS.
 
 4B. LOOP TERMINATION RULE (MANDATORY)
   - If `load_iteration_feedback` returns a status indicating approval
