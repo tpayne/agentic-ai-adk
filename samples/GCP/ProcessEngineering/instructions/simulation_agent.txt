@@ -68,19 +68,21 @@ Use this option if:
 
 In this case:
     1) CALL save_iteration_feedback with:
-       [
-         {
-           "status": "REVISION REQUIRED",
-           "issues": [
-             {
-               "step_name": "...",
-               "issue": "...",
-               "instruction": "..."
-             }
-           ]
-         }
-       ]
-       (The JSON MUST appear ONLY inside the tool call.)
+      {
+        "status": "REVISION REQUIRED",
+        "issues": [
+          {
+            "issue_type": "simulation",
+            "location": "json_path_to_field",
+            "instruction": "Clear description of what the error is and how to fix it. These instructions MUST be specific and actionable, not vague.",
+            "metadata": {
+              "step_name": "The step name that has an issue",
+              "issue": "What is the issue?"
+            }
+          }
+        ]
+      }
+      (The JSON MUST appear ONLY inside the tool call.)
     2) On the NEXT turn, output ONLY:
            REVISION REQUIRED
 
@@ -92,16 +94,21 @@ Use this option if a valid simulation result is returned AND ANY of the followin
 
 In this case:
     1) CALL save_iteration_feedback with:
-       {
-         "status": "REVISION REQUIRED",
-         "issues": [
-           {
-             "step_name": "...",
-             "issue": "...",
-             "instruction": "..."
-           }
-         ]
-       }
+    {
+      "status": "REVISION REQUIRED",
+      "issues": [
+        {
+          "issue_type": "simulation",
+          "location": "json_path_to_field",
+          "instruction": "Clear instructions on what the issue is and how to fix it. These instructions MUST be specific and actionable, not vague.",
+          "metadata": {
+            "step_name": "The step name",
+            "issue": "What is the issue?"
+          }
+        }
+      ]
+    }
+
        (The JSON MUST appear ONLY inside the tool call.)
     2) On the NEXT turn, output ONLY:
            REVISION REQUIRED

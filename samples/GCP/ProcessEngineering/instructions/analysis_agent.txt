@@ -39,7 +39,18 @@ Internally generate a single JSON object containing:
 
 # STEP 4: SAVING THE RESULTS (MANDATORY)
 After generating the JSON object, CALL the tool 'save_iteration_feedback' with the JSON output as an internal background action.
-
+The JSON schema MUST look like this
+   {
+      "status": "REVISION REQUIRED",
+      "issues": [
+         {
+            "issue_type": "update",
+            "location": "json_path_to_field",
+            "instruction": "Clear instructions about what updates are required. These instructions MUST be specific and actionable, not vague.",
+            "metadata": {}
+         }
+      ]
+   }
 # OUTPUT CONTRACT (STRICT SILENCE):
 - Your visible text response to the user MUST BE EMPTY.
 - Your ONLY permitted action is the background invocation of the tools.

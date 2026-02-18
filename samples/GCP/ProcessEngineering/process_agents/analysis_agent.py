@@ -17,9 +17,12 @@ logger = logging.getLogger("ProcessArchitect.Analysis")
 def _remove_previous_approval_logs():
     # Silently remove output/approval.json, ignore exceptions
     approvalLog = "output/approval.json"
+    counterLog = "output/stop_counter.json"
     try:
         if os.path.exists(approvalLog):
             os.remove(approvalLog)
+        if os.path.exists(counterLog):
+            os.remove(counterLog)
     except Exception:
         pass
     return "Previous approval logs cleared."

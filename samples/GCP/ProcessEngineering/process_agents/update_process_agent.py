@@ -9,10 +9,8 @@ from .utils import (
 
 # Import the base agents to access their configuration
 from .design_agent import design_agent
-from .compliance_agent import (
-    compliance_agent,
-    load_iteration_feedback,
-)
+from .compliance_agent import compliance_agent
+from .utils import load_iteration_feedback
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .doc_creation_agent import build_doc_creation_agent
@@ -60,16 +58,15 @@ stop_controller_agent_instance = ProcessAgent(
 # ---------------------------------------------------------
 # STAGE 1: CONTEXT-AWARE ANALYSIS
 # ---------------------------------------------------------
-from .analysis_agent import record_analysis_request
+from .analysis_agent import log_analysis_metadata
 update_analysis_agent = ProcessLlmAgent(
     name="Process_Update_Analyst",
     description="Analyzes user requests for process changes and identifies required revisions against the existing design.",
     instruction_file="update_analysis_agent.txt",
-    generate_content_config=design_agent.generate_content_config,  # auto-loads file
     tools=[
         load_full_process_context,
         load_iteration_feedback,
-        record_analysis_request,
+        log_analysis_metadata,
         save_iteration_feedback
     ],
 )
@@ -204,6 +201,8 @@ design_compliance_inst = ProcessAgent(
 # ---------------------------------------------------------
 # RE-ASSEMBLE THE UPDATE PIPELINE
 # ---------------------------------------------------------
+# Safe timebox for loops: read configurable value or fall back to a conservative default.
+SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
 
 # ---------- Add Stop_Controller FIRST in the loop stage ----------
 sub_update_agents = [
@@ -232,7 +231,7 @@ review_update_loop = LoopAgent(
             sub_agents=sub_update_agents,
         )
     ],
-    max_iterations=int(getProperty("loopIterations", default=6)),
+    max_iterations=SAFE_LOOP_ITERS,
 )
 
 json_stop_agent_instance = ProcessAgent(
@@ -252,7 +251,7 @@ json_update_normalization_loop = SequentialAgent(
         LoopAgent(
             name="Update_Normalizer_Sequence",
             sub_agents=[normalizer_inst, reviewer_inst, json_stop_agent_instance],
-            max_iterations=int(getProperty("loopIterations", default=6)),
+            max_iterations=SAFE_LOOP_ITERS,
         ),
         writer_inst,
     ],

@@ -40,7 +40,7 @@ logger = logging.getLogger("ProcessArchitect.CreateProcessPipeline")
 
 # ------------------------- PIPELINE DEFINITION -------------------------
 # Safe timebox for loops: read configurable value or fall back to a conservative default.
-SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=6))
+SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
 
 # ---------- Existing design agents ----------
 # Create a ProcessLlmAgent wrapper instance for the design agent (keeps LLM-specific behaviour)

@@ -10,6 +10,7 @@ from .utils import (
     load_iteration_feedback,
     load_master_process_json,
     getProperty,
+    validate_process_json,
 )
 
 logger = logging.getLogger("ProcessArchitect.Design")
@@ -33,6 +34,7 @@ design_agent = ProcessLlmAgent(
         log_design_metadata,
         load_master_process_json,
         persist_final_json,
+        validate_process_json,
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2

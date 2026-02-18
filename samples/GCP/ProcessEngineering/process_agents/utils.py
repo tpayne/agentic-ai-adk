@@ -166,9 +166,17 @@ def _extract_json_brace_balanced(text: str) -> str:
     raise ValueError("JSON braces not balanced")
 
 def _validate_process_json(data: dict):
+    """
+    Returns:
+      - [] if valid
+      - list of issue objects if invalid
+      - None only if data is not a dict
+    """
     if not isinstance(data, dict):
         logger.error("Process JSON does not contain a JSON object.")
         return None
+
+    issues = []
 
     required_top_keys = [
         "process_name",
@@ -179,27 +187,50 @@ def _validate_process_json(data: dict):
         "process_steps",
         "tools_summary",
         "metrics",
+        "critical_success_factors",
+        "critical_failure_factors",
         "reporting_and_analytics",
         "system_requirements",
         "assumptions",
         "constraints",
         "appendix",
-        "critical_success_factors",
-        "critical_failure_factors",
+        "purpose",
+        "scope",
+        "process_owner",
+        "process_triggers",
+        "process_end_conditions",
+        "risks_and_controls",
+        "governance_requirements",
+        "change_management",
+        "continuous_improvement",
     ]
 
+    # --- Top-level validation ---
     for key in required_top_keys:
         if key not in data:
-            logger.error(f"Missing required top-level key '{key}'.")
-            return None
+            issues.append({
+                "location": f"$.{key}",
+                "issue": f"Missing required top-level key '{key}'"
+            })
 
+    # If top-level keys missing, no need to continue deeper
+    if issues:
+        return issues
+
+    # --- process_name ---
     if not isinstance(data.get("process_name"), str) or not data["process_name"].strip():
-        logger.error("Invalid or empty 'process_name' in process JSON.")
-        return None
+        issues.append({
+            "location": "$.process_name",
+            "issue": "Invalid or empty 'process_name'"
+        })
 
+    # --- process_steps ---
     if not isinstance(data.get("process_steps"), list) or len(data["process_steps"]) == 0:
-        logger.error("Invalid or empty 'process_steps' in process JSON.")
-        return None
+        issues.append({
+            "location": "$.process_steps",
+            "issue": "Invalid or empty 'process_steps'"
+        })
+        return issues
 
     required_step_keys = [
         "step_name",
@@ -215,15 +246,20 @@ def _validate_process_json(data: dict):
 
     for idx, step in enumerate(data["process_steps"]):
         if not isinstance(step, dict):
-            logger.error(f"process_steps[{idx}] is not an object.")
-            return None
+            issues.append({
+                "location": f"$.process_steps[{idx}]",
+                "issue": "Step is not an object"
+            })
+            continue
 
         for sk in required_step_keys:
             if sk not in step:
-                logger.error(f"Missing key '{sk}' in process_steps[{idx}].")
-                return None
+                issues.append({
+                    "location": f"$.process_steps[{idx}].{sk}",
+                    "issue": f"Missing required step key '{sk}'"
+                })
 
-    return data
+    return issues
 
 def _save_raw_data_to_json(json_content) -> str:
     """
@@ -237,6 +273,15 @@ def _save_raw_data_to_json(json_content) -> str:
     path = os.path.join(output_dir, "process_data.json")
     lock_path = os.path.join(output_dir, ".process_data.lock")
 
+    _safe_sleep_from_property("modelSleep", default=0.25)
+    if (
+        not json_content
+        or (isinstance(json_content, str) and json_content.strip() == "")
+        or (isinstance(json_content, dict) and len(json_content) == 0)
+    ):
+        _log_agent_activity("No JSON content provided to persist_final_json.")
+        return "INFO: No JSON content provided to persist_final_json, so nothing has been done."
+    
     def acquire_lock(timeout: float = 5.0) -> bool:
         start = time.time()
         while time.time() - start < timeout:
@@ -365,7 +410,9 @@ def _save_raw_data_to_json(json_content) -> str:
                     _log_agent_activity(
                         f"No changes detected; skipping write to {path}."
                     )
-                    return path
+                    return {
+                        "SUCCESS": f"The file {path} is unchanged."
+                    }
             except Exception:
                 pass  # If comparison fails, fall through to write
 
@@ -376,12 +423,14 @@ def _save_raw_data_to_json(json_content) -> str:
             f"Successfully saved JSON to {path} "
             f"({'repaired' if used_repair else 'clean'})."
         )
-        return path
+        return {
+            "SUCCESS": f"The file {path} was saved successfully."
+        }
 
     except Exception:
         error_trace = traceback.format_exc()
         logger.error(f"Failed to save JSON: {error_trace}")
-        return "ERROR: Failed to save JSON"
+        return "ERROR: Failed to save JSON due to an unexpected error. Check logs for details."
 
     finally:
         release_lock()
@@ -396,6 +445,37 @@ def _json_equal(a: dict, b: dict) -> bool:
 # ---------------------------------------------------------------------
 # EXPOSED TOOL (SINGLE ENTRYPOINT FOR LLM)
 # ---------------------------------------------------------------------
+def validate_process_json(json_content: Any) -> dict:
+    """
+    Public tool for agents to validate a process JSON structure.
+    Returns a structured list of issues.
+    """
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    if not isinstance(json_content, dict):
+        return {
+            "valid": False,
+            "issues": [
+                {"location": "$", "issue": "Input is not a JSON object"}
+            ]
+        }
+
+    issues = _validate_process_json(json_content)
+
+    # None means catastrophic failure (not a dict)
+    if issues is None:
+        return {
+            "valid": False,
+            "issues": [
+                {"location": "$", "issue": "Input is not a valid JSON object"}
+            ]
+        }
+
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues
+    }
+
 
 def persist_final_json(json_content) -> str:
     """
@@ -406,8 +486,30 @@ def persist_final_json(json_content) -> str:
     """
     _safe_sleep_from_property("modelSleep", default=0.25)
 
+    if (
+        not json_content
+        or (isinstance(json_content, str) and json_content.strip() == "")
+        or (isinstance(json_content, dict) and len(json_content) == 0)
+    ):
+        _log_agent_activity("No JSON content provided to persist_final_json.")
+        return "INFO: No JSON content provided to persist_final_json, so nothing has been done."
+
     try:
         _log_agent_activity("Starting final JSON file persistence")
+
+        # Validate BEFORE saving
+        issues = _validate_process_json(json_content)
+        if issues is None:
+            return "ERROR: JSON content is not a valid object."
+
+        if len(issues) > 0:
+            logger.error(f"Validation issues: {issues}")
+            return json.dumps({
+                "ERROR": "JSON validation failed",
+                "issues": issues
+            }, indent=2)
+
+        # Save using internal writer
         result = _save_raw_data_to_json(json_content)
 
         if isinstance(result, str) and "No changes detected" not in result:
@@ -465,14 +567,13 @@ def load_iteration_feedback() -> dict:
         except Exception as e:
             logger.error(f"Error loading feedback file: {e}")
 
-    return {"status": "No feedback found", "issues": []}
+    return {"status": "No feedback found", "data": []}
 
 def save_iteration_feedback(feedback_data: Any):
     """
     Saves iteration feedback to disk.
     Corrects the double-nesting issue and extracts status from agent payloads.
     """
-
     _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
     _safe_sleep_from_property("modelSleep", default=0.25)
 
@@ -561,6 +662,7 @@ def save_iteration_feedback(feedback_data: Any):
     # --- 7. Save to disk ---
     try:
         with open(path, "w", encoding="utf-8") as f:
+            logger.debug(f"Loaded iteration feedback: {str(payload)[:400]}")
             json.dump(payload, f, indent=2)
         
         logger.debug(f"Iteration feedback saved with status '{status}'.")
@@ -578,7 +680,7 @@ def load_master_process_json() -> Union[dict, None]:
 
     Returns:
       - A valid dict if the file exists AND contains a structurally valid process JSON.
-      - None if the file is missing, unreadable, empty, locked, or missing required schema keys.
+      - None if the file is missing, unreadable, empty, locked, or contains validation issues.
     """
 
     path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
@@ -613,13 +715,17 @@ def load_master_process_json() -> Union[dict, None]:
             logger.error(f"Failed to parse JSON in {path}: {e}")
             return None
 
-        # Validate using your existing validator
-        validated = _validate_process_json(data)
-        if validated is None:
-            logger.error(f"Validation failed for {path}.")
+        # Validate using new issue-list validator
+        issues = _validate_process_json(data)
+        if issues is None:
+            logger.error(f"Validation failed for {path}: not a JSON object.")
             return None
 
-        return validated
+        if len(issues) > 0:
+            logger.error(f"Validation issues found in {path}: {issues}")
+            return None
+
+        return data
 
     except Exception as e:
         logger.error(f"Unexpected error loading {path}: {e}")
@@ -741,6 +847,15 @@ def _is_status_marker(text: str) -> bool:
 # ---------------------------------------------------------------------
 
 def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    # Collect available context attributes and log them in a single debug call
+    attrs = []
+    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name"]:
+        val = getattr(callback_context, attr, None)
+        if val:
+            attrs.append(f"{attr.upper()}: {val}")
+    if attrs:
+        logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing messages with context | {' | '.join(attrs)} ---")
+
     if not llm_request or not getattr(llm_request, "contents", None):
         return None
 
@@ -764,6 +879,15 @@ def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) 
 # AFTER MODEL: scrub outgoing text (for logs / downstream agents)
 # ---------------------------------------------------------------------
 def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
+    # Collect available context attributes and log them in a single debug call
+    attrs = []
+    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name"]:
+        val = getattr(callback_context, attr, None)
+        if val:
+            attrs.append(f"{attr.upper()}: {val}")
+    if attrs and llm_response:
+        logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing outputs with context | {' | '.join(attrs)} {llm_response} ---")
+
     if not llm_response or not getattr(llm_response, "candidates", None):
         return llm_response
 

@@ -36,17 +36,17 @@ prose quality. You MUST NOT modify the JSON yourself. You ONLY review and report
 
 4. If ANY issues exist:
       - CALL `save_iteration_feedback` with a JSON OBJECT following this EXACT schema:
-            {
-              "status": "REVISION REQUIRED",
-              "data": [
-                {
-                  "status": "REVISION REQUIRED",
-                  "error_type": "schema|enrichment|stakeholders|consistency|quality|other",
-                  "location": "json_path_to_field",
-                  "instruction": "detailed fix instruction"
-                }
-              ]
-            }
+      {
+        "status": "REVISION REQUIRED",
+        "issues": [
+          {
+            "issue_type": "schema|enrichment|stakeholders|consistency|quality|other",
+            "location": "json_path_to_field",
+            "instruction": "Clear instructions on how to fix the issue. These instructions MUST be specific and actionable, not vague.",
+            "metadata": {}
+          }
+        ]
+      }
       - The JSON MUST appear ONLY inside the tool call.
       - You MUST NOT display the JSON or the schema in chat.
       - Then output ONLY:
@@ -69,30 +69,30 @@ Evaluate the loaded JSON against ALL of the following. ANY violation requires RE
 
 1. SCHEMA (TOP-LEVEL KEYS)
    - The JSON MUST contain all required top-level keys:
-     process_name,
-     industry_sector,
-     version,
-     introduction,
-     purpose,
-     scope,
-     process_owner,
-     process_triggers,
-     process_end_conditions,
-     risks_and_controls,
-     governance_requirements,
-     change_management,
-     continuous_improvement,
-     stakeholders,
-     process_steps,
-     tools_summary,
-     metrics,
-     critical_success_factors,
-     critical_failure_factors,
-     reporting_and_analytics,
-     assumptions,
-     constraints,
-     system_requirements,
-     appendix.
+      - process_name
+      - industry_sector
+      - version
+      - introduction
+      - stakeholders
+      - process_steps
+      - tools_summary
+      - metrics
+      - critical_success_factors
+      - critical_failure_factors
+      - reporting_and_analytics
+      - system_requirements
+      - assumptions
+      - constraints
+      - appendix
+      - purpose
+      - scope
+      - process_owner
+      - process_triggers
+      - process_end_conditions
+      - risks_and_controls
+      - governance_requirements
+      - change_management
+      - continuous_improvement
 
 2. SCHEMA (DEEP ARRAY VALIDATION)
    - Every object inside EVERY array MUST contain ALL required fields defined by the schema.
@@ -269,21 +269,21 @@ Evaluate the loaded JSON against ALL of the following. ANY violation requires RE
 4. ENRICHMENT
    - introduction and all description fields MUST be multi-sentence professional paragraphs.
    - Bullet points MUST be rejected in these fields.
-   - If enrichment issues exist, set error_type to "enrichment".
+   - If enrichment issues exist, set issue_type to "enrichment".
 
 5. STAKEHOLDERS
    - Every stakeholder MUST have a detailed list of responsibilities.
-   - If stakeholder responsibilities are missing or trivial, set error_type to "stakeholders".
+   - If stakeholder responsibilities are missing or trivial, set issue_type to "stakeholders".
 
 6. CONSISTENCY
    - Every tool referenced in process_steps MUST appear in tools_summary.
-   - If inconsistencies exist, set error_type to "consistency".
+   - If inconsistencies exist, set issue_type to "consistency".
 
 7. QUALITY
    - Grammar MUST be professional.
    - Tone MUST be professional and consistent.
    - Flow MUST be coherent and logically structured.
-   - If quality issues exist, set error_type to "quality".
+   - If quality issues exist, set issue_type to "quality".
 
 # TOOL USAGE RULES
 - Tool calls must contain only valid JSON arguments.
