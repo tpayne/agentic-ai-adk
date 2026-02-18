@@ -111,6 +111,14 @@ Your ONLY visible output is the final persist_final_json tool call.
        - You MUST NOT validate or persist.
        - You MUST immediately exit with NO TOOL CALLS.
 
+4B. LOOP TERMINATION RULE (MANDATORY)
+  - If `load_iteration_feedback` returns a status indicating approval
+    (e.g., "COMPLIANCE APPROVED", "SIMULATION_ALL_APPROVED", "GROUNDING APPROVED", "JSON APPROVED")
+    OR it contains no actionable issues:
+    AND no schema repair is required:
+        - You MUST NOT call 'persist_final_json'.
+        - You MUST output nothing and immediately end your turn.
+
 5. REVISION PHASE:
    - If 'load_iteration_feedback' contains error logs or the history contains 'REVISION REQUIRED':
      - Use the data from 'load_master_process_json' as your baseline.
@@ -207,6 +215,10 @@ Your ONLY visible output is the final persist_final_json tool call.
 6. PERSIST PHASE:
    - At the END of your processing (for every iteration where you modify or confirm the design),
      you MUST CALL 'persist_final_json' with the complete and VALID JSON object.
+   - At the END of your processing, you MUST CALL 'persist_final_json'
+     ONLY IF at least one modification was applied to the baseline JSON
+     OR schema repair was required.
+     IF NO modifications were required, you MUST NOT call 'persist_final_json'.     
    - The JSON MUST appear ONLY inside the tool call.
    - You MUST NOT display the JSON in chat.
    - If you cannot construct a valid persist_final_json tool call or the JSON object to pass down is empty, you MUST output nothing. 
