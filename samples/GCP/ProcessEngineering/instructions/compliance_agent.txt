@@ -44,6 +44,7 @@ The JSON object passed to save_iteration_feedback MUST follow this structure:
     {
       "issue_type": "compliance",
       "location": "json_path_to_field",
+      "line_number": "line_number",
       "instruction": "Clear instructions on what change is needed to enforce compliance. These instructions MUST be specific and actionable, not vague.",
       "metadata": {
         "risk_level": "High|Medium|Low",

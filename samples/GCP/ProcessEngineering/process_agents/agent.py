@@ -135,7 +135,6 @@ from google.genai import types
 import asyncio
 import uuid
 
-
 def is_shell_command(text: str) -> bool:
     if text is None:
         return False
@@ -209,6 +208,10 @@ async def process_file(file_path: str):
                 if line.lower() in ["exit", "quit", "stop"]:
                     print("Exiting Process Architect Orchestrator.")
                     break
+                elif line.lower() == "clear":
+                    print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+                    runner, user_id, session_id = await init_session_and_runner()
+                    continue
                 elif line.startswith("#"):
                     print(f"{ANSI_BLUE}[Comment]: {line}{ANSI_RESET}")
                     continue
@@ -264,6 +267,10 @@ async def start_local_chat():
         if user_input.lower() in ["exit", "quit", "stop"]:
             print("Exiting Process Architect Orchestrator.")
             break
+        elif user_input.lower() == "clear":
+            print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+            runner, user_id, session_id = await init_session_and_runner()
+            continue
         elif user_input.startswith("#"):
             print(f"{ANSI_BLUE}[Comment]: {user_input}{ANSI_RESET}")
             continue

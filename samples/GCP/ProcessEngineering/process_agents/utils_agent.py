@@ -91,7 +91,7 @@ def stop_if_ready(tool_context: ToolContext):
     # ---------------------------------------------------------
     # 3. Max iteration stop
     # ---------------------------------------------------------
-    if loop_count > SAFE_LOOP_ITERS:
+    if loop_count >= SAFE_LOOP_ITERS:
         tool_context.actions.escalate = True
         logger.debug("Max loop iterations exceeded — exiting loop.")
         _reset_stop_counter(counter_path)
@@ -164,6 +164,7 @@ from .utils import (
 )
 
 # Function to kill all console output
+
 def silence_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")

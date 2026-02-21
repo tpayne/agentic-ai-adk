@@ -445,6 +445,10 @@ def _json_equal(a: dict, b: dict) -> bool:
 # ---------------------------------------------------------------------
 # EXPOSED TOOL (SINGLE ENTRYPOINT FOR LLM)
 # ---------------------------------------------------------------------
+from google.adk.tools.tool_context import ToolContext
+
+# process_agents/utils.py
+            
 def validate_process_json(json_content: Any) -> dict:
     """
     Public tool for agents to validate a process JSON structure.
@@ -549,9 +553,10 @@ def load_full_process_context() -> dict:
     return context
 
 # Tool to load iteration feedback from output/iteration_feedback.json
-def load_iteration_feedback() -> dict:
+def load_iteration_feedback(reset_data: bool = True) -> dict:
     """
     Loads feedback, metrics, and compliance violations from iteration_feedback.json.
+    Optionally resets "data" in the file to [] after reading (default True).
     This is the 'Inbox' for the Design Agent to see what other agents have requested.
     """
     _log_agent_activity("Loading iteration feedback from disk...")
@@ -563,9 +568,21 @@ def load_iteration_feedback() -> dict:
             with open(path, "r", encoding="utf-8") as f:
                 json_content = f.read().strip()
                 logger.debug(f"Loaded iteration feedback: {str(json_content)[:200]}")
-                return json_content
+                feedback = json.loads(json_content)
         except Exception as e:
             logger.error(f"Error loading feedback file: {e}")
+            return {"status": "No feedback found", "data": []}
+
+        if reset_data and isinstance(feedback, dict):
+            try:
+                feedback_reset = feedback.copy()
+                feedback_reset["data"] = []
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(feedback_reset, f, indent=2)
+            except Exception as e:
+                logger.error(f"Error resetting feedback file: {e}")
+
+        return feedback
 
     return {"status": "No feedback found", "data": []}
 
@@ -849,11 +866,13 @@ def _is_status_marker(text: str) -> bool:
 def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
     # Collect available context attributes and log them in a single debug call
     attrs = []
-    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name"]:
+    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
         val = getattr(callback_context, attr, None)
         if val:
             attrs.append(f"{attr.upper()}: {val}")
     if attrs:
+        error_code = getattr(callback_context, "error_code", None)
+        error_message = getattr(callback_context, "error_message", None)
         logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing messages with context | {' | '.join(attrs)} ---")
 
     if not llm_request or not getattr(llm_request, "contents", None):
@@ -881,11 +900,13 @@ def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) 
 def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
     # Collect available context attributes and log them in a single debug call
     attrs = []
-    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name"]:
+    for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
         val = getattr(callback_context, attr, None)
         if val:
             attrs.append(f"{attr.upper()}: {val}")
     if attrs and llm_response:
+        error_code = getattr(llm_response, "error_code", None)
+        error_message = getattr(llm_response, "error_message", None)
         logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing outputs with context | {' | '.join(attrs)} {llm_response} ---")
 
     if not llm_response or not getattr(llm_response, "candidates", None):

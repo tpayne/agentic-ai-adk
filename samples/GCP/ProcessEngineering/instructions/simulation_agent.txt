@@ -74,6 +74,7 @@ In this case:
           {
             "issue_type": "simulation",
             "location": "json_path_to_field",
+            "line_number": "line_number",
             "instruction": "Clear description of what the error is and how to fix it. These instructions MUST be specific and actionable, not vague.",
             "metadata": {
               "step_name": "The step name that has an issue",
@@ -100,6 +101,7 @@ In this case:
         {
           "issue_type": "simulation",
           "location": "json_path_to_field",
+          "line_number": "line_number",
           "instruction": "Clear instructions on what the issue is and how to fix it. These instructions MUST be specific and actionable, not vague.",
           "metadata": {
             "step_name": "The step name",

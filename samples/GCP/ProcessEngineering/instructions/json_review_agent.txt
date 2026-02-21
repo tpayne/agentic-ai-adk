@@ -42,6 +42,7 @@ prose quality. You MUST NOT modify the JSON yourself. You ONLY review and report
           {
             "issue_type": "schema|enrichment|stakeholders|consistency|quality|other",
             "location": "json_path_to_field",
+            "line_number": "line_number",
             "instruction": "Clear instructions on how to fix the issue. These instructions MUST be specific and actionable, not vague.",
             "metadata": {}
           }

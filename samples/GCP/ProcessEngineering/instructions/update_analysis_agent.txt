@@ -23,6 +23,7 @@ You analyze change requests and produce structured feedback for the Design Agent
          {
             "issue_type": "update",
             "location": "json_path_to_field",
+            "line_number": "line_number",
             "instruction": "Clear instructions about what updates are required. These instructions MUST be specific and actionable, not vague.",
             "metadata": {}
          }

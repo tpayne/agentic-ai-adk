@@ -76,6 +76,7 @@ Each issue object MUST follow this schema:
     {
       "issue_type": "grounding",
       "location": "json_path_to_field",
+      "line_number": "line_number",
       "instruction": "Clear instructions describing how the design agent must revise the fact. These instructions MUST be specific and actionable, not vague.",
       "metadata": {
         "risk_level": "High|Medium|Low",
