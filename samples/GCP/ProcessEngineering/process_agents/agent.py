@@ -108,10 +108,13 @@ signal.signal(signal.SIGTERM, handler)
 # ---------------------------------------------------------
 # ROOT AGENT
 # ---------------------------------------------------------
-root_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent  # DefaultLlmAgent shortcut
+
+root_agent = ProcessLlmAgent(
     name="Process_Architect_Orchestrator",
-    model=getProperty("MODEL"),
-    instruction=load_instruction("agent.txt"),
+    instruction_file="agent.txt",
+    before_model_callback=None,  # Disable before callback for root agent
+    after_model_callback=None,   # Disable after callback for root agent
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
@@ -120,7 +123,7 @@ root_agent = LlmAgent(
         simulation_query_agent,
         build_doc_creation_agent("Create_Doc_Agent"),
         SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
-    ]
+    ],
 )
 
 # ---------------------------------------------------------
@@ -131,7 +134,6 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
 import asyncio
 import uuid
-
 
 def is_shell_command(text: str) -> bool:
     if text is None:
@@ -206,6 +208,10 @@ async def process_file(file_path: str):
                 if line.lower() in ["exit", "quit", "stop"]:
                     print("Exiting Process Architect Orchestrator.")
                     break
+                elif line.lower() == "clear":
+                    print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+                    runner, user_id, session_id = await init_session_and_runner()
+                    continue
                 elif line.startswith("#"):
                     print(f"{ANSI_BLUE}[Comment]: {line}{ANSI_RESET}")
                     continue
@@ -261,6 +267,10 @@ async def start_local_chat():
         if user_input.lower() in ["exit", "quit", "stop"]:
             print("Exiting Process Architect Orchestrator.")
             break
+        elif user_input.lower() == "clear":
+            print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+            runner, user_id, session_id = await init_session_and_runner()
+            continue
         elif user_input.startswith("#"):
             print(f"{ANSI_BLUE}[Comment]: {user_input}{ANSI_RESET}")
             continue

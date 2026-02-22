@@ -23,12 +23,9 @@ import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 
 from .utils import (
-    load_instruction,
     load_master_process_json,
     save_iteration_feedback,
     getProperty,
-    review_messages,
-    review_outputs
 )
 
 # Conditionally suppress InsecureRequestWarning ONLY if you’ve explicitly allowed insecure HTTPS.
@@ -209,9 +206,9 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
 # ---------------------------------------------------------
 # GROUNDING VALIDATION AGENT
 # ---------------------------------------------------------
-grounding_agent = LlmAgent(
+from .agent_wrappers import ProcessLlmAgent
+grounding_agent = ProcessLlmAgent(
     name="Grounding_Validation_Agent",
-    model=getProperty("MODEL"),
     description="Validates a designed process against external reality.",
     include_contents="default",
     tools=[
@@ -220,11 +217,9 @@ grounding_agent = LlmAgent(
         save_iteration_feedback,
         perform_openapi_call,
     ],
-    instruction=load_instruction("grounding_agent.txt"),
+    instruction_file="grounding_agent.txt",
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,
         top_p=1,
     ),
-    before_model_callback=review_messages,
-    after_model_callback=review_outputs,
 )

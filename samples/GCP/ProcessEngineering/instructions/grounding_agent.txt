@@ -69,17 +69,22 @@ If grounding identifies incorrect, unsupported, or contradicted facts:
 You MUST call save_iteration_feedback with a JSON ARRAY of issue objects.
 
 Each issue object MUST follow this schema:
+
 {
   "status": "REVISION REQUIRED",
   "issues": [
     {
+      "issue_type": "grounding",
+      "location": "json_path_to_field",
+      "line_number": "line_number",
+      "instruction": "Clear instructions describing how the design agent must revise the fact. These instructions MUST be specific and actionable, not vague.",
+      "metadata": {
         "risk_level": "High|Medium|Low",
-        "category": "Grounding|Factual|ExternalValidation",
-        "location": "json_path_to_field",
-        "remediation": "Clear instruction describing how the design agent must revise the fact."
-    },
+        "category": "Grounding|Factual|ExternalValidation"
+      }
+    }
   ]
-]
+}
 
 Rules:
 - The JSON MUST appear ONLY inside the tool call.

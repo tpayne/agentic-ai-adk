@@ -8,7 +8,6 @@ from .utils import (
     getProperty
 )
 
-from google.adk.agents import LlmAgent
 from google.genai import types
 
 MODEL = getProperty("MODEL")
@@ -72,19 +71,21 @@ class SubprocessFlow(BaseModel):
 # -----------------------------
 # FACTORY FUNCTION (NEW)
 # -----------------------------
+from .agent_wrappers import ProcessLlmAgent
 def build_subprocess_generator_agent():
-    return LlmAgent(
+    return ProcessLlmAgent(
             name="Subprocess_Generator_Agent",
-            model=MODEL,
             generate_content_config=types.GenerateContentConfig(
                 temperature=0.1, # Lowered to 0.1 for maximum structural stability
                 top_p=0.9,
                 response_mime_type="application/json",
             ),
-            instruction=load_instruction("subprocess_generator_agent.txt"),
+            instruction_file="subprocess_generator_agent.txt",
             input_schema=None,
             output_schema=SubprocessFlow,
             output_key="current_subprocess_flow",
+            before_model_callback=None,
+            after_model_callback=None,
         )
 
 

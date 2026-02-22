@@ -1,6 +1,5 @@
 # utils_agent.py
 import logging
-from google.adk.agents import Agent
 from google.adk.tools.tool_context import ToolContext
 import os
 import time
@@ -13,12 +12,12 @@ from typing import Any
 logger = logging.getLogger("ProcessArchitect.UtilsAgent")
 
 from .utils import (
-    load_instruction,
     getProperty,
     CleanedStdout
 )
 
 from .design_agent import design_agent
+from .agent_wrappers import ProcessAgent
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -46,20 +45,61 @@ def stop_if_ready(tool_context: ToolContext):
     """
     Hard stop if either:
       - loopHardStop property is "true"/"1"/"on"; OR
-      - approval.json indicates all three approvals:
-            compliance_status = APPROVED
-            simulation_status = APPROVED
-            grounding_status = APPROVED
+      - approval.json indicates all three approvals; OR
+      - persistent loop counter exceeds SAFE_LOOP_ITERS
     """
 
-    # --- Hard stop override ---
     logger.debug("Evaluating stop_if_ready conditions.")
+
+    # ---------------------------------------------------------
+    # 1. Persistent counter setup
+    # ---------------------------------------------------------
+    counter_path = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
+    SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
+
+    # Load existing counter
+    loop_count = 0
+    if os.path.exists(counter_path):
+        try:
+            with open(counter_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                loop_count = int(data.get("count", 0))
+        except Exception:
+            loop_count = 0
+
+    # Increment counter
+    loop_count += 1
+
+    # Persist updated counter
+    try:
+        with open(counter_path, "w", encoding="utf-8") as f:
+            json.dump({"count": loop_count}, f)
+    except Exception:
+        logger.debug("Failed to persist stop counter.")
+
+    logger.debug(f"Stop Controller loop count = {loop_count} / {SAFE_LOOP_ITERS}")
+
+    # ---------------------------------------------------------
+    # 2. Hard stop override
+    # ---------------------------------------------------------
     hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
     if hard_stop:
         tool_context.actions.escalate = True
-        return "loopHardStop activated — exiting loop."
+        _reset_stop_counter(counter_path)
+        return "Hard stop condition met via loopHardStop property — exiting loop."
 
-    # --- Load cumulative approval state ---
+    # ---------------------------------------------------------
+    # 3. Max iteration stop
+    # ---------------------------------------------------------
+    if loop_count >= SAFE_LOOP_ITERS:
+        tool_context.actions.escalate = True
+        logger.debug("Max loop iterations exceeded — exiting loop.")
+        _reset_stop_counter(counter_path)
+        return "Max loop iterations exceeded — exiting loop."
+
+    # ---------------------------------------------------------
+    # 4. Approval-state stop
+    # ---------------------------------------------------------
     approval_path = os.path.join(PROJECT_ROOT, "output", "approval.json")
     approval_state = {}
 
@@ -71,38 +111,46 @@ def stop_if_ready(tool_context: ToolContext):
             approval_state = {}
 
     logger.debug(f"Current approval state: {approval_state}")
-    # --- Check for all three approvals OR JSON APPROVED ---
+
     required = {
         "compliance_status": "APPROVED",
         "simulation_status": "APPROVED",
     }
 
-    if (getProperty("enableGroundingAgent", default="true")): 
+    if getProperty("enableGroundingAgent", default="true"):
         required["grounding_status"] = "APPROVED"
 
     if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
         tool_context.actions.escalate = True
-        logger.debug("status=JSON APPROVED detected — exiting loop.")
-        return "status=JSON APPROVED detected — exiting loop."
+        _reset_stop_counter(counter_path)
+        return "JSON APPROVED detected — exiting loop."
 
     if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
         tool_context.actions.escalate = True
-        logger.debug("One or more fields = JSON APPROVED — exiting loop.")
+        _reset_stop_counter(counter_path)
         return "JSON APPROVED detected — exiting loop."
 
     if all(approval_state.get(k) == v for k, v in required.items()):
         tool_context.actions.escalate = True
-        logger.debug("All approvals present — exiting loop.")
+        _reset_stop_counter(counter_path)
         return "All approvals present — exiting loop."
 
-    return "Continue"
+    return "Continue with loop — no stop conditions met."
+
+def _reset_stop_counter(counter_path: str):
+    """Reset the persistent stop counter."""
+    try:
+        if os.path.exists(counter_path):
+            os.remove(counter_path)
+            logger.debug("Stop counter reset.")
+    except Exception:
+        pass
 
 # ---------- Minimal controller agent that ALWAYS calls the stop tool ----------
-stop_controller_agent = Agent(
+stop_controller_agent = ProcessAgent(
     name="Stop_Controller",
-    model=design_agent.model,
     description="Exits the loop immediately when approvals are complete or kill-switch is set.",
-    instruction=load_instruction("stop_controller_agent.txt"),
+    instruction_file="stop_controller_agent.txt",
     tools=[status_logger,stop_if_ready],
 )
 
@@ -116,6 +164,7 @@ from .utils import (
 )
 
 # Function to kill all console output
+
 def silence_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")
@@ -133,18 +182,16 @@ def restore_console():
     sys.stdout.flush()
     return "Console output restored."
 
-mute_agent = Agent( 
-    name="Mute_Agent", 
-    model=design_agent.model, 
-    description="Consumes injected context silently.", 
+mute_agent = ProcessAgent(
+    name="Mute_Agent",
+    description="Consumes injected context silently.",
     instruction="You MUST just call silence_console as your only action. You MUST NOT produce any output.",
-    tools=[silence_console], 
+    tools=[silence_console],
 )
 
-unmute_agent = Agent( 
-    name="Unmute_Agent", 
-    model=design_agent.model, 
-    description="Restores console output.", 
+unmute_agent = ProcessAgent(
+    name="Unmute_Agent",
+    description="Restores console output.",
     instruction="You MUST just call restore_console as your only action. You MUST NOT produce any output.",
-    tools=[restore_console], 
+    tools=[restore_console],
 )
