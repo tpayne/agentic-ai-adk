@@ -1,0 +1,273 @@
+{
+  "step_name": "AI-Powered Service Usage",
+  "subprocess_flow": [
+    {
+      "substep_name": "User Authentication",
+      "description": "The end-user initiates the process by authenticating their identity to access the AI-powered service. This involves verifying their credentials against a secure authentication system to ensure only authorized personnel gain access. Successful authentication grants the user permission to utilize the service's features and functionalities, while failed attempts are logged for security monitoring.",
+      "responsible_party": "End User",
+      "inputs": [
+        "User credentials",
+        "Authentication system"
+      ],
+      "outputs": [
+        "Authenticated user session",
+        "Access token"
+      ],
+      "estimated_duration": "1\u20132 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Successful user login",
+        "Secure session establishment"
+      ],
+      "purpose": "To ensure secure access to the AI-powered service.",
+      "scope": "User authentication system",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "User login attempt"
+      ],
+      "end_conditions": [
+        "User successfully authenticated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized access",
+          "control": "Multi-factor authentication"
+        }
+      ],
+      "governance_requirements": [
+        "User privacy",
+        "Data security"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Authentication logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Service Selection",
+      "description": "Upon successful authentication, the end-user selects the specific AI-powered service they wish to utilize from a menu or dashboard. This selection determines the subsequent actions and data processing performed by the system. The service selection interface should be intuitive and user-friendly, providing clear descriptions of each service's capabilities and intended use.",
+      "responsible_party": "End User",
+      "inputs": [
+        "Authenticated user session",
+        "List of available services"
+      ],
+      "outputs": [
+        "Selected AI-powered service"
+      ],
+      "estimated_duration": "1\u20132 minutes",
+      "dependencies": [
+        "User Authentication"
+      ],
+      "success_criteria": [
+        "User selects a valid service",
+        "Service selection is recorded"
+      ],
+      "purpose": "To allow users to choose the desired AI functionality.",
+      "scope": "Service selection interface",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "User navigates to service selection screen"
+      ],
+      "end_conditions": [
+        "User selects a service"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect service selection",
+          "control": "Confirmation prompts"
+        }
+      ],
+      "governance_requirements": [
+        "User privacy",
+        "Data security"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Service usage statistics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Input and Processing",
+      "description": "The end-user provides the necessary data inputs required by the selected AI-powered service. This may involve uploading files, entering text, or configuring parameters. The system processes the input data using the underlying AI model, generating relevant outputs or insights. Data validation and sanitization are performed to ensure data quality and prevent malicious inputs.",
+      "responsible_party": "End User",
+      "inputs": [
+        "Selected AI-powered service",
+        "User-provided data"
+      ],
+      "outputs": [
+        "Processed data",
+        "AI model outputs"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Service Selection"
+      ],
+      "success_criteria": [
+        "Data is successfully processed",
+        "AI model generates outputs"
+      ],
+      "purpose": "To enable the AI model to generate outputs based on user input.",
+      "scope": "AI model processing pipeline",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "User submits data for processing"
+      ],
+      "end_conditions": [
+        "AI model completes processing"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data corruption",
+          "control": "Data validation and checksums"
+        }
+      ],
+      "governance_requirements": [
+        "User privacy",
+        "Data security"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Output Presentation",
+      "description": "The AI model's outputs are presented to the end-user in a clear and understandable format. This may involve displaying visualizations, generating reports, or providing recommendations. The presentation layer should be designed to maximize user comprehension and facilitate informed decision-making. Accessibility considerations are incorporated to ensure usability for all users, regardless of their abilities.",
+      "responsible_party": "AI Specialist",
+      "inputs": [
+        "AI model outputs"
+      ],
+      "outputs": [
+        "User-friendly presentation of results"
+      ],
+      "estimated_duration": "1\u20135 minutes",
+      "dependencies": [
+        "Data Input and Processing"
+      ],
+      "success_criteria": [
+        "Outputs are displayed correctly",
+        "User can understand the results"
+      ],
+      "purpose": "To present AI outputs in an accessible format.",
+      "scope": "Output presentation layer",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "AI model completes processing"
+      ],
+      "end_conditions": [
+        "Outputs are displayed to the user"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of results",
+          "control": "Clear and concise explanations"
+        }
+      ],
+      "governance_requirements": [
+        "Transparency",
+        "Accountability"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Usability testing"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Feedback Collection",
+      "description": "The end-user is prompted to provide feedback on their experience with the AI-powered service. This feedback is collected through surveys, ratings, or open-ended comments. The collected feedback is used to continuously improve the service's functionality, accuracy, and usability. Privacy considerations are paramount, ensuring user feedback is anonymized and handled securely.",
+      "responsible_party": "End User",
+      "inputs": [
+        "User experience"
+      ],
+      "outputs": [
+        "User feedback"
+      ],
+      "estimated_duration": "1\u20133 minutes",
+      "dependencies": [
+        "Output Presentation"
+      ],
+      "success_criteria": [
+        "User provides feedback",
+        "Feedback is recorded"
+      ],
+      "purpose": "To gather user input for continuous improvement.",
+      "scope": "Feedback collection mechanisms",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "User completes service usage"
+      ],
+      "end_conditions": [
+        "User submits feedback"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Low feedback participation",
+          "control": "Incentives for feedback"
+        }
+      ],
+      "governance_requirements": [
+        "User privacy",
+        "Data security"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Service usage statistics"
+          ]
+        }
+      ]
+    }
+  ]
+}

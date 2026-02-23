@@ -1,0 +1,183 @@
+{
+  "step_name": "AI Model Training and Validation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Model Selection",
+      "description": "The AI Specialist selects the appropriate AI model architecture based on the nature of the prepared dataset and the desired outcomes. This involves evaluating various algorithms, such as neural networks, decision trees, or support vector machines, considering factors like data dimensionality, complexity, and interpretability. The selection process also includes defining the model's hyperparameters and configuration settings to optimize its performance for the specific task.",
+      "responsible_party": "AI Specialist",
+      "inputs": [
+        "Prepared dataset",
+        "Problem definition",
+        "Success criteria"
+      ],
+      "outputs": [
+        "Selected AI model architecture",
+        "Hyperparameter configuration"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [],
+      "success_criteria": [
+        "Appropriate model architecture selected",
+        "Hyperparameters configured for optimal performance"
+      ],
+      "purpose": "To choose the most suitable AI model for the given task.",
+      "scope": "All relevant AI model architectures",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "Prepared dataset available"
+      ],
+      "end_conditions": [
+        "AI model architecture selected and configured"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inappropriate model selection",
+          "control": "Conduct thorough model evaluation and comparison."
+        }
+      ],
+      "governance_requirements": [
+        "Model explainability",
+        "Bias detection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Model Training",
+      "description": "The AI Specialist trains the selected AI model using the prepared dataset. This involves feeding the dataset into the model and iteratively adjusting the model's parameters to minimize the difference between its predictions and the actual values. The training process includes techniques like gradient descent, backpropagation, and optimization algorithms to improve the model's accuracy and generalization ability. Regular monitoring of the model's performance during training helps to identify and address issues like overfitting or underfitting.",
+      "responsible_party": "AI Specialist",
+      "inputs": [
+        "Selected AI model architecture",
+        "Hyperparameter configuration",
+        "Prepared dataset"
+      ],
+      "outputs": [
+        "Trained AI model",
+        "Training logs",
+        "Performance metrics"
+      ],
+      "estimated_duration": "3-5 days",
+      "dependencies": [
+        "Model Selection"
+      ],
+      "success_criteria": [
+        "Model trained to desired accuracy",
+        "Training logs generated",
+        "Performance metrics within acceptable range"
+      ],
+      "purpose": "To develop an accurate and reliable AI model.",
+      "scope": "All relevant AI models",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "AI model architecture selected and configured"
+      ],
+      "end_conditions": [
+        "AI model trained and performance metrics generated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Model overfitting",
+          "control": "Implement regularization techniques and cross-validation."
+        },
+        {
+          "risk": "Data privacy violations",
+          "control": "Implement data anonymization and pseudonymization techniques. Ensure compliance with GDPR and other relevant data privacy regulations."
+        }
+      ],
+      "governance_requirements": [
+        "Model explainability",
+        "Bias detection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Model Validation",
+      "description": "The AI Specialist validates the trained AI model using a separate validation dataset to assess its generalization ability and prevent overfitting. This involves evaluating the model's performance on unseen data and comparing it to the training performance. Validation metrics like accuracy, precision, recall, and F1-score are used to quantify the model's performance. The validation process also includes techniques like cross-validation and hyperparameter tuning to optimize the model's performance and ensure its reliability.",
+      "responsible_party": "AI Specialist",
+      "inputs": [
+        "Trained AI model",
+        "Validation dataset",
+        "Performance metrics"
+      ],
+      "outputs": [
+        "Validation report",
+        "Performance metrics",
+        "Validated AI model"
+      ],
+      "estimated_duration": "2-3 days",
+      "dependencies": [
+        "Model Training"
+      ],
+      "success_criteria": [
+        "Model validated with acceptable performance metrics",
+        "Validation report generated",
+        "Model generalizes well to unseen data"
+      ],
+      "purpose": "To ensure the AI model is accurate and reliable.",
+      "scope": "All relevant AI models",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "AI model trained and performance metrics generated"
+      ],
+      "end_conditions": [
+        "AI model validated and validation report generated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Model overfitting",
+          "control": "Cross-validation techniques"
+        },
+        {
+          "risk": "Bias in validation data",
+          "control": "Ensure validation data is representative of real-world data."
+        }
+      ],
+      "governance_requirements": [
+        "Model explainability",
+        "Bias detection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "User feedback",
+            "Performance metrics"
+          ]
+        }
+      ]
+    }
+  ]
+}

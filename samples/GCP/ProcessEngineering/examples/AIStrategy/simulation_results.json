@@ -1,0 +1,18 @@
+{
+  "avg_cycle_time": 7.962478930113591,
+  "cycle_time_variance": 0.8419112650336459,
+  "time_unit": "week",
+  "bottlenecks": [
+    "AI Model Training and Validation",
+    "Performance Monitoring and Feedback",
+    "Data Collection and Preparation"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Data Collection and Preparation": 1.3278720763749197,
+    "AI Model Training and Validation": 2.6559396703090834,
+    "AI Model Deployment": 1.322041225348609,
+    "AI-Powered Service Usage": 1.327335672079447,
+    "Performance Monitoring and Feedback": 1.3292902860015328
+  }
+}

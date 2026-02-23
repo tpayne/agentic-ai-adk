@@ -1,0 +1,285 @@
+{
+  "step_name": "Data Collection and Preparation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Identify Data Sources",
+      "description": "The initial step involves identifying all potential data sources relevant to the AI model's objectives. This includes internal databases, external APIs, data lakes, and any other repositories containing information that could be valuable for training or usage. A comprehensive understanding of available data is crucial for ensuring the model's accuracy and effectiveness.",
+      "responsible_party": "Data Scientist",
+      "inputs": [
+        "Business requirements",
+        "AI model objectives"
+      ],
+      "outputs": [
+        "List of potential data sources",
+        "Data source assessment report"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive list of data sources",
+        "Assessment of data source relevance and accessibility"
+      ],
+      "purpose": "To identify all relevant data sources for AI model training and usage.",
+      "scope": "All internal and external data repositories.",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "New AI model requirements",
+        "Periodic data source review"
+      ],
+      "end_conditions": [
+        "Data sources identified and documented"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing relevant data sources",
+          "control": "Conduct thorough data source discovery and documentation."
+        }
+      ],
+      "governance_requirements": [
+        "Data cataloging standards",
+        "Data source documentation"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Data source usage metrics",
+            "User feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Extract Raw Data",
+      "description": "Once the data sources are identified, the next step is to extract the raw data from these sources. This involves using appropriate tools and techniques to retrieve the data in its original format. The extraction process should be efficient and reliable, ensuring that all necessary data is obtained without errors or omissions. This step may involve setting up data pipelines or using APIs to access the data.",
+      "responsible_party": "Data Scientist",
+      "inputs": [
+        "List of potential data sources",
+        "Data source assessment report"
+      ],
+      "outputs": [
+        "Raw data files",
+        "Data extraction logs"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Identify Data Sources"
+      ],
+      "success_criteria": [
+        "Successful extraction of raw data from identified sources",
+        "Complete and accurate data extraction logs"
+      ],
+      "purpose": "To extract raw data from identified sources for further processing.",
+      "scope": "Data extraction from all identified data sources.",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "New data available",
+        "Scheduled data extraction"
+      ],
+      "end_conditions": [
+        "Raw data extracted and stored"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data extraction errors",
+          "control": "Implement data validation and error handling procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Data extraction protocols",
+        "Data integrity checks"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Data extraction performance metrics",
+            "Error rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Clean and Transform Data",
+      "description": "This critical step involves cleaning and transforming the raw data to ensure its quality and suitability for AI model training. Cleaning includes handling missing values, removing outliers, and correcting inconsistencies. Transformation involves converting data into a suitable format, such as scaling numerical features or encoding categorical variables. High-quality data is essential for building accurate and reliable AI models.",
+      "responsible_party": "Data Scientist",
+      "inputs": [
+        "Raw data files",
+        "Data extraction logs"
+      ],
+      "outputs": [
+        "Cleaned and transformed data",
+        "Data cleaning and transformation report"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Extract Raw Data"
+      ],
+      "success_criteria": [
+        "Data quality",
+        "Data completeness",
+        "Data consistency"
+      ],
+      "purpose": "To clean and transform raw data into a suitable format for AI model training.",
+      "scope": "Data cleaning and transformation for all extracted data.",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "Raw data available",
+        "Data quality issues identified"
+      ],
+      "end_conditions": [
+        "Data cleaned and transformed",
+        "Data quality checks passed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data quality issues",
+          "control": "Implement data validation and cleaning procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Data quality standards",
+        "Data transformation protocols"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Data quality metrics",
+            "User feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Label Data",
+      "description": "For supervised learning models, labeling the data is a crucial step. This involves assigning appropriate labels or categories to the data points, enabling the model to learn the relationship between the input features and the desired output. Accurate and consistent labeling is essential for ensuring the model's predictive performance. This step may involve manual labeling by domain experts or automated labeling using existing knowledge bases.",
+      "responsible_party": "Data Scientist",
+      "inputs": [
+        "Cleaned and transformed data",
+        "Data cleaning and transformation report"
+      ],
+      "outputs": [
+        "Labeled dataset",
+        "Data labeling guidelines"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Clean and Transform Data"
+      ],
+      "success_criteria": [
+        "Data labeled accurately and consistently",
+        "Data labeling guidelines documented"
+      ],
+      "purpose": "To label the data for supervised learning models.",
+      "scope": "Data labeling for all relevant data points.",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "Cleaned and transformed data available",
+        "New labeling requirements"
+      ],
+      "end_conditions": [
+        "Data labeled and validated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate data labeling",
+          "control": "Implement data validation and quality control procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Data labeling standards",
+        "Data validation protocols"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Data labeling accuracy metrics",
+            "User feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Validate Data",
+      "description": "The final step is to validate the prepared dataset to ensure its quality and suitability for AI model training. This involves performing various checks and tests to verify the data's accuracy, completeness, and consistency. Validation may include statistical analysis, data profiling, and manual review. Addressing any issues identified during validation is crucial for building reliable AI models.",
+      "responsible_party": "Data Scientist",
+      "inputs": [
+        "Labeled dataset",
+        "Data labeling guidelines"
+      ],
+      "outputs": [
+        "Validated dataset",
+        "Data validation report"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Label Data"
+      ],
+      "success_criteria": [
+        "Data validated successfully",
+        "Data validation report documented"
+      ],
+      "purpose": "To validate the prepared dataset for AI model training.",
+      "scope": "Data validation for the entire dataset.",
+      "process_owner": "Process Owner",
+      "triggers": [
+        "Labeled data available",
+        "Scheduled data validation"
+      ],
+      "end_conditions": [
+        "Data validated and approved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data validation errors",
+          "control": "Implement data validation and quality control procedures."
+        }
+      ],
+      "governance_requirements": [
+        "Data validation standards",
+        "Data quality metrics"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard change management process",
+          "versioning_rules": "Semantic versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Data validation performance metrics",
+            "Error rates"
+          ]
+        }
+      ]
+    }
+  ]
+}
