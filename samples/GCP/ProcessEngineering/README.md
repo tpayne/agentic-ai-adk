@@ -530,6 +530,10 @@ Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission 
 ### Running Simulations
 - "Dry-run the process and identify any issues"
 
+### Adhoc Commands
+- "Regenerate the sub-processes"
+- "Recreate the process document"
+
 ---
 
 ## Running the document generator manually
