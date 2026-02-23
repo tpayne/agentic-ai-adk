@@ -131,6 +131,89 @@ def getProperty(prop: str, section: str = 'SETTINGS',
 # ---------------------------------------------------------------------
 # INTERNAL HELPERS (NOT EXPOSED TO LLM)
 # ---------------------------------------------------------------------
+import re
+
+# Build a lookup table from your constants
+ANSI_MAP = {
+    "reset": ANSI_RESET,
+    "red": ANSI_RED,
+    "green": ANSI_GREEN,
+    "yellow": ANSI_YELLOW,
+    "blue": ANSI_BLUE,
+    "cyan": ANSI_CYAN,
+
+    "black_normal": ANSI_BLACK,
+    "red_normal": ANSI_RED_NORMAL,
+    "green_normal": ANSI_GREEN_NORMAL,
+    "yellow_normal": ANSI_YELLOW_NORMAL,
+    "blue_normal": ANSI_BLUE_NORMAL,
+    "magenta": ANSI_MAGENTA,
+    "cyan_normal": ANSI_CYAN_NORMAL,
+    "white": ANSI_WHITE,
+
+    "bright_black": ANSI_BRIGHT_BLACK,
+    "bright_red": ANSI_BRIGHT_RED,
+    "bright_green": ANSI_BRIGHT_GREEN,
+    "bright_yellow": ANSI_BRIGHT_YELLOW,
+    "bright_blue": ANSI_BRIGHT_BLUE,
+    "bright_magenta": ANSI_BRIGHT_MAGENTA,
+    "bright_cyan": ANSI_BRIGHT_CYAN,
+    "bright_white": ANSI_BRIGHT_WHITE,
+
+    "bg_black": ANSI_BG_BLACK,
+    "bg_red": ANSI_BG_RED,
+    "bg_green": ANSI_BG_GREEN,
+    "bg_yellow": ANSI_BG_YELLOW,
+    "bg_blue": ANSI_BG_BLUE,
+    "bg_magenta": ANSI_BG_MAGENTA,
+    "bg_cyan": ANSI_BG_CYAN,
+    "bg_white": ANSI_BG_WHITE,
+
+    "bg_bright_black": ANSI_BG_BRIGHT_BLACK,
+    "bg_bright_red": ANSI_BG_BRIGHT_RED,
+    "bg_bright_green": ANSI_BG_BRIGHT_GREEN,
+    "bg_bright_yellow": ANSI_BG_BRIGHT_YELLOW,
+    "bg_bright_blue": ANSI_BG_BRIGHT_BLUE,
+    "bg_bright_magenta": ANSI_BG_BRIGHT_MAGENTA,
+    "bg_bright_cyan": ANSI_BG_BRIGHT_CYAN,
+    "bg_bright_white": ANSI_BG_BRIGHT_WHITE,
+
+    "bold": ANSI_BOLD,
+    "dim": ANSI_DIM,
+    "underline": ANSI_UNDERLINE,
+    "blink": ANSI_BLINK,
+    "reverse": ANSI_REVERSE,
+    "hidden": ANSI_HIDDEN,
+}
+
+def _normalise(s: str) -> str:
+    """Normalise input for matching."""
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+def getResponseColour(code: str = "responseColourInfo") -> str:
+    """Return the best ANSI match for RESPONSE_TEXT."""
+    raw = getProperty(code)
+    if not raw:
+        return None
+
+    key = _normalise(raw)
+
+    # 1. Exact match
+    if key in ANSI_MAP:
+        return ANSI_MAP[key]
+
+    # 2. Partial match (e.g., "brightred" → "bright_red")
+    for name, code in ANSI_MAP.items():
+        if key in _normalise(name):
+            return code
+
+    # 3. Colour-only match (e.g., "red" → ANSI_RED)
+    for name, code in ANSI_MAP.items():
+        if key in name:
+            return code
+
+    # 4. Fallback
+    return ANSI_RESET
 
 def _safe_sleep_from_property(name: str, default: float = 0.25):
     pv = getProperty(name, default=default)

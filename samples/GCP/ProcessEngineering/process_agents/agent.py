@@ -18,9 +18,9 @@ from .utils import (
     load_instruction,
     validate_instruction_files,
     getProperty,
+    getResponseColour,
     ANSI_RED,
     ANSI_GREEN, 
-    ANSI_BLUE, 
     ANSI_CYAN, 
     ANSI_RESET
 )
@@ -135,6 +135,25 @@ from google.genai import types
 import asyncio
 import uuid
 
+
+def display_text(text: str, type: str = "info"):
+    colour = getResponseColour("responseColourInfo")
+    warning = getResponseColour("responseColourWarning")
+    error = getResponseColour("responseColourError")    
+    if not colour:
+        colour = ANSI_GREEN
+    if not warning:
+        warning = ANSI_CYAN
+    if not error:
+        error = ANSI_RED
+    if type == "info":
+        print(f"{colour}{text}{ANSI_RESET}")
+    elif type == "warning":
+        print(f"{warning}[Warning]: {text}{ANSI_RESET}")
+    elif type == "error":
+        print(f"{error}[Error]: {text}{ANSI_RESET}")
+    sys.stdout.flush()
+
 def is_shell_command(text: str) -> bool:
     if text is None:
         return False
@@ -161,10 +180,10 @@ async def run_shell_command(cmdline: str):
             sys.stderr.write(f"{ANSI_RED}{stderr.decode('utf-8', errors='replace')}{ANSI_RESET}")
 
         if proc.returncode != 0:
-            print(f"{ANSI_RED}[Shell]: Exit code {proc.returncode}{ANSI_RESET}")
+            display_text(f"Shell command exited with code {proc.returncode}", type="error")
 
     except Exception as e:
-        print(f"{ANSI_RED}[Shell]: Error executing command: {e}{ANSI_RESET}")
+        display_text(f"[Shell]: Error executing command: {e}", type="error")
 
 
 async def init_session_and_runner(app_name: str = "ProcessArchitect"):
@@ -193,7 +212,7 @@ async def process_file(file_path: str):
         with open(file_path, "r", encoding="utf-8-sig"):
             pass
     except Exception as e:
-        print(f"{ANSI_RED}- Error opening file '{file_path}': {e}{ANSI_RESET}")
+        display_text(f"- Error opening file '{file_path}': {e}", type="error")
         sys.exit(1)
 
     runner, user_id, session_id = await init_session_and_runner()
@@ -206,25 +225,26 @@ async def process_file(file_path: str):
                     continue
 
                 if line.lower() in ["exit", "quit", "stop"]:
-                    print("Exiting Process Architect Orchestrator.")
+                    display_text("Exiting Process Architect Orchestrator.")
                     break
                 elif line.lower() == "clear":
-                    print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+                    display_text("[Action]: Clearing all histories and resetting session...")
                     runner, user_id, session_id = await init_session_and_runner()
                     continue
                 elif line.startswith("#"):
-                    print(f"{ANSI_BLUE}[Comment]: {line}{ANSI_RESET}")
+                    display_text(f"[Comment]: {line}")
                     continue
                 elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
                     parts = line.split()
                     secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
-                    print(f"{ANSI_CYAN}[Action]: Sleeping for {secs} seconds...{ANSI_RESET}")
+                    display_text(f"[Action]: Sleeping for {secs} seconds...")
                     await asyncio.sleep(float(secs))
                     continue
                 elif is_shell_command(line):
                     await run_shell_command(line)
                     await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
                     continue
+
 
                 print(f"\n[user-file]: {line}")
 
@@ -239,16 +259,16 @@ async def process_file(file_path: str):
                         final_response = event.content.parts[0].text
 
                 if final_response:
-                    print(f"{ANSI_BLUE}[ArchitectBot]: {final_response}{ANSI_RESET}")
+                    display_text(f"[ArchitectBot]: {final_response}")
                 else:
-                    print(f"{ANSI_BLUE}[ArchitectBot]: [No final response]{ANSI_RESET}")
+                    display_text(f"[ArchitectBot]: [No final response]")
 
                 await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
 
     except Exception as e:
         sys.stdout = sys.__stdout__
         sys.stdout.flush()
-        print(f"\n{ANSI_RED}- Error processing file: {str(e)}{ANSI_RESET}")
+        display_text(f"- Error processing file: {str(e)}", type="error")
         sys.exit(1)
 
 
@@ -256,8 +276,8 @@ async def process_file(file_path: str):
 # INTERACTIVE MODE
 # ---------------------------------------------------------
 async def start_local_chat():
-    print("\nProcess Architect Orchestrator (local mode)")
-    print("Type 'exit' to quit.\n")
+    display_text("Process Architect Orchestrator (local mode)")
+    display_text("Type 'exit' to quit.")
 
     runner, user_id, session_id = await init_session_and_runner()
 
@@ -265,19 +285,19 @@ async def start_local_chat():
         user_input = input("[user]: ").strip()
 
         if user_input.lower() in ["exit", "quit", "stop"]:
-            print("Exiting Process Architect Orchestrator.")
+            display_text("Exiting Process Architect Orchestrator.")
             break
         elif user_input.lower() == "clear":
-            print(f"{ANSI_CYAN}[Action]: Clearing all histories and resetting session...{ANSI_RESET}")
+            display_text("[Action]: Clearing all histories and resetting session...")
             runner, user_id, session_id = await init_session_and_runner()
             continue
         elif user_input.startswith("#"):
-            print(f"{ANSI_BLUE}[Comment]: {user_input}{ANSI_RESET}")
+            display_text(f"[Comment]: {user_input}")
             continue
         elif user_input.lower().startswith("sleep") or user_input.lower().startswith("wait"):
             parts = user_input.split()
             secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
-            print(f"{ANSI_CYAN}[Action]: Sleeping for {secs} seconds...{ANSI_RESET}")
+            display_text(f"[Action]: Sleeping for {secs} seconds...")
             await asyncio.sleep(float(secs))
             continue
         elif is_shell_command(user_input):
@@ -299,14 +319,14 @@ async def start_local_chat():
                     final_response = event.content.parts[0].text
 
             if final_response:
-                print(f"\n{ANSI_BLUE}[ArchitectBot]: {final_response}{ANSI_RESET}")
+                display_text(f"[ArchitectBot]: {final_response}")
             else:
-                print(f"\n{ANSI_BLUE}[ArchitectBot]: [No final response]{ANSI_RESET}")
+                display_text(f"[ArchitectBot]: [No final response]")
 
         except Exception as e:
             sys.stdout = sys.__stdout__
             sys.stdout.flush()
-            print(f"\n{ANSI_RED}- An error occurred: {str(e)}{ANSI_RESET}")
+            display_text(f"- An error occurred: {str(e)}", type="error")
 
 
 # ---------------------------------------------------------
@@ -327,9 +347,8 @@ async def run_cli():
         await process_file(args.file)
         return
 
-    print(f"{ANSI_GREEN}- Starting Process Architect Orchestrator in local chat mode...{ANSI_RESET}")
+    display_text("- Starting Process Architect Orchestrator in local chat mode...")
     await start_local_chat()
-
 
 # ---------------------------------------------------------
 # MAIN EXECUTION BLOCK
