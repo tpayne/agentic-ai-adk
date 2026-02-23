@@ -65,33 +65,331 @@ The ADK pipeline provides:
 
 ```
 .
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTORS.md
 ├── Dockerfile
 ├── examples
-│   ├── DataCentreMigration
-│   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
-│   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
-│   │   └── process_data.json
-│   └── EnergyProvider
-│       ├── Business_Customer_Incident_Management.docx
-│       └── process_data.json
+│   ├── AgileSAFE
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── safe_sdlc_process_flow.png
+│   │   ├── SAFe_SDLC_Process.docx
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Innovation_and_Planning_(IP)_Iteration.png
+│   │   │   ├── Inspect_and_Adapt.png
+│   │   │   ├── Iteration_Execution.png
+│   │   │   ├── PI_Planning.png
+│   │   │   ├── Pre-PI_Planning.png
+│   │   │   ├── Release.png
+│   │   │   └── System_Demos.png
+│   │   └── subprocesses
+│   │       ├── Innovation_and_Planning_(IP)_Iteration.json
+│   │       ├── Inspect_and_Adapt.json
+│   │       ├── Iteration_Execution.json
+│   │       ├── PI_Planning.json
+│   │       ├── Pre-PI_Planning.json
+│   │       ├── Release.json
+│   │       └── System_Demos.json
+│   ├── AgileSCRUM
+│   │   ├── agile_sdlc_using_scrum_flow.png
+│   │   ├── Agile_SDLC_using_Scrum.docx
+│   │   ├── process_data.json
+│   │   ├── process_flow.png
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Backlog_Refinement.png
+│   │   │   ├── Daily_Scrum.png
+│   │   │   ├── Product_Backlog_Creation.png
+│   │   │   ├── Sprint_Planning.png
+│   │   │   ├── Sprint_Retrospective.png
+│   │   │   └── Sprint_Review.png
+│   │   └── subprocesses
+│   │       ├── Backlog_Refinement.json
+│   │       ├── Daily_Scrum.json
+│   │       ├── Product_Backlog_Creation.json
+│   │       ├── Sprint_Planning.json
+│   │       ├── Sprint_Retrospective.json
+│   │       └── Sprint_Review.json
+│   ├── DataCentreMigration
+│   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
+│   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
+│   │   └── process_data.json
+│   ├── DataGovern
+│   │   ├── data_governance_and_management_process_for_ai_flow.png
+│   │   ├── Data_Governance_and_Management_Process_for_AI.docx
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Define_Data_Governance_Policies.png
+│   │   │   ├── Enforce_Security_Protocols.png
+│   │   │   ├── Identify_Data_Owners.png
+│   │   │   ├── Implement_Data_Quality_Checks.png
+│   │   │   └── Monitor_Data_Usage.png
+│   │   └── subprocesses
+│   │       ├── Define_Data_Governance_Policies.json
+│   │       ├── Enforce_Security_Protocols.json
+│   │       ├── Identify_Data_Owners.json
+│   │       ├── Implement_Data_Quality_Checks.json
+│   │       └── Monitor_Data_Usage.json
+│   ├── EnergyProvider
+│   │   ├── Business_Customer_Incident_Management.docx
+│   │   └── process_data.json
+│   ├── GodRole
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Atmospheric_and_Hydrological_Development.png
+│   │   │   ├── Autonomous_Operation.png
+│   │   │   ├── Biodiversity_Expansion.png
+│   │   │   ├── Conceptualization_and_Planning.png
+│   │   │   ├── Ecosystem_Creation.png
+│   │   │   ├── Geological_Formation.png
+│   │   │   ├── Intelligent_Life_Development.png
+│   │   │   └── World_Stabilization.png
+│   │   ├── subprocesses
+│   │   │   ├── Atmospheric_and_Hydrological_Development.json
+│   │   │   ├── Autonomous_Operation.json
+│   │   │   ├── Biodiversity_Expansion.json
+│   │   │   ├── Conceptualization_and_Planning.json
+│   │   │   ├── Ecosystem_Creation.json
+│   │   │   ├── Geological_Formation.json
+│   │   │   ├── Intelligent_Life_Development.json
+│   │   │   └── World_Stabilization.json
+│   │   ├── world_creation_flow.png
+│   │   └── World_Creation.docx
+│   ├── HRAI
+│   │   ├── genai_augmented_hr_process_flow.png
+│   │   ├── GenAI_Augmented_HR_Process.docx
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── CV_Review.png
+│   │   │   ├── Employee_Grievances.png
+│   │   │   ├── Employee_Reviews.png
+│   │   │   ├── HR_Reporting.png
+│   │   │   ├── Job_Specification_Creation.png
+│   │   │   ├── Onboarding.png
+│   │   │   └── Training_and_Development.png
+│   │   └── subprocesses
+│   │       ├── CV_Review.json
+│   │       ├── Employee_Grievances.json
+│   │       ├── Employee_Reviews.json
+│   │       ├── HR_Reporting.json
+│   │       ├── Job_Specification_Creation.json
+│   │       ├── Onboarding.json
+│   │       └── Training_and_Development.json
+│   ├── LiveRuns
+│   │   ├── sample_consultSimulation_agents.md
+│   │   └── sample_pharma_queries.md
+│   ├── PharmaDrugDev
+│   │   ├── drug_development_value_chain_flow.png
+│   │   ├── Drug_Development_Value_Chain.docx
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Clinical_Development.png
+│   │   │   ├── Commercialization.png
+│   │   │   ├── Discovery_and_Pre-Clinical.png
+│   │   │   ├── Manufacturing.png
+│   │   │   └── Regulatory_Approval.png
+│   │   └── subprocesses
+│   │       ├── Clinical_Development.json
+│   │       ├── Commercialization.json
+│   │       ├── Discovery_and_Pre-Clinical.json
+│   │       ├── Manufacturing.json
+│   │       └── Regulatory_Approval.json
+│   ├── SaaS
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── saas_l0_value_chain_flow.png
+│   │   ├── SaaS_L0_Value_Chain.docx
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Corporate_Functions.png
+│   │   │   ├── Customer_Success.png
+│   │   │   ├── Go-To-Market.png
+│   │   │   ├── Product_Strategy.png
+│   │   │   ├── SDLC.png
+│   │   │   └── Strategic_Management.png
+│   │   └── subprocesses
+│   │       ├── Corporate_Functions.json
+│   │       ├── Customer_Success.json
+│   │       ├── Go-To-Market.json
+│   │       ├── Product_Strategy.json
+│   │       ├── SDLC.json
+│   │       └── Strategic_Management.json
+│   ├── StockInventory
+│   │   ├── inventory_stock-out_handling_process_flow.png
+│   │   ├── Inventory_Stock-out_Handling_Process.docx
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Immediate_Action.png
+│   │   │   ├── Inventory_Replenishment.png
+│   │   │   ├── Order_Fulfillment.png
+│   │   │   ├── Order_Placement.png
+│   │   │   ├── Preventive_Measures.png
+│   │   │   ├── Root_Cause_Analysis.png
+│   │   │   ├── Stock-out_Identification.png
+│   │   │   └── Verification_and_Documentation.png
+│   │   └── subprocesses
+│   │       ├── Backorder_Management.json
+│   │       ├── Data_Security_Audit.json
+│   │       ├── Emergency_Order__if_necessary_.json
+│   │       ├── Immediate_Action.json
+│   │       ├── Inventory_Replenishment.json
+│   │       ├── Order_Fulfillment.json
+│   │       ├── Order_Placement.json
+│   │       ├── Preventive_Measures.json
+│   │       ├── Restocking.json
+│   │       ├── Review_and_Prevention.json
+│   │       ├── Root_Cause_Analysis.json
+│   │       ├── Stock-out_Identification.json
+│   │       └── Verification_and_Documentation.json
+│   └── TOGAF
+│       ├── approval.json
+│       ├── iteration_feedback.json
+│       ├── logs
+│       │   ├── pipeline_20260209_212641.log
+│       │   ├── runtime_errors.log
+│       │   └── runtime_outputs.log
+│       ├── process_data.json
+│       ├── simulation_results.json
+│       ├── step_diagrams
+│       │   ├── 1._Architecture_Vision.png
+│       │   ├── 2._Business_Architecture.png
+│       │   ├── 3._Information_Systems_Architecture.png
+│       │   ├── 4._Technology_Architecture.png
+│       │   ├── 5._Opportunities_&_Solutions.png
+│       │   ├── 6._Migration_Planning.png
+│       │   ├── 7._Implementation_Governance.png
+│       │   ├── 8._Architecture_Change_Management.png
+│       │   └── 9._Architecture_Monitoring.png
+│       ├── subprocesses
+│       │   ├── 1._Architecture_Vision.json
+│       │   ├── 2._Business_Architecture.json
+│       │   ├── 3._Information_Systems_Architecture.json
+│       │   ├── 4._Technology_Architecture.json
+│       │   ├── 5._Opportunities_&_Solutions.json
+│       │   ├── 6._Migration_Planning.json
+│       │   ├── 7._Implementation_Governance.json
+│       │   ├── 8._Architecture_Change_Management.json
+│       │   └── 9._Architecture_Monitoring.json
+│       ├── togaf_enterprise_architecture_management_flow.png
+│       └── TOGAF_Enterprise_Architecture_Management.docx
+├── images
+│   ├── image001.png
+│   ├── image002.png
+│   ├── image003.png
+│   └── image004.png
+├── instructions
+│   ├── agent.txt
+│   ├── analysis_agent.txt
+│   ├── compliance_agent.txt
+│   ├── consultant_agent.txt
+│   ├── design_agent.txt
+│   ├── doc_generation_agent.txt
+│   ├── edge_inference_agent.txt
+│   ├── grounding_agent.txt
+│   ├── json_normalizer_agent.txt
+│   ├── json_review_agent.txt
+│   ├── json_writer_agent.txt
+│   ├── scenario_tester_agent.txt
+│   ├── simulation_agent.txt
+│   ├── simulation_query_agent.txt
+│   ├── stop_controller_agent.txt
+│   ├── subprocess_generator_agent.txt
+│   └── update_analysis_agent.txt
 ├── process_agents
-│   ├── __init__.py
-│   ├── agent.py
-│   ├── analysis_agent.py
-│   ├── compliance_agent.py
-│   ├── design_agent.py
-│   ├── doc_generation_agent.py
-│   ├── edge_inference_agent.py
-│   ├── json_normalizer_agent.py
-│   ├── json_review_agent.py
-│   ├── json_writer_agent.py
-│   ├── simulation_agent.py
-│   ├── step_diagram_agent.py
-│   ├── subprocess_driver_agent.py
-│   ├── subprocess_generator_agent.py
-│   └── subprocess_writer_agent.py
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-314.pyc
+│   │   ├── agent_registry.cpython-314.pyc
+│   │   ├── agent_wrappers.cpython-314.pyc
+│   │   ├── agent.cpython-314.pyc
+│   │   ├── analysis_agent.cpython-314.pyc
+│   │   ├── app.cpython-314.pyc
+│   │   ├── compliance_agent.cpython-314.pyc
+│   │   ├── consultant_agent.cpython-314.pyc
+│   │   ├── create_process_agent.cpython-314.pyc
+│   │   ├── design_agent.cpython-314.pyc
+│   │   ├── doc_creation_agent.cpython-314.pyc
+│   │   ├── doc_generation_agent.cpython-314.pyc
+│   │   ├── edge_inference_agent.cpython-314.pyc
+│   │   ├── grounding_agent.cpython-314.pyc
+│   │   ├── json_normalizer_agent.cpython-314.pyc
+│   │   ├── json_review_agent.cpython-314.pyc
+│   │   ├── json_writer_agent.cpython-314.pyc
+│   │   ├── scenario_agent.cpython-314.pyc
+│   │   ├── simulation_agent.cpython-314.pyc
+│   │   ├── step_diagram_agent.cpython-314.pyc
+│   │   ├── subprocess_driver_agent.cpython-314.pyc
+│   │   ├── subprocess_generator_agent.cpython-314.pyc
+│   │   ├── subprocess_writer_agent.cpython-314.pyc
+│   │   ├── update_process_agent.cpython-314.pyc
+│   │   ├── utils_agent.cpython-314.pyc
+│   │   └── utils.cpython-314.pyc
+│   ├── agent_registry.py
+│   ├── agent_wrappers.py
+│   ├── agent.py
+│   ├── analysis_agent.py
+│   ├── app.py
+│   ├── compliance_agent.py
+│   ├── consultant_agent.py
+│   ├── create_process_agent.py
+│   ├── data
+│   │   └── openapi.yaml
+│   ├── design_agent.py
+│   ├── doc_creation_agent.py
+│   ├── doc_generation_agent.py
+│   ├── edge_inference_agent.py
+│   ├── grounding_agent.py
+│   ├── helpers
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-314.pyc
+│   │   │   ├── doc_content.cpython-314.pyc
+│   │   │   ├── doc_governance.cpython-314.pyc
+│   │   │   ├── doc_structure.cpython-314.pyc
+│   │   │   └── doc_technical.cpython-314.pyc
+│   │   ├── doc_content.py
+│   │   ├── doc_governance.py
+│   │   ├── doc_structure.py
+│   │   ├── doc_technical.py
+│   │   └── themes
+│   │       ├── __init__.py
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-314.pyc
+│   │       │   └── loader.cpython-314.pyc
+│   │       ├── corporate_standard.json
+│   │       └── loader.py
+│   ├── json_normalizer_agent.py
+│   ├── json_review_agent.py
+│   ├── json_writer_agent.py
+│   ├── public
+│   │   ├── script.js
+│   │   └── style.css
+│   ├── scenario_agent.py
+│   ├── simulation_agent.py
+│   ├── step_diagram_agent.py
+│   ├── subprocess_driver_agent.py
+│   ├── subprocess_generator_agent.py
+│   ├── subprocess_writer_agent.py
+│   ├── templates
+│   │   └── index.html
+│   ├── update_process_agent.py
+│   ├── utils_agent.py
+│   └── utils.py
+├── properties
+│   └── agentapp.properties
 ├── README.md
 └── requirements.txt
+
 ```
 
 ---
@@ -210,6 +508,7 @@ The following are sample prompts you can use to...
 - "Create a process flow for Frodo Baggins to save Middleearth from the One Ring and Sauron"
 - “Act as a Pharma COO and Enterprise Architect. Produce a Level 0 Value Stream Map for the end‑to‑end drug development lifecycle. Your output must be a single, linear Level 0 value stream covering the flow of value from:
 Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission & Approval → Manufacturing → Commercial Launch & Market Access. Present the value stream as 6–10 top‑level value stages. Do not include Level 1 or Level 2 detail. Focus on the flow of value, not organisational functions or capabilities.”
+- “Generate a clear, human‑centred process that uses modern AI capabilities to improve efficiency, decision‑making, and accessibility for the widest range of people. The process should emphasize responsible use of AI, scalability, and meaningful real‑world benefit across diverse users.”
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
