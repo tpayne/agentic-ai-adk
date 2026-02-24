@@ -1,0 +1,265 @@
+{
+  "step_name": "Governance Sign-off",
+  "subprocess_flow": [
+    {
+      "substep_name": "Compile Governance Evidence Dossier",
+      "description": "The project team aggregates all mandatory compliance artifacts into a single, structured dossier for board review. This includes the final Audit Certification, the signed-off DPIA Report, the Risk Mitigation Plan, and technical security documentation to ensure the board has a holistic view of the system's risk posture.",
+      "responsible_party": "Project Managers / Delivery Leads",
+      "inputs": [
+        "Audit Certification",
+        "DPIA Report",
+        "Risk Mitigation Plan",
+        "Security Controls Documentation"
+      ],
+      "outputs": [
+        "Governance Evidence Dossier"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [],
+      "success_criteria": [
+        "All mandatory documents are present and correctly formatted.",
+        "Dossier is uploaded to the central governance portal."
+      ],
+      "purpose": "To centralize all evidence required for the formal approval decision.",
+      "scope": "Aggregation of existing project artifacts.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Audit certification issued"
+      ],
+      "end_conditions": [
+        "Dossier finalized and ready for review"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete evidence leading to board rejection.",
+          "control": "Mandatory checklist validation prior to submission."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to MoJ documentation standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard project change request.",
+          "versioning_rules": "Dossier versioning linked to project ID."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Board feedback on dossier quality"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Conduct Pre-Board Quality Review",
+      "description": "The Chief Data Officer or a designated governance lead performs a preliminary review of the dossier to ensure it meets the necessary quality and compliance thresholds. This step acts as a filter to prevent incomplete or low-quality submissions from reaching the Governance Board, thereby optimizing board time.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Governance Evidence Dossier"
+      ],
+      "outputs": [
+        "QA Approval Memo"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Compile Governance Evidence Dossier"
+      ],
+      "success_criteria": [
+        "CDO confirms dossier readiness for board presentation.",
+        "No critical gaps identified in the evidence."
+      ],
+      "purpose": "To ensure the quality and completeness of the submission before formal board review.",
+      "scope": "Internal review of the evidence dossier.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Dossier submission to the Data Office"
+      ],
+      "end_conditions": [
+        "QA Approval Memo issued"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Subjective review criteria.",
+          "control": "Use of a standardized QA rubric."
+        }
+      ],
+      "governance_requirements": [
+        "Internal Data Office oversight"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Governance appeal process.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "QA findings trends"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Present Evidence to Governance Board",
+      "description": "The project lead and CDO present the AI system's compliance posture, ethical considerations, and risk mitigation strategies to the MoJ Governance Board. This session allows board members to ask clarifying questions and scrutinize the evidence provided in the dossier.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Governance Evidence Dossier",
+        "QA Approval Memo"
+      ],
+      "outputs": [
+        "Board Meeting Minutes",
+        "Decision Record"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Conduct Pre-Board Quality Review"
+      ],
+      "success_criteria": [
+        "Formal presentation completed.",
+        "All board queries addressed or logged for follow-up."
+      ],
+      "purpose": "To provide the board with the necessary context to make an informed approval decision.",
+      "scope": "Formal board presentation and Q&A.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Scheduled board meeting date"
+      ],
+      "end_conditions": [
+        "Board session concluded"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of board quorum.",
+          "control": "Advance scheduling and mandatory attendance tracking."
+        }
+      ],
+      "governance_requirements": [
+        "Board Approval"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Governance appeal process.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Governance board feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Issue Authorization to Operate (AtO)",
+      "description": "Following a positive board decision, the CDO formally signs and issues the Authorization to Operate (AtO). This document serves as the official permit for the AI system to transition into the live production environment, signifying that all governance requirements have been met.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Decision Record",
+        "Board Meeting Minutes"
+      ],
+      "outputs": [
+        "Formal Approval Document",
+        "Authorization to Operate (AtO)"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Present Evidence to Governance Board"
+      ],
+      "success_criteria": [
+        "AtO is signed by the CDO.",
+        "AtO is distributed to the project team and DPO."
+      ],
+      "purpose": "To grant formal organizational approval for live operation.",
+      "scope": "Formal documentation and signing.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Positive board decision"
+      ],
+      "end_conditions": [
+        "AtO issued"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized issuance of AtO.",
+          "control": "Digital signature and secure document storage."
+        }
+      ],
+      "governance_requirements": [
+        "Executive sign-off"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Governance appeal process.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "AtO issuance cycle time"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Update Central AI Model Inventory",
+      "description": "The final step involves updating the MoJ's central AI model inventory to reflect the system's new 'Authorized' status. This includes uploading the AtO and linking it to the project's registration record to maintain a complete audit trail for the department.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Authorization to Operate (AtO)"
+      ],
+      "outputs": [
+        "Updated AI Inventory Record"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Issue Authorization to Operate (AtO)"
+      ],
+      "success_criteria": [
+        "Inventory record reflects 'Authorized' status.",
+        "AtO document is accessible via the central catalog."
+      ],
+      "purpose": "To maintain an accurate and up-to-date record of all authorized AI systems.",
+      "scope": "Data entry and record management in the central inventory.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "AtO issuance"
+      ],
+      "end_conditions": [
+        "Inventory update confirmed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inventory data drift.",
+          "control": "Automated synchronization with the governance portal."
+        }
+      ],
+      "governance_requirements": [
+        "Central AI model inventory entry"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard project change request.",
+          "versioning_rules": "Inventory record versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Inventory accuracy audits"
+          ]
+        }
+      ]
+    }
+  ]
+}

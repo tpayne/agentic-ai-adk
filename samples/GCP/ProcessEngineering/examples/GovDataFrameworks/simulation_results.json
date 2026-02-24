@@ -1,0 +1,20 @@
+{
+  "avg_cycle_time": 59.92998180176,
+  "cycle_time_variance": 6.485224545402711,
+  "time_unit": "days",
+  "bottlenecks": [
+    "Control Implementation",
+    "Risk & Impact Assessment",
+    "Verification & Audit"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Project Registration": 2.6530116709024454,
+    "Data Classification & Inventory": 6.692733303489762,
+    "Risk & Impact Assessment": 13.238170413233716,
+    "Control Implementation": 20.057526814595867,
+    "Verification & Audit": 9.263915900112346,
+    "Governance Sign-off": 6.6873026718196,
+    "Operational Monitoring": 1.3373210276062608
+  }
+}

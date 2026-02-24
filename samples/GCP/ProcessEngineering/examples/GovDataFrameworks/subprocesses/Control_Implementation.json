@@ -1,0 +1,422 @@
+{
+  "step_name": "Control Implementation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Review Risk Mitigation Plan & Architecture",
+      "description": "Analyze the approved Risk Mitigation Plan and Technical Architecture to identify specific technical requirements for security, privacy, and quality controls. This ensures that the implementation phase is directly aligned with the identified risks and the overall system design.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Risk Mitigation Plan",
+        "Technical Architecture"
+      ],
+      "outputs": [
+        "Control Implementation Roadmap"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [],
+      "success_criteria": [
+        "All risks mapped to specific technical implementation tasks.",
+        "Roadmap approved by the project lead."
+      ],
+      "purpose": "To translate high-level risk mitigations into a technical execution plan.",
+      "scope": "Analysis of risk and architecture documents for the specific AI project.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Risk assessment approval"
+      ],
+      "end_conditions": [
+        "Implementation roadmap finalized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of risk requirements.",
+          "control": "Peer review of the implementation roadmap."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Configure Identity and Access Management (IAM)",
+      "description": "Define and implement granular access controls, roles, and permissions for the AI environment. This involves setting up service accounts, user groups, and resource-level permissions to ensure the principle of least privilege is strictly enforced across all justice data assets.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Control Implementation Roadmap",
+        "MoJ Security Standards"
+      ],
+      "outputs": [
+        "Configured IAM Roles"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Review Risk Mitigation Plan & Architecture"
+      ],
+      "success_criteria": [
+        "Access restricted to authorized personnel only.",
+        "Roles verified against the architecture."
+      ],
+      "purpose": "To prevent unauthorized access to the AI system and its data.",
+      "scope": "User and service account permissions within the project environment.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Roadmap finalization"
+      ],
+      "end_conditions": [
+        "IAM roles deployed and verified"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Over-privileged accounts.",
+          "control": "Automated IAM policy scanning."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Implement Data Encryption",
+      "description": "Apply encryption protocols for data at rest within storage systems and data in transit across network layers. This step utilizes MoJ-approved cryptographic standards to protect sensitive justice data from interception or unauthorized viewing during the AI lifecycle.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Configured IAM Roles",
+        "MoJ Security Standards"
+      ],
+      "outputs": [
+        "Encrypted Data Pipelines",
+        "Encrypted Storage"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Configure Identity and Access Management (IAM)"
+      ],
+      "success_criteria": [
+        "Encryption verified for all data paths and storage buckets.",
+        "Keys managed via central KMS."
+      ],
+      "purpose": "To ensure data confidentiality at all stages of the AI lifecycle.",
+      "scope": "Data storage and network communication layers.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "IAM configuration complete"
+      ],
+      "end_conditions": [
+        "Encryption protocols active"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized data access.",
+          "control": "Encryption at rest/transit."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Establish Automated Data Quality Rules",
+      "description": "Develop and integrate automated scripts and rules to validate data integrity, completeness, and accuracy. These rules are applied at ingestion and during processing to ensure the AI model operates on high-fidelity data, minimizing the risk of biased judicial outcomes.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Technical Architecture"
+      ],
+      "outputs": [
+        "Data Quality Rules",
+        "Automated Data Quality Scripts"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Implement Data Encryption"
+      ],
+      "success_criteria": [
+        "Automated alerts triggered for data quality violations.",
+        "Validation logic covers all critical data fields."
+      ],
+      "purpose": "To maintain high data standards and prevent model degradation.",
+      "scope": "Data validation logic within the AI pipeline.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Encryption implementation complete"
+      ],
+      "end_conditions": [
+        "Quality scripts integrated into pipeline"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Poor data quality leading to biased outcomes.",
+          "control": "Automated data profiling and validation."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Deploy Privacy-Enhancing Technologies (PETs)",
+      "description": "Implement technical privacy safeguards such as data masking, anonymization, or differential privacy as specified in the Risk Mitigation Plan. This ensures that person-identifiable information (PII) is protected during model training and inference phases.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Risk Mitigation Plan",
+        "Automated Data Quality Scripts"
+      ],
+      "outputs": [
+        "Privacy-Protected Data Sets"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Establish Automated Data Quality Rules"
+      ],
+      "success_criteria": [
+        "PII is appropriately masked or anonymized according to the DPIA.",
+        "Data utility remains sufficient for model performance."
+      ],
+      "purpose": "To protect individual privacy while enabling data-driven insights.",
+      "scope": "Privacy transformations applied to project data.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Data quality rules established"
+      ],
+      "end_conditions": [
+        "PETs active in the environment"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Re-identification of anonymized data.",
+          "control": "K-anonymity and L-diversity checks."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Configure Security Logging and Monitoring",
+      "description": "Set up comprehensive logging for all system access, data modifications, and model executions. These logs are integrated with the MoJ central security monitoring system to enable real-time threat detection and maintain a robust audit trail.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "MoJ Security Standards",
+        "Privacy-Protected Data Sets"
+      ],
+      "outputs": [
+        "Security Audit Logs",
+        "Monitoring Dashboards"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Deploy Privacy-Enhancing Technologies (PETs)"
+      ],
+      "success_criteria": [
+        "Logs are successfully ingested by the central monitoring platform.",
+        "Dashboards reflect real-time security status."
+      ],
+      "purpose": "To provide visibility into system activity and support incident response.",
+      "scope": "Logging and monitoring configuration for the AI environment.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "PETs deployment complete"
+      ],
+      "end_conditions": [
+        "Monitoring active and alerting configured"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected security breaches.",
+          "control": "Real-time alerting on anomalous activity."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Perform Control Validation Testing",
+      "description": "Execute rigorous testing to ensure that all implemented technical controls (security, privacy, and quality) are functioning correctly. This includes functional testing of encryption, access control verification, and data quality rule validation.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Security Audit Logs",
+        "Automated Data Quality Scripts"
+      ],
+      "outputs": [
+        "Control Test Results"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Configure Security Logging and Monitoring"
+      ],
+      "success_criteria": [
+        "100% pass rate for all security and quality control tests.",
+        "No critical vulnerabilities identified."
+      ],
+      "purpose": "To verify the effectiveness of implemented safeguards.",
+      "scope": "Functional and security testing of all technical controls.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Monitoring configuration complete"
+      ],
+      "end_conditions": [
+        "Test report finalized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ineffective controls.",
+          "control": "Automated security regression testing."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Final Environment Hardening and Documentation",
+      "description": "Finalize the configuration of the AI environment by applying final security patches and locking down network ports. All implemented controls are documented in detail to support the subsequent verification and audit phase.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Control Test Results",
+        "Technical Architecture"
+      ],
+      "outputs": [
+        "Hardened AI Environment",
+        "Security Controls Documentation"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Perform Control Validation Testing"
+      ],
+      "success_criteria": [
+        "Environment is locked down according to MoJ standards.",
+        "Documentation is complete and accurate."
+      ],
+      "purpose": "To prepare the environment for production use and audit.",
+      "scope": "Final system configuration and documentation.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Successful control validation"
+      ],
+      "end_conditions": [
+        "Controls implemented and tested"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete documentation.",
+          "control": "Documentation review checklist."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical change control.",
+          "versioning_rules": "Code versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    }
+  ]
+}

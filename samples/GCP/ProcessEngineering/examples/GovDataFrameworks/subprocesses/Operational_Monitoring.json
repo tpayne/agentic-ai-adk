@@ -1,0 +1,428 @@
+{
+  "step_name": "Operational Monitoring",
+  "subprocess_flow": [
+    {
+      "substep_name": "Configure Monitoring Infrastructure",
+      "description": "Establish the technical environment for real-time tracking by configuring the AI Governance Platform and dashboards. This includes setting up telemetry pipelines from the live system and defining threshold-based alert triggers for performance and drift.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Model Performance Baselines",
+        "System Requirements"
+      ],
+      "outputs": [
+        "Monitoring Dashboards",
+        "Alert Configurations"
+      ],
+      "estimated_duration": "2\u20133 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Dashboards are active and receiving test telemetry.",
+        "Alert thresholds are documented and implemented."
+      ],
+      "purpose": "To establish the technical environment for real-time tracking.",
+      "scope": "Monitoring tool configuration.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "System Go-Live"
+      ],
+      "end_conditions": [
+        "Monitoring tools are fully operational."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect alert threshold settings.",
+          "control": "Peer review of monitoring configurations."
+        }
+      ],
+      "governance_requirements": [
+        "Continuous Monitoring Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard technical change control.",
+          "versioning_rules": "Configuration versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Alert accuracy logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ingest Live System Data",
+      "description": "Establish secure data pipelines to ingest live inference data and ground truth into the monitoring environment. This ensures the monitoring system has a representative and up-to-date view of current operational patterns.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Live System Data",
+        "Monitoring Dashboards"
+      ],
+      "outputs": [
+        "Processed Telemetry Data"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Configure Monitoring Infrastructure"
+      ],
+      "success_criteria": [
+        "Data flows continuously without loss or corruption.",
+        "Data latency remains within defined limits."
+      ],
+      "purpose": "To provide the raw data necessary for performance monitoring.",
+      "scope": "Data ingestion and pre-processing.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "System Go-Live"
+      ],
+      "end_conditions": [
+        "Data ingestion pipeline is active."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data leakage during ingestion.",
+          "control": "Encryption in transit and secure data environments (SDE)."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance",
+        "UK GDPR"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Pipeline performance logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Performance Analysis",
+      "description": "Compare the processed telemetry data against established model performance baselines. This involves calculating key performance indicators such as accuracy, precision, and recall to detect any degradation in model effectiveness.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Processed Telemetry Data",
+        "Model Performance Baselines"
+      ],
+      "outputs": [
+        "Performance Metrics"
+      ],
+      "estimated_duration": "Daily",
+      "dependencies": [
+        "Ingest Live System Data"
+      ],
+      "success_criteria": [
+        "Metrics are calculated and updated on dashboards.",
+        "Performance remains within 5% of baseline."
+      ],
+      "purpose": "To quantify current model accuracy and effectiveness.",
+      "scope": "Statistical performance evaluation.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "New data ingestion"
+      ],
+      "end_conditions": [
+        "Metrics are published to dashboards."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected performance degradation.",
+          "control": "Automated daily metric calculation."
+        }
+      ],
+      "governance_requirements": [
+        "Continuous Monitoring Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Metric definition update process.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Performance logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Perform Drift and Bias Testing",
+      "description": "Run statistical tests to identify data drift and concept drift. Additionally, evaluate the model for bias against protected characteristics to ensure fairness and compliance with ethical standards.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Processed Telemetry Data",
+        "Model Performance Baselines"
+      ],
+      "outputs": [
+        "Drift Analysis Report",
+        "Bias Assessment Results"
+      ],
+      "estimated_duration": "Weekly",
+      "dependencies": [
+        "Ingest Live System Data"
+      ],
+      "success_criteria": [
+        "Drift and bias scores are within acceptable MoJ thresholds.",
+        "Reports are generated and logged."
+      ],
+      "purpose": "To detect shifts in data patterns or emerging unfairness.",
+      "scope": "Drift and bias detection.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Scheduled weekly review"
+      ],
+      "end_conditions": [
+        "Analysis reports are finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Model bias affecting judicial outcomes.",
+          "control": "Automated bias detection algorithms."
+        }
+      ],
+      "governance_requirements": [
+        "AI Ethical Risk Assessment standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Threshold adjustment request.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Drift alerts",
+            "Legal updates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Manage Monitoring Alerts",
+      "description": "Monitor the automated alert system for breaches of performance or drift thresholds. Alerts are triaged based on severity and assigned to the appropriate technical team for immediate investigation.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Alert Configurations",
+        "Performance Metrics",
+        "Drift Analysis Report"
+      ],
+      "outputs": [
+        "Monitoring Alerts",
+        "Triage Logs"
+      ],
+      "estimated_duration": "Real-time",
+      "dependencies": [
+        "Execute Performance Analysis",
+        "Perform Drift and Bias Testing"
+      ],
+      "success_criteria": [
+        "All high-severity alerts are acknowledged within 4 hours.",
+        "Triage logs are complete and accurate."
+      ],
+      "purpose": "To ensure timely response to performance issues.",
+      "scope": "Alert management and triage.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Threshold breach"
+      ],
+      "end_conditions": [
+        "Alert is triaged and assigned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Alert fatigue leading to missed incidents.",
+          "control": "Alert severity classification and escalation paths."
+        }
+      ],
+      "governance_requirements": [
+        "Continuous Monitoring Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Alert logic update.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Incident response times"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Conduct Human-in-the-Loop Validation",
+      "description": "Subject matter experts and data scientists review flagged anomalies or threshold breaches. This manual validation determines if the alert represents a genuine risk to judicial outcomes or a false positive.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Monitoring Alerts",
+        "Live System Data"
+      ],
+      "outputs": [
+        "Validation Findings"
+      ],
+      "estimated_duration": "1\u20132 days",
+      "dependencies": [
+        "Manage Monitoring Alerts"
+      ],
+      "success_criteria": [
+        "Root cause of the alert is identified and documented.",
+        "Validation report is signed off by a Senior Data Scientist."
+      ],
+      "purpose": "To provide expert oversight on automated findings.",
+      "scope": "Expert review of anomalies.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "High-severity alert triage"
+      ],
+      "end_conditions": [
+        "Validation report finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Human error in validation.",
+          "control": "Human-in-the-loop validation by multiple experts."
+        }
+      ],
+      "governance_requirements": [
+        "Ethical AI Principles"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "N/A",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Validation feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Generate Performance Reports",
+      "description": "Compile performance metrics, drift analysis, and validation findings into comprehensive performance reports. These reports provide the Chief Data Officer with evidence of continued compliance and system safety.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Performance Metrics",
+        "Validation Findings",
+        "Drift Analysis Report"
+      ],
+      "outputs": [
+        "Performance Reports"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Execute Performance Analysis",
+        "Conduct Human-in-the-Loop Validation"
+      ],
+      "success_criteria": [
+        "Reports are delivered and reviewed by the CDO.",
+        "Reports contain all mandatory compliance data."
+      ],
+      "purpose": "To inform stakeholders of system health and compliance.",
+      "scope": "Stakeholder reporting.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "End of month"
+      ],
+      "end_conditions": [
+        "Report distribution complete."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate reporting to leadership.",
+          "control": "Automated report generation from verified data sources."
+        }
+      ],
+      "governance_requirements": [
+        "Bi-annual compliance audits"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Report template update.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Initiate Model Retraining",
+      "description": "If monitoring reveals significant drift or performance loss that cannot be resolved through configuration, a formal change request is initiated to retrain or update the AI model logic.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Performance Reports",
+        "Validation Findings"
+      ],
+      "outputs": [
+        "Change Request for Model Update"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Generate Performance Reports"
+      ],
+      "success_criteria": [
+        "Change request is logged in the central inventory.",
+        "CDO approves the retraining initiation."
+      ],
+      "purpose": "To remediate performance degradation through model updates.",
+      "scope": "Remediation initiation.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Performance remains below threshold after validation"
+      ],
+      "end_conditions": [
+        "Transition to Model Retraining process."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Uncontrolled model updates.",
+          "control": "Mandatory re-assessment for any updates to AI model logic."
+        }
+      ],
+      "governance_requirements": [
+        "Maintenance of a central AI model inventory"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Model retraining/update process.",
+          "versioning_rules": "Model versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Continuous",
+          "improvement_inputs": [
+            "Performance logs"
+          ]
+        }
+      ]
+    }
+  ]
+}

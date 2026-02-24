@@ -509,6 +509,7 @@ The following are sample prompts you can use to...
 - “Act as a Pharma COO and Enterprise Architect. Produce a Level 0 Value Stream Map for the end‑to‑end drug development lifecycle. Your output must be a single, linear Level 0 value stream covering the flow of value from:
 Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission & Approval → Manufacturing → Commercial Launch & Market Access. Present the value stream as 6–10 top‑level value stages. Do not include Level 1 or Level 2 detail. Focus on the flow of value, not organisational functions or capabilities.”
 - “Generate a clear, human‑centred process that uses modern AI capabilities to improve efficiency, decision‑making, and accessibility for the widest range of people. The process should emphasize responsible use of AI, scalability, and meaningful real‑world benefit across diverse users.”
+- "I am an enterprise architect working for the Ministry of Justice (UK) and I need to introduce an AI standard framework for data governance and quality that all projects need to adhere to. Create a process that projects need to follow to manage AI and data quality and governance - including security and data classification."
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"

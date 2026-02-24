@@ -1,0 +1,258 @@
+{
+  "step_name": "Data Classification & Inventory",
+  "subprocess_flow": [
+    {
+      "substep_name": "Source System Identification",
+      "description": "Identify and document all source data systems, databases, and file repositories that will be utilized for the AI project. This involves mapping technical locations to the project's data requirements to ensure no assets are overlooked.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Source Data Systems",
+        "Project Brief"
+      ],
+      "outputs": [
+        "List of Data Sources"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [],
+      "success_criteria": [
+        "Comprehensive list of all data locations documented."
+      ],
+      "purpose": "To define the technical scope of the data inventory.",
+      "scope": "Project-specific data sources.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Registration completion"
+      ],
+      "end_conditions": [
+        "Source list finalized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing data sources in the inventory.",
+          "control": "Cross-reference with project brief and architecture diagrams."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Profiling & Discovery",
+      "description": "Execute automated profiling tools to analyze the structure, content, and quality of the identified data sources. This step identifies potential PII, sensitive fields, and data patterns that inform classification.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "List of Data Sources",
+        "Automated Data Profiling tools"
+      ],
+      "outputs": [
+        "Data Profiling Reports"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Source System Identification"
+      ],
+      "success_criteria": [
+        "Profiling reports generated for all identified sources."
+      ],
+      "purpose": "To understand data content prior to classification.",
+      "scope": "Identified data sources.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Source list finalized"
+      ],
+      "end_conditions": [
+        "Profiling reports generated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete profiling of large datasets.",
+          "control": "Use automated discovery tools with sampling logic."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Automated GSC Classification",
+      "description": "Apply automated scanning rules based on MoJ Government Security Classifications (GSC) standards to tag data assets. This process automatically assigns draft labels such as Official or Official-Sensitive based on metadata and content analysis.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Data Profiling Reports",
+        "GSC Policy"
+      ],
+      "outputs": [
+        "Draft GSC Labels"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Data Profiling & Discovery"
+      ],
+      "success_criteria": [
+        "All data fields assigned a draft classification label."
+      ],
+      "purpose": "To efficiently classify large volumes of data.",
+      "scope": "Profiled data assets.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Profiling reports generated"
+      ],
+      "end_conditions": [
+        "Draft labels applied"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect automated data classification.",
+          "control": "Automated classification scanning with regular rule updates."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Classification Validation",
+      "description": "Manually review and validate the automated classification tags, focusing on edge cases or high-sensitivity justice data. This ensures that the context of the data is correctly interpreted according to MoJ standards.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Draft GSC Labels",
+        "Data Dictionary"
+      ],
+      "outputs": [
+        "Validated GSC Labels"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Automated GSC Classification"
+      ],
+      "success_criteria": [
+        "100% accuracy in classification tags verified by a human."
+      ],
+      "purpose": "To ensure human oversight on sensitive justice data.",
+      "scope": "Draft classified assets.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Draft labels applied"
+      ],
+      "end_conditions": [
+        "Labels validated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Human error in manual validation.",
+          "control": "Peer review of classifications for sensitive datasets."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Catalog Publication",
+      "description": "Integrate the validated inventory and classification metadata into the Enterprise Data Catalog. This step makes the inventory discoverable and ensures that security labels are visible to all authorized project stakeholders.",
+      "responsible_party": "Data Scientists / Engineers",
+      "inputs": [
+        "Validated GSC Labels",
+        "Enterprise Data Catalog"
+      ],
+      "outputs": [
+        "Classified Data Catalog"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Classification Validation"
+      ],
+      "success_criteria": [
+        "Catalog updated and accessible to authorized users."
+      ],
+      "purpose": "To provide a single source of truth for data assets.",
+      "scope": "Validated data inventory.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Labels validated"
+      ],
+      "end_conditions": [
+        "All assets tagged in catalog"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Catalog synchronization failure.",
+          "control": "Manual verification of catalog entry post-publication."
+        }
+      ],
+      "governance_requirements": [
+        "GSC Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data schema update request.",
+          "versioning_rules": "Data versioning policy."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    }
+  ]
+}

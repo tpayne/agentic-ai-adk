@@ -1,0 +1,313 @@
+{
+  "step_name": "Project Registration",
+  "subprocess_flow": [
+    {
+      "substep_name": "Access Registration Portal",
+      "description": "The Project Manager or Delivery Lead logs into the MoJ central AI and Data registration portal using their corporate credentials. This portal serves as the single entry point for all data-driven initiatives to ensure centralized visibility and tracking from the earliest stage of the project lifecycle.",
+      "responsible_party": "Project Managers / Delivery Leads",
+      "inputs": [
+        "Project Brief"
+      ],
+      "outputs": [
+        "Active Registration Session"
+      ],
+      "estimated_duration": "15 minutes",
+      "dependencies": [],
+      "success_criteria": [
+        "Portal access granted via SSO",
+        "New registration entry initialized"
+      ],
+      "purpose": "To provide a standardized and secure entry point for logging AI project intent.",
+      "scope": "MoJ internal governance portal access.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Project Initiation"
+      ],
+      "end_conditions": [
+        "Registration session active"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized access to the registration system.",
+          "control": "Single Sign-On (SSO) and Role-Based Access Control (RBAC)."
+        }
+      ],
+      "governance_requirements": [
+        "User authentication audit log"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "N/A",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Portal access logs",
+            "User login feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Enter Project Metadata",
+      "description": "The user inputs core project details including the project name, department, primary objectives, and a high-level description of the intended AI or data usage. This metadata is used by the Data Office to categorize the project and determine the appropriate governance path based on complexity and potential impact.",
+      "responsible_party": "Project Managers / Delivery Leads",
+      "inputs": [
+        "Project Brief",
+        "Active Registration Session"
+      ],
+      "outputs": [
+        "Draft Registration Record"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Access Registration Portal"
+      ],
+      "success_criteria": [
+        "All mandatory metadata fields completed",
+        "Project objectives clearly defined"
+      ],
+      "purpose": "To capture the essential scope and intent of the AI project for governance triage.",
+      "scope": "Project-level descriptive metadata.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Portal session initialized"
+      ],
+      "end_conditions": [
+        "Metadata saved in draft"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or vague project descriptions hindering triage.",
+          "control": "Mandatory field validation and descriptive tooltips in the portal."
+        }
+      ],
+      "governance_requirements": [
+        "Data quality standards for registration entries"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard project change request.",
+          "versioning_rules": "Draft versioning within portal."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Metadata completeness reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Submit Initial Data Requirements",
+      "description": "The Project Manager uploads documentation or specifies the datasets required for the project, including source systems and preliminary data sensitivity levels. This allows the Data Office to perform an early assessment of data protection requirements and potential security constraints.",
+      "responsible_party": "Project Managers / Delivery Leads",
+      "inputs": [
+        "Initial Data Requirements",
+        "Draft Registration Record"
+      ],
+      "outputs": [
+        "Completed Registration Submission"
+      ],
+      "estimated_duration": "30 minutes",
+      "dependencies": [
+        "Enter Project Metadata"
+      ],
+      "success_criteria": [
+        "Data requirements document successfully attached",
+        "Sensitivity levels declared"
+      ],
+      "purpose": "To provide the Data Office with early insight into the data assets involved.",
+      "scope": "Preliminary data sourcing and sensitivity identification.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Metadata entry complete"
+      ],
+      "end_conditions": [
+        "Submission sent to Data Office"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Sensitive data included in the registration brief itself.",
+          "control": "Automated scanning for PII/Sensitive terms in attachments."
+        }
+      ],
+      "governance_requirements": [
+        "Alignment with MoJ Data Handling Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard project change request.",
+          "versioning_rules": "Submission timestamping."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Data requirement accuracy feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Office Triage",
+      "description": "The Data Office Governance Team reviews the registration submission for completeness and validity. They check for potential overlaps with existing MoJ projects and identify if the project involves high-risk AI use cases that require immediate escalation to the Ethics Committee or DPO.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Completed Registration Submission"
+      ],
+      "outputs": [
+        "Triage Approval"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Submit Initial Data Requirements"
+      ],
+      "success_criteria": [
+        "Submission verified as complete",
+        "Risk level assigned"
+      ],
+      "purpose": "To ensure the quality of registration data and identify high-risk projects early.",
+      "scope": "Governance and risk triage.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Submission received"
+      ],
+      "end_conditions": [
+        "Triage status updated to Approved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Review bottlenecks delaying project initiation.",
+          "control": "SLA-based tracking and automated reminders for the governance team."
+        }
+      ],
+      "governance_requirements": [
+        "Central AI model inventory entry criteria"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Governance appeal process.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Triage cycle time metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Register in Central Inventory",
+      "description": "Upon triage approval, the project is formally recorded in the MoJ Central AI Model Inventory (e.g., Collibra). A unique Project ID is generated, which must be used in all subsequent governance, security, and data quality documentation throughout the project lifecycle.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Triage Approval"
+      ],
+      "outputs": [
+        "Registered Project ID",
+        "Project Registration Record"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Data Office Triage"
+      ],
+      "success_criteria": [
+        "Unique Project ID generated",
+        "Record visible in central inventory"
+      ],
+      "purpose": "To maintain a single source of truth for all AI projects within the MoJ.",
+      "scope": "Central Inventory management.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Triage approval finalized"
+      ],
+      "end_conditions": [
+        "Inventory record created"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Duplicate project entries in the inventory.",
+          "control": "Unique ID constraints and automated duplicate detection logic."
+        }
+      ],
+      "governance_requirements": [
+        "Central AI model inventory entry"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Inventory record update request.",
+          "versioning_rules": "Audit trail of record changes."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Inventory data accuracy audits"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Issue Registration Confirmation",
+      "description": "The Data Office issues a formal confirmation to the Project Manager, providing the unique Project ID and a summary of the next mandatory governance steps (e.g., Data Classification, DPIA). This step ensures the project team is aware of their compliance obligations.",
+      "responsible_party": "Chief Data Officer (CDO)",
+      "inputs": [
+        "Registered Project ID"
+      ],
+      "outputs": [
+        "Registration Confirmation Record"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Register in Central Inventory"
+      ],
+      "success_criteria": [
+        "Confirmation email sent to Project Manager",
+        "Project ID correctly communicated"
+      ],
+      "purpose": "To formally close the registration step and provide compliance guidance.",
+      "scope": "Governance communication.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Inventory record creation"
+      ],
+      "end_conditions": [
+        "Registration confirmed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Project team unaware of next governance steps.",
+          "control": "Automated issuance of a 'Governance Roadmap' with the confirmation."
+        }
+      ],
+      "governance_requirements": [
+        "Formal notification of registration"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "N/A",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Registration feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

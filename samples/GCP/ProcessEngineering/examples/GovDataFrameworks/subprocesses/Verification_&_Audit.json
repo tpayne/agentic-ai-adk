@@ -1,0 +1,325 @@
+{
+  "step_name": "Verification & Audit",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define Audit Scope & Schedule",
+      "description": "Establish the specific boundaries, technical components, and timeline for the independent audit. This involves identifying the AI models, data pipelines, and security infrastructure to be reviewed based on the project's risk profile.",
+      "responsible_party": "Data Protection Officer (DPO)",
+      "inputs": [
+        "Security Controls Documentation",
+        "AI Model Design",
+        "Risk Mitigation Plan"
+      ],
+      "outputs": [
+        "Audit Plan",
+        "Audit Schedule"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [],
+      "success_criteria": [
+        "Audit Plan approved by the Chief Data Officer (CDO).",
+        "Stakeholders notified of the audit timeline."
+      ],
+      "purpose": "To ensure the audit is focused, efficient, and covers all high-risk areas.",
+      "scope": "Planning and scheduling of the verification activities.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Implementation completion"
+      ],
+      "end_conditions": [
+        "Audit Plan finalized"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete audit scope.",
+          "control": "Cross-reference scope with the initial Risk & Impact Assessment."
+        }
+      ],
+      "governance_requirements": [
+        "Independent Audit Requirement"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Audit scope amendment request.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Audit reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Technical Security Assessment",
+      "description": "Conduct rigorous testing of the implemented security controls, including penetration testing of the hardened AI environment and verification of encryption protocols at rest and in transit.",
+      "responsible_party": "Data Protection Officer (DPO)",
+      "inputs": [
+        "Hardened AI Environment",
+        "Security Controls Documentation"
+      ],
+      "outputs": [
+        "Security Test Results",
+        "Vulnerability Assessment Report"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Define Audit Scope & Schedule"
+      ],
+      "success_criteria": [
+        "All security controls tested against MoJ Security Standards.",
+        "No unresolved 'Critical' or 'High' vulnerabilities."
+      ],
+      "purpose": "To verify the technical security posture of the AI system.",
+      "scope": "Technical security infrastructure and environment hardening.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Audit Plan approval"
+      ],
+      "end_conditions": [
+        "Security testing complete"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected security flaws.",
+          "control": "Use of automated vulnerability scanning and manual penetration testing."
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Security Standards compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical remediation request.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Security audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Quality Validation",
+      "description": "Validate the accuracy and reliability of the data quality scores provided by the project team. This includes re-running profiling tools on sample datasets to ensure consistency with reported metrics.",
+      "responsible_party": "Data Protection Officer (DPO)",
+      "inputs": [
+        "Data Quality Scores",
+        "Data Quality Rules",
+        "Source Data Systems"
+      ],
+      "outputs": [
+        "Data Quality Validation Report"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Define Audit Scope & Schedule"
+      ],
+      "success_criteria": [
+        "Data quality scores verified within a 5% variance of project reports.",
+        "Data lineage is transparent and documented."
+      ],
+      "purpose": "To ensure data integrity and fidelity for AI outcomes.",
+      "scope": "Validation of data quality metrics and profiling results.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Audit Plan approval"
+      ],
+      "end_conditions": [
+        "Data quality verification complete"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate data quality reporting.",
+          "control": "Independent re-profiling of sample data subsets."
+        }
+      ],
+      "governance_requirements": [
+        "Data Integrity Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data quality rule adjustment.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Data profiling results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ethical Compliance Verification",
+      "description": "Review the AI model's performance against the ethical risk assessment to ensure no unintended bias or discriminatory patterns have emerged during the implementation phase.",
+      "responsible_party": "Data Protection Officer (DPO)",
+      "inputs": [
+        "AI Ethical Risk Assessment",
+        "Model Performance Baselines",
+        "Hardened AI Environment"
+      ],
+      "outputs": [
+        "Ethical Compliance Memo"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Define Audit Scope & Schedule"
+      ],
+      "success_criteria": [
+        "Confirmation that model behavior aligns with MoJ ethical standards.",
+        "Bias testing results are within acceptable thresholds."
+      ],
+      "purpose": "To maintain public trust and ensure ethical integrity of AI decisions.",
+      "scope": "Review of model fairness and ethical alignment.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Audit Plan approval"
+      ],
+      "end_conditions": [
+        "Ethical review complete"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Algorithmic bias.",
+          "control": "Mandatory bias testing using diverse datasets."
+        }
+      ],
+      "governance_requirements": [
+        "AI Ethical Framework compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Model logic adjustment request.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Ethical review feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Remediation & Final Review",
+      "description": "Collaborate with the project team to address any non-conformities or vulnerabilities identified during the technical and data audits. Verify that corrective actions have been successfully implemented.",
+      "responsible_party": "Project Managers / Delivery Leads",
+      "inputs": [
+        "Security Test Results",
+        "Data Quality Validation Report",
+        "Ethical Compliance Memo"
+      ],
+      "outputs": [
+        "Remediation Evidence",
+        "Final Audit Findings"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Technical Security Assessment",
+        "Data Quality Audit",
+        "Ethical Compliance Verification"
+      ],
+      "success_criteria": [
+        "All 'Critical' and 'High' findings resolved.",
+        "Evidence of remediation provided and verified by DPO."
+      ],
+      "purpose": "To ensure the system meets all standards before formal certification.",
+      "scope": "Corrective actions and final verification of fixes.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Identification of audit non-conformities"
+      ],
+      "end_conditions": [
+        "All critical findings addressed"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ineffective remediation.",
+          "control": "Mandatory re-testing of failed controls."
+        }
+      ],
+      "governance_requirements": [
+        "Audit finding remediation policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Audit finding remediation.",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Remediation logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Issue Audit Certification",
+      "description": "Finalize the Verification Report and issue the formal Audit Certification. This document signals to the Governance Board that the project has met all security, quality, and ethical requirements.",
+      "responsible_party": "Data Protection Officer (DPO)",
+      "inputs": [
+        "Final Audit Findings",
+        "Remediation Evidence"
+      ],
+      "outputs": [
+        "Verification Report",
+        "Audit Certification"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Remediation & Final Review"
+      ],
+      "success_criteria": [
+        "Signed Audit Certification issued.",
+        "Verification Report archived in the central governance repository."
+      ],
+      "purpose": "To provide formal assurance for the Governance Sign-off stage.",
+      "scope": "Final reporting and certification issuance.",
+      "process_owner": "Chief Data Officer (CDO)",
+      "triggers": [
+        "Successful remediation of audit findings"
+      ],
+      "end_conditions": [
+        "Verification complete"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized certification issuance.",
+          "control": "Dual-signature requirement (DPO and Lead Auditor)."
+        }
+      ],
+      "governance_requirements": [
+        "Independent Audit Requirement"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "N/A",
+          "versioning_rules": "N/A"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Audit reports"
+          ]
+        }
+      ]
+    }
+  ]
+}
