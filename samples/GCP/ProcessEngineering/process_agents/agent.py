@@ -164,7 +164,7 @@ async def run_shell_command(cmdline: str):
     import asyncio
     stripped = cmdline.strip()
     command = stripped[1:].strip()
-    print(f"{ANSI_CYAN}[Shell]: {command}{ANSI_RESET}")
+    display_text(f"[Shell]: {command}")
     try:
         proc = await asyncio.create_subprocess_shell(
             command,
@@ -174,17 +174,16 @@ async def run_shell_command(cmdline: str):
         stdout, stderr = await proc.communicate()
 
         if stdout:
-            print(stdout.decode("utf-8", errors="replace"), end="")
+            display_text(stdout.decode("utf-8", errors="replace"), end="")
 
         if stderr:
-            sys.stderr.write(f"{ANSI_RED}{stderr.decode('utf-8', errors='replace')}{ANSI_RESET}")
+            display_text(f"[Shell]: {stderr.decode('utf-8', errors='replace')}", type="error")
 
         if proc.returncode != 0:
             display_text(f"Shell command exited with code {proc.returncode}", type="error")
 
     except Exception as e:
         display_text(f"[Shell]: Error executing command: {e}", type="error")
-
 
 async def init_session_and_runner(app_name: str = "ProcessArchitect"):
     user_id = str(uuid.uuid4())
@@ -246,7 +245,7 @@ async def process_file(file_path: str):
                     continue
 
 
-                print(f"\n[user-file]: {line}")
+                display_text(f"[user-file]: {line}")
 
                 content = types.Content(role="user", parts=[types.Part(text=line)])
                 final_response = None
