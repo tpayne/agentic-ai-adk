@@ -225,7 +225,7 @@ function drawNode(viewport, node, level) {
       "text-anchor": "middle",
       class: "io-text-input",
     });
-    t.textContent = `↑ ${inp}`;
+    t.textContent = `↓ ${inp}`;
     group.appendChild(t);
   });
 
