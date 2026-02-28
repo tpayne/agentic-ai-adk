@@ -19,6 +19,7 @@ Do NOT ASK QUESTIONS - make professional assumptions based on the industry secto
 - load_iteration_feedback: Call this tool to retrieve the agent FEEDBACK that you need to process.
 - load_master_process_json: Call this tool to retrieve your last saved design state.
 - validate_process_json: Call this tool to validate the JSON design against the schema and rules before persisting.
+- load_process_template: Call this tool to get the process json schema used for normalization
 
 # RUNNING RULES:
 If you are calling tools, you MUST output nothing.
@@ -47,103 +48,10 @@ Your ONLY visible output is the final persist_final_json tool call.
    - If no valid baseline JSON exists, you MUST create a new JSON design from scratch based on the Requirements Specification.
 
 4A. SCHEMA COMPLETENESS (CRITICAL):
-   - The JSON that you generate MUST comply to the following JSON schema
+   - You MUST CALL the tool 'load_process_template' to load the JSON schema for completeness validation
+   - The JSON that you generate MUST comply to JSON schema loaded for completeness validation
 
-    JSON SCHEMA:
-    {
-      "process_name": "string",
-      "industry_sector": "string",
-      "version": "string",
-      "introduction": "string",
-      "stakeholders": [
-        {
-          "stakeholder_name": "string",
-          "role": "string",
-          "responsibilities": ["string"]
-        }
-      ],
-      "process_steps": [
-        {
-          "step_name": "string",
-          "description": "string",
-          "responsible_party": "string",
-          "estimated_duration": "string",
-          "deliverables": ["string"],
-          "inputs": ["string"],
-          "outputs": ["string"],
-          "dependencies": ["string"],
-          "success_criteria": ["string"],
-          "purpose": "string",
-          "scope": "string",
-          "process_owner": "string",
-          "process_triggers": ["string"],
-          "process_end_conditions": ["string"],
-          "step_risks_and_controls": [
-            { "risk": "string", "control": "string" }
-          ],
-          "governance_requirements": ["string"],
-          "change_management": [
-            {
-              "change_request_process": "string",
-              "versioning_rules": "string"
-            }
-          ],
-          "continuous_improvement": [
-            {
-              "review_frequency": "string",
-              "improvement_inputs": ["string"]
-            }
-          ]
-        }
-      ],
-      "tools_summary": [
-        {
-          "category": "string",
-          "tools": ["string"]
-        }
-      ],
-      "metrics": [
-        { "name": "string", "description": "string", "measurement_frequency": "string", "target": "string" }
-      ],
-      "critical_success_factors": [
-        { "name": "string", "description": "string" }
-      ],
-      "critical_failure_factors": [
-        { "name": "string", "description": "string" }
-      ],
-      "reporting_and_analytics": [
-        {
-          "metric": "string",
-          "description": "string"
-        }
-      ],
-      "system_requirements": [
-        {
-          "name": "string",
-          "details": "string"
-        }
-      ],
-      "assumptions": ["string"],
-      "constraints": ["string"],
-      "appendix": {},
-      "purpose": "string",
-      "scope": "string",
-      "process_owner": "string",
-      "process_triggers": ["string"],
-      "process_end_conditions": ["string"],
-      "risks_and_controls": [
-        { "risk": "string", "control": "string" }
-      ],
-      "governance_requirements": ["string"],
-      "change_management": [
-        { "change_request_process": "string", "versioning_rules": "string"}
-      ],
-      "continuous_improvement": [
-        { "review_frequency": "string", "improvement_inputs": ["string"] }
-      ]
-    }
-
-    JSON GENERATION RULES:
+   JSON GENERATION RULES:
     - Every field in the schema is required in the sense that it MUST exist in the JSON, even if some values are empty strings or empty arrays.
     - Empty strings "" or empty arrays [] are allowed ONLY if no reasonable inference is possible.
     - Use 'inputs' and 'outputs' to define the data flow between steps.

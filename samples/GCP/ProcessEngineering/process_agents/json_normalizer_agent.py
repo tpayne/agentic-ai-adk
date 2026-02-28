@@ -3,6 +3,7 @@ from google.genai import types
 from .utils import (
     load_master_process_json,
     persist_final_json,
+    load_process_template,
     load_iteration_feedback,
     getProperty,
 )
@@ -32,7 +33,8 @@ json_normalizer_agent = ProcessLlmAgent(
         load_master_process_json,
         persist_final_json,
         load_iteration_feedback,
-        log_normalization_metadata
+        log_normalization_metadata,
+        load_process_template
     ],
     include_contents="default",
     description="Normalizes arbitrary business process JSON into a stable enriched schema.",

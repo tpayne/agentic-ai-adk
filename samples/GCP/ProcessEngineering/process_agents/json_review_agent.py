@@ -7,7 +7,8 @@ from .utils import (
     load_master_process_json,
     load_iteration_feedback,
     save_iteration_feedback,
-    getProperty
+    getProperty,
+    load_process_template
 )
 
 import json
@@ -42,7 +43,8 @@ json_review_agent = ProcessLlmAgent(
         load_iteration_feedback,
         load_master_process_json,
         save_iteration_feedback,
-        log_review_metadata
+        log_review_metadata,
+        load_process_template,
     ],
     instruction_file="json_review_agent.txt",
     generate_content_config=types.GenerateContentConfig(
