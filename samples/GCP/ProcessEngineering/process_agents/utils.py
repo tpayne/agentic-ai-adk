@@ -667,7 +667,7 @@ def load_iteration_feedback(reset_data: bool = True) -> dict:
 
         return feedback
 
-    return {"status": "No feedback found", "data": []}
+    return {}
 
 def save_iteration_feedback(feedback_data: Any):
     """
