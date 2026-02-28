@@ -1,0 +1,314 @@
+{
+  "step_name": "Proposal Finalization & Submission",
+  "subprocess_flow": [
+    {
+      "substep_name": "Content Integration & Formatting",
+      "description": "Consolidate all approved technical, ethical, and commercial sections into the final RFP submission template. This involves ensuring consistent branding, typography, and layout across the entire document to present a professional and unified response.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Approved Proposal Content",
+        "RFP Submission Templates"
+      ],
+      "outputs": [
+        "Draft Final Proposal"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Document follows all client-specified formatting guidelines.",
+        "Visual consistency across all sections."
+      ],
+      "purpose": "To create a cohesive and professionally formatted draft of the full proposal.",
+      "scope": "Formatting and structural assembly of the proposal document.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Receipt of governance approval."
+      ],
+      "end_conditions": [
+        "Draft proposal is ready for final messaging review."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Formatting errors leading to a non-compliant submission.",
+          "control": "Use of standardized, pre-validated RFP templates."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to corporate branding standards."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Minor formatting changes handled by Bid Manager; content changes require SME re-approval.",
+          "versioning_rules": "Incremental versioning (e.g., v0.1 to v0.2) during assembly."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Feedback from design team on template usability."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Responsible AI Messaging Review",
+      "description": "Perform a targeted review of the proposal to ensure the 'Responsible AI' value proposition is prominent and clearly articulated. This step verifies that the ethical guardrails and monitoring strategies are presented as a competitive advantage rather than just a compliance checkbox.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Draft Final Proposal"
+      ],
+      "outputs": [
+        "Refined AI Messaging"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Content Integration & Formatting"
+      ],
+      "success_criteria": [
+        "Responsible AI sections are highlighted and easy to find.",
+        "Messaging aligns with the firm's ethical AI positioning."
+      ],
+      "purpose": "To ensure the firm's commitment to responsible AI is a central theme of the proposal.",
+      "scope": "Review of narrative and value proposition sections related to AI.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of initial document assembly."
+      ],
+      "end_conditions": [
+        "AI messaging is optimized for client impact."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Dilution of the AI value proposition during formatting.",
+          "control": "Final narrative check by the Bid Manager against the original solution brief."
+        }
+      ],
+      "governance_requirements": [
+        "Alignment with the firm's Public AI Ethics Statement."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Messaging tweaks approved by the Enterprise Director.",
+          "versioning_rules": "Major version update (e.g., v0.9 to v1.0)."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per RFP",
+          "improvement_inputs": [
+            "Client feedback on the clarity of the AI value proposition."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Final Quality Assurance",
+      "description": "Conduct a comprehensive proofreading and cross-referencing check. This ensures all client questions are answered and that technical specifications for agentic systems match the executive summary and pricing sections.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Refined AI Messaging"
+      ],
+      "outputs": [
+        "QA-Cleared Proposal"
+      ],
+      "estimated_duration": "3 hours",
+      "dependencies": [
+        "Responsible AI Messaging Review"
+      ],
+      "success_criteria": [
+        "Zero typos or grammatical errors.",
+        "All RFP requirements are mapped to a response section."
+      ],
+      "purpose": "To eliminate errors and ensure 100% compliance with RFP requirements.",
+      "scope": "Proofreading, cross-referencing, and compliance checking.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of messaging refinement."
+      ],
+      "end_conditions": [
+        "Proposal is error-free and ready for packaging."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing a mandatory RFP requirement.",
+          "control": "Use of a compliance matrix to track every requirement to a page number."
+        }
+      ],
+      "governance_requirements": [
+        "Final sign-off on document accuracy."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "QA findings must be addressed by the original content owner.",
+          "versioning_rules": "Final review versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Error rates found during QA."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Package Assembly",
+      "description": "Compile the main proposal document along with all required appendices, such as the AI Fit Matrix Report, Ethical Risk Assessment, and Governance Sign-offs. Convert all files to the client-requested formats (e.g., PDF) and ensure file sizes are within portal limits.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "QA-Cleared Proposal",
+        "AI Fit Matrix Report",
+        "Ethical Risk Assessment",
+        "Governance Approval Sign-off"
+      ],
+      "outputs": [
+        "Final RFP Submission Package"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Final Quality Assurance"
+      ],
+      "success_criteria": [
+        "All required documents are present in the package.",
+        "Files are correctly named and formatted."
+      ],
+      "purpose": "To prepare the complete set of deliverables for submission.",
+      "scope": "File conversion, naming, and compilation.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "QA clearance of the main proposal."
+      ],
+      "end_conditions": [
+        "Submission package is ready for upload."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Corrupted files or incorrect file formats.",
+          "control": "Manual verification of every file in the package before submission."
+        }
+      ],
+      "governance_requirements": [
+        "Verification of all mandatory attachments."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "No changes allowed at this stage without restarting QA.",
+          "versioning_rules": "Final Submission Version (vFINAL)."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Portal upload success rates."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Client Submission",
+      "description": "Submit the final package to the client via their specified portal or email address. This step includes confirming receipt if possible and ensuring the submission occurs well before the deadline to avoid technical issues.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Final RFP Submission Package"
+      ],
+      "outputs": [
+        "Submission Confirmation"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [
+        "Package Assembly"
+      ],
+      "success_criteria": [
+        "Submission timestamp is before the RFP deadline.",
+        "Receipt confirmation received from client or portal."
+      ],
+      "purpose": "To deliver the proposal to the client.",
+      "scope": "Transmission of the proposal package.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of package assembly."
+      ],
+      "end_conditions": [
+        "Proposal is in the client's possession."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Submission portal failure or internet outage.",
+          "control": "Submission target set for 4 hours prior to the actual deadline."
+        }
+      ],
+      "governance_requirements": [
+        "Audit trail of submission time and date."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Post-submission changes only via formal client-approved addenda.",
+          "versioning_rules": "Locked version."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per RFP",
+          "improvement_inputs": [
+            "Submission timing data."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Archiving & Knowledge Capture",
+      "description": "Upload the final submission and all supporting artifacts to the internal Knowledge Management System. Tag the content with relevant metadata, such as AI use cases and client industry, to facilitate future reuse of high-quality AI proposal components.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Final RFP Submission Package",
+        "Submission Confirmation"
+      ],
+      "outputs": [
+        "Archived Proposal Record"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Client Submission"
+      ],
+      "success_criteria": [
+        "Record is searchable in the KMS.",
+        "All metadata fields are accurately populated."
+      ],
+      "purpose": "To preserve the proposal for future reference and knowledge sharing.",
+      "scope": "Internal data entry and file storage.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Receipt of submission confirmation."
+      ],
+      "end_conditions": [
+        "Proposal is archived and process is closed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Loss of intellectual property or successful AI solution patterns.",
+          "control": "Mandatory archiving step before project closure."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with data retention policies."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Archive updates managed by the KMS administrator.",
+          "versioning_rules": "Archived as 'Submitted Version'."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-Annually",
+          "improvement_inputs": [
+            "Search analytics from the Knowledge Management System."
+          ]
+        }
+      ]
+    }
+  ]
+}

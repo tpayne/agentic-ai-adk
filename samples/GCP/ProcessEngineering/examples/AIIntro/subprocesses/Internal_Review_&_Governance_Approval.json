@@ -1,0 +1,263 @@
+{
+  "step_name": "Internal Review & Governance Approval",
+  "subprocess_flow": [
+    {
+      "substep_name": "Review Package Distribution",
+      "description": "The Bid/RFP Manager compiles the Proposed AI Technical Architecture, Safety and Guardrail Specification, and Draft RFP Response into a standardized review package. This package is then distributed to the AI Solution Architect, Legal Lead, and Responsible AI Lead for parallel evaluation to ensure all reviewers have the same baseline information.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Proposed AI Technical Architecture",
+        "Safety and Guardrail Specification",
+        "Draft RFP Response"
+      ],
+      "outputs": [
+        "Review Package Distribution Confirmation"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "All reviewers confirm receipt of the complete package."
+      ],
+      "purpose": "To initiate the parallel review process by providing all necessary documentation to stakeholders.",
+      "scope": "Internal distribution to SME, Legal, and Ethics teams.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of safety and guardrail design."
+      ],
+      "end_conditions": [
+        "Reviewers have access to all materials."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete documentation sent to reviewers",
+          "control": "Automated checklist in the Knowledge Management System."
+        }
+      ],
+      "governance_requirements": [
+        "Audit trail of document distribution."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Email to Bid Manager",
+          "versioning_rules": "v1.0"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Distribution cycle time data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Technical Feasibility SME Review",
+      "description": "The AI Solution Architect conducts a deep-dive review of the Proposed AI Technical Architecture to ensure it meets client performance requirements and is technically viable. This includes verifying that the agentic systems are correctly integrated with existing client infrastructure and that the proposed solution is scalable.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Proposed AI Technical Architecture"
+      ],
+      "outputs": [
+        "Technical Feasibility Report"
+      ],
+      "estimated_duration": "8 hours",
+      "dependencies": [
+        "Review Package Distribution"
+      ],
+      "success_criteria": [
+        "Technical architecture validated for scalability and performance."
+      ],
+      "purpose": "To verify that the proposed AI architecture is technically sound and implementable.",
+      "scope": "Technical architecture and performance metrics.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Receipt of Review Package."
+      ],
+      "end_conditions": [
+        "Technical Feasibility Report issued."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Technical debt or unscalable design",
+          "control": "Peer review by senior architects."
+        }
+      ],
+      "governance_requirements": [
+        "Technical standards compliance check."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Architecture Review Board",
+          "versioning_rules": "v1.1"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Post-implementation technical audits"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Legal and Regulatory Compliance Audit",
+      "description": "The Legal Lead reviews the Draft RFP Response and Technical Architecture against international regulations such as the EU AI Act and GDPR. This audit ensures that all data handling and AI processing activities are legally compliant within the client's jurisdiction and that contractual risks are mitigated.",
+      "responsible_party": "Responsible AI / Legal Lead",
+      "inputs": [
+        "Draft RFP Response",
+        "Proposed AI Technical Architecture"
+      ],
+      "outputs": [
+        "Legal Compliance Sign-off"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Review Package Distribution"
+      ],
+      "success_criteria": [
+        "Zero legal non-compliance issues identified."
+      ],
+      "purpose": "To ensure the proposal adheres to international and local data privacy and AI regulations.",
+      "scope": "Legal and regulatory compliance.",
+      "process_owner": "Responsible AI / Legal Lead",
+      "triggers": [
+        "Receipt of Review Package."
+      ],
+      "end_conditions": [
+        "Legal Compliance Sign-off received."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Non-compliance with data privacy laws",
+          "control": "Standardized Legal/Ethics checklist."
+        }
+      ],
+      "governance_requirements": [
+        "Regulatory compliance audit."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Legal Counsel review",
+          "versioning_rules": "L-v1"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Regulatory update logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ethical Alignment and Bias Assessment",
+      "description": "The Responsible AI Lead evaluates the Safety and Guardrail Specification and Draft RFP Response for ethical risks, potential biases, and alignment with the firm's Responsible AI principles. This assessment focuses on transparency, fairness, and accountability of the agentic systems to prevent reputational damage.",
+      "responsible_party": "Responsible AI / Legal Lead",
+      "inputs": [
+        "Safety and Guardrail Specification",
+        "Draft RFP Response"
+      ],
+      "outputs": [
+        "Ethical Review Approval"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Review Package Distribution"
+      ],
+      "success_criteria": [
+        "Ethical risks identified and mitigated via guardrails."
+      ],
+      "purpose": "To evaluate the proposal for ethical risks, bias, and alignment with corporate AI principles.",
+      "scope": "Ethical impact and bias mitigation.",
+      "process_owner": "Responsible AI / Legal Lead",
+      "triggers": [
+        "Receipt of Review Package."
+      ],
+      "end_conditions": [
+        "Ethical Review Approval issued."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Algorithmic bias in proposed solution",
+          "control": "Mandatory bias impact assessment documentation."
+        }
+      ],
+      "governance_requirements": [
+        "Ethics Committee oversight."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Ethics Board petition",
+          "versioning_rules": "E-v1"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Client trust scores"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Final Governance Sign-off",
+      "description": "The Responsible AI / Legal Lead consolidates the Technical Feasibility Report, Legal Compliance Sign-off, and Ethical Review Approval. A final review is conducted to ensure all SME feedback has been addressed, culminating in the formal governance sign-off required for proposal submission.",
+      "responsible_party": "Responsible AI / Legal Lead",
+      "inputs": [
+        "Technical Feasibility Report",
+        "Legal Compliance Sign-off",
+        "Ethical Review Approval",
+        "Draft RFP Response"
+      ],
+      "outputs": [
+        "Approved Proposal Content",
+        "Governance Approval Sign-off"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Technical Feasibility SME Review",
+        "Legal and Regulatory Compliance Audit",
+        "Ethical Alignment and Bias Assessment"
+      ],
+      "success_criteria": [
+        "Formal approval received from all required governance bodies."
+      ],
+      "purpose": "To provide final authorization for the proposal content from the designated governance bodies.",
+      "scope": "Final governance approval.",
+      "process_owner": "Responsible AI / Legal Lead",
+      "triggers": [
+        "Completion of all parallel reviews."
+      ],
+      "end_conditions": [
+        "Governance Approval Sign-off archived."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Reputational damage due to unethical AI implementation",
+          "control": "Inclusion of a standardized 'Responsible AI' clause."
+        }
+      ],
+      "governance_requirements": [
+        "Mandatory sign-off from Legal/Ethics committee."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal change request to Bid Manager",
+          "versioning_rules": "Final-v1"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Win/Loss analysis"
+          ]
+        }
+      ]
+    }
+  ]
+}

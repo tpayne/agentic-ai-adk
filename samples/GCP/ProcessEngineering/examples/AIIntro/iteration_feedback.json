@@ -1,0 +1,26 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "location": "process_steps[1].inputs[1]",
+      "metadata": {},
+      "instruction": "Change 'AI Fit Matrix Tool' to 'AI Fit Assessment Matrix tool' to ensure consistency with the tools_summary and system_requirements sections.",
+      "issue_type": "consistency",
+      "line_number": "87"
+    },
+    {
+      "instruction": "Change 'RFP Submission Templates' to 'Responsible AI template library' to ensure consistency with the tools_summary and system_requirements sections.",
+      "metadata": {},
+      "location": "process_steps[5].inputs[1]",
+      "issue_type": "consistency",
+      "line_number": "189"
+    },
+    {
+      "instruction": "The 'Knowledge Management System' is listed in tools_summary but not referenced in any process step. Reference it in the appropriate step (e.g., Step 6 for archiving) or remove it from the tools_summary.",
+      "metadata": {},
+      "location": "tools_summary[1].tools[1]",
+      "issue_type": "consistency",
+      "line_number": "212"
+    }
+  ]
+}
