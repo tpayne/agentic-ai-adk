@@ -1,0 +1,226 @@
+{
+  "step_name": "Deploy and monitor with human oversight",
+  "subprocess_flow": [
+    {
+      "substep_name": "Establish Human Oversight Protocols",
+      "description": "Define and document the specific mechanisms for human intervention, including the roles, responsibilities, and authority of human overseers. This includes setting clear thresholds for when a human must override an automated decision to ensure safety and compliance with the EU AI Act.",
+      "responsible_party": "Head of AI Governance",
+      "inputs": [
+        "Technical Documentation Package",
+        "Human Oversight Requirements (EU AI Act)"
+      ],
+      "outputs": [
+        "Human Oversight Protocol"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Protocol is formally approved by the AI Ethics Committee.",
+        "Intervention thresholds are clearly defined and measurable."
+      ],
+      "purpose": "To ensure that the AI system remains under meaningful human control as required by regulation.",
+      "scope": "Governance and procedural definition of human-in-the-loop mechanisms.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Final certification and approval."
+      ],
+      "end_conditions": [
+        "Human Oversight Protocol is finalized and signed off."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ambiguous intervention authority.",
+          "control": "Explicitly documented decision-making hierarchy in the protocol."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Human Oversight (Article 14)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal submission to the AI Governance Board.",
+          "versioning_rules": "Major version increment for changes to intervention thresholds."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Intervention logs",
+            "Overseer feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Configure Monitoring Dashboard",
+      "description": "Set up and calibrate the automated monitoring tools to track real-time performance metrics, data drift, and model accuracy. The dashboard must be configured to trigger alerts based on the thresholds defined in the Human Oversight Protocol.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Production Environment Access",
+        "Human Oversight Protocol",
+        "Technical Documentation Package"
+      ],
+      "outputs": [
+        "Monitoring Dashboard",
+        "Alert Configuration Profile"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Establish Human Oversight Protocols"
+      ],
+      "success_criteria": [
+        "Dashboard displays real-time drift and performance metrics.",
+        "Alerting system successfully notifies the Risk Management Team during test triggers."
+      ],
+      "purpose": "To provide visibility into the operational health and compliance of the AI system.",
+      "scope": "Technical configuration of monitoring and alerting infrastructure.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Approval of Human Oversight Protocol."
+      ],
+      "end_conditions": [
+        "Dashboard is live and monitoring production data."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Monitoring tool failure or latency.",
+          "control": "Redundant monitoring streams and heartbeat checks."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF Measure Function",
+        "Audit Trail Logging Requirements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "IT Change Management Ticket.",
+          "versioning_rules": "Configuration as code (Git) versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "False positive alert rates",
+            "System performance data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Production Deployment",
+      "description": "Deploy the AI model into the production environment following the organization's standard release management procedures. This includes final smoke testing and verification that the monitoring dashboard is correctly capturing production telemetry.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Technical Documentation Package",
+        "Monitoring Dashboard"
+      ],
+      "outputs": [
+        "Deployment Log",
+        "Production System Status"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Configure Monitoring Dashboard"
+      ],
+      "success_criteria": [
+        "System is accessible in production.",
+        "Initial production outputs meet accuracy benchmarks."
+      ],
+      "purpose": "To transition the AI system from a certified state to active operational use.",
+      "scope": "Technical release and environment verification.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Successful dashboard configuration and testing."
+      ],
+      "end_conditions": [
+        "System is fully operational in the production environment."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Environment mismatch leading to performance degradation.",
+          "control": "Automated environment parity checks and rollback scripts."
+        }
+      ],
+      "governance_requirements": [
+        "Standard ITIL Release Management Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Production Release Board approval.",
+          "versioning_rules": "Semantic versioning for model and infrastructure."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-deployment",
+          "improvement_inputs": [
+            "Deployment post-mortem",
+            "Initial performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Conduct Ongoing Human Oversight",
+      "description": "Perform continuous monitoring of the AI system's outputs and behavior. Human overseers must review alerts, investigate anomalies, and exercise intervention or 'kill-switch' protocols if the system drifts outside of acceptable compliance or performance boundaries.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Monitoring Dashboard",
+        "Human Oversight Protocol"
+      ],
+      "outputs": [
+        "Oversight Activity Logs",
+        "Incident Reports"
+      ],
+      "estimated_duration": "Ongoing",
+      "dependencies": [
+        "Execute Production Deployment"
+      ],
+      "success_criteria": [
+        "100% of high-priority alerts are investigated within defined SLAs.",
+        "System operates within performance and compliance parameters."
+      ],
+      "purpose": "To maintain operational integrity and regulatory compliance through active human vigilance.",
+      "scope": "Daily operational monitoring and intervention activities.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "System deployment",
+        "Automated alerts"
+      ],
+      "end_conditions": [
+        "System is decommissioned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Model Drift or Unintended Behavior.",
+          "control": "Real-time drift detection and human intervention triggers."
+        },
+        {
+          "risk": "Overseer fatigue or complacency.",
+          "control": "Rotation of oversight staff and mandatory peer reviews of interventions."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Human Oversight Requirements",
+        "NIST AI RMF Manage Function"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Incident Management Process.",
+          "versioning_rules": "Log versioning linked to system timestamps."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "Incident trends",
+            "Regulatory updates"
+          ]
+        }
+      ]
+    }
+  ]
+}

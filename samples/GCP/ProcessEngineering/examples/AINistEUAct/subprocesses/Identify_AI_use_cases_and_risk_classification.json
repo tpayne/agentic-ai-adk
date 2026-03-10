@@ -1,0 +1,210 @@
+{
+  "step_name": "Identify AI use cases and risk classification",
+  "subprocess_flow": [
+    {
+      "substep_name": "Inventory AI Project Proposals",
+      "description": "Collect and catalog all incoming AI project proposals from various business units. This involves reviewing the initial project documentation to understand the intended purpose, target users, and technical architecture of the proposed AI system.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "AI Project Proposal"
+      ],
+      "outputs": [
+        "Consolidated AI Project Inventory"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "All active AI proposals are captured in the central inventory."
+      ],
+      "purpose": "To create a comprehensive list of AI systems requiring assessment.",
+      "scope": "All new and significantly modified AI projects within the organization.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Initiation of a new AI project."
+      ],
+      "end_conditions": [
+        "Inventory is updated with the latest project details."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Shadow AI projects bypass the inventory process.",
+          "control": "Mandatory procurement and cloud-spend reviews."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 51 (Inventory Requirements)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard project intake change request.",
+          "versioning_rules": "Inventory list versioned weekly."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Project intake logs",
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Screen for Prohibited AI Practices",
+      "description": "Evaluate each AI use case against the list of prohibited practices defined by the EU AI Act, such as social scoring or untargeted scraping of facial images. This step ensures that no project proceeds if it violates fundamental ethical or legal boundaries.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Consolidated AI Project Inventory",
+        "EU AI Act Prohibited Practices List"
+      ],
+      "outputs": [
+        "Prohibited Practice Screening Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Inventory AI Project Proposals"
+      ],
+      "success_criteria": [
+        "Confirmation that the use case does not fall under prohibited categories."
+      ],
+      "purpose": "To prevent the development of illegal AI systems.",
+      "scope": "Ethical and legal boundary screening.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Project entry into the inventory."
+      ],
+      "end_conditions": [
+        "Screening report is signed off by legal counsel."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of prohibited practice definitions.",
+          "control": "Legal department review of all screening reports."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Title II (Prohibited AI Practices)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Legal review update process.",
+          "versioning_rules": "Screening criteria updated with regulatory changes."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Regulatory updates",
+            "Legal case studies"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Apply EU AI Act Risk Criteria",
+      "description": "Assess the AI system against the high-risk criteria specified in the EU AI Act, focusing on its application in critical infrastructure, education, employment, and financial services. This involves determining if the system is a safety component or intended for use in sensitive sectors.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Prohibited Practice Screening Report",
+        "EU AI Act Risk Classification Guidelines"
+      ],
+      "outputs": [
+        "Draft Risk Classification"
+      ],
+      "estimated_duration": "4 days",
+      "dependencies": [
+        "Screening for Prohibited AI Practices"
+      ],
+      "success_criteria": [
+        "Risk level (Unacceptable, High, Limited, Minimal) is assigned based on regulatory criteria."
+      ],
+      "purpose": "To categorize the AI system for regulatory compliance mapping.",
+      "scope": "Regulatory risk classification.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Successful completion of prohibited practice screening."
+      ],
+      "end_conditions": [
+        "Draft classification is ready for executive review."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect risk classification.",
+          "control": "Standardized risk assessment templates."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Annex III (High-Risk AI Systems)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Classification appeal process.",
+          "versioning_rules": "Classification records versioned per project."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Audit findings",
+            "Industry benchmarking"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize Risk Classification Report",
+      "description": "Compile the findings from the inventory, screening, and classification steps into a formal Risk Classification Report. This report serves as the definitive document for the project's regulatory standing and dictates the subsequent compliance requirements.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Draft Risk Classification",
+        "AI Project Proposal"
+      ],
+      "outputs": [
+        "Risk Classification Report"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Apply EU AI Act Risk Criteria"
+      ],
+      "success_criteria": [
+        "Formal approval of risk classification by Chief Compliance Officer."
+      ],
+      "purpose": "To document the final risk standing of the AI system.",
+      "scope": "Final documentation and approval.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of risk assessment."
+      ],
+      "end_conditions": [
+        "Risk level is formally assigned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete documentation in the final report.",
+          "control": "Peer review of the report before submission."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Documentation Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal document revision process.",
+          "versioning_rules": "Major versioning for approved reports."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Compliance officer feedback",
+            "External audit results"
+          ]
+        }
+      ]
+    }
+  ]
+}

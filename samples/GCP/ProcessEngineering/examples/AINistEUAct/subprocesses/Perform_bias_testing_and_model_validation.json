@@ -1,0 +1,319 @@
+{
+  "step_name": "Perform bias testing and model validation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Initialize Validation Environment",
+      "description": "This sub-step involves the setup and configuration of the technical environment required for model validation. The Risk Management Team ensures that all automated bias testing tools and standardized validation suites are correctly installed and integrated with the model's architecture to ensure consistent testing conditions.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Model Architecture",
+        "Training Datasets"
+      ],
+      "outputs": [
+        "Configured Validation Environment"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Validation tools are operational and connected to the model environment."
+      ],
+      "purpose": "To ensure a stable and standardized environment for technical accuracy checks.",
+      "scope": "Technical environment setup and tool configuration.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Model development completion."
+      ],
+      "end_conditions": [
+        "Environment is ready for testing."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Tool Misconfiguration",
+          "control": "Standardized setup checklists and environment verification tests."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Submit ticket to IT/DevOps for environment changes.",
+          "versioning_rules": "Track environment configuration versions in Git."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Tool performance logs",
+            "User feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Define Fairness and Accuracy Benchmarks",
+      "description": "The team establishes quantitative benchmarks for fairness and accuracy based on internal policies and regulatory requirements. This involves selecting specific metrics such as disparate impact ratios, equalized odds, and precision-recall thresholds that the model must satisfy to pass validation.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Fairness and Accuracy Standards",
+        "Model Architecture"
+      ],
+      "outputs": [
+        "Validation Threshold Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Initialize Validation Environment"
+      ],
+      "success_criteria": [
+        "Benchmarks are documented and approved by the Head of AI Governance."
+      ],
+      "purpose": "To establish clear pass/fail criteria for the validation process.",
+      "scope": "Metric selection and threshold setting.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Environment initialization completion."
+      ],
+      "end_conditions": [
+        "Thresholds are formally defined."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inappropriate Thresholds",
+          "control": "Peer review of benchmarks by the AI Ethics Committee."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal review by the Risk Management lead.",
+          "versioning_rules": "Threshold documents are versioned in the Model Inventory System."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Regulatory updates",
+            "Industry best practices"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Automated Bias Testing",
+      "description": "Using the configured environment, the team runs automated fairness audits against the training datasets and model outputs. This process identifies potential biases across protected attributes and generates detailed scores for each selected fairness metric.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Training Datasets",
+        "Configured Validation Environment",
+        "Validation Threshold Document"
+      ],
+      "outputs": [
+        "Bias Testing Results"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Define Fairness and Accuracy Benchmarks"
+      ],
+      "success_criteria": [
+        "Bias testing suite completes without errors and generates a full results set."
+      ],
+      "purpose": "To identify and quantify algorithmic bias using automated tools.",
+      "scope": "Automated fairness auditing.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Benchmark definition completion."
+      ],
+      "end_conditions": [
+        "Bias scores are recorded for all protected attributes."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete Data Coverage",
+          "control": "Data profiling to ensure all protected classes are represented in the test set."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Request for additional test data via Data Governance team.",
+          "versioning_rules": "Test results are timestamped and linked to model versions."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "Bias detection accuracy",
+            "False positive rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Validate Technical Accuracy and Robustness",
+      "description": "The team performs rigorous technical validation to ensure the model meets performance requirements. This includes calculating accuracy, F1-scores, and AUC-ROC, as well as conducting stress tests and robustness checks to ensure the model remains stable under varying data conditions.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Model Architecture",
+        "Training Datasets",
+        "Validation Threshold Document"
+      ],
+      "outputs": [
+        "Technical Performance Metrics"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Define Fairness and Accuracy Benchmarks"
+      ],
+      "success_criteria": [
+        "Model performance metrics meet or exceed the defined thresholds."
+      ],
+      "purpose": "To ensure the model is technically sound and reliable.",
+      "scope": "Performance and robustness testing.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Benchmark definition completion."
+      ],
+      "end_conditions": [
+        "Performance metrics are finalized and documented."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Overfitting to Test Data",
+          "control": "Use of independent hold-out sets and cross-validation techniques."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Model retraining request if performance is insufficient.",
+          "versioning_rules": "Performance logs are stored in the centralized model repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Model drift data",
+            "Production performance feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Analyze Bias and Performance Trade-offs",
+      "description": "The Risk Management Team reviews the intersection of bias results and technical performance. They analyze whether achieving fairness requires adjustments that significantly degrade accuracy and determine if the current model balance is acceptable under regulatory guidelines.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Bias Testing Results",
+        "Technical Performance Metrics"
+      ],
+      "outputs": [
+        "Validation Analysis Summary"
+      ],
+      "estimated_duration": "4 days",
+      "dependencies": [
+        "Execute Automated Bias Testing",
+        "Validate Technical Accuracy and Robustness"
+      ],
+      "success_criteria": [
+        "Analysis clearly identifies the impact of bias mitigation on model utility."
+      ],
+      "purpose": "To make informed decisions regarding model optimization and fairness.",
+      "scope": "Comparative analysis and trade-off evaluation.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of bias and accuracy testing."
+      ],
+      "end_conditions": [
+        "Analysis summary is signed off by the Risk Management lead."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Subjective Interpretation of Results",
+          "control": "Standardized analysis templates and multi-stakeholder review."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Escalation to AI Ethics Committee for unresolved trade-offs.",
+          "versioning_rules": "Analysis reports are version-controlled."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annually",
+          "improvement_inputs": [
+            "Ethics committee feedback",
+            "Regulatory case studies"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Generate Model Validation Report",
+      "description": "The final sub-step involves compiling all testing results, analysis summaries, and compliance evidence into a comprehensive Model Validation Report. This report provides the formal confirmation that the model meets all internal and regulatory benchmarks for fairness and accuracy.",
+      "responsible_party": "Risk Management Team",
+      "inputs": [
+        "Validation Analysis Summary",
+        "Bias Testing Results",
+        "Technical Performance Metrics"
+      ],
+      "outputs": [
+        "Model Validation Report"
+      ],
+      "estimated_duration": "4 days",
+      "dependencies": [
+        "Analyze Bias and Performance Trade-offs"
+      ],
+      "success_criteria": [
+        "Validation report confirms model meets all internal and regulatory benchmarks."
+      ],
+      "purpose": "To provide a formal audit trail and certification of model compliance.",
+      "scope": "Report compilation and final review.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of trade-off analysis."
+      ],
+      "end_conditions": [
+        "Model Validation Report is published and archived."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete Reporting",
+          "control": "Automated report generation from validated data sources."
+        }
+      ],
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal document revision process.",
+          "versioning_rules": "Final reports are locked and archived with unique version IDs."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Audit findings",
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

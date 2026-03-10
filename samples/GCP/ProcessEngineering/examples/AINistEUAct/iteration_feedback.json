@@ -1,0 +1,33 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "metadata": {},
+      "issue_type": "enrichment",
+      "location": "introduction",
+      "instruction": "The 'introduction' field must be a multi-sentence professional paragraph. Currently, it is only a single sentence. Expand it to provide more context and detail regarding the framework's objectives and applicability.",
+      "line_number": "100"
+    },
+    {
+      "metadata": {},
+      "issue_type": "enrichment",
+      "location": "purpose",
+      "line_number": "150",
+      "instruction": "The top-level 'purpose' field must be a multi-sentence professional paragraph. Expand this to detail the strategic intent and expected outcomes of the framework."
+    },
+    {
+      "location": "process_steps",
+      "instruction": "All 'description' and 'purpose' fields within 'process_steps' must be multi-sentence professional paragraphs. Currently, they are single sentences. Provide more operational detail for each step.",
+      "line_number": "200",
+      "metadata": {},
+      "issue_type": "enrichment"
+    },
+    {
+      "location": "stakeholders",
+      "line_number": "300",
+      "instruction": "Stakeholder responsibilities must be detailed lists. Currently, most stakeholders have only a single, high-level responsibility. Expand these into comprehensive lists of specific duties within the framework.",
+      "metadata": {},
+      "issue_type": "stakeholders"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "avg_cycle_time": 30.683580954278035,
+  "cycle_time_variance": 3.0731827865962673,
+  "time_unit": "weeks",
+  "bottlenecks": [
+    "Implement NIST AI RMF Core Functions",
+    "EU AI Act Conformity Assessment and Registration",
+    "Perform bias testing and model validation"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Identify AI use cases and risk classification": 2.677110164393499,
+    "Conduct Data Protection Impact Assessment (DPIA)": 3.993978630939625,
+    "Implement NIST AI RMF Core Functions": 8.0393031302309,
+    "Perform bias testing and model validation": 5.286071159256162,
+    "Document technical specifications for EU AI Act compliance": 3.991826939912682,
+    "EU AI Act Conformity Assessment and Registration": 5.3468695292557555,
+    "Deploy and monitor with human oversight": 1.3484214002894102
+  }
+}
