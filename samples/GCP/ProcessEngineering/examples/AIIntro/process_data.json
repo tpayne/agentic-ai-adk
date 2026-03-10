@@ -1,0 +1,396 @@
+{
+  "continuous_improvement": [
+    {
+      "review_frequency": "Quarterly review to refine the 'AI Fit Assessment' criteria.",
+      "improvement_inputs": [
+        "Post-proposal win/loss analysis specifically targeting AI components to refine the 'AI Fit Assessment' criteria."
+      ]
+    }
+  ],
+  "process_end_conditions": [
+    "Final proposal submission to client and internal archiving of the technical solution and ethical assessment."
+  ],
+  "process_owner": "Enterprise Director of AI Strategy",
+  "process_name": "Responsible AI RFP Standard for Consulting",
+  "assumptions": [
+    "Clients have sufficient data quality and infrastructure to support AI/Agentic implementation.",
+    "The consulting firm's internal legal and technical teams have the bandwidth to review all AI-related RFP responses.",
+    "AI and Agentic technologies proposed are legally compliant within the client's specific jurisdictions."
+  ],
+  "purpose": "To establish a consistent, ethical, and high-quality standard for proposing AI and Agentic solutions to consulting clients, ensuring technology is applied only where it adds genuine, responsible value.",
+  "scope": "All RFP, RFI, and unsolicited proposal responses originating from the consulting firm that include Generative AI or Agentic System components.",
+  "critical_success_factors": [
+    {
+      "name": "Accurate AI Suitability Assessment",
+      "description": "Accurate identification of 'AI-fit' versus 'traditional-fit' use cases."
+    },
+    {
+      "name": "Transparency and Ethical Disclosure",
+      "description": "Transparency regarding AI limitations and potential biases in the proposal."
+    },
+    {
+      "name": "Robust Responsible AI Framework Demonstration",
+      "description": "Demonstration of a robust Responsible AI framework to the client."
+    }
+  ],
+  "stakeholders": [
+    {
+      "stakeholder_name": "Enterprise Director",
+      "responsibilities": [
+        "Overall strategy, revenue targets, and adherence to the RFP standard."
+      ],
+      "role": "Enterprise Director"
+    },
+    {
+      "role": "AI Solution Architect",
+      "stakeholder_name": "AI Solution Architect",
+      "responsibilities": [
+        "Qualifies the technical feasibility and designs the agentic architecture."
+      ]
+    },
+    {
+      "role": "Responsible AI / Legal Lead",
+      "responsibilities": [
+        "Evaluates proposals for ethical risks, bias mitigation, and regulatory compliance."
+      ],
+      "stakeholder_name": "Responsible AI / Legal Lead"
+    },
+    {
+      "stakeholder_name": "Bid/RFP Manager",
+      "responsibilities": [
+        "Manages the RFP timeline and coordinates inputs from various departments."
+      ],
+      "role": "Bid/RFP Manager"
+    }
+  ],
+  "process_steps": [
+    {
+      "step_risks_and_controls": [],
+      "governance_requirements": [],
+      "responsible_party": "Bid/RFP Manager",
+      "outputs": [
+        "Initial AI Opportunity Assessment"
+      ],
+      "change_management": [],
+      "description": "Review client requirements to determine if AI or Agentic systems are requested or potentially beneficial. This initial screening ensures that AI opportunities are identified early in the RFP lifecycle.",
+      "process_triggers": [
+        "Receipt of an RFP or RFI mentioning AI/Automation, or an identified opportunity by a Client Partner."
+      ],
+      "process_owner": "Bid/RFP Manager",
+      "dependencies": [],
+      "process_end_conditions": [
+        "Opportunity is either qualified for AI assessment or routed to traditional RFP process."
+      ],
+      "continuous_improvement": [],
+      "inputs": [
+        "RFP/RFI Document",
+        "Client Opportunity Brief"
+      ],
+      "estimated_duration": "1 day",
+      "step_name": "Opportunity Identification & Intake",
+      "success_criteria": [
+        "All RFPs screened for AI potential within 24 hours of receipt."
+      ],
+      "deliverables": [
+        "Qualified Opportunity Record"
+      ],
+      "purpose": "To identify potential AI use cases early in the RFP lifecycle.",
+      "scope": "Initial intake and screening of all incoming RFPs."
+    },
+    {
+      "process_end_conditions": [
+        "AI suitability and ethical viability confirmed or rejected."
+      ],
+      "continuous_improvement": [],
+      "process_owner": "AI Solution Architect",
+      "dependencies": [
+        "Opportunity Identification & Intake"
+      ],
+      "step_name": "AI Suitability & Ethics Screening",
+      "inputs": [
+        "Initial AI Opportunity Assessment",
+        "AI Fit Matrix Tool"
+      ],
+      "estimated_duration": "1.5 days",
+      "scope": "Technical and ethical screening of the proposed AI application.",
+      "purpose": "To prevent pushing AI into situations where it is not a good fit or is ethically risky.",
+      "success_criteria": [
+        "Completed AI Fit Matrix with clear 'Go/No-Go' recommendation."
+      ],
+      "deliverables": [
+        "AI Fit Matrix Report",
+        "Ethical Risk Assessment"
+      ],
+      "responsible_party": "AI Solution Architect",
+      "governance_requirements": [
+        "Adherence to internal Ethical AI guidelines."
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Mandatory 'AI Fit' checklist and review by a lead AI Architect.",
+          "risk": "Overselling AI capabilities or recommending AI for unsuitable use cases."
+        }
+      ],
+      "outputs": [
+        "AI Suitability Report"
+      ],
+      "change_management": [],
+      "description": "Evaluate the use case against an 'AI Fit Matrix' using optimized screening criteria to ensure GenAI/Agents are the right solution and ethically viable. This step prevents the misapplication of AI in scenarios where traditional logic is more appropriate.",
+      "process_triggers": [
+        "Qualification of an AI-related opportunity."
+      ]
+    },
+    {
+      "change_management": [],
+      "outputs": [
+        "Proposed AI Technical Architecture"
+      ],
+      "responsible_party": "AI Solution Architect",
+      "governance_requirements": [],
+      "step_risks_and_controls": [],
+      "process_triggers": [
+        "Approval from AI Suitability & Ethics Screening."
+      ],
+      "description": "Develop the core technical approach incorporating GenAI/Agents based on client requirements. The architecture is designed to meet performance and functional needs while ensuring technical feasibility.",
+      "step_name": "Technical Solution Architecture",
+      "inputs": [
+        "AI Suitability Report",
+        "Client Technical Requirements"
+      ],
+      "estimated_duration": "3 days",
+      "continuous_improvement": [],
+      "process_end_conditions": [
+        "Technical architecture design complete."
+      ],
+      "process_owner": "AI Solution Architect",
+      "dependencies": [
+        "AI Suitability & Ethics Screening"
+      ],
+      "scope": "Technical design of the AI solution.",
+      "purpose": "To design a robust technical agentic architecture.",
+      "deliverables": [
+        "Technical Architecture Document"
+      ],
+      "success_criteria": [
+        "Architecture meets client performance and functional requirements."
+      ]
+    },
+    {
+      "deliverables": [
+        "Guardrail Specification"
+      ],
+      "success_criteria": [
+        "Design includes specific monitoring and guardrail components for risk mitigation."
+      ],
+      "scope": "Safety engineering and guardrail design.",
+      "purpose": "To ensure the agentic system operates within safe and ethical bounds.",
+      "inputs": [
+        "Proposed AI Technical Architecture"
+      ],
+      "estimated_duration": "2 days",
+      "step_name": "Guardrail & Safety Design",
+      "process_owner": "AI Solution Architect",
+      "dependencies": [
+        "Technical Solution Architecture"
+      ],
+      "continuous_improvement": [],
+      "process_end_conditions": [
+        "Safety measures integrated into the technical design."
+      ],
+      "process_triggers": [
+        "Completion of core technical architecture."
+      ],
+      "description": "Design built-in guardrails and responsible AI monitoring systems for the proposed architecture. This safety engineering step ensures that the agentic system operates within safe and ethical bounds.",
+      "change_management": [],
+      "outputs": [
+        "Safety and Guardrail Specification"
+      ],
+      "governance_requirements": [],
+      "step_risks_and_controls": [],
+      "responsible_party": "AI Solution Architect"
+    },
+    {
+      "purpose": "To ensure the proposal meets all regulatory and ethical standards efficiently.",
+      "scope": "Internal compliance and quality review.",
+      "success_criteria": [
+        "Zero non-compliance issues identified post-submission."
+      ],
+      "deliverables": [
+        "Governance Approval Sign-off"
+      ],
+      "process_end_conditions": [
+        "Formal approval received from all required governance bodies."
+      ],
+      "continuous_improvement": [],
+      "process_owner": "Responsible AI / Legal Lead",
+      "dependencies": [
+        "Guardrail & Safety Design"
+      ],
+      "step_name": "Internal Review & Governance Approval",
+      "inputs": [
+        "Proposed AI Technical Architecture",
+        "Safety and Guardrail Specification",
+        "Draft RFP Response"
+      ],
+      "estimated_duration": "2 days",
+      "description": "Streamlined parallel reviews by SMEs and Legal teams to verify technical feasibility, regulatory compliance, and ethical alignment. This efficient review process ensures that all proposals meet high standards before submission.",
+      "process_triggers": [
+        "Completion of safety and guardrail design."
+      ],
+      "responsible_party": "Responsible AI / Legal Lead",
+      "step_risks_and_controls": [
+        {
+          "control": "Inclusion of a standardized 'Responsible AI' clause and methodology in every proposal.",
+          "risk": "Reputational damage due to unethical AI implementation."
+        }
+      ],
+      "governance_requirements": [
+        "Mandatory sign-off from Legal/Ethics committee."
+      ],
+      "outputs": [
+        "Approved Proposal Content"
+      ],
+      "change_management": []
+    },
+    {
+      "scope": "Final assembly and submission.",
+      "purpose": "To deliver a high-quality, responsible AI proposal to the client.",
+      "success_criteria": [
+        "Proposal submitted on time with all Responsible AI components included."
+      ],
+      "deliverables": [
+        "Final RFP Submission Package"
+      ],
+      "process_end_conditions": [
+        "Proposal submitted to client and archived."
+      ],
+      "continuous_improvement": [],
+      "process_owner": "Bid/RFP Manager",
+      "dependencies": [
+        "Internal Review & Governance Approval"
+      ],
+      "step_name": "Proposal Finalization & Submission",
+      "inputs": [
+        "Approved Proposal Content",
+        "RFP Submission Templates"
+      ],
+      "estimated_duration": "2 days",
+      "description": "Finalize RFP response, highlighting the commitment to responsible AI and specific value propositions of the agentic systems. The final package is assembled and submitted to the client according to their requirements.",
+      "process_triggers": [
+        "Receipt of governance approval."
+      ],
+      "responsible_party": "Bid/RFP Manager",
+      "governance_requirements": [],
+      "step_risks_and_controls": [],
+      "outputs": [
+        "Final RFP Response"
+      ],
+      "change_management": []
+    }
+  ],
+  "industry_sector": "Consulting and Professional Services",
+  "appendix": {},
+  "system_requirements": [
+    {
+      "name": "AI Fit Assessment Matrix tool",
+      "details": "Tool for evaluating use cases against technical and ethical criteria."
+    },
+    {
+      "name": "Responsible AI template library",
+      "details": "Standardized clauses and methodology for AI proposals."
+    },
+    {
+      "name": "Knowledge Management System",
+      "details": "Centralized repository for past AI proposal components."
+    }
+  ],
+  "risks_and_controls": [
+    {
+      "control": "Mandatory 'AI Fit' checklist and review by a lead AI Architect.",
+      "risk": "Overselling AI capabilities or recommending AI for unsuitable use cases."
+    },
+    {
+      "control": "Inclusion of a standardized 'Responsible AI' clause and methodology in every proposal.",
+      "risk": "Reputational damage due to unethical AI implementation."
+    }
+  ],
+  "governance_requirements": [
+    "All AI-inclusive RFPs must undergo a 'Responsible AI' audit and receive sign-off from the Legal/Ethics committee before submission."
+  ],
+  "introduction": "This process establishes a standard for responding to RFPs that promote the responsible use of GenAI and Agentic systems in consulting engagements. It ensures that AI technology is applied ethically and effectively, providing genuine value to clients while mitigating risks associated with data privacy, security, and technical feasibility.",
+  "version": "1.1",
+  "change_management": [
+    {
+      "versioning_rules": "Mandatory training for the sales and solutioning teams upon each version update.",
+      "change_request_process": "The RFP standard will be updated quarterly based on technological advancements and regulatory changes."
+    }
+  ],
+  "metrics": [
+    {
+      "measurement_frequency": "Monthly",
+      "target": "25%",
+      "name": "AI RFP Win Rate",
+      "description": "RFP Win Rate for AI-related projects."
+    },
+    {
+      "target": "48 hours",
+      "description": "Time to complete 'AI Fit Assessment' phase.",
+      "name": "AI Fit Assessment Duration",
+      "measurement_frequency": "Per RFP"
+    },
+    {
+      "measurement_frequency": "Post-Submission",
+      "name": "Client Ethical Trust Score",
+      "description": "Client 'Trust' score regarding ethical AI positioning in feedback surveys.",
+      "target": "4.5/5.0"
+    },
+    {
+      "description": "Percentage of proposed AI solutions that proceed to successful pilot.",
+      "name": "Pilot Conversion Rate",
+      "target": "60%",
+      "measurement_frequency": "Quarterly"
+    }
+  ],
+  "tools_summary": [
+    {
+      "category": "Assessment",
+      "tools": [
+        "AI Fit Assessment Matrix tool"
+      ]
+    },
+    {
+      "category": "Content Management",
+      "tools": [
+        "Responsible AI template library, Knowledge Management System"
+      ]
+    }
+  ],
+  "critical_failure_factors": [
+    {
+      "name": "Misalignment of Technology to Problem",
+      "description": "Proposing AI solutions for problems that require traditional deterministic logic."
+    },
+    {
+      "description": "Failure to address data privacy and security concerns in the proposal.",
+      "name": "Privacy and Security Oversight"
+    },
+    {
+      "name": "Estimation Inaccuracy",
+      "description": "Inaccurate estimation of AI implementation timelines and costs."
+    }
+  ],
+  "reporting_and_analytics": [
+    {
+      "description": "Dashboard tracking the pipeline of AI proposals, win/loss reasons, and common ethical concerns raised by clients.",
+      "metric": "AI Proposal Pipeline Dashboard"
+    }
+  ],
+  "constraints": [
+    "Adherence to international AI regulations (e.g., EU AI Act) and data privacy laws (GDPR).",
+    "Strict budgetary limits for pre-sales technical architecture and ethical impact assessments.",
+    "Limited availability of senior AI ethics and solution architect subject matter experts."
+  ],
+  "process_triggers": [
+    "Receipt of an RFP or RFI mentioning AI/Automation, or an identified opportunity by a Client Partner where AI could provide significant value."
+  ]
+}

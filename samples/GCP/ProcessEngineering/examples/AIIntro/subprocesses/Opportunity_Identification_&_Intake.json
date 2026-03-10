@@ -1,0 +1,259 @@
+{
+  "step_name": "Opportunity Identification & Intake",
+  "subprocess_flow": [
+    {
+      "substep_name": "RFP Receipt and Registration",
+      "description": "Formally receive the RFP/RFI document and log it into the bid management system. This ensures every incoming request is tracked from the moment of arrival and assigned a unique identifier for auditability.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "RFP/RFI Document"
+      ],
+      "outputs": [
+        "Registered Bid Entry"
+      ],
+      "estimated_duration": "1 hour",
+      "dependencies": [],
+      "success_criteria": [
+        "RFP logged in the system within 1 hour of receipt."
+      ],
+      "purpose": "To ensure all incoming requests are tracked and accounted for.",
+      "scope": "Initial logging of the physical or digital RFP document.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Receipt of an RFP or RFI document."
+      ],
+      "end_conditions": [
+        "Bid entry is visible in the tracking system."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "RFP documents are lost or not registered.",
+          "control": "Automated email intake monitoring and mandatory registration checklist."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with corporate data retention policies for incoming bids."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Requests for intake process changes must be submitted to the Bid Office Director.",
+          "versioning_rules": "Process documentation follows standard semantic versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Intake delay metrics",
+            "Registration error logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Keyword and Context Screening",
+      "description": "Utilize the Knowledge Management System to scan the RFP for keywords such as 'AI', 'Machine Learning', or 'Agentic'. Simultaneously, perform a manual review of the Client Opportunity Brief to identify business problems where AI could provide a competitive advantage.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "RFP/RFI Document",
+        "Client Opportunity Brief"
+      ],
+      "outputs": [
+        "Keyword Scan Report",
+        "Contextual Analysis Notes"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "RFP Receipt and Registration"
+      ],
+      "success_criteria": [
+        "All explicit and implicit AI requirements identified."
+      ],
+      "purpose": "To rapidly identify potential AI use cases within the client's request.",
+      "scope": "Scanning and high-level analysis of the RFP content.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of bid registration."
+      ],
+      "end_conditions": [
+        "Screening report is finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Implicit AI opportunities are overlooked.",
+          "control": "Use of a standardized AI Opportunity Identification Checklist."
+        }
+      ],
+      "governance_requirements": [
+        "Audit trail of keyword search terms used."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Keyword list updates are managed by the AI Strategy team.",
+          "versioning_rules": "Keyword library is version-controlled in the Knowledge Management System."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Feedback from AI Solution Architects on screening accuracy."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Strategic Alignment Review",
+      "description": "Consult with the Client Partner to understand the client's strategic goals and appetite for innovation. This step ensures that proposing an AI solution aligns with the broader account strategy and client relationship nuances.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Contextual Analysis Notes",
+        "Client Opportunity Brief"
+      ],
+      "outputs": [
+        "Stakeholder Feedback"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Keyword and Context Screening"
+      ],
+      "success_criteria": [
+        "Confirmation of client interest in AI or innovative solutions."
+      ],
+      "purpose": "To ensure AI proposals are strategically viable for the specific client.",
+      "scope": "Internal consultation with account leadership.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Identification of potential AI use cases."
+      ],
+      "end_conditions": [
+        "Client Partner sign-off on the AI track."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Proposing AI to a client with low risk tolerance.",
+          "control": "Mandatory consultation with the Client Partner before qualifying the AI track."
+        }
+      ],
+      "governance_requirements": [
+        "Documentation of stakeholder approval for the proposed solution track."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Strategic review criteria changes require Enterprise Director approval.",
+          "versioning_rules": "Review templates are versioned annually."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Win/Loss analysis related to strategic alignment."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "AI Track Determination",
+      "description": "Synthesize the scan results and stakeholder feedback to determine if the opportunity warrants a formal AI suitability assessment. A decision is made to either route the bid to the AI track or the traditional RFP process.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Keyword Scan Report",
+        "Stakeholder Feedback"
+      ],
+      "outputs": [
+        "Initial AI Opportunity Assessment"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Strategic Alignment Review"
+      ],
+      "success_criteria": [
+        "Clear 'Go/No-Go' decision for the AI track."
+      ],
+      "purpose": "To qualify the opportunity for specialized AI solutioning.",
+      "scope": "Decision-making regarding the bid response path.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Completion of stakeholder consultation."
+      ],
+      "end_conditions": [
+        "Initial assessment document is signed off."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrectly routing a complex AI bid to the traditional track.",
+          "control": "Secondary review of 'No-Go' decisions by a Senior Bid Manager."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to the 'AI Fit' qualification standards."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Qualification criteria updates are reviewed by the AI Strategy committee.",
+          "versioning_rules": "Qualification logic is versioned in the Bid Playbook."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Percentage of bids correctly routed to the AI track."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Record Creation and Routing",
+      "description": "Create the Qualified Opportunity Record in the CRM and route the bid to the appropriate technical team. If qualified for AI, the record is sent to the AI Solution Architect; otherwise, it follows the traditional RFP workflow.",
+      "responsible_party": "Bid/RFP Manager",
+      "inputs": [
+        "Initial AI Opportunity Assessment"
+      ],
+      "outputs": [
+        "Qualified Opportunity Record"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "AI Track Determination"
+      ],
+      "success_criteria": [
+        "Opportunity record created and assigned to the correct Solution Architect."
+      ],
+      "purpose": "To formalize the intake and initiate the solutioning phase.",
+      "scope": "Data entry and workflow initiation in the CRM/Bid system.",
+      "process_owner": "Bid/RFP Manager",
+      "triggers": [
+        "Finalization of the AI Track Determination."
+      ],
+      "end_conditions": [
+        "Solution Architect acknowledges receipt of the assignment."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Assignment delays due to system errors.",
+          "control": "Automated escalation if assignment is not acknowledged within 4 hours."
+        }
+      ],
+      "governance_requirements": [
+        "CRM data integrity and mandatory field completion."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "CRM workflow changes must be approved by Sales Operations.",
+          "versioning_rules": "System workflows are versioned via the CRM change log."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Time-to-assignment metrics",
+            "Solution Architect feedback on intake quality."
+          ]
+        }
+      ]
+    }
+  ]
+}

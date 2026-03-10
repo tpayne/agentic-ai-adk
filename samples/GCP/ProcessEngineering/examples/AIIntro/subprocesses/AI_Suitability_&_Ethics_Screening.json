@@ -1,0 +1,369 @@
+{
+  "step_name": "AI Suitability & Ethics Screening",
+  "subprocess_flow": [
+    {
+      "substep_name": "Initialize Screening Workflow",
+      "description": "The AI Solution Architect initiates the screening process by reviewing the Initial AI Opportunity Assessment and configuring the AI Fit Assessment Matrix tool. This involves setting the project context, identifying specific client industry constraints, and ensuring all preliminary data from the intake phase is accessible for evaluation.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Initial AI Opportunity Assessment",
+        "AI Fit Assessment Matrix tool"
+      ],
+      "outputs": [
+        "Screening Project Workspace"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Screening environment established",
+        "All prerequisite documents gathered and indexed"
+      ],
+      "purpose": "To prepare the necessary tools and data for a structured and efficient evaluation of the AI opportunity.",
+      "scope": "Administrative setup and data gathering phase for the screening process.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Qualification of an AI-related opportunity"
+      ],
+      "end_conditions": [
+        "Ready to begin technical evaluation"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete data for assessment leading to delays.",
+          "control": "Mandatory checklist for required intake information before starting."
+        }
+      ],
+      "governance_requirements": [
+        "Standard project setup protocols"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Notification to Bid Manager for missing data.",
+          "versioning_rules": "v1.0 initial setup"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Intake quality metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Technical Fit Evaluation",
+      "description": "Analyze the proposed use case to determine if Generative AI or Agentic systems are the optimal solution compared to traditional deterministic logic. The architect evaluates the complexity of the problem, the need for probabilistic reasoning, and whether the desired outcomes require the specific capabilities of LLMs or autonomous agents.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Initial AI Opportunity Assessment"
+      ],
+      "outputs": [
+        "Technical Fit Score"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Initialize Screening Workflow"
+      ],
+      "success_criteria": [
+        "Clear distinction between AI and traditional logic requirements documented",
+        "Technical fit score assigned based on matrix criteria"
+      ],
+      "purpose": "To ensure AI technology is only proposed for problems where it provides a distinct advantage over traditional software.",
+      "scope": "Technical logic analysis and solution feasibility.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Completion of screening initialization"
+      ],
+      "end_conditions": [
+        "Technical fit confirmed or flagged as unsuitable"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misidentifying a deterministic problem as an AI problem.",
+          "control": "Comparison against a standardized 'Traditional vs AI' decision tree."
+        }
+      ],
+      "governance_requirements": [
+        "Technical Architecture Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Architectural Review Board submission if fit is borderline.",
+          "versioning_rules": "Linked to RFP version"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Win/Loss technical feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Data Readiness Assessment",
+      "description": "Evaluate the availability, quality, and volume of client data required to support the proposed AI solution. This involves assessing whether the client has the necessary data infrastructure to support grounding (RAG) or fine-tuning, and identifying any significant data engineering hurdles that could impact implementation success.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Client Data Samples (if available)",
+        "Initial AI Opportunity Assessment"
+      ],
+      "outputs": [
+        "Data Readiness Report"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Technical Fit Evaluation"
+      ],
+      "success_criteria": [
+        "Data gaps identified and documented",
+        "Feasibility of data integration confirmed"
+      ],
+      "purpose": "To verify that the client's data environment can realistically support the proposed AI/Agentic architecture.",
+      "scope": "Data quality and infrastructure readiness review.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Confirmation of technical fit"
+      ],
+      "end_conditions": [
+        "Data readiness status determined"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Underestimating data preparation effort.",
+          "control": "Use of standardized data quality assessment templates."
+        }
+      ],
+      "governance_requirements": [
+        "Data Privacy and Security Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Update to solution scope if data is insufficient.",
+          "versioning_rules": "Data assessment log"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Project implementation data logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ethical & Regulatory Impact Analysis",
+      "description": "Conduct a deep dive into potential ethical risks, including algorithmic bias, transparency requirements, and compliance with regulations like the EU AI Act or GDPR. This step ensures the solution aligns with internal Ethical AI guidelines and identifies any high-risk scenarios that require specific mitigation strategies.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Internal Ethical AI Guidelines",
+        "Regulatory Requirements"
+      ],
+      "outputs": [
+        "Ethical Risk Assessment"
+      ],
+      "estimated_duration": "6 hours",
+      "dependencies": [
+        "Data Readiness Assessment"
+      ],
+      "success_criteria": [
+        "All potential ethical risks identified and categorized",
+        "Compliance with EU AI Act and GDPR verified for the use case"
+      ],
+      "purpose": "To ensure the proposed AI solution is ethically viable and legally compliant.",
+      "scope": "Ethical, legal, and regulatory impact analysis.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Completion of data readiness assessment"
+      ],
+      "end_conditions": [
+        "Ethical viability confirmed or rejected"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Overlooking subtle biases or regulatory nuances.",
+          "control": "Mandatory consultation with the Responsible AI / Legal Lead for high-risk use cases."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to internal Ethical AI guidelines",
+        "EU AI Act compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Legal review request for high-risk flags.",
+          "versioning_rules": "Ethical assessment versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Regulatory update feeds"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "AI Fit Matrix Scoring & Synthesis",
+      "description": "Input all findings from technical, data, and ethical evaluations into the AI Fit Assessment Matrix tool. The tool synthesizes these inputs to generate a quantitative score and a preliminary 'Go/No-Go' recommendation based on weighted criteria established by the enterprise AI strategy.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Technical Fit Score",
+        "Data Readiness Report",
+        "Ethical Risk Assessment"
+      ],
+      "outputs": [
+        "Draft AI Fit Matrix Report"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Ethical & Regulatory Impact Analysis"
+      ],
+      "success_criteria": [
+        "Matrix fully populated with evidence-based scores",
+        "Preliminary recommendation generated"
+      ],
+      "purpose": "To provide a data-driven, objective basis for the final suitability recommendation.",
+      "scope": "Quantitative scoring and synthesis of assessment data.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Completion of all individual assessment components"
+      ],
+      "end_conditions": [
+        "Draft report ready for peer review"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Subjective bias in scoring.",
+          "control": "Weighted scoring system with clear definitions for each numeric value."
+        }
+      ],
+      "governance_requirements": [
+        "Standardized Assessment Methodology"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Matrix weight adjustment via Strategy Committee.",
+          "versioning_rules": "Matrix tool versioning"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Win/Loss analysis data"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Peer Review & Quality Assurance",
+      "description": "A Lead AI Architect reviews the draft assessment to ensure objectivity, technical accuracy, and adherence to ethical standards. This peer review acts as a critical control to prevent the overselling of AI capabilities and ensures that the recommendation is defensible and aligned with the firm's risk appetite.",
+      "responsible_party": "Lead AI Architect",
+      "inputs": [
+        "Draft AI Fit Matrix Report"
+      ],
+      "outputs": [
+        "Peer Review Feedback",
+        "Validated Assessment"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "AI Fit Matrix Scoring & Synthesis"
+      ],
+      "success_criteria": [
+        "Lead Architect sign-off on the assessment accuracy",
+        "All feedback items addressed by the Solution Architect"
+      ],
+      "purpose": "To provide an independent check on the suitability assessment to maintain high quality and ethical integrity.",
+      "scope": "Internal quality assurance and peer review.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Submission of draft report for review"
+      ],
+      "end_conditions": [
+        "Assessment validated and approved for finalization"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Overselling AI capabilities or recommending unsuitable use cases.",
+          "control": "Mandatory review by a lead AI Architect with veto power."
+        }
+      ],
+      "governance_requirements": [
+        "Internal Peer Review Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Revision cycle within the screening project.",
+          "versioning_rules": "Review log tracking"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Reviewer feedback trends"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize AI Suitability Report",
+      "description": "Incorporate feedback from the peer review and finalize the AI Suitability Report. This document provides the definitive 'Go/No-Go' recommendation, summarizes the technical and ethical findings, and serves as the primary input for the subsequent Solution Architecture & Guardrail Design stage.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Validated Assessment",
+        "Peer Review Feedback"
+      ],
+      "outputs": [
+        "AI Suitability Report",
+        "AI Fit Matrix Report"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Peer Review & Quality Assurance"
+      ],
+      "success_criteria": [
+        "Final report delivered to the Bid/RFP Manager",
+        "Clear 'Go/No-Go' recommendation stated with supporting evidence"
+      ],
+      "purpose": "To document the final decision on AI suitability and provide a foundation for the technical proposal.",
+      "scope": "Final reporting and deliverable production.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Approval from Lead AI Architect"
+      ],
+      "end_conditions": [
+        "AI suitability and ethical viability confirmed or rejected"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inconsistent reporting format leading to confusion.",
+          "control": "Use of a standardized AI Suitability Report template."
+        }
+      ],
+      "governance_requirements": [
+        "Final Sign-off Authority"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal revision request if client requirements change.",
+          "versioning_rules": "Final PDF with timestamp and version ID"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Client feedback on proposal quality"
+          ]
+        }
+      ]
+    }
+  ]
+}

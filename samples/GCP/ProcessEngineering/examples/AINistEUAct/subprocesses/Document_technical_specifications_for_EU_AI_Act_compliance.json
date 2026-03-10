@@ -1,0 +1,360 @@
+{
+  "step_name": "Document technical specifications for EU AI Act compliance",
+  "subprocess_flow": [
+    {
+      "substep_name": "Consolidate Technical Validation Data",
+      "description": "Gather and organize all technical artifacts produced during the validation phase, including the Model Validation Report and NIST AI RMF Measure & Manage Report. This step ensures that the AI Architect has a centralized and verified data set to begin drafting the formal compliance documentation.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Model Validation Report",
+        "NIST AI RMF Measure & Manage Report"
+      ],
+      "outputs": [
+        "Consolidated Technical Data Set"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "All required validation and risk reports are present and verified for accuracy."
+      ],
+      "purpose": "To ensure all foundational data is available for drafting the technical specifications.",
+      "scope": "Collection and verification of existing technical reports.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Successful model validation."
+      ],
+      "end_conditions": [
+        "All input reports are verified and stored in the compliance repository."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Missing or outdated validation data.",
+          "control": "Data inventory checklist and timestamp verification."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Documentation Requirements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard document change request via the governance portal.",
+          "versioning_rules": "Major version increment for new data sets."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Audit feedback on data completeness."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Draft System Architecture and Logic Documentation",
+      "description": "Detail the AI system's architecture, design specifications, and algorithmic logic as required by the EU AI Act. This includes a comprehensive explanation of the model's functionality, its intended purpose, and the technical methods used to achieve its objectives.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Consolidated Technical Data Set"
+      ],
+      "outputs": [
+        "Draft Architecture Documentation"
+      ],
+      "estimated_duration": "5 days",
+      "dependencies": [
+        "Consolidate Technical Validation Data"
+      ],
+      "success_criteria": [
+        "Architecture diagrams and logic descriptions meet EU AI Act transparency standards."
+      ],
+      "purpose": "To provide a clear technical blueprint of the AI system for regulatory review.",
+      "scope": "Technical description of model architecture and logic.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Availability of consolidated technical data."
+      ],
+      "end_conditions": [
+        "Draft architecture document is completed and uploaded."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Insufficient detail in algorithmic descriptions.",
+          "control": "Peer review by senior AI engineers."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 11 (Technical Documentation)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Architectural review board approval for logic changes.",
+          "versioning_rules": "Semantic versioning for architecture drafts."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "Regulatory updates on documentation standards."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Document Data Governance and Training Sets",
+      "description": "Document the data collection, cleaning, and labeling processes used during model development. This sub-step must provide specific details on the datasets used for training, validation, and testing, ensuring that data quality and bias mitigation efforts are transparently recorded.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Consolidated Technical Data Set"
+      ],
+      "outputs": [
+        "Data Governance and Training Report"
+      ],
+      "estimated_duration": "4 days",
+      "dependencies": [
+        "Consolidate Technical Validation Data"
+      ],
+      "success_criteria": [
+        "Data lineage and quality metrics are fully documented and traceable."
+      ],
+      "purpose": "To demonstrate compliance with data governance requirements under the EU AI Act.",
+      "scope": "Documentation of data lifecycle and training methodologies.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Availability of consolidated technical data."
+      ],
+      "end_conditions": [
+        "Data governance report is finalized and signed off by the Data Protection Officer."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete data lineage records.",
+          "control": "Automated data lineage tracking tools."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 10 (Data and Data Governance)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Data governance committee review for dataset changes.",
+          "versioning_rules": "Dataset versioning linked to model versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "DPO review comments."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Integrate Risk Management Records",
+      "description": "Map the findings from the NIST AI RMF Measure & Manage phase into the specific documentation format required by the EU AI Act. This involves detailing the identified risks and the specific technical controls implemented to mitigate them throughout the system's lifecycle.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "NIST AI RMF Measure & Manage Report"
+      ],
+      "outputs": [
+        "Risk Mitigation Documentation"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Consolidate Technical Validation Data"
+      ],
+      "success_criteria": [
+        "All high-priority risks identified in the NIST report are mapped to specific controls in the documentation."
+      ],
+      "purpose": "To align NIST risk management outputs with EU AI Act documentation standards.",
+      "scope": "Mapping of risk assessments to technical controls.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of NIST AI RMF Measure & Manage phase."
+      ],
+      "end_conditions": [
+        "Risk mitigation documentation is integrated into the technical package."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misalignment between NIST risk categories and EU AI Act requirements.",
+          "control": "Cross-walk mapping template for NIST and EU AI Act."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 9 (Risk Management System)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Risk management team approval for control modifications.",
+          "versioning_rules": "Risk register versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Internal audit findings on risk control effectiveness."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Define Human Oversight and Transparency Protocols",
+      "description": "Specify the technical mechanisms designed for human-in-the-loop oversight and the transparency measures provided to end-users. This includes drafting user instructions, oversight manuals, and defining the triggers for human intervention in the AI system's operation.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Draft Architecture Documentation"
+      ],
+      "outputs": [
+        "Human Oversight and Transparency Protocol"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Draft System Architecture and Logic Documentation"
+      ],
+      "success_criteria": [
+        "Oversight protocols are clear, actionable, and meet regulatory transparency requirements."
+      ],
+      "purpose": "To ensure the system can be effectively monitored and understood by human operators.",
+      "scope": "Documentation of human-in-the-loop and user transparency measures.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of architecture documentation draft."
+      ],
+      "end_conditions": [
+        "Human oversight protocol is approved by the Risk Management Team."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Vague oversight instructions leading to operator error.",
+          "control": "Usability testing of oversight manuals with end-users."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 13 (Transparency) and Article 14 (Human Oversight)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal review by the AI Ethics Committee.",
+          "versioning_rules": "Manual versioning tracked in the document management system."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "Operator feedback from production monitoring."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Conduct Internal Pre-Assessment Review",
+      "description": "Perform a comprehensive internal review of the compiled documentation package against a pre-defined EU AI Act compliance checklist. This review identifies any gaps or inconsistencies in the documentation before it is submitted for formal conformity assessment.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Draft Architecture Documentation",
+        "Data Governance and Training Report",
+        "Risk Mitigation Documentation",
+        "Human Oversight and Transparency Protocol"
+      ],
+      "outputs": [
+        "Pre-Assessment Review Findings"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Draft System Architecture and Logic Documentation",
+        "Document Data Governance and Training Sets",
+        "Integrate Risk Management Records",
+        "Define Human Oversight and Transparency Protocols"
+      ],
+      "success_criteria": [
+        "Review report identifies all potential compliance gaps with clear remediation steps."
+      ],
+      "purpose": "To identify and remediate documentation gaps prior to formal audit.",
+      "scope": "Internal audit of the complete technical documentation package.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of all documentation drafts."
+      ],
+      "end_conditions": [
+        "Review findings are documented and remediation tasks are assigned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Oversight of critical regulatory nuances.",
+          "control": "Joint review session with Legal and Compliance teams."
+        }
+      ],
+      "governance_requirements": [
+        "Internal Compliance Audit Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Remediation tasks tracked in the project management tool.",
+          "versioning_rules": "Review findings report versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "External auditor feedback from previous assessments."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize Technical Documentation Package",
+      "description": "Address all findings from the internal pre-assessment review and finalize the Technical Documentation Package. This step includes final formatting, cross-referencing, and ensuring that the package is correctly versioned and stored for the subsequent conformity phase.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Pre-Assessment Review Findings"
+      ],
+      "outputs": [
+        "Technical Documentation Package"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Conduct Internal Pre-Assessment Review"
+      ],
+      "success_criteria": [
+        "Documentation package passes final internal legal review and is ready for audit."
+      ],
+      "purpose": "To produce the final, audit-ready technical documentation deliverable.",
+      "scope": "Final edits, formatting, and packaging of compliance documentation.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of pre-assessment remediation tasks."
+      ],
+      "end_conditions": [
+        "Documentation is complete and pre-reviewed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Version mismatch between documentation and model code.",
+          "control": "Automated document assembly tools linked to code repositories."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Documentation Requirements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Final sign-off by the Head of AI Governance.",
+          "versioning_rules": "Final release versioning (e.g., v1.0)."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Success rate of documentation in formal conformity assessments."
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,376 @@
+{
+  "step_name": "EU AI Act Conformity Assessment and Registration",
+  "subprocess_flow": [
+    {
+      "substep_name": "Determine Conformity Assessment Route",
+      "description": "Evaluate the AI system's specific classification and technical characteristics against EU AI Act Article 43 to decide between an internal control-based assessment or a third-party assessment by a notified body. This decision is critical for resource planning and timeline management.",
+      "responsible_party": "Chief Compliance Officer",
+      "inputs": [
+        "Technical Documentation Package",
+        "Risk Classification Report"
+      ],
+      "outputs": [
+        "Assessment Route Decision Document"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Formal approval of the assessment route by the AI Ethics Committee.",
+        "Clear identification of the applicable conformity assessment procedure."
+      ],
+      "purpose": "To select the legally required path for certification based on system risk.",
+      "scope": "Regulatory strategy and legal interpretation of the EU AI Act.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of technical documentation and pre-assessment."
+      ],
+      "end_conditions": [
+        "Assessment route is finalized and documented."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect selection of assessment route leading to legal invalidity.",
+          "control": "Legal counsel review of the assessment route decision."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 43"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal submission to the AI Governance Board.",
+          "versioning_rules": "Major version update for route changes."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Updated EU Commission guidelines on AI Act implementation."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Perform Internal Pre-Assessment Audit",
+      "description": "Conduct a comprehensive internal review of the Technical Documentation Package and Model Validation Report to identify potential gaps or non-conformities before formal submission to a notified body or final internal sign-off. This step utilizes parallel pre-assessment data to expedite the process.",
+      "responsible_party": "Head of AI Governance",
+      "inputs": [
+        "Technical Documentation Package",
+        "Model Validation Report"
+      ],
+      "outputs": [
+        "Pre-Assessment Gap Analysis Report"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Determine Conformity Assessment Route"
+      ],
+      "success_criteria": [
+        "Identification of all high-priority compliance gaps.",
+        "Verification of documentation completeness against Annex IV requirements."
+      ],
+      "purpose": "To minimize the risk of failure during the formal conformity assessment.",
+      "scope": "Internal quality assurance and documentation review.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Finalization of the Technical Documentation Package."
+      ],
+      "end_conditions": [
+        "Gap analysis is complete and remediation tasks are assigned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Overlooking critical technical non-conformities.",
+          "control": "Use of standardized EU AI Act compliance checklists."
+        }
+      ],
+      "governance_requirements": [
+        "Internal Quality Management System (QMS) standards."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard internal audit change protocol.",
+          "versioning_rules": "Audit report versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "Audit findings from previous AI system assessments."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Engage Notified Body and Submit Dossier",
+      "description": "Formalize the engagement with an accredited EU Notified Body for systems requiring third-party assessment. This involves submitting the complete technical dossier, including the Model Validation Report and Quality Management System documentation, for formal review.",
+      "responsible_party": "Chief Compliance Officer",
+      "inputs": [
+        "Technical Documentation Package",
+        "Assessment Route Decision Document",
+        "Pre-Assessment Gap Analysis Report"
+      ],
+      "outputs": [
+        "Submission Confirmation",
+        "Notified Body Engagement Contract"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Perform Internal Pre-Assessment Audit"
+      ],
+      "success_criteria": [
+        "Successful receipt of the dossier by the Notified Body.",
+        "Contractual agreement on audit timelines and scope."
+      ],
+      "purpose": "To initiate the formal external certification process.",
+      "scope": "External vendor management and regulatory submission.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Resolution of high-priority gaps identified in pre-assessment."
+      ],
+      "end_conditions": [
+        "Dossier is officially under review by the Notified Body."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Delays in Notified Body availability.",
+          "control": "Early engagement and multi-vendor sourcing strategy."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 44 (Notified Bodies)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Contract amendment process.",
+          "versioning_rules": "Submission package version tracking."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Notified Body performance metrics and feedback."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Facilitate External Conformity Audit",
+      "description": "Support the Notified Body during their evaluation of the AI system's design, development, and quality management system. This includes providing access to technical staff, answering queries, and facilitating on-site or virtual inspections of the development environment.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Technical Documentation Package",
+        "Model Validation Report",
+        "Submission Confirmation"
+      ],
+      "outputs": [
+        "Audit Findings Report",
+        "Conformity Certificate"
+      ],
+      "estimated_duration": "2 weeks",
+      "dependencies": [
+        "Engage Notified Body and Submit Dossier"
+      ],
+      "success_criteria": [
+        "Completion of all audit interviews and inspections.",
+        "Issuance of a formal Conformity Certificate (if successful)."
+      ],
+      "purpose": "To demonstrate compliance to an external regulatory authority.",
+      "scope": "Technical audit support and evidence provision.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Notification of audit start date from the Notified Body."
+      ],
+      "end_conditions": [
+        "Audit is concluded and final report is received."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to provide adequate evidence during the audit.",
+          "control": "Pre-audit briefing for all technical stakeholders."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Annex VII"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Audit remediation request process.",
+          "versioning_rules": "Audit response document versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per audit",
+          "improvement_inputs": [
+            "External auditor feedback and recommendations."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Generate EU Declaration of Conformity",
+      "description": "Draft and sign the official EU Declaration of Conformity (DoC), asserting that the AI system meets all applicable requirements of the EU AI Act. This document must be kept for 10 years after the AI system has been placed on the market.",
+      "responsible_party": "Chief Compliance Officer",
+      "inputs": [
+        "Conformity Certificate",
+        "Technical Documentation Package"
+      ],
+      "outputs": [
+        "EU Declaration of Conformity"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Facilitate External Conformity Audit"
+      ],
+      "success_criteria": [
+        "Declaration of Conformity signed by an authorized representative.",
+        "Document contains all elements required by Annex IX."
+      ],
+      "purpose": "To provide a legal statement of compliance for market entry.",
+      "scope": "Legal documentation and corporate authorization.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Receipt of the Conformity Certificate from the Notified Body."
+      ],
+      "end_conditions": [
+        "Declaration of Conformity is signed and archived."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or inaccurate Declaration of Conformity.",
+          "control": "Legal review of the DoC template against Annex IX."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 48",
+        "EU AI Act Annex IX"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Legal document revision process.",
+          "versioning_rules": "Strict version control for legal declarations."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Changes in EU legal templates for declarations."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Register System in EU Public Database",
+      "description": "Upload the required system information, including the provider details and the EU Declaration of Conformity, to the EU public database as mandated by Article 51 for high-risk AI systems. This ensures transparency and public accountability.",
+      "responsible_party": "Chief Compliance Officer",
+      "inputs": [
+        "EU Declaration of Conformity",
+        "Technical Documentation Package"
+      ],
+      "outputs": [
+        "Registration ID",
+        "EU Database Registration Confirmation"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Generate EU Declaration of Conformity"
+      ],
+      "success_criteria": [
+        "Successful generation of a unique Registration ID.",
+        "System status marked as 'Registered' in the EU database."
+      ],
+      "purpose": "To fulfill the mandatory registration requirement for high-risk AI systems.",
+      "scope": "Regulatory reporting and public disclosure.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Signing of the EU Declaration of Conformity."
+      ],
+      "end_conditions": [
+        "Registration ID is received and recorded in the internal inventory."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data entry errors in the public database.",
+          "control": "Four-eyes review of all data before final submission."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 51",
+        "EU AI Act Annex VIII"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Database update request via EU portal.",
+          "versioning_rules": "Registration record versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "EU database portal updates and technical documentation."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize Compliance Records and Archive",
+      "description": "Consolidate all certification documents, audit reports, and registration IDs into the finalized compliance dossier. Ensure all records are securely archived in the Model Inventory System for the mandatory retention period.",
+      "responsible_party": "Head of AI Governance",
+      "inputs": [
+        "Registration ID",
+        "EU Declaration of Conformity",
+        "Conformity Certificate",
+        "Audit Findings Report"
+      ],
+      "outputs": [
+        "Finalized Compliance Dossier"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [
+        "Register System in EU Public Database"
+      ],
+      "success_criteria": [
+        "All documents successfully uploaded to the Model Inventory System.",
+        "Audit trail for the entire certification process is complete."
+      ],
+      "purpose": "To ensure long-term auditability and regulatory readiness.",
+      "scope": "Records management and compliance archiving.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Receipt of the Registration ID."
+      ],
+      "end_conditions": [
+        "System is registered and certified, and records are locked."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Loss of critical compliance documentation.",
+          "control": "Redundant secure cloud storage and automated backup."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act Article 50 (Retention of Records)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Archive access and modification request.",
+          "versioning_rules": "Immutable record-keeping for finalized dossiers."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Internal data retention policy reviews."
+          ]
+        }
+      ]
+    }
+  ]
+}

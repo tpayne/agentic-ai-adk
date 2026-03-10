@@ -1,0 +1,314 @@
+{
+  "step_name": "Technical Solution Architecture",
+  "subprocess_flow": [
+    {
+      "substep_name": "Analyze Requirements & Constraints",
+      "description": "Conduct a detailed review of the Client Technical Requirements and the AI Suitability Report. This involves identifying specific performance benchmarks, security constraints, and integration points with existing client systems to ensure the architecture is grounded in actual client needs.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "AI Suitability Report",
+        "Client Technical Requirements"
+      ],
+      "outputs": [
+        "Refined Technical Requirements List"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "All technical constraints and performance targets are documented."
+      ],
+      "purpose": "To ensure the architecture is grounded in actual client needs.",
+      "scope": "Requirement analysis and constraint identification.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Approval from AI Suitability & Ethics Screening."
+      ],
+      "end_conditions": [
+        "Requirements analysis document finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Misinterpretation of client constraints.",
+          "control": "Stakeholder review of refined requirements."
+        }
+      ],
+      "governance_requirements": [
+        "Alignment with client data sovereignty policies."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Requirements changes must be logged in the RFP management tool.",
+          "versioning_rules": "v1.0 for initial analysis."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "Client feedback on requirement accuracy."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Select Models & Frameworks",
+      "description": "Evaluate and select the most appropriate foundation models (LLMs) and agentic orchestration frameworks based on the refined requirements. Consider factors like latency, cost, and specific capabilities such as reasoning or tool-calling to establish the core technology stack.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Refined Technical Requirements List"
+      ],
+      "outputs": [
+        "Model and Framework Selection Report"
+      ],
+      "estimated_duration": "6 hours",
+      "dependencies": [
+        "Analyze Requirements & Constraints"
+      ],
+      "success_criteria": [
+        "Selected stack aligns with performance and cost constraints."
+      ],
+      "purpose": "To establish the core technology stack for the solution.",
+      "scope": "Technology selection and model evaluation.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Completion of requirements analysis."
+      ],
+      "end_conditions": [
+        "Technology stack finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Selection of incompatible or overly expensive models.",
+          "control": "Cost-benefit analysis and compatibility check."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with approved vendor lists."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Model changes require architect lead approval.",
+          "versioning_rules": "Tracked via selection report versions."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "New model release benchmarks."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Design Data & Retrieval Strategy",
+      "description": "Define the data architecture, including vector database selection, indexing strategies, and retrieval-augmented generation (RAG) pipelines. Ensure data privacy and security protocols are integrated into the data flow to provide secure information access.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Refined Technical Requirements List",
+        "Model and Framework Selection Report"
+      ],
+      "outputs": [
+        "Data Architecture Diagram",
+        "Retrieval Strategy Document"
+      ],
+      "estimated_duration": "8 hours",
+      "dependencies": [
+        "Select Models & Frameworks"
+      ],
+      "success_criteria": [
+        "Data flow ensures low latency and high relevance in retrieval."
+      ],
+      "purpose": "To ensure the AI has access to the right information securely.",
+      "scope": "Data and retrieval design.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Technology stack finalized."
+      ],
+      "end_conditions": [
+        "Data architecture design complete."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data leakage or inefficient retrieval.",
+          "control": "Security review of data flow and indexing optimization."
+        }
+      ],
+      "governance_requirements": [
+        "GDPR and data privacy compliance."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Schema changes must be reviewed by the data lead.",
+          "versioning_rules": "Diagram versioning in design repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Retrieval accuracy metrics from previous pilots."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Define Agentic Workflows & Tools",
+      "description": "Map out the specific agent roles, their responsibilities, and the tools they will interact with. Define the communication protocols between agents and the human-in-the-loop touchpoints to establish the operational logic of the system.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Model and Framework Selection Report",
+        "Data Architecture Diagram"
+      ],
+      "outputs": [
+        "Agentic Workflow Specification",
+        "Tool Integration Map"
+      ],
+      "estimated_duration": "1 day",
+      "dependencies": [
+        "Design Data & Retrieval Strategy"
+      ],
+      "success_criteria": [
+        "Workflows cover all functional requirements identified in the intake."
+      ],
+      "purpose": "To define the operational logic of the agentic system.",
+      "scope": "Workflow and tool design.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Data architecture design complete."
+      ],
+      "end_conditions": [
+        "Agentic workflows fully mapped."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Over-complex workflows leading to agent loops or failures.",
+          "control": "Workflow simplification and logic validation."
+        }
+      ],
+      "governance_requirements": [
+        "Auditability of agent actions."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Workflow logic changes require peer review.",
+          "versioning_rules": "Workflow v1.x."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project",
+          "improvement_inputs": [
+            "Agent performance logs from similar use cases."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Design Infrastructure & Security",
+      "description": "Design the hosting environment and the security architecture, including defining VPCs, IAM roles, and encryption protocols. This ensures a secure and scalable foundation for the AI solution that meets client standards.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Agentic Workflow Specification",
+        "Refined Technical Requirements List"
+      ],
+      "outputs": [
+        "Infrastructure Design Document",
+        "Security Configuration Plan"
+      ],
+      "estimated_duration": "6 hours",
+      "dependencies": [
+        "Define Agentic Workflows & Tools"
+      ],
+      "success_criteria": [
+        "Infrastructure design meets client security and scalability standards."
+      ],
+      "purpose": "To provide a secure and scalable foundation for the AI solution.",
+      "scope": "Infrastructure and security design.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Agentic workflows mapped."
+      ],
+      "end_conditions": [
+        "Infrastructure and security design finalized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Infrastructure costs exceed budget.",
+          "control": "Cloud cost estimation and resource optimization."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to ISO 27001 or client-specific security frameworks."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Infrastructure changes require security lead sign-off.",
+          "versioning_rules": "Infrastructure as Code (IaC) versioning."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Cloud provider security updates."
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Compile Technical Architecture Document",
+      "description": "Consolidate all design components into a comprehensive Technical Architecture Document. This document serves as the primary technical deliverable for the RFP response, detailing the solution's feasibility and performance.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Model and Framework Selection Report",
+        "Data Architecture Diagram",
+        "Agentic Workflow Specification",
+        "Infrastructure Design Document"
+      ],
+      "outputs": [
+        "Proposed AI Technical Architecture",
+        "Technical Architecture Document"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Design Infrastructure & Security"
+      ],
+      "success_criteria": [
+        "Document is complete, professional, and meets all RFP technical requirements."
+      ],
+      "purpose": "To produce the final technical deliverable for the parent step.",
+      "scope": "Documentation and finalization.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "All design components finalized."
+      ],
+      "end_conditions": [
+        "Technical architecture design complete."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete documentation of critical technical details.",
+          "control": "Peer review of the final document."
+        }
+      ],
+      "governance_requirements": [
+        "Final sign-off from the Lead AI Architect."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Final document edits via tracked changes.",
+          "versioning_rules": "Final v1.0."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Win/Loss analysis feedback on technical quality."
+          ]
+        }
+      ]
+    }
+  ]
+}

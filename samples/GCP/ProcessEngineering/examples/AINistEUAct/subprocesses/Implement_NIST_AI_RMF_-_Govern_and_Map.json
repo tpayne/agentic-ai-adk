@@ -1,0 +1,261 @@
+{
+  "step_name": "Implement NIST AI RMF - Govern and Map",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define AI Governance Roles and Responsibilities",
+      "description": "This sub-step involves identifying and documenting the specific roles required for effective AI oversight within the organization. It includes defining the responsibilities of the AI Architect, the AI Ethics Committee, and other key stakeholders to ensure clear accountability and decision-making authority throughout the AI system's lifecycle.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "DPIA Report",
+        "Organizational Chart"
+      ],
+      "outputs": [
+        "AI Governance Role Matrix"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [],
+      "success_criteria": [
+        "Formal approval of the role matrix by the Head of AI Governance."
+      ],
+      "purpose": "To establish clear accountability for AI risk management.",
+      "scope": "Internal organizational roles related to the specific AI project.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of DPIA."
+      ],
+      "end_conditions": [
+        "Role matrix is documented and approved."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Role ambiguity",
+          "control": "Detailed job descriptions and RACI matrix."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF 1.0 Govern Function"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard HR/Governance change request.",
+          "versioning_rules": "Major version change for role additions."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Stakeholder feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Establish AI Risk Management Policies",
+      "description": "In this sub-step, the team develops and formalizes the policies that will guide AI risk management activities. These policies must align with the NIST AI RMF 1.0 'Govern' core function and provide a structured approach for identifying, assessing, and managing risks specific to the financial sector's regulatory environment.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "AI Governance Role Matrix",
+        "NIST AI RMF 1.0"
+      ],
+      "outputs": [
+        "AI Risk Management Policy"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Define AI Governance Roles and Responsibilities"
+      ],
+      "success_criteria": [
+        "Policy document is signed off by the Chief Compliance Officer."
+      ],
+      "purpose": "To provide a standardized framework for risk-related decision making.",
+      "scope": "Policy development for AI risk management.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Approval of AI Governance Role Matrix."
+      ],
+      "end_conditions": [
+        "Policy is published in the internal repository."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Policy non-compliance",
+          "control": "Mandatory training and periodic audits."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF 1.0 Govern Function"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Policy review board submission.",
+          "versioning_rules": "Semantic versioning for policy updates."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "Regulatory updates",
+            "Audit findings"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Map AI System Context and Boundaries",
+      "description": "This sub-step focuses on defining the operational context of the AI system, including its intended purpose, target users, and the environment in which it will operate. By mapping these boundaries, the organization can better understand the potential impacts on individuals and society, which is a critical component of the NIST 'Map' function.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "AI Project Proposal",
+        "DPIA Report"
+      ],
+      "outputs": [
+        "AI System Context Map"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Establish AI Risk Management Policies"
+      ],
+      "success_criteria": [
+        "Context map accurately reflects the system's operational environment."
+      ],
+      "purpose": "To identify the scope of potential risks based on system usage.",
+      "scope": "Technical and operational boundaries of the AI system.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Publication of AI Risk Management Policy."
+      ],
+      "end_conditions": [
+        "Context map is finalized and reviewed by technical leads."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Scope creep",
+          "control": "Strict definition of system boundaries in the context map."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF 1.0 Map Function"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical review board approval.",
+          "versioning_rules": "Version tracking via model inventory system."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project phase",
+          "improvement_inputs": [
+            "Technical debt logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Identify and Categorize Contextual Risks",
+      "description": "Building on the system context map, this sub-step involves identifying specific risks that could arise from the AI system's deployment. Risks are categorized according to their potential impact on organizational goals, data privacy, and regulatory compliance, ensuring that all relevant threats are captured in the project's risk register.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "AI System Context Map",
+        "AI Risk Management Policy"
+      ],
+      "outputs": [
+        "Initial AI Risk Register"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Map AI System Context and Boundaries"
+      ],
+      "success_criteria": [
+        "Comprehensive list of risks identified and categorized."
+      ],
+      "purpose": "To populate the risk register with context-specific threats.",
+      "scope": "Risk identification and categorization.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Finalization of AI System Context Map."
+      ],
+      "end_conditions": [
+        "Risk register is updated with initial mapping results."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete risk identification",
+          "control": "Multi-disciplinary risk brainstorming sessions."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF 1.0 Map Function"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Risk management team review.",
+          "versioning_rules": "Incremental versioning for risk register updates."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Incident reports",
+            "Threat intelligence"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Consolidate NIST AI RMF Govern & Map Report",
+      "description": "The final sub-step involves aggregating all findings from the governance and mapping activities into a single, comprehensive report. This document provides a clear overview of the established governance structures and the identified risk landscape, serving as the foundational artifact for subsequent measurement and management phases.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "AI Governance Role Matrix",
+        "AI Risk Management Policy",
+        "Initial AI Risk Register"
+      ],
+      "outputs": [
+        "NIST AI RMF Govern & Map Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Identify and Categorize Contextual Risks"
+      ],
+      "success_criteria": [
+        "Report is complete and meets all NIST AI RMF 1.0 documentation standards."
+      ],
+      "purpose": "To provide a formal record of the Govern and Map phase results.",
+      "scope": "Reporting and documentation consolidation.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of risk categorization."
+      ],
+      "end_conditions": [
+        "Report is signed off and distributed to stakeholders."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate reporting",
+          "control": "Peer review and sign-off by the Head of AI Governance."
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF 1.0 (Govern, Map)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal document control process.",
+          "versioning_rules": "Major versioning for final report release."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Post-phase review",
+          "improvement_inputs": [
+            "Stakeholder feedback on report clarity"
+          ]
+        }
+      ]
+    }
+  ]
+}

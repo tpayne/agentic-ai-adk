@@ -85,6 +85,7 @@ def stop_if_ready(tool_context: ToolContext):
     hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
     if hard_stop:
         tool_context.actions.escalate = True
+        logger.debug("Hard stop condition met via loopHardStop property.")
         _reset_stop_counter(counter_path)
         return "Hard stop condition met via loopHardStop property — exiting loop."
 
@@ -122,16 +123,19 @@ def stop_if_ready(tool_context: ToolContext):
 
     if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
         tool_context.actions.escalate = True
+        logger.debug("JSON APPROVED detected in status — exiting loop.")
         _reset_stop_counter(counter_path)
         return "JSON APPROVED detected — exiting loop."
 
     if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
         tool_context.actions.escalate = True
+        logger.debug("JSON APPROVED detected in required approvals — exiting loop.")    
         _reset_stop_counter(counter_path)
         return "JSON APPROVED detected — exiting loop."
 
     if all(approval_state.get(k) == v for k, v in required.items()):
         tool_context.actions.escalate = True
+        logger.debug("All required approvals present — exiting loop.")
         _reset_stop_counter(counter_path)
         return "All approvals present — exiting loop."
 

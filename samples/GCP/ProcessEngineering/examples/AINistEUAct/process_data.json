@@ -1,0 +1,525 @@
+{
+  "governance_requirements": [
+    "Establishment of an AI Ethics Committee.",
+    "Mandatory documentation of model architecture and training data.",
+    "Annual independent third-party audits."
+  ],
+  "process_steps": [
+    {
+      "description": "Identify potential AI use cases and classify them based on risk levels defined by the EU AI Act.",
+      "success_criteria": [
+        "Formal approval of risk classification by Chief Compliance Officer."
+      ],
+      "change_management": [],
+      "step_name": "Identify AI use cases and risk classification",
+      "deliverables": [
+        "Risk Classification Report"
+      ],
+      "process_end_conditions": [
+        "Risk level is formally assigned."
+      ],
+      "inputs": [
+        "AI Project Proposal"
+      ],
+      "responsible_party": "AI Architect",
+      "scope": "Initial project assessment phase.",
+      "outputs": [
+        "Risk Classification Report"
+      ],
+      "governance_requirements": [
+        "EU AI Act Risk Classification Guidelines"
+      ],
+      "process_triggers": [
+        "Initiation of a new AI project."
+      ],
+      "dependencies": [],
+      "process_owner": "Head of AI Governance",
+      "continuous_improvement": [],
+      "step_risks_and_controls": [
+        {
+          "control": "Standardized risk assessment templates.",
+          "risk": "Incorrect risk classification."
+        }
+      ],
+      "estimated_duration": "2 weeks",
+      "purpose": "To determine the regulatory requirements applicable to the AI system."
+    },
+    {
+      "purpose": "To mitigate data privacy risks.",
+      "estimated_duration": "3 weeks",
+      "step_risks_and_controls": [
+        {
+          "risk": "Data Privacy Breach",
+          "control": "Differential privacy techniques and Carney access controls."
+        }
+      ],
+      "continuous_improvement": [],
+      "governance_requirements": [
+        "GDPR Compliance Standards"
+      ],
+      "dependencies": [
+        "Identify AI use cases and risk classification"
+      ],
+      "process_triggers": [
+        "Completion of risk classification."
+      ],
+      "process_owner": "Head of AI Governance",
+      "inputs": [
+        "Risk Classification Report",
+        "Data Architecture Diagrams"
+      ],
+      "scope": "Data privacy and protection.",
+      "responsible_party": "Data Protection Officer",
+      "outputs": [
+        "DPIA Report"
+      ],
+      "deliverables": [
+        "DPIA Report"
+      ],
+      "process_end_conditions": [
+        "DPIA is signed off by DPO."
+      ],
+      "description": "Conduct a Data Protection Impact Assessment to ensure compliance with GDPR and EU AI Act data privacy requirements.",
+      "change_management": [],
+      "success_criteria": [
+        "DPO approval of the DPIA."
+      ],
+      "step_name": "Conduct Data Protection Impact Assessment (DPIA)"
+    },
+    {
+      "step_name": "Implement NIST AI RMF - Govern and Map",
+      "description": "Implement the 'Govern' and 'Map' core functions of the NIST AI Risk Management Framework to establish governance structures and identify contextual risks.",
+      "success_criteria": [
+        "Defined governance roles and complete risk map."
+      ],
+      "change_management": [],
+      "responsible_party": "AI Architect",
+      "scope": "NIST AI RMF Initial Phases.",
+      "outputs": [
+        "NIST AI RMF Govern & Map Report"
+      ],
+      "inputs": [
+        "DPIA Report"
+      ],
+      "deliverables": [
+        "NIST AI RMF Govern & Map Report"
+      ],
+      "process_end_conditions": [
+        "Governance and risk mapping are established."
+      ],
+      "continuous_improvement": [],
+      "dependencies": [
+        "Conduct Data Protection Impact Assessment (DPIA)"
+      ],
+      "process_triggers": [
+        "Completion of DPIA."
+      ],
+      "process_owner": "Head of AI Governance",
+      "governance_requirements": [
+        "NIST AI RMF 1.0 (Govern, Map)"
+      ],
+      "purpose": "To establish AI governance and map organizational risks.",
+      "step_risks_and_controls": [
+        {
+          "control": "Governance committee oversight.",
+          "risk": "Misalignment with organizational goals."
+        }
+      ],
+      "estimated_duration": "4 weeks"
+    },
+    {
+      "process_end_conditions": [
+        "Risk measurement and management protocols are active."
+      ],
+      "deliverables": [
+        "NIST AI RMF Measure & Manage Report"
+      ],
+      "inputs": [
+        "NIST AI RMF Govern & Map Report"
+      ],
+      "outputs": [
+        "NIST AI RMF Measure & Manage Report"
+      ],
+      "scope": "NIST AI RMF Measurement and Mitigation.",
+      "responsible_party": "AI Architect",
+      "change_management": [],
+      "success_criteria": [
+        "Successful quantification of risks and implementation of mitigation controls."
+      ],
+      "description": "Implement the 'Measure' and 'Manage' core functions of the NIST AI Risk Management Framework, utilizing automated tools where possible to quantify and mitigate risks.",
+      "step_name": "Implement NIST AI RMF - Measure and Manage",
+      "estimated_duration": "4 weeks",
+      "step_risks_and_controls": [
+        {
+          "control": "Automated risk monitoring tools.",
+          "risk": "Inaccurate risk measurement."
+        }
+      ],
+      "purpose": "To quantify and manage identified AI risks.",
+      "governance_requirements": [
+        "NIST AI RMF 1.0 (Measure, Manage)"
+      ],
+      "process_owner": "Head of AI Governance",
+      "dependencies": [
+        "Implement NIST AI RMF - Govern and Map"
+      ],
+      "process_triggers": [
+        "Completion of Govern and Map phase."
+      ],
+      "continuous_improvement": []
+    },
+    {
+      "deliverables": [
+        "Model Validation Report",
+        "Bias Testing Results"
+      ],
+      "process_end_conditions": [
+        "Model meets fairness and accuracy thresholds.",
+        "Bias testing results are within acceptable limits."
+      ],
+      "inputs": [
+        "Training Datasets",
+        "Model Architecture"
+      ],
+      "responsible_party": "Risk Management Team",
+      "scope": "Technical validation and fairness.",
+      "outputs": [
+        "Model Validation Report"
+      ],
+      "description": "Perform rigorous bias testing and model validation using automated bias testing tools and standardized validation suites to streamline technical accuracy checks.",
+      "success_criteria": [
+        "Validation report confirms model meets all internal and regulatory benchmarks."
+      ],
+      "change_management": [],
+      "step_name": "Perform bias testing and model validation",
+      "step_risks_and_controls": [
+        {
+          "risk": "Model Bias",
+          "control": "Automated fairness audits and standardized validation suites."
+        }
+      ],
+      "estimated_duration": "4 weeks",
+      "purpose": "To minimize operational risk associated with AI bias via automated validation.",
+      "governance_requirements": [
+        "Fairness and Accuracy Standards"
+      ],
+      "process_triggers": [
+        "Model development completion."
+      ],
+      "dependencies": [
+        "Implement NIST AI RMF - Measure and Manage"
+      ],
+      "process_owner": "Head of AI Governance",
+      "continuous_improvement": []
+    },
+    {
+      "purpose": "To ensure transparency and prepare for conformity assessment.",
+      "estimated_duration": "3 weeks",
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete documentation.",
+          "control": "Pre-assessment review checklists."
+        }
+      ],
+      "continuous_improvement": [],
+      "governance_requirements": [
+        "EU AI Act Documentation Requirements"
+      ],
+      "process_triggers": [
+        "Successful model validation."
+      ],
+      "dependencies": [
+        "Perform bias testing and model validation"
+      ],
+      "process_owner": "Head of AI Governance",
+      "inputs": [
+        "Model Validation Report",
+        "NIST AI RMF Measure & Manage Report"
+      ],
+      "scope": "Regulatory documentation and pre-assessment.",
+      "responsible_party": "AI Architect",
+      "outputs": [
+        "Technical Documentation Package"
+      ],
+      "deliverables": [
+        "Technical Documentation Package"
+      ],
+      "process_end_conditions": [
+        "Documentation is complete and pre-reviewed."
+      ],
+      "description": "Compile all technical specifications and documentation required for EU AI Act compliance, initiating internal pre-assessment reviews to streamline the subsequent conformity phase.",
+      "change_management": [],
+      "success_criteria": [
+        "Documentation package passes initial pre-assessment review."
+      ],
+      "step_name": "Document technical specifications for EU AI Act compliance"
+    },
+    {
+      "purpose": "To legally certify the AI system for the EU market.",
+      "estimated_duration": "4 weeks",
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to meet conformity standards.",
+          "control": "Pre-assessment audits and legal review."
+        }
+      ],
+      "continuous_improvement": [],
+      "dependencies": [
+        "Document technical specifications for EU AI Act compliance"
+      ],
+      "process_triggers": [
+        "Completion of technical documentation and pre-assessment."
+      ],
+      "process_owner": "Head of AI Governance",
+      "governance_requirements": [
+        "EU AI Act Article 43 (Conformity Assessment)",
+        "EU AI Act Article 51 (Registration)"
+      ],
+      "scope": "Regulatory compliance and market entry authorization.",
+      "responsible_party": "Chief Compliance Officer",
+      "outputs": [
+        "Conformity Certificate",
+        "Registration ID"
+      ],
+      "inputs": [
+        "Technical Documentation Package",
+        "Model Validation Report"
+      ],
+      "deliverables": [
+        "Certificate of Conformity",
+        "EU Declaration of Conformity",
+        "EU Database Registration Confirmation"
+      ],
+      "process_end_conditions": [
+        "System is registered and certified."
+      ],
+      "step_name": "EU AI Act Conformity Assessment and Registration",
+      "description": "Conduct a conformity assessment (internal or via a notified body) for high-risk AI systems to ensure compliance with the EU AI Act and register the system in the EU database as per Article 51. Utilize parallel pre-assessment data to expedite.",
+      "change_management": [],
+      "success_criteria": [
+        "Official certification of conformity obtained.",
+        "Successful entry in the EU public database."
+      ]
+    },
+    {
+      "purpose": "To maintain operational integrity and compliance in production.",
+      "estimated_duration": "Ongoing",
+      "step_risks_and_controls": [
+        {
+          "control": "Real-time drift detection and human intervention triggers.",
+          "risk": "Model Drift or Unintended Behavior"
+        }
+      ],
+      "continuous_improvement": [],
+      "process_triggers": [
+        "Final certification and approval."
+      ],
+      "dependencies": [
+        "EU AI Act Conformity Assessment and Registration"
+      ],
+      "process_owner": "Head of AI Governance",
+      "governance_requirements": [
+        "Human Oversight Requirements (EU AI Act)"
+      ],
+      "scope": "Production monitoring and oversight.",
+      "responsible_party": "Risk Management Team",
+      "outputs": [
+        "Monitoring Dashboard"
+      ],
+      "inputs": [
+        "Technical Documentation Package",
+        "Production Environment Access"
+      ],
+      "deliverables": [
+        "Monitoring Dashboard",
+        "Human Oversight Protocol"
+      ],
+      "process_end_conditions": [
+        "System is decommissioned."
+      ],
+      "step_name": "Deploy and monitor with human oversight",
+      "description": "Deploy the AI system with continuous monitoring and established human-in-the-loop oversight protocols.",
+      "change_management": [],
+      "success_criteria": [
+        "Continuous operation within defined performance and compliance parameters."
+      ]
+    }
+  ],
+  "critical_failure_factors": [
+    {
+      "description": "Lack of data transparency and failure to update models according to changing regulations.",
+      "name": "Regulatory Non-Compliance"
+    },
+    {
+      "description": "Insufficient human-in-the-loop oversight leading to unmanaged AI errors.",
+      "name": "Operational Oversight Failure"
+    }
+  ],
+  "process_triggers": [
+    "Initiation of a new AI project.",
+    "Updates to NIST or EU AI Act regulations.",
+    "Significant changes to an existing AI model."
+  ],
+  "assumptions": [
+    "The regulatory requirements for high-risk AI systems in finance will remain stable for the next 12 months.",
+    "Internal data sources are sufficient and cleaned for bias mitigation.",
+    "The organization possesses the necessary budget for external legal and technical audits."
+  ],
+  "introduction": "This framework establishes a comprehensive approach for AI governance in the financial sector, ensuring compliance with the EU AI Act and NIST AI Risk Management Framework.",
+  "risks_and_controls": [
+    {
+      "risk": "Model Bias",
+      "control": "Regular fairness audits and diverse training datasets."
+    },
+    {
+      "control": "Differential privacy techniques and strict access controls.",
+      "risk": "Data Privacy Breach"
+    }
+  ],
+  "process_owner": "Head of AI Governance",
+  "constraints": [
+    "Must meet the strict implementation deadlines set by the EU AI Act.",
+    "Limited availability of subject matter experts in both AI and financial regulation.",
+    "Hardware limitations for performing extensive stress testing on complex models."
+  ],
+  "critical_success_factors": [
+    {
+      "description": "Alignment with EU AI Act high-risk AI requirements and integration with NIST AI RMF.",
+      "name": "Regulatory Alignment"
+    },
+    {
+      "description": "Board-level support for AI governance.",
+      "name": "Executive Sponsorship"
+    }
+  ],
+  "industry_sector": "Financial Services",
+  "continuous_improvement": [
+    {
+      "review_frequency": "Bi-annual review of the framework effectiveness.",
+      "improvement_inputs": [
+        "Feedback loops from production monitoring into the development stage.",
+        "Adoption of emerging best practices in AI safety."
+      ]
+    }
+  ],
+  "process_name": "AI Regulatory Compliance Framework (NIST & EU AI Act)",
+  "tools_summary": [
+    {
+      "tools": [
+        "Model Inventory System",
+        "Audit Logging Tool"
+      ],
+      "category": "Governance & Compliance"
+    },
+    {
+      "tools": [
+        "Drift Detection Software",
+        "Explainability Dashboards",
+        "Automated Bias Testing Tools"
+      ],
+      "category": "Monitoring & Analytics"
+    }
+  ],
+  "purpose": "To provide a structured and compliant framework for developing, deploying, and managing AI systems within the financial sector.",
+  "system_requirements": [
+    {
+      "name": "Model inventory management system",
+      "details": "Centralized repository for all AI models and their metadata."
+    },
+    {
+      "name": "Automated monitoring and alerting tools",
+      "details": "Tools for real-time performance tracking and alerting."
+    },
+    {
+      "details": "Encrypted storage for sensitive training and operational data.",
+      "name": "Secure data storage with encryption"
+    },
+    {
+      "name": "Audit trail logging",
+      "details": "Comprehensive logging of all system and user actions for audit purposes."
+    }
+  ],
+  "stakeholders": [
+    {
+      "stakeholder_name": "Chief Compliance Officer",
+      "role": "Chief Compliance Officer",
+      "responsibilities": [
+        "Overall oversight of regulatory alignment."
+      ]
+    },
+    {
+      "responsibilities": [
+        "Designing the framework according to technical standards."
+      ],
+      "role": "AI Architect",
+      "stakeholder_name": "AI Architect"
+    },
+    {
+      "responsibilities": [
+        "Ensuring GDPR and EU AI Act data privacy compliance."
+      ],
+      "role": "Data Protection Officer",
+      "stakeholder_name": "Data Protection Officer"
+    },
+    {
+      "stakeholder_name": "Risk Management Team",
+      "role": "Risk Management Team",
+      "responsibilities": [
+        "Monitoring AI risks and performance."
+      ]
+    }
+  ],
+  "reporting_and_analytics": [
+    {
+      "metric": "Compliance audit pass rate",
+      "description": "Quarterly reports on compliance status."
+    },
+    {
+      "description": "Real-time monitoring of model performance and drift.",
+      "metric": "Model drift detection"
+    },
+    {
+      "description": "Reports provided to stakeholders regarding AI system transparency.",
+      "metric": "Stakeholder transparency score"
+    }
+  ],
+  "appendix": {},
+  "change_management": [
+    {
+      "change_request_process": "Formal review process for any logic or data changes.",
+      "versioning_rules": "Version control for all model iterations and training sessions for staff on framework updates."
+    }
+  ],
+  "metrics": [
+    {
+      "target": "100%",
+      "measurement_frequency": "Annual",
+      "name": "Compliance audit pass rate",
+      "description": "Percentage of successful compliance audits."
+    },
+    {
+      "description": "Quantitative measure of model transparency and interpretability.",
+      "measurement_frequency": "Per model deployment",
+      "name": "Model explainability score",
+      "target": "High"
+    },
+    {
+      "target": "Optimized per project",
+      "measurement_frequency": "Quarterly",
+      "name": "Time-to-market for AI solutions",
+      "description": "Average time taken to bring AI solutions to market."
+    },
+    {
+      "target": "Minimal",
+      "measurement_frequency": "Real-time",
+      "name": "Incident response time for AI failures",
+      "description": "Time taken to respond to and resolve AI failures."
+    }
+  ],
+  "process_end_conditions": [
+    "AI system is decommissioned.",
+    "AI system passes final certification and is in production with continuous monitoring."
+  ],
+  "version": "1.0.2",
+  "scope": "All AI-driven models and processes within the financial institution, specifically targeting those categorized as high-risk under EU law."
+}

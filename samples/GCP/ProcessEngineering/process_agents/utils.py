@@ -667,7 +667,7 @@ def load_iteration_feedback(reset_data: bool = True) -> dict:
 
         return feedback
 
-    return {"status": "No feedback found", "data": []}
+    return {}
 
 def save_iteration_feedback(feedback_data: Any):
     """
@@ -772,7 +772,43 @@ def save_iteration_feedback(feedback_data: Any):
     except Exception as e:
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
-    
+
+def _load_template_json(template_path: str) -> Optional[dict]:
+    """
+    Loads a JSON template from the process_agents/templates directory.
+    Returns the parsed JSON as a dict, or None if loading/parsing fails.
+    """
+    if not os.path.exists(template_path):
+        logger.error(f"Template file {template_path} not found.")
+        return None
+
+    if os.path.exists(template_path):
+        try:
+            logger.debug(f"Loading template JSON from {template_path}...")
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_data = json.load(f)
+            # Validate template data before returning
+            issues = _validate_process_json(template_data)
+            if issues is None or len(issues) > 0:
+                logger.error(f"Template file {template_path} is invalid or has issues: {issues}")
+                return None
+            return template_data
+        except Exception as e:
+            logger.error(f"Failed to load or parse template file {template_path}: {e}")
+            return None
+    else:
+        logger.error(f"Template file {template_path} does not exist.")
+        return None    
+
+def load_process_template() -> Optional[dict]:
+    """
+    Loads the process template JSON from the templates directory.
+    This is used as a fallback if the master process JSON is missing or invalid.
+    Returns the template dict if successful, or None if loading/parsing fails.
+    """
+    template_path = os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json")
+    return _load_template_json(template_path)
+
 # Load the master process JSON from output/process_data.json
 def load_master_process_json() -> Union[dict, None]:
     """
@@ -784,6 +820,7 @@ def load_master_process_json() -> Union[dict, None]:
     """
 
     path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
+    template_path = os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json")
     lock_path = os.path.join(PROJECT_ROOT, "output", ".process_data.lock")
 
     # Wait for lock to clear (writer in progress)
@@ -796,8 +833,8 @@ def load_master_process_json() -> Union[dict, None]:
 
     # File existence
     if not os.path.exists(path):
-        logger.warning(f"{path} does not exist.")
-        return None
+        logger.warning(f"{path} does not exist. Attempting to load template file {template_path}.")
+        return _load_template_json(template_path)
 
     try:
         # Read file content

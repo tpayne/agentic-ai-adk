@@ -1,0 +1,211 @@
+{
+  "step_name": "Guardrail & Safety Design",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define Safety & Ethical Boundaries",
+      "description": "Establish the specific safety and ethical constraints for the agentic system based on the proposed architecture. This involves identifying potential misuse cases, bias risks, and operational limits that the system must adhere to during execution.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Proposed AI Technical Architecture",
+        "Ethical Risk Assessment"
+      ],
+      "outputs": [
+        "Safety Boundary Definition"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Documented list of prohibited actions and ethical constraints."
+      ],
+      "purpose": "To set the foundational rules for what the agentic system can and cannot do.",
+      "scope": "Ethical and operational boundary setting.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Completion of core technical architecture."
+      ],
+      "end_conditions": [
+        "Safety boundaries are formally documented."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Vague boundary definitions leading to bypassable safety measures.",
+          "control": "Use of a standardized safety taxonomy and peer review of constraints."
+        }
+      ],
+      "governance_requirements": [
+        "Alignment with internal Ethical AI guidelines."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Submit boundary revisions to the AI Strategy committee.",
+          "versioning_rules": "Major version increment for any new prohibited action."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "New regulatory requirements",
+            "Industry safety benchmarks"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Design Input/Output Guardrails",
+      "description": "Develop technical filters and validation layers that inspect data entering and leaving the agentic system. This includes prompt injection detection for inputs and PII/toxicity filtering for outputs to ensure safe interactions.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Safety Boundary Definition",
+        "Proposed AI Technical Architecture"
+      ],
+      "outputs": [
+        "I/O Guardrail Technical Design"
+      ],
+      "estimated_duration": "6 hours",
+      "dependencies": [
+        "Define Safety & Ethical Boundaries"
+      ],
+      "success_criteria": [
+        "Design includes specific filtering logic for prompt injection and data leakage."
+      ],
+      "purpose": "To prevent malicious inputs and unsafe or non-compliant outputs.",
+      "scope": "Technical design of filtering and validation components.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Safety boundaries defined."
+      ],
+      "end_conditions": [
+        "I/O guardrail specifications are integrated into the architecture."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Guardrails introduce excessive latency to the system.",
+          "control": "Performance benchmarking of filtering layers during the design phase."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with GDPR data minimization principles."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical design review board approval.",
+          "versioning_rules": "Documented in the Technical Architecture version log."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project post-mortem",
+          "improvement_inputs": [
+            "False positive/negative rates from testing"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Configure Responsible AI Monitoring",
+      "description": "Specify the telemetry and logging requirements for tracking the system's adherence to safety rules in real-time. This includes setting up alerts for boundary violations and performance drift that could impact safety.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "I/O Guardrail Technical Design",
+        "Safety Boundary Definition"
+      ],
+      "outputs": [
+        "Monitoring & Alerting Specification"
+      ],
+      "estimated_duration": "4 hours",
+      "dependencies": [
+        "Design Input/Output Guardrails"
+      ],
+      "success_criteria": [
+        "Specification includes real-time alerting for safety violations."
+      ],
+      "purpose": "To provide visibility into the system's safety performance during operation.",
+      "scope": "Monitoring, logging, and alerting configuration.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "Guardrail design complete."
+      ],
+      "end_conditions": [
+        "Monitoring plan is approved by the technical lead."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Alert fatigue from overly sensitive safety triggers.",
+          "control": "Definition of severity levels and tiered alerting logic."
+        }
+      ],
+      "governance_requirements": [
+        "Audit trail requirements for AI decision-making."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard IT change management for monitoring tools.",
+          "versioning_rules": "Alerting thresholds tracked in configuration management."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Operational incident logs",
+            "Monitoring dashboard analytics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize Guardrail Specification",
+      "description": "Consolidate the boundary definitions, technical guardrail designs, and monitoring plans into a single comprehensive specification document. This document serves as the safety blueprint for the implementation team.",
+      "responsible_party": "AI Solution Architect",
+      "inputs": [
+        "Safety Boundary Definition",
+        "I/O Guardrail Technical Design",
+        "Monitoring & Alerting Specification"
+      ],
+      "outputs": [
+        "Guardrail Specification",
+        "Safety and Guardrail Specification"
+      ],
+      "estimated_duration": "2 hours",
+      "dependencies": [
+        "Configure Responsible AI Monitoring"
+      ],
+      "success_criteria": [
+        "Complete document signed off by the AI Solution Architect."
+      ],
+      "purpose": "To provide a unified deliverable for safety engineering.",
+      "scope": "Documentation and final synthesis.",
+      "process_owner": "AI Solution Architect",
+      "triggers": [
+        "All safety design components complete."
+      ],
+      "end_conditions": [
+        "Safety measures integrated into the technical design."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inconsistencies between the technical design and safety specification.",
+          "control": "Final cross-reference check against the core Technical Architecture Document."
+        }
+      ],
+      "governance_requirements": [
+        "Final sign-off required for the RFP submission package."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal document revision process.",
+          "versioning_rules": "Version 1.0 released upon final sign-off."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Template effectiveness feedback from delivery teams"
+          ]
+        }
+      ]
+    }
+  ]
+}

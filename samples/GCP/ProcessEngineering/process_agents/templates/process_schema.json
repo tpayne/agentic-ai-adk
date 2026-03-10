@@ -1,0 +1,149 @@
+{
+    "process_name": "string",
+    "industry_sector": "string",
+    "version": "string",
+    "introduction": "string",
+    "stakeholders": [
+        {
+            "stakeholder_name": "string",
+            "role": "string",
+            "responsibilities": [
+                "string"
+            ]
+        }
+    ],
+    "process_steps": [
+        {
+            "step_name": "string",
+            "description": "string",
+            "responsible_party": "string",
+            "estimated_duration": "string",
+            "deliverables": [
+                "string"
+            ],
+            "inputs": [
+                "string"
+            ],
+            "outputs": [
+                "string"
+            ],
+            "dependencies": [
+                "string"
+            ],
+            "success_criteria": [
+                "string"
+            ],
+            "purpose": "string",
+            "scope": "string",
+            "process_owner": "string",
+            "process_triggers": [
+                "string"
+            ],
+            "process_end_conditions": [
+                "string"
+            ],
+            "step_risks_and_controls": [
+                {
+                    "risk": "string",
+                    "control": "string"
+                }
+            ],
+            "governance_requirements": [
+                "string"
+            ],
+            "change_management": [
+                {
+                    "change_request_process": "string",
+                    "versioning_rules": "string"
+                }
+            ],
+            "continuous_improvement": [
+                {
+                    "review_frequency": "string",
+                    "improvement_inputs": [
+                        "string"
+                    ]
+                }
+            ]
+        }
+    ],
+    "tools_summary": [
+        {
+            "category": "string",
+            "tools": [
+                "string"
+            ]
+        }
+    ],
+    "metrics": [
+        {
+            "name": "string",
+            "description": "string",
+            "measurement_frequency": "string",
+            "target": "string"
+        }
+    ],
+    "critical_success_factors": [
+        {
+            "name": "string",
+            "description": "string"
+        }
+    ],
+    "critical_failure_factors": [
+        {
+            "name": "string",
+            "description": "string"
+        }
+    ],
+    "reporting_and_analytics": [
+        {
+            "metric": "string",
+            "description": "string"
+        }
+    ],
+    "system_requirements": [
+        {
+            "name": "string",
+            "details": "string"
+        }
+    ],
+    "assumptions": [
+        "string"
+    ],
+    "constraints": [
+        "string"
+    ],
+    "appendix": {},
+    "purpose": "string",
+    "scope": "string",
+    "process_owner": "string",
+    "process_triggers": [
+        "string"
+    ],
+    "process_end_conditions": [
+        "string"
+    ],
+    "risks_and_controls": [
+        {
+            "risk": "string",
+            "control": "string"
+        }
+    ],
+    "governance_requirements": [
+        "string"
+    ],
+    "change_management": [
+        {
+            "change_request_process": "string",
+            "versioning_rules": "string"
+        }
+    ],
+    "continuous_improvement": [
+        {
+            "review_frequency": "string",
+            "improvement_inputs": [
+                "string"
+            ]
+        }
+    ]
+}

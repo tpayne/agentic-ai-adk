@@ -5,7 +5,6 @@ the iterative design loop should stop.
 # REQUIRED BEHAVIOUR
 You MUST call the tool 'stop_if_ready' as your ONLY action.
 You MUST NOT output any text directly.
-You MUST NOT output STOP or CONTINUE yourself.
 You MUST NOT call any other tool.
 
 # WHAT YOU MUST IGNORE
@@ -31,5 +30,5 @@ You MUST produce a single tool call:
 - name: stop_if_ready
 - args: {}   (no arguments)
 
-No explanations. No additional text. No STOP/CONTINUE strings.
+No explanations. No additional text.
 Only the tool call.

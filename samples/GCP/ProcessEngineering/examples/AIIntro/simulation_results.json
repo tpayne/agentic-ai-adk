@@ -1,0 +1,18 @@
+{
+  "avg_cycle_time": 17.298102532902153,
+  "cycle_time_variance": 2.0387274287509976,
+  "time_unit": "days",
+  "bottlenecks": [
+    "Solution Architecture & Guardrail Design",
+    "Internal Review & Governance Approval",
+    "AI Suitability & Ethics Screening"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Opportunity Identification & Intake": 1.3377188637181907,
+    "AI Suitability & Ethics Screening": 2.654144925635742,
+    "Solution Architecture & Guardrail Design": 6.651154735600802,
+    "Internal Review & Governance Approval": 4.016040440468236,
+    "Proposal Finalization & Submission": 2.639043567479181
+  }
+}

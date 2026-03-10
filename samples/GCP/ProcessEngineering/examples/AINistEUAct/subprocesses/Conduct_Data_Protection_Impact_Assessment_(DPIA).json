@@ -1,0 +1,258 @@
+{
+  "step_name": "Conduct Data Protection Impact Assessment (DPIA)",
+  "subprocess_flow": [
+    {
+      "substep_name": "Define DPIA Scope and Context",
+      "description": "Establish the specific boundaries of the assessment by mapping the flow of personal data within the AI system. This involves identifying the types of data collected, the legal basis for processing, and the specific financial use case to ensure all regulatory touchpoints are identified.",
+      "responsible_party": "Data Protection Officer",
+      "inputs": [
+        "Risk Classification Report",
+        "Data Architecture Diagrams"
+      ],
+      "outputs": [
+        "DPIA Scope Document"
+      ],
+      "estimated_duration": "2 days",
+      "dependencies": [],
+      "success_criteria": [
+        "Formal agreement on data processing boundaries by the AI Architect."
+      ],
+      "purpose": "To ensure the assessment covers all relevant data processing activities.",
+      "scope": "Data mapping and regulatory boundary setting.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of risk classification."
+      ],
+      "end_conditions": [
+        "Scope document is finalized and approved."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete data mapping leading to overlooked privacy risks.",
+          "control": "Cross-functional review of data architecture diagrams."
+        }
+      ],
+      "governance_requirements": [
+        "GDPR Article 35 Compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal email request to the DPO.",
+          "versioning_rules": "Major version increments for scope changes."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Regulatory update logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Assess Necessity and Proportionality",
+      "description": "Evaluate whether the data processing is necessary for the AI model's objectives and if the amount of data used is proportionate. This step ensures that the principle of data minimization is upheld in accordance with financial privacy standards.",
+      "responsible_party": "Data Protection Officer",
+      "inputs": [
+        "DPIA Scope Document",
+        "AI Project Proposal"
+      ],
+      "outputs": [
+        "Necessity Assessment Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Define DPIA Scope and Context"
+      ],
+      "success_criteria": [
+        "Documented justification for every data field used in the model."
+      ],
+      "purpose": "To validate that data usage is legally and ethically justified.",
+      "scope": "Data minimization and legal justification analysis.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Approval of DPIA Scope Document."
+      ],
+      "end_conditions": [
+        "Necessity report is signed off by the DPO."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Excessive data collection violating GDPR principles.",
+          "control": "Mandatory data minimization review by the AI Ethics Committee."
+        }
+      ],
+      "governance_requirements": [
+        "GDPR Data Minimization Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Submission via Governance Portal.",
+          "versioning_rules": "Minor versioning for justification updates."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annually",
+          "improvement_inputs": [
+            "Internal audit findings"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Identify and Evaluate Privacy Risks",
+      "description": "Systematically identify potential threats to the rights and freedoms of data subjects, such as unauthorized access or re-identification. Each risk is evaluated based on its likelihood and impact within the context of high-risk financial AI applications.",
+      "responsible_party": "Data Protection Officer",
+      "inputs": [
+        "Necessity Assessment Report",
+        "Data Architecture Diagrams"
+      ],
+      "outputs": [
+        "Privacy Risk Register"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Assess Necessity and Proportionality"
+      ],
+      "success_criteria": [
+        "Comprehensive list of risks mapped to specific AI components."
+      ],
+      "purpose": "To identify vulnerabilities in the data lifecycle.",
+      "scope": "Risk identification and impact scoring.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Completion of Necessity Assessment."
+      ],
+      "end_conditions": [
+        "Risk register is populated and impact scores are assigned."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to identify emerging AI-specific privacy threats.",
+          "control": "Use of updated NIST AI RMF threat catalogs."
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act High-Risk AI Requirements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Risk Management Team review.",
+          "versioning_rules": "Real-time updates with timestamping."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "External threat intelligence"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Define and Implement Privacy Controls",
+      "description": "Select and apply technical and organizational measures to mitigate identified risks. This includes implementing differential privacy, Carney access controls, and encryption protocols to ensure data remains protected throughout the AI training and inference phases.",
+      "responsible_party": "AI Architect",
+      "inputs": [
+        "Privacy Risk Register"
+      ],
+      "outputs": [
+        "Privacy Control Implementation Plan"
+      ],
+      "estimated_duration": "1 week",
+      "dependencies": [
+        "Identify and Evaluate Privacy Risks"
+      ],
+      "success_criteria": [
+        "All high-impact risks have at least one verified mitigating control."
+      ],
+      "purpose": "To reduce privacy risks to an acceptable residual level.",
+      "scope": "Technical and organizational control selection.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Finalization of the Privacy Risk Register."
+      ],
+      "end_conditions": [
+        "Controls are documented and implementation is verified."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Controls degrade model performance or accuracy.",
+          "control": "Performance benchmarking during control implementation."
+        }
+      ],
+      "governance_requirements": [
+        "NIST Privacy Framework Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Technical Change Board approval.",
+          "versioning_rules": "Configuration management tracking."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Per project phase",
+          "improvement_inputs": [
+            "Technical performance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Finalize and Sign-off DPIA Report",
+      "description": "Consolidate all findings, assessments, and control implementations into a formal DPIA report. The Data Protection Officer reviews the final document to ensure it meets all GDPR and EU AI Act requirements before providing the formal sign-off required for project progression.",
+      "responsible_party": "Data Protection Officer",
+      "inputs": [
+        "Privacy Control Implementation Plan",
+        "Privacy Risk Register",
+        "Necessity Assessment Report"
+      ],
+      "outputs": [
+        "DPIA Report"
+      ],
+      "estimated_duration": "3 days",
+      "dependencies": [
+        "Define and Implement Privacy Controls"
+      ],
+      "success_criteria": [
+        "DPO signature on the final DPIA Report."
+      ],
+      "purpose": "To provide formal evidence of privacy compliance.",
+      "scope": "Final report consolidation and executive approval.",
+      "process_owner": "Head of AI Governance",
+      "triggers": [
+        "Verification of control implementation."
+      ],
+      "end_conditions": [
+        "DPIA is signed off by DPO."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Report fails to meet regulatory audit standards.",
+          "control": "Use of official regulatory DPIA templates."
+        }
+      ],
+      "governance_requirements": [
+        "GDPR Compliance Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal revision request to the DPO.",
+          "versioning_rules": "Final version locking and archiving."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Regulatory audit feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

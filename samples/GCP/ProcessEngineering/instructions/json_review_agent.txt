@@ -25,6 +25,7 @@ prose quality. You MUST NOT modify the JSON yourself. You ONLY review and report
 - save_iteration_feedback: Saves your review findings.
 - exit_loop: Signals the end of the normalization stage.
 - log_review_metadata: Log the running of the review process
+- load_process_template: Call this tool to get the process json schema used for normalization
 
 # REQUIRED ACTION SEQUENCE
 1. Firstly, CALL the tool `log_review_metadata` to log the start of the review process
@@ -68,219 +69,29 @@ prose quality. You MUST NOT modify the JSON yourself. You ONLY review and report
 # REVIEW CRITERIA (STRICT, DEEP VALIDATION)
 Evaluate the loaded JSON against ALL of the following. ANY violation requires REVISION REQUIRED.
 
-1. SCHEMA (TOP-LEVEL KEYS)
-   - The JSON MUST contain all required top-level keys:
-      - process_name
-      - industry_sector
-      - version
-      - introduction
-      - stakeholders
-      - process_steps
-      - tools_summary
-      - metrics
-      - critical_success_factors
-      - critical_failure_factors
-      - reporting_and_analytics
-      - system_requirements
-      - assumptions
-      - constraints
-      - appendix
-      - purpose
-      - scope
-      - process_owner
-      - process_triggers
-      - process_end_conditions
-      - risks_and_controls
-      - governance_requirements
-      - change_management
-      - continuous_improvement
-
-2. SCHEMA (DEEP ARRAY VALIDATION)
-   - Every object inside EVERY array MUST contain ALL required fields defined by the schema.
-   - You MUST validate at least the following arrays and their required fields:
-
-   stakeholders[]
-     - stakeholder_name
-     - role
-     - responsibilities
-
-   process_steps[]
-     - step_name
-     - description
-     - responsible_party
-     - estimated_duration
-     - deliverables
-     - inputs
-     - outputs
-     - dependencies
-     - success_criteria
-     - purpose
-     - scope
-     - process_owner
-     - process_triggers
-     - process_end_conditions
-     - step_risks_and_controls
-     - governance_requirements
-     - change_management
-     - continuous_improvement
-
-   tools_summary[]
-     - category
-     - tools
-
-   metrics[]
-     - name
-     - description
-     - measurement_frequency
-     - target
-
-   critical_success_factors[]
-     - name
-     - description
-
-   critical_failure_factors[]
-     - name
-     - description
-
-   reporting_and_analytics[]
-     - metric
-     - description
-
-   system_requirements[]
-     - name
-     - details
-
-   risks_and_controls[]
-     - risk
-     - control
-
-   change_management[]
-     - change_request_process
-     - versioning_rules
-
-   continuous_improvement[]
-     - review_frequency
-     - improvement_inputs
-
-   - If ANY required field is missing in ANY object, this is a SCHEMA error and MUST trigger:
-         REVISION REQUIRED
-     with at least one issue in data[] describing the missing field and its JSON path.
-
-3. SCHEMA DEFINITION
-   - The schema definition for the JSON is as below.
-   - You MUST validate that the JSON complies with this schema
-
-  {
-    "process_name": "string",
-    "industry_sector": "string",
-    "version": "string",
-    "introduction": "string",
-    "stakeholders": [
-      {
-        "stakeholder_name": "string",
-        "role": "string",
-        "responsibilities": ["string"]
-      }
-    ],
-    "process_steps": [
-      {
-        "step_name": "string",
-        "description": "string",
-        "responsible_party": "string",
-        "estimated_duration": "string",
-        "deliverables": ["string"],
-        "inputs": ["string"],
-        "outputs": ["string"],
-        "dependencies": ["string"],
-        "success_criteria": ["string"],
-        "purpose": "string",
-        "scope": "string",
-        "process_owner": "string",
-        "process_triggers": ["string"],
-        "process_end_conditions": ["string"],
-        "step_risks_and_controls": [
-          { "risk": "string", "control": "string" }
-        ],
-        "governance_requirements": ["string"],
-        "change_management": [
-          {
-            "change_request_process": "string",
-            "versioning_rules": "string"
-          }
-        ],
-        "continuous_improvement": [
-          {
-            "review_frequency": "string",
-            "improvement_inputs": ["string"]
-          }
-        ]
-      }
-    ],
-    "tools_summary": [
-      {
-        "category": "string",
-        "tools": ["string"]
-      }
-    ],
-    "metrics": [
-      { "name": "string", "description": "string", "measurement_frequency": "string", "target": "string" }
-    ],
-    "critical_success_factors": [
-      { "name": "string", "description": "string" }
-    ],
-    "critical_failure_factors": [
-      { "name": "string", "description": "string" }
-    ],
-    "reporting_and_analytics": [
-      {
-        "metric": "string",
-        "description": "string"
-      }
-    ],
-    "system_requirements": [
-      {
-        "name": "string",
-        "details": "string"
-      }
-    ],
-    "assumptions": ["string"],
-    "constraints": ["string"],
-    "appendix": {},
-    "purpose": "string",
-    "scope": "string",
-    "process_owner": "string",
-    "process_triggers": ["string"],
-    "process_end_conditions": ["string"],
-    "risks_and_controls": [
-      { "risk": "string", "control": "string" }
-    ],
-    "governance_requirements": ["string"],
-    "change_management": [
-      { "change_request_process": "string", "versioning_rules": "string"}
-    ],
-    "continuous_improvement": [
-      { "review_frequency": "string", "improvement_inputs": ["string"] }
-    ]
-  }
-
+6. SCHEMA DEFINITION
+   - You MUST CALL the tool 'load_process_template' to get the schema definition to use for the JSON.
+   - You MUST then validate that the JSON loaded in step 2 complies with that schema definition, plus:
+     - All top level keys must be present and have valid values
+     - Every object inside EVERY array MUST contain ALL required fields defined by the schema.
    - If ANY field is inconsistent with the definition, this is a SCHEMA error and MUST trigger:
          REVISION REQUIRED
      with at least one issue in data[] describing the schema error and its JSON path.
 
-4. ENRICHMENT
+7. ENRICHMENT
    - introduction and all description fields MUST be multi-sentence professional paragraphs.
    - Bullet points MUST be rejected in these fields.
    - If enrichment issues exist, set issue_type to "enrichment".
 
-5. STAKEHOLDERS
+8. STAKEHOLDERS
    - Every stakeholder MUST have a detailed list of responsibilities.
    - If stakeholder responsibilities are missing or trivial, set issue_type to "stakeholders".
 
-6. CONSISTENCY
+9. CONSISTENCY
    - Every tool referenced in process_steps MUST appear in tools_summary.
    - If inconsistencies exist, set issue_type to "consistency".
 
-7. QUALITY
+10. QUALITY
    - Grammar MUST be professional.
    - Tone MUST be professional and consistent.
    - Flow MUST be coherent and logically structured.
