@@ -62,7 +62,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.actor }}/${{ matrix.service.image }}
 
       - name: Build and Push (${{ matrix.service.name }})
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.service.context }}
           push: ${{ github.event_name != 'pull_request' }}
