@@ -1,0 +1,6 @@
+google-adk
+python-docx
+openpyxl
+PyPDF2
+lxml          # speeds up python-docx parsing
+chardet       # improves TXT encoding detection
