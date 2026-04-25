@@ -344,6 +344,527 @@ def _validate_process_json(data: dict):
 
     return issues
 
+
+def save_drawio(xml_content) -> str:
+    """
+    Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
+    Includes lock protection, validation, unchanged-file detection, and
+    a provider-aware shape + container mapping pass for Azure, AWS, and GCP.
+    Shared helpers (_log_agent_activity, _safe_sleep_from_property, etc.)
+    are assumed to exist in the environment.
+    """
+
+    # --- HYBRID SHAPE MAPPINGS (EXTENSIBLE) ---
+
+    # Service icons (mxgraph.*)
+    AZURE_SHAPES = {
+        # Networking
+        "application gateway": "mxgraph.azure.network.application_gateway",
+        "load balancer": "mxgraph.azure.network.load_balancer",
+        "firewall": "mxgraph.azure.network.firewall",
+        "vpn gateway": "mxgraph.azure.network.vpn_gateway",
+
+        # Compute
+        "virtual machine": "mxgraph.azure.compute.vm",
+        "vm ": "mxgraph.azure.compute.vm",
+        " vm": "mxgraph.azure.compute.vm",
+        "vm scale set": "mxgraph.azure.compute.vm_scale_set",
+        "aks": "mxgraph.azure.compute.kubernetes_service",
+        "container apps": "mxgraph.azure.compute.container_apps",
+
+        # Storage / Data
+        "storage account": "mxgraph.azure.storage.storage_account",
+        "blob storage": "mxgraph.azure.storage.blob_storage",
+        "data lake": "mxgraph.azure.storage.data_lake_storage",
+        "data lake storage": "mxgraph.azure.storage.data_lake_storage",
+        "sql database": "mxgraph.azure.databases.sql_database",
+        "cosmos db": "mxgraph.azure.databases.cosmos_db",
+
+        # Security / Identity
+        "key vault": "mxgraph.azure.security.key_vaults",
+        "defender": "mxgraph.azure.security.defender",
+        "sentinel": "mxgraph.azure.security.azure_sentinel",
+        "aad": "mxgraph.azure.identity.active_directory",
+        "entra id": "mxgraph.azure.identity.active_directory",
+
+        # Management / Monitoring
+        "log analytics": "mxgraph.azure.management.log_analytics",
+        "azure monitor": "mxgraph.azure.management.monitor",
+        " monitor": "mxgraph.azure.management.monitor",
+        "policy": "mxgraph.azure.management.policy",
+        "blueprint": "mxgraph.azure.management.blueprints",
+
+        # Integration / Apps / AI
+        "logic apps": "mxgraph.azure.integration.logic_apps",
+        "api management": "mxgraph.azure.integration.api_management",
+        "service bus": "mxgraph.azure.integration.service_bus",
+        "event hubs": "mxgraph.azure.integration.event_hubs",
+        "event grid": "mxgraph.azure.integration.event_grid",
+        "machine learning": "mxgraph.azure.analytics.machine_learning_studio",
+        "azure ml": "mxgraph.azure.analytics.machine_learning_studio",
+        "purview": "mxgraph.azure.management.purview",
+        "power bi": "mxgraph.azure.analytics.power_bi_embedded",
+        "devops": "mxgraph.azure.management.visual_studio_online",
+
+        # --- NEW AZURE SHAPES FROM XML FILES ---
+        "entra connect": "mxgraph.azure.identity.entra_connect",
+        "entra domain services": "mxgraph.azure.identity.entra_domain_services",
+        "entra global secure access": "mxgraph.azure.identity.entra_global_secure_access",
+        "entra id protection": "mxgraph.azure.identity.entra_id_protection",
+        "entra internet access": "mxgraph.azure.identity.entra_internet_access",
+        "entra managed identities": "mxgraph.azure.identity.entra_managed_identities",
+        "entra private access": "mxgraph.azure.identity.entra_private_access",
+        "entra pim": "mxgraph.azure.identity.entra_privileged_identity_management",
+        "entra verified id": "mxgraph.azure.identity.entra_verified_id",
+        "entra connect sync": "mxgraph.azure.identity.entra_connect_sync",
+        "entra identity": "mxgraph.azure.identity.entra_identity",
+        "active directory connect health": "mxgraph.azure.identity.active_directory_connect_health",
+
+        "dns security policy": "mxgraph.azure.networking.dns_security_policy",
+        "azure firewall policy": "mxgraph.azure.networking.azure_firewall_policy",
+        "service endpoint policies": "mxgraph.azure.networking.service_endpoint_policies",
+        "waf policy": "mxgraph.azure.networking.web_application_firewall_policies",
+        "log analytics workspace": "mxgraph.azure.analytics.log_analytics_workspaces",
+        "log analytics query pack": "mxgraph.azure.other.log_analytics_query_pack",
+        "data lake analytics": "mxgraph.azure.analytics.data_lake_analytics",
+        "event hub clusters": "mxgraph.azure.analytics.event_hub_clusters",
+        "service fabric clusters": "mxgraph.azure.containers.service_fabric_clusters",
+        "virtual clusters": "mxgraph.azure.databases.virtual_clusters",
+        "private endpoints": "mxgraph.azure.other.private_endpoints",
+        "azure monitor pipeline": "mxgraph.azure.other.azure_monitor_pipeline",
+        "application insights": "mxgraph.azure.devops.application_insights",
+
+        # NEW FROM SECOND XML
+        "virtual networks": "img/lib/azure2/networking/Virtual_Networks.svg",
+        "virtual wan hub": "img/lib/azure2/networking/Virtual_WAN_Hub.svg",
+        "virtual wans": "img/lib/azure2/networking/Virtual_WANs.svg",
+        "vpn gateway (mscae)": "img/lib/mscae/VPN_Gateway.svg",
+    }
+
+    AWS_SHAPES = {
+        # Networking
+        "vpc endpoint": "mxgraph.aws3.vpc_endpoint",
+        "vpc peering": "mxgraph.aws3.vpc_peering",
+        "internet gateway": "mxgraph.aws3.internet_gateway",
+        "nat gateway": "mxgraph.aws3.nat_gateway",
+        "route table": "mxgraph.aws3.route_table",
+        "alb": "mxgraph.aws3.alb",
+        "application load balancer": "mxgraph.aws3.alb",
+        "nlb": "mxgraph.aws3.nlb",
+        "network load balancer": "mxgraph.aws3.nlb",
+        "security group": "mxgraph.aws3.security_group",
+
+        # Compute
+        "ec2 ": "mxgraph.aws3.ec2",
+        " ec2": "mxgraph.aws3.ec2",
+        "ec2 instance": "mxgraph.aws3.ec2",
+        "autoscaling": "mxgraph.aws3.auto_scaling",
+        "auto scaling": "mxgraph.aws3.auto_scaling",
+        "eks": "mxgraph.aws3.eks",
+        "ecs": "mxgraph.aws3.ecs",
+        "lambda": "mxgraph.aws3.lambda",
+
+        # Storage / Data
+        "s3 ": "mxgraph.aws3.s3",
+        " s3": "mxgraph.aws3.s3",
+        "s3 bucket": "mxgraph.aws3.s3",
+        "rds": "mxgraph.aws3.rds",
+        "aurora": "mxgraph.aws3.rds",
+        "dynamodb": "mxgraph.aws3.dynamodb",
+        "redshift": "mxgraph.aws3.redshift",
+
+        # Security / Identity
+        "iam role": "mxgraph.aws3.iam_role",
+        "iam user": "mxgraph.aws3.iam_user",
+        "kms": "mxgraph.aws3.kms",
+        "waf": "mxgraph.aws3.waf",
+        "shield": "mxgraph.aws3.shield",
+
+        # Management / Monitoring
+        "cloudwatch": "mxgraph.aws3.cloudwatch",
+        "cloudtrail": "mxgraph.aws3.cloudtrail",
+        "config ": "mxgraph.aws3.config",
+        "systems manager": "mxgraph.aws3.systems_manager",
+
+        # Integration / Apps / AI
+        "api gateway": "mxgraph.aws3.api_gateway",
+        "sns": "mxgraph.aws3.sns",
+        "sqs": "mxgraph.aws3.sqs",
+        "eventbridge": "mxgraph.aws3.eventbridge",
+        "step functions": "mxgraph.aws3.step_functions",
+        "sagemaker": "mxgraph.aws3.sagemaker",
+
+        # --- NEW AWS SERVICES FROM XML ---
+        "cloudfront": "mxgraph.aws3.cloudfront",
+        "open search": "mxgraph.aws4.elasticsearch_service",
+        "opensearch": "mxgraph.aws4.elasticsearch_service",
+        "msk": "mxgraph.aws4.msk_amazon_msk_connect",
+        "msk serverless": "mxgraph.aws4.msk_amazon_msk_connect",
+        "glue": "mxgraph.aws3.glue",
+        "datasync": "mxgraph.aws4.datasync",
+        "lake formation": "mxgraph.aws4.lake_formation",
+        "data lake": "mxgraph.aws4.data_lake_resource_icon",
+
+        "aws data pipeline": "mxgraph.aws4.data_pipeline",
+        "endpoint": "mxgraph.aws4.endpoint",
+        "endpoints": "mxgraph.aws4.endpoints",
+
+        # NEW FROM SECOND XML
+        "vpn gateway": "mxgraph.aws3.vpn_gateway",
+        "vpn connection": "mxgraph.aws3.vpn_connection",
+        "client vpn": "mxgraph.aws4.client_vpn",
+        "site to site vpn": "mxgraph.aws4.site_to_site_vpn",
+        "elastic network interface": "mxgraph.aws4.elastic_network_interface",
+        "network acl": "mxgraph.aws4.network_access_control_list",
+        "cloud wan virtual pop": "mxgraph.aws4.cloud_wan_virtual_pop",
+        "elastic network adapter": "mxgraph.aws4.elastic_network_adapter",
+    }
+
+    GCP_SHAPES = {
+        # Networking
+        "vpc network": "mxgraph.gcp.networking.vpc",
+        "vpc ": "mxgraph.gcp.networking.vpc",
+        " subnet": "mxgraph.gcp.networking.subnet",
+        "cloud load balancing": "mxgraph.gcp.networking.load_balancer",
+        "load balancer": "mxgraph.gcp.networking.load_balancer",
+        "cloud armor": "mxgraph.gcp.security.cloud_armor",
+        "cloud nat": "mxgraph.gcp.networking.cloud_nat",
+
+        # Compute
+        "compute engine": "mxgraph.gcp.compute.compute_engine",
+        "vm instance": "mxgraph.gcp.compute.compute_engine",
+        "gke": "mxgraph.gcp.compute.kubernetes_engine",
+        "kubernetes engine": "mxgraph.gcp.compute.kubernetes_engine",
+        "cloud run": "mxgraph.gcp.compute.cloud_run",
+        "cloud functions": "mxgraph.gcp.compute.cloud_functions",
+
+        # Storage / Data
+        "cloud storage": "mxgraph.gcp.storage.cloud_storage",
+        "storage bucket": "mxgraph.gcp.storage.cloud_storage",
+        "bigquery": "mxgraph.gcp.analytics.bigquery",
+        "cloud sql": "mxgraph.gcp.database.cloud_sql",
+        "spanner": "mxgraph.gcp.database.spanner",
+        "firestore": "mxgraph.gcp.database.firestore",
+
+        # Security / Identity
+        "iam ": "mxgraph.gcp.security.iam",
+        " service account": "mxgraph.gcp.security.iam",
+        "kms": "mxgraph.gcp.security.kms",
+        "cloud identity": "mxgraph.gcp.security.cloud_identity",
+
+        # Management / Monitoring
+        "cloud logging": "mxgraph.gcp.operations.logging",
+        " logging": "mxgraph.gcp.operations.logging",
+        "cloud monitoring": "mxgraph.gcp.operations.monitoring",
+        " monitoring": "mxgraph.gcp.operations.monitoring",
+        "cloud audit logs": "mxgraph.gcp.operations.logging",
+
+        # Integration / Apps / AI
+        "pub/sub": "mxgraph.gcp.integration.pubsub",
+        "pubsub": "mxgraph.gcp.integration.pubsub",
+        "dataflow": "mxgraph.gcp.analytics.dataflow",
+        "composer": "mxgraph.gcp.analytics.composer",
+        "vertex ai": "mxgraph.gcp.ai.vertex_ai",
+    }
+
+    # --- CONTAINER ICONS ---
+
+    AZURE_CONTAINERS = {
+        "auto scaling group": "mxgraph.aws4.group_auto_scaling_group",
+        "availability zone": "img/lib/azure2/general/Availability_Zones.svg",
+        "azure machine learning": "img/lib/azure2/ai_machine_learning/Machine_Learning.svg",
+        "cluster": "mxgraph.veeam.cluster",
+        "devops": "img/lib/azure2/devops/Azure_DevOps.svg",
+        "dr site": "mxgraph.veeam.dr_site",
+        "hyper-v host": "mxgraph.veeam.hyper_v_host",
+        "landing zone": "img/lib/azure2/general/Region.svg",
+        "machine learning workspace": "img/lib/azure2/ai_machine_learning/Machine_Learning.svg",
+        "management group": "img/lib/azure2/general/Management_Groups.svg",
+        "power bi": "img/lib/azure2/power_platform/PowerBI.svg",
+        "powerbi": "img/lib/azure2/power_platform/PowerBI.svg",
+        "private endpoint": "img/lib/azure2/other/Private_Endpoints.svg",
+        "private endpoints": "img/lib/azure2/other/Private_Endpoints.svg",
+        "purview": "img/lib/azure2/databases/Azure_Purview_Accounts.svg",
+        "region": "img/lib/azure2/general/Region.svg",
+        "resource group": "img/lib/azure2/general/Resource_Groups.svg",
+        "server stack": "mxgraph.veeam.server_stack",
+        "subnet": "img/lib/azure2/networking/Subnet.svg",
+        "virtual network": "img/lib/azure2/networking/Virtual_Network.svg",
+        "vnet": "img/lib/azure2/networking/Virtual_Network.svg",
+    }
+
+    AWS_CONTAINERS = {
+        "vpc": "img/lib/aws4/networking_content/Virtual-private-cloud.svg",
+        "subnet": "img/lib/aws4/networking_content/Subnet.svg",
+        "region": "img/lib/aws4/general/Region.svg",
+        "availability zone": "img/lib/aws4/general/Availability-zone.svg",
+        "availability zone ": "img/lib/aws4/general/Availability-zone.svg",
+    }
+
+    GCP_CONTAINERS = {
+        "vpc network": "img/lib/gcp2/networking/VPC-Network.svg",
+        "vpc ": "img/lib/gcp2/networking/VPC-Network.svg",
+        "subnet": "img/lib/gcp2/networking/Subnet.svg",
+        "region": "img/lib/gcp2/general/Region.svg",
+        "zone": "img/lib/gcp2/general/Zone.svg",
+    }
+
+    PROVIDER_SHAPES = {
+        "azure": AZURE_SHAPES,
+        "aws": AWS_SHAPES,
+        "gcp": GCP_SHAPES,
+    }
+
+    PROVIDER_CONTAINERS = {
+        "azure": AZURE_CONTAINERS,
+        "aws": AWS_CONTAINERS,
+        "gcp": GCP_CONTAINERS,
+    }
+
+    def _fix_invalid_arrays(xml: str) -> str:
+        """
+        Repairs malformed <Array points="x y x y"> tags into valid Draw.io format.
+        """
+        import re
+
+        def convert(match):
+            pts = match.group(1).strip().split()
+            mxpts = []
+            for i in range(0, len(pts), 2):
+                try:
+                    x = pts[i]
+                    y = pts[i+1]
+                    mxpts.append(f'<mxPoint x="{x}" y="{y}" />')
+                except IndexError:
+                    continue
+            return '<Array as="points">' + "".join(mxpts) + '</Array>'
+
+        # Fix self-closing <Array points="..."/>
+        xml = re.sub(r'<Array\s+points="([^"]+)"\s*/>', convert, xml)
+
+        # Fix <Array points="..."></Array>
+        xml = re.sub(r'<Array\s+points="([^"]+)"\s*>.*?</Array>', convert, xml, flags=re.DOTALL)
+
+        return xml
+
+    def _detect_provider(root) -> str:
+        """
+        Best-effort provider detection from mxfile/diagram attributes.
+        Defaults to 'azure' if ambiguous.
+        """
+        mxfile = root
+        provider = None
+
+        host = mxfile.get("host", "") or ""
+        agent = mxfile.get("agent", "") or ""
+        meta = (host + " " + agent).lower()
+
+        if "azure" in meta:
+            provider = "azure"
+        elif "aws" in meta or "amazon" in meta:
+            provider = "aws"
+        elif "gcp" in meta or "google" in meta:
+            provider = "gcp"
+
+        if provider is None:
+            diagram = mxfile.find(".//diagram")
+            if diagram is not None:
+                name = (diagram.get("name", "") or "").lower()
+                if "azure" in name:
+                    provider = "azure"
+                elif "aws" in name or "amazon" in name:
+                    provider = "aws"
+                elif "gcp" in name or "google" in name:
+                    provider = "gcp"
+
+        return provider or "azure"
+
+    def _apply_shape_mappings(raw_xml: str) -> str:
+        """
+        Parses the XML, detects the cloud provider, and upgrades generic
+        vertex shapes to provider-specific icons and containers based on
+        the cell's value text.
+        """
+        import xml.etree.ElementTree as ET
+
+        try:
+            tree = ET.ElementTree(ET.fromstring(raw_xml))
+        except Exception as e:
+            logger.error(f"Failed to parse XML for shape mapping: {e}")
+            return raw_xml
+
+        root = tree.getroot()
+        provider = _detect_provider(root)
+        shape_map = PROVIDER_SHAPES.get(provider, {})
+        container_map = PROVIDER_CONTAINERS.get(provider, {})
+
+        if not shape_map and not container_map:
+            return raw_xml
+
+        for cell in root.findall(".//mxCell"):
+            if cell.get("vertex") != "1":
+                continue
+
+            value = (cell.get("value") or "").lower()
+            if not value:
+                continue
+
+            style = cell.get("style", "") or ""
+
+            # 1) Container mapping (VNet, Subnet, Region, etc.) – image-based
+            matched_container = None
+            for key, img_path in container_map.items():
+                if key in value:
+                    matched_container = img_path
+                    break
+
+            if matched_container:
+                # Overwrite style to be an image-based, stretchable container
+                # Keep some layout-related flags if present (rounded, dashed, etc.)
+                base_flags = []
+                if "rounded=1" in style:
+                    base_flags.append("rounded=1")
+                if "dashed=1" in style:
+                    base_flags.append("dashed=1")
+                if "whiteSpace=wrap" in style:
+                    base_flags.append("whiteSpace=wrap")
+                if "html=1" in style or not base_flags:
+                    base_flags.append("html=1")
+
+                style_parts = [
+                    "shape=image",
+                    f"image={matched_container}",
+                    "aspect=fixed",
+                ] + base_flags
+
+                cell.set("style", ";".join(style_parts) + ";")
+                # Once treated as container, we don't also treat it as a service icon
+                continue
+
+            # 2) Service icon mapping (mxgraph.*) – only if not already platform-specific
+            if "shape=mxgraph." in style:
+                continue
+
+            matched_shape = None
+            for key, shape in shape_map.items():
+                if key in value:
+                    matched_shape = shape
+                    break
+
+            if not matched_shape:
+                continue
+
+            if style and not style.endswith(";"):
+                style += ";"
+            style = f"shape={matched_shape};" + style
+            cell.set("style", style)
+
+        try:
+            return ET.tostring(root, encoding="unicode")
+        except Exception as e:
+            logger.error(f"Failed to serialize XML after shape mapping: {e}")
+            return raw_xml
+
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    path = os.path.join(output_dir, "cloudarch_drawio.xml")
+    lock_path = os.path.join(output_dir, ".cloudarch_drawio.lock")
+
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    if (
+        not xml_content
+        or (isinstance(xml_content, str) and xml_content.strip() == "")
+    ):
+        _log_agent_activity("No XML content provided to save_drawio.")
+        return "INFO: No XML content provided to save_drawio, so nothing has been done."
+
+    def acquire_lock(timeout: float = 5.0) -> bool:
+        start = time.time()
+        while time.time() - start < timeout:
+            if not os.path.exists(lock_path):
+                try:
+                    with open(lock_path, "w", encoding="utf-8") as lf:
+                        lf.write(str(os.getpid()))
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to create lock file: {e}")
+            time.sleep(0.1)
+        logger.error("Timeout acquiring cloudarch_drawio lock.")
+        return False
+
+    def release_lock():
+        try:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
+        except Exception as e:
+            logger.error(f"Failed to remove lock file: {e}")
+
+    try:
+        _log_agent_activity("Saving DrawIO XML to file...")
+        os.makedirs(output_dir, exist_ok=True)
+
+        if not acquire_lock():
+            return "ERROR: Could not acquire lock for DrawIO persistence."
+
+        raw_xml = _fix_invalid_arrays(xml_content).strip()
+
+        try:
+            import xml.etree.ElementTree as ET
+            ET.fromstring(raw_xml)
+        except Exception as e:
+            logger.error(f"Invalid XML content: {e}")
+            raw_path = os.path.join(output_dir, "cloudarch_drawio_raw.xml")
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(raw_xml)
+            return (
+                "ERROR: Invalid XML provided. "
+                f"Raw XML written to {raw_path}. "
+                "Your last output was malformed or truncated. "
+                "You MUST regenerate the architecture."
+            )
+
+        mapped_xml = _apply_shape_mappings(raw_xml)
+
+        try:
+            import xml.etree.ElementTree as ET
+            ET.fromstring(mapped_xml)
+        except Exception as e:
+            logger.error(f"Invalid XML after shape mapping: {e}")
+            raw_path = os.path.join(output_dir, "cloudarch_drawio_mapped_raw.xml")
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(mapped_xml)
+            return (
+                "ERROR: XML became invalid after shape mapping. "
+                f"Raw XML written to {raw_path}. "
+                "Check mapping rules or regenerate the architecture."
+            )
+
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as existing:
+                    old_xml = existing.read().strip()
+                if old_xml == mapped_xml.strip():
+                    _log_agent_activity(
+                        f"No changes detected; skipping write to {path}."
+                    )
+                    return {"SUCCESS": f"The file {path} is unchanged."}
+            except Exception:
+                pass
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(mapped_xml)
+
+        _log_agent_activity(f"Successfully saved DrawIO XML to {path}.")
+        return {"SUCCESS": f"The file {path} was saved successfully."}
+
+    except Exception:
+        error_trace = traceback.format_exc()
+        logger.error(f"Failed to save DrawIO XML: {error_trace}")
+        return "ERROR: Failed to save DrawIO XML due to an unexpected error. Check logs for details."
+
+    finally:
+        release_lock()
+
 def _save_raw_data_to_json(json_content) -> str:
     """
     Saves the finalized JSON to output/process_data.json.
