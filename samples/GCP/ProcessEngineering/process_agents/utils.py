@@ -406,7 +406,7 @@ def save_drawio(xml_content) -> str:
         "power bi": "mxgraph.azure.analytics.power_bi_embedded",
         "devops": "mxgraph.azure.management.visual_studio_online",
 
-        # --- NEW AZURE SHAPES FROM XML FILES ---
+        # --- AZURE SHAPES FROM EARLIER XMLs ---
         "entra connect": "mxgraph.azure.identity.entra_connect",
         "entra domain services": "mxgraph.azure.identity.entra_domain_services",
         "entra global secure access": "mxgraph.azure.identity.entra_global_secure_access",
@@ -434,11 +434,93 @@ def save_drawio(xml_content) -> str:
         "azure monitor pipeline": "mxgraph.azure.other.azure_monitor_pipeline",
         "application insights": "mxgraph.azure.devops.application_insights",
 
-        # NEW FROM SECOND XML
-        "virtual networks": "img/lib/azure2/networking/Virtual_Networks.svg",
-        "virtual wan hub": "img/lib/azure2/networking/Virtual_WAN_Hub.svg",
-        "virtual wans": "img/lib/azure2/networking/Virtual_WANs.svg",
-        "vpn gateway (mscae)": "img/lib/mscae/VPN_Gateway.svg",
+        # --- MORE AZURE SHAPES FROM LATEST XML ---
+
+        # Security / Governance
+        "time series insights access policies": "mxgraph.azure.internet_of_things.time_series_insights_access_policies",
+        "defender plc": "mxgraph.azure.other.defender_plc",
+        "defender easm": "mxgraph.azure.security.ms_defender_easm",
+        "dependency monitor": "mxgraph.azure.security.dependency_monitor",
+        "tenant key": "mxgraph.azure.security.tenant_key",
+        "key object": "mxgraph.azure.security.key",
+
+        # AI / ML
+        "ai studio": "mxgraph.azure.ai_machine_learning.ai_studio",
+        "anomaly detector": "mxgraph.azure.ai_machine_learning.anomaly_detector",
+        "applied ai": "mxgraph.azure.ai_machine_learning.azure_applied_ai",
+        "batch ai": "mxgraph.azure.ai_machine_learning.batch_ai",
+        "bonsai": "mxgraph.azure.ai_machine_learning.bonsai",
+        "bot services": "mxgraph.azure.ai_machine_learning.bot_services",
+        "computer vision": "mxgraph.azure.ai_machine_learning.computer_vision",
+        "cognitive services": "mxgraph.azure.ai_machine_learning.cognitive_services",
+        "content moderator": "mxgraph.azure.ai_machine_learning.content_moderators",
+        "content safety": "mxgraph.azure.ai_machine_learning.content_safety",
+        "language understanding": "mxgraph.azure.ai_machine_learning.language_understanding",
+        "azure openai": "mxgraph.azure.ai_machine_learning.azure_openai",
+        "ml studio workspaces": "mxgraph.azure.ai_machine_learning.machine_learning_studio_workspaces",
+        "speech services": "mxgraph.azure.ai_machine_learning.speech_services",
+        "translator text": "mxgraph.azure.ai_machine_learning.translator_text",
+
+        # Analytics / Data
+        "analysis services": "mxgraph.azure.analytics.analysis_services",
+        "data explorer clusters": "mxgraph.azure.databases.azure_data_explorer_clusters",
+        "data factory": "mxgraph.azure.databases.data_factory",
+        "data lake store gen1": "mxgraph.azure.analytics.data_lake_store_gen1",
+        "databricks": "mxgraph.azure.analytics.azure_databricks",
+        "endpoint analytics": "mxgraph.azure.analytics.endpoint_analytics",
+        "stream analytics jobs": "mxgraph.azure.analytics.stream_analytics_jobs",
+        "synapse analytics": "mxgraph.azure.analytics.azure_synapse_analytics",
+        "azure workbooks": "mxgraph.azure.analytics.azure_workbooks",
+
+        # App Services
+        "app service certificates": "mxgraph.azure.app_services.app_service_certificates",
+        "app service domains": "mxgraph.azure.app_services.app_service_domains",
+        "app service environments": "mxgraph.azure.app_services.app_service_environments",
+        "app service plans": "mxgraph.azure.app_services.app_service_plans",
+        "app services": "mxgraph.azure.app_services.app_services",
+        "cdn profiles": "mxgraph.azure.app_services.cdn_profiles",
+        "notification hubs": "mxgraph.azure.app_services.notification_hubs",
+        "search services": "mxgraph.azure.app_services.search_services",
+
+        # Azure VMware / Compute
+        "avs": "mxgraph.azure.azure_vmware_solution.avs",
+        "availability sets": "mxgraph.azure.compute.availability_sets",
+        "batch accounts": "mxgraph.azure.compute.batch_accounts",
+        "container instances": "mxgraph.azure.compute.container_instances",
+        "container services": "mxgraph.azure.compute.container_services_deprecated",
+        "disk encryption sets": "mxgraph.azure.compute.disk_encryption_sets",
+        "disks": "mxgraph.azure.compute.disks",
+        "image templates": "mxgraph.azure.compute.image_templates",
+        "images": "mxgraph.azure.compute.images",
+        "kubernetes services": "mxgraph.azure.compute.kubernetes_services",
+
+        # Databases
+        "sql server": "mxgraph.azure.databases.sql_server",
+        "sql stretch databases": "mxgraph.azure.databases.azure_sql_server_stretch_databases",
+        "sql vm": "mxgraph.azure.databases.azure_sql_vm",
+        "sql managed instance": "mxgraph.azure.databases.sql_managed_instance",
+        "instance pools": "mxgraph.azure.databases.instance_pools",
+        "oracle database": "mxgraph.azure.databases.oracle_database",
+        "sql elastic pools": "mxgraph.azure.databases.sql_elastic_pools",
+
+        # Management / Monitoring (more)
+        "activity log": "mxgraph.azure.management.activity_log",
+        "diagnostics settings": "mxgraph.azure.management.diagnostics_settings",
+        "metrics": "mxgraph.azure.management.metrics",
+        "network watcher": "mxgraph.azure.networking.network_watcher",
+        "sap azure monitor": "mxgraph.azure.monitor.sap_azure_monitor",
+        "scale": "mxgraph.azure.general.scale",
+
+        # Networking (more)
+        "private link hub": "mxgraph.azure.networking.private_link_hub",
+        "bastion": "mxgraph.azure.networking.bastions",
+        "dns private resolver": "mxgraph.azure.networking.dns_private_resolver",
+        "dns zones": "mxgraph.azure.networking.dns_zones",
+        "expressroute circuits": "mxgraph.azure.networking.expressroute_circuits",
+        "firewall manager": "mxgraph.azure.networking.azure_firewall_manager",
+        "front door": "mxgraph.azure.networking.front_doors",
+        "ip address manager": "mxgraph.azure.networking.ip_address_manager",
+        "application gateway container": "mxgraph.azure.networking.application_gateway_containers",
     }
 
     AWS_SHAPES = {
@@ -494,7 +576,7 @@ def save_drawio(xml_content) -> str:
         "step functions": "mxgraph.aws3.step_functions",
         "sagemaker": "mxgraph.aws3.sagemaker",
 
-        # --- NEW AWS SERVICES FROM XML ---
+        # New AWS services from XMLs
         "cloudfront": "mxgraph.aws3.cloudfront",
         "open search": "mxgraph.aws4.elasticsearch_service",
         "opensearch": "mxgraph.aws4.elasticsearch_service",
@@ -508,16 +590,6 @@ def save_drawio(xml_content) -> str:
         "aws data pipeline": "mxgraph.aws4.data_pipeline",
         "endpoint": "mxgraph.aws4.endpoint",
         "endpoints": "mxgraph.aws4.endpoints",
-
-        # NEW FROM SECOND XML
-        "vpn gateway": "mxgraph.aws3.vpn_gateway",
-        "vpn connection": "mxgraph.aws3.vpn_connection",
-        "client vpn": "mxgraph.aws4.client_vpn",
-        "site to site vpn": "mxgraph.aws4.site_to_site_vpn",
-        "elastic network interface": "mxgraph.aws4.elastic_network_interface",
-        "network acl": "mxgraph.aws4.network_access_control_list",
-        "cloud wan virtual pop": "mxgraph.aws4.cloud_wan_virtual_pop",
-        "elastic network adapter": "mxgraph.aws4.elastic_network_adapter",
     }
 
     GCP_SHAPES = {
@@ -567,13 +639,14 @@ def save_drawio(xml_content) -> str:
         "vertex ai": "mxgraph.gcp.ai.vertex_ai",
     }
 
-    # --- CONTAINER ICONS ---
-
+    # Container icons (image-based)
     AZURE_CONTAINERS = {
         "auto scaling group": "mxgraph.aws4.group_auto_scaling_group",
         "availability zone": "img/lib/azure2/general/Availability_Zones.svg",
         "azure machine learning": "img/lib/azure2/ai_machine_learning/Machine_Learning.svg",
         "cluster": "mxgraph.veeam.cluster",
+        "data lake": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake storage": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
         "devops": "img/lib/azure2/devops/Azure_DevOps.svg",
         "dr site": "mxgraph.veeam.dr_site",
         "hyper-v host": "mxgraph.veeam.hyper_v_host",
