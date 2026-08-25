@@ -34,4 +34,4 @@ RUN mkdir -p /app/output/logs /app/output/subprocesses /app/output/docs \
 USER ${account}
 
 ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["rm -rf .venv && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && .venv/bin/adk run process_agents"]
+CMD ["rm -rf .venv && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && python -m process_agents.agent"]
