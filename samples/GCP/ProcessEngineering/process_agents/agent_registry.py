@@ -2,6 +2,7 @@
 from .analysis_agent import analysis_agent
 from .compliance_agent import compliance_agent
 from .consultant_agent import consultant_agent
+from .cloudarch_agent import cloudarch_agent
 from .create_process_agent import full_design_pipeline
 from .doc_creation_agent import build_doc_creation_agent
 from .grounding_agent import grounding_agent
@@ -75,7 +76,7 @@ CREATE_PIPELINE_AGENTS = [
 ]
 
 UPDATE_PIPELINE_AGENTS = [
-        # Stage 1: Context-Aware Analysis
+    # Stage 1: Context-Aware Analysis
     update_analysis_agent,
     
     # Stage 2: Update & Review Loop
@@ -97,4 +98,8 @@ UPDATE_PIPELINE_AGENTS = [
     mute_agent_instance,
     unmute_agent_instance,
     stop_controller_agent_instance
+]
+
+CLOUD_AGENTS = [
+    cloudarch_agent
 ]
