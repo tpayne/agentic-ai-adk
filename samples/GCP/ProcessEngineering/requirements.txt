@@ -1,6 +1,7 @@
 # ADK runtime
 google-adk<2.0.0  # Or strictly google-adk==0.1.42
 google-auth>=2.17.3
+litellm>=1.55.0
 
 # Web App
 flask>=3.0.0
