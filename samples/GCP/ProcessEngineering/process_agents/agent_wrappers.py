@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Sequence, Callable, List, Union
 
 from google.adk.agents import LlmAgent, Agent
+from google.adk.models.lite_llm import LiteLlm
 from google.genai import types
 
 from .utils import (
@@ -16,6 +17,28 @@ from .utils import (
 
 # --- NEW: sentinel so callers can distinguish "use default" vs "None (disable)" ---
 _DEFAULT = object()   # private unique marker
+
+
+def _resolve_model(model: Optional[Any]) -> Any:
+    """
+    Normalize a model spec into whatever ADK's LlmAgent/Agent expects.
+
+    - None -> falls back to getProperty("MODEL")
+    - Already a non-string model object (e.g. a LiteLlm instance, or any
+      other BaseLlm) -> passed through unchanged, so clone() and callers
+      who construct their own LiteLlm(...) never get double-wrapped.
+    - A provider-prefixed string, e.g. "anthropic/claude-sonnet-5",
+      "openai/gpt-4o", "vertex_ai/claude-3-7-sonnet@20250219" -> wrapped
+      in LiteLlm so non-Gemini providers work out of the box.
+    - A bare Gemini model name, e.g. "gemini-2.5-flash" (no "/") -> passed
+      through as a plain string so ADK's native Gemini path is used.
+    """
+    resolved = model if model is not None else getProperty("MODEL")
+    if resolved is None or not isinstance(resolved, str):
+        return resolved
+    if "/" in resolved:
+        return LiteLlm(model=resolved)
+    return resolved
 
 
 # (unchanged) helper(s) ...
@@ -73,7 +96,7 @@ class DefaultLlmAgent(LlmAgent):
         **kwargs: Any,
     ) -> None:
 
-        resolved_model = model or getProperty("MODEL")
+        resolved_model = _resolve_model(model)
 
         if instruction is None and instruction_file:
             instruction = load_instruction(instruction_file)
@@ -165,7 +188,7 @@ class DefaultAgent(Agent):
         **kwargs: Any,
     ) -> None:
 
-        resolved_model = model or getProperty("MODEL")
+        resolved_model = _resolve_model(model)
 
         if instruction is None and instruction_file:
             instruction = load_instruction(instruction_file)

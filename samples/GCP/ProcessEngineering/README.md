@@ -6,6 +6,8 @@ Basically, this agent will take a raw prompt and design, test, and document a fu
 
 In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
 
+This application is based on Google ADK but is using `LiteLlm`, so you can use multiple model providers. To use different models, set the appropriate model in the `agentapp.properties` file. 
+
 --- 
 
 ## Status
@@ -414,7 +416,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # set your API key (consider using a .env or secrets manager in production)
+# use the model key appropriate to your model
 export GOOGLE_API_KEY="<YourKey>"
+export ANTHROPIC_API_KEY="<YourKey>"
 
 # run the pipeline
 .venv/bin/adk run process_agents

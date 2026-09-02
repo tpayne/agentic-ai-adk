@@ -38,8 +38,10 @@ if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID"):
         raise EnvironmentError("Vertex AI requires GOOGLE_CLOUD_PROJECT to be set in your .env")
 elif os.getenv("GOOGLE_API_KEY"):
     os.environ["ADK_MODEL_PROVIDER"] = "api_key"
+elif os.getenv("ANTHROPIC_API_KEY"):
+    os.environ["ADK_MODEL_PROVIDER"] = "anthropic"
 else:
-    raise EnvironmentError("Either GOOGLE_CLOUD_PROJECT (for Vertex) or GOOGLE_API_KEY must be set in environment variables.")
+    raise EnvironmentError("API must be set in environment variables.")
 
 # ---------------------------------------------------------
 # LOGGING SETUP
