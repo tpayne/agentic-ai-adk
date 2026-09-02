@@ -2,6 +2,9 @@
 google-adk>=0.1.42
 google-auth>=2.17.3
 
+# Claude model access via LiteLLM connector (requires ANTHROPIC_API_KEY env var)
+litellm>=1.55.0
+
 # Yahoo Finance tooling + caching and data handling
 yfinance>=0.2.28
 requests-cache>=0.9.8

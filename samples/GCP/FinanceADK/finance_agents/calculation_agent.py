@@ -1,4 +1,3 @@
-
 # calculation_agent.py — MERGED VERSION
 # DATE: 2025-12-07
 """
@@ -48,6 +47,50 @@ HEADERS = {
 # -----------------------------------------------------------------------------
 # Index constituent scrapers (robust columns, UA headers)
 # -----------------------------------------------------------------------------
+
+# Static fallback so a Wikipedia scrape failure (structure change, 403/429,
+# network block) doesn't hard-block portfolio generation. This is a point-in-
+# time snapshot and WILL drift from live index membership over time — treat
+# it as a degraded-mode safety net, not a source of truth, and refresh it
+# periodically (e.g. from an official Nasdaq/NASDAQ-100 constituents file).
+_NASDAQ100_FALLBACK_SYMBOLS: List[str] = [
+    'AAPL','ABNB','ADBE','ADI','ADP','ADSK','AEP','AMAT','AMD','AMGN','AMZN',
+    'ANSS','APP','ARM','ASML','AVGO','AXON','AZN','BIIB','BKNG','BKR','CCEP',
+    'CDNS','CDW','CEG','CHTR','CMCSA','COST','CPRT','CRWD','CSCO','CSGP',
+    'CSX','CTAS','CTSH','DASH','DDOG','DXCM','EA','EXC','FANG','FAST','FTNT',
+    'GEHC','GFS','GILD','GOOG','GOOGL','HON','IDXX','ILMN','INTC','INTU',
+    'ISRG','KDP','KHC','KLAC','LIN','LRCX','LULU','MAR','MCHP','MDLZ','MELI',
+    'META','MNST','MRVL','MSFT','MU','NFLX','NVDA','NXPI','ODFL','ON',
+    'ORLY','PANW','PAYX','PCAR','PDD','PEP','PLTR','PYPL','QCOM','REGN',
+    'ROP','ROST','SBUX','SNPS','TEAM','TMUS','TTD','TTWO','TXN','VRSK',
+    'VRTX','WBD','WDAY','XEL','ZS',
+]
+
+
+def _select_best_table(
+    tables: List[pd.DataFrame], columns: List[str]
+) -> "tuple[pd.DataFrame, str] | None":
+    """
+    Among all tables parsed from a page, return the (table, column) pair for
+    the LARGEST table that contains one of the candidate columns.
+
+    Wikipedia index pages often have several tables (the constituent list,
+    plus smaller 'recent additions/removals' tables) that can share column
+    names like 'Ticker'. Picking the first match risks grabbing a small
+    changes table instead of the full ~100/500-row constituent list; picking
+    the largest match is a simple, effective heuristic to avoid that.
+    """
+    best = None
+    best_len = -1
+    for tbl in tables:
+        for col in columns:
+            if col in tbl.columns and len(tbl) > best_len:
+                best = (tbl, col)
+                best_len = len(tbl)
+                break
+    return best
+
+
 def _get_sp500_symbols() -> List[str]:
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
@@ -70,15 +113,25 @@ def _get_nasdaq100_symbols() -> List[str]:
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         tables = pd.read_html(r.text)
-        for tbl in tables:
-            for col in ['Ticker', 'Symbol', 'Security']:
-                if col in tbl.columns:
-                    return tbl[col].astype(str).tolist()
-        logger.warning('NASDAQ100 symbols: expected column not found.')
-        return []
+        best = _select_best_table(tables, ['Ticker', 'Symbol', 'Security'])
+        if best is not None:
+            tbl, col = best
+            syms = [s.strip() for s in tbl[col].astype(str).tolist() if s.strip()]
+            # Sanity check: the real constituent list should be ~100 rows.
+            # A much smaller match likely means we picked up a "recent
+            # changes" table instead of the full list.
+            if len(syms) >= 90:
+                return syms
+            logger.warning(
+                f'NASDAQ100 table found but only {len(syms)} rows (expected '
+                '~100); falling back to static list.'
+            )
+        else:
+            logger.warning('NASDAQ100 symbols: expected column not found in any table.')
     except Exception as e:
         logger.error(f'NASDAQ100 scrape failed: {e}', exc_info=True)
-        return []
+    logger.warning('Using static NASDAQ100 fallback list (snapshot — may drift from live index membership).')
+    return list(_NASDAQ100_FALLBACK_SYMBOLS)
 
 def _get_ftse100_symbols() -> List[str]:
     url = 'https://en.wikipedia.org/wiki/FTSE_100_Index'
@@ -143,7 +196,7 @@ def get_major_index_symbols(index_name: str) -> Dict[str, Any]:
     }
     if idx in m:
         try:
-            syms = midx  # <-- Correctly invoke the mapped function
+            syms = m[idx]()  # Invoke the mapped function for this index
         except Exception as e:
             return {'index_name': idx, 'symbols': [], 'error': f'Failed to fetch list for {idx}: {e}'}
         if syms:
