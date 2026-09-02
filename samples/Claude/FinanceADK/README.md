@@ -64,7 +64,7 @@ This will allow the agent to run as a simple invocable script and not use a REST
     python3 -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
-    export GOOGLE_API_KEY=<YourKey>
+    export ANTHROPIC_API_KEY=<YourKey>
 ```
 
 ## Test Deployment Emulation
