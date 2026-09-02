@@ -29,19 +29,91 @@ import argparse
 
 # Load variables from .env file of env into os.environ
 load_dotenv()
-if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID"):
-    os.environ["ADK_MODEL_PROVIDER"] = "vertex"
-    os.environ["GOOGLE_CLOUD_LOCATION"] = getProperty("GOOGLE_CLOUD_LOCATION", default="us-central1")
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-    os.environ["GOOGLE_CLOUD_PROJECT"] = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID")
-    if not os.environ["GOOGLE_CLOUD_PROJECT"]:
-        raise EnvironmentError("Vertex AI requires GOOGLE_CLOUD_PROJECT to be set in your .env")
-elif os.getenv("GOOGLE_API_KEY"):
-    os.environ["ADK_MODEL_PROVIDER"] = "api_key"
-elif os.getenv("ANTHROPIC_API_KEY"):
-    os.environ["ADK_MODEL_PROVIDER"] = "anthropic"
-else:
-    raise EnvironmentError("API must be set in environment variables.")
+
+def configure_model_provider(model: str) -> None:
+    """
+    Given a MODEL string, verify the right credentials are present and set
+    ADK_MODEL_PROVIDER accordingly.
+
+    Supported forms:
+      - Bare Gemini name (no "/"), e.g. "gemini-3-flash-preview"
+          -> Vertex AI if GOOGLE_CLOUD_PROJECT/GOOGLE_PROJECT_ID is set,
+             else the Gemini API if GOOGLE_API_KEY is set.
+      - "anthropic/..."  -> requires ANTHROPIC_API_KEY
+      - "openai/..."     -> requires OPENAI_API_KEY
+      - "bedrock/..."    -> requires AWS region + credentials
+    """
+    # --- Bare Gemini model name: native ADK path, not LiteLLM ---
+    if "/" not in model:
+        project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID")
+        if project:
+            os.environ["ADK_MODEL_PROVIDER"] = "vertex"
+            os.environ["GOOGLE_CLOUD_LOCATION"] = getProperty("GOOGLE_CLOUD_LOCATION", default="us-central1")
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+            os.environ["GOOGLE_CLOUD_PROJECT"] = project
+        elif os.getenv("GOOGLE_API_KEY"):
+            os.environ["ADK_MODEL_PROVIDER"] = "api_key"
+        else:
+            raise EnvironmentError(
+                f"MODEL='{model}' is a Gemini model — set GOOGLE_CLOUD_PROJECT or "
+                "GOOGLE_PROJECT_ID (for Vertex AI), or GOOGLE_API_KEY (for the Gemini "
+                "API), in your environment."
+            )
+        return
+
+    provider = model.split("/", 1)[0]
+
+    # --- Anthropic direct ---
+    if provider == "anthropic":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            raise EnvironmentError(f"MODEL='{model}' requires ANTHROPIC_API_KEY to be set.")
+        os.environ["ADK_MODEL_PROVIDER"] = "anthropic"
+
+    # --- OpenAI ---
+    elif provider == "openai":
+        if not os.getenv("OPENAI_API_KEY"):
+            raise EnvironmentError(f"MODEL='{model}' requires OPENAI_API_KEY to be set.")
+        os.environ["ADK_MODEL_PROVIDER"] = "openai"
+
+    # --- AWS Bedrock ---
+    elif provider == "bedrock":
+        region = (
+            os.getenv("AWS_REGION_NAME")
+            or os.getenv("AWS_REGION")
+            or getProperty("AWS_REGION_NAME", default=None)
+        )
+        if not region:
+            raise EnvironmentError(
+                f"MODEL='{model}' requires AWS_REGION_NAME (or AWS_REGION) to be set."
+            )
+        os.environ["AWS_REGION_NAME"] = region
+        # Note: we can't reliably detect IAM-role auth (EC2/ECS/EKS instance
+        # profiles, IRSA) from env vars alone, so we only hard-fail when
+        # neither static keys nor a named profile are present — the common
+        # "forgot to configure anything locally" case.
+        if not (
+            (os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"))
+            or os.getenv("AWS_PROFILE")
+        ):
+            raise EnvironmentError(
+                f"MODEL='{model}' requires AWS credentials: set "
+                "AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, AWS_PROFILE, or run "
+                "under an IAM role with Bedrock access."
+            )
+        os.environ["ADK_MODEL_PROVIDER"] = "bedrock"
+        import litellm
+        litellm.modify_params = True  # required for multi-turn tool calls on Bedrock
+
+    else:
+        raise EnvironmentError(
+            f"Unrecognized provider prefix '{provider}/' in MODEL='{model}'. "
+            "Supported: anthropic/, openai/, bedrock/ (or a bare Gemini name)."
+        )
+
+
+# --- usage ---
+MODEL = getProperty("MODEL", default="gemini-3-flash-preview")
+configure_model_provider(MODEL)
 
 # ---------------------------------------------------------
 # LOGGING SETUP
