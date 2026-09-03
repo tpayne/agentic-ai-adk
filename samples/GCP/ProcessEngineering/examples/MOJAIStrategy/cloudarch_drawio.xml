@@ -1,0 +1,218 @@
+<mxfile host="Electron" modified="2025-02-18T12:00:00.000Z" agent="Mozilla/5.0" version="21.6.8" type="device">
+  <diagram id="moj-ai-gov-arch" name="MoJ AI Data Quality &amp; Governance Architecture">
+    <mxGraphModel dx="1422" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        
+        <mxCell id="title-banner" value="&lt;b style=&quot;font-size: 20px;&quot;&gt;UK Ministry of Justice (MoJ) - Enterprise AI Data Quality &amp;amp; Governance Reference Architecture&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 12px; color: #555;&quot;&gt;OFFICIAL-SENSITIVE Secure Enclave | NIST AI RMF 1.0, UK ATRS &amp;amp; EU AI Act Alignment | 7-Year Immutable Audit Trail&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#1e3a8a;strokeWidth=2;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1560" height="60" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c-moj-enclave" value="MoJ OFFICIAL-SENSITIVE Cloud Enclave (Azure UK South / UK West)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f0f4f8;strokeColor=#2563eb;strokeWidth=2;startSize=30;fontStyle=1;fontSize=14;fontColor=#1e3a8a;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="1560" height="880" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c-hub-vnet" value="Hub Virtual Network (VNet-Hub) - Perimeter &amp;amp; Identity Security" style="shape=image;image=img/lib/azure2/networking/Virtual_Network.svg;aspect=fixed;whiteSpace=wrap;html=1;" vertex="1" parent="c-moj-enclave">
+          <mxGeometry x="30" y="40" width="300" height="810" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-azure-firewall" value="Azure Firewall Premium&#10;(TLS Inspection &amp; IDPS)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.firewall;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="50" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-bastion" value="Azure Bastion&#10;(Secure Admin Access)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.bastion;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="160" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-apim" value="Azure API Management&#10;(mTLS, ATRS Policy Gateway)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.api_management;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="270" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-keyvault" value="Azure Key Vault (HSM)&#10;(Customer-Managed Keys &amp; RBAC)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.key_vault;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="380" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-sentinel" value="Microsoft Sentinel (SIEM)&#10;&amp; Log Analytics Workspace" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.azure_sentinel;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="490" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-immutable-storage" value="Azure Blob (WORM Storage)&#10;7-Year Immutable Audit Archive" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.storage_blob;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="610" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-entra" value="Microsoft Entra ID&#10;(PIM, Conditional Access, IAO RBAC)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.active_directory;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-hub-vnet">
+          <mxGeometry x="115" y="720" width="70" height="50" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c-data-vnet" value="Spoke 1: Ingestion &amp;amp; Quality Profiling Enclave (VNet-DataOps)" style="shape=image;image=img/lib/azure2/networking/Virtual_Network.svg;aspect=fixed;whiteSpace=wrap;html=1;" vertex="1" parent="c-moj-enclave">
+          <mxGeometry x="360" y="40" width="370" height="810" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-purview" value="Microsoft Purview&#10;(Data Governance &amp; Lineage Catalog)" style="shape=image;image=img/lib/azure2/databases/Azure_Purview_Accounts.svg;aspect=fixed;html=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="150" y="40" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-adf" value="Azure Data Factory / Synapse&#10;(Private Endpoints &amp; Lineage Extraction)" style="shape=image;image=img/lib/azure2/other/Private_Endpoints.svg;aspect=fixed;html=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="150" y="160" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-databricks" value="Azure Databricks (VNet Injection)&#10;Automated Data Quality &amp; Profiling Engine&#10;(Great Expectations / Deequ)" style="shape=image;image=img/lib/azure2/networking/Virtual_Network.svg;aspect=fixed;html=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="150" y="290" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-adls-landing" value="ADLS Gen2 (Raw Landing Zone)&#10;Classification: OFFICIAL-SENSITIVE" style="shape=image;image=img/lib/azure2/general/Region.svg;aspect=fixed;html=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="50" y="440" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-adls-curated" value="ADLS Gen2 (Curated &amp; Validated)&#10;Quality Gated (&gt;= 99.5% Profiled)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.data_lake_storage;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="250" y="440" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-dvc-registry" value="Data Version Control (DVC)&#10;&amp; Schema Validation Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#475569;fontSize=11;fontStyle=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="85" y="560" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-dq-scorecard" value="Automated Data Quality Scorecard Engine&#10;(Completeness, Validity, Timeliness, Accuracy)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=11;fontStyle=1;" vertex="1" parent="c-data-vnet">
+          <mxGeometry x="60" y="660" width="250" height="60" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c-mlops-vnet" value="Spoke 2: AI Training, Bias Evaluation &amp;amp; Stage Gating (VNet-MLOps)" style="shape=image;image=img/lib/azure2/networking/Virtual_Network.svg;aspect=fixed;whiteSpace=wrap;html=1;" vertex="1" parent="c-moj-enclave">
+          <mxGeometry x="760" y="40" width="390" height="810" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-aml-workspace" value="Azure Machine Learning Workspace&#10;(Secure Private Subnet Isolation)" style="shape=image;image=img/lib/azure2/networking/Subnet.svg;aspect=fixed;html=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="160" y="40" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-aml-registry" value="Azure ML Model Registry&#10;(Cryptographic Hash, Model Cards, ATRS Dossier)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#3b82f6;fontSize=11;fontStyle=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="80" y="160" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-rai-engine" value="Responsible AI Toolbox &amp;amp; Bias Auditor&#10;(Fairlearn, SHAP, Captum, Disparate Impact)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontSize=11;fontStyle=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="70" y="270" width="250" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-governance-board" value="MoJ AI Governance Board Review Gate&#10;(Asynchronous &amp;amp; Concurrent Stage-Gate Signing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=11;fontStyle=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="65" y="390" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-cert-sign" value="Authority to Operate (ATO) &amp;amp;&#10;Digital Certificate of Conformance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontSize=11;fontStyle=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="80" y="510" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-ci-cd" value="Azure DevOps / GitLab CI/CD&#10;(GitOps, IaC Security Scanning &amp; ATRS Export)" style="shape=image;image=img/lib/azure2/devops/Azure_DevOps.svg;aspect=fixed;html=1;" vertex="1" parent="c-mlops-vnet">
+          <mxGeometry x="160" y="630" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="c-prod-vnet" value="Spoke 3: Production Inference &amp;amp; Drift Monitoring (VNet-ProdInference)" style="shape=image;image=img/lib/azure2/networking/Virtual_Network.svg;aspect=fixed;whiteSpace=wrap;html=1;" vertex="1" parent="c-moj-enclave">
+          <mxGeometry x="1180" y="40" width="350" height="810" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-aks-cluster" value="Azure Kubernetes Service (AKS)&#10;(OFFICIAL-SENSITIVE Enclave Cluster)" style="shape=image;image=mxgraph.veeam.cluster;aspect=fixed;html=1;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="140" y="50" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-inference-endpoint" value="Managed Online Endpoints&#10;(Human-in-the-Loop Override / HITL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#475569;fontSize=11;fontStyle=1;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="65" y="160" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-event-hub" value="Azure Event Hubs&#10;(Real-Time Telemetry Streaming)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.event_hubs;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="140" y="270" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-drift-monitor" value="Azure ML Drift Monitor&#10;(Data Drift &amp;amp; Model Degradation Alerter)" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.azure.application_insights;fillColor=#0072C6;strokeColor=none;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="140" y="390" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-retrain-trigger" value="Automated Retraining Trigger &amp;amp;&#10;Technical Review Panel Alert" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#dc2626;fontSize=11;fontStyle=1;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="65" y="510" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="node-exec-dashboard" value="Power BI / MoJ AI Governance Dashboard&#10;(Gate Throughput, Risk Tier &amp;amp; Bias Telemetry)" style="shape=image;image=img/lib/azure2/power_platform/PowerBI.svg;aspect=fixed;html=1;" vertex="1" parent="c-prod-vnet">
+          <mxGeometry x="140" y="630" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        
+        
+        <mxCell id="flow-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-purview" target="node-adf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-adf" target="node-databricks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-databricks" target="node-adls-landing">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-4" value="Quality Gate Passed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-adls-landing" target="node-adls-curated">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-adls-curated" target="node-dvc-registry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-dvc-registry" target="node-dq-scorecard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="flow-7" value="Validated Features" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-adls-curated" target="node-aml-workspace">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="flow-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-aml-workspace" target="node-aml-registry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-aml-registry" target="node-rai-engine">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-rai-engine" target="node-governance-board">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-11" value="Stage Gate Approved" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-governance-board" target="node-cert-sign">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-cert-sign" target="node-ci-cd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="flow-13" value="Authorized Deploy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-ci-cd" target="node-aks-cluster">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="flow-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-aks-cluster" target="node-inference-endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-inference-endpoint" target="node-event-hub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-event-hub" target="node-drift-monitor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-17" value="Breach Alert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#dc2626;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-drift-monitor" target="node-retrain-trigger">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563eb;strokeWidth=2;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-drift-monitor" target="node-exec-dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        
+        <mxCell id="flow-audit-1" value="Telemetry &amp; Audit Logs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=1.5;strokeDashArray=3 3;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-governance-board" target="node-sentinel">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-audit-2" value="7-Year WORM Policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=1.5;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="c-moj-enclave" source="node-sentinel" target="node-immutable-storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

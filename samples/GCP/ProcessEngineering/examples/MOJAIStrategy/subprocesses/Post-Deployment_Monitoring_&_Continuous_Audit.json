@@ -1,0 +1,306 @@
+{
+  "step_name": "Post-Deployment Monitoring & Continuous Audit",
+  "subprocess_flow": [
+    {
+      "substep_name": "Ingest Production Telemetry and Streaming Logs",
+      "description": "Establish automated real-time telemetry streaming from operational AI model inference endpoints into the centralized MoJ observability platform. Capture model requests, responses, execution latency, error codes, and operational context with cryptographic log signing to preserve evidentiary integrity.",
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "inputs": [
+        "Production Inference Logs",
+        "Real-time Telemetry Data",
+        "Continuous Telemetry Stream Endpoints",
+        "MoJ AI Conformance Certificate"
+      ],
+      "outputs": [
+        "Continuous Data Quality Telemetry",
+        "Cryptographically Verified Telemetry Stream Logs"
+      ],
+      "estimated_duration": "Continuous / Sub-second streaming",
+      "dependencies": [
+        "Formal Governance Gate & Sign-Off"
+      ],
+      "success_criteria": [
+        "Telemetry streaming operational with sub-second latency",
+        "100% of production inference transactions ingested and cryptographically signed",
+        "Zero loss of streaming audit records"
+      ],
+      "purpose": "Provide real-time data ingestion and pipeline telemetry for operational AI systems to maintain complete system observability.",
+      "scope": "All live inference transactions and telemetry pipelines for deployed AI models across MoJ infrastructure.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Live system activation and receipt of production inference requests"
+      ],
+      "end_conditions": [
+        "Telemetry ingestion streams active and publishing without unhandled packet drops"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Telemetry streaming pipeline failure leading to unmonitored production inference traffic",
+          "control": "Implement dead-letter queuing, automated stream failover, and high-availability streaming collectors with buffer alerts"
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF - MANAGE function (Category 1: Observability)",
+        "MoJ Records Management & Retention Policy (7-year rule)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Telemetry schema updates submitted through standard GitOps MLOps pipeline review",
+          "versioning_rules": "Streaming configuration scripts and schemas semantically versioned in Git"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Continuous telemetry streaming latency",
+            "Collector ingest drop rates",
+            "Infrastructure resource utilization"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Detect Data and Concept Drift",
+      "description": "Execute automated statistical profiling routines across continuous streaming telemetry comparing incoming operational data distributions and predictive patterns against baseline training profiles. Identify covariate shift, feature degradation, and target concept drift using standardized distance metrics.",
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "inputs": [
+        "Continuous Data Quality Telemetry",
+        "Cryptographically Verified Telemetry Stream Logs",
+        "Baseline Model Training Distributions",
+        "Ground Truth Operational Outcomes"
+      ],
+      "outputs": [
+        "Calculated Drift Metrics Profile",
+        "Continuous Data Quality Assessment Scorecard"
+      ],
+      "estimated_duration": "Continuous / Hourly batch aggregations",
+      "dependencies": [
+        "Ingest Production Telemetry and Streaming Logs"
+      ],
+      "success_criteria": [
+        "Automated drift analysis completed across 100% of input features",
+        "Statistical divergence scores calculated against certified baseline",
+        "Zero unprofiled feature dimensions in operational inference data"
+      ],
+      "purpose": "Detect emergent data quality anomalies and model behavioral shifts before they result in erroneous justice outcomes.",
+      "scope": "All operational features, intermediate embeddings, and output distribution vectors for active models.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Arrival of continuous streaming telemetry batches or inference log events"
+      ],
+      "end_conditions": [
+        "Drift metrics computed, recorded in catalog, and ready for threshold evaluation"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected gradual concept drift resulting in skewed operational decisions",
+          "control": "Continuous statistical distance tests with automated rolling window baseline comparisons"
+        }
+      ],
+      "governance_requirements": [
+        "Government Data Quality Hub Standards",
+        "UK AI Regulation Monitoring Principles - Accuracy & Robustness"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Drift calculation rule updates undergo technical peer review via MLOps registry",
+          "versioning_rules": "Metric algorithms and drift configurations tracked in version control repository"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Drift detection accuracy",
+            "False positive drift flags",
+            "Ground truth outcome latency"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Dispatch Automated Drift and Incident Alerts",
+      "description": "Evaluate calculated drift and performance indicators against mandatory MoJ operational tolerance thresholds. Automatically dispatch real-time incident notifications to technical owners and trigger retraining workflows or automated failsafe fallbacks when thresholds are breached.",
+      "responsible_party": "AI Project Lead / Product Manager",
+      "inputs": [
+        "Calculated Drift Metrics Profile",
+        "Continuous Data Quality Assessment Scorecard",
+        "MoJ AI Governance Alerting Threshold Configuration"
+      ],
+      "outputs": [
+        "Model Performance Drift Alerts",
+        "Automated Drift Notification Dispatches",
+        "Incident Response & Retraining Triggers"
+      ],
+      "estimated_duration": "Real-time automated execution (< 5 minutes)",
+      "dependencies": [
+        "Detect Data and Concept Drift"
+      ],
+      "success_criteria": [
+        "Automated alerts dispatched within 5 minutes of threshold breach",
+        "Retraining or mitigation tickets created in MoJ ITSM platform automatically",
+        "Zero unhandled critical drift breach events"
+      ],
+      "purpose": "Provide immediate alerting and trigger rapid incident intervention when model parameters exceed acceptable boundaries.",
+      "scope": "Threshold alerting triggers and automated incident routing across all justice AI operational deployments.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Drift calculation exceeding pre-established governance boundary parameters"
+      ],
+      "end_conditions": [
+        "Alert notifications successfully routed and incident tracking ticket generated"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Alert fatigue or dropped notifications allowing degraded models to persist in live operation",
+          "control": "Automated paging escalation matrix, mandatory acknowledgment timers, and fail-safe circuit breaker controls"
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF - MANAGE function (Category 2: Response & Recovery)",
+        "MoJ Digital & Technology Incident Management Standard"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Threshold modifications require approval from MoJ AI Technical Review Panel",
+          "versioning_rules": "Threshold policy definitions versioned under GitOps configuration repository"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Alert-to-acknowledgment lead time",
+            "False alarm incident count",
+            "Retraining frequency"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Generate Real-Time Telemetry and Operational Dashboards",
+      "description": "Aggregate continuous telemetry streams, data quality metrics, drift alerts, and system health status into interactive dashboards and scheduled health reports. Render transparent operational views accessible to enterprise architects, operational owners, and data governance boards.",
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "inputs": [
+        "Continuous Data Quality Telemetry",
+        "Model Performance Drift Alerts",
+        "Cryptographically Verified Telemetry Stream Logs",
+        "Ground Truth Operational Outcomes"
+      ],
+      "outputs": [
+        "Monthly AI Operational Health Report",
+        "Real-Time Telemetry Dashboard",
+        "Real-Time Automated Drift Alerting and Telemetry Stream Log"
+      ],
+      "estimated_duration": "Continuous dashboard refresh / Monthly report delivery",
+      "dependencies": [
+        "Dispatch Automated Drift and Incident Alerts"
+      ],
+      "success_criteria": [
+        "Telemetry dashboard uptime maintained at 99.9% availability",
+        "Monthly AI Operational Health Report published on schedule",
+        "Executive metrics visible across data quality, drift, and system health"
+      ],
+      "purpose": "Deliver ongoing stakeholder transparency and executive visibility into production AI behavior and compliance.",
+      "scope": "Operational reporting, visual dashboards, and monthly service performance disclosures across active AI systems.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Continuous streaming data updates and monthly reporting calendar milestones"
+      ],
+      "end_conditions": [
+        "Dashboard metrics updated in real-time and monthly report delivered to governance bodies"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate or stale dashboard metrics obscuring production performance degradation",
+          "control": "Real-time dashboard health heartbeat monitoring and automated data pipeline freshness checks"
+        }
+      ],
+      "governance_requirements": [
+        "CDDO Algorithmic Transparency Recording Standard (ATRS)",
+        "UK AI Regulation Monitoring Principles - Transparency"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Dashboard metric updates requested via Enterprise Data Architecture working group",
+          "versioning_rules": "Reporting templates and dashboard definitions maintained in semantic Git repositories"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Stakeholder feedback surveys",
+            "Dashboard load performance metrics",
+            "Report consumption analytics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Annual Re-Certification and Compliance Audit",
+      "description": "Perform comprehensive annual formal audits on operational AI solutions to reassess model validity, algorithmic fairness, security posture, and regulatory compliance. Compile all historical telemetry, retraining logs, and incident records into a comprehensive re-certification audit dossier and archive all materials under the mandatory 7-year MoJ retention policy.",
+      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
+      "inputs": [
+        "Monthly AI Operational Health Report",
+        "Real-Time Automated Drift Alerting and Telemetry Stream Log",
+        "Incident Response & Retraining Triggers",
+        "MoJ AI Conformance Certificate",
+        "Annual Operational Incident Logs"
+      ],
+      "outputs": [
+        "Annual AI Re-certification Audit Report",
+        "Annual Re-certification Audit Dossier",
+        "Updated Conformance Certification or Retirement Directive"
+      ],
+      "estimated_duration": "10-15 business days annually",
+      "dependencies": [
+        "Generate Real-Time Telemetry and Operational Dashboards"
+      ],
+      "success_criteria": [
+        "Completion of independent annual audit assessing bias, security, and accuracy",
+        "Audit dossier archived into immutable repository under 7-year retention rule",
+        "Formal issuance of annual re-certification or documented decommissioning plan"
+      ],
+      "purpose": "Provide independent regulatory and architectural verification that active models remain compliant, fair, and legally sound over extended operational lifecycles.",
+      "scope": "Full annual lifecycle review of deployed model weights, training updates, operational telemetry, and regulatory alignment.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Annual operational deployment anniversary or major regulatory audit directive"
+      ],
+      "end_conditions": [
+        "MoJ AI Governance Board approval of re-certification dossier and formal archiving of audit trail"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Regulatory non-compliance or undetected algorithmic bias emerging across prolonged production lifespans",
+          "control": "Mandatory independent auditor review, comprehensive bias regression re-testing, and executive board sign-off"
+        }
+      ],
+      "governance_requirements": [
+        "NIST AI RMF - MANAGE function (Category 4: Continuous Audit)",
+        "UK National AI Strategy Monitoring Principles",
+        "MoJ Records Management & Retention Policy (7-year rule)",
+        "EU AI Act Post-Market Monitoring Guidelines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Re-certification outcomes and recommended modifications submitted to MoJ AI Governance Board",
+          "versioning_rules": "Annual audit dossier and certification artifacts assigned immutable cryptographic hashes in archive"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual",
+          "improvement_inputs": [
+            "Annual audit findings",
+            "Regulatory policy updates",
+            "Model retirement and decommissioning rates",
+            "Benchmarking against UK AI Safety Institute guidance"
+          ]
+        }
+      ]
+    }
+  ]
+}

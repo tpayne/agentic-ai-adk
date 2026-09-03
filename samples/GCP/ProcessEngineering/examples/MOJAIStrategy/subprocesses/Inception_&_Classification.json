@@ -1,0 +1,295 @@
+{
+  "step_name": "Inception & Classification",
+  "subprocess_flow": [
+    {
+      "substep_name": "Submit Automated Intake & Use Case Concept",
+      "description": "The AI Project Lead completes and submits the initial project documentation using the MoJ self-service registration intake form. Pre-validated metadata schema fields automatically parse and verify use case attributes, target operational environments, and high-level architecture against enterprise baseline standards to minimize registration delays and identify low-risk candidates for fast-track processing.",
+      "responsible_party": "AI Project Lead / Product Manager",
+      "inputs": [
+        "Project Charter",
+        "Proposed Use Case Concept",
+        "Business Requirements Document",
+        "Self-Service Triage Questionnaire",
+        "Pre-Validated Metadata Schema Templates"
+      ],
+      "outputs": [
+        "Automated Intake Tiering Report",
+        "Automated Self-Service Intake Form with Pre-Validated Metadata"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "Automated self-service form successfully validated against metadata schemas",
+        "Intake tiering report generated with baseline risk scoring",
+        "No mandatory intake fields left blank or invalid"
+      ],
+      "purpose": "Capture standardized AI use case metadata rapidly and determine immediate eligibility for fast-track triage.",
+      "scope": "Submission of project parameters and initial concept artifacts across any MoJ business unit.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Initiation of a new algorithmic system or AI project proposal"
+      ],
+      "end_conditions": [
+        "Receipt of complete intake package and automated validation receipt"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or inaccurate metadata entry bypassing initial automated checks",
+          "control": "Pre-validated input schemas with automated syntax, entity verification, and mandatory field enforcement"
+        }
+      ],
+      "governance_requirements": [
+        "CDDO Algorithmic Transparency Recording Standard (ATRS) Tiering",
+        "MoJ Digital & Technology Inception Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Use case modifications prior to gate review require updated intake form re-submission",
+          "versioning_rules": "Intake draft versioned as v0.1"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Self-service triage completion rate",
+            "Field validation drop-off metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Classify Data Assets & Security Tier",
+      "description": "The Data Protection Officer and Information Asset Owner evaluate all proposed datasets against HMG Government Security Classifications. This evaluation identifies sensitive offender, victim, and judicial records, establishes whether data must be handled under OFFICIAL or OFFICIAL-SENSITIVE protocols, and issues the formal Data Classification Certificate governing storage and compute isolation boundaries.",
+      "responsible_party": "Data Protection Officer & IAO",
+      "inputs": [
+        "Initial Dataset Identification",
+        "Automated Intake Tiering Report",
+        "Automated Self-Service Intake Form with Pre-Validated Metadata"
+      ],
+      "outputs": [
+        "Data Classification Assessment",
+        "Data Classification Certificate"
+      ],
+      "estimated_duration": "1 business day",
+      "dependencies": [
+        "Submit Automated Intake & Use Case Concept"
+      ],
+      "success_criteria": [
+        "Formal classification assigned under HMG Government Security Classifications",
+        "Special category and criminal justice data elements clearly tagged and isolated",
+        "Sign-off provided by the designated Information Asset Owner"
+      ],
+      "purpose": "Ensure all justice datasets ingested into AI pipelines have explicit security controls and boundary specifications.",
+      "scope": "All structured and unstructured data assets proposed for training, fine-tuning, or inference.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Generation of Automated Intake Tiering Report"
+      ],
+      "end_conditions": [
+        "Issuance of signed Data Classification Certificate"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inadvertent exposure of sensitive offender or witness records due to improper security tiering",
+          "control": "Mandatory IAO review and cryptographic tagging of data assets prior to data pipeline provisioning"
+        }
+      ],
+      "governance_requirements": [
+        "HMG Government Security Classifications Policy",
+        "Data Protection Act 2018 Part 3 (Law Enforcement Processing)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Dataset additions or alterations submitted to IAO via Data Governance change ticket",
+          "versioning_rules": "Data Classification Assessment version incremented (e.g., v0.2)"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Classification turnaround time",
+            "IAO data query volumes"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Evaluate Regulatory Risk Tiers & Initiate ATRS",
+      "description": "The AI Project Lead and Enterprise Architect map the AI system's functionality against the EU AI Act risk tiers and the NIST AI RMF Profile to determine statutory obligations. High-risk judicial use cases\u2014such as predictive recidivism assessment or sentencing support\u2014are tagged for mandatory full lifecycle governance, while low-risk operational tools are routed through fast-track triage templates and pre-populated into the CDDO Algorithmic Transparency Recording Standard draft.",
+      "responsible_party": "AI Project Lead / Product Manager",
+      "inputs": [
+        "Automated Intake Tiering Report",
+        "Data Classification Assessment",
+        "Proposed Use Case Concept"
+      ],
+      "outputs": [
+        "NIST / EU AI Act Risk Tier Classification",
+        "Fast-Track Low-Risk Triage Assessment"
+      ],
+      "estimated_duration": "1 business day",
+      "dependencies": [
+        "Classify Data Assets & Security Tier"
+      ],
+      "success_criteria": [
+        "Accurate classification against EU AI Act criteria (Unacceptable, High, Limited, Minimal)",
+        "NIST AI RMF profile mapped with specific risk mitigations defined",
+        "Initial ATRS Section 1 template populated"
+      ],
+      "purpose": "Identify statutory regulatory duties early to establish the appropriate governance pathway and eliminate delivery bottlenecks.",
+      "scope": "Algorithmic decision boundaries, intended user interactions, and cross-regulatory exposure.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Completion of Data Classification Assessment"
+      ],
+      "end_conditions": [
+        "Sign-off of the Risk Tier Classification document"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Mischaracterization of a high-risk judicial algorithmic system as low-risk to avoid governance",
+          "control": "Automated cross-check against statutory high-risk use case lists and MoJ Enterprise Architecture validation"
+        }
+      ],
+      "governance_requirements": [
+        "EU Artificial Intelligence Act (Regulation EU 2024/1689)",
+        "NIST AI Risk Management Framework (AI RMF 1.0)",
+        "CDDO Algorithmic Transparency Recording Standard (ATRS)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Scope or model capability changes require re-evaluation of the risk tier matrix",
+          "versioning_rules": "Risk Tier Dossier versioned as v0.3"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "UK AISI and international AI safety policy updates",
+            "Fast-track triage accuracy audit"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Perform Preliminary DPIA Screening",
+      "description": "The Data Protection Officer conducts a preliminary Data Protection Impact Assessment (DPIA) under UK GDPR Article 35. This assessment determines whether the AI system involves automated profiling, processing of special category justice data, or systemic public monitoring, defining the required privacy-enhancing technologies and legal bases needed before technical development commences.",
+      "responsible_party": "Data Protection Officer & IAO",
+      "inputs": [
+        "Data Classification Assessment",
+        "NIST / EU AI Act Risk Tier Classification",
+        "Proposed Use Case Concept"
+      ],
+      "outputs": [
+        "Preliminary DPIA"
+      ],
+      "estimated_duration": "1 business day",
+      "dependencies": [
+        "Evaluate Regulatory Risk Tiers & Initiate ATRS"
+      ],
+      "success_criteria": [
+        "Article 35 screening checklist completed and signed by DPO",
+        "Privacy and surveillance impact thresholds established",
+        "Mandatory data protection controls documented for project implementation"
+      ],
+      "purpose": "Assess data privacy risks and ensure legal defensibility under UK GDPR and the Data Protection Act 2018.",
+      "scope": "Personal data flows, algorithmic decision effects on data subjects, and statutory compliance boundaries.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Finalization of Risk Tier Classification"
+      ],
+      "end_conditions": [
+        "Formal approval of the Preliminary DPIA screening"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unlawful processing of citizen or offender personal data without required legal basis or DPIA",
+          "control": "Mandatory DPO gateway checkpoint blocking project advancement without an approved Preliminary DPIA"
+        }
+      ],
+      "governance_requirements": [
+        "UK GDPR Article 35",
+        "UK Data Protection Act 2018",
+        "ICO AI and Data Protection Guidance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Modifications to personal data processing triggers full DPIA remediation",
+          "versioning_rules": "Preliminary DPIA versioned as v0.4"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "ICO enforcement decisions and regulatory advisories",
+            "Preliminary DPIA completion lead times"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Dual Architecture & IAO Sign-Off & Registry Logging",
+      "description": "MoJ Enterprise Architecture and the Information Asset Owner review the consolidated inception dossier, comprising the registration form, data classification certificate, risk tiering, and preliminary DPIA. Upon dual approval, the project is officially recorded in the centralized MoJ AI Registry, assigned a unique tracking identifier, and authorized to proceed to the Data Quality and Provenance stage.",
+      "responsible_party": "Enterprise Architect (MoJ)",
+      "inputs": [
+        "Automated Intake Tiering Report",
+        "Data Classification Certificate",
+        "NIST / EU AI Act Risk Tier Classification",
+        "Preliminary DPIA",
+        "Fast-Track Low-Risk Triage Assessment"
+      ],
+      "outputs": [
+        "Registered AI Use Case Record",
+        "MoJ AI Inception Registration Form",
+        "Risk Tier Classification Dossier"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [
+        "Perform Preliminary DPIA Screening"
+      ],
+      "success_criteria": [
+        "Dual digital sign-off completed by Enterprise Architecture and IAO",
+        "AI use case assigned a unique ID in the MoJ Centralised AI Registry",
+        "Comprehensive Inception & Classification dossier baselined at v1.0"
+      ],
+      "purpose": "Provide authoritative governance registration and establish formal auditability prior to technical execution.",
+      "scope": "Final consolidation, validation, and system registration across enterprise repositories.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Submission of complete preliminary compliance and classification pack"
+      ],
+      "end_conditions": [
+        "Inception dossier marked approved and registered in MoJ AI Registry"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unsanctioned development of shadow AI systems without enterprise visibility or audit logging",
+          "control": "Mandatory cryptographic registry record required to provision cloud infrastructure access and service accounts"
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Digital & Technology Governance Standard",
+        "Central Digital and Data Office (CDDO) Standards",
+        "Cabinet Office Digital Stage-Gate Policies"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Post-registration scope changes require formal change submission to Enterprise Architecture via Jira/ServiceNow",
+          "versioning_rules": "Final Inception Dossier locked and baselined as v1.0"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Total inception cycle turnaround duration",
+            "Dual sign-off lead times and reviewer bottlenecks"
+          ]
+        }
+      ]
+    }
+  ]
+}
