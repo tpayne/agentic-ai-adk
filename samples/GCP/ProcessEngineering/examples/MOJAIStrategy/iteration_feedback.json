@@ -1,4 +1,6 @@
 {
-  "status": "GROUNDING APPROVED",
-  "data": []
+  "status": "JSON APPROVED",
+  "data": {
+    "data": []
+  }
 }

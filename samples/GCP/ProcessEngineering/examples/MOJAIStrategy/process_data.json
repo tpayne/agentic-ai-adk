@@ -1,81 +1,16 @@
 {
-  "introduction": "The UK Ministry of Justice AI Data Quality and Governance Framework establishes a mandatory, auditable, and repeatable standard for managing artificial intelligence initiatives across all executive agencies and arms-length bodies. This framework enforces strict compliance with UK AI regulations, the NIST AI Risk Management Framework, and relevant EU AI Act principles to ensure that public sector algorithmic systems operate transparently, fairly, and securely. Through structured stage gates, automated data profiling, and continuous operational telemetry, the framework guarantees full auditability and protects sensitive justice-sector data assets throughout their entire lifecycle.",
-  "reporting_and_analytics": [
-    {
-      "metric": "AI Governance Gate Compliance & Risk Tier distribution",
-      "description": "MoJ AI Governance Executive Dashboard displaying compliance status, risk tier distribution, and active project gating metrics."
-    },
-    {
-      "metric": "Dataset Health & Quality Dimensions",
-      "description": "Data Quality Scorecards reflecting dimension-level health (completeness, accuracy, timeliness, validity) for all active AI datasets."
-    },
-    {
-      "description": "Comprehensive Audit Trail Reports detailing data lineage, transformation history, model hyperparameter configurations, and approvals.",
-      "metric": "Audit Trail & Provenance Traceability"
-    },
-    {
-      "description": "Real-time Alerting and Telemetry on model performance drift, data distribution drift, and security exceptions.",
-      "metric": "Model Performance & Drift Telemetry"
-    }
-  ],
-  "stakeholders": [
-    {
-      "responsibilities": [
-        "Define architecture standards, AI governance patterns, and enterprise conformance gates."
-      ],
-      "role": "Enterprise Architect",
-      "stakeholder_name": "Enterprise Architect (MoJ)"
-    },
-    {
-      "responsibilities": [
-        "Oversee data stewardship, data classification, and regulatory data compliance."
-      ],
-      "stakeholder_name": "Chief Data Officer / Head of Data Governance",
-      "role": "Chief Data Officer / Head of Data Governance"
-    },
-    {
-      "role": "AI Project Lead / Product Manager",
-      "responsibilities": [
-        "Ensure individual AI/ML projects adhere to governance stages and submit compliance artifacts."
-      ],
-      "stakeholder_name": "AI Project Lead / Product Manager"
-    },
-    {
-      "role": "Data Protection Officer & IAO",
-      "responsibilities": [
-        "Enforce UK GDPR, Data Protection Act 2018, and information security classification (e.g. OFFICIAL-SENSITIVE)."
-      ],
-      "stakeholder_name": "Data Protection Officer (DPO) & Information Asset Owner (IAO)"
-    },
-    {
-      "responsibilities": [
-        "Validate threat models, system security architectures, and NIST AI Risk Management Framework security controls."
-      ],
-      "stakeholder_name": "Chief Information Security Officer (CISO) & Cyber Security Team",
-      "role": "CISO & Cyber Security Team"
-    },
-    {
-      "responsibilities": [
-        "Conduct independent audits, model validation, algorithmic bias assessments, and test verification."
-      ],
-      "stakeholder_name": "Independent Model Auditor / Quality Assurance Lead",
-      "role": "Independent Model Auditor / Quality Assurance Lead"
-    }
-  ],
-  "change_management": [
-    {
-      "change_request_process": "Any model retraining, dataset schema alteration, or algorithmic architecture modification exceeding pre-defined drift thresholds must undergo formal change review via the MoJ AI Technical Review Panel.",
-      "versioning_rules": "Version control for models, datasets, and governance artifacts strictly enforced via GitOps and MLOps registry with semantic versioning."
-    }
+  "process_end_conditions": [
+    "Formal issuance of an auditable MoJ AI Conformance Certificate, successful transition to production with automated monitoring active, or formal project rejection/decommissioning with complete asset retirement and registry deregistration."
   ],
   "tools_summary": [
     {
-      "category": "Data Governance & Catalog",
       "tools": [
         "MoJ Centralised Data Catalog",
         "Government Data Quality Hub Tools",
-        "Apache Atlas / Collibra"
-      ]
+        "Apache Atlas / Collibra",
+        "Data Contract CLI"
+      ],
+      "category": "Data Governance & Catalog"
     },
     {
       "category": "MLOps & Model Registry",
@@ -86,201 +21,326 @@
       ]
     },
     {
+      "category": "Data Quality & Observability",
       "tools": [
         "Great Expectations",
         "Monte Carlo",
-        "Deequ"
-      ],
-      "category": "Data Quality & Observability"
+        "Deequ",
+        "Soda Core"
+      ]
     },
     {
       "tools": [
         "Splunk",
         "Azure Sentinel",
-        "HashiCorp Vault"
+        "HashiCorp Vault",
+        "NeMo Guardrails",
+        "OWASP ZAP"
       ],
       "category": "Security & SIEM"
     },
     {
+      "category": "Fairness & Explainability",
       "tools": [
         "AIF360",
         "Fairlearn",
         "SHAP",
-        "Captum"
-      ],
-      "category": "Fairness & Explainability"
+        "Captum",
+        "Giskard"
+      ]
     }
   ],
+  "appendix": {
+    "acronyms": {
+      "DPIA": "Data Protection Impact Assessment",
+      "COTS": "Commercial Off-The-Shelf",
+      "LLM": "Large Language Model",
+      "ATRS": "Algorithmic Transparency Recording Standard",
+      "CDDO": "Central Digital and Data Office",
+      "SLA": "Service Level Agreement",
+      "SIEM": "Security Information and Event Management",
+      "NIST_AI_RMF": "NIST Artificial Intelligence Risk Management Framework",
+      "SIRO": "Senior Information Risk Owner",
+      "HMG": "His Majesty's Government",
+      "IAO": "Information Asset Owner"
+    },
+    "regulatory_references": [
+      "UK Data Protection Act 2018 / UK GDPR",
+      "Central Digital and Data Office (CDDO) Algorithmic Transparency Recording Standard (ATRS)",
+      "EU Artificial Intelligence Act (Regulation EU 2024/1689)",
+      "NIST AI Risk Management Framework (AI RMF 1.0)",
+      "HMG Government Security Classifications Policy (OFFICIAL-SENSITIVE / SECRET)",
+      "OWASP Top 10 for Large Language Model Applications"
+    ]
+  },
+  "introduction": "The UK Ministry of Justice AI Data Quality and Governance Framework establishes a mandatory, auditable, and repeatable standard for managing artificial intelligence initiatives across all executive agencies and arms-length bodies. This framework enforces strict compliance with UK AI regulations, the NIST AI Risk Management Framework, and relevant EU AI Act principles to ensure that public sector algorithmic systems operate transparently, fairly, and securely. Through structured stage gates, machine-readable data contracts, tiered governance pathways for COTS and Generative AI, automated data profiling, continuous operational telemetry, and robust decommissioning protocols, the framework guarantees full auditability and protects sensitive justice-sector data assets throughout their entire lifecycle.",
+  "constraints": [
+    "Mandatory adherence to statutory UK GDPR, Data Protection Act 2018, and Crown Commercial Service procurement frameworks without exception.",
+    "Strict requirement to handle criminal justice, court, and offender records under HMG Government Security Classifications (OFFICIAL-SENSITIVE / SECRET), preventing use of unaccredited public cloud AI models.",
+    "Fixed annual MoJ Digital & Technology departmental budgetary allocations and finite availability of cleared AI specialist auditors and data governance personnel."
+  ],
+  "critical_success_factors": [
+    {
+      "description": "Full institutional executive backing from MoJ Digital and Technology leadership.",
+      "name": "Executive Backing"
+    },
+    {
+      "name": "Agile Integration",
+      "description": "Seamless integration of calibrated, tiered AI governance checkpoints into agile delivery lifecycles without causing delivery bottlenecks."
+    },
+    {
+      "description": "Comprehensive automated data lineage, data contract enforcement, classification, and auditing tooling across cloud and on-premises environments.",
+      "name": "Automated Tooling"
+    },
+    {
+      "name": "Multi-Disciplinary Alignment",
+      "description": "Multi-disciplinary alignment between technical, legal, ethical, and operational stakeholders with delegated pathways for low-risk use cases."
+    }
+  ],
+  "critical_failure_factors": [
+    {
+      "name": "Incomplete Audit Trails",
+      "description": "Incomplete audit trails leading to non-compliance with UK Government Service Standards or statutory regulations."
+    },
+    {
+      "name": "Inadequate Data Classification",
+      "description": "Inadequate data classification allowing sensitive offender or court records to be ingested into unvetted AI models or third-party Foundation Model APIs."
+    },
+    {
+      "name": "Governance Fatigue & Shadow AI",
+      "description": "Governance fatigue leading project teams to bypass formal AI gating mechanisms (shadow AI)."
+    },
+    {
+      "description": "Failure to continuously monitor model drift, data decay, or vendor API behavioral shifts post-deployment.",
+      "name": "Post-Deployment Drift"
+    },
+    {
+      "description": "Failure to safely retire and decommission operational models leading to orphaned systems and data retention breaches.",
+      "name": "Improper Decommissioning & Zombie Systems"
+    }
+  ],
+  "risks_and_controls": [
+    {
+      "control": "Mandatory pre-deployment disparate impact testing, automated black-box red-teaming for hallucination/toxicity, and documented human-in-the-loop validation checkpoints.",
+      "risk": "Algorithmic bias leading to discriminatory outcomes in judicial or correctional decisions, or GenAI toxic/hallucinatory outputs."
+    },
+    {
+      "risk": "Exposure of sensitive offender/witness data during model training, inference, or third-party LLM transmission.",
+      "control": "Mandatory data anonymisation/pseudonymisation, role-based access control (RBAC), KMS envelope encryption at rest and in transit, and strict API egress filtering for Foundation Models."
+    },
+    {
+      "control": "Automated continuous monitoring with automated threshold alerts, continuous streaming telemetry, and mandatory bi-annual model re-validation.",
+      "risk": "Data drift, concept drift, or third-party Foundation Model behavioral degradation over time."
+    },
+    {
+      "risk": "Non-compliance with emerging UK and EU AI regulatory requirements or procurement standards.",
+      "control": "Alignment with NIST AI RMF, UK Algorithmic Transparency Recording Standard (ATRS), EU AI Act cross-border standards, and Crown Commercial Service procurement guidance."
+    },
+    {
+      "control": "Mandatory machine-readable data contracts with automated schema diffing and upstream partner SLA validation prior to pipeline ingestion.",
+      "risk": "Upstream data schema changes disrupting production data pipelines and causing silent data errors."
+    },
+    {
+      "control": "Mandatory cryptographic key revocation, container image archival, UK GDPR data purge verification, and CDDO ATRS deregistration sign-off.",
+      "risk": "Orphaned zombie AI models remaining accessible or unpurged sensitive justice data lingering after model retirement."
+    }
+  ],
+  "purpose": "To provide a mandatory, auditable, and repeatable framework for ensuring data quality, machine-readable data contract enforcement, ethical integrity, cybersecurity, regulatory compliance, and clean lifecycle decommissioning across all artificial intelligence initiatives within the UK Ministry of Justice.",
+  "metrics": [
+    {
+      "description": "Compliance rate of production AI models with MoJ AI Data Quality and Governance Gate reviews prior to deployment.",
+      "measurement_frequency": "Per deployment gate review",
+      "target": "100%",
+      "name": "Production Gate Compliance Rate"
+    },
+    {
+      "name": "Mean Time to Audit (MTTA)",
+      "target": "Under 5 working days",
+      "description": "Mean Time to Audit for full traceability of training datasets, model weights, or vendor model cards and provenance logs.",
+      "measurement_frequency": "Monthly"
+    },
+    {
+      "measurement_frequency": "Continuous",
+      "target": "0 occurrences",
+      "name": "Unclassified Data Violations",
+      "description": "Unclassified or improperly handled sensitive data assets within training and inference pipelines or third-party LLM endpoints."
+    },
+    {
+      "target": ">= 99.5%",
+      "measurement_frequency": "Weekly automated profiling",
+      "description": "Accuracy in automated data quality profiling and data contract validation across completeness, consistency, timeliness, and validity.",
+      "name": "Data Quality Profiling Accuracy"
+    },
+    {
+      "name": "Critical Vulnerability Resolution Rate",
+      "target": "100%",
+      "description": "Resolution rate of critical model bias, drift, security vulnerability, or toxicity findings prior to sign-off.",
+      "measurement_frequency": "Per stage-gate review"
+    },
+    {
+      "measurement_frequency": "Continuous per data delivery",
+      "description": "Upstream data provider conformance rate with machine-readable data contracts and change notification SLAs.",
+      "name": "Data Contract Conformance Rate",
+      "target": ">= 99.0%"
+    }
+  ],
+  "reporting_and_analytics": [
+    {
+      "metric": "AI Governance Gate Compliance & Risk Tier distribution",
+      "description": "MoJ AI Governance Executive Dashboard displaying compliance status, risk tier distribution, delegated gate throughput, and active project gating metrics."
+    },
+    {
+      "description": "Data Quality Scorecards reflecting dimension-level health (completeness, accuracy, timeliness, validity) and upstream Data Contract conformance for all active AI datasets.",
+      "metric": "Dataset Health & Quality Dimensions"
+    },
+    {
+      "metric": "Audit Trail & Provenance Traceability",
+      "description": "Comprehensive Audit Trail Reports detailing data lineage, transformation history, model hyperparameter configurations, vendor model cards, and approvals."
+    },
+    {
+      "metric": "Model Performance & Drift Telemetry",
+      "description": "Real-time Alerting and Telemetry on model performance drift, data distribution drift, prompt injection security exceptions, and API health."
+    },
+    {
+      "metric": "Decommissioning & Asset Retirement Audit Reports",
+      "description": "Executive reporting on decommissioned AI assets, key revocation statuses, data purge verifications, and ATRS deregistration records."
+    }
+  ],
+  "scope": "Applies across all branches of the UK Ministry of Justice (including HM Courts & Tribunals Service, HM Prison and Probation Service, and executive agencies) for all internal development, commercial off-the-shelf (COTS) acquisition, SaaS integrations, Foundation Models / Generative AI systems, and third-party algorithmic solutions processing justice sector data across tiered governance pathways.",
+  "governance_requirements": [
+    "Mandatory alignment with Central Digital and Data Office (CDDO) Algorithmic Transparency Recording Standard (ATRS), full compliance with UK National AI Strategy, EU AI Act cross-border standards, and NIST AI RMF 1.0. Immutable audit trails maintained for at least 7 years to support judicial review and parliamentary scrutiny."
+  ],
+  "industry_sector": "UK Public Sector / Central Government / Justice",
   "system_requirements": [
     {
-      "name": "Centralised Data Catalog and Metadata Management",
-      "details": "Platform supporting Government Data Quality Hub standards and automated lineage tracking."
+      "details": "Platform supporting Government Data Quality Hub standards, machine-readable data contracts, and automated lineage tracking.",
+      "name": "Centralised Data Catalog and Metadata Management"
     },
     {
-      "details": "Model registry providing immutable versioning, artifact hashing, and experiment tracking.",
-      "name": "MLOps and Model Governance Registry"
+      "name": "MLOps and Model Governance Registry",
+      "details": "Model registry providing immutable versioning, artifact hashing, experiment tracking, and vendor model card cataloging."
     },
     {
-      "details": "Automated profiling engine measuring completeness, accuracy, timeliness, and validity across data pipelines.",
-      "name": "Automated Data Quality Profiling & Observability Engine"
+      "name": "Automated Data Quality Profiling & Observability Engine",
+      "details": "Automated profiling engine measuring completeness, accuracy, timeliness, validity, and data contract conformance across data pipelines."
     },
     {
       "name": "Immutable Audit Logging & SIEM Integration",
-      "details": "Enterprise SIEM integration with cryptographic integrity verification maintaining 7-year retention."
+      "details": "Enterprise SIEM integration with cryptographic integrity verification maintaining 7-year retention and tracking key revocation events."
     },
     {
-      "name": "Secure Cloud Enclave",
-      "details": "MoJ-approved cloud enclave with OFFICIAL-SENSITIVE boundary controls, encryption, and strict RBAC."
+      "details": "MoJ-approved cloud enclave with OFFICIAL-SENSITIVE boundary controls, encryption, egress filtering, and strict RBAC.",
+      "name": "Secure Cloud Enclave"
     }
   ],
-  "purpose": "To provide a mandatory, auditable, and repeatable framework for ensuring data quality, ethical integrity, cybersecurity, and regulatory compliance across all artificial intelligence initiatives within the UK Ministry of Justice.",
-  "risks_and_controls": [
-    {
-      "risk": "Algorithmic bias leading to discriminatory outcomes in judicial or correctional decisions.",
-      "control": "Mandatory pre-deployment disparate impact testing and documented human-in-the-loop validation checkpoints."
-    },
-    {
-      "control": "Mandatory data anonymisation/pseudonymisation, role-based access control (RBAC), and encryption at rest and in transit.",
-      "risk": "Exposure of sensitive offender/witness data during model training or inference."
-    },
-    {
-      "control": "Automated continuous monitoring with automated threshold alerts and mandatory bi-annual model re-validation.",
-      "risk": "Data drift or model degradation causing inaccurate predictions over time."
-    },
-    {
-      "control": "Alignment with NIST AI RMF, UK Algorithmic Transparency Recording Standard (ATRS), and cross-regulatory harmonization checks.",
-      "risk": "Non-compliance with emerging UK and EU AI regulatory requirements."
-    }
-  ],
-  "process_end_conditions": [
-    "Formal issuance of an auditable MoJ AI Conformance Certificate, successful transition to production with automated monitoring active, or formal project rejection/decommissioning."
+  "process_triggers": [
+    "Registration of a new AI/ML project, COTS acquisition, Foundation Model deployment, major architectural modification of an existing AI system, ingestion of a new sensitive justice dataset, or formal decommissioning directive."
   ],
   "process_steps": [
     {
-      "step_risks_and_controls": [
-        {
-          "control": "Mandatory dual sign-off by MoJ Enterprise Architecture and IAO with automated validation rules",
-          "risk": "Misclassification of high-risk AI system or sensitive offender data"
-        }
+      "success_criteria": [
+        "Use case registered in MoJ AI Registry",
+        "HMG Security Classification approved by IAO",
+        "Initial risk tier and governance pathway (Bespoke vs COTS/LLM vs Fast-Track) agreed with automated intake completion",
+        "Pre-validated metadata verification passed",
+        "Automated zero-touch triage executed successfully for eligible low-risk projects",
+        "Pre-approved metadata schema validation completed with zero registration delay"
       ],
-      "description": "Project registers AI use case with MoJ Enterprise Architecture, initiates ATRS documentation, and categorises data tier and AI risk profile deploying automated self-service registration intake forms with pre-validated metadata fields and fast-track triage templates for low-risk use case intake to minimize upfront registration delays and eliminate bottlenecks. This upfront classification ensures early identification of high-risk judicial use cases and establishes mandatory compliance pathways before project implementation begins.",
       "outputs": [
         "Registered AI Use Case Record",
         "Data Classification Assessment",
         "Preliminary DPIA",
         "NIST / EU AI Act Risk Tier Classification",
-        "Automated Intake Tiering Report"
+        "Automated Intake Tiering Report",
+        "Automated Zero-Touch Triage Routing Receipt",
+        "Pre-Approved Metadata Validation Report",
+        "COTS / Foundation Model Evaluation Pathway Determination",
+        "Tiered Governance Routing Dossier"
       ],
-      "scope": "All new and majorly updated AI initiatives across MoJ agencies.",
-      "process_end_conditions": [
-        "Completion of registration and sign-off of initial risk classification dossier"
-      ],
-      "purpose": "Establish governance registration and classify project against HMG Security Classification, UK GDPR DPIA requirements, EU AI Act risk tiers, and NIST AI RMF profile deploying automated self-service intake forms with pre-validated metadata.",
-      "estimated_duration": "2-4 business days",
-      "dependencies": [],
+      "description": "Project registers AI use case with MoJ Enterprise Architecture, initiates ATRS documentation, and categorises data tier and AI risk profile deploying automated self-service registration intake forms with pre-validated metadata fields, automated zero-touch triage for low-risk use cases, pre-approved metadata schema validation, and dedicated evaluation tracks for Commercial-Off-The-Shelf (COTS), SaaS, and Foundation Model / Generative AI systems to resolve registration bottlenecks. Calibrated criteria provide expedited handling for low-risk internal use cases, while closed-source foundation models undergo vendor compliance checks, API boundary security, and third-party data processing reviews rather than requiring unavailable raw training data or internal weights.",
       "deliverables": [
         "MoJ AI Inception Registration Form",
         "Risk Tier Classification Dossier",
         "Data Classification Certificate",
         "Fast-Track Low-Risk Triage Assessment",
-        "Automated Self-Service Intake Form with Pre-Validated Metadata"
+        "Automated Zero-Touch Triage Certificate",
+        "Automated Self-Service Intake Form with Pre-Validated Metadata",
+        "Pre-Approved Metadata Validation Manifest",
+        "COTS/LLM Vendor Intake Assessment",
+        "Tiered Fast-Track Governance Dossier"
       ],
+      "purpose": "Establish governance registration and classify project against HMG Security Classification, UK GDPR DPIA requirements, EU AI Act risk tiers, and NIST AI RMF profile deploying automated self-service intake forms, pre-approved metadata schema validation, automated zero-touch triage for low-risk use cases, and dedicated evaluation tracks for COTS and Generative AI systems to eliminate intake bottlenecks.",
+      "change_management": [
+        {
+          "versioning_rules": "Registration dossier versioned v0.1 to v1.0",
+          "change_request_process": "Use case scope alterations submitted to Enterprise Architect via Jira/ServiceNow; fast-track scope adjustments reviewed asynchronously"
+        }
+      ],
+      "responsible_party": "AI Project Lead / Product Manager",
+      "dependencies": [],
+      "scope": "All new and majorly updated AI initiatives across MoJ agencies, including bespoke models, COTS acquisitions, SaaS integrations, and third-party Foundation Model deployments.",
+      "process_end_conditions": [
+        "Completion of registration and sign-off of initial risk classification and pathway dossier"
+      ],
+      "step_name": "Inception & Classification",
+      "step_risks_and_controls": [
+        {
+          "risk": "Misclassification of high-risk AI system or unvetted ingestion of third-party Foundation Model services",
+          "control": "Mandatory dual sign-off by MoJ Enterprise Architecture and IAO with automated validation rules and specialized vendor compliance screening for COTS/LLMs"
+        }
+      ],
+      "process_triggers": [
+        "Submission of a new AI/ML project proposal, COTS acquisition request, or major system change"
+      ],
+      "estimated_duration": "2-4 business days (under 1 day for automated zero-touch low-risk triage)",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "continuous_improvement": [
         {
-          "review_frequency": "Quarterly",
           "improvement_inputs": [
             "Registration turnaround time",
             "Self-service triage usage",
+            "Zero-touch triage execution rate",
+            "COTS and Foundation Model pathway adoption rate",
             "Classification ambiguity queries",
             "Pre-validated intake completion rate"
-          ]
+          ],
+          "review_frequency": "Quarterly"
         }
       ],
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "governance_requirements": [
+        "HMG Government Security Classifications",
+        "CDDO Algorithmic Transparency Recording Standard (ATRS) Tiering",
+        "UK GDPR Article 35 (DPIA)",
+        "Crown Commercial Service AI Procurement Guidance"
+      ],
       "inputs": [
         "Project Charter",
         "Proposed Use Case Concept",
         "Initial Dataset Identification",
         "Business Requirements Document",
         "Self-Service Triage Questionnaire",
-        "Pre-Validated Metadata Schema Templates"
-      ],
-      "responsible_party": "AI Project Lead / Product Manager",
-      "change_management": [
-        {
-          "versioning_rules": "Registration dossier versioned v0.1 to v1.0",
-          "change_request_process": "Use case scope alterations submitted to Enterprise Architect via Jira/ServiceNow"
-        }
-      ],
-      "step_name": "Inception & Classification",
-      "success_criteria": [
-        "Use case registered in MoJ AI Registry",
-        "HMG Security Classification approved by IAO",
-        "Initial risk tier agreed with automated intake completion",
-        "Pre-validated metadata verification passed"
-      ],
-      "process_triggers": [
-        "Submission of a new AI/ML project proposal or major system change"
-      ],
-      "governance_requirements": [
-        "HMG Government Security Classifications",
-        "CDDO Algorithmic Transparency Recording Standard (ATRS) Tiering",
-        "UK GDPR Article 35 (DPIA)"
+        "Pre-Approved Metadata Schemas",
+        "Pre-Validated Metadata Schema Templates",
+        "Vendor Compliance & Security Documentation (SOC2/ISO27001)",
+        "Vendor Model Cards & Architecture Dossiers"
       ]
     },
     {
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "description": "Profile training, validation, and testing data against MoJ Data Quality Dimensions, verify dataset origin, consent, and full data lineage, implementing parallelised profiling pipelines and automated schema validation with caching to optimize throughput, reduce cycle time, and resolve bottlenecks. This step enforces strict data hygiene, detects anomalies early, and guarantees that downstream AI models ingest only verified and compliant justice sector information.",
-      "estimated_duration": "4-7 business days",
       "governance_requirements": [
         "Government Data Quality Hub Standards",
         "UK Data Protection Act 2018",
-        "NIST AI RMF - MAP & MEASURE functions"
+        "NIST AI RMF - MAP & MEASURE functions",
+        "Central Digital and Data Office Data Sharing Standards"
       ],
-      "process_triggers": [
-        "Receipt of approved Inception Registration and dataset provisioning"
-      ],
-      "success_criteria": [
-        ">= 99.5% data profiling accuracy",
-        "0 unclassified or unauthorized data elements",
-        "Full data lineage recorded with optimized profiling cycle time",
-        "Parallelised validation completed without queueing backlog"
-      ],
-      "continuous_improvement": [
-        {
-          "improvement_inputs": [
-            "Data quality test suite failure rates",
-            "Profiling cache hit rates",
-            "Profiling false positives",
-            "Parallelised profiling throughput"
-          ],
-          "review_frequency": "Quarterly"
-        }
-      ],
-      "purpose": "Ensure all datasets ingested into AI pipelines meet completeness, accuracy, timeliness, and validity thresholds, with complete provenance and parallelised profiling throughput.",
       "inputs": [
         "Raw Datasets",
         "Data Dictionaries",
         "Data Provenance Logs",
         "Registered AI Use Case Record",
         "Cached Data Schema Baselines",
-        "Automated Validation Schemas"
-      ],
-      "process_end_conditions": [
-        "Data Quality Scorecard meeting minimum thresholds and formal CDO approval"
-      ],
-      "step_risks_and_controls": [
-        {
-          "control": "Automated parallel data quality rule enforcement with cached pre-validation and mandatory validation gate stopping data pipeline execution if score < 95%",
-          "risk": "Ingestion of corrupted, incomplete, or unverified justice records"
-        }
-      ],
-      "responsible_party": "Chief Data Officer / Head of Data Governance",
-      "change_management": [
-        {
-          "change_request_process": "Data schema changes require data owner approval and re-profiling",
-          "versioning_rules": "Dataset snapshots hashed and versioned via DVC / GitOps"
-        }
+        "Automated Validation Schemas",
+        "Upstream Partner Data Contracts",
+        "Partner SLA Agreements & Schemas"
       ],
       "outputs": [
         "Automated Data Quality Profiling Report",
@@ -288,253 +348,357 @@
         "Data Quality Scorecard",
         "Data Cleansing & Validation Manifest",
         "Streamlined Pre-Validation Execution Dossier",
-        "Parallelised Profiling Execution Metrics"
+        "Parallelised Profiling Execution Metrics",
+        "Automated Streaming Validation Metrics",
+        "Distributed Profiling Execution Telemetry",
+        "Pre-Compiled Data Contract Verification Results",
+        "Data Contract Verification Report",
+        "Upstream Provider SLA Compliance Record"
       ],
-      "step_name": "Data Quality & Provenance Verification",
-      "dependencies": [
-        "Inception & Classification"
+      "scope": "All training, evaluation, and operational data sources designated for bespoke AI models, as well as fine-tuning datasets and upstream justice partner data feeds.",
+      "process_triggers": [
+        "Receipt of approved Inception Registration, upstream data feed event, and dataset provisioning"
       ],
-      "scope": "All training, evaluation, and operational data sources designated for the AI model.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Data quality test suite failure rates",
+            "Profiling cache hit rates",
+            "Upstream provider schema breach frequency",
+            "Data contract validation pass rates",
+            "Parallelised profiling throughput",
+            "Streaming validation latency and executor queue depth"
+          ]
+        }
+      ],
+      "description": "Profile training, validation, and testing data against MoJ Data Quality Dimensions, verify dataset origin, consent, and full data lineage, implementing automated streaming validation, distributed parallel profiling executors, and pre-compiled data contract checks with caching to eliminate profiling pipeline queues and resolve bottlenecks. Implement machine-readable Data Contracts, pre-ingestion schema validation, and partner SLA verifications for external and upstream justice-sector data providers to proactively intercept and prevent unexpected upstream schema drift from disrupting downstream pipelines before data ingestion occurs.",
+      "purpose": "Ensure all datasets ingested into AI pipelines meet completeness, accuracy, timeliness, and validity thresholds, enforcing machine-readable Data Contracts, automated streaming validation, distributed parallel profiling executors, and pre-compiled data contract checks with complete provenance to eliminate profiling queues.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Ingestion of corrupted, incomplete, or unverified justice records due to silent upstream schema changes",
+          "control": "Automated parallel data quality rule enforcement with machine-readable data contract pre-validation and mandatory validation gate stopping data pipeline execution if score < 95% or schema violates contract"
+        }
+      ],
+      "estimated_duration": "4-7 business days (1-2 business days with streaming validation and distributed executors)",
       "deliverables": [
         "MoJ Data Quality Scorecard (Completeness, Accuracy, Timeliness, Validity)",
         "Immutable Data Lineage Record in Data Catalog",
         "Cached Pre-Validation Profiling Execution Log",
-        "Parallelised Profiling and Automated Schema Validation Report"
-      ]
+        "Parallelised Profiling and Automated Schema Validation Report",
+        "Automated Streaming Validation Execution Log",
+        "Distributed Parallel Profiling Executor Report",
+        "Pre-Compiled Data Contract Verification Manifest",
+        "Machine-Readable Data Contract Specifications",
+        "Partner Data Contract Conformance Record"
+      ],
+      "success_criteria": [
+        ">= 99.5% data profiling accuracy",
+        "100% upstream partner data contract conformance verified pre-ingestion",
+        "0 unclassified or unauthorized data elements",
+        "Full data lineage recorded with optimized profiling cycle time",
+        "Parallelised validation completed without queueing backlog",
+        "Automated streaming validation active with zero pipeline queueing delay",
+        "Distributed parallel profiling executors operational without queue backlog",
+        "Pre-compiled data contract checks verified pre-ingestion"
+      ],
+      "dependencies": [
+        "Inception & Classification"
+      ],
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "change_management": [
+        {
+          "change_request_process": "Data schema changes and contract modifications require data owner approval, provider notification, and re-profiling",
+          "versioning_rules": "Dataset snapshots hashed and versioned via DVC / GitOps; Data contracts versioned semantically in central schema repository"
+        }
+      ],
+      "process_end_conditions": [
+        "Data Quality Scorecard meeting minimum thresholds, full Data Contract validation, and formal CDO approval"
+      ],
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "step_name": "Data Quality & Provenance Verification"
     },
     {
-      "estimated_duration": "10-15 business days",
+      "purpose": "Ensure AI infrastructure, container pipelines, APIs, COTS vendors, and Foundation Model endpoints meet OFFICIAL-SENSITIVE security controls, OWASP LLM mitigations, and robust threat defenses without causing engineering bottlenecks.",
+      "scope": "Cloud and on-premises AI deployment architecture, data pipelines, model storage, inference endpoints, COTS third-party SaaS integrations, and Foundation Model API integrations.",
+      "step_risks_and_controls": [
+        {
+          "control": "Mandatory enclave boundary isolation, RBAC, KMS envelope encryption, CI/CD vulnerability scanning, OWASP LLM prompt firewalls, and third-party vendor SOC2/ISO27001 attestation verification",
+          "risk": "Data exfiltration, adversarial attack, prompt injection exploits, or third-party vendor boundary compromise"
+        }
+      ],
       "outputs": [
         "AI Threat Model Report",
         "Security Architecture Approval Record",
         "Penetration Testing Summary",
-        "Encryption & Boundary Controls Validation"
-      ],
-      "description": "Review AI solution architecture against MoJ Secure by Design principles, NIST cybersecurity guidelines, threat modeling, and infrastructure controls. This comprehensive security assessment verifies encryption protocols, enclave boundaries, and access restrictions to protect sensitive offender and court records against adversarial compromise.",
-      "purpose": "Ensure AI infrastructure, container pipelines, APIs, and data stores meet OFFICIAL-SENSITIVE security controls and robust threat mitigations.",
-      "step_risks_and_controls": [
-        {
-          "control": "Mandatory enclave boundary isolation, RBAC, KMS envelope encryption, and CI/CD vulnerability scanning",
-          "risk": "Data exfiltration or adversarial attack against AI model pipeline"
-        }
-      ],
-      "inputs": [
-        "System Architecture Design Document",
-        "Data Flow Diagrams",
-        "Data Quality Scorecard",
-        "Infrastructure as Code (IaC) Templates"
-      ],
-      "step_name": "Architecture & Security Baseline Review",
-      "dependencies": [
-        "Data Quality & Provenance Verification"
-      ],
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "continuous_improvement": [
-        {
-          "improvement_inputs": [
-            "Vulnerability scan metrics",
-            "Threat model review findings"
-          ],
-          "review_frequency": "Quarterly"
-        }
-      ],
-      "process_end_conditions": [
-        "Formal security sign-off from CISO & Cyber Security Team"
-      ],
-      "change_management": [
-        {
-          "versioning_rules": "Architecture design document and IaC commits versioned in Git",
-          "change_request_process": "Architectural or infrastructure modifications require CISO Technical Review approval"
-        }
+        "Encryption & Boundary Controls Validation",
+        "OWASP LLM Top 10 Threat Mitigation Assessment",
+        "Vendor Cloud Security Review",
+        "Calibrated Security Fast-Track Determination"
       ],
       "governance_requirements": [
         "MoJ Secure by Design Policy",
         "NIST SP 800-53 / NIST AI RMF - GOVERN & PROTECT",
-        "HMG Cyber Essentials Plus"
+        "HMG Cyber Essentials Plus",
+        "OWASP Top 10 for LLM Applications"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Vulnerability scan metrics",
+            "Threat model review findings",
+            "OWASP LLM defect rates",
+            "Fast-track security throughput times"
+          ]
+        }
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Architecture design document, IaC commits, and prompt-defense policies versioned in Git",
+          "change_request_process": "Architectural, infrastructure, or LLM endpoint modifications require CISO Technical Review approval; low-risk changes fast-tracked via automated checkov/tfsec gates"
+        }
+      ],
+      "responsible_party": "Chief Information Security Officer (CISO) & Cyber Security Team",
+      "success_criteria": [
+        "Zero open critical or high security vulnerabilities",
+        "OFFICIAL-SENSITIVE isolation controls and API egress filtering verified",
+        "IaC templates conform to MoJ security baseline",
+        "OWASP LLM Top 10 mitigations validated for GenAI systems",
+        "Calibrated fast-track security clearance completed for qualified low-risk systems"
       ],
       "deliverables": [
         "MoJ Secure by Design AI Compliance Review",
         "Threat Model and Mitigation Matrix",
-        "Security Sign-off Certificate"
+        "Security Sign-off Certificate",
+        "Generative AI Threat & Prompt Injection Defense Review",
+        "Vendor Security Assessment Dossier"
       ],
-      "responsible_party": "Chief Information Security Officer (CISO) & Cyber Security Team",
-      "scope": "Cloud and on-premises AI deployment architecture, data pipelines, model storage, and inference endpoints.",
-      "success_criteria": [
-        "Zero open critical or high security vulnerabilities",
-        "OFFICIAL-SENSITIVE isolation controls verified",
-        "IaC templates conform to MoJ security baseline"
+      "description": "Review AI solution architecture against MoJ Secure by Design principles, NIST cybersecurity guidelines, threat modeling, and infrastructure controls. Incorporate dedicated Generative AI / Foundation Model and COTS security evaluations, including OWASP Top 10 for LLMs, prompt injection defense, API egress filtering, and vendor SOC2 Type II / ISO 27001 validation, alongside calibrated fast-track security reviews for low-risk systems to prevent capacity bottlenecks in cybersecurity engineering.",
+      "estimated_duration": "10-15 business days (3-5 business days for fast-track low-risk systems)",
+      "dependencies": [
+        "Data Quality & Provenance Verification"
       ],
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "inputs": [
+        "System Architecture Design Document",
+        "Data Flow Diagrams",
+        "Data Quality Scorecard",
+        "Infrastructure as Code (IaC) Templates",
+        "Vendor SOC2 Type II / ISO 27001 Audits",
+        "Prompt Injection Defense Architecture",
+        "LLM API Integration Specs"
+      ],
+      "process_end_conditions": [
+        "Formal security sign-off from CISO & Cyber Security Team (or expedited fast-track security clearance)"
+      ],
+      "step_name": "Architecture & Security Baseline Review",
       "process_triggers": [
         "Completion of data quality validation and submission of system architecture documentation"
       ]
     },
     {
-      "continuous_improvement": [
-        {
-          "improvement_inputs": [
-            "Fairness metric distributions",
-            "Explainability feedback from legal and operational users"
-          ],
-          "review_frequency": "Quarterly"
-        }
-      ],
-      "description": "Perform algorithmic bias audits, disparate impact analysis, explainability evaluations, and human-in-the-loop oversight validation. This stage confirms that decision-support models behave equitably across diverse demographic cohorts, ensuring accountability and adherence to UK statutory public sector equality duties.",
-      "change_management": [
-        {
-          "change_request_process": "Retraining with adjusted weights or fairness regularisers logged in MLOps registry",
-          "versioning_rules": "Model artifacts assigned cryptographic hash and semantic version"
-        }
-      ],
-      "purpose": "Validate that AI models do not produce biased, unlawful, or discriminatory outcomes in justice, correctional, or court contexts, ensuring explainability.",
-      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
+      "purpose": "Validate that AI models (bespoke, COTS, and GenAI) do not produce biased, unlawful, toxic, or discriminatory outcomes in justice, correctional, or court contexts, ensuring explainability and human oversight with calibrated audit capacity.",
+      "step_name": "Algorithmic Fairness & Ethical Assessment",
       "process_end_conditions": [
-        "Independent auditor endorsement and sign-off of fairness and explainability report"
-      ],
-      "dependencies": [
-        "Architecture & Security Baseline Review"
+        "Independent auditor endorsement and sign-off of fairness and explainability report, or delegated audit sign-off for low-risk systems"
       ],
       "outputs": [
         "Algorithmic Fairness & Bias Audit Report",
         "Explainability Assessment Dossier",
         "Human-in-the-Loop Protocol Specification",
-        "Independent Model Audit Report"
+        "Independent Model Audit Report",
+        "Black-Box Empirical Behavioral Audit",
+        "LLM Hallucination & Toxicity Assessment",
+        "Delegated Minimal-Risk Audit Determination"
       ],
-      "scope": "Trained model artifacts, weights, validation results, explainability metrics, and decision-support procedures.",
       "deliverables": [
         "MoJ Ethical AI Conformance Report",
         "Disparate Impact & Bias Evaluation Matrix",
-        "Model Explainability Dossier"
+        "Model Explainability Dossier",
+        "Black-Box & GenAI Ethical Evaluation Dossier",
+        "Delegated Audit Endorsement Record"
       ],
-      "step_name": "Algorithmic Fairness & Ethical Assessment",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "process_triggers": [
+        "Receipt of security clearance and finalized model training validation outputs or COTS API staging access"
+      ],
+      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
+      "estimated_duration": "10-20 business days (2-4 business days for delegated low-risk audits)",
+      "change_management": [
+        {
+          "change_request_process": "Retraining with adjusted weights, prompt template adjustments, or fairness regularisers logged in MLOps registry",
+          "versioning_rules": "Model artifacts and vendor model card evaluation baselines assigned cryptographic hash and semantic version"
+        }
+      ],
+      "dependencies": [
+        "Architecture & Security Baseline Review"
+      ],
+      "description": "Perform algorithmic bias audits, disparate impact analysis, explainability evaluations, and human-in-the-loop oversight validation. Support black-box model auditing, empirical input-output behavioral testing, hallucination/toxicity benchmarking, and vendor model card verification for COTS and Generative AI systems where training data and white-box weights are proprietary. Introduce delegated audit approvals for minimal-risk use cases to alleviate the specialist auditor capacity bottleneck while preserving rigorous assurance for high-risk judicial tools.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Algorithmic discrimination, toxic/hallucinatory GenAI outputs, or black-box opacity affecting justice decisions",
+          "control": "Mandatory pre-deployment disparate impact testing, automated black-box red-teaming for hallucination/toxicity, documented human-in-the-loop validation checkpoints, and delegated QA reviews for low-risk tools"
+        }
+      ],
+      "governance_requirements": [
+        "UK National AI Strategy Ethical Principles",
+        "EU AI Act High-Risk System Requirements (Articles 9-15)",
+        "Equality Act 2010",
+        "Central Digital and Data Office ATRS Ethical Guidelines"
+      ],
+      "success_criteria": [
+        "100% resolution rate of critical model bias, hallucination, and toxicity findings",
+        "Disparate impact ratio within statutory fairness thresholds (0.80 to 1.25 parity rule)",
+        "Human oversight protocols operationalised",
+        "Delegated audit clearance successfully executed for qualified minimal-risk systems"
+      ],
+      "scope": "Trained model artifacts, weights, validation results, COTS vendor black-box APIs, LLM prompt-response pairs, explainability metrics, and decision-support procedures.",
       "inputs": [
         "Trained Model Artifacts",
         "Validation Dataset Results",
         "Model Explainability Outputs (SHAP/LIME)",
-        "Security Architecture Approval Record"
+        "Security Architecture Approval Record",
+        "Empirical Test Prompts and Behavioral Datasets",
+        "Vendor Model Cards & Ethical Benchmarks",
+        "Hallucination & Toxicity Evaluation Suites"
       ],
-      "step_risks_and_controls": [
+      "continuous_improvement": [
         {
-          "risk": "Algorithmic discrimination or bias affecting justice decisions",
-          "control": "Mandatory pre-deployment disparate impact testing and documented human-in-the-loop validation checkpoints"
+          "improvement_inputs": [
+            "Fairness metric distributions",
+            "Explainability feedback from legal and operational users",
+            "Hallucination and toxicity benchmarking rates",
+            "Delegated audit throughput metrics"
+          ],
+          "review_frequency": "Quarterly"
         }
-      ],
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "process_triggers": [
-        "Receipt of security clearance and finalized model training validation outputs"
-      ],
-      "success_criteria": [
-        "100% resolution rate of critical model bias findings",
-        "Disparate impact ratio within statutory fairness thresholds",
-        "Human oversight protocols operationalised"
-      ],
-      "estimated_duration": "10-20 business days",
-      "governance_requirements": [
-        "UK National AI Strategy Ethical Principles",
-        "EU AI Act High-Risk System Requirements (Articles 9-15)",
-        "Equality Act 2010"
       ]
     },
     {
-      "process_end_conditions": [
-        "Formal issuance of an auditable MoJ AI Conformance Certificate or formal rejection/remediation directive"
-      ],
-      "deliverables": [
-        "Signed MoJ AI Certificate of Conformance",
-        "Published Algorithmic Transparency Record (ATRS)",
-        "Production Authority to Operate (ATO)",
-        "Asynchronous Pre-Review Record and Concurrent Sign-Off Dossier"
-      ],
-      "step_risks_and_controls": [
-        {
-          "control": "Mandatory cryptographically signed Conformance Certificate required to release production cloud environment access with concurrent audit validation",
-          "risk": "Non-compliant AI deployment or bypassed governance gate"
-        }
-      ],
-      "dependencies": [
-        "Algorithmic Fairness & Ethical Assessment"
-      ],
+      "description": "Convene the MoJ AI Governance Board to conduct stage-gate evaluation across data quality, security, fairness, and legal compliance, implementing fully asynchronous digital quorum voting, delegated single-lead approvals for low-risk systems, automated verification checks, and concurrent sign-off mechanisms for non-blocking compliance checks to alleviate gate bottlenecks. Introduce delegated approval pathways and conditional sign-offs for low-risk systems and minor remediations, eliminating the rigid requirement to reconvene the full MoJ AI Governance Board for minor conditional items and enabling expedited asynchronous single-lead or chair-delegated sign-off. Successful completion results in the issuance of an auditable MoJ AI Conformance Certificate and formal Authority to Operate.",
+      "purpose": "Provide authoritative, auditable gate sign-off and issue the MoJ AI Certificate of Conformance prior to production deployment with streamlined asynchronous digital quorum voting, delegated single-lead approvals for low-risk systems, automated verification checks, and concurrent workflows.",
       "continuous_improvement": [
         {
           "improvement_inputs": [
             "Gate lead time",
             "Concurrent review throughput",
+            "Delegated approval utilization rate",
             "Remediation cycle counts",
-            "Board feedback"
+            "Board feedback",
+            "Asynchronous digital quorum turnaround speed"
           ],
           "review_frequency": "Quarterly"
         }
       ],
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "description": "Convene the MoJ AI Governance Board to conduct stage-gate evaluation across data quality, security, fairness, and legal compliance, implementing asynchronous board pre-review workflows and concurrent sign-off mechanisms for non-blocking compliance checks to eliminate gate review bottlenecks. Successful completion of this gate results in the issuance of an auditable MoJ AI Conformance Certificate and formal Authority to Operate.",
+      "change_management": [
+        {
+          "versioning_rules": "Governance gate records and conditional sign-offs logged in immutable audit repository",
+          "change_request_process": "Gate rejection triggers mandatory remediation workflow; minor conditional remediations are resolved via asynchronous chair-delegated sign-off without full board re-convening"
+        }
+      ],
+      "responsible_party": "Enterprise Architect (MoJ)",
+      "process_triggers": [
+        "Completion and submission of all Phase 1-4 deliverables to the MoJ AI Governance Board or delegated reviewer"
+      ],
+      "step_name": "Formal Governance Gate & Sign-Off",
+      "outputs": [
+        "MoJ AI Conformance Certificate",
+        "ATRS Publication Record",
+        "Production Deployment Authorization",
+        "Stage-Gate Review Minutes",
+        "Concurrent Sign-Off Registry Log",
+        "Digital Quorum Voting Log",
+        "Automated Verification Check Findings",
+        "Delegated Single-Lead Sign-Off Confirmation",
+        "Conditional Authority to Operate",
+        "Delegated Single-Lead / Chair Sign-Off Record"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Mandatory cryptographically signed Conformance Certificate required to release production cloud environment access with concurrent audit validation and formal chair-delegated approval tracking for conditional items",
+          "risk": "Non-compliant AI deployment or bypassed governance gate"
+        }
+      ],
+      "process_end_conditions": [
+        "Formal issuance of an auditable MoJ AI Conformance Certificate, delegated conditional sign-off release, or formal rejection directive"
+      ],
       "inputs": [
         "Registered AI Use Case Record",
         "Data Quality Scorecard",
         "Security Architecture Approval Record",
         "Algorithmic Fairness & Bias Audit Report",
         "Full DPIA & ATRS Submission Draft",
-        "Pre-Populated Asynchronous Review Comments"
+        "Pre-Populated Asynchronous Review Comments",
+        "Conditional Sign-Off Remediation Package",
+        "Delegated Approval Eligibility Matrix"
       ],
-      "estimated_duration": "3-5 business days",
-      "purpose": "Provide authoritative, auditable gate sign-off and issue the MoJ AI Certificate of Conformance prior to production deployment with streamlined asynchronous and concurrent review workflows.",
-      "scope": "Complete AI project dossier including all prior gate deliverables and regulatory filings.",
-      "change_management": [
-        {
-          "versioning_rules": "Governance gate records logged in immutable audit repository",
-          "change_request_process": "Gate rejection triggers mandatory remediation workflow and board re-convening"
-        }
+      "estimated_duration": "3-5 business days (1-2 business days for delegated/conditional sign-offs and asynchronous digital quorum)",
+      "scope": "Complete AI project dossier including all prior gate deliverables, COTS evaluations, regulatory filings, and conditional remediation logs.",
+      "dependencies": [
+        "Algorithmic Fairness & Ethical Assessment"
       ],
-      "responsible_party": "Enterprise Architect (MoJ)",
-      "outputs": [
-        "MoJ AI Conformance Certificate",
-        "ATRS Publication Record",
-        "Production Deployment Authorization",
-        "Stage-Gate Review Minutes",
-        "Concurrent Sign-Off Registry Log"
+      "deliverables": [
+        "Signed MoJ AI Certificate of Conformance",
+        "Published Algorithmic Transparency Record (ATRS)",
+        "Production Authority to Operate (ATO)",
+        "Asynchronous Pre-Review Record and Concurrent Sign-Off Dossier",
+        "Asynchronous Digital Quorum Voting Record",
+        "Automated Gate Verification Check Report",
+        "Delegated Single-Lead Approval Manifest",
+        "Delegated Approval Manifest",
+        "Conditional Remediation Verification Certificate"
       ],
+      "success_criteria": [
+        "Unanimous or majority board sign-off (or chair-delegated approval for low-risk/conditional systems)",
+        "100% compliance with MoJ AI Data Quality and Governance requirements",
+        "Audit package archived for 7-year retention",
+        "Zero governance queueing bottleneck delays for minor conditional remediations",
+        "Fully asynchronous digital quorum voting completed within SLA",
+        "Delegated single-lead approvals operational for eligible low-risk systems",
+        "Automated gate verification checks executed with zero queueing bottlenecks"
+      ],
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "governance_requirements": [
         "MoJ Digital & Technology Governance Standard",
         "UK Government Service Standard Gate Reviews",
         "CDDO Algorithmic Transparency Recording Standard"
-      ],
-      "process_triggers": [
-        "Completion and submission of all Phase 1-4 deliverables to the MoJ AI Governance Board"
-      ],
-      "success_criteria": [
-        "Unanimous or majority board sign-off",
-        "100% compliance with MoJ AI Data Quality and Governance requirements",
-        "Audit package archived for 7-year retention",
-        "Zero governance queueing bottleneck delays"
-      ],
-      "step_name": "Formal Governance Gate & Sign-Off"
+      ]
     },
     {
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "change_management": [
-        {
-          "versioning_rules": "All retrained model weights, configs, and production versions tracked via GitOps and MLOps registry",
-          "change_request_process": "Any model retraining, dataset schema alteration, or algorithmic modification exceeding drift thresholds must undergo formal change review via the MoJ AI Technical Review Panel"
-        }
+      "dependencies": [
+        "Formal Governance Gate & Sign-Off"
       ],
-      "process_end_conditions": [
-        "Continuous monitoring until formal model decommissioning or retirement"
+      "process_triggers": [
+        "Successful production deployment authorization, live system activation, or formal decommissioning and retirement trigger directive"
       ],
-      "responsible_party": "Chief Data Officer / Head of Data Governance",
-      "purpose": "Ensure AI system remains accurate, secure, fair, and compliant throughout its operational lifecycle and triggers retraining or decommissioning when thresholds are breached, leveraging automated drift alerts and continuous streaming.",
       "deliverables": [
         "Monthly AI Operational Health Report",
         "Real-Time Telemetry Dashboard",
         "Annual AI Re-certification Audit Report",
-        "Real-Time Automated Drift Alerting and Telemetry Stream Log"
+        "Real-Time Automated Drift Alerting and Telemetry Stream Log",
+        "MoJ AI Decommissioning & Retirement Dossier",
+        "Deregistration and Data Purge Certificate"
       ],
-      "scope": "Operational AI systems running in production environments across the MoJ.",
-      "step_risks_and_controls": [
-        {
-          "control": "Automated continuous monitoring with continuous telemetry streaming, automated threshold alerts, and mandatory bi-annual model re-validation",
-          "risk": "Data drift or model degradation causing inaccurate predictions over time"
-        }
+      "outputs": [
+        "Model Performance Drift Alerts",
+        "Continuous Data Quality Telemetry",
+        "Annual Re-certification Audit Dossier",
+        "Incident Response & Retraining Triggers",
+        "Automated Drift Notification Dispatches",
+        "Cryptographic Key Revocation Confirmation",
+        "Data Purge and Archival Attestation",
+        "ATRS Deregistration Notice",
+        "Formal Model Decommissioning Report"
       ],
-      "dependencies": [
-        "Formal Governance Gate & Sign-Off"
+      "inputs": [
+        "Production Inference Logs",
+        "Real-time Telemetry Data",
+        "Ground Truth Operational Outcomes",
+        "MoJ AI Conformance Certificate",
+        "Continuous Telemetry Stream Endpoints",
+        "Decommissioning & Retirement Trigger Directives",
+        "Asset Purge Verification Schedules"
       ],
       "continuous_improvement": [
         {
@@ -542,161 +706,117 @@
             "Operational incident logs",
             "Retraining frequency",
             "Drift detection accuracy",
-            "Continuous telemetry streaming latency"
+            "Continuous telemetry streaming latency",
+            "Decommissioning completion lead time and verification pass rate"
           ],
           "review_frequency": "Quarterly reviews and annual benchmarking"
         }
       ],
-      "inputs": [
-        "Production Inference Logs",
-        "Real-time Telemetry Data",
-        "Ground Truth Operational Outcomes",
-        "MoJ AI Conformance Certificate",
-        "Continuous Telemetry Stream Endpoints"
+      "scope": "Operational AI systems running in production environments across the MoJ through live operations, continuous audit, and final decommissioning.",
+      "change_management": [
+        {
+          "change_request_process": "Any model retraining, dataset schema alteration, or algorithmic modification exceeding drift thresholds must undergo formal change review via the MoJ AI Technical Review Panel. Formal decommissioning and retirement requests submitted to Enterprise Architecture and IAO via ServiceNow RFC.",
+          "versioning_rules": "All retrained model weights, configs, production versions, and retirement manifests tracked via GitOps and MLOps registry with immutable archive hashes"
+        }
       ],
-      "outputs": [
-        "Model Performance Drift Alerts",
-        "Continuous Data Quality Telemetry",
-        "Annual Re-certification Audit Dossier",
-        "Incident Response & Retraining Triggers",
-        "Automated Drift Notification Dispatches"
-      ],
-      "step_name": "Post-Deployment Monitoring & Continuous Audit",
-      "description": "Implement continuous telemetry streaming, automated drift alerting triggers, automated data and concept drift detection, security observability, and periodic re-certification audits to prevent operational latency and alleviate monitoring bottlenecks. This active post-deployment supervision ensures that operational AI models retain predictive validity, maintain security posture, and prompt retraining or retirement when drift thresholds are exceeded.",
-      "process_triggers": [
-        "Successful production deployment authorization and live system activation"
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "purpose": "Ensure AI system remains accurate, secure, fair, and compliant throughout its operational lifecycle, triggers retraining when drift thresholds are breached, and enforces clean, compliant end-of-life decommissioning and asset retirement.",
+      "step_risks_and_controls": [
+        {
+          "control": "Automated continuous monitoring with continuous telemetry streaming, automated threshold alerts, mandatory bi-annual model re-validation, and cryptographic key destruction with verified data purge protocols upon asset retirement",
+          "risk": "Data drift or model degradation causing inaccurate predictions, or orphaned zombie models and unpurged sensitive data lingering post-retirement"
+        }
       ],
       "success_criteria": [
         "Continuous drift monitoring active with automated threshold alerting",
         "Continuous streaming telemetry with zero operational latency",
         "Zero unhandled drift incidents",
-        "Audit trail retention maintained for 7 years"
+        "Audit trail retention maintained for 7 years",
+        "100% cryptographic key revocation, verified UK GDPR data purge, and CDDO ATRS deregistration upon model retirement"
+      ],
+      "estimated_duration": "Continuous / Ongoing operational lifecycle (5-10 business days for full decommissioning execution)",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "description": "Implement continuous telemetry streaming, automated drift alerting triggers, automated data and concept drift detection, security observability, and periodic re-certification audits to prevent operational latency and alleviate monitoring bottlenecks. Execute formal AI Decommissioning and Asset Retirement protocols at model end-of-life, detailing comprehensive procedures including cryptographic key revocation, inference traffic rerouting, container and artifact archival, UK GDPR/DPA data purge verification, and formal deregistration notifications to the central CDDO ATRS repository.",
+      "process_end_conditions": [
+        "Continuous monitoring until formal model decommissioning, including verified cryptographic key revocation, data purge certification, and ATRS registry deregistration"
       ],
       "governance_requirements": [
         "NIST AI RMF - MANAGE function",
         "UK AI Regulation Monitoring Principles",
-        "MoJ Records Management & Retention Policy (7-year rule)"
+        "MoJ Records Management & Retention Policy (7-year rule)",
+        "UK GDPR Article 17 (Right to Erasure) & DPA 2018",
+        "CDDO Algorithmic Transparency Recording Standard (Deregistration Guidance)"
       ],
-      "estimated_duration": "Continuous / Ongoing operational lifecycle"
+      "step_name": "Post-Deployment Monitoring & Continuous Audit"
     }
   ],
   "continuous_improvement": [
     {
+      "review_frequency": "Quarterly reviews of gate throughput and metrics; annual benchmarking against evolving UK AI Safety Institute (AISI) guidelines, NIST revisions, and international best practices.",
       "improvement_inputs": [
         "Quarterly retrospective reviews of governance gate throughput",
         "False positive and negative rates of automated data quality checks",
-        "Feedback from project teams and model auditors",
+        "Feedback from project teams, COTS vendors, and model auditors",
         "UK AI Safety Institute (AISI) and NIST guidance revisions"
-      ],
-      "review_frequency": "Quarterly reviews of gate throughput and metrics; annual benchmarking against evolving UK AI Safety Institute (AISI) guidelines, NIST revisions, and international best practices."
+      ]
     }
   ],
-  "constraints": [
-    "Mandatory adherence to statutory UK GDPR, Data Protection Act 2018, and Crown Commercial Service procurement frameworks without exception.",
-    "Strict requirement to handle criminal justice, court, and offender records under HMG Government Security Classifications (OFFICIAL-SENSITIVE / SECRET), preventing use of unaccredited public cloud AI models.",
-    "Fixed annual MoJ Digital & Technology departmental budgetary allocations and finite availability of cleared AI specialist auditors and data governance personnel."
+  "change_management": [
+    {
+      "versioning_rules": "Version control for models, datasets, data contracts, and governance artifacts strictly enforced via GitOps and MLOps registry with semantic versioning.",
+      "change_request_process": "Any model retraining, dataset schema alteration, or algorithmic architecture modification exceeding pre-defined drift thresholds must undergo formal change review via the MoJ AI Technical Review Panel. Delegated approvals and conditional sign-offs handle minor remediations without full board convening."
+    }
   ],
   "assumptions": [
     "Project teams possess sufficient foundational data literacy and tooling access to execute automated data profiling and artifact generation.",
     "Executive leadership and Senior Information Risk Owners (SIRO) enforce mandatory compliance gating before any AI model can receive production deployment authority.",
-    "Upstream data source providers maintain documented data dictionaries and reliable change notification mechanisms for shared justice-sector datasets."
-  ],
-  "industry_sector": "UK Public Sector / Central Government / Justice",
-  "appendix": {
-    "regulatory_references": [
-      "UK Data Protection Act 2018 / UK GDPR",
-      "Central Digital and Data Office (CDDO) Algorithmic Transparency Recording Standard (ATRS)",
-      "EU Artificial Intelligence Act (Regulation EU 2024/1689)",
-      "NIST AI Risk Management Framework (AI RMF 1.0)",
-      "HMG Government Security Classifications Policy (OFFICIAL-SENSITIVE / SECRET)"
-    ],
-    "acronyms": {
-      "CDDO": "Central Digital and Data Office",
-      "ATRS": "Algorithmic Transparency Recording Standard",
-      "SIEM": "Security Information and Event Management",
-      "DPIA": "Data Protection Impact Assessment",
-      "SIRO": "Senior Information Risk Owner",
-      "NIST_AI_RMF": "NIST Artificial Intelligence Risk Management Framework",
-      "IAO": "Information Asset Owner",
-      "HMG": "His Majesty's Government"
-    }
-  },
-  "metrics": [
-    {
-      "measurement_frequency": "Per deployment gate review",
-      "name": "Production Gate Compliance Rate",
-      "description": "Compliance rate of production AI models with MoJ AI Data Quality and Governance Gate reviews prior to deployment.",
-      "target": "100%"
-    },
-    {
-      "description": "Mean Time to Audit for full traceability of training datasets, model weights, and provenance logs.",
-      "measurement_frequency": "Monthly",
-      "target": "Under 5 working days",
-      "name": "Mean Time to Audit (MTTA)"
-    },
-    {
-      "name": "Unclassified Data Violations",
-      "measurement_frequency": "Continuous",
-      "description": "Unclassified or improperly handled sensitive data assets within training and inference pipelines.",
-      "target": "0 occurrences"
-    },
-    {
-      "description": "Accuracy in automated data quality profiling across completeness, consistency, timeliness, and validity.",
-      "target": ">= 99.5%",
-      "measurement_frequency": "Weekly automated profiling",
-      "name": "Data Quality Profiling Accuracy"
-    },
-    {
-      "target": "100%",
-      "description": "Resolution rate of critical model bias, drift, or vulnerability findings prior to sign-off.",
-      "measurement_frequency": "Per stage-gate review",
-      "name": "Critical Vulnerability Resolution Rate"
-    }
-  ],
-  "critical_success_factors": [
-    {
-      "name": "Executive Backing",
-      "description": "Full institutional executive backing from MoJ Digital and Technology leadership."
-    },
-    {
-      "name": "Agile Integration",
-      "description": "Seamless integration of AI governance checkpoints into agile delivery lifecycles without causing delivery bottlenecks."
-    },
-    {
-      "description": "Comprehensive automated data lineage, classification, and auditing tooling across cloud and on-premises environments.",
-      "name": "Automated Tooling"
-    },
-    {
-      "name": "Multi-Disciplinary Alignment",
-      "description": "Multi-disciplinary alignment between technical, legal, ethical, and operational stakeholders."
-    }
-  ],
-  "scope": "Applies across all branches of the UK Ministry of Justice (including HM Courts & Tribunals Service, HM Prison and Probation Service, and executive agencies) for all internal development, commercial off-the-shelf (COTS) acquisition, and third-party algorithmic and AI systems processing justice sector data.",
-  "critical_failure_factors": [
-    {
-      "description": "Incomplete audit trails leading to non-compliance with UK Government Service Standards or statutory regulations.",
-      "name": "Incomplete Audit Trails"
-    },
-    {
-      "name": "Inadequate Data Classification",
-      "description": "Inadequate data classification allowing sensitive offender or court records to be ingested into unvetted AI models."
-    },
-    {
-      "name": "Governance Fatigue & Shadow AI",
-      "description": "Governance fatigue leading project teams to bypass formal AI gating mechanisms (shadow AI)."
-    },
-    {
-      "description": "Failure to continuously monitor model drift and data decay post-deployment.",
-      "name": "Post-Deployment Drift"
-    }
+    "Upstream data source providers adhere to machine-readable data contracts and SLA change notification protocols; COTS and Foundation Model vendors provide certified model cards, API security attestations, and compliance documentation in lieu of proprietary training data or white-box weights."
   ],
   "process_name": "MoJ AI Data Quality and Governance Framework",
-  "version": "1.0.2",
-  "process_triggers": [
-    "Registration of a new AI/ML project or algorithmic use case, major architectural modification of an existing AI system, or ingestion of a new sensitive justice dataset into an operational model."
+  "stakeholders": [
+    {
+      "stakeholder_name": "Enterprise Architect (MoJ)",
+      "responsibilities": [
+        "Define architecture standards, AI governance patterns, and enterprise conformance gates, and oversee tiered pathways and delegated approvals."
+      ],
+      "role": "Enterprise Architect"
+    },
+    {
+      "stakeholder_name": "Chief Data Officer / Head of Data Governance",
+      "role": "Chief Data Officer / Head of Data Governance",
+      "responsibilities": [
+        "Oversee data stewardship, data classification, machine-readable data contract enforcement, regulatory data compliance, and post-retirement data purge verification."
+      ]
+    },
+    {
+      "role": "AI Project Lead / Product Manager",
+      "stakeholder_name": "AI Project Lead / Product Manager",
+      "responsibilities": [
+        "Ensure individual AI/ML and COTS projects adhere to governance stages, submit compliance artifacts, and coordinate remediation and decommissioning actions."
+      ]
+    },
+    {
+      "role": "Data Protection Officer & IAO",
+      "responsibilities": [
+        "Enforce UK GDPR, Data Protection Act 2018, information security classification (e.g. OFFICIAL-SENSITIVE), preliminary DPIA screening, and ATRS public filing and deregistration."
+      ],
+      "stakeholder_name": "Data Protection Officer (DPO) & Information Asset Owner (IAO)"
+    },
+    {
+      "stakeholder_name": "Chief Information Security Officer (CISO) & Cyber Security Team",
+      "role": "CISO & Cyber Security Team",
+      "responsibilities": [
+        "Validate threat models, system security architectures, NIST AI RMF controls, OWASP Top 10 for LLMs, prompt injection defenses, vendor SOC2/ISO 27001 certifications, and cryptographic key revocations."
+      ]
+    },
+    {
+      "role": "Independent Model Auditor / Quality Assurance Lead",
+      "stakeholder_name": "Independent Model Auditor / Quality Assurance Lead",
+      "responsibilities": [
+        "Conduct independent audits, model validation, algorithmic bias assessments, black-box empirical testing, hallucination/toxicity benchmarking, and annual re-certification audits with delegated options for low-risk tools."
+      ]
+    }
   ],
-  "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-  "governance_requirements": [
-    "Mandatory alignment with Central Digital and Data Office (CDDO) Algorithmic Transparency Recording Standard (ATRS), full compliance with UK National AI Strategy, EU AI Act cross-border standards, and NIST AI RMF 1.0. Immutable audit trails maintained for at least 7 years to support judicial review and parliamentary scrutiny."
-  ]
+  "version": "1.0.4",
+  "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance"
 }

@@ -3,7 +3,7 @@
   "subprocess_flow": [
     {
       "substep_name": "Ingest Production Telemetry and Streaming Logs",
-      "description": "Establish automated real-time telemetry streaming from operational AI model inference endpoints into the centralized MoJ observability platform. Capture model requests, responses, execution latency, error codes, and operational context with cryptographic log signing to preserve evidentiary integrity.",
+      "description": "Establish automated real-time telemetry streaming from operational AI model inference endpoints into the centralized MoJ observability platform. Capture model requests, responses, execution latency, error codes, and operational context with cryptographic log signing to preserve evidentiary integrity without adding system latency.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Production Inference Logs",
@@ -62,12 +62,11 @@
     },
     {
       "substep_name": "Detect Data and Concept Drift",
-      "description": "Execute automated statistical profiling routines across continuous streaming telemetry comparing incoming operational data distributions and predictive patterns against baseline training profiles. Identify covariate shift, feature degradation, and target concept drift using standardized distance metrics.",
+      "description": "Execute automated statistical profiling routines across continuous streaming telemetry comparing incoming operational data distributions and predictive patterns against certified baseline training profiles. Identify covariate shift, feature degradation, and target concept drift using standardized distance metrics.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Continuous Data Quality Telemetry",
         "Cryptographically Verified Telemetry Stream Logs",
-        "Baseline Model Training Distributions",
         "Ground Truth Operational Outcomes"
       ],
       "outputs": [
@@ -79,7 +78,7 @@
         "Ingest Production Telemetry and Streaming Logs"
       ],
       "success_criteria": [
-        "Automated drift analysis completed across 100% of input features",
+        "Automated drift analysis completed across 100% of operational input features",
         "Statistical divergence scores calculated against certified baseline",
         "Zero unprofiled feature dimensions in operational inference data"
       ],
@@ -121,12 +120,11 @@
     },
     {
       "substep_name": "Dispatch Automated Drift and Incident Alerts",
-      "description": "Evaluate calculated drift and performance indicators against mandatory MoJ operational tolerance thresholds. Automatically dispatch real-time incident notifications to technical owners and trigger retraining workflows or automated failsafe fallbacks when thresholds are breached.",
+      "description": "Evaluate calculated drift and performance indicators against mandatory MoJ operational tolerance thresholds. Automatically dispatch real-time incident notifications to technical owners and trigger retraining workflows or automated failsafe fallbacks within 5 minutes when governance boundaries are breached.",
       "responsible_party": "AI Project Lead / Product Manager",
       "inputs": [
         "Calculated Drift Metrics Profile",
-        "Continuous Data Quality Assessment Scorecard",
-        "MoJ AI Governance Alerting Threshold Configuration"
+        "Continuous Data Quality Assessment Scorecard"
       ],
       "outputs": [
         "Model Performance Drift Alerts",
@@ -180,7 +178,7 @@
     },
     {
       "substep_name": "Generate Real-Time Telemetry and Operational Dashboards",
-      "description": "Aggregate continuous telemetry streams, data quality metrics, drift alerts, and system health status into interactive dashboards and scheduled health reports. Render transparent operational views accessible to enterprise architects, operational owners, and data governance boards.",
+      "description": "Aggregate continuous telemetry streams, data quality metrics, drift alerts, and system health status into interactive dashboards and scheduled operational reports. Render transparent operational views accessible to enterprise architects, operational owners, and data governance boards.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Continuous Data Quality Telemetry",
@@ -246,13 +244,11 @@
         "Monthly AI Operational Health Report",
         "Real-Time Automated Drift Alerting and Telemetry Stream Log",
         "Incident Response & Retraining Triggers",
-        "MoJ AI Conformance Certificate",
-        "Annual Operational Incident Logs"
+        "MoJ AI Conformance Certificate"
       ],
       "outputs": [
         "Annual AI Re-certification Audit Report",
-        "Annual Re-certification Audit Dossier",
-        "Updated Conformance Certification or Retirement Directive"
+        "Annual Re-certification Audit Dossier"
       ],
       "estimated_duration": "10-15 business days annually",
       "dependencies": [
@@ -261,7 +257,7 @@
       "success_criteria": [
         "Completion of independent annual audit assessing bias, security, and accuracy",
         "Audit dossier archived into immutable repository under 7-year retention rule",
-        "Formal issuance of annual re-certification or documented decommissioning plan"
+        "Formal issuance of annual re-certification or documented decommissioning trigger"
       ],
       "purpose": "Provide independent regulatory and architectural verification that active models remain compliant, fair, and legally sound over extended operational lifecycles.",
       "scope": "Full annual lifecycle review of deployed model weights, training updates, operational telemetry, and regulatory alignment.",
@@ -298,6 +294,128 @@
             "Regulatory policy updates",
             "Model retirement and decommissioning rates",
             "Benchmarking against UK AI Safety Institute guidance"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Initiate Decommissioning and Reroute Inference Traffic",
+      "description": "Receive and validate the formal decommissioning trigger directive or end-of-life decision. Safely redirect live inference traffic to approved fallback procedures or successor systems, drain existing transaction queues, isolate model endpoints from production networks, and generate a comprehensive MoJ AI Decommissioning & Retirement Dossier.",
+      "responsible_party": "AI Project Lead / Product Manager",
+      "inputs": [
+        "Decommissioning & Retirement Trigger Directives",
+        "MoJ AI Conformance Certificate",
+        "Real-Time Telemetry Dashboard"
+      ],
+      "outputs": [
+        "MoJ AI Decommissioning & Retirement Dossier",
+        "Formal Model Decommissioning Report"
+      ],
+      "estimated_duration": "2-3 business days",
+      "dependencies": [
+        "Dispatch Automated Drift and Incident Alerts"
+      ],
+      "success_criteria": [
+        "100% of operational traffic safely rerouted to fallback or successor systems",
+        "Zero dropped active transactions during traffic draining",
+        "Inference endpoints completely isolated from live MoJ networks",
+        "Formal Model Decommissioning Report compiled and registered"
+      ],
+      "purpose": "Halt live operational traffic gracefully and initiate controlled system shutdown to prevent operational disruption and orphaned zombie endpoints.",
+      "scope": "Inference network routing, gateway configurations, container shutdown, and decommissioning manifest compilation across production enclaves.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Receipt of formal decommissioning trigger directive, board retirement order, or model replacement mandate"
+      ],
+      "end_conditions": [
+        "Inference endpoints taken offline and decommissioning dossier signed off by technical lead"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Premature endpoint shutdown causing transaction drops or service outage in justice operations",
+          "control": "Enforce zero-downtime traffic draining and automated fallback rerouting validation prior to endpoint termination"
+        }
+      ],
+      "governance_requirements": [
+        "MoJ Digital & Technology Incident and Change Management Standards",
+        "NIST AI RMF - MANAGE function (Retirement and Decommissioning)"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal decommissioning request submitted to Enterprise Architecture and IAO via ServiceNow RFC",
+          "versioning_rules": "Decommissioning manifest tracked in GitOps with state tagged as DECOMMISSIONING_IN_PROGRESS"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Decommissioning completion lead time",
+            "Traffic draining error rates",
+            "Fallback cutover reliability"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Revoke Cryptographic Keys, Purge Data, and Deregister ATRS",
+      "description": "Execute final asset retirement actions by permanently revoking and destroying cryptographic keys in Key Management Service (KMS) and Vault, archiving model containers and weights into immutable long-term cold storage with SHA-256 hashes, enforcing verified data purges under UK GDPR Article 17 and DPA 2018 retention schedules, and dispatching official deregistration notices to the central CDDO Algorithmic Transparency Recording Standard (ATRS) hub.",
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "inputs": [
+        "MoJ AI Decommissioning & Retirement Dossier",
+        "Asset Purge Verification Schedules",
+        "Formal Model Decommissioning Report"
+      ],
+      "outputs": [
+        "Cryptographic Key Revocation Confirmation",
+        "Data Purge and Archival Attestation",
+        "ATRS Deregistration Notice",
+        "Deregistration and Data Purge Certificate"
+      ],
+      "estimated_duration": "3-5 business days",
+      "dependencies": [
+        "Initiate Decommissioning and Reroute Inference Traffic"
+      ],
+      "success_criteria": [
+        "100% cryptographic key revocation verified and logged in enterprise SIEM",
+        "UK GDPR Article 17 / DPA 2018 data purge attestation validated by IAO",
+        "Model container images and weights archived into 7-year immutable cold store",
+        "CDDO ATRS deregistration confirmation receipt acquired"
+      ],
+      "purpose": "Permanently retire AI assets, eliminate data leakage risks, comply with statutory data erasure laws, and update central government transparency registries.",
+      "scope": "KMS cryptographic keys, sensitive training/inference cache data stores, container registry images, and central CDDO transparency filings.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Completion of model endpoint shutdown and traffic rerouting sign-off"
+      ],
+      "end_conditions": [
+        "Cryptographic keys revoked, data purges certified, ATRS deregistered, and final certificate committed to MoJ audit repository"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Orphaned zombie models remaining accessible or sensitive offender records lingering past statutory retention limits",
+          "control": "Cryptographic key destruction rendering artifacts unrecoverable, dual IAO purge verification, and mandatory CDDO ATRS deregistration audit logs"
+        }
+      ],
+      "governance_requirements": [
+        "UK GDPR Article 17 (Right to Erasure) & Data Protection Act 2018",
+        "CDDO Algorithmic Transparency Recording Standard (Deregistration Guidance)",
+        "MoJ Records Management & Retention Policy (7-year rule)",
+        "HMG Government Security Classifications Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Final retirement closure ticket reviewed and approved by IAO and Enterprise Architecture in ServiceNow",
+          "versioning_rules": "All retirement manifests, hash signatures, and certificates committed to GitOps registry with state tagged as RETIRED"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Annual benchmarking",
+          "improvement_inputs": [
+            "Decommissioning verification pass rate",
+            "Data purge attestation audit findings",
+            "CDDO deregistration cycle times"
           ]
         }
       ]

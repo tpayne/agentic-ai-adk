@@ -2,8 +2,64 @@
   "step_name": "Algorithmic Fairness & Ethical Assessment",
   "subprocess_flow": [
     {
+      "substep_name": "Triage Audit Track & Delegated Screening",
+      "description": "Assess the incoming AI model use case, architectural profile, and risk tiering to determine the required audit evaluation pathway. For qualified minimal-risk internal automation tools, initiate an expedited delegated quality assurance audit track to alleviate auditor capacity constraints, while directing bespoke high-risk models, third-party COTS APIs, and Generative AI systems into full specialist ethical audit tracks.",
+      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
+      "inputs": [
+        "Security Architecture Approval Record",
+        "Trained Model Artifacts",
+        "Vendor Model Cards & Ethical Benchmarks"
+      ],
+      "outputs": [
+        "Delegated Minimal-Risk Audit Determination",
+        "Delegated Audit Endorsement Record"
+      ],
+      "estimated_duration": "1-2 business days",
+      "dependencies": [],
+      "success_criteria": [
+        "Accurate routing to either delegated low-risk QA track or specialist ethical audit pipeline",
+        "Delegated Minimal-Risk Audit Determination recorded for qualified systems within 2 business days",
+        "Clear scoping baseline established for downstream bias, explainability, or empirical LLM testing"
+      ],
+      "purpose": "Establish calibrated audit pathways to alleviate specialist auditor capacity bottlenecks while maintaining rigorous oversight for high-risk judicial tools.",
+      "scope": "All registered AI initiatives passing security baseline review across bespoke ML, COTS SaaS, and GenAI models.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Receipt of security clearance and finalized model training validation outputs or COTS API staging access"
+      ],
+      "end_conditions": [
+        "Approval and recording of audit routing determination, allowing either delegated closure or full audit progression"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect designation of a high-impact judicial AI model as minimal-risk",
+          "control": "Automated verification against statutory high-risk use case registries and dual sign-off requirement for any delegated audit qualification"
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act High-Risk System Requirements (Articles 9-15)",
+        "Central Digital and Data Office ATRS Ethical Guidelines",
+        "MoJ Digital & Technology Governance Standard"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Appeals or re-evaluations of audit track assignment submitted via Enterprise Architecture review ticket",
+          "versioning_rules": "Audit determination records stamped with git commit hash and semver"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Delegated audit throughput metrics",
+            "Audit assignment appeal frequencies"
+          ]
+        }
+      ]
+    },
+    {
       "substep_name": "Demographic Parity & Disparate Impact Testing",
-      "description": "Execute statistical parity checks, disparate impact assessments, and demographic group performance comparisons across protected characteristics. This sub-step identifies disparate false positive and negative rates to verify conformance with statutory fairness baselines in judicial decision support.",
+      "description": "Execute statistical parity checks, disparate impact analysis, and demographic performance comparisons across protected characteristics defined under the Equality Act 2010. Evaluate predictive error parity (false positive and false negative balance) to ensure that decision support models do not disadvantage vulnerable cohorts in justice, probation, or court contexts.",
       "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
       "inputs": [
         "Trained Model Artifacts",
@@ -11,212 +67,230 @@
         "Security Architecture Approval Record"
       ],
       "outputs": [
-        "Disparate Impact & Bias Evaluation Matrix"
+        "Disparate Impact & Bias Evaluation Matrix",
+        "Algorithmic Fairness & Bias Audit Report"
       ],
       "estimated_duration": "3-5 business days",
-      "dependencies": [],
-      "success_criteria": [
-        "Disparate impact ratio meets statutory threshold (0.80 to 1.25 parity rule)",
-        "Demographic performance parity metrics evaluated across all Equality Act 2010 protected characteristics"
+      "dependencies": [
+        "Triage Audit Track & Delegated Screening"
       ],
-      "purpose": "Quantify and detect potential demographic skew and disparate treatment across sensitive population cohorts.",
-      "scope": "Validation datasets, demographic cohorts, and model inference distributions.",
+      "success_criteria": [
+        "Disparate impact ratio meets statutory thresholds (0.80 to 1.25 parity rule) across protected classes",
+        "Equalized odds and demographic parity metrics thoroughly evaluated and documented",
+        "Zero open unmitigated critical demographic bias findings"
+      ],
+      "purpose": "Verify quantitative fairness, prevent unlawful disparate impact, and ensure adherence to Public Sector Equality Duties.",
+      "scope": "Bespoke predictive algorithms, tabular decision-support tools, and supervised machine learning pipelines.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Receipt of security clearance and finalized model training validation outputs"
+        "Assignment of model to specialist statistical audit track"
       ],
       "end_conditions": [
-        "Disparate Impact & Bias Evaluation Matrix generated and approved by independent auditor"
+        "Generation and auditor sign-off of Disparate Impact & Bias Evaluation Matrix"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Undetected disparate treatment across sub-populations in criminal justice assessments",
-          "control": "Automated multi-metric fairness evaluation covering equal opportunity, equalized odds, and disparate impact"
+          "risk": "Systemic bias against protected demographic cohorts resulting in discriminatory sentencing or probation recommendations",
+          "control": "Enforcement of automated multi-metric fairness suites (AIF360, Fairlearn) with mandatory 80-125% parity tolerance gating"
         }
       ],
       "governance_requirements": [
-        "Equality Act 2010 Public Sector Equality Duty",
-        "EU AI Act Article 10 (Data and Data Governance)",
-        "UK National AI Strategy Ethical Principles"
+        "Equality Act 2010 (Public Sector Equality Duty)",
+        "UK National AI Strategy Ethical Principles",
+        "EU AI Act Article 10 (Data and Data Governance)"
       ],
       "change_management": [
         {
-          "change_request_process": "Fairness metric rule updates submitted via MLOps registry ticket",
-          "versioning_rules": "Evaluation matrices versioned with semver matching model artifact Git commit tag"
+          "change_request_process": "Fairness threshold waivers or regularisation retraining logged in MLOps model registry",
+          "versioning_rules": "Evaluation matrices versioned with semver tied to model artifact hash"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Fairness metric distributions",
-            "Demographic disparity shifts"
+            "Fairness metric distributions across justice deployments",
+            "Demographic disparity trends"
           ]
         }
       ]
     },
     {
-      "substep_name": "Explainability & Interpretability Verification",
-      "description": "Evaluate model interpretability and explainability methods including SHAP and LIME feature attributions. The auditor validates local and global explanations to ensure operational staff and legal professionals can understand, contest, and document automated recommendations.",
+      "substep_name": "Audit Black-Box, Toxicity & Hallucination",
+      "description": "Perform empirical input-output behavioral testing, toxicity evaluation, and hallucination rate benchmarking for Commercial-Off-The-Shelf (COTS) algorithms and Generative AI/LLM applications where underlying training sets and model weights are proprietary. Validate vendor-provided model cards against empirical red-teaming datasets to verify that generative answers remain truthful, safe, and free from abusive or toxic responses.",
+      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
+      "inputs": [
+        "Empirical Test Prompts and Behavioral Datasets",
+        "Vendor Model Cards & Ethical Benchmarks",
+        "Hallucination & Toxicity Evaluation Suites"
+      ],
+      "outputs": [
+        "Black-Box Empirical Behavioral Audit",
+        "LLM Hallucination & Toxicity Assessment",
+        "Black-Box & GenAI Ethical Evaluation Dossier"
+      ],
+      "estimated_duration": "3-5 business days",
+      "dependencies": [
+        "Triage Audit Track & Delegated Screening"
+      ],
+      "success_criteria": [
+        "100% resolution or mitigation of critical hallucination, jailbreak, or toxic response vectors",
+        "Vendor model card claims corroborated by empirical benchmarking tests",
+        "Hallucination rate constrained below pre-defined operational safety tolerance thresholds"
+      ],
+      "purpose": "Provide robust empirical assurance for black-box COTS and GenAI systems lacking open white-box access to weights or training pipelines.",
+      "scope": "Third-party Foundation Models, SaaS AI integrations, Large Language Models, and proprietary vendor APIs.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Availability of COTS API staging sandbox or Generative AI inference deployment"
+      ],
+      "end_conditions": [
+        "Formal auditor approval of Black-Box & GenAI Ethical Evaluation Dossier"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Generative AI produces legally invalid advice, hallucinates case law, or generates toxic responses",
+          "control": "Automated prompt injection testing, adversarial red-teaming evaluation suites (e.g., Giskard, NeMo), and factual ground-truth benchmark assertions"
+        }
+      ],
+      "governance_requirements": [
+        "CDDO ATRS Ethical Guidelines for Generative AI",
+        "UK National AI Strategy Ethical Principles",
+        "OWASP Top 10 for Large Language Model Applications"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Prompt template enhancements and vendor API endpoint revisions tracked via GitOps configuration repos",
+          "versioning_rules": "Evaluation benchmark suites tagged and hashed alongside prompt manifests"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Hallucination and toxicity benchmarking rates",
+            "Vendor model version drift reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Evaluate Model Explainability & Interpretability",
+      "description": "Analyze local and global interpretability using feature attribution frameworks (SHAP, LIME, Captum) for predictive models, and retrieval citation tracing for Generative AI architectures. Ensure that operational justice practitioners, probation caseworkers, and legal representatives can review, understand, and contest the primary variables influencing automated outputs.",
       "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
       "inputs": [
         "Trained Model Artifacts",
         "Model Explainability Outputs (SHAP/LIME)",
-        "Disparate Impact & Bias Evaluation Matrix"
+        "Disparate Impact & Bias Evaluation Matrix",
+        "Black-Box & GenAI Ethical Evaluation Dossier"
       ],
       "outputs": [
-        "Explainability Assessment Dossier"
-      ],
-      "estimated_duration": "3-5 business days",
-      "dependencies": [
-        "Demographic Parity & Disparate Impact Testing"
-      ],
-      "success_criteria": [
-        "Feature importance and attribution consistency verified against domain expectations",
-        "High-risk prediction rationale interpretable by non-technical judicial personnel"
-      ],
-      "purpose": "Ensure algorithmic recommendations are transparent, explainable, and legally contestable.",
-      "scope": "Global and local model explainability methods, surrogate models, and feature attribution scores.",
-      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
-      "triggers": [
-        "Completion of disparate impact and bias evaluation"
-      ],
-      "end_conditions": [
-        "Sign-off of Explainability Assessment Dossier by lead auditor"
-      ],
-      "step_risks_and_controls": [
-        {
-          "risk": "Black-box decisions incapable of judicial review or individual explanation",
-          "control": "Mandatory extraction and validation of local SHAP explanation vectors for sample case studies"
-        }
-      ],
-      "governance_requirements": [
-        "EU AI Act Article 13 (Transparency and provision of information to deployers)",
-        "CDDO Algorithmic Transparency Recording Standard (ATRS) Tier 2"
-      ],
-      "change_management": [
-        {
-          "change_request_process": "Interpretability baseline adjustments reviewed through AI Technical Review Panel",
-          "versioning_rules": "Explainability dossier linked cryptographically to model artifact hash"
-        }
-      ],
-      "continuous_improvement": [
-        {
-          "review_frequency": "Quarterly",
-          "improvement_inputs": [
-            "Explainability feedback from legal and operational users",
-            "Interpretability fidelity metrics"
-          ]
-        }
-      ]
-    },
-    {
-      "substep_name": "Human-in-the-Loop Oversight Protocol Validation",
-      "description": "Establish and validate operational human oversight mechanisms, fail-safe interventions, and manual override capabilities. This sub-step defines criteria under which human caseworkers or judicial officers review, override, or escalate AI recommendations before decisions take effect.",
-      "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
-      "inputs": [
         "Explainability Assessment Dossier",
-        "Trained Model Artifacts"
-      ],
-      "outputs": [
-        "Human-in-the-Loop Protocol Specification"
+        "Model Explainability Dossier"
       ],
       "estimated_duration": "2-4 business days",
       "dependencies": [
-        "Explainability & Interpretability Verification"
+        "Demographic Parity & Disparate Impact Testing",
+        "Audit Black-Box, Toxicity & Hallucination"
       ],
       "success_criteria": [
-        "Human-in-the-loop decision boundaries and escalation triggers documented and tested",
-        "Override interface and reason-logging workflows validated for operational caseworkers"
+        "Feature attribution fidelity verified against domain subject matter expertise",
+        "Explanations rendered into plain-language summaries consumable by non-technical judicial caseworkers",
+        "Global feature rankings confirm absence of illegal proxy variables"
       ],
-      "purpose": "Guarantee that autonomous AI systems cannot make binding legal or correctional decisions without meaningful human oversight.",
-      "scope": "Operational decision paths, user interfaces, override logging mechanisms, and casework protocols.",
+      "purpose": "Ensure algorithmic recommendations are legally interpretable, explainable, and contestable under UK public administrative law.",
+      "scope": "Feature attributions, surrogate models, decision rationale displays, and retrieval source citation chains.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Completion and validation of model explainability dossier"
+        "Completion of empirical fairness and black-box behavioral assessments"
       ],
       "end_conditions": [
-        "Human-in-the-Loop Protocol Specification approved by operational leads and independent auditor"
+        "Delivery and auditor sign-off of the Explainability Assessment Dossier"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Automation bias leading human operators to rubber-stamp erroneous or biased predictions",
-          "control": "Mandatory recorded rationale for casework overrides and random human review sampling"
+          "risk": "Opaque black-box models producing uninterpretable decisions, precluding effective legal appeals",
+          "control": "Mandatory extraction and validation of local SHAP/LIME explanation vectors or verifiable source citations for every inference class"
         }
       ],
       "governance_requirements": [
-        "EU AI Act Article 14 (Human oversight)",
-        "UK National AI Strategy Ethical Principles on Accountability"
+        "EU AI Act Article 13 (Transparency)",
+        "CDDO Algorithmic Transparency Recording Standard (ATRS Tier 2)",
+        "UK GDPR Article 22 (Automated Decision-Making Safeguards)"
       ],
       "change_management": [
         {
-          "change_request_process": "Operational oversight protocol updates approved by Senior Information Risk Owner (SIRO)",
-          "versioning_rules": "Protocol specifications versioned in accordance with enterprise SOP guidelines"
+          "change_request_process": "Explainability threshold modifications reviewed by MoJ AI Technical Review Panel",
+          "versioning_rules": "Explainability dossiers cryptographically signed and stored with model version reference"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Caseworker override frequency logs",
-            "Human oversight incident reports"
+            "Explainability feedback from legal and operational caseworkers",
+            "Interpretability fidelity score trends"
           ]
         }
       ]
     },
     {
-      "substep_name": "Independent Audit Reporting & Conformance Sign-Off",
-      "description": "Synthesize results from demographic parity testing, explainability evaluations, and human oversight validation into an auditable final conformance assessment. The independent auditor conducts final verification and issues formal sign-off for governance gate progression.",
+      "substep_name": "Validate Oversight & Issue Audit Sign-Off",
+      "description": "Establish operational human-in-the-loop protocols, manual override workflows, and caseworker escalation pathways to protect against automation bias. Synthesize the results from demographic parity evaluations, black-box empirical audits, explainability assessments, or delegated minimal-risk determinations into the final MoJ Ethical AI Conformance Report and Independent Model Audit Report.",
       "responsible_party": "Independent Model Auditor / Quality Assurance Lead",
       "inputs": [
-        "Disparate Impact & Bias Evaluation Matrix",
         "Explainability Assessment Dossier",
-        "Human-in-the-Loop Protocol Specification"
+        "Disparate Impact & Bias Evaluation Matrix",
+        "Black-Box & GenAI Ethical Evaluation Dossier",
+        "Delegated Minimal-Risk Audit Determination"
       ],
       "outputs": [
-        "Algorithmic Fairness & Bias Audit Report",
-        "Independent Model Audit Report"
+        "Human-in-the-Loop Protocol Specification",
+        "Independent Model Audit Report",
+        "MoJ Ethical AI Conformance Report"
       ],
-      "estimated_duration": "2-6 business days",
+      "estimated_duration": "2-4 business days",
       "dependencies": [
-        "Human-in-the-Loop Oversight Protocol Validation"
+        "Evaluate Model Explainability & Interpretability"
       ],
       "success_criteria": [
-        "100% resolution or approved mitigation of critical model bias findings",
-        "Formal auditor endorsement and signed Independent Model Audit Report"
+        "100% resolution or documented risk acceptance of all model bias, toxicity, and opacity findings",
+        "Operational caseworker override procedures documented with mandatory audit logging",
+        "Independent auditor endorsement and digital cryptographic sign-off completed"
       ],
-      "purpose": "Provide definitive, independent assurance of ethical, legal, and regulatory compliance prior to stage-gate submission.",
-      "scope": "All empirical assessment artifacts, mitigation logs, and independent assurance attestations.",
+      "purpose": "Provide final independent validation of ethical alignment and ensure meaningful human oversight before stage-gate board submission.",
+      "scope": "Human-in-the-loop operational procedures, final synthesized ethical dossiers, and independent audit attestations.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Completion of human-in-the-loop oversight protocol specification"
+        "Completion of explainability dossier and consolidation of all technical assessment outputs"
       ],
       "end_conditions": [
-        "Independent auditor endorsement and sign-off of fairness and explainability report"
+        "Independent auditor endorsement and sign-off of fairness and explainability report, or delegated audit sign-off for low-risk systems"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Deployment of non-compliant AI model due to unaddressed bias or lack of auditability",
-          "control": "Strict gating requiring cryptographic sign-off from Independent Model Auditor prior to gate progression"
+          "risk": "Automation bias causing human operators to passively rubber-stamp algorithmic recommendations without due diligence",
+          "control": "Mandatory documented rationale captured in case management tools for both accepting and overriding AI recommendations, supplemented by random human review audits"
         }
       ],
       "governance_requirements": [
-        "UK National AI Strategy Ethical Principles",
-        "EU AI Act High-Risk System Requirements (Articles 9-15)",
-        "Equality Act 2010"
+        "EU AI Act Article 14 (Human Oversight)",
+        "UK National AI Strategy Ethical Principles on Accountability",
+        "MoJ Digital & Technology Governance Standard"
       ],
       "change_management": [
         {
-          "change_request_process": "Remediation retraining requests submitted to MLOps registry and tracked in Jira",
-          "versioning_rules": "Final audit reports signed with digital certificate and stored with 7-year retention"
+          "change_request_process": "Remediation requests for audit non-conformance submitted to MLOps registry and tracked in Jira/ServiceNow",
+          "versioning_rules": "Final audit certificates signed with PKI digital signature and archived for 7-year retention"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Audit finding resolution cycle time",
-            "Post-deployment audit discrepancies"
+            "Caseworker override frequency telemetry",
+            "Audit finding resolution cycle times",
+            "Feedback from judicial and operational oversight bodies"
           ]
         }
       ]

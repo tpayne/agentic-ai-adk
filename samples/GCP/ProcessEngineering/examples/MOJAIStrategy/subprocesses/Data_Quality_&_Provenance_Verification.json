@@ -2,108 +2,169 @@
   "step_name": "Data Quality & Provenance Verification",
   "subprocess_flow": [
     {
-      "substep_name": "Ingest Datasets and Validate Schemas",
-      "description": "Securely ingest candidate training, validation, and evaluation datasets into the MoJ isolated staging environment. Execute automated schema validation against cached data schema baselines to ensure mandatory structural conformance, data typing, and field definitions before resource-intensive profiling begins.",
+      "substep_name": "Verify Upstream Data Contracts and SLA Conformance",
+      "description": "Evaluate incoming data feeds against machine-readable Data Contracts and upstream service level agreements. Automated schema diffing engines parse pre-compiled contract checks to intercept unexpected structural drift, semantic type deviations, or delivery cadence breaches prior to staging ingestion.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Raw Datasets",
-        "Data Dictionaries",
-        "Registered AI Use Case Record",
-        "Cached Data Schema Baselines",
-        "Automated Validation Schemas"
+        "Upstream Partner Data Contracts",
+        "Partner SLA Agreements & Schemas",
+        "Registered AI Use Case Record"
       ],
       "outputs": [
-        "Ingested Dataset Staging Manifest",
-        "Cached Schema Validation Report"
+        "Pre-Compiled Data Contract Verification Results",
+        "Data Contract Verification Report",
+        "Upstream Provider SLA Compliance Record",
+        "Machine-Readable Data Contract Specifications"
       ],
-      "estimated_duration": "1 business day",
+      "estimated_duration": "2-4 hours",
       "dependencies": [],
       "success_criteria": [
-        "100% of candidate datasets ingested without truncation or corruption",
-        "Automated schema validation successfully confirms structure against baselines",
-        "Zero schema validation exceptions"
+        "100% upstream partner data contract conformance verified pre-ingestion",
+        "Zero undetected upstream schema shifts or unauthorized structural changes",
+        "Pre-compiled data contract checks verified pre-ingestion"
       ],
-      "purpose": "Verify structural syntax and schema conformity at the point of ingestion to prevent corrupted data from entering profiling pipelines.",
-      "scope": "All raw data files, tables, and streams provided for the registered AI model.",
+      "purpose": "Intercept upstream data changes and enforce formal contractual specifications before unvetted data penetrates internal pipelines.",
+      "scope": "All upstream partner data streams, external justice-sector data feeds, and third-party data deliveries.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Receipt of approved Inception Registration and dataset provisioning"
+        "Receipt of upstream data feed event and data provisioning notification"
       ],
       "end_conditions": [
-        "Validated schema match confirmation recorded in staging manifest"
+        "Verification report published confirming 100% data contract conformance or automated rejection ticket issued"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Ingestion of corrupted, unexpected, or malformed data records causing pipeline failure",
-          "control": "Automated pre-validation against cached schema baselines with strict rejection triggers"
+          "risk": "Silent schema modifications by external data providers breaking automated parsing jobs",
+          "control": "Automated pre-ingestion contract linting and schema diff validation halting ingest on discrepancy"
         }
       ],
       "governance_requirements": [
-        "Government Data Quality Hub Standards",
-        "HMG Security Classification Policy (OFFICIAL-SENSITIVE)"
+        "Central Digital and Data Office Data Sharing Standards",
+        "Government Data Quality Hub Standards"
       ],
       "change_management": [
         {
-          "change_request_process": "Schema alteration notices must be submitted to Data Governance and approved by IAO",
-          "versioning_rules": "Incoming raw data bundles fingerprinted using SHA-256 and registered in GitOps/DVC"
+          "change_request_process": "Contract amendments submitted via Data Governance Working Group with mandatory partner notification",
+          "versioning_rules": "Data contract specifications versioned semantically in central schema repository"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Schema parsing rejection rates",
+            "Upstream provider schema breach frequency",
+            "Data contract validation pass rates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ingest Datasets and Execute Streaming Validation",
+      "description": "Securely transfer approved data batches and real-time feeds into the MoJ isolated staging enclave. Streaming validation executors assess incoming transactions against cached data schema baselines with zero pipeline queueing delay, recording baseline syntax integrity and throughput telemetry.",
+      "responsible_party": "Chief Data Officer / Head of Data Governance",
+      "inputs": [
+        "Raw Datasets",
+        "Cached Data Schema Baselines",
+        "Automated Validation Schemas",
+        "Pre-Compiled Data Contract Verification Results"
+      ],
+      "outputs": [
+        "Automated Streaming Validation Metrics",
+        "Automated Streaming Validation Execution Log",
+        "Cached Pre-Validation Profiling Execution Log"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [
+        "Verify Upstream Data Contracts and SLA Conformance"
+      ],
+      "success_criteria": [
+        "Automated streaming validation active with zero pipeline queueing delay",
+        "100% of candidate records ingested without truncation or transmission corruption",
+        "Zero unauthorized structural format deviations"
+      ],
+      "purpose": "Provide high-speed, non-blocking staging ingestion and syntax validation using cached schemas to eliminate pipeline backlogs.",
+      "scope": "Raw structured, semi-structured, and streaming datasets allocated to the AI system.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Successful validation of upstream data contracts and data landing in staging bucket"
+      ],
+      "end_conditions": [
+        "Execution logs committed and streaming validation metrics recorded in metadata registry"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Compute bottleneck and queue build-up during massive batch transfers",
+          "control": "Distributed streaming workers using cached pre-compiled validation schemas"
+        }
+      ],
+      "governance_requirements": [
+        "HMG Security Classification Policy (OFFICIAL-SENSITIVE)",
+        "Government Data Quality Hub Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Schema baseline cache updates must be approved by Lead Data Engineer",
+          "versioning_rules": "Dataset staging snapshots fingerprinted via SHA-256 and tracked in DVC/GitOps"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Streaming validation latency and executor queue depth",
             "Profiling cache hit rates"
           ]
         }
       ]
     },
     {
-      "substep_name": "Trace Data Lineage and Provenance",
-      "description": "Conduct end-to-end verification of dataset provenance, examining originating data store logs, custody transfers, and legal consent or statutory collection authorisations. Map all upstream transformations, joins, and filters to produce an immutable data lineage graph within the MoJ Centralised Data Catalog.",
+      "substep_name": "Trace Immutable Lineage and Provenance",
+      "description": "Perform comprehensive tracing of data custody chains, source system event logs, and statutory collection authorities under the UK Data Protection Act 2018. Generate cryptographic lineage representations linking raw inputs to justice asset records and register the immutable graph within the MoJ Centralised Data Catalog.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
-        "Ingested Dataset Staging Manifest",
         "Data Provenance Logs",
-        "Registered AI Use Case Record"
+        "Data Dictionaries",
+        "Registered AI Use Case Record",
+        "Cached Pre-Validation Profiling Execution Log"
       ],
       "outputs": [
         "Data Lineage Map",
         "Immutable Data Lineage Record in Data Catalog"
       ],
-      "estimated_duration": "1-2 business days",
+      "estimated_duration": "0.5-1 business day",
       "dependencies": [
-        "Ingest Datasets and Validate Schemas"
+        "Ingest Datasets and Execute Streaming Validation"
       ],
       "success_criteria": [
-        "Full lineage mapped back to authentic statutory MoJ data sources",
-        "Zero unclassified or unauthorized data elements identified in provenance chains",
-        "Immutable record successfully committed to Data Catalog"
+        "Full data lineage recorded back to statutory authoritative sources",
+        "0 unclassified or unauthorized data elements identified",
+        "Lineage graph immutably stored in the MoJ Centralised Data Catalog"
       ],
-      "purpose": "Establish verifiable and auditable chains of custody and statutory authority for all ingested justice sector data.",
-      "scope": "All primary and secondary data sources linked to the AI training and testing pipelines.",
+      "purpose": "Establish verifiable evidentiary chains of custody and confirm legal authority for judicial data utilization.",
+      "scope": "All upstream source databases, custody handoffs, and intermediate transformation records.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Successful completion and approval of Cached Schema Validation Report"
+        "Completion of dataset staging ingestion and initial streaming validation"
       ],
       "end_conditions": [
-        "Formal publication of Data Lineage Record in the central catalog"
+        "Catalog record locked and cryptographic lineage hash verified"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Ingestion of records lacking legal basis, statutory consent, or unverified custody trails",
-          "control": "Mandatory provenance chain cryptographic check and IAO asset verification gate"
+          "risk": "Inclusion of data assets lacking demonstrable legal basis or processing consent",
+          "control": "Automated provenance verification against IAO statutory asset register"
         }
       ],
       "governance_requirements": [
         "UK Data Protection Act 2018",
-        "NIST AI RMF - MAP Function",
+        "NIST AI RMF - MAP function",
         "MoJ Records Management & Retention Policy"
       ],
       "change_management": [
         {
-          "change_request_process": "Any alteration to data source locations or pipelines requires formal change request to Data Governance",
-          "versioning_rules": "Lineage graph snapshot versioned semantically in Centralised Data Catalog"
+          "change_request_process": "Pipeline lineage updates submitted via MLOps registry pull request",
+          "versioning_rules": "Lineage graphs tagged with semantic release versions matching pipeline build numbers"
         }
       ],
       "continuous_improvement": [
@@ -111,57 +172,59 @@
           "review_frequency": "Quarterly",
           "improvement_inputs": [
             "Lineage extraction cycle time",
-            "Data provenance discrepancies"
+            "Data provenance audit discrepancies"
           ]
         }
       ]
     },
     {
-      "substep_name": "Execute Parallelised Quality Profiling",
-      "description": "Deploy parallelised profiling pipelines to evaluate datasets against the core MoJ Data Quality Dimensions: completeness, accuracy, timeliness, validity, uniqueness, and consistency. Implement cached pre-validation modules to process large justice datasets concurrently without compute queueing backlogs.",
+      "substep_name": "Deploy Distributed Parallel Quality Profiling",
+      "description": "Dispatch parallelised profiling executors across distributed compute clusters to assess datasets against the six MoJ Data Quality Dimensions: completeness, accuracy, timeliness, validity, uniqueness, and consistency. Leverage caching to evaluate multi-million row databases concurrently without executor starvation.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
-        "Ingested Dataset Staging Manifest",
-        "Cached Schema Validation Report",
-        "Data Dictionaries"
+        "Data Dictionaries",
+        "Cached Pre-Validation Profiling Execution Log",
+        "Automated Streaming Validation Metrics"
       ],
       "outputs": [
         "Automated Data Quality Profiling Report",
         "Parallelised Profiling Execution Metrics",
-        "Cached Pre-Validation Profiling Execution Log"
+        "Distributed Profiling Execution Telemetry",
+        "Distributed Parallel Profiling Executor Report",
+        "Parallelised Profiling and Automated Schema Validation Report"
       ],
       "estimated_duration": "1-2 business days",
       "dependencies": [
-        "Ingest Datasets and Validate Schemas"
+        "Ingest Datasets and Execute Streaming Validation"
       ],
       "success_criteria": [
         ">= 99.5% data profiling accuracy achieved across all dimensions",
-        "Parallelised pipeline execution completed with zero queueing backlog",
-        "Automated metrics match or exceed baseline throughput goals"
+        "Parallelised validation completed without queueing backlog",
+        "Distributed parallel profiling executors operational without queue backlog"
       ],
-      "purpose": "Detect anomalies, distribution skews, null density, and semantic invalidity rapidly across high-volume judicial data.",
-      "scope": "Training, validation, and benchmarking datasets assigned to the AI model.",
+      "purpose": "Detect statistical distribution skews, null density anomalies, and semantic invalidities at scale across high-volume judicial data.",
+      "scope": "All structured and unstructured training, testing, and validation partitions.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Validation of schemas and staging manifest availability"
+        "Staged dataset availability and schema baseline confirmation"
       ],
       "end_conditions": [
-        "Generation of complete profiling metrics and automated execution reports"
+        "Generation of comprehensive profiling reports and cluster telemetry logs"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Profiling infrastructure bottlenecking or time-outs on complex multi-million row court databases",
-          "control": "Parallelised execution across distributed clusters with cached intermediate state storage"
+          "risk": "Executor crash or prolonged queue delays during processing of high-cardinality records",
+          "control": "Auto-scaling parallel executor clusters with intermediate state checkpointing"
         }
       ],
       "governance_requirements": [
         "Government Data Quality Hub Standards",
-        "NIST AI RMF - MEASURE Function"
+        "NIST AI RMF - MEASURE function"
       ],
       "change_management": [
         {
-          "change_request_process": "Data profiling parameter alterations require approval by the Lead Data Engineer",
-          "versioning_rules": "Profiling rule suites maintained and tagged in GitOps repository"
+          "change_request_process": "Profiling dimension threshold modifications approved by Lead Data Steward",
+          "versioning_rules": "Profiling rule suites and test manifests tracked under GitOps versioning"
         }
       ],
       "continuous_improvement": [
@@ -169,46 +232,46 @@
           "review_frequency": "Quarterly",
           "improvement_inputs": [
             "Data quality test suite failure rates",
-            "Profiling false positives",
-            "Parallelised profiling throughput"
+            "Parallelised profiling throughput",
+            "Profiling false positives"
           ]
         }
       ]
     },
     {
-      "substep_name": "Enforce Data Cleansing and Remediation",
-      "description": "Evaluate profiling exceptions against MoJ quality thresholds. Execute automated and deterministic data cleansing workflows to remediate missing values, remove duplicates, normalize formats, and isolate unresolvable records into a quarantine container, generating an audit log of all modifications.",
+      "substep_name": "Remediate Anomalies and Formulate Cleansing Manifest",
+      "description": "Isolate records failing quality rules into an auditable quarantine container. Deterministic cleansing routines normalize formats, eliminate confirmed duplicate entries, and log every applied transformation to preserve distribution fidelity without silent data corruption.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Automated Data Quality Profiling Report",
-        "Ingested Dataset Staging Manifest"
+        "Distributed Profiling Execution Telemetry"
       ],
       "outputs": [
         "Data Cleansing & Validation Manifest",
         "Streamlined Pre-Validation Execution Dossier"
       ],
-      "estimated_duration": "1-2 business days",
+      "estimated_duration": "0.5-1 business day",
       "dependencies": [
-        "Execute Parallelised Quality Profiling"
+        "Deploy Distributed Parallel Quality Profiling"
       ],
       "success_criteria": [
-        "All cleansing operations logged deterministically with reversible transformations",
-        "Corrupted or invalid records fully quarantined and documented",
-        "Data Cleansing & Validation Manifest successfully created"
+        "All cleansing transformations logged deterministically with reproducible code",
+        "100% of non-compliant records quarantined with root-cause reason codes",
+        "Zero silent mutations of underlying judicial distributions"
       ],
-      "purpose": "Normalize and remediate data hygiene issues while ensuring complete auditability and zero silent data mutation.",
-      "scope": "All non-conforming records detected during automated profiling.",
+      "purpose": "Ensure pipeline data hygiene through auditable, deterministic remediation and record quarantine.",
+      "scope": "All non-conforming data points flagged during parallelized profiling.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Receipt of automated profiling report flagging anomalies or formatting violations"
+        "Delivery of automated profiling report flagging exceptions or anomalies"
       ],
       "end_conditions": [
-        "Cleaned dataset staged and manifest signed by Data Steward"
+        "Cleaned dataset staged and Data Cleansing Manifest digitally signed by Data Steward"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Cleansing transformations distort underlying ground truth justice distributions",
-          "control": "Deterministic rules with pre- and post-cleansing statistical distribution validation"
+          "risk": "Over-cleansing or aggressive imputation skewing ground truth statistical representation",
+          "control": "Automated distribution parity comparison between pre-cleansed and post-cleansed datasets"
         }
       ],
       "governance_requirements": [
@@ -217,58 +280,58 @@
       ],
       "change_management": [
         {
-          "change_request_process": "Remediation rule modifications require Data Governance Board approval",
-          "versioning_rules": "Cleaned datasets versioned with immutable hash snapshots via DVC"
+          "change_request_process": "Cleansing rule adjustments submitted to Data Governance Board for review",
+          "versioning_rules": "Remediated datasets hashed and versioned with immutable DVC tags"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Quarantine volume rates",
+            "Quarantine rate trends",
             "Cleansing pipeline error rates"
           ]
         }
       ]
     },
     {
-      "substep_name": "Generate Scorecard and Enforce Gating",
-      "description": "Synthesize automated profiling metrics, lineage records, and cleansing manifests into the official MoJ Data Quality Scorecard. Validate aggregate score against the mandatory 95% threshold; upon passing, secure formal CDO approval to authorize release to downstream AI pipelines.",
+      "substep_name": "Synthesize Quality Scorecard and CDO Release Gate",
+      "description": "Collate contract verification outputs, lineage maps, profiling reports, and cleansing manifests into the official MoJ Data Quality Scorecard. Validate that the composite quality metric achieves or exceeds the mandatory 95% threshold, securing formal CDO digital approval to authorize release into AI engineering pipelines.",
       "responsible_party": "Chief Data Officer / Head of Data Governance",
       "inputs": [
         "Automated Data Quality Profiling Report",
         "Data Lineage Map",
         "Data Cleansing & Validation Manifest",
+        "Data Contract Verification Report",
         "Parallelised Profiling Execution Metrics"
       ],
       "outputs": [
         "Data Quality Scorecard",
-        "MoJ Data Quality Scorecard (Completeness, Accuracy, Timeliness, Validity)",
-        "Parallelised Profiling and Automated Schema Validation Report"
+        "MoJ Data Quality Scorecard (Completeness, Accuracy, Timeliness, Validity)"
       ],
-      "estimated_duration": "1 business day",
+      "estimated_duration": "4-8 hours",
       "dependencies": [
-        "Trace Data Lineage and Provenance",
-        "Enforce Data Cleansing and Remediation"
+        "Trace Immutable Lineage and Provenance",
+        "Remediate Anomalies and Formulate Cleansing Manifest"
       ],
       "success_criteria": [
-        "Data Quality Scorecard reflects an aggregate compliance score >= 95%",
+        "Composite data quality score meets or exceeds the mandatory 95% threshold",
         "Formal CDO digital sign-off and approval achieved",
-        "Certificate of provenance and quality linked to the Registered AI Use Case Record"
+        "Quality certificate committed to Registered AI Use Case Record"
       ],
-      "purpose": "Provide final executive gating and certification that data assets meet justice quality standards prior to model ingestion.",
-      "scope": "Finalized dataset release package for model training and evaluation.",
+      "purpose": "Provide final executive certification that dataset quality, contract conformance, and provenance are established before downstream consumption.",
+      "scope": "The complete dataset release dossier for model development and fine-tuning.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Delivery of completed cleansing manifest and lineage map"
+        "Completion and consolidation of lineage maps and cleansing manifests"
       ],
       "end_conditions": [
-        "Data Quality Scorecard meeting minimum thresholds and formal CDO approval"
+        "Data Quality Scorecard meeting minimum thresholds and formal CDO approval granted"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Ingestion of corrupted, incomplete, or unverified justice records into operational models",
-          "control": "Automated validation gate stopping data pipeline execution if composite quality score is below 95%"
+          "risk": "Ingestion of corrupted, incomplete, or unverified justice records due to silent upstream schema changes",
+          "control": "Automated parallel data quality rule enforcement with machine-readable data contract pre-validation and mandatory validation gate stopping data pipeline execution if score < 95% or schema violates contract"
         }
       ],
       "governance_requirements": [
@@ -279,14 +342,14 @@
       "change_management": [
         {
           "change_request_process": "Scorecard threshold waivers require formal Senior Information Risk Owner (SIRO) exception authorization",
-          "versioning_rules": "Scorecard artifact archived with immutable audit ID in Central Data Catalog"
+          "versioning_rules": "Scorecard artifacts archived with immutable cryptographic hash in Central Data Catalog"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Data Quality Gate pass/fail ratios",
+            "Data quality test suite failure rates",
             "Downstream model retraining incidence due to data errors"
           ]
         }

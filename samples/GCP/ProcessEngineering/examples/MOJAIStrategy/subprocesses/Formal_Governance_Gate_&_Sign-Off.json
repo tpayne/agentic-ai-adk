@@ -2,8 +2,8 @@
   "step_name": "Formal Governance Gate & Sign-Off",
   "subprocess_flow": [
     {
-      "substep_name": "Collate and Validate Gate Dossier",
-      "description": "Assemble all mandatory upstream governance artifacts into a consolidated stage-gate compliance package. The Enterprise Architect reviews the submitted deliverables against completeness criteria and registers the dossier within the digital governance workflow tool to prepare for asynchronous inspection.",
+      "substep_name": "Collate Dossier and Run Automated Verification Checks",
+      "description": "Consolidate all upstream stage deliverables and governance records into a structured stage-gate compliance package. Execute automated verification scripts to validate artifact checksums, cryptographic attestations, and compliance threshold metrics across data quality, security posture, and fairness assessments, identifying intake discrepancies before board inspection.",
       "responsible_party": "Enterprise Architect (MoJ)",
       "inputs": [
         "Registered AI Use Case Record",
@@ -11,32 +11,33 @@
         "Security Architecture Approval Record",
         "Algorithmic Fairness & Bias Audit Report",
         "Full DPIA & ATRS Submission Draft",
-        "Pre-Populated Asynchronous Review Comments"
+        "Delegated Approval Eligibility Matrix"
       ],
       "outputs": [
         "Compiled Stage-Gate Dossier",
-        "Dossier Completeness Validation Report"
+        "Automated Verification Check Findings",
+        "Automated Gate Verification Check Report"
       ],
-      "estimated_duration": "0.5-1 business day",
+      "estimated_duration": "2-4 hours",
       "dependencies": [],
       "success_criteria": [
         "100% of mandatory gate artifacts submitted and structurally verified",
-        "Automated checklist validation passes without missing documentation",
-        "Dossier accessible to all Board members in secure repository"
+        "Automated validation script passes with zero missing metadata fields",
+        "Automated Gate Verification Check Report successfully published to registry"
       ],
-      "purpose": "Verify that all required compliance documentation, security approvals, and quality scorecards are complete and ready for board review.",
-      "scope": "Pre-gate intake and structural verification of AI governance artifacts across MoJ digital assets.",
+      "purpose": "Perform automated structural verification and integrity validation of the complete AI compliance dossier prior to human governance review.",
+      "scope": "Ingestion verification and automated checklist validation of Phase 1 through 4 governance artifacts.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Formal gate submission request by AI Project Lead upon completion of assessment phases"
+        "Receipt of formal stage-gate evaluation submission from AI Project Lead"
       ],
       "end_conditions": [
-        "Issuance of Dossier Completeness Validation Report and dispatch to review panel"
+        "Generation of Automated Gate Verification Check Report and compiled dossier ready for routing"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Incomplete or outdated audit documentation submitted to the board",
-          "control": "Automated document hashing and validation script ensuring all Phase 1-4 deliverables match registry records"
+          "risk": "Submission of manipulated, mismatched, or out-of-date audit documentation",
+          "control": "Automated cryptographic checksum verification comparing submitted deliverables against tamper-proof registry logs"
         }
       ],
       "governance_requirements": [
@@ -45,111 +46,174 @@
       ],
       "change_management": [
         {
-          "change_request_process": "Missing artifacts trigger immediate intake halt and notification to Project Lead via Jira/ServiceNow",
-          "versioning_rules": "Dossier stamped with immutable build tag and registered in artifact vault"
+          "change_request_process": "Missing or non-verifiable artifacts trigger an automated intake halt and remediation ticket in Jira/ServiceNow",
+          "versioning_rules": "Compiled dossier tagged with immutable Git SHA and semantic release version"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Artifact rejection rate at intake",
-            "Time taken to achieve dossier completeness"
+            "Automated verification script defect logs",
+            "Dossier collation lead times"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Triage Approval Route and Distribute for Pre-Review",
+      "description": "Assess the verified compliance dossier against the Delegated Approval Eligibility Matrix to determine whether the system qualifies for expedited delegated review or requires full board deliberation. Generate pre-populated asynchronous review comments and route the evaluation pack to designated subject matter experts across data privacy, security, and algorithmic ethics.",
+      "responsible_party": "Enterprise Architect (MoJ)",
+      "inputs": [
+        "Compiled Stage-Gate Dossier",
+        "Automated Verification Check Findings",
+        "Delegated Approval Eligibility Matrix"
+      ],
+      "outputs": [
+        "Pre-Populated Asynchronous Review Comments",
+        "Approval Pathway Determination Notice",
+        "Delegated Approval Manifest"
+      ],
+      "estimated_duration": "4-8 hours",
+      "dependencies": [
+        "Collate Dossier and Run Automated Verification Checks"
+      ],
+      "success_criteria": [
+        "Approval pathway formally assigned in accordance with risk tier criteria",
+        "Pre-review workspace pre-populated with automated findings and review prompts",
+        "Delegated Approval Manifest created for qualified low-risk use cases"
+      ],
+      "purpose": "Determine whether the AI solution requires full board quorum or delegated lead evaluation, streamlining review distribution.",
+      "scope": "Risk-calibrated pathway assignment and distribution of pre-review packages across MoJ specialist domains.",
+      "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
+      "triggers": [
+        "Successful completion of automated verification checks"
+      ],
+      "end_conditions": [
+        "Reviewers notified and dossier dispatched via designated governance review channels"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "High-risk judicial decision-support tool erroneously assigned to delegated fast-track review",
+          "control": "Mandatory policy rule-engine cross-check validating against statutory high-risk exclusion lists"
+        }
+      ],
+      "governance_requirements": [
+        "EU AI Act High-Risk System Classification Criteria",
+        "CDDO Algorithmic Transparency Recording Standard Tiering"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Appeals against pathway categorization require written concurrence from Chief Enterprise Architect",
+          "versioning_rules": "Pathway determination logged with timestamped configuration manifest"
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Triage pathway accuracy audit",
+            "Delegated approval utilization rate"
           ]
         }
       ]
     },
     {
       "substep_name": "Execute Asynchronous Pre-Review and Concurrent Sign-Off",
-      "description": "Distribute the compiled gate dossier across specialised board review tracks including legal, cybersecurity, data privacy, and ethical assurance. Board members perform asynchronous pre-review and log concurrent non-blocking approvals within the governance registry, resolving low-level queries prior to the formal board session.",
-      "responsible_party": "MoJ AI Governance Board Reviewers",
+      "description": "Enable domain reviewers across cyber security, legal compliance, data protection, and algorithmic ethics to evaluate their designated areas asynchronously. Record concurrent non-blocking approvals and domain attestations directly into the central governance platform, isolating contentious issues and resolving minor technical queries without convening live meetings.",
+      "responsible_party": "Enterprise Architect (MoJ)",
       "inputs": [
         "Compiled Stage-Gate Dossier",
-        "Dossier Completeness Validation Report"
+        "Pre-Populated Asynchronous Review Comments",
+        "Approval Pathway Determination Notice"
       ],
       "outputs": [
-        "Asynchronous Review Findings Log",
-        "Concurrent Sign-Off Registry Log"
+        "Concurrent Sign-Off Registry Log",
+        "Asynchronous Pre-Review Record and Concurrent Sign-Off Dossier",
+        "Domain Sign-Off Attestations"
       ],
       "estimated_duration": "1-2 business days",
       "dependencies": [
-        "Collate and Validate Gate Dossier"
+        "Triage Approval Route and Distribute for Pre-Review"
       ],
       "success_criteria": [
-        "All designated domain reviewers submit formal review logs",
-        "Concurrent sign-off completed for non-blocking compliance checks",
-        "Critical blocking observations catalogued for live discussion"
+        "All designated domain leads complete review logs within the allotted turnaround window",
+        "Zero non-blocking technical questions lingering unresolved",
+        "Concurrent sign-off registry populated with cryptographically verified digital signatures"
       ],
-      "purpose": "Decouple domain-specific compliance evaluations from live meetings and prevent queueing bottlenecks during formal board review.",
-      "scope": "Independent asynchronous review by DPO, CISO, CDO, and independent model auditors.",
+      "purpose": "Decouple domain-specific compliance validations into parallel workflows to eliminate review queues and bottlenecks.",
+      "scope": "Parallel independent domain reviews covering GDPR Article 35, NIST AI RMF security baselines, and Equality Act conformance.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Publication of the Compiled Stage-Gate Dossier to the Board workflow platform"
+        "Dispatch of pre-review evaluation packs to designated domain leads"
       ],
       "end_conditions": [
-        "All domain-specific concurrent approvals logged and open questions synthesised"
+        "Logging of all domain evaluations and publication of concurrent sign-off registry"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Domain reviewers fail to submit feedback within allocated window causing pipeline stalls",
-          "control": "Automated reminder notifications and designated backup reviewer delegations after 24 business hours"
+          "risk": "Reviewer inactivity or late feedback delaying project release milestones",
+          "control": "Automated SLA countdown alerting with designated secondary delegate escalation after 24 business hours"
         }
       ],
       "governance_requirements": [
         "MoJ Digital & Technology Governance Standard",
-        "CDDO Algorithmic Transparency Recording Standard"
+        "UK Data Protection Act 2018 / UK GDPR"
       ],
       "change_management": [
         {
-          "change_request_process": "Reviewers submit formal clarification requests through the central governance portal",
-          "versioning_rules": "All reviewer comments and concurrent stamps timestamped and cryptographically logged"
+          "change_request_process": "Domain-level remediation requests logged directly into project issue tracker via MLOps bridge",
+          "versioning_rules": "All asynchronous review comments and concurrent signatures permanently stored with cryptographic hashes"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Reviewer turnaround time",
-            "Concurrent sign-off completion percentage prior to live board session"
+            "Concurrent review turnaround time",
+            "Reviewer response latency metrics"
           ]
         }
       ]
     },
     {
-      "substep_name": "Convene MoJ AI Governance Board Formal Session",
-      "description": "Convene the full MoJ AI Governance Board to evaluate unresolved cross-functional risks, deliberate on contentious algorithmic fairness and security trade-offs, and vote on stage-gate approval. The session concludes with recorded deliberations and a binding determination on system viability.",
+      "substep_name": "Conduct Digital Quorum Voting and Delegated Review",
+      "description": "Execute digital quorum voting across AI Governance Board members for full-track systems, or execute expedited single-lead sign-off for eligible low-risk systems. Collect digital voting tokens asynchronously to establish binding executive consensus, recording deliberations, vote distributions, formal determinations, and any mandatory conditions in the stage-gate review minutes.",
       "responsible_party": "Enterprise Architect (MoJ)",
       "inputs": [
-        "Compiled Stage-Gate Dossier",
-        "Asynchronous Review Findings Log",
-        "Concurrent Sign-Off Registry Log"
+        "Concurrent Sign-Off Registry Log",
+        "Asynchronous Pre-Review Record and Concurrent Sign-Off Dossier",
+        "Approval Pathway Determination Notice"
       ],
       "outputs": [
-        "Stage-Gate Review Minutes",
-        "Formal Board Determination Decision"
+        "Digital Quorum Voting Log",
+        "Asynchronous Digital Quorum Voting Record",
+        "Delegated Single-Lead Approval Manifest",
+        "Delegated Single-Lead Sign-Off Confirmation",
+        "Stage-Gate Review Minutes"
       ],
-      "estimated_duration": "0.5-1 business day",
+      "estimated_duration": "1-2 business days",
       "dependencies": [
         "Execute Asynchronous Pre-Review and Concurrent Sign-Off"
       ],
       "success_criteria": [
-        "Board quorum met with key domain leads present",
-        "Majority or unanimous recorded voting consensus on gate progression",
-        "All residual risks assigned clear operational owners and mitigation horizons"
+        "Digital quorum met with required board majority or delegated lead sign-off confirmed",
+        "Stage-Gate Review Minutes recorded and digitally signed by the Board Chair or delegated lead",
+        "Zero governance stalls caused by physical board scheduling delays"
       ],
-      "purpose": "Provide definitive, multidisciplinary executive scrutiny and formal collective decision-making on whether the AI system is fit for justice sector operations.",
-      "scope": "Deliberation and voting by executive stakeholders including CDO, CISO, Lead Legal Counsel, and Senior Enterprise Architect.",
+      "purpose": "Achieve authoritative, binding executive endorsement for production authorization through digital quorum voting or delegated authority.",
+      "scope": "Governance Board voting, delegated single-lead approval execution, and formal recording of determinations.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Conclusion of asynchronous pre-review and collation of the concurrent sign-off registry"
+        "Receipt of concurrent domain review completions and sign-off attestations"
       ],
       "end_conditions": [
-        "Formal ratification of Board vote and publishing of Stage-Gate Review Minutes"
+        "Formal ratification of board vote or delegated lead confirmation recorded in registry"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Deadlock or lack of quorum preventing timely deployment authorization",
-          "control": "Pre-defined executive escalation path to MoJ Chief Technology Officer and SIRO for tie-breaking votes"
+          "risk": "Voting tie or split board decision halting critical deployment schedules",
+          "control": "Pre-defined escalation protocol granting casting vote authority to the MoJ Senior Information Risk Owner (SIRO)"
         }
       ],
       "governance_requirements": [
@@ -158,134 +222,138 @@
       ],
       "change_management": [
         {
-          "change_request_process": "Conditional approvals require formal remediation plan approval before certificate release",
-          "versioning_rules": "Session minutes signed by Board Chair and recorded under permanent audit index"
+          "change_request_process": "Gate rejection triggers a mandatory remediation process with automated notification to the AI Project Lead",
+          "versioning_rules": "Review minutes and voting tallies archived under permanent immutable governance record IDs"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Board cycle time per case",
-            "Ratio of unanimous vs contested board determinations"
+            "Digital quorum participation turnaround speed",
+            "Ratio of delegated vs full board determinations"
           ]
         }
       ]
     },
     {
-      "substep_name": "Publish Algorithmic Transparency Record and Filings",
-      "description": "Finalize and publish the public and internal algorithmic transparency filings in accordance with Central Digital and Data Office standards. The DPO and Project Lead review and index the completed Algorithmic Transparency Recording Standard (ATRS) record and record all statutory GDPR Article 35 declarations in central government registers.",
-      "responsible_party": "Data Protection Officer & IAO",
+      "substep_name": "Process Conditional Remediation and Delegated Release",
+      "description": "Review and verify evidence submitted to address minor conditional items or low-risk remediations stipulated during the evaluation. Allow the Board Chair or designated domain single lead to evaluate remediation packages asynchronously and issue conditional release sign-offs without requiring the entire governance board to reconvene.",
+      "responsible_party": "Enterprise Architect (MoJ)",
       "inputs": [
         "Stage-Gate Review Minutes",
-        "Formal Board Determination Decision",
-        "Full DPIA & ATRS Submission Draft"
+        "Digital Quorum Voting Log",
+        "Conditional Sign-Off Remediation Package"
       ],
       "outputs": [
-        "ATRS Publication Record",
-        "Regulatory Alignment Confirmation"
+        "Conditional Authority to Operate",
+        "Delegated Single-Lead / Chair Sign-Off Record",
+        "Conditional Remediation Verification Certificate"
       ],
-      "estimated_duration": "1 business day",
+      "estimated_duration": "1-2 business days",
       "dependencies": [
-        "Convene MoJ AI Governance Board Formal Session"
+        "Conduct Digital Quorum Voting and Delegated Review"
       ],
       "success_criteria": [
-        "ATRS entry uploaded and accepted by the CDDO Algorithmic Transparency Hub",
-        "Information Asset Owner records updated in MoJ asset inventory",
-        "Statutory DPIA obligations signed off by DPO"
+        "100% of defined conditional remediation items verified against empirical evidence",
+        "Expedited single-lead or chair sign-off completed without convening the full board",
+        "Conditional Remediation Verification Certificate formally linked to project record"
       ],
-      "purpose": "Fulfil UK Government transparency mandates and legal accountability requirements for algorithmic decision-making systems.",
-      "scope": "Regulatory and public algorithmic transparency filings across MoJ and central HMG data repositories.",
+      "purpose": "Provide a streamlined, delegated mechanism to clear conditional gating actions without administrative re-convening overhead.",
+      "scope": "Remediation verification for minor conditions, non-critical technical remediations, and conditional ATO grants.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Formal Board Determination Decision approving project progression"
+        "Submission of remediation evidence package by AI Project Lead following conditional gate determination"
       ],
       "end_conditions": [
-        "Receipt of official ATRS publication confirmation reference"
+        "Chair-delegated sign-off approved and Conditional Authority to Operate issued"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Inadvertent publication of sensitive operational security details or OFFICIAL-SENSITIVE logic",
-          "control": "Dual-sign-off red-team disclosure review prior to external publishing to CDDO registry"
+          "risk": "Conditional approval items unfulfilled prior to production environment provisioning",
+          "control": "Automated technical gating policy preventing production access tokens until verification certificate is sealed"
         }
       ],
       "governance_requirements": [
-        "CDDO Algorithmic Transparency Recording Standard",
-        "UK GDPR Article 35 (DPIA)",
-        "Freedom of Information Act 2000 Section 24/31 exemptions"
+        "MoJ Secure by Design Policy",
+        "UK Government Service Standard Gate Reviews"
       ],
       "change_management": [
         {
-          "change_request_process": "Updates to ATRS entries follow the CDDO revision request pipeline and require IAO approval",
-          "versioning_rules": "Published ATRS versioned major.minor with persistent URI"
+          "change_request_process": "Inadequate remediation submissions trigger immediate notice of deficiency with 5-day correction SLA",
+          "versioning_rules": "Remediation manifests and chair approval notes versioned under secondary release tags"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Public transparency feedback",
-            "CDDO audit inspection compliance reports"
+            "Conditional remediation cycle duration",
+            "Chair-delegated approval lead time"
           ]
         }
       ]
     },
     {
-      "substep_name": "Issue Conformance Certificate and Authority to Operate",
-      "description": "Generate and cryptographically sign the auditable MoJ AI Conformance Certificate and formal Authority to Operate (ATO). The Enterprise Architect locks the entire governance package into the 7-year immutable audit repository and authorizes production deployment access within the secure cloud enclave.",
+      "substep_name": "Publish ATRS Filings and Issue Conformance Certificate",
+      "description": "Compile the complete audit package and publish statutory algorithmic transparency records to central government registries in alignment with CDDO ATRS protocols. Cryptographically sign and release the final MoJ AI Certificate of Conformance and formal Authority to Operate (ATO), archiving the full compliance dossier under the mandatory 7-year retention rule and enabling production enclave access.",
       "responsible_party": "Enterprise Architect (MoJ)",
       "inputs": [
-        "Formal Board Determination Decision",
         "Stage-Gate Review Minutes",
-        "ATRS Publication Record",
-        "Concurrent Sign-Off Registry Log"
+        "Delegated Single-Lead / Chair Sign-Off Record",
+        "Conditional Remediation Verification Certificate",
+        "Full DPIA & ATRS Submission Draft",
+        "Delegated Single-Lead Sign-Off Confirmation"
       ],
       "outputs": [
+        "ATRS Publication Record",
         "MoJ AI Conformance Certificate",
+        "Signed MoJ AI Certificate of Conformance",
+        "Production Authority to Operate (ATO)",
         "Production Deployment Authorization"
       ],
       "estimated_duration": "0.5-1 business day",
       "dependencies": [
-        "Convene MoJ AI Governance Board Formal Session",
-        "Publish Algorithmic Transparency Record and Filings"
+        "Process Conditional Remediation and Delegated Release"
       ],
       "success_criteria": [
-        "MoJ AI Conformance Certificate cryptographically signed by Process Owners",
-        "Production Authority to Operate (ATO) delivered to MLOps engineering lead",
-        "Complete 7-year immutable audit bundle securely archived"
+        "Algorithmic Transparency Record published and verified on central CDDO portal",
+        "MoJ AI Conformance Certificate cryptographically signed by enterprise governance authorities",
+        "Production cloud IAM credentials unlocked based on cryptographically validated ATO token",
+        "Full audit package securely archived for 7-year statutory retention"
       ],
-      "purpose": "Provide binding, auditable deployment clearance and release production cloud environment controls for live system operation.",
-      "scope": "Formal certification, cryptographic stamping, cloud enclave release gating, and legal audit archiving.",
+      "purpose": "Fulfill central government algorithmic transparency obligations and grant authoritative production deployment authorization.",
+      "scope": "Final ATRS publishing, cryptographic certificate generation, 7-year audit archival, and production environment release.",
       "process_owner": "MoJ Chief Enterprise Architect & Head of Data Governance",
       "triggers": [
-        "Verification of ATRS publication and formal board determination sign-off"
+        "Ratification of unconditional gate determination or execution of conditional remediation verification"
       ],
       "end_conditions": [
-        "Release of production deployment gates and ingestion of final certificate into the MoJ Centralized Data Catalog"
+        "Formal issuance of Conformance Certificate, ATRS indexing, and production deployment authorization release"
       ],
       "step_risks_and_controls": [
         {
-          "risk": "Deployment to production infrastructure prior to cryptographic certificate issuance",
-          "control": "Automated cloud IAM pipeline policy preventing production CD/CI deployment without valid cryptographic certificate token"
+          "risk": "Production deployment triggered without verifiable cryptographic authorization or transparency registration",
+          "control": "Automated cloud deployment orchestrator requiring cryptographically signed certificate hash to unlock production pipelines"
         }
       ],
       "governance_requirements": [
-        "MoJ Digital & Technology Governance Standard",
+        "CDDO Algorithmic Transparency Recording Standard (ATRS)",
         "MoJ Records Management & Retention Policy (7-year rule)",
         "NIST AI RMF - GOVERN Function"
       ],
       "change_management": [
         {
-          "change_request_process": "Certificate revocation or scope modifications require reconvening the AI Governance Board",
-          "versioning_rules": "Certificate assigned unique cryptographic UUID linked to model hash and version"
+          "change_request_process": "Any post-authorization architecture modification revokes the Conformance Certificate and requires gate re-evaluation",
+          "versioning_rules": "Signed certificates and published ATRS records stored with immutable SHA-256 hashes in central vault"
         }
       ],
       "continuous_improvement": [
         {
           "review_frequency": "Quarterly",
           "improvement_inputs": [
-            "Total lead time from submission to certificate release",
-            "Audit record retrieval speeds during post-deployment checks"
+            "Time elapsed between final approval and live environment release",
+            "External audit retrieval latency from 7-year archive"
           ]
         }
       ]

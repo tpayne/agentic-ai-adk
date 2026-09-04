@@ -1,19 +1,19 @@
 {
-  "avg_cycle_time": 7.976021037492984,
-  "cycle_time_variance": 0.7490083922806721,
+  "avg_cycle_time": 7.99037622584341,
+  "cycle_time_variance": 0.7592813176190882,
   "time_unit": "business",
   "bottlenecks": [
-    "Inception & Classification",
-    "Post-Deployment Monitoring & Continuous Audit",
-    "Algorithmic Fairness & Ethical Assessment"
+    "Formal Governance Gate & Sign-Off",
+    "Data Quality & Provenance Verification",
+    "Post-Deployment Monitoring & Continuous Audit"
   ],
   "resource_contention_risk": "Low",
   "per_step_avg": {
-    "Inception & Classification": 1.3344609245369967,
-    "Data Quality & Provenance Verification": 1.3262316175495952,
-    "Architecture & Security Baseline Review": 1.3258960719518156,
-    "Algorithmic Fairness & Ethical Assessment": 1.3316253132654008,
-    "Formal Governance Gate & Sign-Off": 1.3252439358963484,
-    "Post-Deployment Monitoring & Continuous Audit": 1.3325631742928274
+    "Inception & Classification": 1.3296578832132058,
+    "Data Quality & Provenance Verification": 1.335358521310536,
+    "Architecture & Security Baseline Review": 1.3250954763769582,
+    "Algorithmic Fairness & Ethical Assessment": 1.3284707002885574,
+    "Formal Governance Gate & Sign-Off": 1.338353517747428,
+    "Post-Deployment Monitoring & Continuous Audit": 1.3334401269067246
   }
 }
