@@ -1,0 +1,280 @@
+{
+  "step_name": "Goods Receipt, Tagging, and alm_hardware Asset Staging",
+  "subprocess_flow": [
+    {
+      "substep_name": "Dock Delivery Intake and Tamper-Evident Inspection",
+      "description": "The Data Centre Logistics and ITAM dock intake specialists receive the physical consignment at the data centre secure loading bay. Technicians perform a physical integrity inspection of outer packaging, checking shipping seals, anti-tamper tape, and tilt/shock sensor indicators against the vendor delivery docket and Advance Shipment Notification (ASN). Any carton displaying breach of seal, water ingress, or external physical shock triggers an immediate stop-work hold on that specific carton.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "Physical Hardware Deliveries",
+        "Vendor Packing Slips and ASNs"
+      ],
+      "outputs": [
+        "Inspected Delivery Consignment",
+        "Physical Intake Inspection Form"
+      ],
+      "estimated_duration": "15 to 30 minutes per shipment batch",
+      "dependencies": [
+        "Hardware Procurement and Asset Pre-Registration"
+      ],
+      "success_criteria": [
+        "100% of delivered cartons visually inspected for security seal integrity with results recorded on the intake inspection manifest."
+      ],
+      "purpose": "Verify outer transit container integrity and enforce physical chain of custody before entering secure facility grounds.",
+      "scope": "All inbound hardware delivery pallets and individual cartons unloaded at the facility dock.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Carrier arrival and physical unloading of consignment at the DC secure bay."
+      ],
+      "end_conditions": [
+        "Carton condition verified, security seals confirmed intact, and goods permitted to move to unboxing zone."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Acceptance of tampered or physically damaged hardware compromising banking data centre supply chain integrity.",
+          "control": "Mandatory dual-custody verification of tamper-evident seals and photo logging of damaged packaging prior to carrier sign-off."
+        }
+      ],
+      "governance_requirements": [
+        "Physical Data Centre Security Access Protocols",
+        "FCA SYSC 15.9 Asset Protection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Packaging breaches require non-conformance flag logging in ServiceNow HAM.",
+          "versioning_rules": "Intake manifests versioned with timestamp and dock receiving agent ID."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly logistics review",
+          "improvement_inputs": [
+            "Damaged packaging incidence reports",
+            "Carrier compliance metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Batch RFID and Serial Number Scanning",
+      "description": "DC Logistics engineers utilize handheld RFID readers and high-throughput 2D DataMatrix optical scanners to capture factory serial numbers and pre-printed manufacturer identification codes. The ServiceNow HAM Mobile scanning application queries the pre-allocated purchase order lines in alm_hardware in real time, validating expected serial numbers against physical hardware tags. Any device not identified within the pre-allocated PO stub ledger is segregated instantly.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "Inspected Delivery Consignment",
+        "Pre-allocated alm_hardware asset stubs"
+      ],
+      "outputs": [
+        "Scanned Serial Number Ingestion Dataset",
+        "PO Verification Result Record"
+      ],
+      "estimated_duration": "15 to 30 minutes via batch mobile RFID multi-tag scanning",
+      "dependencies": [
+        "Dock Delivery Intake and Tamper-Evident Inspection"
+      ],
+      "success_criteria": [
+        "Automated reconciliation matches 100% of scanned hardware serials against pre-allocated PO stubs."
+      ],
+      "purpose": "Establish definitive physical-to-digital alignment between delivered hardware units and enterprise procurement records.",
+      "scope": "All hardware devices, chassis modules, and serializable subcomponents.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Unpacking and staging of verified cartons in the intake scanning zone."
+      ],
+      "end_conditions": [
+        "All hardware chassis scanned and validated against open PO asset stubs in ServiceNow HAM."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Rogue or unapproved hardware introduction into data centre facility without digital asset logging.",
+          "control": "Automated HAM mobile IRE comparison against open PO stubs with automatic block on unrecognized serial numbers."
+        }
+      ],
+      "governance_requirements": [
+        "ISO/IEC 19770-1 ITAM System Standards",
+        "FCA SYSC 15.9 Asset Protection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Unmatched serial numbers require PO line modification or formal return-to-vendor (RMA) workflow initiation.",
+          "versioning_rules": "Scan audit trail locked and timestamped in ServiceNow sys_audit log."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly logistics review",
+          "improvement_inputs": [
+            "Batch RFID read failure logs",
+            "Manufacturer serial number barcode misreads"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Asset Tag Affixation and Physical Serialization",
+      "description": "ITAM technicians affix bank-standardized tamper-evident destructible vinyl barcode asset labels and high-memory passive UHF RFID tags to each hardware chassis in accordance with engineering placement standards. Technicians scan the newly affixed bank asset tag alongside the vendor serial number using ServiceNow HAM Mobile, permanently pairing the enterprise asset tag number with the manufacturer serial number in the database.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "Scanned Serial Number Ingestion Dataset",
+        "Enterprise Barcode and RFID Tag Inventory"
+      ],
+      "outputs": [
+        "Barcoded and tagged physical hardware units",
+        "Paired Asset Tag to Serial Number Map"
+      ],
+      "estimated_duration": "20 to 30 minutes per wave batch",
+      "dependencies": [
+        "Batch RFID and Serial Number Scanning"
+      ],
+      "success_criteria": [
+        "100% of accepted hardware units affixed with tamper-evident enterprise barcodes and RFID tags with 1:1 mapping verified in ServiceNow."
+      ],
+      "purpose": "Affix permanent enterprise visual and radio-frequency identification tags ensuring physical tracking capability across the migration lifecycle.",
+      "scope": "All physical compute, storage, appliance, and network devices.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Successful validation of scanned serial numbers against PO stubs."
+      ],
+      "end_conditions": [
+        "Enterprise asset tags affixed and paired to vendor serial numbers in ServiceNow HAM."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Mislabeled asset tags or tag detachment resulting in orphaned equipment during rack deployment.",
+          "control": "Mandatory optical scan-back verification of affixed tag and use of industrial-grade tamper-evident adhesive labels."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Asset Protection",
+        "Physical Data Centre Security Access Protocols"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Damaged or invalid asset tag replacement must follow the ITAM Tag Reassignment procedure.",
+          "versioning_rules": "Asset tag pairing ledger updated with agent ID and date."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly logistics review",
+          "improvement_inputs": [
+            "Asset tag detachment statistics",
+            "Tag pairing mismatch incidents"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Discrepancy Triage and Secure Quarantine Management",
+      "description": "Any item displaying transit damage, packaging breaches, wrong specifications, missing pre-registration stubs, or mismatched serial numbers is isolated into the loading dock Secure Quarantine Holding Area. Technicians generate an automated Discrepancy and RMA incident in ServiceNow, locking the asset stub, tagging the physical unit with high-visibility quarantine notices, and sending automated escalation notifications to IT Procurement and the vendor for replacement.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "PO Verification Result Record",
+        "Physical Intake Inspection Form"
+      ],
+      "outputs": [
+        "Intake Inspection and Discrepancy Log",
+        "Quarantined Hardware Items (if any)",
+        "ServiceNow RMA Incident Record"
+      ],
+      "estimated_duration": "15 to 30 minutes per identified discrepancy",
+      "dependencies": [
+        "Batch RFID and Serial Number Scanning",
+        "Asset Tag Affixation and Physical Serialization"
+      ],
+      "success_criteria": [
+        "Zero unverified, damaged, or uncataloged hardware assets proceed past dock staging; 100% of exceptions logged and quarantined."
+      ],
+      "purpose": "Isolate defective, unapproved, or compromised hardware to prevent rogue introduction into the migration staging environment.",
+      "scope": "All hardware shipments failing initial visual, procurement, or serial number verification gates.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Detection of serial mismatch, PO omission, or packaging/equipment damage during intake."
+      ],
+      "end_conditions": [
+        "Discrepancies segregated in biometric quarantine holding, RMA incident opened, or goods approved for clearance."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inadvertent blending of defective or unapproved hardware into migration deployment batches.",
+          "control": "Physical biometric cage quarantine with automated ServiceNow asset state lock preventing workflow progression."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Operational Risk Systems & Controls",
+        "UK Banking Security Guidelines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal RMA Change Task logged against original procurement record.",
+          "versioning_rules": "Incident records tracked under standard ServiceNow ITIL lifecycle."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly logistics review",
+          "improvement_inputs": [
+            "Vendor Dead-on-Arrival (DOA) frequency",
+            "Quarantine hold-time statistics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "alm_hardware Inventory Update and Staging Room Transition",
+      "description": "For all accepted and verified hardware, the ServiceNow HAM automation workflow updates the pre-allocated alm_hardware record: install_status is transitioned from 'Ordered' (1) to 'In Stock' (6) with substatus set to 'Pending Inspection / In Staging'. The physical location field is populated with the specific Pre-Migration Secure Staging Room rack or bay coordinates. Goods receipt confirmation is electronically signed in ERP/HAM, releasing the hardware into migration staging custody.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "Barcoded and tagged physical hardware units",
+        "Paired Asset Tag to Serial Number Map",
+        "Intake Inspection and Discrepancy Log"
+      ],
+      "outputs": [
+        "Updated alm_hardware records (Status: In Stock / Substatus: Pending Inspection)",
+        "Formal Goods Receipt Confirmation and Quarantine Clearance Certificate"
+      ],
+      "estimated_duration": "15 to 30 minutes",
+      "dependencies": [
+        "Asset Tag Affixation and Physical Serialization",
+        "Discrepancy Triage and Secure Quarantine Management"
+      ],
+      "success_criteria": [
+        "100% of accepted physical units have status set to In Stock (6) with precise staging shelf coordinates logged in alm_hardware."
+      ],
+      "purpose": "Formally capture hardware assets into active data centre inventory and update financial and physical status in ServiceNow.",
+      "scope": "All non-quarantined hardware cleared through dock verification.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Successful completion of tagging, pairing, and discrepancy screening."
+      ],
+      "end_conditions": [
+        "Assets stored in secure pre-migration staging room, alm_hardware fully updated to In Stock, and clearance certificate issued."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inventory status desynchronization between physical location and ServiceNow alm_hardware records.",
+          "control": "ServiceNow system business rule requiring mandatory physical staging bin coordinate validation prior to saving status transition."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Asset Protection",
+        "ISO/IEC 19770-1",
+        "Physical Data Centre Security Access Protocols"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Asset state transition triggered via automated receipt task in ServiceNow HAM.",
+          "versioning_rules": "All updates committed to sys_audit and HAM lifecycle history ledger."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly logistics review",
+          "improvement_inputs": [
+            "Dock-to-stock turnaround cycle time metrics",
+            "alm_hardware data accuracy audit findings"
+          ]
+        }
+      ]
+    }
+  ]
+}

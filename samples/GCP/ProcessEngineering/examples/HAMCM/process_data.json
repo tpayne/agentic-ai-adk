@@ -1,0 +1,774 @@
+{
+  "introduction": "This Process Definition Document establishes the enterprise Hardware Asset Management (HAM) and Configuration Management (CM) operational standard for a UK Tier-1 Trading Bank undergoing a critical multi-site Data Centre Migration. In direct compliance with Financial Conduct Authority (FCA) Policy Statement PS21/3, PRA SS1/21, and SYSC 15.9, this framework enforces an immutable, auditable lifecycle for all physical compute, storage, appliance, and network hardware assets. It governs every phase from procurement and goods receipt through staging, migration deployment, production operations, change control, and secure decommission/disposal. Central to this standard is an automated 'No Ticket, No Touch' operational policy where physical or logical divergence between ServiceNow Discovery and the CMDB baseline instantly generates Sev-1/Sev-2 Unauthorized Change Incidents, backed by mandatory state-transition approval gates and bidirectional synchronization between ServiceNow alm_hardware and cmdb_ci_hardware tables to maintain an operational integrity threshold exceeding 99.5%.",
+  "continuous_improvement": [
+    {
+      "improvement_inputs": [
+        "Quarterly CMDB Health Dashboard scorecards (Completeness, Compliance, Correctness)",
+        "Monthly Unauthorized Change Incident root-cause analysis reviews",
+        "Annual FCA Operational Resilience compliance self-assessments and external audit reports",
+        "ServiceNow Discovery error logs, unassigned IP reports, and orphan asset metrics"
+      ],
+      "review_frequency": "Monthly Operational Review and Quarterly Executive Steering Committee"
+    }
+  ],
+  "system_requirements": [
+    {
+      "name": "ServiceNow ITOM Discovery & IRE Engine",
+      "details": "ServiceNow Utah/Washington DC release with HAM Pro, ITOM Discovery, Service Mapping, and Identification & Reconciliation Engine (IRE). IRE rules configure hardware serial number, asset tag, and MAC address as mandatory unique identifiers with IRE reconciliation priority rules favoring automated discovery over manual input."
+    },
+    {
+      "name": "ServiceNow HAM Data Model & Asset-to-CI State Synchronization Module",
+      "details": "Bidirectional synchronization engine between alm_hardware and cmdb_ci_hardware tables. Enforces mapped state progression: alm_hardware install_status (Ordered -> In Stock -> In Use -> In Maintenance -> Retired -> Disposed) synchronously locked to cmdb_ci_hardware install_status and operational_status. State transitions to 'In Use / Operational' are strictly locked pending CAB Change Approval and Technical Readiness Token clearance."
+    },
+    {
+      "details": "Automated background reconciliation script scheduled post-discovery that compares discovered infrastructure deltas against approved active Change Requests. Any discrepancy generates an immediate Sev-1 (Trading Critical) or Sev-2 (Supporting Infrastructure) Unauthorized Change Incident, automatically locks CI attributes, and alerts Information Security and CAB.",
+      "name": "Automated 'No Ticket, No Touch' Discovery Reconciliation & Incident Engine"
+    },
+    {
+      "details": "Integration with enterprise loading dock barcode/RFID scanning terminals and supplier ASN electronic data interchange (EDI/JSON feeds) for pre-arrival asset ingestion.",
+      "name": "Barcode / RFID Scanner Integration & Supplier ASN Gateway"
+    }
+  ],
+  "process_steps": [
+    {
+      "process_end_conditions": [
+        "All ordered hardware items possess corresponding pre-allocated asset stubs in alm_hardware with serial numbers logged."
+      ],
+      "process_triggers": [
+        "Data Centre Migration Hardware Procurement Request submitted and approved in ServiceNow."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard PO procurement approvals routed through ERP and recorded in ServiceNow asset procurement workflow.",
+          "versioning_rules": "Asset catalog item revisions require ITAM Manager sign-off."
+        }
+      ],
+      "scope": "All physical servers, blade chassis, SAN arrays, network core/leaf switches, and hardware security modules (HSMs) procured for the data centre migration.",
+      "inputs": [
+        "Data Centre Migration Bill of Materials (BOM)",
+        "Approved Infrastructure Architecture Blueprint",
+        "Procurement Requisition & Vendor Quotes"
+      ],
+      "purpose": "Ensure all incoming hardware for the data centre migration is pre-registered in ServiceNow prior to physical arrival, establishing an unbroken chain of custody.",
+      "process_owner": "IT Procurement & Vendor Management Team",
+      "step_name": "Hardware Procurement and Asset Pre-Registration",
+      "step_risks_and_controls": [
+        {
+          "risk": "Procurement of non-standard hardware bypassing configuration baseline and capacity planning controls.",
+          "control": "Mandatory electronic ASN ingestion matching PO line items directly to ServiceNow HAM catalog before goods receipt is authorized."
+        }
+      ],
+      "deliverables": [
+        "Purchase Order Record in ServiceNow",
+        "Pre-allocated alm_hardware Asset Staging Records with Expected Serial Numbers",
+        "Pre-assigned Data Centre Migration Rack Allocation Reservation"
+      ],
+      "success_criteria": [
+        "100% of procured data centre hardware assets are pre-registered in alm_hardware with PO reference and serial numbers prior to loading dock arrival."
+      ],
+      "estimated_duration": "1 to 2 business days from requisition to automated PO issuance via pre-approved vendor catalogs",
+      "outputs": [
+        "Approved ServiceNow Purchase Order Record",
+        "Pre-created alm_hardware records (Status: Ordered)",
+        "Supplier Advance Shipment Notification (ASN) dataset"
+      ],
+      "responsible_party": "IT Procurement & Vendor Management Team",
+      "description": "Procurement requisitions for data centre hardware are validated against approved enterprise architecture hardware models and capacity forecasts. Upon purchase order approval in the ERP, ServiceNow HAM automatically creates pre-allocated hardware asset stubs in alm_hardware with install_status='Ordered' (1) and substatus='Pending Delivery'. Electronic Advance Shipment Notifications (ASNs) populate expected vendor serial numbers, MAC addresses, and target data centre facility rack allocations into ServiceNow before equipment physically ships.",
+      "governance_requirements": [
+        "UK Banking Corporate Governance, Procurement Sourcing Guidelines, and Capital Expenditure Authorization Rules."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Supplier pre-shipment ASN accuracy reports and catalog standardization metrics"
+          ],
+          "review_frequency": "Quarterly supplier performance review"
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "governance_requirements": [
+        "FCA SYSC 15.9 Asset Protection, Physical Data Centre Security Access Protocols, ISO/IEC 19770-1."
+      ],
+      "outputs": [
+        "Barcoded and tagged physical hardware units",
+        "Updated alm_hardware records (Status: In Stock / Substatus: Pending Inspection)",
+        "Intake Inspection and Discrepancy Log"
+      ],
+      "process_end_conditions": [
+        "Assets are scanned, physical barcodes verified, recorded in alm_hardware as In Stock, and moved to secure pre-migration staging room."
+      ],
+      "purpose": "Physically receive, inspect, tag, and verify delivered hardware assets against procurement records, establishing the physical-to-digital baseline.",
+      "deliverables": [
+        "Physical Barcode / RFID Tagged Hardware Assets",
+        "Updated alm_hardware Record (Status: In Stock / Pending Inspection)",
+        "Formal Goods Receipt Confirmation and Quarantine Clearance Certificate"
+      ],
+      "inputs": [
+        "Physical Hardware Deliveries",
+        "Vendor Packing Slips and ASNs",
+        "Pre-allocated alm_hardware asset stubs"
+      ],
+      "success_criteria": [
+        "100% of delivered physical units scanned, barcoded, matched to PO stubs, and updated in alm_hardware within 8 hours of dock arrival."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Discrepancies in shipment require an immediate RMA process and change task update.",
+          "versioning_rules": "Asset metadata changes recorded with timestamp and badge ID."
+        }
+      ],
+      "scope": "All hardware deliveries arriving at primary and secondary target data centre facilities.",
+      "dependencies": [
+        "Hardware Procurement and Asset Pre-Registration"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Rogue or counterfeit hardware introduction into data centre facility without digital asset logging.",
+          "control": "Automated barcode serial verification against pre-allocated PO; physical quarantine for any untracked or unverified shipment."
+        }
+      ],
+      "step_name": "Goods Receipt, Tagging, and alm_hardware Asset Staging",
+      "estimated_duration": "1 to 2 hours from physical dock delivery via batch mobile RFID multi-tag scanning",
+      "process_triggers": [
+        "Physical delivery of hardware at data centre loading dock."
+      ],
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "description": "Upon physical arrival at the data centre loading dock, the DC Logistics and ITAM teams inspect physical packaging for tamper evidence, scan vendor serial numbers, and affix tamper-evident banking enterprise asset barcodes and RFID tags. The asset record in alm_hardware is transitioned from 'Ordered' to 'In Stock' (6) with substatus 'Pending Inspection / In Staging'. The ServiceNow HAM mobile scanning application automatically matches scanned serial numbers against the pre-allocated PO stubs. Any discrepancy, damaged item, or unlogged serial number is automatically quarantined in a secure holding area, and an asset alert is routed to ITAM.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Intake barcode scan error logs, damaged packaging incidents, and vendor DOA metrics"
+          ],
+          "review_frequency": "Monthly logistics review"
+        }
+      ],
+      "responsible_party": "Head of IT Asset Management (ITAM)"
+    },
+    {
+      "success_criteria": [
+        "Automated discovery successfully locates 100% of newly installed hardware, linking serial numbers to alm_hardware records with zero duplicate CIs."
+      ],
+      "outputs": [
+        "Racked, cabled, and powered hardware in target data centre cabinets",
+        "Auto-discovered cmdb_ci_hardware record linked to alm_hardware",
+        "ServiceNow Discovery run logs and initial IRE audit report"
+      ],
+      "process_owner": "Data Centre Migration Engineering Team",
+      "purpose": "Execute physical installation, power, and cabling in allocated data centre racks, followed by initial automated discovery and CI linkage.",
+      "governance_requirements": [
+        "Data Centre Physical Cable and Rack Engineering Standards, FCA Operational Resilience Core Infrastructure Baseline Rules."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Hardware installed in incorrect rack locations or plugged into unapproved network ports causing configuration drift.",
+          "control": "Mandatory requirement for approved Migration Change Request (CHG) work order prior to granting physical data centre cage access; automated IRE matching preventing CI duplication."
+        }
+      ],
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "description": "Under the authority of an approved Data Centre Migration Change Request, data centre technicians unbox and rack-and-stack the hardware into designated cabinets according to the rack allocation layout. Structured power and network cabling are connected. Technicians configure baseboard management controllers (iLO/iDRAC) on the isolated provisioning network. Automated ServiceNow ITOM Discovery is initiated against the staging management subnet. The ServiceNow Identification and Reconciliation Engine (IRE) identifies the hardware via serial number and MAC address, establishes the bidirectional link to the existing alm_hardware record, and instantiates the cmdb_ci_hardware CI record with install_status='In Stock / Staging' and operational_status='Non-Operational' (2).",
+      "process_end_conditions": [
+        "Hardware is physically installed, powered, discovered via ITOM Discovery, linked to alm_hardware, and CI initialized as Non-Operational."
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Discovery pattern match rates, rack power/cooling utilization trends, cabling reconciliation times"
+          ]
+        }
+      ],
+      "scope": "Physical mounting, cabling, Out-of-Band (OOB) network configuration, and initial discovery across target data centre halls.",
+      "dependencies": [
+        "Goods Receipt, Tagging, and alm_hardware Asset Staging"
+      ],
+      "estimated_duration": "1 to 2 business days per migration wave batch",
+      "inputs": [
+        "Approved Migration Change Request (CHG)",
+        "Data Centre Cabling Schedule and Elevation Plan",
+        "Staged Hardware Units (alm_hardware: In Stock)"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Data Centre Rack Allocation Plan version control maintained in ServiceNow.",
+          "change_request_process": "Rack and stack execution authorized solely under an approved Migration Change Request (CHG)."
+        }
+      ],
+      "process_triggers": [
+        "Commencement of scheduled migration wave rack-and-stack execution window."
+      ],
+      "deliverables": [
+        "Physically Racked and Cabled Hardware in Allocated Cabinets",
+        "Initial cmdb_ci_hardware Record Created via ServiceNow ITOM Discovery / IRE",
+        "Discovered Hardware Topology and Network Interface Baseline"
+      ],
+      "step_name": "Data Centre Migration Staging, Rack-and-Stack, and Initial Discovery"
+    },
+    {
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "governance_requirements": [
+        "FCA PS21/3 Data Integrity Verification, ITIL 4 Service Configuration Management, PRA SS1/21 Infrastructure Mapping."
+      ],
+      "step_name": "Pre-Operational Verification, Discovery Reconciliation, and Technical Readiness Gate",
+      "deliverables": [
+        "ServiceNow CMDB Health Attestation Report (Correctness, Completeness, Compliance)",
+        "Asset-to-CI Reconciliation Sign-off (>99.5% Verified Accuracy)",
+        "Automated Pre-Operational Technical Readiness Gate Clearance"
+      ],
+      "purpose": "Conduct automated verification and reconciliation between discovered CI data, asset records, and target architecture baselines before operational authorization.",
+      "estimated_duration": "2 to 4 hours per server / cluster",
+      "success_criteria": [
+        "100% of staged CIs achieve >99.5% attribute accuracy and pass automated health rules before proceeding to operational approval."
+      ],
+      "outputs": [
+        "CMDB Health Audit Certification (>99.5% compliance)",
+        "Automated Technical Readiness Clearance Token in ServiceNow",
+        "Drift Discrepancy Log (if discrepancies detected)"
+      ],
+      "process_end_conditions": [
+        "The CI successfully passes all automated CMDB health checks with >99.5% accuracy, clearing the pre-operational technical readiness gate."
+      ],
+      "dependencies": [
+        "Data Centre Migration Staging, Rack-and-Stack, and Initial Discovery"
+      ],
+      "scope": "Technical verification of all hardware CIs, components, firmware, and relationships prior to CAB operational gating.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate CI attribute logging or undetected component failure entering production, endangering trading platform resilience.",
+          "control": "Automated ServiceNow IRE validation rule halting workflow progression if CMDB accuracy is below 99.5% or serial number does not reconcile."
+        }
+      ],
+      "description": "Prior to any operating system installation or production traffic enablement, ServiceNow Discovery performs an exhaustive deep-scan of the hardware CI. Discovered attributes (CPU cores, physical memory, storage disks, HBA WWNs, NIC MACs, rack unit position, PDU port feeds, and firmware versions) are validated against the approved engineering design using automated ServiceNow Health rules. The CI and Asset records are checked for bidirectional synchronization between alm_hardware and cmdb_ci_hardware. Data integrity, completeness, and correctness scores must exceed 99.5%. If any attribute diverges, the technical readiness gate automatically fails, preventing promotion and notifying the Lead Configuration Manager.",
+      "change_management": [
+        {
+          "versioning_rules": "Firmware and configuration baseline cataloged in ServiceNow Configuration Management.",
+          "change_request_process": "Any drift between discovered hardware configuration and target design requires Change Task remediation before gate sign-off."
+        }
+      ],
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "Discovery mismatch error reports, firmware compliance audit results, IRE rule tuning logs"
+          ]
+        }
+      ],
+      "process_triggers": [
+        "Completion of initial discovery and operating system provisioning on staged hardware."
+      ],
+      "inputs": [
+        "ServiceNow Discovered CI Data Model",
+        "Target Technical Architecture Baseline Specification",
+        "Bidirectionally Linked alm_hardware and cmdb_ci_hardware records"
+      ]
+    },
+    {
+      "step_name": "Mandatory Operational Approval Gate and Baseline Production Activation",
+      "estimated_duration": "1 to 3 hours during scheduled CAB and cutover window",
+      "dependencies": [
+        "Pre-Operational Verification, Discovery Reconciliation, and Technical Readiness Gate"
+      ],
+      "description": "Formal promotion of hardware CIs to live trading operations requires passing a mandatory ServiceNow operational approval gate. The Change Advisory Board (CAB) and designated Important Business Service (IBS) Service Owner review the Technical Readiness clearance, the data centre migration test results, and the rollback plan. Upon electronic CAB sign-off in ServiceNow, the automated workflow simultaneously promotes alm_hardware to install_status='In Use' (1) and substatus='Operational', and cmdb_ci_hardware to install_status='Installed' (1) and operational_status='Operational' (1). The CI is bound into the live trading service dependency mapping, establishing the official production configuration baseline under FCA PS21/3.",
+      "process_triggers": [
+        "Submission of Production Go-Live Change Task following successful pre-operational technical readiness verification."
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Baseline CI state changes and version changes logged in ServiceNow audit trail.",
+          "change_request_process": "Formal Normal Change Request (CHG) evaluated and approved by CAB and Service Owner."
+        }
+      ],
+      "outputs": [
+        "Approved Production Change Record",
+        "Updated alm_hardware (In Use / Operational)",
+        "Updated cmdb_ci_hardware (Installed / Operational)",
+        "Activated CMDB Service Mapping Topology"
+      ],
+      "deliverables": [
+        "Approved ServiceNow Change Request for Production Activation",
+        "Promoted alm_hardware Record (Status: In Use / Substatus: Operational)",
+        "Promoted cmdb_ci_hardware Record (install_status: Installed / operational_status: Operational)",
+        "Updated Important Business Service (IBS) Dependency Map in CMDB"
+      ],
+      "process_end_conditions": [
+        "Hardware asset and CI are approved, state-synchronized to In Use / Operational, and actively linked to live trading services in CMDB."
+      ],
+      "purpose": "Enforce a strict governance approval gate ensuring no hardware configuration item enters production without formal CAB authorization and verified CMDB mapping.",
+      "process_owner": "Change Advisory Board (CAB) & Change Manager",
+      "scope": "All physical hardware assets transitioning into live production supporting UK trading and settlement operations.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "CAB approval cycle time, operational readiness gate pass rate, migration cutover retrospective logs"
+          ],
+          "review_frequency": "Monthly Change Advisory Board governance review"
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Important Business Service Governance, PRA SS1/21 Board Accountability, ITIL 4 Change Enablement."
+      ],
+      "success_criteria": [
+        "Zero hardware CIs transition to Operational status without verified CAB approval and 100% bidirectional asset-to-CI status synchronization."
+      ],
+      "responsible_party": "Change Advisory Board (CAB) & Change Manager",
+      "inputs": [
+        "Technical Readiness Gate Clearance Token",
+        "Production Cutover Change Request (CHG)",
+        "Business Service Impact and Rollback Assessment"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Automated business rule in ServiceNow locking cmdb_ci_hardware state transitions to 'Operational' unless tied to an approved CAB Change Request and valid technical readiness token.",
+          "risk": "Premature or unapproved activation of hardware into production leading to trading service disruption or compliance breach."
+        }
+      ]
+    },
+    {
+      "process_end_conditions": [
+        "Hardware operates under stable, reconciled change governance, or an approved decommission request initiates step 7."
+      ],
+      "process_triggers": [
+        "Continuous 24x7 automated ServiceNow Discovery cycles and scheduled change windows."
+      ],
+      "estimated_duration": "Continuous operational monitoring (24x7x365)",
+      "inputs": [
+        "Daily ServiceNow ITOM Discovery and Event Management feeds",
+        "Active ServiceNow Change Request and Task schedules",
+        "Authorized CMDB Configuration Baselines"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "Every discovered CI delta is version-controlled and time-stamped in the ServiceNow CI history ledger.",
+          "change_request_process": "Any physical or logical maintenance, card replacement, or firmware upgrade must occur under an approved Change Request. Divergence generates an automated Sev-1/Sev-2 Unauthorized Change Incident."
+        }
+      ],
+      "deliverables": [
+        "Continuous Daily CMDB Discovery Reconciliation Reports",
+        "Automated Unauthorized Change Incidents (for any unapproved delta)",
+        "Audit-ready CI Lifecycle Event History and Telemetry Logs"
+      ],
+      "scope": "All operational hardware assets across primary and disaster recovery data centre environments.",
+      "governance_requirements": [
+        "FCA PS21/3 Continuous Monitoring, FCA SYSC 15.9 Automated Change Detection, Bank Internal Operational Risk Framework."
+      ],
+      "description": "During ongoing operational life in the target data centre, ServiceNow ITOM Discovery executes automated daily scans across all IP ranges and management fabrics. The 'No Ticket, No Touch' policy is continuously enforced by automated reconciliation scripts. If ServiceNow Discovery detects any divergence from the CMDB baseline (such as an unapproved CPU/RAM modification, blade insertion, switch port modification, or new unmapped IP/MAC address) without an active, approved Change Request in state 'Work in Progress', the system immediately: (1) Locks the CI record, (2) Auto-generates a Sev-1 (for Critical Economic Functions) or Sev-2 (for supporting tiers) Unauthorized Change Incident assigned to Infrastructure Engineering and Information Security, (3) Triggers automated network isolation if the device is unrecognized, and (4) Logs a compliance event for FCA PS21/3 reporting.",
+      "process_owner": "IT Operations & Infrastructure Engineering Team",
+      "dependencies": [
+        "Mandatory Operational Approval Gate and Baseline Production Activation"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Undetected configuration drift, unauthorized physical tampering, or unrecorded maintenance causing trading outages and regulatory sanctions.",
+          "control": "Automated ServiceNow Discovery Reconciliation engine triggering immediate Sev-1/Sev-2 incidents and network containment upon unapproved drift detection."
+        }
+      ],
+      "outputs": [
+        "Continuous CMDB Correctness Scorecards (>99.5% target)",
+        "Automated Unauthorized Change Incidents (Sev-1/Sev-2)",
+        "Audit Trail of CI attribute changes"
+      ],
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "step_name": "Operational Maintenance, Automated Discovery Reconciliation, and 'No Ticket No Touch' Enforcement",
+      "success_criteria": [
+        "100% of unapproved configuration drifts generate automated Unauthorized Change Incidents within 15 minutes of discovery; CMDB accuracy maintained above 99.5%."
+      ],
+      "purpose": "Maintain continuous operational integrity and enforce 'No Ticket, No Touch' by automatically generating high-severity incidents upon unapproved CMDB drift.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Daily Discovery drift logs, Unauthorized Change Incident post-mortems, automated remediation success rates"
+          ]
+        }
+      ]
+    },
+    {
+      "change_management": [
+        {
+          "change_request_process": "Decommissioning and disposal governed by a formal Decommissioning Change Request with signed data sanitization tasks.",
+          "versioning_rules": "Disposal certificate records permanently archived in ServiceNow asset repository."
+        }
+      ],
+      "purpose": "Securely retire, decommission, sanitize, and dispose of hardware assets, providing complete regulatory auditability and zero data leakage.",
+      "deliverables": [
+        "Decommissioned and Rack-Dismounted Hardware Units",
+        "ADISA 8.0 Certified Data Destruction and Sanitization Certificates",
+        "ServiceNow Asset State updated to Disposed (8) and CI status set to Disposed / De-registered",
+        "Final FCA Audit Pack demonstrating chain of custody and erasure confirmation"
+      ],
+      "process_triggers": [
+        "Data centre consolidation phase-out, asset end-of-life declaration, or migration hardware refresh milestone."
+      ],
+      "process_end_conditions": [
+        "Hardware is certified destroyed/recycled, serialized certificates attached to ServiceNow record, and asset/CI marked Disposed."
+      ],
+      "outputs": [
+        "Digitally signed ADISA Data Destruction Certificates",
+        "Final updated alm_hardware records (Status: Disposed)",
+        "Archived cmdb_ci_hardware records (Status: Disposed / Non-Operational)",
+        "Decommissioning Compliance Audit Report for FCA / PRA"
+      ],
+      "scope": "All legacy and retired data centre physical compute, storage, appliance, and network hardware.",
+      "inputs": [
+        "Approved Decommissioning Change Request (CHG)",
+        "End-of-Life Asset and CI Identification Records",
+        "Secure ITAD Collection Manifest"
+      ],
+      "dependencies": [
+        "Operational Maintenance, Automated Discovery Reconciliation, and 'No Ticket No Touch' Enforcement"
+      ],
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "step_name": "Change-Controlled Migration, Decommissioning, and Secure Hardware Disposal",
+      "governance_requirements": [
+        "ADISA Standard 8.0, NIST SP 800-88 Rev 1, GDPR Article 32, FCA SYSC 15.9, UK WEEE Regulations."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Disposal vendor turnaround times, sanitization failure logs, sustainability and e-waste recycling reports"
+          ],
+          "review_frequency": "Quarterly vendor and compliance review"
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data exposure from improperly wiped storage drives or untracked disposal leading to catastrophic regulatory fines under GDPR and FCA rules.",
+          "control": "Dual-custody sign-off, serialized tamper-evident transport containers, and mandatory ADISA Level 8 certificate validation attached directly to ServiceNow asset record before disposal closure."
+        }
+      ],
+      "success_criteria": [
+        "100% of retired hardware assets possess serialized ADISA-certified destruction documentation in ServiceNow within 5 days of removal."
+      ],
+      "estimated_duration": "2 to 3 business days from de-rack to destruction certificate upload via SLA-backed on-site ITAD standby and parallel sanitization pipelines",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "description": "When hardware reaches end-of-life or is retired during data centre consolidation, an approved Decommissioning Change Request is initiated. Migration engineers physically unrack and power down the unit, transitioning alm_hardware to install_status='Retired' (7) and substatus='Pending Disposal / Sanitization', and cmdb_ci_hardware to install_status='Retired' (7) and operational_status='Non-Operational' (2). The asset is transferred to a secure, badge-controlled DC disposal cage. An ADISA-certified IT Asset Disposition (ITAD) vendor conducts on-site NIST 800-88 R1 / ADISA Level 8 cryptographic erasure or physical shredding of media. The serialized destruction certificate is uploaded into the ServiceNow alm_hardware record, updating install_status to 'Disposed' (8), updating cmdb_ci to 'Disposed' (8), and permanently deactivating discovery scanning for that serial number."
+    }
+  ],
+  "reporting_and_analytics": [
+    {
+      "metric": "Executive CMDB Health Dashboard (FCA PS21/3 Resilience Benchmark)",
+      "description": "Real-time dashboard tracking Completeness (mandatory attributes populated), Compliance (adherence to discovery and OS baselines), and Correctness (IRE duplicate and drift-free accuracy). Target >99.5%."
+    },
+    {
+      "metric": "Unauthorized Change Incident and 'No Ticket No Touch' Violation Log",
+      "description": "Weekly trend report detailing all unauthorized hardware alterations, rack relocations, and unapproved component swaps identified by ServiceNow Discovery."
+    },
+    {
+      "description": "End-to-end tracking of all migration hardware assets from PO creation, staging, and operational go-live through to certified disposal.",
+      "metric": "Data Centre Migration Hardware Wave Readiness & Status Scorecard"
+    },
+    {
+      "metric": "IT Asset Disposal (ITAD) Chain of Custody and Sanitization Audit Report",
+      "description": "Monthly compliance pack validating serialized ADISA destruction certificates against retired alm_hardware and cmdb_ci records for FCA and external auditor inspection."
+    }
+  ],
+  "constraints": [
+    "Strict regulatory oversight under FCA PS21/3 and PRA SS1/21 mandates uninterrupted operational resilience and zero unapproved drift on Critical Economic Functions (CEFs).",
+    "Physical access to data centre cages and halls is strictly restricted by automated biometric controls tied to approved ServiceNow change tasks.",
+    "Zero-tolerance policy on untracked configuration items; undocumented hardware discovered on the network must be isolated via automated network access control within 15 minutes.",
+    "Disposal processes must achieve ADISA-certified cryptographic data erasure or physical degaussing/shredding with auditable chains of custody."
+  ],
+  "assumptions": [
+    "ServiceNow Utah/Washington DC release is deployed with HAM Pro and Discovery/Service Graph Connectors active.",
+    "Identification and Reconciliation Engine (IRE) rules are calibrated with hardware serial number and asset tag as mandatory unique identifiers.",
+    "Network access controls and automated discovery schedules have been provisioned across all target data centre subnets.",
+    "ServiceNow ITOM Discovery patterns are fully configured for all physical compute, storage arrays, and network fabric switches.",
+    "All hardware suppliers provide electronic advance shipment notifications (ASNs) with serial numbers and MAC addresses prior to delivery."
+  ],
+  "critical_failure_factors": [
+    {
+      "description": "Execution of unapproved physical moves, changes, or cabling during data centre migration bypassing ServiceNow Change Management, triggering data divergence.",
+      "name": "Uncontrolled Hardware Deployment ('Wildcat' Changes)"
+    },
+    {
+      "name": "CMDB and Discovery Baseline Divergence Exceeding 0.5%",
+      "description": "Discrepancies between physical serial numbers and ServiceNow records causing inaccurate topology mapping and failed failovers during disaster recovery."
+    },
+    {
+      "description": "Hardware Configuration Items promoted to 'Operational' status without completing automated discovery reconciliation or baseline configuration verification.",
+      "name": "Bypassing Production State-Transition Approval Gates"
+    },
+    {
+      "name": "Unverified Hardware Decommissioning and Disposal",
+      "description": "Hardware assets leaving data centres without digital certificates of sanitization or chain of custody sign-offs, causing regulatory penalties and data breach exposure."
+    }
+  ],
+  "industry_sector": "Banking & Financial Services (UK Tier-1 Trading Bank)",
+  "metrics": [
+    {
+      "measurement_frequency": "Daily automated IRE audit, weekly executive reporting",
+      "description": "Percentage of operational hardware CIs in the CMDB that match physical Discovery audit data across serial number, model, rack location, and network interfaces.",
+      "name": "CMDB Data Correctness and Integrity Rate",
+      "target": "> 99.5%"
+    },
+    {
+      "measurement_frequency": "Real-time detection with weekly trend analysis",
+      "name": "Unauthorized Change Incidents Triggered",
+      "target": "0 (Zero tolerance)",
+      "description": "Total count of unauthorized physical or logical hardware configuration discrepancies detected by ServiceNow Discovery without an active approved Change Request."
+    },
+    {
+      "measurement_frequency": "Daily automated validation",
+      "name": "Asset-to-CI Linkage Completeness",
+      "target": "100%",
+      "description": "Percentage of operational hardware assets that have active, validated bidirectional links between the alm_hardware record and the cmdb_ci record."
+    },
+    {
+      "measurement_frequency": "Monthly audit",
+      "name": "Hardware Disposal Compliance Rate",
+      "description": "Percentage of hardware decommissionings backed by a certified ADISA data wipe or physical destruction certificate attached to the ServiceNow asset record within 5 business days.",
+      "target": "100%"
+    },
+    {
+      "target": "100%",
+      "measurement_frequency": "Per migration batch and monthly audit",
+      "description": "Percentage of hardware assets promoted to Operational status that successfully completed all automated ServiceNow approval gates and technical verification checks.",
+      "name": "Operational Gate Compliance Rate"
+    }
+  ],
+  "process_owner": "Lead Configuration Manager & CMDB Owner",
+  "risks_and_controls": [
+    {
+      "control": "Automated daily ServiceNow Discovery scans coupled with IRE reconciliation that auto-generates Sev-1/Sev-2 Unauthorized Change Incidents upon any unapproved CI attribute or topology delta.",
+      "risk": "Unauthorized physical or logical changes occurring during migration windows without formal CAB review, creating trading outages and regulatory breach."
+    },
+    {
+      "risk": "Premature activation of unverified or improperly configured hardware into production trading environments.",
+      "control": "ServiceNow business rules preventing promotion of cmdb_ci records to 'Operational' status without passing the automated Pre-Operational Technical Readiness Gate (>99.5% accuracy) and electronic CAB sign-off."
+    },
+    {
+      "control": "Mandatory automated linkage between alm_hardware and cmdb_ci_hardware enforced by ServiceNow IRE rules using serial number and asset tag as authoritative matching criteria.",
+      "risk": "Asset-to-CI state mismatch between HAM and CMDB leading to inaccurate dependency tracking for FCA Important Business Services."
+    },
+    {
+      "risk": "Rogue or unapproved hardware introduction into data centre environments bypassing financial procurement and security review.",
+      "control": "Strict loading dock inspection, pre-registration of POs and ASNs in alm_hardware, and biometric DC cage access restricted to authorized change task implementers."
+    },
+    {
+      "risk": "Improper disposal of decommissioned storage or appliance media risking catastrophic data leakage and severe FCA/GDPR financial penalties.",
+      "control": "Enforcement of ADISA Standard 8.0 certified data sanitization and mandatory attachment of serialized destruction certificates to ServiceNow asset records before disposal sign-off."
+    }
+  ],
+  "tools_summary": [
+    {
+      "category": "ITSM & ITOM Platform",
+      "tools": [
+        "ServiceNow HAM Pro",
+        "ServiceNow ITOM Discovery",
+        "ServiceNow Service Mapping",
+        "ServiceNow IRE (Identification & Reconciliation Engine)"
+      ]
+    },
+    {
+      "category": "Hardware Lifecycle & Tagging",
+      "tools": [
+        "Tamper-evident Barcode / 2D DataMatrix / RFID scanners",
+        "ServiceNow Mobile Agent Asset Scanning App",
+        "DCIM (Data Centre Infrastructure Management) Rack Elevation Tools"
+      ]
+    },
+    {
+      "category": "Compliance & Auditing",
+      "tools": [
+        "ServiceNow CMDB Health Dashboard",
+        "ADISA IT Asset Disposal Certification Portal",
+        "FCA PS21/3 Operational Resilience Mapping Register"
+      ]
+    }
+  ],
+  "stakeholders": [
+    {
+      "role": "Process Owner - Hardware Asset Management",
+      "responsibilities": [
+        "Overall ownership of the Hardware Asset Management (HAM) lifecycle from procurement intake to certified disposal.",
+        "Maintains integrity of the alm_hardware table and validates bidirectional synchronization with the CMDB.",
+        "Manages IT Asset Disposition (ITAD) contracts, ensures ADISA 8.0 compliance, and audits disposal certificates.",
+        "RACI Role: Responsible for Steps 2 and 7; Accountable for asset tracking governance."
+      ],
+      "stakeholder_name": "Head of IT Asset Management (ITAM)"
+    },
+    {
+      "stakeholder_name": "Lead Configuration Manager & CMDB Owner",
+      "responsibilities": [
+        "Direct ownership of the CMDB data model, Identification and Reconciliation Engine (IRE) rules, and CMDB Health dashboards.",
+        "Enforces the 99.5% CMDB data integrity benchmark aligned with FCA PS21/3 and PRA SS1/21 operational resilience standards.",
+        "Oversees CI lifecycle state transitions, automated discovery reconciliation, and unauthorized change incident triggers.",
+        "RACI Role: Accountable for overall Configuration Management; Responsible for Step 4; Consulted on Step 5."
+      ],
+      "role": "Process Owner - Configuration Management & CMDB"
+    },
+    {
+      "stakeholder_name": "IT Procurement & Vendor Management Team",
+      "role": "Hardware Procurement & Vendor Relations Lead",
+      "responsibilities": [
+        "Executes hardware requisitioning and purchase order issuance in ERP and ServiceNow HAM.",
+        "Ensures electronic Advance Shipment Notifications (ASNs) and vendor serial numbers are pre-registered prior to delivery.",
+        "Enforces supplier SLAs and warranty registrations.",
+        "RACI Role: Responsible for Step 1; Informed on Steps 2 and 7."
+      ]
+    },
+    {
+      "role": "Physical Deployment and Migration Engineering Lead",
+      "stakeholder_name": "Data Centre Migration Engineering Team",
+      "responsibilities": [
+        "Executes physical rack-and-stack, structured cabling, and initial management network provisioning in target data centre halls.",
+        "Complies with 'No Ticket, No Touch' policy; executes physical work strictly under approved Change Tasks.",
+        "Facilitates initial ServiceNow ITOM discovery on staging subnets.",
+        "RACI Role: Responsible for Step 3; Consulted on Steps 4 and 7."
+      ]
+    },
+    {
+      "responsibilities": [
+        "Evaluates and authorizes all Normal and Emergency Change Requests affecting data centre infrastructure and trading services.",
+        "Enforces mandatory approval gates before any hardware CI transitions to 'Operational / In Use'.",
+        "Monitors Unauthorized Change Incidents triggered by discovery drift and reviews post-incident remediation.",
+        "RACI Role: Responsible for Step 5; Consulted on Step 6; Approver for all production baseline changes."
+      ],
+      "role": "Change Governance and Approval Authority",
+      "stakeholder_name": "Change Advisory Board (CAB) & Change Manager"
+    },
+    {
+      "stakeholder_name": "IT Operations & Infrastructure Engineering Team",
+      "role": "Operational Infrastructure Engineering Lead",
+      "responsibilities": [
+        "Conducts 24x7 operational monitoring, hardware maintenance, and component-level repairs in data centres.",
+        "Investigates and resolves Unauthorized Change Incidents triggered by automated discovery reconciliation.",
+        "Adheres strictly to Change Management procedures for all hardware interventions.",
+        "RACI Role: Responsible for Step 6; Informed on Steps 4 and 5."
+      ]
+    },
+    {
+      "stakeholder_name": "Compliance, Operational Resilience & Audit Lead",
+      "responsibilities": [
+        "Monitors compliance with FCA PS21/3, PRA SS1/21, and SYSC 15.9 regulatory requirements.",
+        "Performs independent audits of CMDB accuracy (>99.5%), asset chains of custody, and disposal certificates.",
+        "Reports operational resilience metrics directly to the Bank's Risk Committee and regulatory examiners.",
+        "RACI Role: Accountable for regulatory compliance validation; Informed on all process steps."
+      ],
+      "role": "Regulatory Compliance and Operational Resilience Lead"
+    }
+  ],
+  "appendix": {
+    "regulatory_references": [
+      "FCA PS21/3: Building Operational Resilience",
+      "PRA SS1/21: Operational Resilience: Impact tolerances for important business services",
+      "FCA Handbook SYSC 15.9: Operational resilience operational requirements",
+      "ADISA Standard 8.0 for IT Asset Disposal and Data Sanitization",
+      "ISO/IEC 19770-1:2017 IT Asset Management System Requirements",
+      "ISO/IEC 20000-1:2018 Service Management System Requirements"
+    ],
+    "asset_to_ci_state_mapping": [
+      {
+        "alm_hardware_substatus": "Pending Delivery",
+        "lifecycle_stage": "Procurement",
+        "cmdb_ci_install_status": "Absent (Record not yet created or Pending Ingestion)",
+        "approval_gate": "Procurement PO Authorization",
+        "cmdb_ci_operational_status": "N/A",
+        "alm_hardware_install_status": "Ordered (1)"
+      },
+      {
+        "alm_hardware_substatus": "Pending Inspection / In Staging",
+        "alm_hardware_install_status": "In Stock (6)",
+        "cmdb_ci_operational_status": "Non-Operational (2)",
+        "lifecycle_stage": "Staging & DC Intake",
+        "cmdb_ci_install_status": "In Stock / Staging (Pending Build)",
+        "approval_gate": "Asset Intake & Barcode Validation"
+      },
+      {
+        "alm_hardware_substatus": "Reserved for Migration",
+        "lifecycle_stage": "Rack, Stack & Pre-Commissioning",
+        "alm_hardware_install_status": "In Stock (6)",
+        "cmdb_ci_install_status": "Build / Pre-Production",
+        "cmdb_ci_operational_status": "Non-Operational (2)",
+        "approval_gate": "Migration Readiness Sign-Off"
+      },
+      {
+        "cmdb_ci_operational_status": "Operational (1)",
+        "alm_hardware_install_status": "In Use (1)",
+        "approval_gate": "Mandatory CAB Gate & CMDB Integrity Verification (>99.5% threshold)",
+        "lifecycle_stage": "Operational Production",
+        "alm_hardware_substatus": "Operational",
+        "cmdb_ci_install_status": "Installed (1)"
+      },
+      {
+        "cmdb_ci_install_status": "In Maintenance (3)",
+        "alm_hardware_substatus": "Under Repair / Migration In-Transit",
+        "lifecycle_stage": "Operational Maintenance",
+        "approval_gate": "Approved Emergency/Standard Change Record",
+        "alm_hardware_install_status": "In Maintenance (3)",
+        "cmdb_ci_operational_status": "Repair / Offline"
+      },
+      {
+        "cmdb_ci_operational_status": "Non-Operational (2)",
+        "alm_hardware_install_status": "Retired (7)",
+        "approval_gate": "Decommissioning Change Approval & Data Erasure Sign-off",
+        "lifecycle_stage": "Decommissioning",
+        "cmdb_ci_install_status": "Retired (7)",
+        "alm_hardware_substatus": "Pending Disposal / Sanitization"
+      },
+      {
+        "approval_gate": "ADISA Certified Destruction Certificate Verification",
+        "lifecycle_stage": "Disposal",
+        "cmdb_ci_install_status": "Disposed (8)",
+        "alm_hardware_substatus": "Destroyed / Sold / Certificate Logged",
+        "cmdb_ci_operational_status": "De-registered",
+        "alm_hardware_install_status": "Disposed (8)"
+      }
+    ],
+    "abbreviations": {
+      "RACI": "Responsible, Accountable, Consulted, Informed",
+      "HAM": "Hardware Asset Management",
+      "CI": "Configuration Item",
+      "FCA": "Financial Conduct Authority",
+      "CAB": "Change Advisory Board",
+      "IRE": "Identification and Reconciliation Engine",
+      "PS21_3": "FCA Policy Statement 21/3 on Operational Resilience",
+      "CMDB": "Configuration Management Database"
+    }
+  },
+  "process_end_conditions": [
+    "Hardware asset is formally retired, sanitized to ADISA 8.0 standards, physically destroyed or recycled, with certified certificates of destruction attached to the ServiceNow asset record and CI status set to Disposed.",
+    "All CI dependencies, relationship mappings, and operational monitoring links in the CMDB are severed, archived, and confirmed in compliance with FCA data retention standards."
+  ],
+  "process_triggers": [
+    "Initiation of Data Centre Migration wave hardware procurement or asset reallocation.",
+    "Automated discovery of unmanaged or drifting hardware configuration item by ServiceNow Discovery.",
+    "Scheduled hardware refresh, consolidation, or end-of-life decommissioning initiative."
+  ],
+  "critical_success_factors": [
+    {
+      "name": "Strict Enforcement of 'No Ticket, No Touch' Policy",
+      "description": "Rigid enforcement of 'No Ticket, No Touch' across all engineering, DC logistics, and supplier personnel backed by automated discovery reconciliation and Sev-1/2 incident triggers."
+    },
+    {
+      "description": "Synchronization between alm_hardware (HAM) and cmdb_ci (CMDB) maintaining data integrity, correctness, and completeness exceeding 99.5% at all times.",
+      "name": "End-to-End Asset-to-CI State Synchronization (>99.5% Accuracy)"
+    },
+    {
+      "name": "Automated ServiceNow Operational Gating",
+      "description": "ServiceNow automated gates preventing promotion of any CI to 'Operational' without explicit verification of physical location, serial number, firmware baseline, and CAB approval."
+    },
+    {
+      "name": "Full FCA PS21/3 and PRA SS1/21 Regulatory Alignment",
+      "description": "Complete real-time traceability of Configuration Items supporting Important Business Services (IBS) to demonstrate operational resilience compliance under FCA PS21/3."
+    }
+  ],
+  "change_management": [
+    {
+      "versioning_rules": "All documentation and ServiceNow system configuration baseline updates follow semantic versioning (MAJOR.MINOR.PATCH). Major updates require Head of ITAM and Head of Operational Resilience sign-off; minor updates require CAB Manager approval; patches reflect automated rule fine-tuning.",
+      "change_request_process": "Modifications to baseline CM and HAM configuration policies, schema definitions, reconciliation rules, or operational thresholds must be submitted via ServiceNow Standard/Normal Change requests and require unanimous approval from the Configuration Control Board (CCB) and Lead Configuration Manager."
+    }
+  ],
+  "governance_requirements": [
+    "Financial Conduct Authority (FCA) Policy Statement PS21/3 - Operational Resilience: Systems, configurations, and dependencies underpinning Important Business Services must be documented, auditable, and continuously maintained.",
+    "Prudential Regulation Authority (PRA) Supervisory Statement SS1/21 - Operational Resilience: Hardware dependencies for Core Trading Services must maintain rigorous configuration control and change governance.",
+    "FCA SYSC 15.9 - Operational Risk and Resilience Systems & Controls: Mandatory logging of configuration alterations, automated detection of rogue changes, and full asset audit trails.",
+    "ADISA Standard 8.0: Asset Disposal and Information Security Alliance compliance for secure hardware disposal, disk sanitization, and destruction certification."
+  ],
+  "version": "2.0.0",
+  "purpose": "Establish an authoritative, auditable, and automated Hardware Asset Management (HAM) and Configuration Management (CM) operational framework in ServiceNow for a UK Tier-1 Trading Bank. The process guarantees precise bidirectional state synchronization between alm_hardware and cmdb_ci, enforces 'No Ticket, No Touch' change governance, mandates strict operational approval gates, and maintains >99.5% CMDB integrity to satisfy FCA PS21/3 operational resilience mandates.",
+  "process_name": "Enterprise Hardware Asset and Configuration Management Process",
+  "scope": "Applies to all physical compute infrastructure (rack servers, blade chassis, hyperconverged nodes), network devices (core/leaf switches, routers, firewalls), storage hardware (SAN arrays, NAS filers, backup appliances), and hardware security modules (HSMs) deployed across all primary, secondary, and co-location data centre facilities supporting UK trading bank operations."
+}

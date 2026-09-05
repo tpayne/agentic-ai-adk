@@ -1,0 +1,274 @@
+{
+  "step_name": "Hardware Procurement and Asset Pre-Registration",
+  "subprocess_flow": [
+    {
+      "substep_name": "Validate Architecture Baseline and Bill of Materials",
+      "description": "The Data Centre Migration Requisition is reviewed against the approved Enterprise Infrastructure Architecture Blueprint, hardware compatibility matrix, and migration wave capacity forecasts. Sourcing specifications for compute, storage arrays, network switches, and HSMs are cross-referenced with pre-approved standard hardware models in ServiceNow HAM Product Catalog to eliminate rogue specifications and unauthorized architectural divergence.",
+      "responsible_party": "IT Procurement & Vendor Management Team",
+      "inputs": [
+        "Data Centre Migration Bill of Materials (BOM)",
+        "Approved Infrastructure Architecture Blueprint",
+        "Procurement Requisition & Vendor Quotes"
+      ],
+      "outputs": [
+        "Validated Procurement Hardware Requisition Pack",
+        "Enterprise Architecture Gating Sign-Off"
+      ],
+      "estimated_duration": "2 to 4 hours",
+      "dependencies": [],
+      "success_criteria": [
+        "100% of line items match pre-approved Enterprise Architecture hardware catalog models and capacity quotas."
+      ],
+      "purpose": "Verify hardware requisitions align strictly with approved technical architecture standards and migration wave capacity plans.",
+      "scope": "All physical servers, blade chassis, SAN storage nodes, core/leaf network fabrics, and security appliances for the migration.",
+      "process_owner": "IT Procurement & Vendor Management Team",
+      "triggers": [
+        "Data Centre Migration Hardware Procurement Request submitted and approved in ServiceNow."
+      ],
+      "end_conditions": [
+        "Hardware requisition passes automated catalog validation and technical architecture sign-off."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Ordering non-standard hardware configurations that fail enterprise architecture and operational resilience criteria.",
+          "control": "Automated ServiceNow catalog enforcement blocking non-catalog items without formal Enterprise Architecture CCB approval."
+        }
+      ],
+      "governance_requirements": [
+        "UK Banking Corporate Governance",
+        "Enterprise Architecture Standard Baselines",
+        "FCA PS21/3 Infrastructure Standard Controls"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Architecture deviations require an approved Standard Change or CCB technical variance exception.",
+          "versioning_rules": "Hardware catalog item specifications versioned and locked in ServiceNow HAM Product Models."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly architectural review",
+          "improvement_inputs": [
+            "Hardware requisition rejection logs",
+            "Model deprecation catalogs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute ERP Purchase Order Issuance and ServiceNow Integration",
+      "description": "Upon technical architecture approval, the requisition is committed to the enterprise ERP system for financial approval and budget appropriation under capital expenditure rules. Once authorized, the ERP generates a binding Purchase Order (PO) and triggers an automated REST API/IntegrationHub sync back to ServiceNow HAM, establishing the central Purchase Order record.",
+      "responsible_party": "IT Procurement & Vendor Management Team",
+      "inputs": [
+        "Validated Procurement Hardware Requisition Pack",
+        "Enterprise Architecture Gating Sign-Off"
+      ],
+      "outputs": [
+        "Approved ServiceNow Purchase Order Record",
+        "ERP Financial Approval Ledger Reference"
+      ],
+      "estimated_duration": "4 to 8 hours",
+      "dependencies": [
+        "Validate Architecture Baseline and Bill of Materials"
+      ],
+      "success_criteria": [
+        "ServiceNow Purchase Order record is created with mapped cost codes, vendor IDs, line items, and quantities matching ERP."
+      ],
+      "purpose": "Issue binding procurement orders through financial ERP and establish the master PO reference in ServiceNow.",
+      "scope": "Procurement authorization and PO creation across authorized banking hardware suppliers.",
+      "process_owner": "IT Procurement & Vendor Management Team",
+      "triggers": [
+        "Requisition architecture validation sign-off."
+      ],
+      "end_conditions": [
+        "PO issued to vendor and synchronized into ServiceNow HAM as an Approved Purchase Order."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Data discrepancy between ERP financial commitments and ServiceNow HAM purchase lines.",
+          "control": "Automated bidirectional IntegrationHub reconciliation validating line-item integrity between ERP and ServiceNow."
+        }
+      ],
+      "governance_requirements": [
+        "Capital Expenditure Authorization Rules",
+        "Bank Sourcing Policy",
+        "SOX Procurement Controls"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Purchase order amendments route through financial ERP re-approval and propagate updates to ServiceNow PO lines.",
+          "versioning_rules": "ServiceNow PO record version increments with timestamped audit entries on line updates."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly vendor procurement review",
+          "improvement_inputs": [
+            "PO generation lead times",
+            "ERP-to-HAM integration error logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Instantiate Pre-Allocated alm_hardware Asset Stubs",
+      "description": "Using the approved ServiceNow Purchase Order record, the ServiceNow HAM Pro Asset Procurement engine automatically generates individual pre-allocated asset stubs in the alm_hardware table for each purchased hardware unit. Each stub is assigned install_status='Ordered' (1) and substatus='Pending Delivery', linking back to the PO line item and initiating the cryptographic lifecycle record prior to delivery.",
+      "responsible_party": "IT Procurement & Vendor Management Team",
+      "inputs": [
+        "Approved ServiceNow Purchase Order Record"
+      ],
+      "outputs": [
+        "Pre-created alm_hardware records (Status: Ordered)",
+        "ServiceNow Asset Lifecycle Staging Ledger"
+      ],
+      "estimated_duration": "1 to 2 hours",
+      "dependencies": [
+        "Execute ERP Purchase Order Issuance and ServiceNow Integration"
+      ],
+      "success_criteria": [
+        "100% of procured physical items possess a corresponding alm_hardware record with install_status='Ordered' and substatus='Pending Delivery'."
+      ],
+      "purpose": "Establish early digital custody for all arriving physical hardware assets within the bank's ServiceNow HAM database.",
+      "scope": "All serialized physical compute, storage, appliance, and switch equipment line items on the purchase order.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "ServiceNow Purchase Order status updated to Approved."
+      ],
+      "end_conditions": [
+        "All asset stubs created in alm_hardware and linked to respective PO line items."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Asset records omitted during procurement intake leading to untracked ghost assets.",
+          "control": "Automated business rule generating asset stubs programmatically based on PO quantity counts, forbidding manual bypass."
+        }
+      ],
+      "governance_requirements": [
+        "ISO/IEC 19770-1 Asset Lifecycle Management",
+        "FCA SYSC 15.9 Asset Protection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Asset stub adjustments or line cancellation handled via standard PO line modification workflow.",
+          "versioning_rules": "All alm_hardware record changes tracked in the ServiceNow audit log with user and sys_updated_on stamps."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly asset operations review",
+          "improvement_inputs": [
+            "Stub-to-PO quantity reconciliation variances"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Ingest Supplier Advance Shipment Notification (ASN) Data",
+      "description": "Hardware suppliers transmit electronic Advance Shipment Notifications (ASNs) via EDI/JSON data connectors prior to equipment dispatch. The ServiceNow HAM ASN Gateway ingests the payload, validates the data structure, and matches incoming vendor serial numbers, MAC addresses, port layouts, and component-level specifications directly into the pre-allocated alm_hardware stubs.",
+      "responsible_party": "IT Procurement & Vendor Management Team",
+      "inputs": [
+        "Pre-created alm_hardware records (Status: Ordered)",
+        "Supplier EDI/JSON Advance Shipment Feeds"
+      ],
+      "outputs": [
+        "Supplier Advance Shipment Notification (ASN) dataset",
+        "Pre-allocated alm_hardware Asset Staging Records with Expected Serial Numbers"
+      ],
+      "estimated_duration": "2 to 4 hours",
+      "dependencies": [
+        "Instantiate Pre-Allocated alm_hardware Asset Stubs"
+      ],
+      "success_criteria": [
+        "100% of vendor serial numbers and MAC addresses from the ASN successfully mapped to corresponding alm_hardware asset records prior to delivery."
+      ],
+      "purpose": "Pre-populate authoritative manufacturer serial numbers and technical identifiers in ServiceNow before physical equipment ships.",
+      "scope": "All inbound shipments dispatched from original equipment manufacturers (OEMs) or authorized distribution channels.",
+      "process_owner": "IT Procurement & Vendor Management Team",
+      "triggers": [
+        "Vendor electronic ASN transmission receipt."
+      ],
+      "end_conditions": [
+        "All expected hardware serial numbers, MAC addresses, and shipping details populated in alm_hardware records."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Corrupt or mismatched serial numbers ingested from vendor ASN leading to reconciliation failures at goods intake.",
+          "control": "Automated schema validation and duplicate serial check executed by ServiceNow Identification and Reconciliation Engine (IRE)."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Data Integrity Controls",
+        "Vendor SLA and Supply Chain Integrity Guidelines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "ASN discrepancies trigger automated vendor notification tasks requiring vendor re-transmission.",
+          "versioning_rules": "Raw ASN payloads archived in ServiceNow attachment sys_attachment table for audit reproducibility."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly supplier performance review",
+          "improvement_inputs": [
+            "Supplier pre-shipment ASN accuracy reports and catalog standardization metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Pre-Assign Data Centre Migration Rack Allocation and Power Reservation",
+      "description": "Using Data Centre Infrastructure Management (DCIM) integrations and ServiceNow migration planning attributes, the pre-registered alm_hardware records are assigned target data centre site, cage, cabinet rack unit (RU) elevation, and dual power distribution unit (PDU) port feeds. The rack space reservation is locked to ensure physical capacity availability upon dock arrival and eliminate deployment delays.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "inputs": [
+        "Pre-allocated alm_hardware Asset Staging Records with Expected Serial Numbers",
+        "Data Centre Cabling Schedule and Elevation Plan"
+      ],
+      "outputs": [
+        "Pre-assigned Data Centre Migration Rack Allocation Reservation",
+        "Data Centre Staging Work Order Ready Token"
+      ],
+      "estimated_duration": "2 to 4 hours",
+      "dependencies": [
+        "Ingest Supplier Advance Shipment Notification (ASN) Data"
+      ],
+      "success_criteria": [
+        "100% of pre-allocated hardware assets are assigned validated target DC facility, cage, rack, and RU positions with power capacity confirmed."
+      ],
+      "purpose": "Reserve physical cabinet space and power capacity in advance of delivery, ensuring zero rack contention during migration wave execution.",
+      "scope": "Target primary and secondary migration data centre halls, cages, and high-density compute/network cabinets.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Successful population of vendor serial numbers and equipment dimensions in alm_hardware records."
+      ],
+      "end_conditions": [
+        "Target rack space, elevation slot, and PDU feeds are reserved in ServiceNow alm_hardware location attributes and DCIM.",
+        "All ordered hardware items possess corresponding pre-allocated asset stubs in alm_hardware with serial numbers logged."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Cabinet space or power capacity exhaustion resulting from conflicting rack allocations across migration waves.",
+          "control": "Automated DCIM integration check in ServiceNow validating rack elevation slot and dual-feed power availability before reserving."
+        }
+      ],
+      "governance_requirements": [
+        "Data Centre Physical Cable and Rack Engineering Standards",
+        "FCA Operational Resilience Capacity Planning Baselines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Rack allocation modifications require a Change Task revision approved by the DC Migration Engineering Lead.",
+          "versioning_rules": "Rack elevation schematics versioned in ServiceNow DCIM repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Rack space allocation utilization trends",
+            "Power headroom calculation discrepancies"
+          ]
+        }
+      ]
+    }
+  ]
+}

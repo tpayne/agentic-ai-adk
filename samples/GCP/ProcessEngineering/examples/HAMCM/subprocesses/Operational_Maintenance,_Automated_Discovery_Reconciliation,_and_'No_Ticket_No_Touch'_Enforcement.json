@@ -1,0 +1,344 @@
+{
+  "step_name": "Operational Maintenance, Automated Discovery Reconciliation, and 'No Ticket No Touch' Enforcement",
+  "subprocess_flow": [
+    {
+      "substep_name": "Execute Automated ITOM Discovery Scans",
+      "description": "ServiceNow ITOM Discovery initiates automated scheduled scans across all data centre management IP subnets, out-of-band management fabrics (iLO/iDRAC), and core network switches. The discovery probe collector queries hardware configurations, active components, MAC addresses, and attached interfaces to compile an updated physical snapshot.",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "inputs": [
+        "Daily ServiceNow ITOM Discovery and Event Management feeds",
+        "Target Data Centre Subnet Range Catalog",
+        "Out-of-Band SNMP/WMI/SSH Credential Store"
+      ],
+      "outputs": [
+        "Raw Discovered Hardware Payload",
+        "Discovery Run Telemetry Logs"
+      ],
+      "estimated_duration": "30 to 60 minutes per scan cycle",
+      "dependencies": [
+        "Mandatory Operational Approval Gate and Baseline Production Activation"
+      ],
+      "success_criteria": [
+        "100% of data centre network segments and management fabrics successfully scanned with zero probe timeouts"
+      ],
+      "purpose": "Capture real-time physical and logical configurations of all active hardware infrastructure across production environments.",
+      "scope": "All operational server blades, rack units, network fabrics, and storage appliances within primary and backup data halls.",
+      "process_owner": "IT Operations & Infrastructure Engineering Team",
+      "triggers": [
+        "Scheduled daily automated ServiceNow ITOM Discovery cycle",
+        "Ad-hoc discovery trigger following emergency maintenance"
+      ],
+      "end_conditions": [
+        "Raw discovery payload generated and ingested into the ServiceNow Identification and Reconciliation Engine (IRE)"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Scan failures or credential expiration leading to visibility blind spots across critical subnets.",
+          "control": "Automated MID server health alerts and daily credential heartbeat monitors alerting IT Operations."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Continuous Monitoring",
+        "FCA SYSC 15.9 Infrastructure Audit Logging"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Alterations to discovery schedules or MID server configurations require a Standard Change Request.",
+          "versioning_rules": "Discovery schedules and MID server IP ranges are version-tracked in ServiceNow system configuration records."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Discovery probe error logs",
+            "MID server load metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Correlate Discovered Deltas Against Approved Changes",
+      "description": "The ServiceNow Identification and Reconciliation Engine (IRE) and automated reconciliation scripts compare discovered attribute deltas against authorized CMDB Configuration Baselines. The engine simultaneously queries active ServiceNow Change Requests and Change Tasks to determine whether any detected hardware divergence corresponds to an approved Change Request currently in state 'Work in Progress'.",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "inputs": [
+        "Raw Discovered Hardware Payload",
+        "Active ServiceNow Change Request and Task schedules",
+        "Authorized CMDB Configuration Baselines"
+      ],
+      "outputs": [
+        "Approved Change Reconciliation Matches",
+        "Reconciliation Discrepancy Dataset"
+      ],
+      "estimated_duration": "5 to 10 minutes post-scan",
+      "dependencies": [
+        "Execute Automated ITOM Discovery Scans"
+      ],
+      "success_criteria": [
+        "100% of discovered configuration deltas evaluated against active change records within 10 minutes of scan completion"
+      ],
+      "purpose": "Enforce the 'No Ticket, No Touch' governance rule by systematically validating whether detected physical changes have prior CAB authorization.",
+      "scope": "All attribute deltas including CPU, memory modules, disk drives, NIC MAC addresses, switch port bindings, and new network endpoints.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Ingestion of fresh ITOM Discovery payload into ServiceNow IRE"
+      ],
+      "end_conditions": [
+        "Every identified attribute divergence is mapped to an approved Change Task or categorized as an unauthorized baseline breach"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "False-positive correlation caused by timing discrepancies between change status updates and scan runs.",
+          "control": "Automated 5-minute synchronization grace period cross-referencing change implementation schedules before raising violations."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Automated Change Detection",
+        "Bank Internal Operational Risk Framework"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Modifications to baseline reconciliation logic or correlation criteria must be approved by CAB and CCB.",
+          "versioning_rules": "IRE reconciliation rules and correlation filters are version-controlled under ServiceNow update sets."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "IRE reconciliation exception tables",
+            "Daily Discovery drift logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Enforce Automated CI Lockdown and Network Containment",
+      "description": "When an unapproved configuration divergence or unmapped hardware device is confirmed, ServiceNow automated policy actions immediately lock the affected Configuration Item record to prevent further updates or status manipulation. If an unrecognized physical host or rogue MAC address is identified, the system signals the network access control fabric to execute automated port isolation or VLAN quarantine within 15 minutes.",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "inputs": [
+        "Reconciliation Discrepancy Dataset",
+        "Authorized CMDB Configuration Baselines"
+      ],
+      "outputs": [
+        "Locked CI Configuration Record",
+        "Automated Network Isolation Action Logs"
+      ],
+      "estimated_duration": "Immediate (under 5 minutes from drift detection)",
+      "dependencies": [
+        "Correlate Discovered Deltas Against Approved Changes"
+      ],
+      "success_criteria": [
+        "100% of unauthorized hardware CIs locked and untracked endpoints isolated from live trading subnets within 15 minutes"
+      ],
+      "purpose": "Prevent configuration tampering, contain potential cyber or physical intrusions, and preserve forensic state upon detection of unauthorized alterations.",
+      "scope": "All hardware assets diverging without an approved change, and any undocumented network-connected compute hardware.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Detection of unauthorized configuration divergence by the discovery reconciliation engine"
+      ],
+      "end_conditions": [
+        "Target CI attribute editing locked in CMDB and network port isolation confirmed via switch telemetry"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Accidental network containment of legitimate trading services due to misidentified drift.",
+          "control": "Dual-validation check on Critical Economic Functions preventing port shutdown on redundant trading nodes without human engineer validation."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Important Business Service Protection",
+        "FCA SYSC 15.9 Asset Protection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Unlocking a locked CI record requires an approved Change Request or Major Incident remediation task.",
+          "versioning_rules": "Lockdown timestamps and security flags are recorded immutably in the ServiceNow CI audit history."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Network containment execution logs",
+            "Lockdown false-alarm metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Generate Unauthorized Change Incident and Regulatory Alert",
+      "description": "ServiceNow automatically instantiates a high-severity Incident: Sev-1 if the asset underpins a Critical Economic Function (CEF) or Important Business Service (IBS), or Sev-2 for supporting tiers. The incident record automatically captures attribute-level divergence,Discovery timestamps, and affected upstream business services. The system dispatches immediate automated alerts to Infrastructure Engineering, Information Security, and the Change Advisory Board, while logging a regulatory compliance event for FCA PS21/3.",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "inputs": [
+        "Reconciliation Discrepancy Dataset",
+        "Locked CI Configuration Record",
+        "Authorized CMDB Configuration Baselines"
+      ],
+      "outputs": [
+        "Automated Unauthorized Change Incidents (Sev-1/Sev-2)",
+        "FCA PS21/3 Regulatory Compliance Telemetry Event",
+        "Security and CAB Pager Escalations"
+      ],
+      "estimated_duration": "Under 5 minutes from discrepancy confirmation",
+      "dependencies": [
+        "Enforce Automated CI Lockdown and Network Containment"
+      ],
+      "success_criteria": [
+        "Automated Sev-1/Sev-2 incident created and routed to on-call responders within 15 minutes of drift identification"
+      ],
+      "purpose": "Mobilize immediate incident response, document governance breaches, and fulfill regulatory obligations for operational resilience reporting.",
+      "scope": "All unauthorized hardware modifications, blade swaps, memory alterations, and rogue device introductions.",
+      "process_owner": "IT Operations & Infrastructure Engineering Team",
+      "triggers": [
+        "Completion of CI lockdown following confirmed unauthorized drift"
+      ],
+      "end_conditions": [
+        "Incident assigned to Infrastructure Engineering on-call engineer and acknowledged by CAB and InfoSec"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incident misclassification leading to delayed incident response on Important Business Services.",
+          "control": "Automated severity calculation driven directly by CMDB Important Business Service tier mapping."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Continuous Monitoring",
+        "FCA SYSC 15.9 Automated Change Detection",
+        "PRA SS1/21 Core Infrastructure Governance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Any post-incident configuration acceptance requires formal Emergency Change Request sign-off by CAB.",
+          "versioning_rules": "All incident metadata and CI field deltas are written to ServiceNow sys_audit and cmdb_activity."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Unauthorized Change Incident post-mortems",
+            "Incident response time metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Triage, Investigate, and Remediate Configuration Drift",
+      "description": "Infrastructure Engineering and Information Security engineers investigate the root cause of the unauthorized physical or logical change. Technicians either physically revert the unauthorized alteration (restoring the hardware to its authorized CMDB baseline) or, if the change was a valid emergency intervention that bypassed standard ticketing, submit an Emergency Change Request (CHG) for retrospective CAB review and technical baseline re-certification.",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "inputs": [
+        "Automated Unauthorized Change Incidents (Sev-1/Sev-2)",
+        "Locked CI Configuration Record",
+        "Discovered Discrepancy Telemetry",
+        "Authorized CMDB Configuration Baselines"
+      ],
+      "outputs": [
+        "Physical/Logical Hardware Remediation Confirmation",
+        "Remediated CI Configuration State",
+        "Unauthorized Change Root Cause Analysis (RCA) Document"
+      ],
+      "estimated_duration": "2 to 4 hours depending on incident severity and tier",
+      "dependencies": [
+        "Generate Unauthorized Change Incident and Regulatory Alert"
+      ],
+      "success_criteria": [
+        "100% of unauthorized drifts resolved via baseline restoration or retrospective CAB ratification within SLA targets"
+      ],
+      "purpose": "Eliminate unauthorized alterations, re-establish baseline integrity, and ensure complete accountability for physical interventions.",
+      "scope": "Target physical hosts, network ports, SAN attachments, and affected data centre hardware racks.",
+      "process_owner": "IT Operations & Infrastructure Engineering Team",
+      "triggers": [
+        "Assignment of Sev-1/Sev-2 Unauthorized Change Incident"
+      ],
+      "end_conditions": [
+        "Hardware matches authorized CMDB baseline, CI lock is released, and incident is transitioned to Resolved"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Remediation attempt inadvertently disrupts live financial transactions on clustered hosts.",
+          "control": "Strict adherence to dual-engineer verification and safe failover procedures prior to physical component reversal."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Operational Resilience Standards",
+        "Bank Internal Operational Risk Framework"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Retrospective change approval requires formal Emergency CAB sign-off with documented justification.",
+          "versioning_rules": "Configuration updates following CAB ratification establish a new stamped baseline version."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Unauthorized change post-mortem findings",
+            "Engineering breach remediation times"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Publish CMDB Health Scorecards and Regulatory Audit Ledger",
+      "description": "The Configuration Management team executes automated data integrity calculations across the CMDB, evaluating Correctness (IRE duplicate and drift-free accuracy), Completeness, and Compliance against the >99.5% accuracy target. Daily reconciliation reports and audit-ready CI lifecycle telemetry logs are archived for internal risk oversight and external FCA/PRA regulatory audits.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "Remediated CI Configuration State",
+        "Daily ServiceNow ITOM Discovery and Event Management feeds",
+        "Authorized CMDB Configuration Baselines",
+        "Automated Unauthorized Change Incidents (Sev-1/Sev-2)"
+      ],
+      "outputs": [
+        "Continuous CMDB Correctness Scorecards (>99.5% target)",
+        "Continuous Daily CMDB Discovery Reconciliation Reports",
+        "Audit-ready CI Lifecycle Event History and Telemetry Logs",
+        "Audit Trail of CI attribute changes"
+      ],
+      "estimated_duration": "1 hour automated daily reporting cycle",
+      "dependencies": [
+        "Triage, Investigate, and Remediate Configuration Drift"
+      ],
+      "success_criteria": [
+        "CMDB hardware data correctness maintained above 99.5% and daily audit ledgers compiled with 100% compliance"
+      ],
+      "purpose": "Provide verifiable data integrity scorecards to senior leadership and regulatory authorities attesting to continuous operational resilience.",
+      "scope": "All hardware assets, CIs, and Important Business Service dependencies across enterprise data centres.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Scheduled daily 23:59 GMT reporting cycle",
+        "Executive or regulatory audit data submission request"
+      ],
+      "end_conditions": [
+        "CMDB Health Dashboard updated, scorecard published, and compliance evidence archived in the regulatory register"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Failure to meet the >99.5% correctness threshold exposing the bank to regulatory sanctions under FCA PS21/3.",
+          "control": "Daily automated escalations to the Head of Operational Resilience and CCB whenever score drops below 99.5%."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Continuous Monitoring",
+        "PRA SS1/21 Board Accountability",
+        "FCA SYSC 15.9 Operational Risk and Resilience Systems & Controls"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Changes to CMDB scorecard weighting and compliance algorithms require approval from the Configuration Control Board.",
+          "versioning_rules": "Scorecard historical snapshots are immutably archived with cryptographic checksums."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly operational resilience triage review",
+          "improvement_inputs": [
+            "Quarterly CMDB Health Dashboard scorecards",
+            "FCA Operational Resilience audit feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

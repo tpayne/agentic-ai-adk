@@ -1,0 +1,20 @@
+{
+  "avg_cycle_time": 22.718142661526148,
+  "cycle_time_variance": 2.314750211375703,
+  "time_unit": "to",
+  "bottlenecks": [
+    "Change-Controlled Migration, Decommissioning, and Secure Hardware Disposal",
+    "Goods Receipt, Tagging, and alm_hardware Asset Staging",
+    "Hardware Procurement and Asset Pre-Registration"
+  ],
+  "resource_contention_risk": "Low",
+  "per_step_avg": {
+    "Hardware Procurement and Asset Pre-Registration": 4.006607970384268,
+    "Goods Receipt, Tagging, and alm_hardware Asset Staging": 5.352008524099404,
+    "Data Centre Migration Staging, Rack-and-Stack, and Initial Discovery": 1.3339595467829408,
+    "Pre-Operational Verification, Discovery Reconciliation, and Technical Readiness Gate": 2.663788787262208,
+    "Mandatory Operational Approval Gate and Baseline Production Activation": 1.3353630255269604,
+    "Operational Maintenance, Automated Discovery Reconciliation, and 'No Ticket No Touch' Enforcement": 1.3314683273853776,
+    "Change-Controlled Migration, Decommissioning, and Secure Hardware Disposal": 6.694946480084988
+  }
+}

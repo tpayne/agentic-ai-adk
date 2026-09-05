@@ -1,0 +1,337 @@
+{
+  "step_name": "Pre-Operational Verification, Discovery Reconciliation, and Technical Readiness Gate",
+  "subprocess_flow": [
+    {
+      "substep_name": "Trigger Deep ITOM Discovery Scan",
+      "description": "Upon physical installation and network connection on the dedicated staging subnet, ServiceNow ITOM Discovery initiates a targeted credentialed deep-scan across management controllers (iLO/iDRAC) and operating system instances. The discovery pattern extracts granular configuration data including CPU core counts, memory module serials, disk topologies, HBA WWNs, NIC MAC addresses, and active firmware revisions. The resulting payload is parsed and staged in the ServiceNow Identification and Reconciliation Engine (IRE) pipeline for baseline matching.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "Data Centre Cabling Schedule and Elevation Plan",
+        "Staging Subnet IP Range and Credential Profile",
+        "cmdb_ci_hardware Record (Status: Non-Operational)"
+      ],
+      "outputs": [
+        "ServiceNow ITOM Discovery Deep-Scan Payload",
+        "Discovered CI Staging Dataset",
+        "Discovery Pattern Execution Log"
+      ],
+      "estimated_duration": "30 to 45 minutes per cluster / host",
+      "dependencies": [
+        "Data Centre Migration Staging, Rack-and-Stack, and Initial Discovery"
+      ],
+      "success_criteria": [
+        "ITOM Discovery deep-scan successfully interrogates all physical components and returns zero discovery errors."
+      ],
+      "purpose": "Capture the full physical and logical configuration inventory of staged hardware prior to production traffic ingestion.",
+      "scope": "Staged compute, storage, and networking hardware within target data centre halls prior to production gating.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Completion of physical rack-and-stack and OS/hypervisor installation on staging hardware."
+      ],
+      "end_conditions": [
+        "Raw discovered inventory payload is populated in ServiceNow IRE staging tables."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete discovery scan due to firewall port blocks or credential failure leaving hidden hardware configurations undocumented.",
+          "control": "Automated discovery error detection script that flags incomplete scans and halts workflow progression until credentialed sweep completes at 100%."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Infrastructure Discovery Completeness",
+        "PRA SS1/21 Granular Asset Identification"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Scan initiated under the existing Migration Change Request (CHG) work task schedule.",
+          "versioning_rules": "Discovery pattern versions managed under ServiceNow ITOM release governance."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "Discovery credential failure rates",
+            "Pattern execution timeouts"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Validate HAM and CMDB Bidirectional Linkage",
+      "description": "The IRE executes automated bidirectional synchronization checks between the physical asset table (alm_hardware) and the configuration database (cmdb_ci_hardware). The sub-step asserts that the serial number, bank asset tag, and MAC address match precisely between both tables, confirming the asset is in install_status='In Stock' and substatus='Reserved for Migration', and that cmdb_ci_hardware reflects install_status='In Stock / Staging' with operational_status='Non-Operational' (2). Any missing foreign key linkage or orphaned asset stub causes an immediate pipeline halt.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "inputs": [
+        "Discovered CI Staging Dataset",
+        "Pre-allocated alm_hardware Asset Records",
+        "cmdb_ci_hardware CI Records"
+      ],
+      "outputs": [
+        "Asset-to-CI Linkage Attestation Log",
+        "Bidirectionally Linked alm_hardware and cmdb_ci_hardware Records"
+      ],
+      "estimated_duration": "15 to 30 minutes",
+      "dependencies": [
+        "Trigger Deep ITOM Discovery Scan"
+      ],
+      "success_criteria": [
+        "100% bidirectional synchronization between alm_hardware and cmdb_ci_hardware with zero foreign key mismatch or orphaned records."
+      ],
+      "purpose": "Ensure tight alignment between financial asset ownership records and technical configuration data models.",
+      "scope": "All hardware assets allocated to the current data centre migration wave.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Ingestion of deep-scan CI payload into ServiceNow IRE staging tables."
+      ],
+      "end_conditions": [
+        "Asset and CI records verified as 100% synchronized and bidirectionally linked."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "De-synchronized asset and CI statuses creating audit blindness and regulatory reporting discrepancies.",
+          "control": "Mandatory ServiceNow IRE reconciliation script that halts workflow execution if the CI-to-Asset 1:1 foreign key binding is broken."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Asset Protection",
+        "ISO/IEC 19770-1 IT Asset Management Specification"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Asset attribute alignment remediated under standard asset update protocols.",
+          "versioning_rules": "Asset audit ledger logs every attribute synchronization event with timestamp and system user ID."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "Asset-to-CI discrepancy rate",
+            "Orphaned asset records"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Reconcile Attributes Against Target Architecture Baseline",
+      "description": "Discovered hardware attributes (CPU processor models, core counts, RAM density, storage volume capacities, RAID controller settings, HBA WWNs, PDU circuit feeds, and rack U-position) are programmatically compared against the Target Technical Architecture Baseline Specification stored in ServiceNow. Discrepancies between installed hardware components and the engineered build blueprint are flagged. If variance is identified, a Drift Discrepancy Log is generated and linked directly to the Migration Change Task.",
+      "responsible_party": "Physical Deployment and Migration Engineering Lead",
+      "inputs": [
+        "Discovered CI Staging Dataset",
+        "Target Technical Architecture Baseline Specification",
+        "Data Centre Cabling Schedule and Elevation Plan"
+      ],
+      "outputs": [
+        "Baseline Reconciliation Variance Scorecard",
+        "Drift Discrepancy Log (if discrepancies detected)"
+      ],
+      "estimated_duration": "30 to 60 minutes",
+      "dependencies": [
+        "Validate HAM and CMDB Bidirectional Linkage"
+      ],
+      "success_criteria": [
+        "Hardware configuration matches approved architectural specification across all mandatory attributes with 0 unapproved variances."
+      ],
+      "purpose": "Verify that physically provisioned hardware conforms precisely to engineering design and resilience specifications.",
+      "scope": "Physical and logical hardware components of compute nodes, chassis, and attached fabrics.",
+      "process_owner": "Physical Deployment and Migration Engineering Lead",
+      "triggers": [
+        "Validation of bidirectional asset-to-CI linkage in ServiceNow."
+      ],
+      "end_conditions": [
+        "Baseline reconciliation scorecard generated, logging zero variance or routing drift logs to engineering."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect memory sizing or unapproved CPU variants deployed, causing failure of low-latency trading algorithms or cluster imbalance.",
+          "control": "Automated baseline comparison engine that fails the technical gate if hardware attributes diverge from target design specifications."
+        }
+      ],
+      "governance_requirements": [
+        "PRA SS1/21 Operational Resilience Infrastructure Governance",
+        "Enterprise Architecture Baseline Standards"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Hardware modifications to correct drift require Change Task update authorized by Migration Lead.",
+          "versioning_rules": "Engineering blueprints versioned under Architecture Control Board (ACB)."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "Hardware variance reports",
+            "Vendor delivery configuration error logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Verify Firmware Compliance and Security Baselines",
+      "description": "The configuration items' microcode and firmware versions (BIOS, UEFI, BMC/iLO, RAID controller, and NIC/HBA firmware) are audited against the bank's approved security firmware matrix. Hardware components running unapproved, outdated, or vulnerable firmware revisions are flagged for immediate automated or manual flashing. Security configurations such as Secure Boot enforcement, default credential resets, and Out-of-Band management encryption are formally attested.",
+      "responsible_party": "Operational Infrastructure Engineering Lead",
+      "inputs": [
+        "Discovered CI Staging Dataset",
+        "Bank Approved Security Firmware Matrix",
+        "Vulnerability and Threat Intelligence Baseline"
+      ],
+      "outputs": [
+        "Firmware Compliance Audit Certification",
+        "Firmware Remediation Task (if drift identified)"
+      ],
+      "estimated_duration": "30 to 45 minutes",
+      "dependencies": [
+        "Reconcile Attributes Against Target Architecture Baseline"
+      ],
+      "success_criteria": [
+        "100% of firmware and microcode versions match the approved banking security baseline."
+      ],
+      "purpose": "Ensure hardware firmware satisfies rigorous cyber security and stability standards prior to network enablement.",
+      "scope": "All embedded microcode, BIOS, and management controllers across staged equipment.",
+      "process_owner": "Operational Infrastructure Engineering Lead",
+      "triggers": [
+        "Successful attribute baseline reconciliation scorecard approval."
+      ],
+      "end_conditions": [
+        "Firmware versions verified compliant with signed digital attestation logged in ServiceNow."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Hardware with firmware vulnerabilities introduced into live environment, breaching security standards and exposing trading networks.",
+          "control": "Automated gate validation script blocking promotion of any CI with non-compliant firmware hashes or versions."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Operational Risk Systems and Controls",
+        "Bank Cybersecurity Firmware Baseline Policy"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Firmware upgrades executed strictly under authorized Change Tasks before operational cutover.",
+          "versioning_rules": "Microcode baselines maintained in ServiceNow HAM Pro Firmware Library."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly security and infrastructure review",
+          "improvement_inputs": [
+            "Firmware mismatch rates",
+            "Out-of-band vulnerability scan results"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Automated CMDB Health Rules and Attestation",
+      "description": "ServiceNow Health Engine assesses the discovered hardware CI against enterprise CMDB Health KPIs: Completeness (100% of mandatory fields populated including rack position, serial, model, support group), Correctness (zero duplicate serials, valid relationships, IRE compliance), and Compliance (adherence to naming standards and domain separation). The health score is aggregated; the aggregate score must reach or exceed 99.5% to comply with FCA PS21/3 data integrity requirements. The Lead Configuration Manager reviews and signs the automated attestation report.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "Discovered CI Staging Dataset",
+        "Baseline Reconciliation Variance Scorecard",
+        "Firmware Compliance Audit Certification"
+      ],
+      "outputs": [
+        "ServiceNow CMDB Health Attestation Report (Correctness, Completeness, Compliance)",
+        "CMDB Health Audit Certification (>99.5% compliance)"
+      ],
+      "estimated_duration": "15 to 30 minutes",
+      "dependencies": [
+        "Verify Firmware Compliance and Security Baselines"
+      ],
+      "success_criteria": [
+        "Overall CMDB Health scorecard achieves >99.5% compliance across Completeness, Correctness, and Compliance dimensions."
+      ],
+      "purpose": "Quantify and formally attest that CMDB data integrity satisfies FCA PS21/3 resilience benchmarks before production authorization.",
+      "scope": "All staged hardware CIs and their logical dependencies targeted for migration cutover.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Successful completion of firmware compliance and security baselining."
+      ],
+      "end_conditions": [
+        "CMDB Health Audit Certification (>99.5% compliance) is digitally generated and signed in ServiceNow."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Sub-threshold CMDB data quality compromising dependency visibility during major incidents or disaster recovery.",
+          "control": "Hardcoded ServiceNow business rule preventing workflow clearance if CMDB Health score is below 99.5%."
+        }
+      ],
+      "governance_requirements": [
+        "FCA Policy Statement PS21/3 Data Integrity Verification",
+        "PRA SS1/21 Infrastructure Mapping"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "CMDB Health rule adjustments require CCB and Configuration Manager authorization.",
+          "versioning_rules": "CMDB Health scoring policies versioned within ServiceNow Configuration Management."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "CMDB Health metric dashboards",
+            "Completeness exception audit logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Issue Technical Readiness Clearance Token",
+      "description": "Upon successful validation of CMDB Health (>99.5%), asset-to-CI bidirectional linkage, architectural conformance, and firmware compliance, the ServiceNow workflow engine automatically generates an immutable Pre-Operational Technical Readiness Clearance Token. This cryptographically verified token is affixed to the CI record and linked to the pending Production Cutover Change Request (CHG). The state remains locked at 'Build / Pre-Production' and operational_status='Non-Operational' (2), awaiting formal CAB production cutover authorization.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "CMDB Health Audit Certification (>99.5% compliance)",
+        "Asset-to-CI Linkage Attestation Log",
+        "ServiceNow CMDB Health Attestation Report (Correctness, Completeness, Compliance)"
+      ],
+      "outputs": [
+        "Automated Technical Readiness Clearance Token in ServiceNow",
+        "Asset-to-CI Reconciliation Sign-off (>99.5% Verified Accuracy)",
+        "Automated Pre-Operational Technical Readiness Gate Clearance"
+      ],
+      "estimated_duration": "10 to 15 minutes",
+      "dependencies": [
+        "Execute Automated CMDB Health Rules and Attestation"
+      ],
+      "success_criteria": [
+        "Automated Technical Readiness Clearance Token generated and recorded in ServiceNow, unblocking CAB agenda scheduling."
+      ],
+      "purpose": "Provide a secure, auditable prerequisite token that permits the Change Advisory Board to evaluate the CI for live production promotion.",
+      "scope": "All staged hardware CIs passing technical gate criteria.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Generation and sign-off of CMDB Health Audit Certification exceeding 99.5% accuracy."
+      ],
+      "end_conditions": [
+        "Technical Readiness Clearance Token recorded in ServiceNow CI record, enabling subsequent CAB Operational Approval Gate."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Bypassing technical validation gates through manual database manipulation or improper workflow overrides.",
+          "control": "Read-only cryptographically stamped token generated by automated workflow; manual overrides trigger high-severity audit alerts."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Operational Resilience Audit Trail",
+        "ITIL 4 Change Enablement and Service Configuration Management"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Token injection automatically updates the pending Production Change Request (CHG) status to 'Ready for CAB Review'.",
+          "versioning_rules": "Token issuance permanently recorded in the immutable ServiceNow CI lifecycle history ledger."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly migration wave gate review",
+          "improvement_inputs": [
+            "Technical gate throughput metrics",
+            "Gate failure root-cause records"
+          ]
+        }
+      ]
+    }
+  ]
+}

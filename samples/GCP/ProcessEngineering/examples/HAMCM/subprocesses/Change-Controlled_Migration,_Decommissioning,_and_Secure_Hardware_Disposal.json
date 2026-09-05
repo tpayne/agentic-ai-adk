@@ -1,0 +1,246 @@
+{
+  "step_name": "Change-Controlled Migration, Decommissioning, and Secure Hardware Disposal",
+  "subprocess_flow": [
+    {
+      "substep_name": "Initiate and Approve Decommissioning Change Request",
+      "description": "The Decommissioning Project Lead drafts and submits a formal Normal Change Request (CHG) in ServiceNow, specifying the target hardware assets, data erasure levels required under ADISA 8.0/NIST 800-88 R1, and business service impacts. The CAB, Information Security, and affected Service Owners evaluate dependencies, verify data retention requirements, and formally authorize the change ticket before any physical or logical disconnection takes place.",
+      "responsible_party": "Change Advisory Board (CAB) & Change Manager",
+      "purpose": "Establish legitimate change governance and regulatory authorization prior to taking physical infrastructure offline.",
+      "scope": "All physical hardware assets slated for retirement, consolidation, or tech refresh across tier-1 data centre facilities.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Receipt of end-of-life milestone notification, DC consolidation schedule, or tech refresh migration sign-off."
+      ],
+      "end_conditions": [
+        "Decommissioning CHG reaches Approved status with attached work orders and sanitization tasks."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Decommissioning live production or secondary standby hardware supporting critical trading services in error.",
+          "control": "Automated CMDB dependency mapping check and mandatory multi-party sign-off by CAB and Important Business Service owners."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Important Business Service Continuity",
+        "PRA SS1/21 Configuration Resilience Rules",
+        "ITIL 4 Change Enablement"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal CAB approval process via ServiceNow Change Management workflow.",
+          "versioning_rules": "Change schedule and baseline impacted CI lists locked upon approval."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Decommissioning change rejection rates",
+            "IBS dependency false-positive alerts"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Quarantine Logical Workloads and Sever CMDB Dependencies",
+      "description": "Infrastructure and systems engineers gracefully drain production workloads, uncluster high-availability pairs, revoke network access credentials, and unmap SAN/NAS storage volumes under the approved Change Task. The ServiceNow CMDB relationship engine severs upstream and downstream operational dependencies, setting relationship status to Deprecated, while updating cmdb_ci_hardware install_status to Retired (7) and operational_status to Non-Operational (2).",
+      "responsible_party": "IT Operations & Infrastructure Engineering Team",
+      "purpose": "Safely isolate the hardware CI from active banking workflows without disrupting dependent trading and settlement functions.",
+      "scope": "Logical configurations, cluster nodes, LUN allocations, VLAN mappings, and CMDB service relationships.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Activation of Change Request execution window and start of decommissioning Change Task."
+      ],
+      "end_conditions": [
+        "Zero network traffic detected, storage volumes detached, and CI operational status updated to Non-Operational in ServiceNow."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Orphaned storage arrays or lingering network connections allowing unauthorized access or service flapping.",
+          "control": "Pre-disconnection port audit scripts and automated port shutdown validation before rack extraction."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Operational Risk and Resilience Systems & Controls",
+        "PCI-DSS Network Segmentation Baseline"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Executed under specific Change Task (CTASK) work orders tied directly to the parent CHG.",
+          "versioning_rules": "CMDB relationship audit histories recorded with timestamped user stamps."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Workload draining latency metrics",
+            "Orphan relationship counts in ServiceNow Health Dashboard"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Physical De-Rack and Secure Cage Transit",
+      "description": "DC Migration Engineers disconnect physical structured cabling, power feeds, and mounting hardware, un-racking physical units according to strict DC safety standards. Using the ServiceNow Mobile Agent, engineers scan the unit's asset barcode and transit bin tag, updating alm_hardware install_status to Retired (7) and substatus to Pending Disposal / Sanitization. The equipment is escorted and secured within the badge-controlled DC disposal cage under dual-custody control.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Safely dismount hardware, update digital physical location attributes, and lock equipment in secure custody.",
+      "scope": "Physical removal from DC cabinets and physical custody handover into the secure holding cage.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Verification of workload drainage and completion of network/storage isolation tasks."
+      ],
+      "end_conditions": [
+        "Physical asset placed in locked DC disposal cage with dual-custody transfer log logged in ServiceNow."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Physical loss, misplacement, or theft of storage-bearing server blades during transit to DC cage.",
+          "control": "Tamper-evident transport containers and mandatory dual-custody electronic sign-off in the ServiceNow Mobile Agent app."
+        }
+      ],
+      "governance_requirements": [
+        "DC Physical Access Security Standards",
+        "ISO/IEC 19770-1 Asset Tracking Baseline",
+        "GDPR Article 32 Physical Security Controls"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Physical work recorded on DC Engineering Implementation Task.",
+          "versioning_rules": "Rack elevation plans updated to vacant state in DCIM and ServiceNow."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "De-rack cycle durations",
+            "Physical transit discrepancy incident reports"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Perform On-Site Data Sanitization or Media Destruction",
+      "description": "An accredited ADISA 8.0 and NIST 800-88 Rev 1 IT Asset Disposition (ITAD) vendor performs supervised on-site cryptographic erasure or physical degaussing and shredding of all magnetic, solid-state, and optical media within the DC security perimeter. ITAM specialists and Bank Information Security oversee each wipe pass, confirming that cryptographically unrecoverable erasure algorithms or mechanical 6mm particle shredding guidelines have been adhered to for every media serial number.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "purpose": "Permanently sanitize or destroy data-bearing storage media to eliminate the possibility of sensitive financial data compromise.",
+      "scope": "All hard disk drives, solid-state drives, NVMe modules, cache boards, and flash memory components.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Batch threshold reached in secure cage and scheduled ITAD vendor on-site processing window."
+      ],
+      "end_conditions": [
+        "100% of data media successfully erased or physically shredded with witnessed log sheets signed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Cryptographic wipe failure or skipped media serial numbers releasing confidential banking records into the public domain.",
+          "control": "Automated erasure hardware logs mapped directly against media serial lists; immediate mechanical destruction for any drive failing wipe."
+        }
+      ],
+      "governance_requirements": [
+        "ADISA Standard 8.0",
+        "NIST SP 800-88 Rev 1 Guidelines for Media Sanitization",
+        "GDPR Article 32 & Article 33",
+        "FCA SYSC 15.9 Asset Protection"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Sanitization work order verified against parent Change Request.",
+          "versioning_rules": "Vendor wipe log versioning captured in ITAD job manifest."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Media sanitization error rates",
+            "Drive failure and destruction variance logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Upload Certificates and Transition Asset State to Disposed",
+      "description": "ITAM receives digitally signed ADISA Standard 8.0 certificates of data destruction and WEEE disposal manifests from the ITAD vendor. The ITAM administrator uploads the serialized certificates directly to the ServiceNow alm_hardware record, triggering an automated platform business rule that synchronously advances alm_hardware install_status to Disposed (8) and substatus to Destroyed / Sold / Certificate Logged, while updating cmdb_ci_hardware install_status to Disposed (8) and operational_status to De-registered.",
+      "responsible_party": "Head of IT Asset Management (ITAM)",
+      "purpose": "Formally validate data sanitization, achieve full legal disposal sign-off, and permanently update core system states.",
+      "scope": "ServiceNow HAM alm_hardware and ITOM cmdb_ci_hardware records for all disposed assets.",
+      "process_owner": "Head of IT Asset Management (ITAM)",
+      "triggers": [
+        "Delivery of signed electronic ADISA certificates of destruction and ITAD manifests."
+      ],
+      "end_conditions": [
+        "Destruction certificate securely attached, and ServiceNow asset/CI states successfully synchronized to Disposed."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Asset records prematurely marked Disposed without verified certificates of destruction, failing regulatory audit.",
+          "control": "ServiceNow mandatory field attachment rule blocking status update to Disposed (8) without verified cryptographic certificate PDF."
+        }
+      ],
+      "governance_requirements": [
+        "ADISA Standard 8.0 Level 8 Verification",
+        "UK WEEE Regulations (Waste Electrical and Electronic Equipment)",
+        "Companies Act Statutory Asset Accounting"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Sanitization task closure requires certificate attachment before CHG final sign-off.",
+          "versioning_rules": "Certificate hashes and metadata archived in ServiceNow immutable document repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Vendor certificate delivery turnaround time (SLA < 5 days)",
+            "Attachment verification audit scores"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Deactivate Discovery Schedules and Compile FCA Compliance Audit Pack",
+      "description": "The CMDB configuration team deactivates ServiceNow ITOM Discovery IP scanning schedules for the retired hardware serial numbers to prevent phantom IP triggers and spurious reconciliation errors. Regulatory Compliance and ITAM compile the final FCA Decommissioning Audit Pack, verifying that the Change Request, dual-custody manifests, ADISA certificates, and CMDB audit histories are fully compiled and archived for regulatory examination under FCA PS21/3 and SYSC 15.9.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "purpose": "Prevent stale discovery alerting, de-register network monitoring hooks, and finalize compliance documentation for regulatory inspection.",
+      "scope": "ServiceNow Discovery configuration rules, IP ranges, monitoring de-registration, and audit file generation.",
+      "process_owner": "Compliance, Operational Resilience & Audit Lead",
+      "triggers": [
+        "Completion of ServiceNow asset state transition to Disposed (8)."
+      ],
+      "end_conditions": [
+        "Discovery schedules deactivated for serialized assets and FCA Decommissioning Audit Pack archived."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Active discovery sensors continuing to poll non-existent hardware, generating false-positive unauthorized change incidents or inflating CMDB drift metrics.",
+          "control": "Automated workflow trigger de-registering Discovery target IP endpoints upon CI transition to Disposed."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Operational Resilience Audit Readiness",
+        "PRA SS1/21 Infrastructure Inventory Integrity",
+        "FCA SYSC 15.9 Record Retention Guidelines"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Final verification and closure of the parent Decommissioning Change Request.",
+          "versioning_rules": "Decommission audit pack stamped with immutable hash in bank GRC repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-annual",
+          "improvement_inputs": [
+            "Internal compliance audit findings",
+            "ServiceNow IRE false-positive discovery error logs",
+            "FCA inquiry feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,290 @@
+{
+  "step_name": "Mandatory Operational Approval Gate and Baseline Production Activation",
+  "subprocess_flow": [
+    {
+      "substep_name": "Validate Technical Readiness and Pre-Requisite Artifacts",
+      "description": "The ServiceNow automated change workflow and Change Manager inspect the submitted Production Cutover Change Request (CHG). The system programmatically validates that the Technical Readiness Gate Clearance Token is present, CMDB attribute integrity exceeds the mandatory 99.5% threshold, data centre migration pre-commissioning tests have completed successfully, and an executable rollback plan is documented and attached. If any artifact or clearance token is missing or expired, the change task is automatically rejected and reverted to the technical staging team.",
+      "responsible_party": "Change Advisory Board (CAB) & Change Manager",
+      "inputs": [
+        "Technical Readiness Gate Clearance Token",
+        "Production Cutover Change Request (CHG)",
+        "Business Service Impact and Rollback Assessment"
+      ],
+      "outputs": [
+        "Validated Technical Pre-Requisite Verification Record",
+        "Operational Cutover CAB Evidence Dossier"
+      ],
+      "estimated_duration": "15 to 30 minutes",
+      "dependencies": [
+        "Pre-Operational Verification, Discovery Reconciliation, and Technical Readiness Gate"
+      ],
+      "success_criteria": [
+        "100% of required technical test reports, rollback procedures, and >99.5% CMDB attestation tokens are cryptographically verified in ServiceNow."
+      ],
+      "purpose": "Verify all pre-requisite operational clearance tokens and data migration proofs exist before convening formal governance evaluation.",
+      "scope": "Pre-flight validation of documentation, test results, and integrity tokens associated with hardware CIs scheduled for live cutover.",
+      "process_owner": "Change Advisory Board (CAB) & Change Manager",
+      "triggers": [
+        "Submission of Production Go-Live Change Task following successful pre-operational technical readiness verification."
+      ],
+      "end_conditions": [
+        "Automated pre-flight verification passes and the Change Request transitions to Scheduled for CAB Review."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Change tasks submitted with fraudulent, incomplete, or stale pre-operational test tokens.",
+          "control": "Automated ServiceNow validation script verifying digital token validity and minimum 99.5% IRE correctness score before CAB agenda ingestion."
+        }
+      ],
+      "governance_requirements": [
+        "ITIL 4 Change Enablement",
+        "FCA PS21/3 Operational Resilience Documentation Standards",
+        "PRA SS1/21 Impact Tolerance Verification"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Normal Change Request pre-approval validation within ServiceNow Change Management.",
+          "versioning_rules": "Change task pre-requisite verification record stamped with cryptographic hash and version logged."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly Change Advisory Board governance review",
+          "improvement_inputs": [
+            "Change ticket rejection ratios during pre-check",
+            "Pre-flight automated validation error logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Convene CAB and IBS Service Owner Formal Review",
+      "description": "The Change Advisory Board convenes alongside the designated Important Business Service (IBS) Service Owner, Infrastructure Lead, and Data Centre Migration Leads to evaluate the operational cutover window. The panel scrutinizes the service impact matrix, real-time data centre power and cooling telemetry, trade processing schedule constraints, and back-out timing against established FCA impact tolerances. Formal concurrence from both the CAB Chair and the IBS Service Owner is mandatory before operational baseline promotion is authorized.",
+      "responsible_party": "Change Advisory Board (CAB) & Change Manager",
+      "inputs": [
+        "Validated Technical Pre-Requisite Verification Record",
+        "Operational Cutover CAB Evidence Dossier",
+        "Business Service Impact and Rollback Assessment"
+      ],
+      "outputs": [
+        "Formal CAB Evaluation Record",
+        "IBS Service Owner Impact Tolerance Concurrence"
+      ],
+      "estimated_duration": "30 to 45 minutes",
+      "dependencies": [
+        "Validate Technical Readiness and Pre-Requisite Artifacts"
+      ],
+      "success_criteria": [
+        "Unanimous approval obtained from the CAB Chair and designated IBS Service Owner with explicit confirmation of impact tolerance limits."
+      ],
+      "purpose": "Provide multi-stakeholder governance evaluation ensuring live production cutovers do not breach operational resilience impact tolerances.",
+      "scope": "Operational evaluation of all trading, clearing, and settlement infrastructure undergoing cutover.",
+      "process_owner": "Change Advisory Board (CAB) & Change Manager",
+      "triggers": [
+        "Successful completion and automated verification of pre-requisite cutover artifacts."
+      ],
+      "end_conditions": [
+        "CAB and IBS Service Owner record formal verbal and preliminary digital voting concurrence in the change session log."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Approval granted without proper evaluation of downstream trading dependencies or regulatory impact tolerances.",
+          "control": "Mandatory inclusion of designated IBS Service Owner in CAB voting quorum with veto authority under FCA PS21/3 governance."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Important Business Service Governance",
+        "PRA SS1/21 Board Accountability",
+        "Senior Managers and Certification Regime (SM&CR) prescribed responsibilities"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal CAB review and electronic voting captured within ServiceNow Change Management record.",
+          "versioning_rules": "Minutes, voting outcomes, and conditional stipulations appended to the Change Request audit history."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly Change Advisory Board governance review",
+          "improvement_inputs": [
+            "CAB quorum attendance rates",
+            "Emergency off-cycle change approval trends",
+            "IBS Service Owner feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute Electronic Approval Gate Sign-Off",
+      "description": "The CAB Chair and IBS Service Owner apply their certified electronic credentials and enterprise multi-factor authentication in ServiceNow to formally approve the Production Go-Live Change Request. Upon signature verification, the Change Request state advances to 'Implement / Approved for Production', and ServiceNow unlocks the automated orchestration script that enforces hardware state transition. The system simultaneously logs an immutable audit event in the governance ledger, sealing the authorization trail for regulatory compliance reporting.",
+      "responsible_party": "Change Advisory Board (CAB) & Change Manager",
+      "inputs": [
+        "Formal CAB Evaluation Record",
+        "IBS Service Owner Impact Tolerance Concurrence",
+        "Production Cutover Change Request (CHG)"
+      ],
+      "outputs": [
+        "Approved Production Change Record",
+        "Automated State Activation Trigger Token"
+      ],
+      "estimated_duration": "10 to 15 minutes",
+      "dependencies": [
+        "Convene CAB and IBS Service Owner Formal Review"
+      ],
+      "success_criteria": [
+        "Dual electronic signatures securely stamped on the Change Request and state successfully updated to Approved for Production."
+      ],
+      "purpose": "Provide legally binding, auditable electronic approval that unlocks automated hardware baseline promotion in the CMDB.",
+      "scope": "ServiceNow workflow approval state transitions for the cutover change request.",
+      "process_owner": "Change Advisory Board (CAB) & Change Manager",
+      "triggers": [
+        "CAB panel voting consensus reached and formal concurrence achieved."
+      ],
+      "end_conditions": [
+        "Production Change Request is formally set to Approved and Automated State Activation Trigger Token is emitted."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unauthorized approval execution or elevation of privileges bypassing segregation of duties.",
+          "control": "ServiceNow dual-custody access control requiring independent multifactor authentication from both CAB Chair and IBS Service Owner."
+        }
+      ],
+      "governance_requirements": [
+        "FCA SYSC 15.9 Systems & Controls Auditability",
+        "ITIL 4 Change Enablement",
+        "UK Corporate Governance Code"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "State model transition from 'Scheduled' to 'Implement' via ServiceNow workflow engine.",
+          "versioning_rules": "Electronic approvals time-stamped, hash-verified, and permanently preserved in the immutable platform audit ledger."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly Change Advisory Board governance review",
+          "improvement_inputs": [
+            "Approval turnaround lead time",
+            "Authentication exception reports",
+            "Audit trail integrity sampling"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Synchronize Bidirectional Asset and CI Operational States",
+      "description": "Triggered by the electronic approval token, the ServiceNow automated lifecycle engine executes an atomic database transaction across both the Hardware Asset (alm_hardware) and Configuration Item (cmdb_ci_hardware) tables. The asset record is updated to install_status='1' (In Use) and substatus='Operational'. Simultaneously, the corresponding CI record is transitioned to install_status='1' (Installed) and operational_status='1' (Operational). A reconciliation business rule verifies that bidirectional field mapping is 100% congruent, confirms that the CI's unique serial number and MAC address are locked, and writes confirmation back to the Change Request.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "Approved Production Change Record",
+        "Automated State Activation Trigger Token"
+      ],
+      "outputs": [
+        "Updated alm_hardware (In Use / Operational)",
+        "Updated cmdb_ci_hardware (Installed / Operational)",
+        "Asset-to-CI State Synchronization Attestation Log"
+      ],
+      "estimated_duration": "5 to 15 minutes",
+      "dependencies": [
+        "Execute Electronic Approval Gate Sign-Off"
+      ],
+      "success_criteria": [
+        "alm_hardware and cmdb_ci_hardware records update synchronously without orphan mismatch, achieving 100% status alignment."
+      ],
+      "purpose": "Execute programmatic, synchronized state transitions across asset and configuration data tables without human intervention.",
+      "scope": "Atomic data-layer state transitions for all hardware assets and CIs within the migration wave.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Receipt of Automated State Activation Trigger Token upon change authorization."
+      ],
+      "end_conditions": [
+        "Both tables confirm In Use / Operational states and emit a positive synchronization verification response."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Asynchronous table lock or update failure resulting in divergent asset-to-CI states.",
+          "control": "Atomic transaction script with automated rollback and Sev-1 alert if synchronization fails to complete within 30 seconds."
+        }
+      ],
+      "governance_requirements": [
+        "ISO/IEC 19770-1 IT Asset Management",
+        "FCA PS21/3 CMDB Integrity Standards",
+        "BCBS 239 Risk Data Aggregation"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Automated change task execution logged against the parent Production Change Request.",
+          "versioning_rules": "CI and Asset state transition histories updated with timestamp, change number, and execution script ID."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly Change Advisory Board governance review",
+          "improvement_inputs": [
+            "Asset-to-CI synchronization failure rates",
+            "Database latency during batch status updates"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Bind CI Service Topology and Establish Production Baseline",
+      "description": "ServiceNow Service Mapping automatically binds the newly operational hardware CIs to the live Important Business Service (IBS) dependency graph and trading topology models. The Configuration Management engine captures an authoritative baseline snapshot of all CI relationships, upstream network routes, SAN storage maps, and hosting dependencies. This baseline snapshot is registered as the official FCA PS21/3 reference configuration. Any subsequent deviation discovered by ITOM Discovery outside of an authorized change will immediately trigger the 'No Ticket, No Touch' unauthorized change engine.",
+      "responsible_party": "Lead Configuration Manager & CMDB Owner",
+      "inputs": [
+        "Updated alm_hardware (In Use / Operational)",
+        "Updated cmdb_ci_hardware (Installed / Operational)",
+        "Asset-to-CI State Synchronization Attestation Log",
+        "Approved Production Change Record"
+      ],
+      "outputs": [
+        "Activated CMDB Service Mapping Topology",
+        "Updated Important Business Service (IBS) Dependency Map in CMDB",
+        "Production Configuration Baseline Reference Snapshot"
+      ],
+      "estimated_duration": "15 to 30 minutes",
+      "dependencies": [
+        "Synchronize Bidirectional Asset and CI Operational States"
+      ],
+      "success_criteria": [
+        "Hardware CI is completely mapped to the target Important Business Service in Service Mapping and an authoritative baseline snapshot is locked."
+      ],
+      "purpose": "Integrate operational hardware into live trading service maps and capture the regulatory configuration baseline.",
+      "scope": "Service mapping topologies and relationship hierarchies for tier-1 trading systems and underlying data centre infrastructure.",
+      "process_owner": "Lead Configuration Manager & CMDB Owner",
+      "triggers": [
+        "Successful synchronization of hardware CI and asset states to Operational."
+      ],
+      "end_conditions": [
+        "Service topology maps show operational health, the configuration baseline snapshot is finalized, and the production cutover task closes."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect service relationship mapping resulting in inaccurate blast radius calculation during operational outages.",
+          "control": "Automated Service Mapping graph verification rule confirming end-to-end traversal from infrastructure CI to Important Business Service."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Important Business Service Mapping Mandate",
+        "PRA SS1/21 Infrastructure Traceability",
+        "ITIL 4 Service Configuration Management"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Production cutover change task is set to Closed Complete, sealing the Change Request implementation.",
+          "versioning_rules": "CMDB baseline snapshot version incremented, cryptographically hashed, and marked active in the baseline registry."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly Change Advisory Board governance review",
+          "improvement_inputs": [
+            "Service Mapping topology completeness scores",
+            "Post-cutover trading incidents",
+            "Discovery drift tracking logs"
+          ]
+        }
+      ]
+    }
+  ]
+}

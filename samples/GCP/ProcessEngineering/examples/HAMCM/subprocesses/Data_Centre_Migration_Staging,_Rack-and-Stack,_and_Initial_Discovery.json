@@ -1,0 +1,315 @@
+{
+  "step_name": "Data Centre Migration Staging, Rack-and-Stack, and Initial Discovery",
+  "subprocess_flow": [
+    {
+      "substep_name": "Validate Migration Change Task and Allocation Plan",
+      "description": "The Data Centre Migration Engineering Team validates the assigned Migration Change Task (CHGTASK) in ServiceNow to verify formal CAB authorization and retrieve the exact Data Centre Cabling Schedule, Rack Elevation Plan, and target cabinet coordinates. Physical security tokens and biometric cage access permissions are checked against the approved CHG to prevent unrecorded physical access. Technicians inspect the target cabinet for adequate rack unit (RU) spacing, thermal envelope thresholds, and dual-corded A/B power rail feeds prior to staging physical hardware.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Verify change management authorization and confirm target rack physical readiness before moving hardware into cages.",
+      "scope": "Target data centre cabinets, containment pods, and associated ServiceNow Change Task work orders.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Commencement of scheduled migration wave rack-and-stack execution window",
+        "Assignment of Migration Change Task (CHGTASK) to physical engineering squad"
+      ],
+      "end_conditions": [
+        "Cabinet space, power, and cooling readiness attested",
+        "Change Task verified in 'Work in Progress' status in ServiceNow"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Technicians attempting physical installation under invalid, expired, or non-approved change requests.",
+          "control": "Automated biometric access control tied strictly to active ServiceNow CHGTASK status; no badge entry permitted without active task."
+        },
+        {
+          "risk": "Target cabinet power or cooling saturation resulting in immediate thermal trip upon mounting equipment.",
+          "control": "Pre-execution physical inspection checklist logged into ServiceNow CHGTASK validating A/B feed circuit loads."
+        }
+      ],
+      "governance_requirements": [
+        "Data Centre Physical Cable and Rack Engineering Standards",
+        "FCA SYSC 15.9 Operational Risk and Resilience Systems & Controls"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Work executed solely under an approved Normal Migration Change Request (CHG) with active child Change Tasks.",
+          "versioning_rules": "Elevation plans version-tracked under ServiceNow Change attachments."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Pre-stack cabinet inspection rejection counts",
+            "Access clearance lead time metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Secure Asset Transfer and Physical Rack Mounting",
+      "description": "Technicians release the barcoded hardware from the pre-migration staging room and perform dual-custody physical transit to the designated data centre cage. Each physical asset tag and serial number is scanned using the ServiceNow HAM Mobile Agent app to update the alm_hardware substatus to 'Reserved for Migration'. Technicians mechanically secure the servers, switches, or storage arrays into the planned rack units using OEM rail kits, torque-calibrated fasteners, and blanking panels to ensure proper airflow containment.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Physically mount hardware into designated rack positions while preserving chain-of-custody tracking in alm_hardware.",
+      "scope": "Physical hardware handling, unboxing, cage transfer, and chassis rail mounting.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Successful validation of target cabinet physical readiness and change authorization."
+      ],
+      "end_conditions": [
+        "Hardware securely mounted into designated RU positions",
+        "alm_hardware status confirmed as 'In Stock' with substatus 'Reserved for Migration'"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Hardware mounted into wrong cabinet or RU location, invalidating CMDB rack elevation records.",
+          "control": "Barcode scan of cabinet RU label and device asset tag cross-validated against the Rack Elevation Plan in ServiceNow before mounting."
+        },
+        {
+          "risk": "Physical damage during unboxing or chassis transport across data centre halls.",
+          "control": "Anti-static handling protocol enforcement and calibrated lift equipment usage mandated by DC engineering standard."
+        }
+      ],
+      "governance_requirements": [
+        "Data Centre Structural Engineering and Seismic Mounting Guidelines",
+        "ISO/IEC 19770-1 IT Asset Management System Requirements"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Cabinet or RU location reassignments require immediate Change Task update and approval by the DC Migration Lead.",
+          "versioning_rules": "Rack elevation schema updates versioned in ServiceNow HAM DCIM table."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Mounting position discrepancy rate",
+            "Physical transit time per hardware wave"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Connect Power and Structured Network Cabling",
+      "description": "Data centre technicians dress and terminate dual power feeds to redundant cabinet intelligent Power Distribution Units (ePDUs) across designated A/B electrical circuits. Structured Cat6a and single-mode/multi-mode fiber patch cables are plugged into pre-labeled top-of-rack (TOR) switch ports, SAN directors, and console servers exactly as defined in the Cabling Schedule. Port numbers, patch cord serials, and ePDU receptacle IDs are scanned and committed to the CHGTASK cabling ledger to prevent port contention or asymmetric routing.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Establish redundant physical electrical power and low-latency structured connectivity aligned with engineering design.",
+      "scope": "Cabinet internal power whips, fiber optic jumpers, twinax DAC cables, and twisted-pair network patch leads.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Completion of physical chassis rack mounting and fastener torque check."
+      ],
+      "end_conditions": [
+        "Chassis powered on with clean redundant A/B PSU status LEDs",
+        "Physical network link layer light verified on switch interfaces"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect patch port assignment leading to VLAN mismatch, management network isolation, or loop formation.",
+          "control": "Color-coded structured cabling and dual-operator verification against the published Cabling Schedule."
+        },
+        {
+          "risk": "Single-point-of-failure power connection into single ePDU feed causing resilience failure under FCA PS21/3.",
+          "control": "Mandatory A/B dual-source circuit testing verified by automated smart PDU telemetry before proceeding."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Operational Resilience Redundant Infrastructure Standards",
+        "TIA-942 Data Centre Telecommunications Infrastructure Standard"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Patch port deviations must be submitted via Change Task remediation task and approved prior to patching.",
+          "versioning_rules": "Port map allocations versioned in ServiceNow Network CI register."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Cabling error rates",
+            "PDU phase balancing audit telemetry"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Configure Out-of-Band Management Controller Baseline",
+      "description": "Technicians establish communication with the hardware Out-of-Band (OOB) baseboard management controllers (such as HPE iLO or Dell iDRAC) via dedicated staging management network ports. Factory default credentials are systematically decommissioned and replaced with enterprise Kerberos/LDAP integration and PKI server certificates. Baseboard network controllers are provisioned with reserved static IP addressing, gateway parameters, and baseline SNMPv3/WMI credentials, enabling secure remote reachability for the enterprise discovery scanning infrastructure.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Initialize baseboard management controllers with secure enterprise identity and networking to enable discovery.",
+      "scope": "Hardware OOB management controllers, BIOS configuration profiles, and staging subnet IP allocations.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Physical power verified and management switch port connectivity established."
+      ],
+      "end_conditions": [
+        "OOB controller operational on isolated staging management subnet",
+        "Standard credentials and enterprise TLS certificates applied and reachable"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Default vendor administrative passwords retained, leaving OOB interfaces vulnerable to cyber takeover.",
+          "control": "Automated provisioning script enforces enterprise password vaulting and PKI deployment; default credentials disabled."
+        },
+        {
+          "risk": "IP collision on staging subnet preventing remote management access.",
+          "control": "Automated IP Address Management (IPAM) integration via ServiceNow allocating reservations with zero overlap."
+        }
+      ],
+      "governance_requirements": [
+        "Bank Information Security Baseline for Out-of-Band Management Systems",
+        "FCA SYSC 15.9 Automated Systems and Operational Security Rules"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Firmware and credential template updates managed through Global Infrastructure Change Request.",
+          "versioning_rules": "Controller baseline profile versioned in ServiceNow Configuration Management repository."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "OOB configuration automation failure rates",
+            "Static IP provisioning cycle time"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Execute ServiceNow ITOM Discovery Scan",
+      "description": "The Data Centre Migration Engineering Team triggers a targeted ServiceNow ITOM Discovery schedule against the staging management CIDR blocks containing the newly configured OOB controllers. ServiceNow MID Servers poll the IP ranges using secure SNMPv3, SSH, and IPMI/Redfish patterns. The discovery pattern interrogates the physical chassis, extracting hardware identity data including base chassis serial number, UUID, part number, motherboard MAC addresses, and peripheral component inventories.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Interrogate the physical hardware via automated discovery patterns to collect authoritative physical inventory telemetry.",
+      "scope": "ServiceNow ITOM Discovery engine, MID Servers, and staging management network subnets.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Successful validation of OOB network ping and TLS handshake on staging IP."
+      ],
+      "end_conditions": [
+        "Discovery schedule run completes with 'Success' status",
+        "Raw payload received by ServiceNow MID Server and posted to ECC Queue"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Discovery credential failures or network firewall drops preventing payload capture.",
+          "control": "Pre-flight port sweep and credential verification run from the MID Server prior to full pattern execution."
+        },
+        {
+          "risk": "Discovery scans impacting live production trading platforms due to incorrect IP range configuration.",
+          "control": "Discovery ranges restricted strictly to isolated staging subnets isolated via physical VLAN segmentation."
+        }
+      ],
+      "governance_requirements": [
+        "ITIL 4 Service Configuration Management Standards",
+        "PRA SS1/21 Infrastructure Mapping and Dependency Verification"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Addition of new discovery IP ranges requires Standard Change approval by the CMDB Lead.",
+          "versioning_rules": "Discovery schedules and MID Server configurations versioned in ServiceNow ITOM."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Discovery pattern completion times",
+            "ECC Queue payload processing error logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Reconcile IRE Matching and Link Asset to CI",
+      "description": "The ServiceNow Identification and Reconciliation Engine (IRE) processes the discovery payload through identification rules prioritizing baseboard serial number, asset tag, and primary MAC address. The IRE successfully correlates the incoming payload against the existing alm_hardware record created during intake, establishing the bidirectional relational link (alm_hardware.ci = cmdb_ci.sys_id). The IRE instantiates the configuration item record in cmdb_ci_hardware with install_status='In Stock / Staging' and operational_status='Non-Operational' (2), ensuring zero duplicate CI stubs are created.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Match discovered telemetry against existing HAM asset records via IRE and instantiate non-operational CIs without duplication.",
+      "scope": "ServiceNow IRE, alm_hardware, and cmdb_ci_hardware database tables.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Arrival and parsing of discovery payload from the ServiceNow ECC Queue."
+      ],
+      "end_conditions": [
+        "cmdb_ci_hardware CI instantiated with operational_status='Non-Operational' (2)",
+        "Bidirectional link between alm_hardware and cmdb_ci established with zero IRE duplication"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "IRE identifier mismatch creating duplicate CI records, polluting CMDB and violating >99.5% accuracy.",
+          "control": "Enforced IRE identification hierarchy requiring matching serial number and asset tag prior to CI creation."
+        },
+        {
+          "risk": "Unreconciled orphan CI created without parent asset linkage in alm_hardware.",
+          "control": "Automated business rule aborts cmdb_ci insertion if valid alm_hardware serial reference is missing."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 CMDB Accuracy and Integrity Mandate (>99.5% correctness)",
+        "ISO/IEC 19770-1 Hardware Asset and CI Lifecycle Reconciliation"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "IRE identification rule changes governed strictly by CMDB Governance Board Change Approval.",
+          "versioning_rules": "IRE identifier rule tables tracked under ServiceNow App Engine version control."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "IRE reconciliation rule pass/fail percentages",
+            "Duplicate CI count logs"
+          ]
+        }
+      ]
+    },
+    {
+      "substep_name": "Audit Initial Discovery Baseline and Sign Off Staging",
+      "description": "The Data Centre Migration Engineering Team reviews the initial IRE discovery audit report and ServiceNow Discovery run logs. Technicians confirm that all newly mounted hardware configuration items are correctly associated with their target rack elevations, chassis serial numbers, and physical host relationships in the CMDB. Once verified, technicians attach the Discovery run logs to the Migration Change Task, confirm physical completion of the staging milestone, and formally submit the hardware CI batch to the Lead Configuration Manager for Pre-Operational Verification.",
+      "responsible_party": "Data Centre Migration Engineering Team",
+      "purpose": "Perform initial engineering audit of discovery results and change task closure for the staging phase.",
+      "scope": "ServiceNow Discovery run logs, IRE audit reports, and Migration Change Task completion attestations.",
+      "process_owner": "Data Centre Migration Engineering Team",
+      "triggers": [
+        "Completion of IRE CI instantiation and bidirectional asset linkage."
+      ],
+      "end_conditions": [
+        "ServiceNow Discovery run logs and IRE audit report attached to Change Task",
+        "Migration Change Task for rack-and-stack closed as 'Complete'",
+        "Pre-Operational Technical Readiness Gate triggered for the CI batch"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete discovery payloads or undetected missing components accepted into subsequent phase.",
+          "control": "Automated change task verification script checking 100% attribute population for core hardware identifiers before task closure."
+        },
+        {
+          "risk": "Premature cutover attempt before technical verification baseline is documented.",
+          "control": "Change task workflow prevents progression to CAB activation until Phase 4 readiness gate token is populated."
+        }
+      ],
+      "governance_requirements": [
+        "FCA PS21/3 Operational Resilience Infrastructure Baseline Rules",
+        "ITIL 4 Change Enablement Audit Trail Verification"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Formal closure of Migration Change Task (CHGTASK) advancing the parent Migration Change Request.",
+          "versioning_rules": "Audit reports archived permanently in ServiceNow Change Request records."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Bi-weekly migration sprint retro",
+          "improvement_inputs": [
+            "Batch sign-off turnaround duration",
+            "Post-discovery attribute completeness scores"
+          ]
+        }
+      ]
+    }
+  ]
+}
