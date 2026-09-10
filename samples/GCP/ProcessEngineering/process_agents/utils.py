@@ -360,133 +360,134 @@ def save_drawio(xml_content) -> str:
 
     AZURE_SHAPES = {
         # Networking
-        "application gateway": "mxgraph.azure.network.application_gateway",
-        "application gateways": "mxgraph.azure.network.application_gateways",
-        "application gateway containers": "mxgraph.azure.network.application_gateway_containers",
-        "azure firewall manager": "mxgraph.azure.networking.azure_firewall_manager",
-        "azure firewall policy": "mxgraph.azure.networking.azure_firewall_policy",
-        "bastion": "mxgraph.azure.networking.bastions",
-        "bastions": "mxgraph.azure.networking.bastions",
-        "dns private resolver": "mxgraph.azure.networking.dns_private_resolver",
-        "dns security policy": "mxgraph.azure.networking.dns_security_policy",
-        "dns zones": "mxgraph.azure.networking.dns_zones",
-        "expressroute circuits": "mxgraph.azure.networking.expressroute_circuits",
-        "firewalls": "mxgraph.azure.networking.firewalls",
-        "front door": "mxgraph.azure.networking.front_doors",
-        "front doors": "mxgraph.azure.networking.front_doors",
-        "ip address manager": "mxgraph.azure.networking.ip_address_manager",
-        "private link hub": "mxgraph.azure.networking.private_link_hub",
-        "service endpoint policies": "mxgraph.azure.networking.service_endpoint_policies",
-        "virtual wan hub": "mxgraph.azure.networking.virtual_wan_hub",
-        "virtual wans": "mxgraph.azure.networking.virtual_wans",
-        "vpn gateway": "mxgraph.azure.network.vpn_gateway",
+        "application gateway": "img/lib/azure2/networking/Application_Gateways.svg",
+        "application gateways": "img/lib/azure2/networking/Application_Gateways.svg",
+        "application gateway containers": "img/lib/azure2/networking/Application_Gateway_Containers.svg",
+        "azure firewall manager": "img/lib/azure2/networking/Azure_Firewall_Manager.svg",
+        "azure firewall policy": "img/lib/azure2/networking/Azure_Firewall_Policy.svg",
+        "bastion": "img/lib/azure2/networking/Bastions.svg",
+        "bastions": "img/lib/azure2/networking/Bastions.svg",
+        "dns private resolver": "img/lib/azure2/networking/DNS_Private_Resolver.svg",
+        "dns security policy": "img/lib/azure2/networking/DNS_Security_Policy.svg",
+        "dns zones": "img/lib/azure2/networking/DNS_Zones.svg",
+        "expressroute circuits": "img/lib/azure2/networking/Expressroute_Circuits.svg",
+        "firewalls": "img/lib/azure2/networking/Firewalls.svg",
+        "front door": "img/lib/azure2/networking/Front_Doors.svg",
+        "front doors": "img/lib/azure2/networking/Front_Doors.svg",
+        "ip address manager": "img/lib/azure2/networking/IP_Address_Manager.svg",
+        "private link hub": "img/lib/azure2/networking/Private_Link_Hub.svg",
+        "service endpoint policies": "img/lib/azure2/networking/Service_Endpoint_Policies.svg",
+        "virtual wan hub": "img/lib/azure2/networking/Virtual_Wan_Hub.svg",
+        "virtual wans": "img/lib/azure2/networking/Virtual_Wans.svg",
+        "vpn gateway": "img/lib/azure2/networking/Virtual_Network_Gateways.svg",
 
         # Compute
-        "availability sets": "mxgraph.azure.compute.availability_sets",
-        "batch accounts": "mxgraph.azure.compute.batch_accounts",
-        "container instances": "mxgraph.azure.compute.container_instances",
-        "container services": "mxgraph.azure.compute.container_services",
-        "disk encryption sets": "mxgraph.azure.compute.disk_encryption_sets",
-        "disks": "mxgraph.azure.compute.disks",
-        "image templates": "mxgraph.azure.compute.image_templates",
-        "images": "mxgraph.azure.compute.images",
-        "kubernetes services": "mxgraph.azure.compute.kubernetes_services",
-        "virtual machine": "mxgraph.azure.compute.vm",
-        "virtual machines": "mxgraph.azure.compute.vm",
-        "vm ": "mxgraph.azure.compute.vm",
-        " vm": "mxgraph.azure.compute.vm",
-        "vm scale sets": "mxgraph.azure.compute.vm_scale_sets",
+        "availability sets": "img/lib/azure2/compute/Availability_Sets.svg",
+        "batch accounts": "img/lib/azure2/compute/Batch_Accounts.svg",
+        "container instances": "img/lib/azure2/compute/Container_Instances.svg",
+        "container services": "img/lib/azure2/compute/Container_Services.svg",
+        "disk encryption sets": "img/lib/azure2/compute/Disk_Encryption_Sets.svg",
+        "disks": "img/lib/azure2/compute/Disks.svg",
+        "image templates": "img/lib/azure2/compute/Image_Templates.svg",
+        "images": "img/lib/azure2/compute/Images.svg",
+        "kubernetes services": "img/lib/azure2/compute/Kubernetes_Services.svg",
+        "virtual machine": "img/lib/azure2/compute/Virtual_Machine.svg",
+        "virtual machines": "img/lib/azure2/compute/Virtual_Machine.svg",
+        "vm ": "img/lib/azure2/compute/Virtual_Machine.svg",
+        " vm": "img/lib/azure2/compute/Virtual_Machine.svg",
+        "vm scale sets": "img/lib/azure2/compute/VM_Scale_Sets.svg",
 
         # Storage / Data
-        "adls gen1": "mxgraph.azure.storage.data_lake_storage",
-        "adls gen2": "mxgraph.azure.storage.data_lake_storage",  # corrected to Gen1 image
-        "data lake": "mxgraph.azure.storage.data_lake_storage",
-        "data lake storage": "mxgraph.azure.storage.data_lake_storage",
-        "data lake store gen1": "mxgraph.azure.storage.data_lake_storage",
-        "data lake storage gen1": "mxgraph.azure.storage.data_lake_storage",
-        "data lake store gen2": "mxgraph.azure.storage.data_lake_storage",
-        "data lake storage gen2": "mxgraph.azure.storage.data_lake_storage",
-        "sql database": "mxgraph.azure.databases.sql_database",
-        "sql server": "mxgraph.azure.databases.sql_server",
-        "sql stretch database": "mxgraph.azure.databases.azure_sql_server_stretch_databases",
-        "sql vm": "mxgraph.azure.databases.azure_sql_vm",
-        "sql managed instance": "mxgraph.azure.databases.sql_managed_instance",
-        "sql elastic pools": "mxgraph.azure.databases.sql_elastic_pools",
-        "instance pools": "mxgraph.azure.databases.instance_pools",
-        "oracle database": "mxgraph.azure.databases.oracle_database",
-        "azure data explorer clusters": "mxgraph.azure.databases.azure_data_explorer_clusters",
+        "adls gen1": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "adls gen2": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",  # corrected to Gen1 image
+        "data lake": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake storage": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake store gen1": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake storage gen1": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake store gen2": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "data lake storage gen2": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
+        "sql database": "img/lib/azure2/databases/SQL_Database.svg",
+        "sql server": "img/lib/azure2/databases/SQL_Server.svg",
+        "sql stretch database": "img/lib/azure2/databases/Azure_SQL_Server_Stretch_Databases.svg",
+        "sql vm": "img/lib/azure2/databases/Azure_SQL_VM.svg",
+        "sql managed instance": "img/lib/azure2/databases/SQL_Managed_Instance.svg",
+        "sql elastic pools": "img/lib/azure2/databases/SQL_Elastic_Pools.svg",
+        "instance pools": "img/lib/azure2/databases/Instance_Pools.svg",
+        "oracle database": "img/lib/azure2/databases/Oracle_Database.svg",
+        "azure data explorer clusters": "img/lib/azure2/databases/Azure_Data_Explorer_Clusters.svg",
 
         # AI / ML
-        "ai studio": "mxgraph.azure.ai_machine_learning.ai_studio",
-        "anomaly detector": "mxgraph.azure.ai_machine_learning.anomaly_detector",
-        "applied ai": "mxgraph.azure.ai_machine_learning.azure_applied_ai",
-        "batch ai": "mxgraph.azure.ai_machine_learning.batch_ai",
-        "bonsai": "mxgraph.azure.ai_machine_learning.bonsai",
-        "bot services": "mxgraph.azure.ai_machine_learning.bot_services",
-        "cognitive services": "mxgraph.azure.ai_machine_learning.cognitive_services",
-        "computer vision": "mxgraph.azure.ai_machine_learning.computer_vision",
-        "content moderators": "mxgraph.azure.ai_machine_learning.content_moderators",
-        "content safety": "mxgraph.azure.ai_machine_learning.content_safety",
-        "language understanding": "mxgraph.azure.ai_machine_learning.language_understanding",
-        "azure openai": "mxgraph.azure.ai_machine_learning.azure_openai",
-        "machine learning studio workspaces": "mxgraph.azure.ai_machine_learning.machine_learning_studio_workspaces",
-        "speech services": "mxgraph.azure.ai_machine_learning.speech_services",
-        "translator text": "mxgraph.azure.ai_machine_learning.translator_text",
+        "ai studio": "img/lib/azure2/ai_machine_learning/AI_Studio.svg",
+        "anomaly detector": "img/lib/azure2/ai_machine_learning/Anomaly_Detector.svg",
+        "applied ai": "img/lib/azure2/ai_machine_learning/Azure_Applied_AI_Services.svg",
+        "batch ai": "img/lib/azure2/ai_machine_learning/Batch_AI.svg",
+        "bonsai": "img/lib/azure2/ai_machine_learning/Bonsai.svg",
+        "bot services": "img/lib/azure2/ai_machine_learning/Bot_Services.svg",
+        "cognitive services": "img/lib/azure2/ai_machine_learning/Cognitive_Services.svg",
+        "computer vision": "img/lib/azure2/ai_machine_learning/Computer_Vision.svg",
+        "content moderators": "img/lib/azure2/ai_machine_learning/Content_Moderators.svg",
+        "content safety": "img/lib/azure2/ai_machine_learning/Content_Safety.svg",
+        "language understanding": "img/lib/azure2/ai_machine_learning/Language_Understanding.svg",
+        "azure openai": "img/lib/azure2/ai_machine_learning/Azure_OpenAI.svg",
+        "machine learning studio workspaces": "img/lib/azure2/ai_machine_learning/Machine_Learning_Studio_Workspaces.svg",
+        "speech services": "img/lib/azure2/ai_machine_learning/Speech_Services.svg",
+        "translator text": "img/lib/azure2/ai_machine_learning/Translator_Text.svg",
 
         # Analytics
-        "analysis services": "mxgraph.azure.analytics.analysis_services",
-        "azure databricks": "mxgraph.azure.analytics.azure_databricks",
-        "data factory": "mxgraph.azure.analytics.data_factory",
-        "data lake analytics": "mxgraph.azure.analytics.data_lake_analytics",
-        "endpoint analytics": "mxgraph.azure.analytics.endpoint_analytics",
-        "event hub clusters": "mxgraph.azure.analytics.event_hub_clusters",
-        "event hubs": "mxgraph.azure.analytics.event_hubs",
-        "log analytics workspaces": "mxgraph.azure.analytics.log_analytics_workspaces",
-        "stream analytics jobs": "mxgraph.azure.analytics.stream_analytics_jobs",
-        "synapse analytics": "mxgraph.azure.analytics.azure_synapse_analytics",
-        "azure workbooks": "mxgraph.azure.analytics.azure_workbooks",
+        "analysis services": "img/lib/azure2/analytics/Analysis_Services.svg",
+        "azure databricks": "img/lib/azure2/analytics/Azure_Databricks.svg",
+        "data factory": "img/lib/azure2/analytics/Data_Factories.svg",
+        "data lake analytics": "img/lib/azure2/analytics/Data_Lake_Analytics.svg",
+        "endpoint analytics": "img/lib/azure2/analytics/Endpoint_Analytics.svg",
+        "event hub clusters": "img/lib/azure2/analytics/Event_Hub_Clusters.svg",
+        "event hubs": "img/lib/azure2/analytics/Event_Hubs.svg",
+        "log analytics workspaces": "img/lib/azure2/analytics/Log_Analytics_Workspaces.svg",
+        "stream analytics jobs": "img/lib/azure2/analytics/Stream_Analytics_Jobs.svg",
+        "synapse analytics": "img/lib/azure2/analytics/Azure_Synapse_Analytics.svg",
+        "azure workbooks": "img/lib/azure2/analytics/Azure_Workbooks.svg",
 
         # App Services
-        "api management services": "mxgraph.azure.app_services.api_management_services",
-        "app service certificates": "mxgraph.azure.app_services.app_service_certificates",
-        "app service domains": "mxgraph.azure.app_services.app_service_domains",
-        "app service environments": "mxgraph.azure.app_services.app_service_environments",
-        "app service plans": "mxgraph.azure.app_services.app_service_plans",
-        "app services": "mxgraph.azure.app_services.app_services",
-        "cdn profiles": "mxgraph.azure.app_services.cdn_profiles",
-        "notification hubs": "mxgraph.azure.app_services.notification_hubs",
-        "search services": "mxgraph.azure.app_services.search_services",
+        "api management services": "img/lib/azure2/app_services/API_Management_Services.svg",
+        "app service certificates": "img/lib/azure2/app_services/App_Service_Certificates.svg",
+        "app service domains": "img/lib/azure2/app_services/App_Service_Domains.svg",
+        "app service environments": "img/lib/azure2/app_services/App_Service_Environments.svg",
+        "app service plans": "img/lib/azure2/app_services/App_Service_Plans.svg",
+        "app services": "img/lib/azure2/app_services/App_Services.svg",
+        "cdn profiles": "img/lib/azure2/app_services/CDN_Profiles.svg",
+        "notification hubs": "img/lib/azure2/app_services/Notification_Hubs.svg",
+        "search services": "img/lib/azure2/app_services/Search_Services.svg",
 
         # Security / Identity
-        "active directory": "mxgraph.azure.identity.active_directory",
-        "entra id": "mxgraph.azure.identity.active_directory",
-        "entra connect": "mxgraph.azure.identity.entra_connect",
-        "entra domain services": "mxgraph.azure.identity.entra_domain_services",
-        "entra global secure access": "mxgraph.azure.identity.entra_global_secure_access",
-        "entra id protection": "mxgraph.azure.identity.entra_id_protection",
-        "entra internet access": "mxgraph.azure.identity.entra_internet_access",
-        "entra managed identities": "mxgraph.azure.identity.entra_managed_identities",
-        "entra private access": "mxgraph.azure.identity.entra_private_access",
-        "entra pim": "mxgraph.azure.identity.entra_privileged_identity_management",
-        "entra verified id": "mxgraph.azure.identity.entra_verified_id",
-        "entra identity": "mxgraph.azure.identity.entra_identity",
-        "active directory connect health": "mxgraph.azure.identity.active_directory_connect_health",
-        "azure defender": "mxgraph.azure.security.azure_defender",
-        "defender": "mxgraph.azure.security.defender",
-        "defender easm": "mxgraph.azure.security.ms_defender_easm",
-        "dependency monitor": "mxgraph.azure.security.dependency_monitor",
-        "key vault": "mxgraph.azure.security.key_vaults",
-        "tenant key": "mxgraph.azure.security.tenant_key",
-        "key": "mxgraph.azure.security.key",
+        "active directory": "img/lib/azure2/identity/Azure_Active_Directory.svg",
+        "entra id": "img/lib/azure2/identity/Azure_Active_Directory.svg",
+        "entra connect": "img/lib/azure2/identity/Entra_Connect.svg",
+        "entra domain services": "img/lib/azure2/identity/Entra_Domain_Services.svg",
+        "entra global secure access": "img/lib/azure2/identity/Entra_Global_Secure_Access.svg",
+        "entra id protection": "img/lib/azure2/identity/Entra_ID_Protection.svg",
+        "entra internet access": "img/lib/azure2/identity/Entra_Internet_Access.svg",
+        "entra managed identities": "img/lib/azure2/identity/Entra_Managed_Identities.svg",
+        "entra private access": "img/lib/azure2/identity/Entra_Private_Access.svg",
+        "entra pim": "img/lib/azure2/identity/Entra_Privileged_Identity_Management.svg",
+        "entra verified id": "img/lib/azure2/identity/Entra_Verified_ID.svg",
+        "entra identity": "img/lib/azure2/identity/Entra_Identity.svg",
+        "active directory connect health": "img/lib/azure2/identity/Active_Directory_Connect_Health.svg",
+        "azure defender": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
+        "defender": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
+        "defender easm": "img/lib/azure2/security/Microsoft_Defender_EASM.svg",
+        "dependency monitor": "img/lib/azure2/security/Dependency_Monitor.svg",
+        "key vault": "img/lib/azure2/security/Key_Vaults.svg",
+        "tenant key": "img/lib/azure2/security/Tenant_Key.svg",
+        "key": "img/lib/azure2/security/Key.svg",
 
         # Governance / Monitoring
-        "activity log": "mxgraph.azure.management.activity_log",
-        "diagnostic settings": "mxgraph.azure.management.diagnostics_settings",
-        "metrics": "mxgraph.azure.management.metrics",
-        "monitor": "mxgraph.azure.management.monitor",
-        "network watcher": "mxgraph.azure.management.network_watcher",
-        "sap azure monitor": "mxgraph.azure.management.sap_azure_monitor",
-        "scale": "mxgraph.azure.management.scale",
+        "activity log": "img/lib/azure2/management_governance/Activity_Log.svg",
+        "diagnostic settings": "img/lib/azure2/management_governance/Diagnostics_Settings.svg",
+        "metrics": "img/lib/azure2/management_governance/Metrics.svg",
+        "monitor": "img/lib/azure2/management_governance/Monitor.svg",
+        "network watcher": "img/lib/azure2/networking/Network_Watcher.svg",
+        "sap azure monitor": "img/lib/azure2/management_governance/SAP_Azure_Monitor.svg",
+        "scale set": "img/lib/azure2/compute/VM_Scale_Sets.svg",
+        "scale": "img/lib/azure2/compute/VM_Scale_Sets.svg",
     }
 
     AWS_SHAPES = {
@@ -505,9 +506,6 @@ def save_drawio(xml_content) -> str:
 
         # Compute
         "emr cluster": "mxgraph.aws3.emr_cluster",
-
-        # Identity
-        "authentication entra id": "mxgraph.citrix2.authentication_ms_entra_id",
     }
 
     GCP_SHAPES = {
@@ -625,7 +623,7 @@ def save_drawio(xml_content) -> str:
         "sentinel": "mxgraph.gcp2.security_command_center",
         "chronicle": "mxgraph.gcp2.security_command_center",
         "chronicle siem": "mxgraph.gcp2.security_command_center",
-        "monitor": "mxgraph.gcp2.stackdriver",
+        "monitor": "mxgraph.gcp2.cloud_monitoring",
         "cloud monitoring": "mxgraph.gcp2.cloud_monitoring",
         "activity log": "mxgraph.gcp2.stackdriver",
         "cloud logging": "mxgraph.gcp2.cloud_logging",
@@ -641,19 +639,14 @@ def save_drawio(xml_content) -> str:
     }
         
     AZURE_CONTAINERS = {
-        "auto scaling group": "mxgraph.aws4.group_auto_scaling_group",
-        "cluster": "mxgraph.veeam.cluster",
-        "dr site": "mxgraph.veeam.dr_site",
-        "hyper-v host": "mxgraph.veeam.hyper_v_host",
-        "server stack": "mxgraph.veeam.server_stack",
-        "virtual network": "img/lib/azure2/networking/Virtual_Network.svg",
-        "vnet": "img/lib/azure2/networking/Virtual_Network.svg",
+        "virtual network": "img/lib/azure2/networking/Virtual_Networks.svg",
+        "vnet": "img/lib/azure2/networking/Virtual_Networks.svg",
         "subnet": "img/lib/azure2/networking/Subnet.svg",
         "resource group": "img/lib/azure2/general/Resource_Groups.svg",
         "management group": "img/lib/azure2/general/Management_Groups.svg",
-        "region": "img/lib/azure2/general/Region.svg",
+        "region": "img/lib/azure2/general/Region_Management.svg",
         "availability zone": "img/lib/azure2/general/Availability_Zones.svg",
-        "landing zone": "img/lib/azure2/general/Region.svg",
+        "landing zone": "img/lib/azure2/general/Region_Management.svg",
         "purview": "img/lib/azure2/databases/Azure_Purview_Accounts.svg",
         "devops": "img/lib/azure2/devops/Azure_DevOps.svg",
         "machine learning workspace": "img/lib/azure2/ai_machine_learning/Machine_Learning.svg",
@@ -665,15 +658,24 @@ def save_drawio(xml_content) -> str:
         "data lake storage": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
         "data lake storage gen1": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",
         "data lake storage gen2": "img/lib/azure2/storage/Data_Lake_Storage_Gen1.svg",  # corrected
-        "azure defender": "img/lib/azure2/security/Azure_Defender.svg",
-        "defender": "img/lib/azure2/security/Azure_Defender.svg",
+        "azure defender": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
+        "defender": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
     }
 
     AWS_CONTAINERS = {
-        "vpc": "img/lib/aws4/networking_content/Virtual-private-cloud.svg",
-        "subnet": "img/lib/aws4/networking_content/Subnet.svg",
-        "region": "img/lib/aws4/general/Region.svg",
-        "availability zone": "img/lib/aws4/general/Availability-zone.svg",
+        # "aws4group:<grIcon>:<strokeColor>" is a special marker (not a
+        # real style fragment) detected in _apply_shape_mappings. Verified
+        # against multiple independent real-world .drawio files: AWS4
+        # containers use a native vector group shape
+        # (shape=mxgraph.aws4.group;grIcon=...;) -- NOT an image path.
+        # There is no confirmed img/lib/aws4/... equivalent for these.
+        "aws cloud": "aws4group:mxgraph.aws4.group_aws_cloud_alt:#232F3E",
+        "vpc": "aws4group:mxgraph.aws4.group_vpc2:#8C4FFF",
+        "public subnet": "aws4group:mxgraph.aws4.group_security_group:#7AA116",
+        "private subnet": "aws4group:mxgraph.aws4.group_security_group:#147EBA",
+        "subnet": "aws4group:mxgraph.aws4.group_security_group:#7AA116",
+        "region": "aws4group:mxgraph.aws4.group_region:#00A4A6",
+        "availability zone": "aws4group:mxgraph.aws4.group_availability_zone:#232F3E",
     }
 
     GCP_CONTAINERS = {
@@ -698,21 +700,39 @@ def save_drawio(xml_content) -> str:
 
     def _fix_invalid_arrays(xml: str) -> str:
         """
-        Repairs malformed <Array points="x y x y"> tags into valid Draw.io format.
+        Repairs malformed <Array points="..."> tags into valid Draw.io format
+        (<Array as="points"><mxPoint x=".." y=".."/>...</Array>).
+
+        Handles BOTH coordinate formats LLMs tend to emit:
+          - flat space-separated:  points="10 20 30 40"
+          - comma-separated pairs: points="10,20 30,40"
+
+        The previous implementation always split on whitespace only, so a
+        comma-separated payload like "10,20 30,40" produced pts=["10,20",
+        "30,40"] and then emitted <mxPoint x="10,20" y="30,40" />, which
+        draw.io cannot parse as a numeric coordinate. That silently broke
+        edge waypoints (edges snapping to 0,0 or vanishing) without ever
+        raising an XML-validity error, since the document was still
+        well-formed XML — just semantically wrong.
         """
         import re
 
+        def _split_pairs(raw: str):
+            raw = raw.strip()
+            if "," in raw:
+                pairs = []
+                for token in raw.split():
+                    parts = token.split(",")
+                    if len(parts) == 2:
+                        pairs.append((parts[0].strip(), parts[1].strip()))
+                return pairs
+            flat = raw.split()
+            return list(zip(flat[0::2], flat[1::2]))
+
         def convert(match):
-            pts = match.group(1).strip().split()
-            mxpts = []
-            for i in range(0, len(pts), 2):
-                try:
-                    x = pts[i]
-                    y = pts[i+1]
-                    mxpts.append(f'<mxPoint x="{x}" y="{y}" />')
-                except IndexError:
-                    continue
-            return '<Array as="points">' + "".join(mxpts) + '</Array>'
+            pairs = _split_pairs(match.group(1))
+            mxpts = "".join(f'<mxPoint x="{x}" y="{y}" />' for x, y in pairs)
+            return '<Array as="points">' + mxpts + '</Array>'
 
         # Fix self-closing <Array points="..."/>
         xml = re.sub(r'<Array\s+points="([^"]+)"\s*/>', convert, xml)
@@ -754,6 +774,209 @@ def save_drawio(xml_content) -> str:
 
         return provider or "azure"
 
+    _AZURE_LEGACY_REF_RE = re.compile(r'shape=mxgraph\.azure\.([a-zA-Z_]+)\.([a-zA-Z0-9_]+);?')
+    _AZURE_CATEGORY_FIX = {"management": "management_governance", "network": "networking"}
+    _AZURE_ACRONYMS = {
+        "vm", "vms", "sql", "dns", "vpn", "ip", "ai", "ml", "iot", "api", "cdn", "waf",
+        "nat", "bgp", "ddos", "tls", "ssl", "mfa", "rbac", "siem", "soar", "hsm", "kms",
+        "adls", "id", "sap",
+    }
+    # (category, name) -> (override_category_or_None, override_title). These
+    # are cases where the generic acronym-aware title-casing transform isn't
+    # enough -- either the real Azure icon has an entirely different display
+    # name (e.g. there is no standalone "VPN Gateway" icon at all; it's
+    # "Virtual Network Gateways"), is pluralized differently, or lives under
+    # a different category folder than the one originally assigned. Verified
+    # against draw.io's real shipped assets / the official Azure Architecture
+    # Icons catalog.
+    _AZURE_NAME_OVERRIDES = {
+        ("ai_machine_learning", "azure_openai"): (None, "Azure_OpenAI"),
+        ("security", "ms_defender_easm"): (None, "Microsoft_Defender_EASM"),
+        ("storage", "data_lake_storage"): (None, "Data_Lake_Storage_Gen1"),
+        ("networking", "vpn_gateway"): (None, "Virtual_Network_Gateways"),
+        ("networking", "application_gateway"): (None, "Application_Gateways"),
+        ("management", "network_watcher"): ("networking", "Network_Watcher"),
+        ("general", "region"): (None, "Region_Management"),
+        ("general", "landing_zone"): (None, "Region_Management"),
+        ("networking", "virtual_network"): (None, "Virtual_Networks"),
+        ("compute", "vm"): (None, "Virtual_Machine"),
+        ("management", "scale"): ("compute", "VM_Scale_Sets"),
+        ("security", "defender"): (None, "Microsoft_Defender_for_Cloud"),
+        ("security", "azure_defender"): (None, "Microsoft_Defender_for_Cloud"),
+        ("identity", "active_directory"): (None, "Azure_Active_Directory"),
+        ("identity", "entra_id"): (None, "Azure_Active_Directory"),
+        ("analytics", "data_factory"): (None, "Data_Factories"),
+        ("ai_machine_learning", "applied_ai"): (None, "Azure_Applied_AI_Services"),
+    }
+
+    def _azure_title_segment(seg: str) -> str:
+        return seg.upper() if seg.lower() in _AZURE_ACRONYMS else seg.capitalize()
+
+    def _azure_legacy_ref_to_image(category: str, name: str) -> str:
+        override = _AZURE_NAME_OVERRIDES.get((category, name))
+        if override:
+            override_cat, title = override
+            cat = override_cat or _AZURE_CATEGORY_FIX.get(category, category)
+            return f"img/lib/azure2/{cat}/{title}.svg"
+        cat = _AZURE_CATEGORY_FIX.get(category, category)
+        title = "_".join(_azure_title_segment(p) for p in name.split("_"))
+        return f"img/lib/azure2/{cat}/{title}.svg"
+
+    # Specific img/lib/azure2/... paths that are already in the correct
+    # "image=" form syntactically, but point at a filename that doesn't
+    # actually exist in draw.io's real Azure2 icon set (verified against
+    # the official Azure Architecture Icons catalog). These can appear
+    # already-baked into a style (e.g. from an earlier generation, or
+    # hardcoded directly by an LLM) without ever going through
+    # _repair_legacy_azure_shapes, since that function only catches the
+    # older "shape=mxgraph.azure.<category>.<name>" pattern -- this one
+    # corrects already-image-formatted but wrong references directly.
+    _AZURE_KNOWN_BAD_IMAGE_PATHS = {
+        "img/lib/azure2/networking/VPN_Gateway.svg": "img/lib/azure2/networking/Virtual_Network_Gateways.svg",
+        "img/lib/azure2/networking/Application_Gateway.svg": "img/lib/azure2/networking/Application_Gateways.svg",
+        "img/lib/azure2/networking/Virtual_Network.svg": "img/lib/azure2/networking/Virtual_Networks.svg",
+        "img/lib/azure2/general/Region.svg": "img/lib/azure2/general/Region_Management.svg",
+        "img/lib/azure2/management_governance/Network_Watcher.svg": "img/lib/azure2/networking/Network_Watcher.svg",
+        "img/lib/azure2/compute/VM.svg": "img/lib/azure2/compute/Virtual_Machine.svg",
+        "img/lib/azure2/management_governance/Scale.svg": "img/lib/azure2/compute/VM_Scale_Sets.svg",
+        "img/lib/azure2/security/Defender.svg": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
+        "img/lib/azure2/security/Azure_Defender.svg": "img/lib/azure2/security/Microsoft_Defender_for_Cloud.svg",
+        "img/lib/azure2/identity/Active_Directory.svg": "img/lib/azure2/identity/Azure_Active_Directory.svg",
+        "img/lib/azure2/analytics/Data_Factory.svg": "img/lib/azure2/analytics/Data_Factories.svg",
+        "img/lib/azure2/ai_machine_learning/Azure_Applied_AI.svg": "img/lib/azure2/ai_machine_learning/Azure_Applied_AI_Services.svg",
+    }
+
+    def _repair_known_bad_image_paths(style: str) -> str:
+        for bad, good in _AZURE_KNOWN_BAD_IMAGE_PATHS.items():
+            if bad in style:
+                style = style.replace(bad, good)
+        return style
+
+    def _repair_legacy_azure_shapes(style: str) -> str:
+        """
+        LLM-authored XML sometimes hardcodes shape=mxgraph.azure.<category>.<name>
+        directly, bypassing our AZURE_SHAPES dictionary lookup entirely. That
+        nested-category vector-stencil form does not exist in draw.io's real
+        stencil catalog for Azure -- verified directly against draw.io's own
+        shipped assets (github.com/jgraph/drawio): the modern Azure icon set
+        is distributed ONLY as raw SVGs under img/lib/azure2/, and the
+        separate, real "mxgraph.azure" vector stencil set is flat (shape
+        names like "AutoScale" -- no nested "networking."/"compute."
+        categories). Repair any such reference in place, converting it to
+        the real image style using the same category/name already chosen.
+        """
+        def repl(m):
+            img = _azure_legacy_ref_to_image(m.group(1), m.group(2))
+            return f"image;aspect=fixed;html=1;image={img};"
+        return _AZURE_LEGACY_REF_RE.sub(repl, style)
+
+    def _style_for_shape_ref(ref: str) -> str:
+        """
+        Real draw.io icon sets are NOT all addressed the same way. Verified
+        directly against draw.io's own shipped assets (github.com/jgraph/drawio)
+        and real-world exports:
+
+          - Modern Azure icon set: image-only, no vector stencil namespace.
+            (ref ending in .svg / starting with img/ -> rendered as an image.)
+          - Modern AWS4 *individual service* icons: NOT directly renderable
+            via a bare shape=mxgraph.aws4.<name> reference. They must be
+            wrapped in the resourceIcon carrier shape, e.g. AWS Lambda is
+            shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+            -- a bare shape=mxgraph.aws4.lambda is not a registered stencil
+            on its own. (AWS4 *group/container* shapes, e.g.
+            mxgraph.aws4.group, are the one exception and ARE used bare.)
+          - GCP2 and legacy AWS3: directly renderable via a bare shape=
+            reference (confirmed working real-world usage).
+        """
+        if ref.endswith(".svg") or ref.startswith("img/"):
+            return f"image;aspect=fixed;html=1;image={ref};"
+        if ref.startswith("mxgraph.aws4.") and not ref.startswith("mxgraph.aws4.group"):
+            return (
+                "sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;"
+                "fillColor=#ED7100;strokeColor=#ffffff;dashed=0;"
+                "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
+                f"fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon={ref};"
+            )
+        return f"shape={ref};"
+
+    _AWS4_BARE_ICON_RE = re.compile(r'shape=mxgraph\.aws4\.(?!resourceIcon|productIcon|group)([a-zA-Z0-9_]+);?')
+
+    def _repair_bare_aws4_icons(style: str) -> str:
+        """
+        Same idea as _repair_legacy_azure_shapes: LLM-authored XML sometimes
+        hardcodes a bare shape=mxgraph.aws4.<name> directly, bypassing our
+        AWS_SHAPES dictionary entirely. Since that form isn't a registered
+        stencil for individual AWS4 service icons, repair it in place using
+        the same resourceIcon wrapper.
+        """
+        def repl(m):
+            return _style_for_shape_ref(f"mxgraph.aws4.{m.group(1)}")
+        return _AWS4_BARE_ICON_RE.sub(repl, style)
+
+    _IMAGE_SHAPE_COLLISION_RE = re.compile(r'^image;aspect=fixed;html=1;image=([^;]+);(.*)$')
+    _BOX_STYLE_SIGNAL_RE = re.compile(r'(^|;)(shape=|fillColor=|strokeColor=|whiteSpace=wrap)')
+
+    def _repair_image_shape_collision(style: str) -> str:
+        """
+        Repairs a real, observed bug: a style beginning with the bare
+        "image" shape token (image;aspect=fixed;html=1;image=X;) followed
+        by box-styling properties (an explicit shape=..., or fillColor/
+        strokeColor/whiteSpace=wrap -- the signature of a deliberately
+        styled labeled box). A bare "image" shape only ever draws the
+        image itself; it silently ignores fillColor/strokeColor/
+        whiteSpace=wrap entirely, and if something later also sets an
+        explicit shape=..., mxGraph's last-write-wins style resolution
+        cancels the image shape outright. Either way, the intended
+        labeled box (background, border, wrapped label text) is lost.
+
+        Convert to the safe, already-proven pattern used elsewhere in
+        these diagrams: keep the box styling as the cell's real shape,
+        and attach the icon as a small corner overlay instead
+        (image=X;imageWidth=24;imageHeight=24;spacingTop=4;).
+        """
+        m = _IMAGE_SHAPE_COLLISION_RE.match(style)
+        if not m:
+            return style
+        image_ref, rest = m.group(1), m.group(2)
+        if not _BOX_STYLE_SIGNAL_RE.search(rest):
+            return style  # genuinely just a bare image icon -- nothing to fix
+        if rest and not rest.endswith(";"):
+            rest += ";"
+        return f"{rest}image={image_ref};imageWidth=24;imageHeight=24;spacingTop=4;"
+
+    def _best_match(value: str, mapping: dict):
+        """
+        Finds the mapping entry whose key best matches `value`, using
+        word-boundary matching and preferring the most specific (longest)
+        key when more than one matches — regardless of the mapping's
+        declaration order.
+
+        This replaces a naive `if key in value` ordered substring scan,
+        which had two concrete failure modes:
+          1. Generic single-word keys (e.g. "region", "cluster", "key")
+             would match as a *substring* of any longer, unrelated label
+             that happened to contain that word, silently mis-mapping the
+             cell (e.g. a "West US Region storage account" leaf node
+             getting matched by the "region" container key). Correctness
+             depended entirely on manually keeping specific keys ordered
+             before generic ones in the dict literal.
+          2. Padding hacks like " vm" / "vm " (to approximate a word
+             boundary) failed to match a label that IS exactly "VM" with
+             no surrounding whitespace at all.
+        """
+        candidates = []
+        for key, target in mapping.items():
+            key_norm = key.strip()
+            if not key_norm:
+                continue
+            pattern = r'(?<!\w)' + re.escape(key_norm) + r'(?!\w)'
+            if re.search(pattern, value):
+                candidates.append((len(key_norm), target))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda pair: pair[0], reverse=True)
+        return candidates[0][1]
+
     def _apply_shape_mappings(raw_xml: str) -> str:
         """
         Parses the XML, detects the cloud provider, and upgrades generic
@@ -776,7 +999,49 @@ def save_drawio(xml_content) -> str:
         if not shape_map and not container_map:
             return raw_xml
 
-        for cell in root.findall(".//mxCell"):
+        all_cells = root.findall(".//mxCell")
+
+        # Repair any hardcoded fictional shape=mxgraph.azure.<category>.<name>
+        # references first, regardless of detected provider or label text --
+        # this fixes shapes an LLM wrote directly into the style attribute,
+        # bypassing our dictionary lookup entirely.
+        for cell in all_cells:
+            style = cell.get("style")
+            if not style:
+                continue
+            original = style
+            if "shape=mxgraph.azure." in style:
+                style = _repair_legacy_azure_shapes(style)
+            if "shape=mxgraph.aws4." in style:
+                style = _repair_bare_aws4_icons(style)
+            if "img/lib/azure2/" in style:
+                style = _repair_known_bad_image_paths(style)
+            if style.startswith("image;"):
+                style = _repair_image_shape_collision(style)
+            if style != original:
+                cell.set("style", style)
+
+        # Structural evidence for "is this actually a container?" — a cell
+        # should only be turned into a full-bleed background/group image if
+        # something else genuinely nests inside it (another cell points at
+        # it via parent=) or its style already declares container/group
+        # semantics. Previously this was decided purely from label-text
+        # substring matching, which meant an ordinary leaf service icon
+        # whose label happened to contain a generic word like "region" or
+        # "cluster" got swapped for a giant background container image
+        # sized for a completely different kind of shape.
+        parent_ids = {c.get("parent") for c in all_cells if c.get("parent")}
+
+        # Needed for the corner-badge icon on containers (see below).
+        provider_accent = {
+            "azure": "#0078D4",
+            "aws": "#FF9900",
+            "gcp": "#4285F4",
+        }.get(provider, "#666666")
+        root_container_el = root.find(".//root")
+        existing_ids = {c.get("id") for c in all_cells if c.get("id")}
+
+        for cell in all_cells:
             if cell.get("vertex") != "1":
                 continue
 
@@ -785,60 +1050,322 @@ def save_drawio(xml_content) -> str:
                 continue
 
             style = cell.get("style", "") or ""
+            cell_id = cell.get("id")
+            already_container_like = "container=1" in style or "swimlane" in style
+            has_children = cell_id is not None and cell_id in parent_ids
 
-            # 1) Container mapping (VNet, Subnet, Region, etc.) – image-based
-            matched_container = None
-            for key, img_path in container_map.items():
-                if key in value:
-                    matched_container = img_path
-                    break
+            # 1) Container mapping (VNet, Subnet, Region, etc.), gated on
+            #    real structural evidence that this cell is a container,
+            #    not just label text.
+            if has_children or already_container_like:
+                matched_container = _best_match(value, container_map)
+                if matched_container:
+                    if matched_container.startswith("aws4group:"):
+                        # Confirmed-native AWS4 vector group container,
+                        # verified against multiple independent real-world
+                        # .drawio files. Unlike Azure (image-only) or the
+                        # generic fallback below, AWS4 has a REAL vector
+                        # stencil for this exact purpose -- shape=
+                        # mxgraph.aws4.group;grIcon=...; -- so we use it
+                        # directly instead of a plain dashed rectangle.
+                        # The grIcon already renders a small badge as part
+                        # of the shape itself, so no separate badge cell
+                        # is needed here (unlike the image-based branch).
+                        _, gr_icon, stroke_color = matched_container.split(":", 2)
+                        style_parts = [
+                            "points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],"
+                            "[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],"
+                            "[0,0.75],[0,0.5],[0,0.25]]",
+                            "outlineConnect=0",
+                            "gradientColor=none",
+                            "html=1",
+                            "whiteSpace=wrap",
+                            "fontSize=12",
+                            "fontStyle=0",
+                            "container=1",
+                            "pointerEvents=0",
+                            "collapsible=0",
+                            "recursiveResize=0",
+                            "shape=mxgraph.aws4.group",
+                            f"grIcon={gr_icon}",
+                            f"strokeColor={stroke_color}",
+                            "fillColor=none",
+                            "verticalAlign=top",
+                            "align=left",
+                            "spacingLeft=30",
+                            f"fontColor={stroke_color}",
+                            "dashed=0",
+                        ]
+                        cell.set("style", ";".join(dict.fromkeys(style_parts)) + ";")
+                        continue
 
-            if matched_container:
-                # Overwrite style to be an image-based, stretchable container
-                # Keep some layout-related flags if present (rounded, dashed, etc.)
-                base_flags = []
-                if "rounded=1" in style:
-                    base_flags.append("rounded=1")
-                if "dashed=1" in style:
-                    base_flags.append("dashed=1")
-                if "whiteSpace=wrap" in style:
-                    base_flags.append("whiteSpace=wrap")
-                if "html=1" in style or not base_flags:
-                    base_flags.append("html=1")
+                    base_flags = []
+                    if "rounded=1" in style:
+                        base_flags.append("rounded=1")
+                    else:
+                        base_flags.append("rounded=0")
 
-                style_parts = [
-                    "shape=image",
-                    f"image={matched_container}",
-                    "aspect=fixed",
-                ] + base_flags
+                    # IMPORTANT: this is a plain dashed rectangle, not a
+                    # stretched SVG background image. Every verified
+                    # real-world draw.io Azure/AWS/GCP export uses this
+                    # pattern for VNet/subnet/region/resource-group
+                    # containers (e.g. AWS's own "shape=mxgraph.aws4.group"
+                    # container style, community Azure VNet templates) —
+                    # never a "shape=image" background. Stretching a
+                    # service-category SVG across an arbitrarily-sized
+                    # container is a known anti-pattern: the icon's native
+                    # aspect ratio rarely matches the container, and if the
+                    # image path doesn't resolve in the viewer's
+                    # environment the whole container renders as a broken
+                    # placeholder instead of a container at all — which is
+                    # exactly what was still going wrong here.
+                    style_parts = [
+                        "whiteSpace=wrap",
+                        "html=1",
+                        "fillColor=none",
+                        f"strokeColor={provider_accent}",
+                        "dashed=1",
+                        "verticalAlign=top",
+                        "align=left",
+                        "fontStyle=1",
+                        "spacingLeft=8",
+                        "spacingTop=6",
+                        "container=1",
+                        "collapsible=0",
+                        "recursiveResize=0",
+                        "pointerEvents=0",
+                    ] + base_flags
 
-                cell.set("style", ";".join(style_parts) + ";")
-                # Once treated as container, we don't also treat it as a service icon
+                    cell.set("style", ";".join(dict.fromkeys(style_parts)) + ";")
+
+                    # Small, correctly-sized (non-stretched) badge icon in
+                    # the container's top-right corner, reusing the same
+                    # reference image — this mirrors how real AWS exports
+                    # attach a small "grIcon" to group containers, instead
+                    # of stretching the icon to fill the whole box.
+                    if root_container_el is not None and cell_id:
+                        geom = cell.find("mxGeometry")
+                        try:
+                            cw = float(geom.get("width")) if geom is not None else None
+                        except (TypeError, ValueError):
+                            cw = None
+                        badge_id = f"{cell_id}_badge"
+                        if cw and cw >= 60 and badge_id not in existing_ids:
+                            badge = ET.Element("mxCell", {
+                                "id": badge_id,
+                                "value": "",
+                                "style": _style_for_shape_ref(matched_container),
+                                "vertex": "1",
+                                "parent": cell_id,
+                            })
+                            ET.SubElement(badge, "mxGeometry", {
+                                "x": str(cw - 34), "y": "6", "width": "28", "height": "28", "as": "geometry"
+                            })
+                            root_container_el.append(badge)
+                            existing_ids.add(badge_id)
+
+                    # Once treated as a container, don't also treat it as a
+                    # plain service icon.
+                    continue
+
+            # 2) Service icon mapping – only if not already platform-specific
+            #    (either a vector stencil, or an already-set azure2 image ref).
+            if "shape=mxgraph." in style or "image=img/lib/" in style:
                 continue
 
-            # 2) Service icon mapping (mxgraph.*) – only if not already platform-specific
-            if "shape=mxgraph." in style:
-                continue
-
-            matched_shape = None
-            for key, shape in shape_map.items():
-                if key in value:
-                    matched_shape = shape
-                    break
-
+            matched_shape = _best_match(value, shape_map)
             if not matched_shape:
                 continue
 
+            is_image_ref = matched_shape.endswith(".svg") or matched_shape.startswith("img/")
+            has_explicit_shape = bool(re.search(r'(^|;)shape=', style))
+
+            if has_explicit_shape:
+                # The cell already declares its own shape (e.g. shape=rect
+                # with fillColor/border/rounded corners -- a deliberately
+                # styled labeled box). mxGraph resolves style keys
+                # last-write-wins, so prepending a competing shape
+                # declaration in front of it gets silently cancelled by
+                # the cell's own later shape=..., leaving no icon
+                # rendered at all -- an observed real bug. Don't touch
+                # the existing shape key at all.
+                if is_image_ref:
+                    # Attach as a small corner icon overlay instead --
+                    # the same pattern already used correctly elsewhere
+                    # in these diagrams (image=...;imageWidth=;imageHeight=;).
+                    extra = f"image={matched_shape};imageWidth=24;imageHeight=24;spacingTop=4;"
+                    if style and not style.endswith(";"):
+                        style += ";"
+                    cell.set("style", style + extra)
+                else:
+                    # A vector stencil (AWS4/GCP2/etc.) can't be layered
+                    # as a simple image overlay on an existing custom
+                    # shape. Attach a small companion badge cell in the
+                    # corner instead -- same mechanism used for container
+                    # badges above.
+                    if root_container_el is not None and cell_id:
+                        geom = cell.find("mxGeometry")
+                        try:
+                            cwidth = float(geom.get("width")) if geom is not None else None
+                        except (TypeError, ValueError):
+                            cwidth = None
+                        badge_id = f"{cell_id}_badge"
+                        if cwidth and cwidth >= 60 and badge_id not in existing_ids:
+                            badge = ET.Element("mxCell", {
+                                "id": badge_id,
+                                "value": "",
+                                "style": _style_for_shape_ref(matched_shape),
+                                "vertex": "1",
+                                "parent": cell_id,
+                            })
+                            ET.SubElement(badge, "mxGeometry", {
+                                "x": str(cwidth - 30), "y": "4", "width": "24", "height": "24", "as": "geometry"
+                            })
+                            root_container_el.append(badge)
+                            existing_ids.add(badge_id)
+                continue
+
+            # No existing shape declaration on this cell -- safe to make
+            # the cell itself the icon shape directly.
             if style and not style.endswith(";"):
                 style += ";"
-            style = f"shape={matched_shape};" + style
-            cell.set("style", style)
+            cell.set("style", _style_for_shape_ref(matched_shape) + style)
 
         try:
             return ET.tostring(root, encoding="unicode")
         except Exception as e:
             logger.error(f"Failed to serialize XML after shape mapping: {e}")
             return raw_xml
+
+    def _validate_and_repair_mxgraph(tree):
+        """
+        Ensures the parsed document complies with the structural rules
+        draw.io's mxGraphModel format actually requires. Violations of
+        these rules are the most common reason a diagram that is
+        well-formed XML still fails to render, or renders with shapes
+        missing/misplaced/invisible — the failure is silent because
+        ET.fromstring() only checks XML well-formedness, not any of this.
+
+        Repairs performed (each one logged, never silent):
+          - Wraps a bare <mxGraphModel> or <root> fragment in the full
+            <mxfile><diagram><mxGraphModel> envelope draw.io itself writes,
+            since LLMs frequently emit only the inner graph body.
+          - Ensures the two mandatory scaffold cells exist: id="0" (the
+            root cell) and id="1" (the default layer, parent="0"). Without
+            these, draw.io can fail to open the file, or open it with
+            nothing on the canvas.
+          - Assigns parent="1" to any vertex/edge cell missing a parent.
+          - Reparents any cell whose parent id doesn't exist to "1"
+            instead of letting it silently disappear (draw.io drops cells
+            with a dangling parent reference rather than erroring).
+          - Injects a default 120x60 <mxGeometry> on any vertex missing
+            one — a vertex cell without geometry renders as zero-size /
+            invisible.
+
+        Raises ValueError for issues that shouldn't be silently patched:
+          - Duplicate mxCell ids (renaming them automatically risks
+            silently breaking edge source/target references instead of
+            surfacing a real problem).
+          - A <diagram> using draw.io's compressed (deflate+base64) text
+            content instead of inline XML — practically impossible for an
+            LLM to produce correctly by hand, so treated as a hard error
+            asking for uncompressed XML instead of attempting a guess-fix.
+
+        Returns (tree, notes) where notes is a list of human-readable
+        strings describing every repair that was applied, for logging.
+        """
+        import xml.etree.ElementTree as ET
+
+        notes = []
+        root_el = tree.getroot()
+
+        # --- 1. Normalize the envelope --------------------------------
+        if root_el.tag == "root":
+            graph_model = ET.Element("mxGraphModel")
+            graph_model.append(root_el)
+            root_el = graph_model
+            notes.append("Wrapped a bare <root> fragment in <mxGraphModel> (no wrapper was provided).")
+
+        if root_el.tag == "mxGraphModel":
+            mxfile = ET.Element("mxfile", {"host": "app.diagrams.net"})
+            diagram = ET.SubElement(mxfile, "diagram", {"id": "diagram1", "name": "Page-1"})
+            diagram.append(root_el)
+            root_el = mxfile
+            notes.append("Wrapped a bare <mxGraphModel> in <mxfile><diagram> (no file-level wrapper was provided).")
+
+        if root_el.tag != "mxfile":
+            raise ValueError(
+                f"Unrecognized DrawIO document root <{root_el.tag}>; expected <mxfile>, "
+                "<mxGraphModel>, or <root>."
+            )
+
+        tree = ET.ElementTree(root_el)
+
+        diagram_el = root_el.find(".//diagram")
+        if diagram_el is not None and diagram_el.text and diagram_el.text.strip() and diagram_el.find("mxGraphModel") is None:
+            raise ValueError(
+                "The <diagram> element contains compressed (deflate+base64) text content "
+                "instead of an inline <mxGraphModel>. Regenerate using uncompressed XML "
+                "directly inside <diagram>...</diagram>."
+            )
+
+        graph_model = root_el.find(".//mxGraphModel")
+        if graph_model is None:
+            raise ValueError("No <mxGraphModel> found inside <mxfile>/<diagram>; cannot validate structure.")
+
+        root_container = graph_model.find("root")
+        if root_container is None:
+            root_container = ET.SubElement(graph_model, "root")
+            notes.append("Added a missing <root> element inside <mxGraphModel>.")
+
+        cells = root_container.findall("mxCell")
+
+        # --- 2. Duplicate id detection (hard failure) -------------------
+        seen_ids = {}
+        for cell in cells:
+            cid = cell.get("id")
+            if cid is None:
+                continue
+            if cid in seen_ids:
+                raise ValueError(f'Duplicate mxCell id="{cid}" found; regenerate the diagram with unique ids.')
+            seen_ids[cid] = cell
+
+        # --- 3. Mandatory scaffold cells: id="0" and id="1" -------------
+        if "0" not in seen_ids:
+            cell0 = ET.Element("mxCell", {"id": "0"})
+            root_container.insert(0, cell0)
+            seen_ids["0"] = cell0
+            notes.append('Injected missing mandatory root cell id="0".')
+
+        if "1" not in seen_ids:
+            cell1 = ET.Element("mxCell", {"id": "1", "parent": "0"})
+            idx = list(root_container).index(seen_ids["0"]) + 1
+            root_container.insert(idx, cell1)
+            seen_ids["1"] = cell1
+            notes.append('Injected missing mandatory default-layer cell id="1" (parent="0").')
+
+        # --- 4. Parent integrity ----------------------------------------
+        valid_ids = set(seen_ids.keys())
+        for cell in root_container.findall("mxCell"):
+            cid = cell.get("id")
+            if cid in ("0", "1"):
+                continue
+            parent = cell.get("parent")
+            if not parent:
+                cell.set("parent", "1")
+                notes.append(f'mxCell id="{cid}" had no parent attribute; assigned parent="1".')
+            elif parent not in valid_ids:
+                notes.append(f'mxCell id="{cid}" referenced a missing parent "{parent}"; reparented to "1".')
+                cell.set("parent", "1")
+
+        # --- 5. Geometry integrity on vertices ----------------------------
+        for cell in root_container.findall("mxCell"):
+            if cell.get("vertex") == "1" and cell.find("mxGeometry") is None:
+                geom = ET.SubElement(cell, "mxGeometry", {"x": "0", "y": "0", "width": "120", "height": "60"})
+                geom.set("as", "geometry")
+                notes.append(f'mxCell id="{cell.get("id")}" (vertex) had no <mxGeometry>; injected a default 120x60 box.')
+
+        return tree, notes
 
     output_dir = os.path.join(PROJECT_ROOT, "output")
     path = os.path.join(output_dir, "cloudarch_drawio.xml")
@@ -885,7 +1412,7 @@ def save_drawio(xml_content) -> str:
 
         try:
             import xml.etree.ElementTree as ET
-            ET.fromstring(raw_xml)
+            parsed_tree = ET.ElementTree(ET.fromstring(raw_xml))
         except Exception as e:
             logger.error(f"Invalid XML content: {e}")
             raw_path = os.path.join(output_dir, "cloudarch_drawio_raw.xml")
@@ -895,6 +1422,22 @@ def save_drawio(xml_content) -> str:
                 "ERROR: Invalid XML provided. "
                 f"Raw XML written to {raw_path}. "
                 "Your last output was malformed or truncated. "
+                "You MUST regenerate the architecture."
+            )
+
+        try:
+            parsed_tree, repair_notes = _validate_and_repair_mxgraph(parsed_tree)
+            for note in repair_notes:
+                logger.warning(f"[DrawIO auto-repair] {note}")
+            raw_xml = ET.tostring(parsed_tree.getroot(), encoding="unicode")
+        except ValueError as e:
+            logger.error(f"DrawIO structural validation failed: {e}")
+            raw_path = os.path.join(output_dir, "cloudarch_drawio_raw.xml")
+            with open(raw_path, "w", encoding="utf-8") as rf:
+                rf.write(raw_xml)
+            return (
+                f"ERROR: Invalid DrawIO document structure — {e} "
+                f"Raw XML written to {raw_path}. "
                 "You MUST regenerate the architecture."
             )
 
