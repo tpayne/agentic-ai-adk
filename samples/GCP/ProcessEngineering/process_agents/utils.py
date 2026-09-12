@@ -496,16 +496,16 @@ def save_drawio(xml_content) -> str:
         "vpn connection": "mxgraph.aws3.vpn_connection",
         "client vpn": "mxgraph.aws4.client_vpn",
         "site to site vpn": "mxgraph.aws4.site_to_site_vpn",
-        "vpc": "mxgraph.aws3.vpc",
-        "vpc nat gateway": "mxgraph.aws3.vpc_nat_gateway",
-        "vpc peering": "mxgraph.aws3.vpc_peering",
+        "vpc": "mxgraph.aws4.vpc",
+        "vpc nat gateway": "mxgraph.aws4.nat_gateway",
+        "vpc peering": "mxgraph.aws4.peering",
         "elastic network interface": "mxgraph.aws4.elastic_network_interface",
         "elastic network adapter": "mxgraph.aws4.elastic_network_adapter",
         "network acl": "mxgraph.aws4.network_access_control_list",
         "cloud wan virtual pop": "mxgraph.aws4.cloud_wan_virtual_pop",
 
         # Compute
-        "emr cluster": "mxgraph.aws3.emr_cluster",
+        "emr cluster": "mxgraph.aws4.emr",
     }
 
     GCP_VERIFIED_ICONS = {
@@ -1019,6 +1019,33 @@ def save_drawio(xml_content) -> str:
             return f"image;aspect=fixed;html=1;image={img};"
         return _AZURE_LEGACY_REF_RE.sub(repl, style)
 
+    # Confirmed via real draw.io-generated files: these AWS4 identifiers
+    # are genuine "dedicated shapes" used bare (strokeColor=none;
+    # pointerEvents=1；no points array) rather than wrapped in the
+    # resourceIcon carrier. Growing this set only from directly-confirmed
+    # evidence, not guesses.
+    _AWS4_DEDICATED_SHAPES = {
+        "data_lake_resource_icon", "msk_amazon_msk_connect",
+        "nat_gateway", "peering",
+    }
+
+    # Confirmed via a real draw.io-generated AWS icon reference file:
+    # AWS4 resourceIcon-wrapped shapes use a category-specific fillColor,
+    # not one universal color. Only including colors directly confirmed
+    # by an example in that file -- Compute (orange, via Lambda) and
+    # Networking/Analytics (purple, via VPC/NAT/Peering/EMR, which all
+    # share the same confirmed hex).
+    _AWS4_NETWORKING_KEYWORDS = (
+        "vpc", "vpn", "nat", "peering", "network", "subnet", "route",
+        "gateway", "direct_connect", "transit", "elastic_network",
+        "client_vpn", "site_to_site", "cloud_wan", "emr",
+    )
+
+    def _aws4_fill_color(name: str) -> str:
+        if any(k in name for k in _AWS4_NETWORKING_KEYWORDS):
+            return "#8C4FFF"
+        return "#ED7100"
+
     def _style_for_shape_ref(ref: str) -> str:
         """
         Real draw.io icon sets are NOT all addressed the same way. Verified
@@ -1032,22 +1059,38 @@ def save_drawio(xml_content) -> str:
             Google Cloud Architecture Diagramming Tool export -- also
             rendered as an image.
           - Modern AWS4 *individual service* icons: NOT directly renderable
-            via a bare shape=mxgraph.aws4.<name> reference. They must be
-            wrapped in the resourceIcon carrier shape, e.g. AWS Lambda is
-            shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
-            -- a bare shape=mxgraph.aws4.lambda is not a registered stencil
-            on its own. (AWS4 *group/container* shapes, e.g.
-            mxgraph.aws4.group, are the one exception and ARE used bare.)
+            via a bare shape=mxgraph.aws4.<name> reference for MOST icons.
+            They must be wrapped in the resourceIcon carrier shape, e.g.
+            AWS Lambda is shape=mxgraph.aws4.resourceIcon;
+            resIcon=mxgraph.aws4.lambda; -- a bare shape=mxgraph.aws4.lambda
+            is not a registered stencil on its own. Confirmed (via a real
+            AWS icon reference export) that the wrapper also needs the
+            octagon points=[...] array and a category-specific fillColor,
+            not a single universal color. Exceptions used bare: AWS4
+            group/container shapes (mxgraph.aws4.group) and a confirmed
+            set of "dedicated shapes" (_AWS4_DEDICATED_SHAPES).
           - GCP2 and legacy AWS3: directly renderable via a bare shape=
             reference (confirmed working real-world usage).
         """
         if ref.endswith(".svg") or ref.startswith("img/") or ref.startswith("data:image/"):
             return f"image;aspect=fixed;html=1;image={ref};"
-        if ref.startswith("mxgraph.aws4.") and not ref.startswith("mxgraph.aws4.group"):
+        if ref.startswith("mxgraph.aws4."):
+            name = ref[len("mxgraph.aws4."):]
+            if name.startswith("group") or name in _AWS4_DEDICATED_SHAPES:
+                if name in _AWS4_DEDICATED_SHAPES:
+                    return (
+                        "sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;"
+                        f"fillColor={_aws4_fill_color(name)};strokeColor=none;dashed=0;"
+                        "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
+                        f"fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape={ref};"
+                    )
+                return f"shape={ref};"
             return (
-                "sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;"
-                "fillColor=#ED7100;strokeColor=#ffffff;dashed=0;"
-                "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
+                "sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],"
+                "[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],"
+                "[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;"
+                f"fontColor=#232F3E;fillColor={_aws4_fill_color(name)};strokeColor=#ffffff;"
+                "dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
                 f"fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon={ref};"
             )
         return f"shape={ref};"
