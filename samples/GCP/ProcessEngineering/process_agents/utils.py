@@ -345,6 +345,131 @@ def _validate_process_json(data: dict):
     return issues
 
 
+def _detect_schema_type(data: Any) -> str:
+    """
+    Auto-detects whether a JSON payload conforms to the process schema
+    (process_schema.json) or the design/HLD-LLD schema
+    (design_document_schema.json), based on structural fingerprinting.
+
+    - "document_metadata" as a top-level key is a low-ambiguity design
+      signal: it's the ONE required top-level property in
+      design_document_schema.json, and process_schema.json has no key
+      by that name.
+    - "process_name" / "process_steps" are equally distinctive process
+      signals.
+
+    Falls back to "process" whenever detection is ambiguous (not a dict,
+    or matches neither fingerprint), per the requirement that existing
+    process-schema behavior stays the default and is unaffected unless a
+    payload clearly indicates otherwise.
+    """
+    if isinstance(data, dict):
+        if "document_metadata" in data:
+            return "design"
+        if "process_name" in data or "process_steps" in data:
+            return "process"
+    return "process"
+
+
+def _validate_design_json(data: dict):
+    """
+    Validates a design document (HLD/LLD/Combined) JSON payload against
+    the structural requirements of design_document_schema.json.
+
+    Mirrors _validate_process_json's contract and depth intentionally:
+    top-level + one level of required-field checking, plus the
+    document_type-conditional section requirements (the allOf/if/then
+    rules in the schema) -- not a full recursive JSON Schema validation.
+    This matches process's existing validation depth and keeps the
+    design path at foundation level until fuller design-agent handling
+    is built out.
+
+    Returns:
+      - [] if valid
+      - list of issue objects if invalid
+      - None only if data is not a dict
+    """
+    if not isinstance(data, dict):
+        logger.error("Design JSON does not contain a JSON object.")
+        return None
+
+    issues = []
+
+    metadata = data.get("document_metadata")
+    if not isinstance(metadata, dict):
+        issues.append({
+            "location": "$.document_metadata",
+            "issue": "Missing or invalid required top-level key 'document_metadata'"
+        })
+        return issues
+
+    required_metadata_keys = [
+        "document_id", "document_type", "system_name", "title", "version", "status",
+    ]
+    for key in required_metadata_keys:
+        if key not in metadata:
+            issues.append({
+                "location": f"$.document_metadata.{key}",
+                "issue": f"Missing required key 'document_metadata.{key}'"
+            })
+
+    if issues:
+        return issues
+
+    doc_type = metadata.get("document_type")
+    valid_types = {"HLD", "LLD", "Combined"}
+    if doc_type not in valid_types:
+        issues.append({
+            "location": "$.document_metadata.document_type",
+            "issue": f"'document_type' must be one of {sorted(valid_types)}, got {doc_type!r}"
+        })
+        return issues
+
+    # Conditional section requirements, mirroring the allOf/if/then rules
+    # in design_document_schema.json.
+    if doc_type in ("HLD", "Combined") and not isinstance(data.get("high_level_design"), dict):
+        issues.append({
+            "location": "$.high_level_design",
+            "issue": f"Missing required section 'high_level_design' for document_type '{doc_type}'"
+        })
+    if doc_type in ("LLD", "Combined") and not isinstance(data.get("low_level_design"), dict):
+        issues.append({
+            "location": "$.low_level_design",
+            "issue": f"Missing required section 'low_level_design' for document_type '{doc_type}'"
+        })
+
+    return issues
+
+
+def _validator_for_schema(schema_type: str):
+    """Resolves which private validator a given schema_type dispatches to."""
+    return _validate_design_json if schema_type == "design" else _validate_process_json
+
+
+def _paths_for_schema(schema_type: str) -> dict:
+    """
+    Resolves the output/lock/template/raw-dump file paths for a given
+    schema type. Centralizes the process-vs-design path convention in
+    one place so the various load/save functions don't each hardcode it
+    separately. "process" paths are exactly the pre-existing hardcoded
+    paths, unchanged, to preserve default behavior.
+    """
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    if schema_type == "design":
+        return {
+            "data_file": os.path.join(output_dir, "design_data.json"),
+            "lock_file": os.path.join(output_dir, ".design_data.lock"),
+            "template_file": os.path.join(PROJECT_ROOT, "process_agents/templates/", "design_document_template.json"),
+            "raw_file": os.path.join(output_dir, "design_data_raw.json"),
+        }
+    return {
+        "data_file": os.path.join(output_dir, "process_data.json"),
+        "lock_file": os.path.join(output_dir, ".process_data.lock"),
+        "template_file": os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json"),
+        "raw_file": os.path.join(output_dir, "process_data_raw.json"),
+    }
+
+
 def save_drawio(xml_content) -> str:
     """
     Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
@@ -1736,18 +1861,23 @@ def save_drawio(xml_content) -> str:
     finally:
         release_lock()
 
-def _save_raw_data_to_json(json_content) -> str:
+def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
-    Saves the finalized JSON to output/process_data.json.
-    Includes robust repair logic for large/truncated LLM payloads.
-    Uses a lock file to prevent race conditions with concurrent reads/writes.
+    Saves the finalized JSON to output/process_data.json (or
+    output/design_data.json for a design payload). Includes robust
+    repair logic for large/truncated LLM payloads. Uses a lock file to
+    prevent race conditions with concurrent reads/writes.
+
+    schema_type: "process", "design", or None (default) to auto-detect
+    from json_content's shape via a lightweight preliminary parse, done
+    BEFORE any locking/repair/writing begins -- so the correct output
+    path is chosen from the start rather than switched mid-flight. If
+    json_content can't be cheaply parsed/fingerprinted at this stage
+    (e.g. it needs the fuller repair logic below), this falls back to
+    "process", preserving the original default behavior exactly.
 
     This is internal. The only exposed tool is persist_final_json.
     """
-    output_dir = os.path.join(PROJECT_ROOT, "output")
-    path = os.path.join(output_dir, "process_data.json")
-    lock_path = os.path.join(output_dir, ".process_data.lock")
-
     _safe_sleep_from_property("modelSleep", default=0.25)
     if (
         not json_content
@@ -1756,7 +1886,24 @@ def _save_raw_data_to_json(json_content) -> str:
     ):
         _log_agent_activity("No JSON content provided to persist_final_json.")
         return "INFO: No JSON content provided to persist_final_json, so nothing has been done."
-    
+
+    resolved_type = schema_type
+    if resolved_type is None:
+        probe = json_content if isinstance(json_content, dict) else None
+        if probe is None and isinstance(json_content, str):
+            try:
+                probe = json.loads(_extract_json_brace_balanced(json_content))
+            except Exception:
+                probe = None
+        resolved_type = _detect_schema_type(probe) if probe is not None else "process"
+
+    validator = _validator_for_schema(resolved_type)
+    paths = _paths_for_schema(resolved_type)
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    path = paths["data_file"]
+    lock_path = paths["lock_file"]
+    raw_path = paths["raw_file"]
+
     def acquire_lock(timeout: float = 5.0) -> bool:
         start = time.time()
         while time.time() - start < timeout:
@@ -1768,7 +1915,7 @@ def _save_raw_data_to_json(json_content) -> str:
                 except Exception as e:
                     logger.error(f"Failed to create lock file: {e}")
             time.sleep(0.1)
-        logger.error("Timeout acquiring process_data lock.")
+        logger.error(f"Timeout acquiring {resolved_type}_data lock.")
         return False
 
     def release_lock():
@@ -1797,7 +1944,6 @@ def _save_raw_data_to_json(json_content) -> str:
             raw_str = _extract_json_brace_balanced(raw_str)
         except Exception as e:
             logger.error(f"Failed to extract JSON object: {e}")
-            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -1828,7 +1974,6 @@ def _save_raw_data_to_json(json_content) -> str:
                     "json-repair library not found. "
                     "Install via 'pip install json-repair'. "
                 )
-                raw_path = os.path.join(output_dir, "process_data_raw.json")
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
                 return (
@@ -1839,7 +1984,6 @@ def _save_raw_data_to_json(json_content) -> str:
                 logger.error(
                     f"Repair failed: {str(repair_err)}. "
                 )
-                raw_path = os.path.join(output_dir, "process_data_raw.json")
                 with open(raw_path, "w", encoding="utf-8") as rf:
                     rf.write(raw_str)
                 return (
@@ -1851,7 +1995,6 @@ def _save_raw_data_to_json(json_content) -> str:
 
         if parsed is None:
             logger.error("Parsed JSON is None after validation/repair. ")
-            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -1861,9 +2004,21 @@ def _save_raw_data_to_json(json_content) -> str:
                 f"state using `load_master_process_json` and simplify the descriptions to fit the token limit."
             )
 
-        if _validate_process_json(parsed) is None:
+        # Re-check schema_type against the now-fully-parsed payload, in
+        # case the lightweight pre-parse above wasn't reachable (e.g. the
+        # content only became valid JSON after repair) and the caller
+        # didn't pin schema_type explicitly. This keeps auto-detection
+        # correct even when repair was needed.
+        if schema_type is None:
+            re_detected = _detect_schema_type(parsed)
+            if re_detected != resolved_type:
+                resolved_type = re_detected
+                validator = _validator_for_schema(resolved_type)
+                paths = _paths_for_schema(resolved_type)
+                path = paths["data_file"]
+
+        if validator(parsed) is None:
             logger.error("Parsed JSON is invalid. ")
-            raw_path = os.path.join(output_dir, "process_data_raw.json")
             with open(raw_path, "w", encoding="utf-8") as rf:
                 rf.write(raw_str)
             return (
@@ -1924,10 +2079,18 @@ from google.adk.tools.tool_context import ToolContext
 
 # process_agents/utils.py
             
-def validate_process_json(json_content: Any) -> dict:
+def validate_process_json(json_content: Any, schema_type: Optional[str] = None) -> dict:
     """
-    Public tool for agents to validate a process JSON structure.
-    Returns a structured list of issues.
+    Public tool for agents to validate a JSON structure against either
+    the process schema or the design (HLD/LLD/Combined) schema. Kept as
+    `validate_process_json` for backward compatibility with existing
+    callers -- despite the name, it now dispatches to whichever schema
+    the content matches.
+
+    schema_type: "process", "design", or None (default) to auto-detect
+    from the payload's shape (_detect_schema_type). When detection is
+    ambiguous, defaults to "process" -- unchanged behavior for existing
+    callers that never pass this new parameter.
     """
     _safe_sleep_from_property("modelSleep", default=0.25)
 
@@ -1939,7 +2102,8 @@ def validate_process_json(json_content: Any) -> dict:
             ]
         }
 
-    issues = _validate_process_json(json_content)
+    resolved_type = schema_type or _detect_schema_type(json_content)
+    issues = _validator_for_schema(resolved_type)(json_content)
 
     # None means catastrophic failure (not a dict)
     if issues is None:
@@ -1947,21 +2111,31 @@ def validate_process_json(json_content: Any) -> dict:
             "valid": False,
             "issues": [
                 {"location": "$", "issue": "Input is not a valid JSON object"}
-            ]
+            ],
+            "schema_type": resolved_type,
         }
 
     return {
         "valid": len(issues) == 0,
-        "issues": issues
+        "issues": issues,
+        "schema_type": resolved_type,
     }
 
 
-def persist_final_json(json_content) -> str:
+def persist_final_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Public tool for the LLM:
     - Logs that final persistence is starting.
-    - Calls the internal saver with the provided JSON content.
+    - Auto-detects (or accepts an explicit schema_type override) whether
+      json_content is a process document or a design document, validates
+      it against the matching schema, then calls the internal saver.
     - Returns the final path or error message.
+
+    Kept as `persist_final_json` for backward compatibility -- despite
+    the name, it now handles both schemas. schema_type: "process",
+    "design", or None (default, auto-detect; falls back to "process"
+    when ambiguous, preserving existing behavior for callers that don't
+    pass this new parameter).
     """
     _safe_sleep_from_property("modelSleep", default=0.25)
 
@@ -1976,8 +2150,12 @@ def persist_final_json(json_content) -> str:
     try:
         _log_agent_activity("Starting final JSON file persistence")
 
+        resolved_type = schema_type or (
+            _detect_schema_type(json_content) if isinstance(json_content, dict) else "process"
+        )
+
         # Validate BEFORE saving
-        issues = _validate_process_json(json_content)
+        issues = _validator_for_schema(resolved_type)(json_content)
         if issues is None:
             return "ERROR: JSON content is not a valid object."
 
@@ -1985,11 +2163,13 @@ def persist_final_json(json_content) -> str:
             logger.error(f"Validation issues: {issues}")
             return json.dumps({
                 "ERROR": "JSON validation failed",
+                "schema_type": resolved_type,
                 "issues": issues
             }, indent=2)
 
-        # Save using internal writer
-        result = _save_raw_data_to_json(json_content)
+        # Save using internal writer (re-detects if json_content was a
+        # string rather than a dict at this point, same fallback logic)
+        result = _save_raw_data_to_json(json_content, schema_type=schema_type)
 
         if isinstance(result, str) and "No changes detected" not in result:
             _log_agent_activity(f"File persistence result: {result}")
@@ -2165,10 +2345,15 @@ def save_iteration_feedback(feedback_data: Any):
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
 
-def _load_template_json(template_path: str) -> Optional[dict]:
+def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:
     """
     Loads a JSON template from the process_agents/templates directory.
     Returns the parsed JSON as a dict, or None if loading/parsing fails.
+
+    schema_type: "process" (default) or "design", selects which private
+    validator checks the loaded template. When schema_type is not given,
+    it defaults to "process" -- preserving the original behavior exactly
+    for existing callers.
     """
     if not os.path.exists(template_path):
         logger.error(f"Template file {template_path} not found.")
@@ -2180,9 +2365,24 @@ def _load_template_json(template_path: str) -> Optional[dict]:
             with open(template_path, "r", encoding="utf-8") as f:
                 template_data = json.load(f)
             # Validate template data before returning
-            issues = _validate_process_json(template_data)
+            validator = _validator_for_schema(schema_type or "process")
+            issues = validator(template_data)
             if issues is None or len(issues) > 0:
-                logger.error(f"Template file {template_path} is invalid or has issues: {issues}")
+                if schema_type == "design" and "document_metadata" not in (template_data or {}):
+                    # Defensive fallback: if the file at this path turns
+                    # out to be the formal JSON Schema (with
+                    # $schema/$defs/properties keywords) rather than the
+                    # instance-shaped design_document_template.json this
+                    # path is supposed to hold, give a clear diagnostic
+                    # instead of a confusing generic validation error.
+                    logger.warning(
+                        f"Template file {template_path} appears to be the formal design JSON "
+                        "Schema definition, not an instance-shaped template. Expected an "
+                        "instance-shaped design_document_template.json (mirroring "
+                        "process_schema.json's flat placeholder style) at this path."
+                    )
+                else:
+                    logger.error(f"Template file {template_path} is invalid or has issues: {issues}")
                 return None
             return template_data
         except Exception as e:
@@ -2192,28 +2392,53 @@ def _load_template_json(template_path: str) -> Optional[dict]:
         logger.error(f"Template file {template_path} does not exist.")
         return None    
 
-def load_process_template() -> Optional[dict]:
+def load_process_template(schema_type: Optional[str] = None) -> Optional[dict]:
     """
-    Loads the process template JSON from the templates directory.
-    This is used as a fallback if the master process JSON is missing or invalid.
-    Returns the template dict if successful, or None if loading/parsing fails.
-    """
-    template_path = os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json")
-    return _load_template_json(template_path)
+    Loads the process (or design) template JSON from the templates
+    directory. Used as a fallback when the master JSON is missing or
+    invalid. Returns the template dict if successful, or None if
+    loading/parsing fails.
 
-# Load the master process JSON from output/process_data.json
-def load_master_process_json() -> Union[dict, None]:
+    Kept as `load_process_template` for backward compatibility with
+    existing callers -- despite the name, it now dispatches by
+    schema_type. schema_type: "process" (default, unchanged behavior) or
+    "design". There is no auto-detection here since there's no JSON
+    payload to fingerprint yet at this point (we're loading the
+    fallback/starter template itself) -- callers that want the design
+    template must pass schema_type="design" explicitly.
     """
-    Loads and returns the contents of output/process_data.json as a Python dict.
+    resolved_type = schema_type or "process"
+    template_path = _paths_for_schema(resolved_type)["template_file"]
+    return _load_template_json(template_path, schema_type=resolved_type)
+
+# Load the master process (or design) JSON from output/process_data.json
+# (or output/design_data.json)
+def load_master_process_json(schema_type: Optional[str] = None) -> Union[dict, None]:
+    """
+    Loads and returns the contents of the master JSON file for the given
+    schema type as a Python dict. Kept as `load_master_process_json` for
+    backward compatibility -- despite the name, it now dispatches by
+    schema_type.
+
+    schema_type: "process" (default, unchanged behavior -- reads
+    output/process_data.json) or "design" (reads output/design_data.json).
+    There's no payload here to auto-detect from before the file is read,
+    so this defaults to "process" unless explicitly told otherwise,
+    matching the requirement that existing behavior is unaffected by
+    default.
 
     Returns:
-      - A valid dict if the file exists AND contains a structurally valid process JSON.
-      - None if the file is missing, unreadable, empty, locked, or contains validation issues.
+      - A valid dict if the file exists AND contains a structurally valid
+        JSON document for the resolved schema type.
+      - None if the file is missing, unreadable, empty, locked, or
+        contains validation issues.
     """
-
-    path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
-    template_path = os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json")
-    lock_path = os.path.join(PROJECT_ROOT, "output", ".process_data.lock")
+    resolved_type = schema_type or "process"
+    paths = _paths_for_schema(resolved_type)
+    path = paths["data_file"]
+    template_path = paths["template_file"]
+    lock_path = paths["lock_file"]
+    validator = _validator_for_schema(resolved_type)
 
     # Wait for lock to clear (writer in progress)
     start = time.time()
@@ -2226,7 +2451,7 @@ def load_master_process_json() -> Union[dict, None]:
     # File existence
     if not os.path.exists(path):
         logger.warning(f"{path} does not exist. Attempting to load template file {template_path}.")
-        return _load_template_json(template_path)
+        return _load_template_json(template_path, schema_type=resolved_type)
 
     try:
         # Read file content
@@ -2244,8 +2469,8 @@ def load_master_process_json() -> Union[dict, None]:
             logger.error(f"Failed to parse JSON in {path}: {e}")
             return None
 
-        # Validate using new issue-list validator
-        issues = _validate_process_json(data)
+        # Validate using the schema-appropriate issue-list validator
+        issues = validator(data)
         if issues is None:
             logger.error(f"Validation failed for {path}: not a JSON object.")
             return None
