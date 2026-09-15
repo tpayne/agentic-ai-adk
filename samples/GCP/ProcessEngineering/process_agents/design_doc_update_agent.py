@@ -4,7 +4,7 @@ import logging
 from google.adk.agents import LoopAgent, SequentialAgent
 
 from .utils import (
-    load_full_process_context,
+    load_full_design_context,
     getProperty,
     save_iteration_feedback,
     load_iteration_feedback,
@@ -65,9 +65,9 @@ stop_controller_agent_instance = ProcessAgent(
 update_design_doc_analysis_agent = ProcessLlmAgent(
     name="Design_Doc_Update_Analyst",
     description="Analyzes user requests for architectural changes and identifies required revisions against the existing design document.",
-    instruction_file="design_doc_analysis_agent.txt",
+    instruction_file="design_doc_update_analysis_agent.txt",
     tools=[
-        load_full_process_context,
+        load_full_design_context,
         load_iteration_feedback,
         log_analysis_metadata,
         save_iteration_feedback

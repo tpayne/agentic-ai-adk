@@ -228,6 +228,42 @@ def _log_agent_activity(message: str):
     _safe_sleep_from_property("modelSleep", default=0.25)
     logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
+def _remove_previous_stop_signal_logs():
+    """
+    Silently remove output/approval.json and the loop stop-counter log, so
+    a stale approval/stop signal from a previous run or a previous stage
+    doesn't cause a design-doc loop to exit early. Mirrors
+    design_doc_analysis_agent.py's local _remove_previous_approval_logs,
+    but lives here since log_design_metadata (unlike log_analysis_metadata)
+    is shared across multiple agent modules (HLD, LLD, Combined) rather
+    than owned by a single one.
+    """
+    approvalLog = os.path.join(PROJECT_ROOT, "output", "approval.json")
+    counterLog = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
+    try:
+        if os.path.exists(approvalLog):
+            os.remove(approvalLog)
+        if os.path.exists(counterLog):
+            os.remove(counterLog)
+    except Exception:
+        pass
+
+def log_design_metadata(status: str = "in_progress", document_type: str = "") -> str:
+    """
+    Shared tool for the design-doc agents (HLD, LLD, Combined): called at
+    the start of every iteration to log status and synchronize system
+    state (clearing any stale approval/stop-counter signal left over from
+    a previous stage or run, so this iteration is judged on its own
+    merits rather than an old signal).
+
+    status: free-text iteration status, e.g. "in_progress", "revising".
+    document_type: "HLD", "LLD", or "Combined" if known/relevant.
+    """
+    _safe_sleep_from_property("modelSleep", default=0.25)
+    _remove_previous_stop_signal_logs()
+    logger.debug(f"Design Metadata - Status: {status}, Document Type: {document_type or 'unspecified'}.")
+    return f"Design metadata logged (status={status})."
+
 def _extract_json_brace_balanced(text: str) -> str:
     """
     Extract the FIRST valid JSON object from a text blob using brace counting.
@@ -2182,14 +2218,37 @@ def persist_final_json(json_content, schema_type: Optional[str] = None) -> str:
         return "ERROR: persist_final_json encountered an unexpected failure."
 
 # Tool to load the full process context (master + subprocesses)
-def load_full_process_context() -> dict:
-    """Loads master process + subprocesses directly from disk. Never returns FATAL ERROR. Returns partial data if needed."""
+def load_full_process_context(schema_type: Optional[str] = None) -> dict:
+    """
+    Loads the master document + subprocesses directly from disk. Never
+    returns FATAL ERROR. Returns partial data if needed. Kept as
+    `load_full_process_context` (and the returned "master_process" key
+    kept as-is) for backward compatibility -- despite the name, it now
+    also serves design documents.
+
+    schema_type: "process", "design", or None (default) to auto-detect
+    by checking which master file exists on disk (preferring "process"
+    when both or neither exist, matching the original hardcoded-path
+    behavior for existing callers that never pass this new parameter).
+
+    "subprocesses" remains process-only (always empty for design) --
+    that concept doesn't have a design-schema equivalent yet.
+    """
+    resolved_type = schema_type
+    if resolved_type is None:
+        process_path = _paths_for_schema("process")["data_file"]
+        design_path = _paths_for_schema("design")["data_file"]
+        if os.path.exists(design_path) and not os.path.exists(process_path):
+            resolved_type = "design"
+        else:
+            resolved_type = "process"
+
     context = {
         "master_process": {},
         "subprocesses": [],
         "system_status": "PARTIAL"
     }
-    master_path = os.path.join(PROJECT_ROOT, "output", "process_data.json")
+    master_path = _paths_for_schema(resolved_type)["data_file"]
     if os.path.exists(master_path):
         try:
             with open(master_path, "r", encoding="utf-8") as f:
@@ -2197,14 +2256,15 @@ def load_full_process_context() -> dict:
                 context["system_status"] = "OK"
         except Exception as e:
             context["system_status"] = f"ERROR: {e}"
-    sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
-    if os.path.exists(sub_dir):
-        for file_path in glob.glob(os.path.join(sub_dir, "*.json")):
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    context["subprocesses"].append(json.load(f))
-            except Exception as e:
-                logger.error(f"Error loading {file_path}: {e}")
+    if resolved_type == "process":
+        sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
+        if os.path.exists(sub_dir):
+            for file_path in glob.glob(os.path.join(sub_dir, "*.json")):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        context["subprocesses"].append(json.load(f))
+                except Exception as e:
+                    logger.error(f"Error loading {file_path}: {e}")
     return context
 
 # Tool to load iteration feedback from output/iteration_feedback.json
@@ -2484,6 +2544,65 @@ def load_master_process_json(schema_type: Optional[str] = None) -> Union[dict, N
     except Exception as e:
         logger.error(f"Unexpected error loading {path}: {e}")
         return None
+
+
+# ============================================================
+# Design-pipeline tool wrappers (schema_type pinned to "design")
+# ============================================================
+# The generic functions above default to "process" when schema_type isn't
+# given and nothing can be auto-detected yet (e.g. no master file exists
+# on disk), and even the file-existence-based auto-detection can be
+# ambiguous if a workspace happens to have both a process_data.json and a
+# design_data.json present at once. Rather than rely on the LLM to
+# remember to pass schema_type="design" on every call -- a fragile
+# prompt-engineering dependency for what is really a routing decision --
+# the design-doc agent pipelines are wired to these small pinned wrappers
+# instead of the raw generic functions, so "this call is definitely about
+# a design document" is guaranteed by wiring, not by LLM behavior.
+
+def load_master_design_json() -> Union[dict, None]:
+    """
+    Loads and returns the contents of the master design document
+    (output/design_data.json) as a Python dict. Same contract as
+    load_master_process_json, pinned to the design schema.
+    """
+    return load_master_process_json(schema_type="design")
+
+
+def load_design_template() -> Optional[dict]:
+    """
+    Loads the design document instance template (an HLD/LLD/Combined
+    starter document conforming to design_document_schema.json). Same
+    contract as load_process_template, pinned to the design schema.
+    """
+    return load_process_template(schema_type="design")
+
+
+def validate_design_json(json_content: Any) -> dict:
+    """
+    Validates a JSON structure against the design (HLD/LLD/Combined)
+    schema. Same contract as validate_process_json, pinned to the design
+    schema.
+    """
+    return validate_process_json(json_content, schema_type="design")
+
+
+def persist_final_design_json(json_content) -> str:
+    """
+    Validates and saves a design document to output/design_data.json.
+    Same contract as persist_final_json, pinned to the design schema.
+    """
+    return persist_final_json(json_content, schema_type="design")
+
+
+def load_full_design_context() -> dict:
+    """
+    Loads the master design document directly from disk (returned under
+    the "master_process" key for consistency with the generic contract's
+    shape). Same contract as load_full_process_context, pinned to the
+    design schema. "subprocesses" is always empty (process-only concept).
+    """
+    return load_full_process_context(schema_type="design")
 
 # Load instruction from a file in the instructions directory
 def load_instruction(filename: str) -> str:

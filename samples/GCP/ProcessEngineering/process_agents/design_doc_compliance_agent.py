@@ -6,7 +6,7 @@ import random
 from google.genai import types
 
 from .utils import (
-    load_master_process_json,
+    load_master_design_json,
     save_iteration_feedback,
     getProperty,
 )
@@ -29,7 +29,7 @@ design_doc_compliance_agent = ProcessLlmAgent(
     description="Audits architectural design documents against ISO, C4/arc42, and security standards.",
     instruction_file="design_doc_compliance_agent.txt",
     tools=[
-        load_master_process_json,
+        load_master_design_json,
         save_iteration_feedback,
     ],
     generate_content_config=types.GenerateContentConfig(

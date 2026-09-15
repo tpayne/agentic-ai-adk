@@ -20,7 +20,7 @@ Internally construct a comprehensive architectural specification object designed
 - metadata_context:
     - industry_sector: Specific domain context (e.g., Enterprise SaaS, Fintech, Automotive, Cloud Infrastructure).
     - primary_architectural_goals: Specific technical outcomes the target system must achieve.
-    - target_architecture_level: "HLD", "LLD", or "COMBINED".
+    - target_architecture_level: "HLD", "LLD", or "Combined" (matches design_document_schema.json's document_metadata.document_type enum).
 - system_context_and_scope:
     - system_name_and_purpose: High-level purpose and core business capabilities.
     - boundaries: What is explicitly INSIDE and OUTSIDE the system boundary.
