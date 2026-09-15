@@ -77,7 +77,12 @@ def add_iso_page_break(doc: docx.Document) -> None:
         traceback.print_exc()
 
 
-def _add_version_history_table(doc: docx.Document, version: str, author: str) -> None:
+def _add_version_history_table(
+    doc: docx.Document,
+    version: str,
+    author: str,
+    description: str = "Initial generated process specification",
+) -> None:
     """Add a basic version history table derived from JSON or defaults."""
     try:
         doc.add_heading("Document Control", level=1)
@@ -93,7 +98,7 @@ def _add_version_history_table(doc: docx.Document, version: str, author: str) ->
         row_cells[0].text = str(version)
         row_cells[1].text = datetime.now().strftime("%Y-%m-%d")
         row_cells[2].text = str(author)
-        row_cells[3].text = "Initial generated process specification"
+        row_cells[3].text = str(description)
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()  # spacer

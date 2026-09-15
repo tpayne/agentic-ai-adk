@@ -86,8 +86,65 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
 
 # ============================================================
-# 2.0 STAKEHOLDERS
+# 1.0 DESIGN DOCUMENT OVERVIEW (design schema counterpart)
 # ============================================================
+
+def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
+    """
+    1.0 Document Overview — ISO formatted, design-schema counterpart to
+    _add_overview_section. Built from document_metadata + business_context
+    (design_document_schema.json's shape) rather than process's flat
+    purpose/scope/introduction fields.
+    """
+    try:
+        doc.add_heading("1.0 Document Overview", level=1)
+
+        metadata = data.get("document_metadata") or {}
+        business_context = data.get("business_context") or {}
+
+        purpose = business_context.get("purpose")
+        if purpose:
+            doc.add_paragraph(str(purpose))
+        else:
+            doc.add_paragraph("This section provides a high-level overview of the system design.")
+
+        subsection = 1
+
+        scope = business_context.get("scope")
+        if scope:
+            doc.add_heading(f"1.{subsection} Scope", level=2)
+            subsection += 1
+            doc.add_paragraph(str(scope))
+
+        for key, label in [
+            ("objectives", "Objectives"),
+            ("business_drivers", "Business Drivers"),
+            ("assumptions", "Assumptions"),
+            ("constraints", "Constraints"),
+        ]:
+            value = business_context.get(key)
+            if isinstance(value, list) and value:
+                doc.add_heading(f"1.{subsection} {label}", level=2)
+                subsection += 1
+                for item in value:
+                    doc.add_paragraph(str(item), style="List Bullet")
+
+        # Document identity metadata
+        for key, label in [
+            ("system_name", "System Name"),
+            ("industry_sector", "Industry Sector"),
+            ("document_type", "Document Type"),
+            ("template_standard", "Template Standard"),
+        ]:
+            value = metadata.get(key)
+            if value:
+                p = doc.add_paragraph()
+                r = p.add_run(f"{label}: ")
+                r.bold = True
+                p.add_run(str(value))
+
+    except Exception:
+        traceback.print_exc()
 
 def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
     """
