@@ -356,12 +356,32 @@ async def process_file(file_path: str):
 # ---------------------------------------------------------
 async def start_local_chat():
     display_text("Process Architect Orchestrator (local mode)")
-    display_text("Type 'exit' to quit.")
+    display_text("Type 'exit' to quit. Use '\\' at the end of a line to continue on a new line.")
 
     runner, user_id, session_id = await init_session_and_runner()
 
     while True:
-        user_input = input("[user]: ").strip()
+        try:
+            input_buffer = []
+            while True:
+                prompt_prefix = "[user]: " if not input_buffer else "... "
+                raw_line = input(prompt_prefix)
+
+                if raw_line.rstrip().endswith("\\"):
+                    # Strip trailing backslash and store line
+                    input_buffer.append(raw_line.rstrip()[:-1])
+                else:
+                    input_buffer.append(raw_line)
+                    break
+
+            user_input = "\n".join(input_buffer).strip()
+
+        except (EOFError, KeyboardInterrupt):
+            display_text("\nExiting Process Architect Orchestrator.")
+            break
+
+        if not user_input:
+            continue
 
         if user_input.lower() in ["exit", "quit", "stop"]:
             display_text("Exiting Process Architect Orchestrator.")
@@ -406,8 +426,7 @@ async def start_local_chat():
             sys.stdout = sys.__stdout__
             sys.stdout.flush()
             display_text(f"- An error occurred: {str(e)}", type="error")
-
-
+            
 # ---------------------------------------------------------
 # CLI Entry
 # ---------------------------------------------------------

@@ -73,6 +73,7 @@ from .design_doc_create_agent import (
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    stop_controller_agent as stop_controller_agent_dd,
     json_stop_agent as json_stop_agent_dd,
     full_design_doc_pipeline,
 )
@@ -156,7 +157,7 @@ CREATE_DESIGN_DOC_PIPELINE_AGENTS = [
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
-    stop_controller_agent,
+    stop_controller_agent_dd,
 
     # Stage 3: Normalization Loop
     json_normalizer_agent,

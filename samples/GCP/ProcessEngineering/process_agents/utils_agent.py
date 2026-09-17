@@ -172,7 +172,7 @@ from .utils import (
 def silence_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")
-    print(f"{ANSI_GREEN}- Starting process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...{ANSI_RESET}", end="\n")
+    print(f"{ANSI_GREEN}- Starting generation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...{ANSI_RESET}", end="\n")
     sys.stdout.flush()
     output_file = os.path.join(log_dir, "runtime_outputs.log")
     sys.stdout = CleanedStdout(output_file)
@@ -182,7 +182,7 @@ def restore_console():
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Restoring console output.")
     sys.stdout = sys.__stdout__
-    print(f"{ANSI_GREEN}- Finished process pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...{ANSI_RESET}", end="\n")
+    print(f"{ANSI_GREEN}- Finished generation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...{ANSI_RESET}", end="\n")
     sys.stdout.flush()
     return "Console output restored."
 
