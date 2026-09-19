@@ -2347,6 +2347,18 @@ def load_iteration_feedback(reset_data: bool = True) -> dict:
             try:
                 feedback_reset = feedback.copy()
                 feedback_reset["data"] = []
+                # Reset "status" alongside "data", not just "data" alone.
+                # Leaving the previous status (e.g. "REVISION REQUIRED" or
+                # "COMPLIANCE APPROVED") in place after draining "data" to []
+                # creates a stale "ghost" mailbox: the NEXT agent to call this
+                # tool (e.g. the LLD agent reading right after the HLD agent
+                # already consumed the real feedback) sees a non-trivial
+                # status with no actual content behind it -- indistinguishable
+                # from a genuine instruction with empty comments. "NONE" is an
+                # explicit sentinel meaning "nothing new was written for you",
+                # so downstream agents can tell a drained mailbox apart from a
+                # real (if terse) review outcome.
+                feedback_reset["status"] = "NONE"
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(feedback_reset, f, indent=2)
             except Exception as e:
@@ -2436,6 +2448,20 @@ def save_iteration_feedback(feedback_data: Any):
         # If the agent sent {"issues": [...]}, flatten it so 'data' is the list
         if "issues" in processed_data:
             processed_data = processed_data["issues"]
+        elif "data" in processed_data:
+            # The agent already sent the documented two-key contract,
+            # {"status": ..., "data": <payload>} (this is exactly what
+            # json_review_agent's "JSON APPROVED" case sends). Unwrap
+            # "data" directly here rather than falling through to the
+            # generic branch below, which would strip "status" and leave
+            # {"data": <payload>} as processed_data -- that dict then gets
+            # wrapped in ANOTHER "data" key at step 6, producing
+            # {"status": ..., "data": {"data": <payload>}}. Confirmed from
+            # the pipeline log: a save_iteration_feedback call with
+            # feedback_data={'status': 'JSON APPROVED', 'data': []}
+            # previously persisted as
+            # {'status': 'JSON APPROVED', 'data': {'data': []}}.
+            processed_data = processed_data["data"]
         else:
             # Otherwise, just remove the status key to avoid redundancy
             processed_data = {k: v for k, v in processed_data.items() if k != "status"}

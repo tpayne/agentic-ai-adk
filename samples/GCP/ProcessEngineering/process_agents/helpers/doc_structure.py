@@ -141,9 +141,33 @@ def apply_iso_table_formatting(table: docx.table.Table, document: docx.Document)
         if n_cols:
             weights = [_column_width_weight(h) for h in headers] if headers else [1.0] * n_cols
             total_weight = sum(weights) or float(n_cols)
+            col_widths = [
+                Emu(int(usable_width * ((weights[i] if i < len(weights) else 1.0) / total_weight)))
+                for i in range(n_cols)
+            ]
+
+            # python-docx's Column.width setter only touches the table's
+            # <w:tblGrid> (the column-grid definition). Each individual
+            # cell keeps its OWN width on <w:tcPr><w:tcW>, set uniformly by
+            # add_table()/add_row() when the row was created, and Word
+            # renders a fixed-layout table primarily from THOSE per-cell
+            # widths on the first row, not from tblGrid alone. Setting only
+            # table.columns[i].width (as the previous version of this
+            # function did) updated tblGrid but left every cell's own
+            # width at its original equal-split value, so Word kept
+            # rendering equal-width columns regardless -- confirmed by
+            # reading back table.rows[0].cells[i].width after calling this
+            # function, which reported the same uniform width for every
+            # column even though the computed weights differed. Setting
+            # both here (tblGrid via col.width, AND every cell's own width
+            # in every row) makes the two agree, which is what actually
+            # changes the rendered layout.
             for i, col in enumerate(table.columns):
-                weight = weights[i] if i < len(weights) else 1.0
-                col.width = Emu(int(usable_width * (weight / total_weight)))
+                col.width = col_widths[i]
+            for row in table.rows:
+                for i, cell in enumerate(row.cells):
+                    if i < len(col_widths):
+                        cell.width = col_widths[i]
 
         _force_fixed_table_layout(table)
 
