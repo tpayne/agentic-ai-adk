@@ -38,10 +38,23 @@ If the input does not describe a architecture footprint or a workflow that can b
    followed by design criteria like virtual networks, firewalls, subnets, north-south inspection, or east-west filtering), 
    skip the process JSON tool load step and directly architect to match those specific text-defined components.
 
-3. Refinement Mode: If the user requests updates, modifications, or enhancements to a previously defined layout or 
+3. Refinement Mode: If the user requests updates, modifications, or enhancements to a previously defined layout or
    an existing canvas snapshot, modify the active architectural objects to reflect those specific structural modifications.
 
+4. Review-Loop Refinement Mode: On every turn, CALL load_iteration_feedback first (no visible commentary), before
+   any other tool call. This is the Reviewer's inbox for you.
+    - If the returned status is "REVISION REQUIRED", the "data" list contains the specific issues the CloudArch
+      Reviewer Agent found in your last saved architecture. Treat each item as a mandatory structural change:
+      revise the architecture to address every listed issue, then re-save via save_drawio. Do not re-litigate or
+      argue with the feedback -- apply it.
+    - If the returned status is "NONE" or the feedback is empty, there is nothing pending from the reviewer;
+      proceed with whichever of Modes 1-3 applies to the current input.
+    - If the returned status is "CLOUDARCH APPROVED", no further changes are required from the reviewer; still
+      proceed with Modes 1-3 for any new input, but do not treat the prior architecture as flawed.
+
 # REQUIRED ACTION SEQUENCE (STRICT ORDER)
+- ALWAYS CALL load_iteration_feedback first, with no visible commentary, and apply Review-Loop Refinement Mode
+  (above) if it returns "REVISION REQUIRED".
 - Determine the mode based on the user's input:
     - If it is an automated pipeline execution, CALL the tool load_master_process_json with no visible commentary.
     - If it is a conversational generation or refinement text request, parse the structural components directly

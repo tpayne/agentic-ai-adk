@@ -13,6 +13,7 @@ from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .json_writer_agent import json_writer_agent
 from .doc_creation_agent import build_doc_creation_agent
+from .grounding_agent import grounding_agent
 
 from .utils import getProperty
 from .utils_agent import (
@@ -76,6 +77,41 @@ design_doc_refinement_instance = ProcessAgent(
     after_model_callback=design_doc_agent.after_model_callback,
 )
 
+# Grounding pair, mirroring the process pipeline's grounding_agent +
+# design_grounding_instance in create_process_agent.py: an auditor clone
+# of the shared grounding_agent (validates the design against external
+# reality via its OpenAPI tools) followed by a refiner clone of
+# design_doc_agent (applies whatever the auditor flags, the same way
+# design_doc_refinement_instance applies compliance/HLD/LLD feedback).
+# Both are renamed clones rather than the shared grounding_agent/
+# design_doc_agent objects reused directly, because grounding_agent is
+# already a child agent inside the process pipeline's own tree
+# (full_design_pipeline) -- reusing that same instance here would make
+# it a child of two different parent agents at once.
+grounding_agent_instance = ProcessLlmAgent(
+    name=grounding_agent.name + "_DesignDoc_Create",
+    model=grounding_agent.model,
+    description=grounding_agent.description,
+    instruction=grounding_agent.instruction,
+    tools=grounding_agent.tools,
+    generate_content_config=grounding_agent.generate_content_config,
+    output_key=grounding_agent.output_key,
+    include_contents=grounding_agent.include_contents,
+    before_model_callback=grounding_agent.before_model_callback,
+    after_model_callback=grounding_agent.after_model_callback,
+)
+
+design_doc_grounding_instance = ProcessAgent(
+    name=design_doc_agent.name + "_Grounding_Instance",
+    model=design_doc_agent.model,
+    description=design_doc_agent.description,
+    instruction=design_doc_agent.instruction,
+    tools=design_doc_agent.tools,
+    output_key=design_doc_agent.output_key,
+    before_model_callback=design_doc_agent.before_model_callback,
+    after_model_callback=design_doc_agent.after_model_callback,
+)
+
 stop_controller_agent_instance = ProcessAgent(
     name="Stop_Controller_DesignDoc_Create",
     model=stop_controller_agent.model,
@@ -116,8 +152,20 @@ sub_agents = [
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
-    stop_controller_agent_instance
 ]
+
+# Optionally include grounding agents, same gate/flag the process
+# pipeline uses (create_process_agent.py).
+if getProperty("enableGroundingAgent", default="true"):
+    logger.debug("Grounding agent ENABLED in design doc loop.")
+    sub_agents += [
+        grounding_agent_instance,
+        design_doc_grounding_instance,
+    ]
+else:
+    logger.debug("Grounding agent DISABLED in design doc loop.")
+
+sub_agents.append(stop_controller_agent_instance)
 
 design_doc_review_loop = LoopAgent(
     name="Design_Doc_Compliance_Loop",

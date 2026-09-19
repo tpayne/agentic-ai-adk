@@ -20,6 +20,7 @@ from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .doc_creation_agent import build_doc_creation_agent
 from .json_writer_agent import json_writer_agent
+from .grounding_agent import grounding_agent
 
 from .utils_agent import (
     mute_agent,
@@ -124,6 +125,39 @@ design_doc_refinement_update_inst = ProcessAgent(
     after_model_callback=design_doc_agent.after_model_callback
 )
 
+# Grounding pair, mirroring update_process_agent.py's grounding_inst +
+# design_grounding_inst: an auditor clone of the shared grounding_agent,
+# followed by a refiner clone of design_doc_agent that applies whatever
+# the auditor flags -- the same role design_doc_refinement_update_inst
+# already plays for HLD/LLD/compliance feedback. Renamed clones, not the
+# shared grounding_agent/design_doc_agent objects directly, since
+# grounding_agent is already a child agent in the create pipeline's own
+# tree (and design_doc_agent is reused multiple times in this same
+# pipeline already) -- an ADK agent can only have one parent.
+grounding_update_inst = ProcessLlmAgent(
+    name=grounding_agent.name + "_DesignDoc_Update",
+    model=grounding_agent.model,
+    description=grounding_agent.description,
+    instruction=grounding_agent.instruction,
+    tools=grounding_agent.tools,
+    generate_content_config=grounding_agent.generate_content_config,
+    output_key=grounding_agent.output_key,
+    include_contents=grounding_agent.include_contents,
+    before_model_callback=grounding_agent.before_model_callback,
+    after_model_callback=grounding_agent.after_model_callback,
+)
+
+design_doc_grounding_instance = ProcessAgent(
+    name=design_doc_agent.name + "_Grounding_Update",
+    model=design_doc_agent.model,
+    description=design_doc_agent.description,
+    instruction=design_doc_agent.instruction,
+    tools=design_doc_agent.tools,
+    output_key=design_doc_agent.output_key,
+    before_model_callback=design_doc_agent.before_model_callback,
+    after_model_callback=design_doc_agent.after_model_callback,
+)
+
 normalizer_inst = ProcessLlmAgent(
     name=json_normalizer_agent.name + "_DesignDoc_Update",
     model=json_normalizer_agent.model,
@@ -170,8 +204,20 @@ sub_update_agents = [
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
-    stop_controller_agent_instance
 ]
+
+# Optionally include grounding agents, same gate/flag the process
+# update pipeline uses (update_process_agent.py).
+if getProperty("enableGroundingAgent", default="true"):
+    logger.debug("Grounding agent ENABLED in design doc update loop.")
+    sub_update_agents += [
+        grounding_update_inst,
+        design_doc_grounding_instance,
+    ]
+else:
+    logger.debug("Grounding agent DISABLED in design doc update loop.")
+
+sub_update_agents.append(stop_controller_agent_instance)
 
 review_update_loop = LoopAgent(
     name="Design_Doc_Update_Compliance_Loop",

@@ -181,7 +181,7 @@ Examples:
 ## 7. CLOUD DIAGRAM GENERATION
 Trigger when the user asks for cloud architecture to be generated or regenerated
 
-→ Call: cloudarch_agent
+→ Call: CloudArch_Pipeline
 
 Examples:
 - "Please generate a cloud architecture"

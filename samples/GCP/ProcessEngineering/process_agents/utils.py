@@ -1959,6 +1959,34 @@ def save_drawio(xml_content) -> str:
     finally:
         release_lock()
 
+def load_drawio() -> dict:
+    """
+    Loads the most recently persisted DrawIO XML from
+    output/cloudarch_drawio.xml, so a reviewer agent can audit the
+    architecture that a prior generation/refinement turn saved via
+    save_drawio. Mirrors load_master_process_json's role for JSON --
+    the read-side counterpart to save_drawio's write-side.
+
+    Returns {"status": "NOT_FOUND", "xml": None} if nothing has been
+    saved yet (e.g. the very first pass of the loop, before the
+    generator's first save_drawio call), so the reviewer can tell an
+    empty workspace apart from a real but trivial diagram.
+    """
+    _log_agent_activity("Loading DrawIO XML from disk...")
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
+    if not os.path.exists(path):
+        return {"status": "NOT_FOUND", "xml": None}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            xml_content = f.read()
+        return {"status": "OK", "xml": xml_content}
+    except Exception as e:
+        logger.error(f"Error loading DrawIO file: {e}")
+        return {"status": "ERROR", "xml": None}
+
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Saves the finalized JSON to output/process_data.json (or
@@ -2403,6 +2431,7 @@ def save_iteration_feedback(feedback_data: Any):
         "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
         "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
         "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
+        "CLOUDARCH APPROVED": ("cloudarch_status", "APPROVED"),
         "JSON APPROVED": ("status", "JSON APPROVED"),
     }
 
@@ -2439,6 +2468,7 @@ def save_iteration_feedback(feedback_data: Any):
         "COMPLIANCE APPROVED",
         "SIMULATION_ALL_APPROVED",
         "GROUNDING APPROVED",
+        "CLOUDARCH APPROVED",
     }
     if inner_status in approved_statuses:
         status = inner_status
@@ -2789,7 +2819,8 @@ STATUS_MARKERS = [
     "REVISION REQUIRED",
     "COMPLIANCE APPROVED",
     "SIMULATION_ALL_APPROVED",
-    "GROUNDING APPROVED"
+    "GROUNDING APPROVED",
+    "CLOUDARCH APPROVED"
 ]
 
 def _is_status_marker(text: str) -> bool:

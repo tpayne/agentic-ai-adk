@@ -149,7 +149,7 @@ sys.stderr = open(runtime_file, "a")
 from .agent_registry import (
     full_design_pipeline,
     consultant_agent,
-    cloudarch_agent,
+    cloudarch_pipeline,
     scenario_tester_agent,
     update_design_pipeline,
     simulation_query_agent,
@@ -195,7 +195,7 @@ root_agent = ProcessLlmAgent(
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
-        cloudarch_agent,
+        cloudarch_pipeline,
         scenario_tester_agent,
         update_design_pipeline,
         simulation_query_agent,
@@ -296,53 +296,87 @@ async def process_file(file_path: str):
 
     runner, user_id, session_id = await init_session_and_runner()
 
+    async def handle_logical_line(line: str) -> bool:
+        """
+        Process one fully-assembled (continuation-joined) instruction line.
+        Returns True if the caller should stop reading further lines.
+        """
+        nonlocal runner, user_id, session_id
+
+        if not line:
+            return False
+
+        if line.lower() in ["exit", "quit", "stop"]:
+            display_text("Exiting Process Architect Orchestrator.")
+            return True
+        elif line.lower() == "clear":
+            display_text("[Action]: Clearing all histories and resetting session...")
+            runner, user_id, session_id = await init_session_and_runner()
+            return False
+        elif line.startswith("#"):
+            display_text(f"[Comment]: {line}")
+            return False
+        elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
+            parts = line.split()
+            secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
+            display_text(f"[Action]: Sleeping for {secs} seconds...")
+            await asyncio.sleep(float(secs))
+            return False
+        elif is_shell_command(line):
+            await run_shell_command(line)
+            await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            return False
+
+        display_text(f"[user-file]: {line}")
+
+        content = types.Content(role="user", parts=[types.Part(text=line)])
+        final_response = None
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
+
+        if final_response:
+            display_text(f"[ArchitectBot]: {final_response}")
+        else:
+            display_text(f"[ArchitectBot]: [No final response]")
+
+        await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
+        return False
+
     try:
         with open(file_path, "r", encoding="utf-8-sig") as f:
+            # Lines ending in "\" continue onto the next line, joined with a
+            # single space rather than a newline, so:
+            #   one \
+            #   two three \
+            #   four
+            # is assembled and submitted as one logical line: "one two three four".
+            continuation_parts = []
+
             for raw_line in f:
-                line = raw_line.strip()
-                if not line:
+                bare = raw_line.rstrip("\n").rstrip("\r")
+
+                if bare.rstrip().endswith("\\"):
+                    continuation_parts.append(bare.rstrip()[:-1].strip())
                     continue
 
-                if line.lower() in ["exit", "quit", "stop"]:
-                    display_text("Exiting Process Architect Orchestrator.")
+                continuation_parts.append(bare.strip())
+                line = " ".join(part for part in continuation_parts if part)
+                continuation_parts = []
+
+                if await handle_logical_line(line):
                     break
-                elif line.lower() == "clear":
-                    display_text("[Action]: Clearing all histories and resetting session...")
-                    runner, user_id, session_id = await init_session_and_runner()
-                    continue
-                elif line.startswith("#"):
-                    display_text(f"[Comment]: {line}")
-                    continue
-                elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
-                    parts = line.split()
-                    secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
-                    display_text(f"[Action]: Sleeping for {secs} seconds...")
-                    await asyncio.sleep(float(secs))
-                    continue
-                elif is_shell_command(line):
-                    await run_shell_command(line)
-                    await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
-                    continue
-
-
-                display_text(f"[user-file]: {line}")
-
-                content = types.Content(role="user", parts=[types.Part(text=line)])
-                final_response = None
-                async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=content
-                ):
-                    if event.is_final_response() and event.content and event.content.parts:
-                        final_response = event.content.parts[0].text
-
-                if final_response:
-                    display_text(f"[ArchitectBot]: {final_response}")
-                else:
-                    display_text(f"[ArchitectBot]: [No final response]")
-
-                await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
+            else:
+                # File ended mid-continuation (trailing "\" on the last
+                # line) -- submit whatever was accumulated rather than
+                # silently dropping it.
+                if continuation_parts:
+                    line = " ".join(part for part in continuation_parts if part)
+                    await handle_logical_line(line)
 
     except Exception as e:
         sys.stdout = sys.__stdout__
@@ -368,13 +402,16 @@ async def start_local_chat():
                 raw_line = input(prompt_prefix)
 
                 if raw_line.rstrip().endswith("\\"):
-                    # Strip trailing backslash and store line
-                    input_buffer.append(raw_line.rstrip()[:-1])
+                    # Strip trailing backslash and keep accumulating
+                    input_buffer.append(raw_line.rstrip()[:-1].strip())
                 else:
-                    input_buffer.append(raw_line)
+                    input_buffer.append(raw_line.strip())
                     break
 
-            user_input = "\n".join(input_buffer).strip()
+            # Joined with a single space, not a newline, so continuation
+            # lines are submitted as one logical line -- consistent with
+            # process_file's handling of "\" continuation.
+            user_input = " ".join(part for part in input_buffer if part).strip()
 
         except (EOFError, KeyboardInterrupt):
             display_text("\nExiting Process Architect Orchestrator.")

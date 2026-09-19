@@ -3,6 +3,11 @@ from .analysis_agent import analysis_agent
 from .compliance_agent import compliance_agent
 from .consultant_agent import consultant_agent
 from .cloudarch_agent import cloudarch_agent
+from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
+from .cloudarch_pipeline_agent import (
+    cloudarch_pipeline,
+    stop_controller_agent_instance as stop_controller_agent_instance_cloudarch,
+)
 from .create_process_agent import full_design_pipeline
 from .doc_creation_agent import build_doc_creation_agent
 from .grounding_agent import grounding_agent
@@ -73,6 +78,8 @@ from .design_doc_create_agent import (
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    grounding_agent_instance as grounding_agent_instance_dd,
+    design_doc_grounding_instance,
     stop_controller_agent as stop_controller_agent_dd,
     json_stop_agent as json_stop_agent_dd,
     full_design_doc_pipeline,
@@ -84,6 +91,8 @@ from .design_doc_update_agent import (
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
+    grounding_update_inst as grounding_update_inst_dd,
+    design_doc_grounding_instance as design_doc_grounding_instance_dd,
     normalizer_inst as normalizer_inst_dd,
     reviewer_inst as reviewer_inst_dd,
     writer_inst as writer_inst_dd,
@@ -131,7 +140,7 @@ UPDATE_PIPELINE_AGENTS = [
     design_simulation_inst,
     grounding_inst,
     design_grounding_inst,
-    
+
     # Stage 3: Stabilization Loop
     normalizer_inst,
     reviewer_inst,
@@ -145,7 +154,9 @@ UPDATE_PIPELINE_AGENTS = [
 ]
 
 CLOUD_AGENTS = [
-    cloudarch_agent
+    cloudarch_agent,
+    cloudarch_reviewer_agent,
+    stop_controller_agent_instance_cloudarch,
 ]
 
 CREATE_DESIGN_DOC_PIPELINE_AGENTS = [
@@ -157,6 +168,9 @@ CREATE_DESIGN_DOC_PIPELINE_AGENTS = [
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    grounding_agent_instance_dd,
+    design_doc_grounding_instance,
+
     stop_controller_agent_dd,
 
     # Stage 3: Normalization Loop
@@ -179,6 +193,8 @@ UPDATE_DESIGN_DOC_PIPELINE_AGENTS = [
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
+    grounding_update_inst_dd,
+    design_doc_grounding_instance_dd,
     stop_controller_agent_instance_dd,
 
     # Stage 3: Stabilization Loop

@@ -11,7 +11,8 @@ logger = logging.getLogger("ProcessArchitect.CloudArch")
 from .utils import (
     load_master_process_json,
     getProperty,
-    save_drawio
+    save_drawio,
+    load_iteration_feedback,
 )
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -32,6 +33,7 @@ cloudarch_agent = ProcessLlmAgent(
     instruction_file="cloudarch_agent.txt",
     tools=[
         load_master_process_json,
+        load_iteration_feedback,
         log_cloudarch_metadata,
         save_drawio
     ],
