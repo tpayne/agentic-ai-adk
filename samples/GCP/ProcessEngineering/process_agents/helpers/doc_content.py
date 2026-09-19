@@ -86,8 +86,65 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
 
 # ============================================================
-# 2.0 STAKEHOLDERS
+# 1.0 DESIGN DOCUMENT OVERVIEW (design schema counterpart)
 # ============================================================
+
+def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
+    """
+    1.0 Document Overview — ISO formatted, design-schema counterpart to
+    _add_overview_section. Built from document_metadata + business_context
+    (design_document_schema.json's shape) rather than process's flat
+    purpose/scope/introduction fields.
+    """
+    try:
+        doc.add_heading("1.0 Document Overview", level=1)
+
+        metadata = data.get("document_metadata") or {}
+        business_context = data.get("business_context") or {}
+
+        purpose = business_context.get("purpose")
+        if purpose:
+            doc.add_paragraph(str(purpose))
+        else:
+            doc.add_paragraph("This section provides a high-level overview of the system design.")
+
+        subsection = 1
+
+        scope = business_context.get("scope")
+        if scope:
+            doc.add_heading(f"1.{subsection} Scope", level=2)
+            subsection += 1
+            doc.add_paragraph(str(scope))
+
+        for key, label in [
+            ("objectives", "Objectives"),
+            ("business_drivers", "Business Drivers"),
+            ("assumptions", "Assumptions"),
+            ("constraints", "Constraints"),
+        ]:
+            value = business_context.get(key)
+            if isinstance(value, list) and value:
+                doc.add_heading(f"1.{subsection} {label}", level=2)
+                subsection += 1
+                for item in value:
+                    doc.add_paragraph(str(item), style="List Bullet")
+
+        # Document identity metadata
+        for key, label in [
+            ("system_name", "System Name"),
+            ("industry_sector", "Industry Sector"),
+            ("document_type", "Document Type"),
+            ("template_standard", "Template Standard"),
+        ]:
+            value = metadata.get(key)
+            if value:
+                p = doc.add_paragraph()
+                r = p.add_run(f"{label}: ")
+                r.bold = True
+                p.add_run(str(value))
+
+    except Exception:
+        traceback.print_exc()
 
 def _add_stakeholders_section(doc: docx.Document, stakeholders) -> None:
     """
@@ -380,11 +437,66 @@ def _add_subprocess_section(doc, step_index: int, step_name: str, subprocess_jso
         doc.add_paragraph()
 
 
+def _stringify_nested(value, indent: int = 0) -> str:
+    """
+    Renders a (possibly nested) dict/list/scalar into readable, indented
+    plain text suitable for a single Word table cell.
+
+    This exists because a bare str(v) on a dict or a list of dicts prints
+    Python's repr of it (e.g. "{'title': 'System Context', 'description':
+    ...}"), which is exactly what leaked raw dict/JSON-looking text into
+    generated documents: _render_generic_value's table branches used to
+    call str(v) directly on any cell value that wasn't a list of plain
+    scalars, and design_document_schema.json has many fields nested one
+    or two levels deeper than the flatter process schema (diagram
+    references, decision records, traceability matrices, change logs,
+    approval workflows, tech stacks, etc.), so this path is hit far more
+    often for design documents.
+
+    Instead, this recurses: a nested dict becomes "Key: value" lines (one
+    per key, title-cased), a nested list becomes "- item" lines, and each
+    level of nesting is indented -- never Python's dict/list repr.
+    """
+    pad = "  " * indent
+
+    if value is None or value == "" or value == [] or value == {}:
+        return ""
+
+    if isinstance(value, dict):
+        lines = []
+        for k, v in value.items():
+            key_label = str(k).replace("_", " ").title()
+            if isinstance(v, (dict, list)) and v:
+                nested = _stringify_nested(v, indent + 1)
+                lines.append(f"{pad}{key_label}:")
+                if nested:
+                    lines.append(nested)
+            elif v not in (None, "", [], {}):
+                lines.append(f"{pad}{key_label}: {v}")
+        return "\n".join(lines)
+
+    if isinstance(value, list):
+        lines = []
+        for item in value:
+            if isinstance(item, (dict, list)) and item:
+                nested = _stringify_nested(item, indent + 1)
+                lines.append(f"{pad}-")
+                if nested:
+                    lines.append(nested)
+            else:
+                lines.append(f"{pad}- {item}")
+        return "\n".join(lines)
+
+    return str(value)
+
+
 def _render_generic_value(doc: docx.Document, value, label=None) -> None:
     """
     Deterministic renderer: always produces real Word tables for lists/dicts.
-    Never prints raw HTML. Never prints raw JSON.
-    Mirrors the Stakeholder table logic.
+    Never prints raw HTML. Never prints raw JSON/dict repr -- any nested
+    dict or list value inside a table cell is recursively rendered as
+    readable indented text via _stringify_nested rather than str()'d
+    directly. Mirrors the Stakeholder table logic.
     """
 
     # ---------------------------
@@ -431,10 +543,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
             row = table.add_row().cells
             for i, key in enumerate(ordered_keys):
                 v = item.get(key, "")
-                if isinstance(v, list):
-                    row[i].text = "\n".join(str(x) for x in v)
-                else:
-                    row[i].text = str(v)
+                row[i].text = _stringify_nested(v)
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
@@ -455,10 +564,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
         for k, v in value.items():
             row = table.add_row().cells
             row[0].text = k.replace("_", " ").title()
-            if isinstance(v, list):
-                row[1].text = "\n".join(str(x) for x in v)
-            else:
-                row[1].text = str(v)
+            row[1].text = _stringify_nested(v)
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()

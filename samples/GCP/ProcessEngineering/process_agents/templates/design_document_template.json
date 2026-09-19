@@ -1,0 +1,540 @@
+{
+    "document_metadata": {
+        "document_id": "string",
+        "document_type": "Combined",
+        "process_reference": {
+            "process_name": "string",
+            "process_version": "string"
+        },
+        "system_name": "string",
+        "title": "string",
+        "industry_sector": "string",
+        "version": "string",
+        "status": "draft",
+        "classification": "public",
+        "template_standard": "arc42",
+        "authors": [
+            {
+                "name": "string",
+                "role": "string",
+                "organization": "string",
+                "contact": "string"
+            }
+        ],
+        "reviewers": [
+            {
+                "name": "string",
+                "role": "string",
+                "organization": "string",
+                "contact": "string"
+            }
+        ],
+        "created_date": "string",
+        "last_updated": "string",
+        "approval_date": "string",
+        "related_documents": [
+            {
+                "document_id": "string",
+                "title": "string",
+                "relationship": "parent"
+            }
+        ]
+    },
+    "business_context": {
+        "purpose": "string",
+        "scope": "string",
+        "objectives": [
+            "string"
+        ],
+        "business_drivers": [
+            "string"
+        ],
+        "assumptions": [
+            "string"
+        ],
+        "constraints": [
+            "string"
+        ]
+    },
+    "architecture_description": {
+        "stakeholders": [
+            {
+                "stakeholder_name": "string",
+                "role": "string",
+                "concerns": [
+                    "string"
+                ],
+                "responsibilities": [
+                    "string"
+                ]
+            }
+        ],
+        "concerns": [
+            "string"
+        ],
+        "viewpoints": [
+            {
+                "viewpoint_name": "string",
+                "description": "string",
+                "stakeholders_addressed": [
+                    "string"
+                ],
+                "concerns_addressed": [
+                    "string"
+                ],
+                "modeling_conventions": "string",
+                "applicable_standard": "string"
+            }
+        ],
+        "views": [
+            {
+                "view_name": "string",
+                "viewpoint_ref": "string",
+                "description": "string",
+                "diagrams": [
+                    {
+                        "diagram_id": "string",
+                        "diagram_type": "context",
+                        "notation_standard": "C4",
+                        "title": "string",
+                        "description": "string",
+                        "file_reference": "string"
+                    }
+                ],
+                "elements": [
+                    "string"
+                ]
+            }
+        ],
+        "architecture_decisions": [
+            {
+                "id": "string",
+                "title": "string",
+                "status": "proposed",
+                "context": "string",
+                "decision": "string",
+                "consequences": "string",
+                "alternatives_considered": [
+                    {
+                        "option": "string",
+                        "reason_rejected": "string"
+                    }
+                ],
+                "date": "string",
+                "decided_by": "string"
+            }
+        ],
+        "architecture_rationale": "string"
+    },
+    "requirements": {
+        "functional_requirements": [
+            {
+                "id": "string",
+                "description": "string",
+                "priority": "critical",
+                "source": "string",
+                "linked_process_step": "string",
+                "acceptance_criteria": [
+                    "string"
+                ],
+                "status": "proposed"
+            }
+        ],
+        "non_functional_requirements": [
+            {
+                "id": "string",
+                "characteristic": "functional_suitability",
+                "sub_characteristic": "string",
+                "description": "string",
+                "metric": "string",
+                "target": "string",
+                "measurement_method": "string",
+                "priority": "critical"
+            }
+        ],
+        "traceability_matrix": [
+            {
+                "requirement_id": "string",
+                "design_element_id": "string",
+                "verification_method": "test"
+            }
+        ]
+    },
+    "system_context": {
+        "actors": [
+            {
+                "name": "string",
+                "type": "human",
+                "description": "string"
+            }
+        ],
+        "external_systems": [
+            {
+                "name": "string",
+                "description": "string",
+                "interface_type": "string",
+                "data_exchanged": "string",
+                "owner": "string"
+            }
+        ],
+        "context_diagram": {
+            "diagram_id": "string",
+            "diagram_type": "context",
+            "notation_standard": "C4",
+            "title": "string",
+            "description": "string",
+            "file_reference": "string"
+        }
+    },
+    "high_level_design": {
+        "solution_overview": "string",
+        "architecture_style": "monolith",
+        "components": [
+            {
+                "component_name": "string",
+                "description": "string",
+                "responsibilities": [
+                    "string"
+                ],
+                "technology_stack": [
+                    "string"
+                ],
+                "interfaces": [
+                    "string"
+                ],
+                "dependencies": [
+                    "string"
+                ],
+                "owner": "string"
+            }
+        ],
+        "integration_points": [
+            {
+                "source": "string",
+                "target": "string",
+                "integration_pattern": "string",
+                "protocol": "string",
+                "description": "string"
+            }
+        ],
+        "data_flow_overview": "string",
+        "technology_stack": [
+            {
+                "category": "string",
+                "technology": "string",
+                "version": "string",
+                "justification": "string",
+                "license": "string"
+            }
+        ],
+        "deployment_topology": {
+            "environments": [
+                {
+                    "name": "string",
+                    "description": "string",
+                    "infrastructure": "string"
+                }
+            ],
+            "diagram": {
+                "diagram_id": "string",
+                "diagram_type": "context",
+                "notation_standard": "C4",
+                "title": "string",
+                "description": "string",
+                "file_reference": "string"
+            }
+        },
+        "security_architecture": {
+            "authentication_mechanism": "string",
+            "authorization_model": "string",
+            "data_protection_measures": [
+                "string"
+            ],
+            "threat_model_reference": "string",
+            "compliance_standards": [
+                {
+                    "standard_name": "string",
+                    "standard_body": "string",
+                    "clause_reference": "string",
+                    "applicability": "string",
+                    "compliance_status": "compliant"
+                }
+            ]
+        },
+        "scalability_and_performance": {
+            "expected_load": "string",
+            "scaling_strategy": "string",
+            "performance_targets": [
+                "string"
+            ]
+        },
+        "availability_and_resilience": {
+            "availability_target": "string",
+            "redundancy_strategy": "string",
+            "disaster_recovery_plan": "string",
+            "backup_strategy": "string",
+            "rto": "string",
+            "rpo": "string"
+        },
+        "risks_and_mitigations": [
+            {
+                "id": "string",
+                "description": "string",
+                "category": "string",
+                "likelihood": "low",
+                "impact": "low",
+                "mitigation": "string",
+                "owner": "string",
+                "status": "open"
+            }
+        ]
+    },
+    "low_level_design": {
+        "components": [
+            {
+                "component_name": "string",
+                "module_name": "string",
+                "description": "string",
+                "class_design": {
+                    "diagram": {
+                        "diagram_id": "string",
+                        "diagram_type": "context",
+                        "notation_standard": "C4",
+                        "title": "string",
+                        "description": "string",
+                        "file_reference": "string"
+                    },
+                    "classes": [
+                        {
+                            "class_name": "string",
+                            "attributes": [
+                                "string"
+                            ],
+                            "methods": [
+                                "string"
+                            ],
+                            "design_patterns_used": [
+                                "string"
+                            ]
+                        }
+                    ]
+                },
+                "sequence_flows": [
+                    {
+                        "diagram_id": "string",
+                        "diagram_type": "context",
+                        "notation_standard": "C4",
+                        "title": "string",
+                        "description": "string",
+                        "file_reference": "string"
+                    }
+                ],
+                "api_specifications": [
+                    {
+                        "interface_name": "string",
+                        "protocol": "REST",
+                        "contract_reference": "string",
+                        "request_schema": "string",
+                        "response_schema": "string",
+                        "authentication": "string",
+                        "versioning_strategy": "string",
+                        "error_handling": "string"
+                    }
+                ],
+                "configuration_parameters": [
+                    {
+                        "name": "string",
+                        "type": "string",
+                        "default_value": "string",
+                        "description": "string"
+                    }
+                ],
+                "algorithm_details": "string",
+                "pseudocode_reference": "string",
+                "error_handling_strategy": "string",
+                "logging_and_monitoring": {
+                    "log_levels": [
+                        "string"
+                    ],
+                    "monitored_metrics": [
+                        "string"
+                    ],
+                    "alerting_rules": [
+                        "string"
+                    ]
+                },
+                "unit_test_strategy": "string",
+                "code_standards_reference": "string"
+            }
+        ],
+        "database_design": [
+            {
+                "schema_name": "string",
+                "database_technology": "string",
+                "entities": [
+                    {
+                        "entity_name": "string",
+                        "attributes": [
+                            {
+                                "name": "string",
+                                "type": "string",
+                                "constraints": [
+                                    "string"
+                                ],
+                                "description": "string"
+                            }
+                        ],
+                        "relationships": [
+                            {
+                                "related_entity": "string",
+                                "type": "one_to_one",
+                                "description": "string"
+                            }
+                        ]
+                    }
+                ],
+                "indexes": [
+                    "string"
+                ],
+                "partitioning_strategy": "string"
+            }
+        ],
+        "interface_contracts": [
+            {
+                "interface_name": "string",
+                "protocol": "REST",
+                "contract_reference": "string",
+                "request_schema": "string",
+                "response_schema": "string",
+                "authentication": "string",
+                "versioning_strategy": "string",
+                "error_handling": "string"
+            }
+        ],
+        "detailed_sequence_flows": [
+            {
+                "diagram_id": "string",
+                "diagram_type": "context",
+                "notation_standard": "C4",
+                "title": "string",
+                "description": "string",
+                "file_reference": "string"
+            }
+        ],
+        "exception_handling_strategy": "string"
+    },
+    "quality_attributes": [
+        {
+            "characteristic": "functional_suitability",
+            "sub_characteristic": "string",
+            "description": "string",
+            "metric": "string",
+            "target": "string",
+            "measurement_method": "string"
+        }
+    ],
+    "compliance_and_standards": {
+        "applicable_standards": [
+            {
+                "standard_name": "string",
+                "standard_body": "string",
+                "clause_reference": "string",
+                "applicability": "string",
+                "compliance_status": "compliant"
+            }
+        ],
+        "regulatory_requirements": [
+            {
+                "regulation_name": "string",
+                "jurisdiction": "string",
+                "requirement_description": "string",
+                "compliance_status": "compliant"
+            }
+        ]
+    },
+    "risk_register": [
+        {
+            "id": "string",
+            "description": "string",
+            "category": "string",
+            "likelihood": "low",
+            "impact": "low",
+            "mitigation": "string",
+            "owner": "string",
+            "status": "open"
+        }
+    ],
+    "governance_requirements": [
+        "string"
+    ],
+    "continuous_improvement": [
+        {
+            "review_frequency": "string",
+            "improvement_inputs": [
+                "string"
+            ]
+        }
+    ],
+    "glossary_and_references": {
+        "glossary": [
+            {
+                "term": "string",
+                "definition": "string"
+            }
+        ],
+        "references": [
+            {
+                "title": "string",
+                "source": "string",
+                "url": "string",
+                "version": "string"
+            }
+        ],
+        "diagrams": [
+            {
+                "diagram_id": "string",
+                "diagram_type": "context",
+                "notation_standard": "C4",
+                "title": "string",
+                "description": "string",
+                "file_reference": "string"
+            }
+        ]
+    },
+    "review_and_governance": {
+        "review_history": [
+            {
+                "reviewer": "string",
+                "role": "string",
+                "date": "string",
+                "comments": "string",
+                "status": "approved"
+            }
+        ],
+        "change_log": [
+            {
+                "version": "string",
+                "date": "string",
+                "author": "string",
+                "description_of_change": "string",
+                "change_type": "major"
+            }
+        ],
+        "approval_workflow": {
+            "current_status": "draft",
+            "required_approvers": [
+                "string"
+            ],
+            "approvers": [
+                {
+                    "name": "string",
+                    "role": "string",
+                    "organization": "string",
+                    "contact": "string"
+                }
+            ],
+            "approval_date": "string"
+        }
+    },
+    "appendix": {}
+}

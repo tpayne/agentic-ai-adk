@@ -1,0 +1,1640 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/design_document_schema.json",
+  "title": "Design Document Schema (HLD / LLD)",
+  "description": "Schema for High-Level Design (HLD) and Low-Level Design (LLD) documents produced by design agents downstream of an approved process definition (see process_schema.json). Aligned with ISO/IEC/IEEE 42010 (architecture description), ISO/IEC 25010 (quality model), ISO/IEC/IEEE 29148-style requirement records, and common industry frameworks (C4 model, arc42, TOGAF ADM, IEEE 1471) selectable via document_metadata.template_standard. Instances of this schema are the artifact that design agents populate, enrich, validate (review agent), and render into documents (doc-creation agent).",
+  "type": "object",
+  "$defs": {
+    "personRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "organization": {
+          "type": "string"
+        },
+        "contact": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "stakeholder": {
+      "type": "object",
+      "description": "ISO/IEC/IEEE 42010 stakeholder: a person, role, or organization with an interest in the architecture.",
+      "properties": {
+        "stakeholder_name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Interests relevant to the architecture (ISO 42010 'concerns')."
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "stakeholder_name",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "requirement": {
+      "type": "object",
+      "description": "Functional requirement record (ISO/IEC/IEEE 29148 style).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier, e.g. FR-001, used for traceability."
+        },
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/priority"
+        },
+        "source": {
+          "type": "string",
+          "description": "Origin of the requirement, e.g. stakeholder, regulation, process step."
+        },
+        "linked_process_step": {
+          "type": "string",
+          "description": "Name/ID of the related step in process_schema.json, if any."
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "approved",
+            "implemented",
+            "verified",
+            "deferred",
+            "rejected"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "priority"
+      ],
+      "additionalProperties": false
+    },
+    "iso25010Characteristic": {
+      "type": "string",
+      "description": "ISO/IEC 25010 product quality characteristic.",
+      "enum": [
+        "functional_suitability",
+        "performance_efficiency",
+        "compatibility",
+        "usability",
+        "reliability",
+        "security",
+        "maintainability",
+        "portability"
+      ]
+    },
+    "nonFunctionalRequirement": {
+      "type": "object",
+      "description": "Non-functional requirement mapped to an ISO/IEC 25010 quality characteristic.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "e.g. NFR-001"
+        },
+        "characteristic": {
+          "$ref": "#/$defs/iso25010Characteristic"
+        },
+        "sub_characteristic": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "measurement_method": {
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/priority"
+        }
+      },
+      "required": [
+        "id",
+        "characteristic",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "risk": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "likelihood": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "mitigation": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "mitigated",
+            "accepted",
+            "closed"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "mitigation"
+      ],
+      "additionalProperties": false
+    },
+    "decisionRecord": {
+      "type": "object",
+      "description": "Architecture Decision Record (ADR).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "e.g. ADR-001"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "deprecated",
+            "superseded"
+          ]
+        },
+        "context": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "consequences": {
+          "type": "string"
+        },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "option": {
+                "type": "string"
+              },
+              "reason_rejected": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "option"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "decided_by": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "decision"
+      ],
+      "additionalProperties": false
+    },
+    "diagramReference": {
+      "type": "object",
+      "properties": {
+        "diagram_id": {
+          "type": "string"
+        },
+        "diagram_type": {
+          "type": "string",
+          "enum": [
+            "context",
+            "container",
+            "component",
+            "code",
+            "sequence",
+            "deployment",
+            "er",
+            "class",
+            "activity",
+            "state",
+            "network",
+            "data_flow",
+            "other"
+          ],
+          "description": "C4-model levels (context/container/component/code) plus common UML/other diagram types."
+        },
+        "notation_standard": {
+          "type": "string",
+          "enum": [
+            "C4",
+            "UML",
+            "ArchiMate",
+            "BPMN",
+            "IDEF0",
+            "other"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "file_reference": {
+          "type": "string",
+          "description": "Path, URL, or artifact ID for the rendered diagram."
+        }
+      },
+      "required": [
+        "diagram_id",
+        "diagram_type",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "standardReference": {
+      "type": "object",
+      "properties": {
+        "standard_name": {
+          "type": "string",
+          "description": "e.g. ISO/IEC/IEEE 42010, ISO/IEC 25010, ISO/IEC 27001, ISO 9001, TOGAF ADM, IEEE 1471, C4 Model."
+        },
+        "standard_body": {
+          "type": "string"
+        },
+        "clause_reference": {
+          "type": "string"
+        },
+        "applicability": {
+          "type": "string"
+        },
+        "compliance_status": {
+          "type": "string",
+          "enum": [
+            "compliant",
+            "partially_compliant",
+            "non_compliant",
+            "not_applicable",
+            "under_review"
+          ]
+        }
+      },
+      "required": [
+        "standard_name",
+        "compliance_status"
+      ],
+      "additionalProperties": false
+    },
+    "componentSpec": {
+      "type": "object",
+      "properties": {
+        "component_name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "technology_stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component_name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "dataAttribute": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "dataEntity": {
+      "type": "object",
+      "properties": {
+        "entity_name": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dataAttribute"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "related_entity": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "one_to_one",
+                  "one_to_many",
+                  "many_to_many"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "related_entity",
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "entity_name",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "interfaceSpec": {
+      "type": "object",
+      "properties": {
+        "interface_name": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "REST",
+            "gRPC",
+            "GraphQL",
+            "SOAP",
+            "messaging",
+            "file",
+            "other"
+          ]
+        },
+        "contract_reference": {
+          "type": "string",
+          "description": "e.g. OpenAPI/AsyncAPI/proto file or artifact ID."
+        },
+        "request_schema": {
+          "type": "string"
+        },
+        "response_schema": {
+          "type": "string"
+        },
+        "authentication": {
+          "type": "string"
+        },
+        "versioning_strategy": {
+          "type": "string"
+        },
+        "error_handling": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "interface_name",
+        "protocol"
+      ],
+      "additionalProperties": false
+    },
+    "changeLogEntry": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "author": {
+          "type": "string"
+        },
+        "description_of_change": {
+          "type": "string"
+        },
+        "change_type": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor",
+            "patch"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "date",
+        "description_of_change"
+      ],
+      "additionalProperties": false
+    },
+    "reviewEntry": {
+      "type": "object",
+      "properties": {
+        "reviewer": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "comments": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "rejected",
+            "changes_requested",
+            "pending"
+          ]
+        }
+      },
+      "required": [
+        "reviewer",
+        "date",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "document_metadata": {
+      "type": "object",
+      "properties": {
+        "document_id": {
+          "type": "string"
+        },
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "HLD",
+            "LLD",
+            "Combined"
+          ]
+        },
+        "process_reference": {
+          "type": "object",
+          "description": "Link back to the source process definition in process_schema.json.",
+          "properties": {
+            "process_name": {
+              "type": "string"
+            },
+            "process_version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "process_name"
+          ],
+          "additionalProperties": false
+        },
+        "system_name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "industry_sector": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "in_review",
+            "approved",
+            "published",
+            "superseded",
+            "archived"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "template_standard": {
+          "type": "string",
+          "enum": [
+            "arc42",
+            "TOGAF",
+            "C4",
+            "IEEE1471",
+            "custom"
+          ],
+          "description": "The best-of-breed documentation framework this design follows."
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/personRef"
+          }
+        },
+        "reviewers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/personRef"
+          }
+        },
+        "created_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "last_updated": {
+          "type": "string",
+          "format": "date"
+        },
+        "approval_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "related_documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "document_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "relationship": {
+                "type": "string",
+                "enum": [
+                  "parent",
+                  "child",
+                  "supersedes",
+                  "superseded_by",
+                  "references"
+                ]
+              }
+            },
+            "required": [
+              "document_id",
+              "relationship"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "document_id",
+        "document_type",
+        "system_name",
+        "title",
+        "version",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "business_context": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "business_drivers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "architecture_description": {
+      "type": "object",
+      "description": "ISO/IEC/IEEE 42010 architecture description constructs.",
+      "properties": {
+        "stakeholders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stakeholder"
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "viewpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "viewpoint_name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "stakeholders_addressed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "concerns_addressed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "modeling_conventions": {
+                "type": "string"
+              },
+              "applicable_standard": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "viewpoint_name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "view_name": {
+                "type": "string"
+              },
+              "viewpoint_ref": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "diagrams": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/diagramReference"
+                }
+              },
+              "elements": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "view_name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "architecture_decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decisionRecord"
+          }
+        },
+        "architecture_rationale": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "requirements": {
+      "type": "object",
+      "properties": {
+        "functional_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirement"
+          }
+        },
+        "non_functional_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonFunctionalRequirement"
+          }
+        },
+        "traceability_matrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "requirement_id": {
+                "type": "string"
+              },
+              "design_element_id": {
+                "type": "string"
+              },
+              "verification_method": {
+                "type": "string",
+                "enum": [
+                  "test",
+                  "demonstration",
+                  "analysis",
+                  "inspection"
+                ]
+              }
+            },
+            "required": [
+              "requirement_id",
+              "design_element_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "system_context": {
+      "type": "object",
+      "description": "C4-model 'System Context' (Level 1) equivalent.",
+      "properties": {
+        "actors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "human",
+                  "system",
+                  "external_service"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "external_systems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "interface_type": {
+                "type": "string"
+              },
+              "data_exchanged": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "context_diagram": {
+          "$ref": "#/$defs/diagramReference"
+        }
+      },
+      "additionalProperties": false
+    },
+    "high_level_design": {
+      "type": "object",
+      "description": "Present when document_metadata.document_type is HLD or Combined.",
+      "properties": {
+        "solution_overview": {
+          "type": "string"
+        },
+        "architecture_style": {
+          "type": "string",
+          "enum": [
+            "monolith",
+            "microservices",
+            "event_driven",
+            "layered",
+            "service_oriented",
+            "serverless",
+            "hybrid",
+            "other"
+          ]
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/componentSpec"
+          }
+        },
+        "integration_points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "integration_pattern": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "target"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "data_flow_overview": {
+          "type": "string"
+        },
+        "technology_stack": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "type": "string"
+              },
+              "technology": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "justification": {
+                "type": "string"
+              },
+              "license": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "category",
+              "technology"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "deployment_topology": {
+          "type": "object",
+          "properties": {
+            "environments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "infrastructure": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "diagram": {
+              "$ref": "#/$defs/diagramReference"
+            }
+          },
+          "additionalProperties": false
+        },
+        "security_architecture": {
+          "type": "object",
+          "properties": {
+            "authentication_mechanism": {
+              "type": "string"
+            },
+            "authorization_model": {
+              "type": "string"
+            },
+            "data_protection_measures": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "threat_model_reference": {
+              "type": "string"
+            },
+            "compliance_standards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/standardReference"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "scalability_and_performance": {
+          "type": "object",
+          "properties": {
+            "expected_load": {
+              "type": "string"
+            },
+            "scaling_strategy": {
+              "type": "string"
+            },
+            "performance_targets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "availability_and_resilience": {
+          "type": "object",
+          "properties": {
+            "availability_target": {
+              "type": "string",
+              "description": "e.g. 99.9%"
+            },
+            "redundancy_strategy": {
+              "type": "string"
+            },
+            "disaster_recovery_plan": {
+              "type": "string"
+            },
+            "backup_strategy": {
+              "type": "string"
+            },
+            "rto": {
+              "type": "string",
+              "description": "Recovery Time Objective"
+            },
+            "rpo": {
+              "type": "string",
+              "description": "Recovery Point Objective"
+            }
+          },
+          "additionalProperties": false
+        },
+        "risks_and_mitigations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/risk"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "low_level_design": {
+      "type": "object",
+      "description": "Present when document_metadata.document_type is LLD or Combined.",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "component_name": {
+                "type": "string"
+              },
+              "module_name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "class_design": {
+                "type": "object",
+                "properties": {
+                  "diagram": {
+                    "$ref": "#/$defs/diagramReference"
+                  },
+                  "classes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "class_name": {
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "design_patterns_used": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "class_name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "sequence_flows": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/diagramReference"
+                }
+              },
+              "api_specifications": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/interfaceSpec"
+                }
+              },
+              "configuration_parameters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "default_value": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "algorithm_details": {
+                "type": "string"
+              },
+              "pseudocode_reference": {
+                "type": "string"
+              },
+              "error_handling_strategy": {
+                "type": "string"
+              },
+              "logging_and_monitoring": {
+                "type": "object",
+                "properties": {
+                  "log_levels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "monitored_metrics": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "alerting_rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "unit_test_strategy": {
+                "type": "string"
+              },
+              "code_standards_reference": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "component_name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "database_design": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "schema_name": {
+                "type": "string"
+              },
+              "database_technology": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/dataEntity"
+                }
+              },
+              "indexes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "partitioning_strategy": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "interface_contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interfaceSpec"
+          }
+        },
+        "detailed_sequence_flows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagramReference"
+          }
+        },
+        "exception_handling_strategy": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "quality_attributes": {
+      "type": "array",
+      "description": "ISO/IEC 25010 quality characteristic assessments for this design.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "characteristic": {
+            "$ref": "#/$defs/iso25010Characteristic"
+          },
+          "sub_characteristic": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "measurement_method": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "characteristic"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "compliance_and_standards": {
+      "type": "object",
+      "properties": {
+        "applicable_standards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/standardReference"
+          }
+        },
+        "regulatory_requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "regulation_name": {
+                "type": "string"
+              },
+              "jurisdiction": {
+                "type": "string"
+              },
+              "requirement_description": {
+                "type": "string"
+              },
+              "compliance_status": {
+                "type": "string",
+                "enum": [
+                  "compliant",
+                  "partially_compliant",
+                  "non_compliant",
+                  "not_applicable",
+                  "under_review"
+                ]
+              }
+            },
+            "required": [
+              "regulation_name",
+              "requirement_description"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk_register": {
+      "type": "array",
+      "description": "Document-level consolidated risk register (in addition to any component-level risks under high_level_design).",
+      "items": {
+        "$ref": "#/$defs/risk"
+      }
+    },
+    "governance_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "continuous_improvement": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "review_frequency": {
+            "type": "string"
+          },
+          "improvement_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "glossary_and_references": {
+      "type": "object",
+      "properties": {
+        "glossary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "term": {
+                "type": "string"
+              },
+              "definition": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "term",
+              "definition"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "diagrams": {
+          "type": "array",
+          "description": "Master index of all diagrams referenced anywhere in the document.",
+          "items": {
+            "$ref": "#/$defs/diagramReference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "review_and_governance": {
+      "type": "object",
+      "properties": {
+        "review_history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reviewEntry"
+          }
+        },
+        "change_log": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/changeLogEntry"
+          }
+        },
+        "approval_workflow": {
+          "type": "object",
+          "properties": {
+            "current_status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "in_review",
+                "approved",
+                "rejected"
+              ]
+            },
+            "required_approvers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "approvers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/personRef"
+              }
+            },
+            "approval_date": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "appendix": {
+      "type": "object",
+      "description": "Free-form supplementary content.",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "document_metadata"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "document_metadata": {
+            "properties": {
+              "document_type": {
+                "const": "HLD"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "high_level_design"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "document_metadata": {
+            "properties": {
+              "document_type": {
+                "const": "LLD"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "low_level_design"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "document_metadata": {
+            "properties": {
+              "document_type": {
+                "const": "Combined"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "high_level_design",
+          "low_level_design"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

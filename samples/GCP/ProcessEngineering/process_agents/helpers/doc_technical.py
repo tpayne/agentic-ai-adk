@@ -12,6 +12,7 @@ from .doc_structure import (
     apply_iso_table_formatting,
 )
 from ..step_diagram_agent import generate_step_diagram_for_step
+from ..utils import safe_filename_component
 
 logger = logging.getLogger("ProcessArchitect.DocTechnical")
 
@@ -208,7 +209,7 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
 def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
     """10.0 Flow Diagram — ISO formatted."""
     try:
-        diag_file = f"output/{process_name.lower().replace(' ', '_')}_flow.png"
+        diag_file = f"output/{safe_filename_component(process_name.lower())}_flow.png"
         fallback = "output/process_flow.png"
 
         if not os.path.exists(diag_file):
