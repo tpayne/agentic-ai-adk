@@ -17,6 +17,7 @@ from .doc_structure import (
 )
 
 from ..step_diagram_agent import generate_step_diagram_for_step
+from ..uml_diagram_agent import generate_uml_diagram
 
 logger = logging.getLogger("ProcessArchitect.DocContent")
 
@@ -598,7 +599,67 @@ def _add_prose_field(doc: docx.Document, label_text: str, text_value: str, inden
             p.add_run(line)
 
 
-def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3) -> None:
+_DIAGRAM_SIGNATURE_KEYS = {"diagram_id", "file_reference", "notation_standard", "diagram_type"}
+
+
+def _looks_like_diagram_descriptor(d: dict) -> bool:
+    """
+    True for a dict describing a diagram that this pipeline never
+    actually generates or renders -- design_data.json's "diagram"/
+    "diagrams" fields (title, diagram_id, description, file_reference,
+    notation_standard, diagram_type) are LLM-authored bookkeeping about
+    a diagram that was supposed to exist, typically a PlantUML .puml
+    source path like "docs/diagrams/lld_ire_sequence.puml". No agent in
+    this pipeline generates that file or renders it to an image, so the
+    path never resolves to anything real. Printed as ordinary labeled
+    fields, "File Reference: docs/diagrams/lld_ire_sequence.puml" reads
+    as if that file exists and is one click away -- confirmed directly
+    against a generated document, and flagged by a reviewer as
+    "references to things that do not exist." Recognizing the shape
+    lets both the dict branch and the list-of-dicts card branch below
+    render only what a reader can actually use (the title and
+    description) instead of the fabricated file/id/notation bookkeeping.
+    """
+    keys = set(d.keys())
+    return bool(keys & _DIAGRAM_SIGNATURE_KEYS) and ("title" in keys or "description" in keys)
+
+
+def _render_diagram_descriptor(
+    doc: docx.Document, d: dict, level: int, context: dict = None, system_name: str = None
+) -> None:
+    """
+    Renders a diagram descriptor (see _looks_like_diagram_descriptor):
+    title heading, description prose, and then either a REAL generated
+    diagram image (via uml_diagram_agent.generate_uml_diagram, using
+    whatever structural data is available in `context` -- the dict
+    that directly contains this descriptor) or, if `context` doesn't
+    hold anything drawable, the same honest "[... not yet generated]"
+    note as before instead of a fabricated-looking file path.
+    """
+    title = d.get("title")
+    if title:
+        doc.add_heading(str(title), level=min(max(level, 1), 6))
+
+    description = d.get("description")
+    if description:
+        doc.add_paragraph(str(description))
+
+    diagram_path = generate_uml_diagram(d, context or {}, system_name=system_name)
+    if diagram_path and os.path.exists(diagram_path):
+        doc.add_picture(diagram_path, width=Inches(5.5))
+        doc.add_paragraph()
+        return
+
+    diagram_type = d.get("diagram_type")
+    label = str(diagram_type).replace("_", " ").title() if diagram_type else "Diagram"
+    note = doc.add_paragraph()
+    note_run = note.add_run(f"[{label} not yet generated for this document.]")
+    note_run.italic = True
+
+
+def _render_generic_value(
+    doc: docx.Document, value, label=None, level: int = 3, system_name: str = None
+) -> None:
     """
     Deterministic renderer. Chooses prose vs. a table based on what the
     content actually is, rather than always producing a table for any
@@ -691,6 +752,11 @@ def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3)
             # as the dict branch above, rather than flattened prose.
             card_level = min(heading_level + 1, 6)
             for item in value:
+                if _looks_like_diagram_descriptor(item):
+                    _render_diagram_descriptor(doc, item, card_level, system_name=system_name)
+                    doc.add_paragraph()
+                    continue
+
                 title_key = next(
                     (k for k in _TITLE_KEY_PRIORITY if item.get(k)), None
                 )
@@ -713,9 +779,22 @@ def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3)
                         _add_prose_field(doc, key.replace("_", " ").title(), text)
                 doc.add_paragraph()  # spacer after the card's own fields
                 for key, v in structured_fields.items():
-                    _render_generic_value(
-                        doc, v, label=key.replace("_", " ").title(), level=card_level + 1
-                    )
+                    if isinstance(v, dict) and _looks_like_diagram_descriptor(v):
+                        _render_diagram_descriptor(
+                            doc, v, card_level + 1, context=item, system_name=system_name
+                        )
+                    elif isinstance(v, list) and v and all(_looks_like_diagram_descriptor(x) for x in v):
+                        if key:
+                            doc.add_heading(key.replace("_", " ").title(), level=min(card_level + 1, 6))
+                        for diag in v:
+                            _render_diagram_descriptor(
+                                doc, diag, card_level + 2, context=item, system_name=system_name
+                            )
+                    else:
+                        _render_generic_value(
+                            doc, v, label=key.replace("_", " ").title(), level=card_level + 1,
+                            system_name=system_name,
+                        )
             return
 
         table = doc.add_table(rows=1, cols=len(ordered_keys))
@@ -737,6 +816,10 @@ def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3)
     # Dict → labeled prose (not a table)
     # ---------------------------
     if isinstance(value, dict):
+        if _looks_like_diagram_descriptor(value):
+            _render_diagram_descriptor(doc, value, heading_level, system_name=system_name)
+            return
+
         if label:
             doc.add_heading(label, level=heading_level)
 
@@ -805,8 +888,31 @@ def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3)
             doc.add_paragraph()
 
         for k, v in structured_items.items():
+            # A structured field that is itself a diagram descriptor
+            # (a "diagram" dict) or a list of them (a "diagrams" list)
+            # gets rendered directly with THIS dict (`value`) passed as
+            # its sibling context -- e.g. a class_design dict's own
+            # "classes" list is exactly what its "diagram" field needs
+            # to actually draw from. Recursing generically here would
+            # lose that context, since _render_generic_value has no way
+            # to see `value` once called on `v` alone.
+            if isinstance(v, dict) and _looks_like_diagram_descriptor(v):
+                _render_diagram_descriptor(
+                    doc, v, heading_level + 1, context=value, system_name=system_name
+                )
+                continue
+
+            if isinstance(v, list) and v and all(_looks_like_diagram_descriptor(x) for x in v):
+                doc.add_heading(k.replace("_", " ").title(), level=min(heading_level + 1, 6))
+                for diag in v:
+                    _render_diagram_descriptor(
+                        doc, diag, heading_level + 2, context=value, system_name=system_name
+                    )
+                continue
+
             _render_generic_value(
-                doc, v, label=k.replace("_", " ").title(), level=heading_level + 1
+                doc, v, label=k.replace("_", " ").title(), level=heading_level + 1,
+                system_name=system_name,
             )
 
         return
