@@ -190,6 +190,40 @@ def _normalise(s: str) -> str:
     """Normalise input for matching."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
+
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]+')
+
+
+def safe_filename_component(name: str, max_len: int = 150) -> str:
+    """
+    Sanitizes a string for safe use as a single filesystem path component
+    (a generated .docx/.png filename), on POSIX and Windows alike.
+
+    Several generated-document save paths build their filename directly
+    from a free-text document title (process_name, or
+    document_metadata.title/system_name for a design document), previously
+    via nothing more than `name.replace(' ', '_')`. That leaves any other
+    filesystem-reserved character untouched -- most importantly "/", which
+    silently turns into an unintended, nonexistent subdirectory rather
+    than part of the filename (e.g. a real title containing
+    "... SAM/HAM Assets" produced a save path with a "SAM" directory that
+    was never created, raising FileNotFoundError at doc.save() time
+    instead of just being an unusual-looking filename).
+
+    This replaces path separators and the other Windows-reserved filename
+    characters (\\ / : * ? " < > |) with underscores, collapses whitespace
+    to underscores, strips leading/trailing dots and underscores, and caps
+    the length so a very long generated title can't hit filesystem
+    path-length limits either. Falls back to "untitled" for empty/non-
+    string input.
+    """
+    if not isinstance(name, str) or not name.strip():
+        return "untitled"
+    collapsed = re.sub(r"\s+", "_", name.strip())
+    safe = _UNSAFE_FILENAME_CHARS.sub("_", collapsed)
+    safe = safe.strip("._") or "untitled"
+    return safe[:max_len]
+
 def getResponseColour(code: str = "responseColourInfo") -> str:
     """Return the best ANSI match for RESPONSE_TEXT."""
     raw = getProperty(code)
@@ -504,6 +538,34 @@ def _paths_for_schema(schema_type: str) -> dict:
         "template_file": os.path.join(PROJECT_ROOT, "process_agents/templates/", "process_schema.json"),
         "raw_file": os.path.join(output_dir, "process_data_raw.json"),
     }
+
+
+def _detect_schema_type_from_disk() -> str:
+    """
+    Auto-detects which schema is "active" purely from which master data
+    file exists on disk, for the cases (loading a master file or its
+    template) where there's no in-memory JSON payload yet to fingerprint
+    with _detect_schema_type().
+
+    Rule: "design" only when output/design_data.json exists AND
+    output/process_data.json does NOT -- i.e. an unambiguous design-only
+    workspace. Every other case (only process exists, both exist, or
+    neither exists) resolves to "process", which is exactly the original
+    hardcoded-path behavior this function replaces, so existing
+    process-only callers that never pass schema_type are unaffected.
+
+    This is the single source of truth for that file-existence check --
+    load_master_process_json, load_process_template, and
+    load_full_process_context all resolve an omitted schema_type through
+    this function, and doc_generation_agent.py / edge_inference_agent.py
+    use it too, so the "which schema is this workspace running" decision
+    lives in exactly one place instead of being copy-pasted per caller.
+    """
+    process_path = _paths_for_schema("process")["data_file"]
+    design_path = _paths_for_schema("design")["data_file"]
+    if os.path.exists(design_path) and not os.path.exists(process_path):
+        return "design"
+    return "process"
 
 
 def save_drawio(xml_content) -> str:
@@ -2227,21 +2289,14 @@ def load_full_process_context(schema_type: Optional[str] = None) -> dict:
     also serves design documents.
 
     schema_type: "process", "design", or None (default) to auto-detect
-    by checking which master file exists on disk (preferring "process"
-    when both or neither exist, matching the original hardcoded-path
-    behavior for existing callers that never pass this new parameter).
+    via _detect_schema_type_from_disk() (preferring "process" when both
+    or neither exist, matching the original hardcoded-path behavior for
+    existing callers that never pass this new parameter).
 
     "subprocesses" remains process-only (always empty for design) --
     that concept doesn't have a design-schema equivalent yet.
     """
-    resolved_type = schema_type
-    if resolved_type is None:
-        process_path = _paths_for_schema("process")["data_file"]
-        design_path = _paths_for_schema("design")["data_file"]
-        if os.path.exists(design_path) and not os.path.exists(process_path):
-            resolved_type = "design"
-        else:
-            resolved_type = "process"
+    resolved_type = schema_type or _detect_schema_type_from_disk()
 
     context = {
         "master_process": {},
@@ -2461,13 +2516,13 @@ def load_process_template(schema_type: Optional[str] = None) -> Optional[dict]:
 
     Kept as `load_process_template` for backward compatibility with
     existing callers -- despite the name, it now dispatches by
-    schema_type. schema_type: "process" (default, unchanged behavior) or
-    "design". There is no auto-detection here since there's no JSON
-    payload to fingerprint yet at this point (we're loading the
-    fallback/starter template itself) -- callers that want the design
-    template must pass schema_type="design" explicitly.
+    schema_type. schema_type: "process", "design", or None (default) to
+    auto-detect via _detect_schema_type_from_disk() -- i.e. by checking
+    which master data file is actually present on disk. Callers don't
+    need to pass schema_type at all for correct routing in the normal
+    case; it remains available as an explicit override.
     """
-    resolved_type = schema_type or "process"
+    resolved_type = schema_type or _detect_schema_type_from_disk()
     template_path = _paths_for_schema(resolved_type)["template_file"]
     return _load_template_json(template_path, schema_type=resolved_type)
 
@@ -2480,12 +2535,12 @@ def load_master_process_json(schema_type: Optional[str] = None) -> Union[dict, N
     backward compatibility -- despite the name, it now dispatches by
     schema_type.
 
-    schema_type: "process" (default, unchanged behavior -- reads
-    output/process_data.json) or "design" (reads output/design_data.json).
-    There's no payload here to auto-detect from before the file is read,
-    so this defaults to "process" unless explicitly told otherwise,
-    matching the requirement that existing behavior is unaffected by
-    default.
+    schema_type: "process", "design", or None (default) to auto-detect
+    via _detect_schema_type_from_disk() -- i.e. by checking which master
+    data file is actually present on disk (output/process_data.json vs
+    output/design_data.json). Callers don't need to pass schema_type at
+    all for correct routing in the normal case; it remains available as
+    an explicit override.
 
     Returns:
       - A valid dict if the file exists AND contains a structurally valid
@@ -2493,7 +2548,7 @@ def load_master_process_json(schema_type: Optional[str] = None) -> Union[dict, N
       - None if the file is missing, unreadable, empty, locked, or
         contains validation issues.
     """
-    resolved_type = schema_type or "process"
+    resolved_type = schema_type or _detect_schema_type_from_disk()
     paths = _paths_for_schema(resolved_type)
     path = paths["data_file"]
     template_path = paths["template_file"]
