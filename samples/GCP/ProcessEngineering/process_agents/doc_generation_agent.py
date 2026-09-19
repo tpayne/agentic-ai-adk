@@ -672,9 +672,20 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
         add_iso_page_break(doc)
     rendered = _add_additional_data_section(doc, data, consumed_keys)
 
-    if rendered:
-        add_iso_page_break(doc)
-    _add_glossary(doc)
+    # _add_glossary is the process document's fallback glossary -- four
+    # hardcoded, process-specific terms ("Business Process", "KPI", ...)
+    # with no awareness of this document's own content. Calling it
+    # unconditionally here duplicated the design document's own real
+    # glossary: whenever glossary_and_references had actual data, it was
+    # already rendered above under "11.0 Glossary and References", so a
+    # second, unrelated "Appendix C: Glossary" table just followed it
+    # with terms that don't belong to this document at all. Only fall
+    # back to the generic glossary when the design document didn't
+    # supply its own.
+    if not glossary_and_references:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_glossary(doc)
 
     # Fix up section numbers/appendix letters from the final set of
     # headings that actually got rendered above (see docstring).

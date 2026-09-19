@@ -598,7 +598,7 @@ def _add_prose_field(doc: docx.Document, label_text: str, text_value: str, inden
             p.add_run(line)
 
 
-def _render_generic_value(doc: docx.Document, value, label=None) -> None:
+def _render_generic_value(doc: docx.Document, value, label=None, level: int = 3) -> None:
     """
     Deterministic renderer. Chooses prose vs. a table based on what the
     content actually is, rather than always producing a table for any
@@ -606,7 +606,11 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
 
     - A single dict (one record's fields) renders as labeled prose --
       real architecture documents don't put a component's description
-      in a bordered grid.
+      in a bordered grid. Any field WITHIN that dict which is itself a
+      structured sub-collection (a list of dicts, or a nested dict) gets
+      its own heading and a recursive render, one level deeper, instead
+      of being flattened into the same prose block as its siblings --
+      see the "structured vs. scalar fields" split below.
     - A list of dicts with FEW distinct fields (<=4 -- e.g. Term/
       Definition, Risk/Control) still renders as a compact table, since
       that genuinely is tabular, repeated, scannable data.
@@ -618,10 +622,22 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
       column width; this is how real ADR/risk-register tooling presents
       the same data.
 
+    `level` is the Word heading level used for `label` (and propagated,
+    one deeper each recursion, to any nested structured sub-collection),
+    so a top-level design-doc section like "high_level_design" reads the
+    way the reference process document's per-step sections do: a real
+    heading hierarchy (components, then each component, then its
+    fields) rather than one deeply-indented prose blob. Capped at 6 --
+    Word's own practical heading depth -- so pathologically deep source
+    data doesn't run past it.
+
     Never prints raw HTML. Never prints raw JSON/dict repr -- any nested
-    dict or list value is recursively rendered as readable indented text
-    via _stringify_nested rather than str()'d directly.
+    dict or list value that ISN'T promoted to its own heading is still
+    recursively rendered as readable indented text via _stringify_nested
+    rather than str()'d directly.
     """
+
+    heading_level = min(max(level, 1), 6)
 
     # ---------------------------
     # Simple string → paragraph
@@ -639,7 +655,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
     # ---------------------------
     if isinstance(value, list) and all(isinstance(x, (str, int, float)) for x in value):
         if label:
-            doc.add_heading(label, level=3)
+            doc.add_heading(label, level=heading_level)
         for item in value:
             doc.add_paragraph(str(item), style="List Bullet")
         return
@@ -649,7 +665,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
     # ---------------------------
     if isinstance(value, list) and all(isinstance(x, dict) for x in value):
         if label:
-            doc.add_heading(label, level=3)
+            doc.add_heading(label, level=heading_level)
 
         # Collect all keys
         all_keys = set()
@@ -668,23 +684,38 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
             # Architecture Decisions table or an 8-column Risk Register
             # is unreadable regardless of column width) -- render one
             # prose card per record instead: a heading naming the
-            # record, then its remaining fields as labeled prose.
+            # record, then its remaining fields as labeled prose. A
+            # field that is itself a structured sub-collection (e.g. a
+            # component card with its own nested "interfaces" list)
+            # gets promoted to its own heading + recursive render, same
+            # as the dict branch above, rather than flattened prose.
+            card_level = min(heading_level + 1, 6)
             for item in value:
                 title_key = next(
                     (k for k in _TITLE_KEY_PRIORITY if item.get(k)), None
                 )
                 title_text = str(item.get(title_key)) if title_key else None
                 if title_text:
-                    doc.add_heading(title_text, level=4)
+                    doc.add_heading(title_text, level=card_level)
+                structured_fields = {}
                 for key in ordered_keys:
                     if key == title_key:
                         continue
                     v = item.get(key, "")
                     if v in (None, "", [], {}):
                         continue
-                    text = _stringify_nested(v)
-                    _add_prose_field(doc, key.replace("_", " ").title(), text)
-                doc.add_paragraph()  # spacer between cards
+                    if isinstance(v, list) and all(isinstance(x, dict) for x in v):
+                        structured_fields[key] = v
+                    elif isinstance(v, dict) and len(v) > 1:
+                        structured_fields[key] = v
+                    else:
+                        text = _stringify_nested(v)
+                        _add_prose_field(doc, key.replace("_", " ").title(), text)
+                doc.add_paragraph()  # spacer after the card's own fields
+                for key, v in structured_fields.items():
+                    _render_generic_value(
+                        doc, v, label=key.replace("_", " ").title(), level=card_level + 1
+                    )
             return
 
         table = doc.add_table(rows=1, cols=len(ordered_keys))
@@ -707,7 +738,33 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
     # ---------------------------
     if isinstance(value, dict):
         if label:
-            doc.add_heading(label, level=3)
+            doc.add_heading(label, level=heading_level)
+
+        # Split this dict's fields into "structured" sub-collections
+        # (a nested list-of-dicts, or a nested dict with its own several
+        # fields) versus everything else (scalars, short lists, plain
+        # strings). A structured field gets promoted to its own heading
+        # and a recursive _render_generic_value call one level deeper,
+        # rather than being flattened into indented text via
+        # _stringify_nested alongside its scalar siblings. Confirmed
+        # real case: design_data.json's high_level_design/
+        # low_level_design hold nested lists like "components" or
+        # "interfaces" -- each with several fields of its own -- and
+        # without this split they rendered as one long indented prose
+        # block under a single "Components:" label instead of reading
+        # like the process document's per-step sections (a real heading
+        # per record, then that record's own fields underneath).
+        scalar_items = {}
+        structured_items = {}
+        for k, v in value.items():
+            if v in (None, "", [], {}):
+                continue
+            if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+                structured_items[k] = v
+            elif isinstance(v, dict) and len(v) > 1:
+                structured_items[k] = v
+            else:
+                scalar_items[k] = v
 
         # Merge sibling keys whose rendered text is exactly identical
         # into a single labeled field, instead of printing the same
@@ -718,7 +775,7 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
         # the same thing. Only non-empty text is eligible to merge, so
         # two unrelated blank/absent fields never get collapsed into one
         # misleading field.
-        texts = {k: _stringify_nested(v) for k, v in value.items()}
+        texts = {k: _stringify_nested(v) for k, v in scalar_items.items()}
         first_key_for_text = {}
         duplicate_of = {}
         for k, text in texts.items():
@@ -730,13 +787,13 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
                 duplicate_of[k] = first_key_for_text[text]
 
         merged_labels = {}
-        for k in value.keys():
+        for k in scalar_items.keys():
             if k not in duplicate_of:
                 merged_labels[k] = [k]
         for k, dup_target in duplicate_of.items():
             merged_labels[dup_target].append(k)
 
-        for k in value.keys():
+        for k in scalar_items.keys():
             if k in duplicate_of:
                 continue
             combined_label = " / ".join(
@@ -744,7 +801,14 @@ def _render_generic_value(doc: docx.Document, value, label=None) -> None:
             )
             _add_prose_field(doc, combined_label, texts[k])
 
-        doc.add_paragraph()
+        if scalar_items:
+            doc.add_paragraph()
+
+        for k, v in structured_items.items():
+            _render_generic_value(
+                doc, v, label=k.replace("_", " ").title(), level=heading_level + 1
+            )
+
         return
 
     # ---------------------------
