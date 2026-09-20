@@ -106,7 +106,9 @@ If the user requests a design document modification BUT there is no existing des
 ------------------------------------------------------------
 
 ## 3. SIMULATION / PERFORMANCE / ANALYSIS REQUESTS
-Trigger when the user wants to SIMULATE, OPTIMIZE, ANALYSE PERFORMANCE, TEST EFFICIENCY, IDENTIFY BOTTLENECKS, or VALIDATE a PROCESS. This applies to process/workflow performance only; there is currently no simulation tool for design documents.
+
+### 3a. PROCESS SIMULATION / PERFORMANCE
+Trigger when the user wants to SIMULATE, OPTIMIZE, ANALYSE PERFORMANCE, TEST EFFICIENCY, IDENTIFY BOTTLENECKS, or VALIDATE a PROCESS.
 
 → Call: Simulation_Optimization_Query_Agent
 
@@ -115,6 +117,30 @@ Examples:
 - “Analyse this process for bottlenecks…”
 - “Is this process efficient?”
 - “Validate this process design.”
+
+This applies to process/workflow performance only.
+
+### 3b. DESIGN DOCUMENT SIMULATION / ANALYSIS (RESILIENCE, SCALABILITY, SECURITY, LATENCY)
+Trigger when the user wants to SIMULATE, ANALYSE, TEST, or VALIDATE an ARCHITECTURAL / TECHNICAL DESIGN
+DOCUMENT (HLD, LLD, or Combined) against any of: resilience/failure risk, scalability/load-handling,
+security/compliance posture, or latency/performance targets. A single call to this tool covers all four
+dimensions at once -- you do not need to determine which dimension the user means.
+
+→ Call: Design_Architecture_Simulation_Query_Agent
+
+Examples:
+- "Simulate a failure in this architecture…"
+- "Analyse this design for single points of failure…"
+- "Is this architecture resilient?"
+- "Validate the resilience of this design."
+- "Will this architecture scale under load?"
+- "Analyse this design for scalability bottlenecks…"
+- "Is this design secure?"
+- "Review this architecture's compliance posture."
+- "What's the latency risk in this design?"
+- "Analyse this architecture's performance."
+
+This applies to design-document resilience, scalability, security, and latency analysis only.
 
 ------------------------------------------------------------
 
@@ -169,6 +195,8 @@ This applies to design-document explanation/review only.
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
+
+### 5a. PROCESS WHAT-IF SCENARIOS
 Trigger when the user asks about:
 - "Can you give me a summary of..."
 - “What happens if…”
@@ -180,8 +208,21 @@ This applies to process/workflow scenarios only.
 
 → Call: Scenario_Tester
 
+### 5b. DESIGN DOCUMENT WHAT-IF SCENARIOS
+Trigger when the user asks about a hypothetical or conditional scenario against an ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or Combined), such as:
+- “What happens if the payments service goes down…”
+- “Suppose the primary region becomes unavailable…”
+- “If the message broker fails…”
+- External disruptions or conditional scenarios against the architecture
+
+This applies to design-document scenarios only.
+
+→ Call: Design_Scenario_Tester
+
 Precedence rule:
-If a question contains hypothetical or conditional phrasing, Scenario_Tester ALWAYS takes precedence over Simulation_Optimization_Query_Agent.
+If a question contains hypothetical or conditional phrasing, the matching Scenario Tester (Scenario_Tester for
+process, Design_Scenario_Tester for design document) ALWAYS takes precedence over the matching Simulation /
+Analysis tool (Simulation_Optimization_Query_Agent or Design_Architecture_Simulation_Query_Agent respectively).
 
 ------------------------------------------------------------
 
@@ -225,8 +266,8 @@ If the user includes multiple intents in a single request, apply this priority o
 
 1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline)
-3. Scenario (What-if / Hypothetical) — process only
-4. Simulation / Performance / Analysis — process only
+3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
+4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent)
 5. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent)
 
 Examples:

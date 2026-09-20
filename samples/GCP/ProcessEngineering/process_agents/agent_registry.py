@@ -16,8 +16,10 @@ from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .json_writer_agent import json_writer_agent
 from .scenario_agent import scenario_tester_agent
+from .scenario_design_agent import design_scenario_tester_agent
 from .simulation_agent import simulation_agent
 from .simulation_agent import simulation_query_agent
+from .design_simulation_agent import design_simulation_query_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
 from .update_process_agent import update_design_pipeline
 
