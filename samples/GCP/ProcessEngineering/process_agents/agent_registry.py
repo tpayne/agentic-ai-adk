@@ -2,6 +2,7 @@
 from .analysis_agent import analysis_agent
 from .compliance_agent import compliance_agent
 from .consultant_agent import consultant_agent
+from .consultant_design_agent import consultant_design_agent
 from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
 from .cloudarch_pipeline_agent import (

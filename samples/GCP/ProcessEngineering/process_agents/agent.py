@@ -149,6 +149,7 @@ sys.stderr = open(runtime_file, "a")
 from .agent_registry import (
     full_design_pipeline,
     consultant_agent,
+    consultant_design_agent,
     cloudarch_pipeline,
     scenario_tester_agent,
     update_design_pipeline,
@@ -195,6 +196,7 @@ root_agent = ProcessLlmAgent(
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
+        consultant_design_agent,
         cloudarch_pipeline,
         scenario_tester_agent,
         update_design_pipeline,

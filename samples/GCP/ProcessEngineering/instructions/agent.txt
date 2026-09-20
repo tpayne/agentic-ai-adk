@@ -119,10 +119,12 @@ Examples:
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
+
+### 4a. PROCESS EXPLANATION / REVIEW
 Trigger when the user asks for conceptual understanding or non-performance review of a PROCESS, such as:
 - What a process is
 - What a step means
-- How the design works
+- How the process works
 - High-level explanation
 - Comparison of processes
 - Review or audit for structure, clarity, or compliance
@@ -139,12 +141,30 @@ Examples:
 - “Review this process for compliance.”
 - "Load the current process and give a summary"
 
-This applies to process/workflow explanation only. There is currently no
-dedicated conceptual-explanation tool for design documents; if the user asks
-for a general explanation or review of a design document rather than a
-change to it, ask a clarification question (Rule 10) rather than routing to
-Consultant_Agent or guessing, since Consultant_Agent is not verified to
-handle design_document_schema.json content.
+This applies to process/workflow explanation only.
+
+### 4b. DESIGN DOCUMENT EXPLANATION / REVIEW
+Trigger when the user asks for conceptual understanding or non-performance review of an ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or Combined), such as:
+- What the architecture is
+- What a component or integration point does
+- How the design works
+- High-level explanation of the HLD/LLD
+- Comparison of designs
+- Review or audit for structure, clarity, compliance, or best practices
+- What is the current design about
+- Load the current design and give an overview
+
+→ Call: Design_Consultant_Agent
+
+Examples:
+- "Explain the deployment topology…"
+- "What does this architecture do?"
+- "What does the current design look like?"
+- "Compare these two architectures."
+- "Review this design for compliance."
+- "Load the current design and give a summary"
+
+This applies to design-document explanation/review only.
 
 ------------------------------------------------------------
 
@@ -207,7 +227,7 @@ If the user includes multiple intents in a single request, apply this priority o
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline)
 3. Scenario (What-if / Hypothetical) — process only
 4. Simulation / Performance / Analysis — process only
-5. General Explanation / Review — process only
+5. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
