@@ -46,7 +46,15 @@ def _out_path(diagram_descriptor: dict) -> str:
 
 def _wrap(label: Any, width: int = 22) -> str:
     text = str(label)
-    return "\n".join(textwrap.wrap(text, width=width)) or text
+    # break_long_words=False: a single overlong token (a method call like
+    # "publishReconciliationEvent(ciId)" is common in sequence-diagram
+    # messages) is kept whole on its own line rather than hard-split mid-
+    # identifier, which reads as corrupted text (confirmed against a
+    # rendered sequence diagram: "publishReconciliationEvent(ciId)" split
+    # into "...Event(c" / "iId)" was visually indistinguishable from a typo).
+    # It's allowed to overflow its nominal width slightly; that's still more
+    # legible than a broken identifier.
+    return "\n".join(textwrap.wrap(text, width=width, break_long_words=False, break_on_hyphens=False)) or text
 
 
 # ------------------------------------------------------------
@@ -244,6 +252,110 @@ def _draw_class_diagram(out_path: str, title: str, classes: List[Dict[str, Any]]
 
 
 # ------------------------------------------------------------
+# UML SEQUENCE DIAGRAM -- lifelines + ordered call/return arrows. Unlike
+# every renderer above, the drawable content (participants/steps) lives
+# on the descriptor itself (design_document_schema.json's
+# sequenceDiagramSpec), not in a separate `context` dict -- a sequence
+# descriptor is self-contained by design, since each one describes its
+# own distinct interaction, not a shared structural view.
+# ------------------------------------------------------------
+
+def _draw_sequence_diagram(
+    out_path: str, title: str, participants: List[str], steps: List[Dict[str, Any]]
+) -> str:
+    participants = [p for p in (participants or []) if p]
+    steps = [
+        s for s in (steps or [])
+        if isinstance(s, dict) and s.get("from_participant") and s.get("to_participant") and s.get("message")
+    ]
+    if not participants or not steps:
+        return ""
+
+    # Any participant referenced by a step but not declared up front is
+    # appended in first-seen order, rather than silently dropping that
+    # step's arrow.
+    for s in steps:
+        for key in ("from_participant", "to_participant"):
+            p = s[key]
+            if p not in participants:
+                participants.append(p)
+
+    x_positions = {p: i * 2.4 for i, p in enumerate(participants)}
+    step_gap = 0.9
+    lifeline_top = 0.55
+    lifeline_bottom = lifeline_top + step_gap * (len(steps) + 1)
+
+    fig_w = max(6.0, len(participants) * 2.4 + 1.5)
+    fig_h = max(4.0, lifeline_bottom + 1.0)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.axis("off")
+    ax.set_xlim(-1.3, x_positions[participants[-1]] + 1.3)
+    ax.set_ylim(0, lifeline_bottom + 0.6)
+    ax.invert_yaxis()
+
+    for p in participants:
+        x = x_positions[p]
+        box = patches.FancyBboxPatch(
+            (x - 0.95, -0.3), 1.9, 0.6, boxstyle="round,pad=0.02",
+            linewidth=1, edgecolor="black", facecolor="#dbe8f9",
+        )
+        ax.add_patch(box)
+        ax.text(x, 0.0, _wrap(p, 20), ha="center", va="center", fontsize=8.5, fontweight="bold")
+        ax.plot([x, x], [0.3, lifeline_bottom], color="gray", linestyle="--", linewidth=1, zorder=0)
+
+    y = lifeline_top + step_gap
+    for step in sorted(steps, key=lambda s: s.get("step_number") or 0):
+        x0 = x_positions.get(step["from_participant"])
+        x1 = x_positions.get(step["to_participant"])
+        if x0 is None or x1 is None:
+            y += step_gap
+            continue
+
+        linestyle = "dashed" if step.get("is_return") else "solid"
+        message = _wrap(step["message"], 28)
+        if step.get("is_async"):
+            message = f"{message}\n(async)"
+
+        if x0 == x1:
+            # Self-call: a small square loop back onto the same lifeline.
+            loop_w = 0.55
+            ax.plot(
+                [x0, x0 + loop_w, x0 + loop_w, x0 + 0.06],
+                [y, y, y + 0.32, y + 0.32],
+                color="black", linestyle=linestyle, linewidth=1.2,
+            )
+            ax.annotate(
+                "", xy=(x0, y + 0.32), xytext=(x0 + 0.1, y + 0.32),
+                arrowprops=dict(arrowstyle="-|>", color="black", linewidth=1.2),
+            )
+            label_x, label_ha = x0 + loop_w + 0.12, "left"
+        else:
+            ax.annotate(
+                "", xy=(x1, y), xytext=(x0, y),
+                arrowprops=dict(arrowstyle="-|>", color="black", linewidth=1.2, linestyle=linestyle),
+            )
+            label_x, label_ha = (x0 + x1) / 2, "center"
+
+        ax.text(
+            label_x, y - 0.1, message, fontsize=7, ha=label_ha, va="bottom",
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+        )
+        if step.get("notes"):
+            ax.text(
+                label_x, y + 0.22, _wrap(step["notes"], 30), fontsize=6, ha=label_ha, va="top",
+                color="#555", style="italic",
+            )
+
+        y += step_gap
+
+    fig.suptitle(_wrap(title, 60), fontsize=13)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    return out_path
+
+
+# ------------------------------------------------------------
 # DISPATCH
 # ------------------------------------------------------------
 
@@ -256,6 +368,9 @@ def generate_uml_diagram(
     (the dict directly containing this descriptor). Tries, in order,
     the most specific/richest data available:
 
+      0. participants/steps -> UML sequence diagram (self-contained on
+         the descriptor itself -- see sequenceDiagramSpec -- checked
+         before anything in `context`)
       1. classes            -> UML class diagram
       2. integration_points -> labeled source/target edge graph
       3. external_systems   -> hub-and-spoke around `system_name`
@@ -264,9 +379,10 @@ def generate_uml_diagram(
       6. component_name +
          interfaces/dependencies -> hub-and-spoke around the component
 
-    Returns the saved PNG path, or "" if `context` holds none of the
-    above -- callers should fall back to an honest "not yet generated"
-    note rather than presenting a placeholder as a real diagram.
+    Returns the saved PNG path, or "" if neither `diagram_descriptor`
+    nor `context` holds any of the above -- callers should fall back to
+    an honest "not yet generated" note rather than presenting a
+    placeholder as a real diagram.
     """
     try:
         if not isinstance(diagram_descriptor, dict) or not isinstance(context, dict):
@@ -275,6 +391,13 @@ def generate_uml_diagram(
         dtype = str(diagram_descriptor.get("diagram_type") or "").strip().lower()
         title = diagram_descriptor.get("title") or "Diagram"
         out_path = _out_path(diagram_descriptor)
+
+        if dtype == "sequence" and diagram_descriptor.get("participants") and diagram_descriptor.get("steps"):
+            result = _draw_sequence_diagram(
+                out_path, title, diagram_descriptor["participants"], diagram_descriptor["steps"]
+            )
+            if result:
+                return result
 
         if dtype == "class" and context.get("classes"):
             result = _draw_class_diagram(out_path, title, context["classes"])

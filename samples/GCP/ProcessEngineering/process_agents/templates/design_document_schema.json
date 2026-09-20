@@ -587,6 +587,98 @@
         "status"
       ],
       "additionalProperties": false
+    },
+    "sequenceStep": {
+      "type": "object",
+      "properties": {
+        "step_number": {
+          "type": "integer",
+          "description": "1-based order of this interaction within the sequence."
+        },
+        "from_participant": {
+          "type": "string",
+          "description": "Name of the calling/sending participant. Must match an entry in this diagram's participants list."
+        },
+        "to_participant": {
+          "type": "string",
+          "description": "Name of the receiving participant. Must match an entry in this diagram's participants list."
+        },
+        "message": {
+          "type": "string",
+          "description": "The call, message, or event being sent (e.g. 'validateToken(sessionId)', 'HTTP POST /api/v1/orders')."
+        },
+        "is_async": {
+          "type": "boolean",
+          "description": "True if this is an asynchronous/fire-and-forget message rather than a synchronous call."
+        },
+        "is_return": {
+          "type": "boolean",
+          "description": "True if this is a return/response message flowing back to the original caller, rather than a new call."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional short annotation (e.g. a guard condition or error path)."
+        }
+      },
+      "required": [
+        "step_number",
+        "from_participant",
+        "to_participant",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "sequenceDiagramSpec": {
+      "type": "object",
+      "description": "A sequence diagram descriptor that carries its own drawable content (participants + ordered steps), unlike the generic diagramReference which is only bookkeeping about a diagram assumed to exist elsewhere. Used for low_level_design.components[].sequence_flows so the pipeline can render a real UML-style sequence diagram directly from the design JSON rather than a title/description placeholder.",
+      "properties": {
+        "diagram_id": {
+          "type": "string"
+        },
+        "diagram_type": {
+          "type": "string",
+          "const": "sequence"
+        },
+        "notation_standard": {
+          "type": "string",
+          "enum": [
+            "UML",
+            "other"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "file_reference": {
+          "type": "string",
+          "description": "Populated by the pipeline with the path to the rendered diagram image; authors should leave this blank."
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ordered list of participant/lifeline names (actors, components, services) appearing in this sequence, left to right."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sequenceStep"
+          },
+          "description": "Ordered list of interactions between participants, top to bottom."
+        }
+      },
+      "required": [
+        "diagram_id",
+        "diagram_type",
+        "title",
+        "participants",
+        "steps"
+      ],
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -1229,7 +1321,7 @@
               "sequence_flows": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/$defs/diagramReference"
+                  "$ref": "#/$defs/sequenceDiagramSpec"
                 }
               },
               "api_specifications": {

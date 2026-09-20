@@ -604,21 +604,31 @@ _DIAGRAM_SIGNATURE_KEYS = {"diagram_id", "file_reference", "notation_standard", 
 
 def _looks_like_diagram_descriptor(d: dict) -> bool:
     """
-    True for a dict describing a diagram that this pipeline never
-    actually generates or renders -- design_data.json's "diagram"/
-    "diagrams" fields (title, diagram_id, description, file_reference,
-    notation_standard, diagram_type) are LLM-authored bookkeeping about
-    a diagram that was supposed to exist, typically a PlantUML .puml
-    source path like "docs/diagrams/lld_ire_sequence.puml". No agent in
-    this pipeline generates that file or renders it to an image, so the
-    path never resolves to anything real. Printed as ordinary labeled
-    fields, "File Reference: docs/diagrams/lld_ire_sequence.puml" reads
-    as if that file exists and is one click away -- confirmed directly
+    True for a dict describing a diagram (title, diagram_id,
+    description, file_reference, notation_standard, diagram_type).
+    Most of these are still LLM-authored bookkeeping about a diagram
+    that was supposed to exist elsewhere, typically a PlantUML .puml
+    source path like "docs/diagrams/lld_ire_sequence.puml" that no
+    agent in this pipeline generates or renders, so the path never
+    resolves to anything real. Printed as ordinary labeled fields,
+    "File Reference: docs/diagrams/lld_ire_sequence.puml" reads as if
+    that file exists and is one click away -- confirmed directly
     against a generated document, and flagged by a reviewer as
     "references to things that do not exist." Recognizing the shape
     lets both the dict branch and the list-of-dicts card branch below
     render only what a reader can actually use (the title and
-    description) instead of the fabricated file/id/notation bookkeeping.
+    description) plus, where one can actually be drawn, a real
+    generated image -- see _render_diagram_descriptor.
+
+    One category IS now real: a low_level_design component's
+    "sequence_flows" entries (design_document_schema.json's
+    sequenceDiagramSpec) carry their own inline "participants"/"steps"
+    data, so uml_diagram_agent.generate_uml_diagram can render an
+    actual UML-style sequence diagram from them directly -- no external
+    .puml file involved. Everything else in this doc (class diagrams,
+    integration-point graphs, context/deployment views) was already
+    real for the same reason: the drawable content lives in the JSON
+    itself, not in a file reference.
     """
     keys = set(d.keys())
     return bool(keys & _DIAGRAM_SIGNATURE_KEYS) and ("title" in keys or "description" in keys)
