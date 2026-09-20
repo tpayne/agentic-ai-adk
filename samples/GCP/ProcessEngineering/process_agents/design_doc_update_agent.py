@@ -15,6 +15,7 @@ from .design_doc_hld_agent import design_doc_hld_agent
 from .design_doc_lld_agent import design_doc_lld_agent
 from .design_doc_agent import design_doc_agent
 from .design_doc_compliance_agent import design_doc_compliance_agent
+from .design_simulation_agent import design_simulation_agent
 
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
@@ -125,6 +126,38 @@ design_doc_refinement_update_inst = ProcessAgent(
     after_model_callback=design_doc_agent.after_model_callback
 )
 
+# Simulation gate clone + its own refine-apply clone, mirroring
+# update_process_agent.py's simulation_inst + design_simulation_inst:
+# design_simulation_agent is already used bare inside
+# design_doc_create_agent.py's review loop, so this update pipeline
+# clones it (an ADK agent can only have one parent), and pairs it with
+# a second refiner clone of design_doc_agent that re-reads the
+# iteration-feedback mailbox and applies whatever the simulation gate
+# flagged, the same way design_doc_refinement_update_inst already does
+# for compliance feedback.
+design_simulation_update_inst = ProcessLlmAgent(
+    name=design_simulation_agent.name + "_Update",
+    model=design_simulation_agent.model,
+    description=design_simulation_agent.description,
+    instruction=design_simulation_agent.instruction,
+    tools=design_simulation_agent.tools,
+    output_key=design_simulation_agent.output_key,
+    generate_content_config=design_simulation_agent.generate_content_config,
+    before_model_callback=design_simulation_agent.before_model_callback,
+    after_model_callback=design_simulation_agent.after_model_callback,
+)
+
+design_doc_simulation_refinement_update_inst = ProcessAgent(
+    name=design_doc_agent.name + "_Simulation_Refinement_Update",
+    model=design_doc_agent.model,
+    description=design_doc_agent.description,
+    instruction=design_doc_agent.instruction,
+    tools=design_doc_agent.tools,
+    output_key=design_doc_agent.output_key,
+    before_model_callback=design_doc_agent.before_model_callback,
+    after_model_callback=design_doc_agent.after_model_callback,
+)
+
 # Grounding pair, mirroring update_process_agent.py's grounding_inst +
 # design_grounding_inst: an auditor clone of the shared grounding_agent,
 # followed by a refiner clone of design_doc_agent that applies whatever
@@ -204,6 +237,8 @@ sub_update_agents = [
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
+    design_simulation_update_inst,
+    design_doc_simulation_refinement_update_inst,
 ]
 
 # Optionally include grounding agents, same gate/flag the process

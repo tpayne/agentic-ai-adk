@@ -38,6 +38,7 @@ from google.genai import types
 
 from .utils import (
     load_master_design_json,
+    save_iteration_feedback,
     getProperty,
 )
 
@@ -771,9 +772,38 @@ def perform_design_sensitivity_analysis(design_json_str=None) -> str:
 
 
 # ============================================================
-# LLM AGENT: ARCHITECTURE SIMULATION & RISK ANALYST
+# LLM AGENT: DESIGN ARCHITECTURE SIMULATION GATE (PIPELINE-INTERNAL)
 # ============================================================
+# Design-side analogue of simulation_agent.py's Simulation_Optimization_Agent
+# ("REVISION REQUIRED" / "SIMULATION_ALL_APPROVED"). This is the agent that
+# gets wired directly into Full_Design_Doc_Pipeline / Update_Design_Doc_Pipeline
+# as a self-auditing gate -- distinct from design_simulation_query_agent below,
+# which is the standalone, user-facing narrative agent invoked on demand.
+# Reuses the SAME "SIMULATION_ALL_APPROVED" marker / simulation_status key
+# that simulation_agent.py's gate uses (save_iteration_feedback's
+# approval_markers dict already maps it), since the process and design
+# pipelines never run concurrently and output/approval.json is reset at the
+# start of each pipeline run -- no changes to utils.py/utils_agent.py were
+# needed to wire this in.
 from .agent_wrappers import ProcessLlmAgent
+
+design_simulation_agent = ProcessLlmAgent(
+    name="Design_Architecture_Simulation_Agent",
+    description=(
+        "Runs the composite resilience/scalability/security/latency simulation against the design document "
+        "being built and decides whether the design requires revision before it can proceed."
+    ),
+    tools=[
+        load_master_design_json,
+        simulate_design_architecture,
+        save_iteration_feedback,
+    ],
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.1,
+        top_p=1,
+    ),
+    instruction_file="design_simulation_agent.txt",
+)
 
 design_simulation_query_agent = ProcessLlmAgent(
     name="Design_Architecture_Simulation_Query_Agent",

@@ -19,6 +19,7 @@ from .scenario_agent import scenario_tester_agent
 from .scenario_design_agent import design_scenario_tester_agent
 from .simulation_agent import simulation_agent
 from .simulation_agent import simulation_query_agent
+from .design_simulation_agent import design_simulation_agent
 from .design_simulation_agent import design_simulation_query_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
 from .update_process_agent import update_design_pipeline
@@ -81,6 +82,7 @@ from .design_doc_create_agent import (
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    design_doc_simulation_refinement_instance,
     grounding_agent_instance as grounding_agent_instance_dd,
     design_doc_grounding_instance,
     stop_controller_agent as stop_controller_agent_dd,
@@ -94,6 +96,8 @@ from .design_doc_update_agent import (
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
+    design_simulation_update_inst,
+    design_doc_simulation_refinement_update_inst,
     grounding_update_inst as grounding_update_inst_dd,
     design_doc_grounding_instance as design_doc_grounding_instance_dd,
     normalizer_inst as normalizer_inst_dd,
@@ -171,6 +175,8 @@ CREATE_DESIGN_DOC_PIPELINE_AGENTS = [
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    design_simulation_agent,
+    design_doc_simulation_refinement_instance,
     grounding_agent_instance_dd,
     design_doc_grounding_instance,
 
@@ -196,6 +202,8 @@ UPDATE_DESIGN_DOC_PIPELINE_AGENTS = [
     design_doc_lld_update_inst,
     design_doc_compliance_update_inst,
     design_doc_refinement_update_inst,
+    design_simulation_update_inst,
+    design_doc_simulation_refinement_update_inst,
     grounding_update_inst_dd,
     design_doc_grounding_instance_dd,
     stop_controller_agent_instance_dd,

@@ -8,6 +8,7 @@ from .design_doc_hld_agent import design_doc_hld_agent
 from .design_doc_lld_agent import design_doc_lld_agent
 from .design_doc_agent import design_doc_agent
 from .design_doc_compliance_agent import design_doc_compliance_agent
+from .design_simulation_agent import design_simulation_agent
 
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
@@ -68,6 +69,25 @@ design_doc_compliance_instance = ProcessLlmAgent(
 
 design_doc_refinement_instance = ProcessAgent(
     name=design_doc_agent.name + "_Refinement_Instance",
+    model=design_doc_agent.model,
+    description=design_doc_agent.description,
+    instruction=design_doc_agent.instruction,
+    tools=design_doc_agent.tools,
+    output_key=design_doc_agent.output_key,
+    before_model_callback=design_doc_agent.before_model_callback,
+    after_model_callback=design_doc_agent.after_model_callback,
+)
+
+# Simulation gate + its own refine-apply clone, mirroring the
+# compliance/refinement pair immediately above and the process
+# pipeline's simulation_agent + design_simulation_instance in
+# create_process_agent.py: design_simulation_agent audits the current
+# HLD/LLD against the four-dimension simulation and writes feedback to
+# the iteration-feedback mailbox, and this refiner clone of
+# design_doc_agent re-reads that mailbox (load_iteration_feedback) and
+# applies whatever it flagged, on the next loop iteration.
+design_doc_simulation_refinement_instance = ProcessAgent(
+    name=design_doc_agent.name + "_Simulation_Refinement_Instance",
     model=design_doc_agent.model,
     description=design_doc_agent.description,
     instruction=design_doc_agent.instruction,
@@ -152,6 +172,8 @@ sub_agents = [
     design_doc_lld_instance,
     design_doc_compliance_instance,
     design_doc_refinement_instance,
+    design_simulation_agent,
+    design_doc_simulation_refinement_instance,
 ]
 
 # Optionally include grounding agents, same gate/flag the process
