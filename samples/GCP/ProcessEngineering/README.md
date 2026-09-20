@@ -1,10 +1,10 @@
 # ADK Business Process Architect
 
-This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to generating professional process documentation and validated workflows.
+This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to generating professional process documentation and validated workflows. It also supports an equivalent lifecycle for architectural design documentation (High-Level Design, Low-Level Design, or Combined), covering the same create/query/what-if/simulate/update pattern.
 
-Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process based on that business process request.
+Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process (or a full architectural design document) based on that request.
 
-In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
+In other words, this agent is used for automated process engineering and automated solution/architecture documentation - going from very rough requirements through to tested documentation. A handy tool for consultants and architects alike.
 
 This application is based on Google ADK but is using `LiteLlm`, so you can use multiple model providers. To use different models, set the appropriate model in the `agentapp.properties` file. 
 
@@ -33,10 +33,16 @@ The following are a list of known issues: -
 - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
 - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
-- Sometimes the root agent gets confused as to which agent to use to address a query. If you get this, you can change to prompt to something like **"using the Consulting Agent...."** and it will use the right one. Agents available are: -
-    * Consulting Agent for general queries
-    * Simulation Agent for running simulations
-    * Scenario Testing Agent for running "what if" type queries
+- The same applies to design documents: if generating a new HLD/LLD/Combined design from scratch, clear out any old `design_data.json` from `output/`; if you are querying, testing, or updating an existing design document, leave `output/` alone as it is used as input for the design queries, scenario tests, and simulations.
+- Sometimes the root agent gets confused as to which agent to use to address a query. If you get this, you can change the prompt to something like **"using the Consulting Agent...."** and it will use the right one. Agents available are: -
+    * Consulting Agent for general queries about an existing **process**
+    * Simulation Agent for running simulations on a **process**
+    * Scenario Testing Agent for running "what if" type queries against a **process**
+    * Design Consultant Agent for general queries about an existing **design document** (HLD/LLD/Combined)
+    * Design Architecture Simulation Query Agent for running resilience, scalability, security, and latency simulations against a **design document**
+    * Design Scenario Tester for running "what if" type queries against a **design document**
+    * CloudArch Pipeline for generating or regenerating cloud architecture diagrams from a **design document**
+  If the root agent picks the wrong domain (e.g. it treats a design-document question as a process question, or vice-versa), naming the agent explicitly in your prompt (e.g. **"using the Design Consultant Agent..."**) will steer it correctly.
 
 ---
 
@@ -51,6 +57,15 @@ The ADK pipeline provides:
 - **Automated High-Fidelity Artifacts**:
   - Process diagrams (level 1 and 2) embedded in the process document.
   - A professional Word document describing the business process and related information, aligned to ITIL and ISO-style conventions.
+- **Autonomous Design Document Pipeline**: A parallel "Solution Architect" workflow (`Full_Design_Doc_Pipeline` / `Update_Design_Doc_Pipeline`) that transforms raw architecture requirements into a High-Level Design (HLD), Low-Level Design (LLD), or Combined design document, following the same requirements → design → review → normalize → document flow as the process pipeline.
+- **Self-Auditing Design Review Loop**: A design-side review/compliance loop iterates over the HLD/LLD/Combined document, checking it against `design_document_schema.json` and standards references (e.g. TOGAF ADM, C4 Model, ISO/IEC/IEEE 42010) until it is structurally and content-complete.
+- **Cloud Architecture Diagramming (`CloudArch_Pipeline`)**: A dedicated reviewer/generator loop (`cloudarch_agent`, `cloudarch_reviewer_agent`) produces and iteratively refines a cloud/UML-style architecture diagram from the design document's components, dependencies, and integration points.
+- **Four-Dimension Design Simulation**: A `Design_Architecture_Simulation_Query_Agent` runs a single composite simulation over an existing design document covering:
+  - **Resilience** — a Monte Carlo blast-radius/cascading-failure model built from component dependencies, integration points, declared availability targets, and risk register entries, identifying single points of failure and an overall resilience risk rating.
+  - **Scalability** — structural bottleneck detection (components many others depend on with no declared elastic/auto-scaling technology), plus any scalability-tagged risks.
+  - **Security** — a control-coverage checklist, compliance-standard status tally, security-tagged risks, and an externally-exposed-without-full-controls check.
+  - **Latency** — declared performance/latency targets cross-checked against the deepest dependency chain in the architecture, flagging undeclared latency budgets on long request paths.
+- **Design Consultant & Scenario Testing**: A `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while a `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation agent for any quantitative estimate.
 
 ---
 
@@ -60,6 +75,18 @@ The ADK pipeline provides:
 2. **Iterative Refinement**: Design and Compliance agents loop, refining the process until operational and regulatory criteria are satisfied. This cycle includes testing and optimization.
 3. **Schema Stabilization**: The Normalizer Agent maps the finalized design to a stable documentation contract and saves the state to `process_data.json`.
 4. **Artifact Engineering**: The Documentation Agent renders diagrams and generates the final specification (Word document) from the local state.
+
+---
+
+### 🚀 Autonomous Design Document Execution Flow
+
+1. **Requirement Extraction**: The Design Analysis Agent converts user intent (target architecture, constraints, quality attributes) into a machine-readable design requirements specification, and determines whether an HLD, LLD, or Combined document is being requested.
+2. **Iterative Refinement**: Design and review agents loop over the HLD/LLD/Combined content — components, dependencies, integration points, risk register, security architecture, scalability/performance targets — until the document is structurally complete against `design_document_schema.json`.
+3. **Schema Stabilization**: The design-side Normalizer Agent maps the finalized design to the stable `design_document_schema.json` contract and saves the state to `output/design_data.json`.
+4. **Cloud Architecture Diagramming**: The `CloudArch_Pipeline` reviewer/generator loop renders a cloud/UML-style architecture diagram from the components, dependencies, and integration points in the finalized design.
+5. **Artifact Engineering**: The Documentation Agent renders the final design specification (Word document) from the local `design_data.json` state, alongside the generated architecture diagram.
+
+Once a design document exists on disk, it can be queried (`Design_Consultant_Agent`), tested against what-if scenarios (`Design_Scenario_Tester`), simulated across resilience/scalability/security/latency (`Design_Architecture_Simulation_Query_Agent`), or updated and re-documented (`Update_Design_Doc_Pipeline`) — mirroring the equivalent process-side capabilities above.
 
 ---
 
@@ -292,9 +319,14 @@ The ADK pipeline provides:
 ├── instructions
 │   ├── agent.txt
 │   ├── analysis_agent.txt
+│   ├── cloudarch_agent.txt
+│   ├── cloudarch_reviewer_agent.txt
 │   ├── compliance_agent.txt
 │   ├── consultant_agent.txt
+│   ├── consultant_design_agent.txt
 │   ├── design_agent.txt
+│   ├── design_scenario_tester_agent.txt
+│   ├── design_simulation_query_agent.txt
 │   ├── doc_generation_agent.txt
 │   ├── edge_inference_agent.txt
 │   ├── grounding_agent.txt
@@ -306,6 +338,7 @@ The ADK pipeline provides:
 │   ├── simulation_query_agent.txt
 │   ├── stop_controller_agent.txt
 │   ├── subprocess_generator_agent.txt
+│   ├── uml_diagram_agent.txt
 │   └── update_analysis_agent.txt
 ├── process_agents
 │   ├── __init__.py
@@ -341,12 +374,17 @@ The ADK pipeline provides:
 │   ├── agent.py
 │   ├── analysis_agent.py
 │   ├── app.py
+│   ├── cloudarch_agent.py
+│   ├── cloudarch_pipeline_agent.py
+│   ├── cloudarch_reviewer_agent.py
 │   ├── compliance_agent.py
 │   ├── consultant_agent.py
+│   ├── consultant_design_agent.py
 │   ├── create_process_agent.py
 │   ├── data
 │   │   └── openapi.yaml
 │   ├── design_agent.py
+│   ├── design_simulation_agent.py
 │   ├── doc_creation_agent.py
 │   ├── doc_generation_agent.py
 │   ├── edge_inference_agent.py
@@ -377,6 +415,7 @@ The ADK pipeline provides:
 │   │   ├── script.js
 │   │   └── style.css
 │   ├── scenario_agent.py
+│   ├── scenario_design_agent.py
 │   ├── simulation_agent.py
 │   ├── step_diagram_agent.py
 │   ├── subprocess_driver_agent.py
@@ -384,6 +423,7 @@ The ADK pipeline provides:
 │   ├── subprocess_writer_agent.py
 │   ├── templates
 │   │   └── index.html
+│   ├── uml_diagram_agent.py
 │   ├── update_process_agent.py
 │   ├── utils_agent.py
 │   └── utils.py
@@ -543,6 +583,51 @@ Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission 
 
 ---
 
+## Sample Prompts — Design Documents
+
+The following are sample prompts for the design-document (HLD/LLD/Combined architecture) side of the pipeline:
+- Creating new design documents (HLD, LLD, or Combined)
+- Querying or reviewing an existing design document
+- Reviewing "what-if" scenarios on an existing design document
+- Running the four-dimension (resilience/scalability/security/latency) architecture simulation
+- Updating an existing design document and regenerating the documentation
+- Generating or regenerating a cloud architecture diagram from a design document
+
+### Creating Design Documents
+- "Create a High-Level Design document for a ServiceNow-based Configuration Management and Discovery platform covering AWS and on-premises MID Server clusters, ECC Queue, and Identification & Reconciliation Engine, including component dependencies, integration points, availability targets, and a risk register."
+- "Design a Combined HLD/LLD document for a payments microservices platform on AWS, including component-level interfaces, technology stack, security architecture (authN/authZ, data protection, compliance standards), and scalability/performance targets."
+- "As a Solution Architect, produce a High-Level Design for a multi-region disaster-recovery-capable order management system, including system context, external systems, integration points, and a risk register mapped to likelihood/impact."
+- "Create a Low-Level Design document detailing the internal components, sequence flows, and interfaces of the notification service described in our existing HLD."
+- "Act as a Cloud Solutions Architect and produce a design document for a data lake ingestion platform on AWS, including scalability strategy (auto-scaling groups, sharding), security architecture, and compliance mapping to ISO/IEC 27001 and applicable data-protection standards."
+
+### Reviewing or Querying Existing Design Documents
+- "Which components does the Identification & Reconciliation Engine depend on?"
+- "What is the declared availability target for this architecture?"
+- "Who owns the PAM/CyberArk integration in this design?"
+- "Describe the overall system context and its external systems."
+- "Using the Design Consultant Agent, review the design and flag any gaps against our security architecture requirements."
+
+### Running What-If Scenarios on Existing Design Documents
+- "What if the AWS MID Server cluster region goes down — what else is affected?"
+- "What would happen if the ServiceNow ECC Queue became unavailable for an hour?"
+- "If the PAM/secrets vault integration is compromised, which components and stakeholders are impacted?"
+
+### Running Design Architecture Simulations
+- "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
+- "Can you check this architecture for single points of failure and scalability bottlenecks?"
+- "Is this design's security and compliance posture adequate, and are there any latency risks in the longest dependency chain?"
+
+### Applying Updates to Existing Design Documents & Regenerating the Documentation
+- "Update the design to add a secondary AWS region for the MID Server cluster for resilience"
+- "Add an explicit auto-scaling strategy for the Identification & Reconciliation Engine"
+- "Modify the design to document a compliance control for the discovery service accounts risk"
+
+### Generating or Regenerating Cloud Architecture Diagrams
+- "Generate a cloud architecture diagram for the current design document"
+- "Regenerate the architecture diagram to reflect the updated component list"
+
+---
+
 ## Running the document generator manually
 
 To run the document generator manually, you must: -
@@ -555,6 +640,8 @@ python -m process_agents.doc_generation_agent output/process_data.json
 ```
 
 This will regenerate the documents without deleting any process files.
+
+The same applies to design documents — ensure `design_data.json` is present in the `output/` directory, then run the equivalent design-side document generation step (via the doc generation agent pointed at `output/design_data.json`) to regenerate the Word document and architecture diagram without deleting any design files.
 
 ---
 
@@ -689,6 +776,31 @@ The following table outlines the alignment of the process JSON generated with in
 1. **Quality (ISO 9001):** The process architecture enforces a "Risk-Based Thinking" approach. By defining `process_owners` and `success_criteria` for every stage, the design ensures accountability and measurable performance.
 2. **Regulatory (ISO 15378):** As a pharmaceutical-specific standard, compliance is demonstrated through the mandatory **Change Control** procedures and the enforcement of GxP standards across the Discovery-to-Commercialization lifecycle.
 3. **Risk (ISO 31000):** The design moves beyond simple identification by pairing every identified `risk` with a specific `control` mechanism, creating a resilient operational framework.
+
+---
+
+### Design Document Standards Alignment
+
+The following table outlines the alignment of the design document JSON (`design_document_schema.json`) generated with common architecture and quality standards.
+
+| Standard | Description | Alignment Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO/IEC/IEEE 42010:2022** | Systems and Software Engineering — Architecture Description | **High** | `system_context`, `high_level_design`, and `low_level_design` sections map directly to architecture viewpoints and views; `quality_attributes[]` records architecturally significant requirements. |
+| **TOGAF ADM** | The Open Group Architecture Framework — Architecture Development Method | **Medium-High** | `system_context.external_systems`, `high_level_design.components`, and `risk_register`/`risks_and_mitigations` align to Business/Data/Application/Technology architecture phases and governance gates. |
+| **ISO/IEC 25010:2011** | Systems and Software Quality Requirements and Evaluation (SQuaRE) | **Medium-High** | `quality_attributes[]` (`characteristic` enum including `performance_efficiency`, `security`, etc., each with a `metric`/`target`) map to SQuaRE quality characteristics. |
+| **C4 Model** | Context, Containers, Components, Code | **Medium** | `system_context` → Context; `high_level_design.components` → Containers/Components; `low_level_design` → Code-level detail. |
+| **IEEE 1471** | Recommended Practice for Architectural Description | **Medium** | Predecessor of ISO/IEC/IEEE 42010; the same `system_context`/`high_level_design` structure satisfies its stakeholder/viewpoint concerns. |
+| **arc42** | Pragmatic Architecture Documentation Template | **Medium** | `high_level_design.availability_and_resilience`, `scalability_and_performance`, and `security_architecture` map to arc42's cross-cutting concepts and quality-scenario sections. |
+| **ISO/IEC 27001** | Information Security Management | **Low-Medium** | `security_architecture` (`authentication_mechanism`, `authorization_model`, `data_protection_measures`, `compliance_standards[]`) and `compliance_and_standards.applicable_standards[]` provide a starting control inventory, but require a full ISMS mapping for certification-grade evidence. |
+
+### Design-Side Simulation & Analysis Coverage
+
+The `Design_Architecture_Simulation_Query_Agent` provides quantitative evidence against several of the standards above without requiring any additional fields to be added to the schema:
+
+1. **Resilience/Availability:** A Monte Carlo blast-radius simulation over `high_level_design.components[].dependencies`, `integration_points[]`, `availability_and_resilience.availability_target`, and the combined `risk_register`/`risks_and_mitigations` produces single-point-of-failure and cascading-failure evidence relevant to ISO/IEC 42010 and arc42's availability quality scenarios.
+2. **Scalability:** Fan-in ("structural bottleneck") analysis against `scalability_and_performance.scaling_strategy` and declared elastic technologies in `technology_stack[]` produces evidence relevant to ISO/IEC 25010's Performance Efficiency and Capacity sub-characteristics.
+3. **Security/Compliance:** A control-coverage checklist plus a tally of `compliance_and_standards.applicable_standards[].compliance_status` produces evidence relevant to ISO/IEC 27001 and the standards declared in `security_architecture.compliance_standards[]`.
+4. **Latency:** Declared `quality_attributes[]` performance targets cross-checked against the deepest dependency chain in the component graph produce evidence relevant to ISO/IEC 25010's Time Behaviour sub-characteristic.
 
 ---
 
