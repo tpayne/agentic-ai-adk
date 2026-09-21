@@ -49,6 +49,14 @@ from .helpers.doc_governance import (
     _add_additional_data_section,
     _add_glossary,
 )
+from .helpers.doc_design_sections import (
+    _add_requirements_section,
+    _add_system_context_section,
+    _add_quality_attributes_section,
+    _add_compliance_and_standards_section,
+    _add_risk_register_section,
+    _add_architecture_analysis,
+)
 
 
 # ============================================================
@@ -461,7 +469,11 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     governance_requirements = data.get("governance_requirements")
     continuous_improvement = data.get("continuous_improvement")
     glossary_and_references = data.get("glossary_and_references")
-    review_and_governance = data.get("review_and_governance")
+    # review_and_governance is intentionally not extracted into its own
+    # section-content variable -- see the comment further down where its
+    # section used to render, in Part I, for why it's dropped entirely.
+    # It stays in `consumed_keys` below so it also doesn't reappear via
+    # the Appendix B leftover-data catch-all.
     appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
 
     consumed_keys = {
@@ -560,34 +572,61 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     if stakeholders:
         if rendered:
             add_iso_page_break(doc)
-        rendered = _add_stakeholders_section(doc, stakeholders)
+        rendered = _add_stakeholders_section(doc, stakeholders, subject_noun="architecture")
 
-    if architecture_description:
-        if rendered:
-            add_iso_page_break(doc)
-        doc.add_heading("2.0 Architecture Description", level=1)
-        doc.add_paragraph(
-            "The following describes the architecture viewpoints, views, and decisions "
-            "for this design (ISO/IEC/IEEE 42010)."
-        )
-        for key in ("concerns", "viewpoints", "views", "architecture_decisions", "architecture_rationale"):
-            value = architecture_description.get(key)
-            if value:
-                _render_generic_value(doc, value, label=key.replace("_", " ").title(), system_name=system_label)
-        rendered = True
+    # Section order below follows review feedback: Requirements (3.0) and
+    # System Context (4.0) now come BEFORE Architecture Description
+    # (5.0) -- a reader needs to know what the system must do and what
+    # it talks to before reading the architectural decisions made to
+    # satisfy that, not the other way around. The numbers in each
+    # heading string below are more than cosmetic here: they're also fed
+    # to the bespoke section renderers (via _leading_number) so a
+    # section's own X.Y subsection headings match whatever number
+    # _renumber_design_document_headings ultimately gives its Heading 1
+    # -- so if this order changes again, update both the render order
+    # AND these leading numbers together.
 
     if requirements:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("3.0 Requirements", level=1)
-        _render_generic_value(doc, requirements, system_name=system_label)
-        rendered = True
+        rendered = _add_requirements_section(doc, requirements, heading="3.0 Requirements")
 
     if system_context:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("4.0 System Context", level=1)
-        _render_generic_value(doc, system_context, system_name=system_label)
+        rendered = _add_system_context_section(
+            doc, system_context, heading="4.0 System Context", system_name=system_label
+        )
+
+    if architecture_description:
+        if rendered:
+            add_iso_page_break(doc)
+        doc.add_heading("5.0 Architecture Description", level=1)
+        doc.add_paragraph(
+            "The following describes the architecture viewpoints and views "
+            "for this design (ISO/IEC/IEEE 42010), and the analysis behind "
+            "the recommended approach."
+        )
+        for key in ("concerns", "viewpoints", "views"):
+            value = architecture_description.get(key)
+            if value:
+                _render_generic_value(doc, value, label=key.replace("_", " ").title(), system_name=system_label)
+
+        # architecture_analysis (see $defs.architectureAnalysis) gets its
+        # own bespoke renderer rather than _render_generic_value, per
+        # review feedback that the old ADR-style rendering (id/title/
+        # status/context/decision/consequences/date/decided_by) read as
+        # "a lot of hallucinated detail about decisions that were never
+        # made" -- a minuted decision with a date and an approver the
+        # generating agent has no way to actually know. The replacement
+        # structure is a description/strengths/weaknesses/risks analysis
+        # of the recommended architecture, any alternatives considered on
+        # the same basis, and a recommendation -- nothing that could only
+        # be known by having been in the room.
+        architecture_analysis = architecture_description.get("architecture_analysis")
+        if architecture_analysis:
+            _add_architecture_analysis(doc, architecture_analysis, level=3)
+
         rendered = True
 
     # Architecture/component diagram, generated by edge_inference_agent.py's
@@ -598,48 +637,57 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     # and correctly withholds the page break on either side when it does.
     # Kept in Part I: this is the primary, high-level architecture
     # diagram a board-level reader needs, not implementation detail.
+    # `caption` also now doubles as this section's required opening
+    # paragraph (review feedback: "Process flow diagrams -- another
+    # opening paragraph").
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_flowchart_section(doc, name)
+    rendered = _add_flowchart_section(
+        doc, name, heading="6.0 Architecture Flow Diagram",
+        caption=(
+            "This section provides a high-level visualization of the "
+            "architecture and the flow between its major components."
+        ),
+    )
 
     if quality_attributes:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("7.0 Quality Attributes", level=1)
-        doc.add_paragraph("The following quality characteristics apply (ISO/IEC 25010):")
-        _render_generic_value(doc, quality_attributes, system_name=system_label)
-        rendered = True
+        rendered = _add_quality_attributes_section(doc, quality_attributes, heading="7.0 Quality Attributes")
 
     if compliance_and_standards:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("8.0 Compliance and Standards", level=1)
-        _render_generic_value(doc, compliance_and_standards, system_name=system_label)
-        rendered = True
+        rendered = _add_compliance_and_standards_section(
+            doc, compliance_and_standards, heading="8.0 Compliance and Standards"
+        )
 
     if risk_register:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("9.0 Risk Register", level=1)
-        _render_generic_value(doc, risk_register, system_name=system_label)
-        rendered = True
+        rendered = _add_risk_register_section(doc, risk_register, heading="9.0 Risk Register")
 
     if governance_requirements:
         if rendered:
             add_iso_page_break(doc)
-        rendered = _add_governance_requirements_section(doc, governance_requirements)
+        rendered = _add_governance_requirements_section(
+            doc, governance_requirements, subject_noun="architecture"
+        )
 
     if continuous_improvement:
         if rendered:
             add_iso_page_break(doc)
-        rendered = _add_continuous_improvement_section(doc, continuous_improvement)
+        rendered = _add_continuous_improvement_section(
+            doc, continuous_improvement, subject_noun="architecture"
+        )
 
-    if review_and_governance:
-        if rendered:
-            add_iso_page_break(doc)
-        doc.add_heading("10.0 Review and Governance", level=1)
-        _render_generic_value(doc, review_and_governance, system_name=system_label)
-        rendered = True
+    # review_and_governance (review_history/change_log/approval_workflow)
+    # is deliberately NOT rendered here -- per review feedback, this
+    # content ("History and Governance") is fabricated by the generating
+    # LLM with no grounding (invented reviewer names, invented dates) and
+    # "adds no value at all". It's already in `consumed_keys` above so
+    # it also doesn't reappear via the Appendix B leftover-data catch-all
+    # below.
 
     # ---------------- PART II: LOW-LEVEL DESIGN (LLD) ----------------
     if rendered:
@@ -671,7 +719,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     if appendix:
         if rendered:
             add_iso_page_break(doc)
-        rendered = _add_appendix_from_json(doc, appendix)
+        rendered = _add_appendix_from_json(doc, appendix, subject_noun="architecture")
         consumed_keys.add("appendix")
 
     if rendered:
@@ -680,18 +728,22 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
 
     # _add_glossary is the process document's fallback glossary -- four
     # hardcoded, process-specific terms ("Business Process", "KPI", ...)
-    # with no awareness of this document's own content. Calling it
-    # unconditionally here duplicated the design document's own real
-    # glossary: whenever glossary_and_references had actual data, it was
-    # already rendered above under "11.0 Glossary and References", so a
-    # second, unrelated "Appendix C: Glossary" table just followed it
-    # with terms that don't belong to this document at all. Only fall
-    # back to the generic glossary when the design document didn't
-    # supply its own.
-    if not glossary_and_references:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_glossary(doc)
+    # with no awareness of this document's own content, and no way to
+    # be otherwise: unlike every other fallback in this pipeline, it
+    # can't check real structural data before rendering, because it has
+    # none to check -- its content is the four fixed terms, full stop.
+    # Calling it unconditionally here duplicated the design document's
+    # own real glossary when glossary_and_references had actual data
+    # (already rendered above under "11.0 Glossary and References"), so
+    # an earlier fix restricted it to the case where the design document
+    # didn't supply its own -- but that still meant an architecture
+    # specification with no glossary_and_references data got a
+    # "Business Process"/"KPI"/"Stakeholder" glossary appendix that
+    # doesn't belong to it at all. A design document with no glossary
+    # data of its own should simply have no glossary section, the same
+    # way every diagram/table renderer elsewhere in this pipeline
+    # withholds a section rather than fabricating one -- so this no
+    # longer falls back to it here.
 
     # Fix up section numbers/appendix letters from the final set of
     # headings that actually got rendered above (see docstring).

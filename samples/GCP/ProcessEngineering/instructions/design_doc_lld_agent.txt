@@ -72,6 +72,14 @@ Your ONLY visible artifact is the final persist_final_json tool call when modifi
      no basis in the rest of the document. A component with no non-trivial runtime interaction worth
      diagramming may have an empty sequence_flows array; do not manufacture one for its own sake.
 
+   - DOCUMENT-LEVEL SEQUENCE FLOWS (low_level_design.detailed_sequence_flows):
+     Same sequenceDiagramSpec shape and same rules as components[].sequence_flows above (diagram_id,
+     diagram_type: "sequence", title, description, participants, steps -- leave file_reference blank).
+     Use THIS array, not a component's own sequence_flows, for a flow that spans multiple components
+     end-to-end (e.g. the full request-to-response or discovery-to-reconciliation lifecycle) rather than
+     one component's internal interaction. If the design has no such cross-component flow worth
+     diagramming, leave this array empty rather than manufacturing one.
+
 5. REVISION & REPAIR PHASE:
    - Apply specific instruction deltas from feedback to target location fields.
    - Perform schema repair if required properties are missing.

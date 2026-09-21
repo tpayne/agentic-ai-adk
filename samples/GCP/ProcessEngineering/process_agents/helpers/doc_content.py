@@ -93,13 +93,23 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 
 def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
     """
-    1.0 Document Overview — ISO formatted, design-schema counterpart to
+    1.0 Executive Summary — ISO formatted, design-schema counterpart to
     _add_overview_section. Built from document_metadata + business_context
     (design_document_schema.json's shape) rather than process's flat
     purpose/scope/introduction fields.
+
+    Per review feedback, this section needs to read as an executive
+    summary specifically: the document's purpose, the business goals
+    behind it, and how the rest of the document is laid out -- a
+    summary only, not the exhaustive scope/objectives/business-drivers/
+    assumptions/constraints detail that follows it. That detail is kept
+    (dropping it wasn't asked for), just moved after a short, dedicated
+    "Document Structure" paragraph that gives a returning/board-level
+    reader the map before the detail, rather than making them infer the
+    two-part layout from the headings as they go.
     """
     try:
-        doc.add_heading("1.0 Document Overview", level=1)
+        doc.add_heading("1.0 Executive Summary", level=1)
 
         metadata = data.get("document_metadata") or {}
         business_context = data.get("business_context") or {}
@@ -110,7 +120,27 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
         else:
             doc.add_paragraph("This section provides a high-level overview of the system design.")
 
+        business_drivers = business_context.get("business_drivers")
+        objectives = business_context.get("objectives")
+        goal_items = [g for g in (business_drivers or objectives or []) if isinstance(g, str) and g.strip()]
+        if goal_items:
+            doc.add_paragraph(
+                "This design is driven by the following business goals: "
+                + "; ".join(goal_items[:3])
+                + ("; among others." if len(goal_items) > 3 else ".")
+            )
+
         subsection = 1
+
+        doc.add_heading(f"1.{subsection} Document Structure", level=2)
+        subsection += 1
+        doc.add_paragraph(
+            "This document is organized in two parts. Part I presents the "
+            "business context, requirements, and architecture at a level "
+            "suitable for review and approval. Part II provides the "
+            "low-level design detail an implementing engineer needs to build "
+            "it."
+        )
 
         scope = business_context.get("scope")
         if scope:
@@ -149,7 +179,8 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
         traceback.print_exc()
 
 def _add_stakeholders_section(
-    doc: docx.Document, stakeholders, heading: str = "2.0 Stakeholders and Responsibilities"
+    doc: docx.Document, stakeholders, heading: str = "2.0 Stakeholders and Responsibilities",
+    subject_noun: str = "process",
 ) -> bool:
     """
     Stakeholders — ISO formatted. `heading` defaults to this function's
@@ -158,6 +189,14 @@ def _add_stakeholders_section(
     also being used verbatim by the design document's own "Architecture
     Description" section immediately afterward, producing two "2.0"
     headings in the same document.
+
+    `subject_noun` is the word used in the body sentence below ("this
+    <subject_noun>") -- defaults to "process" so every existing caller
+    keeps its current wording; the design document builder passes
+    "architecture" instead, since "involved in this process" read as a
+    leftover process-document template string in a generated
+    Architecture Specification (confirmed against a real generated
+    design document).
     Returns True if it rendered anything, False on a no-op.
     """
     try:
@@ -166,7 +205,7 @@ def _add_stakeholders_section(
 
         doc.add_heading(heading, level=1)
         doc.add_paragraph(
-            "The following is a list of key stakeholders involved in this process. "
+            f"The following is a list of key stakeholders involved in this {subject_noun}. "
             "Understanding their roles and responsibilities is crucial for successful implementation."
         )
 

@@ -206,26 +206,57 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
 # 10.0 PROCESS FLOW DIAGRAM
 # ============================================================
 
-def _add_flowchart_section(doc: docx.Document, process_name: str) -> None:
-    """10.0 Flow Diagram — ISO formatted."""
+def _add_flowchart_section(
+    doc: docx.Document, process_name: str, heading: str = "10.0 Process Flow Diagram",
+    caption: str = "The following diagram provides a high-level visualization of the process flow.",
+) -> bool:
+    """
+    Flow Diagram section — ISO formatted. `heading` defaults to this
+    function's original process-document numbering ("10.0 ...") so
+    existing callers are unaffected; the design-document builder passes
+    its own correctly-sequenced heading instead of relying on this fixed
+    "10.0", which previously collided with whatever section actually
+    landed at position 10 in that document (e.g. "Review and
+    Governance").
+
+    `caption` -- the word "process" is baked into both the default
+    heading's title text and the default caption sentence, not just a
+    section number, so overriding the number alone (as the design
+    document builder previously did) still left a literal "10.0
+    Process Flow Diagram" / "visualization of the process flow" in a
+    generated Architecture Specification (confirmed against a real
+    generated design document -- it survived the later renumbering pass
+    since that only rewrites the leading "N.0", never the title words
+    after it). The design document builder now also overrides `heading`
+    and `caption` together to "... Architecture Flow Diagram" / "...
+    visualization of the architecture." while keeping a leading "N.0 "
+    so `_renumber_design_document_headings` still recognizes and
+    renumbers it.
+
+    Returns True if a heading/diagram was actually added, False if this
+    was a silent no-op (diagram file not found yet). Callers use this to
+    decide whether to insert a page break after calling this function --
+    unconditionally adding one even on a no-op is what produced a blank
+    page whenever the diagram hadn't been generated yet.
+    """
     try:
         diag_file = f"output/{safe_filename_component(process_name.lower())}_flow.png"
         fallback = "output/process_flow.png"
 
         if not os.path.exists(diag_file):
             if not os.path.exists(fallback):
-                return
+                return False
             diag_file = fallback
 
-        doc.add_heading("10.0 Process Flow Diagram", level=1)
-        doc.add_paragraph(
-            "The following diagram provides a high-level visualization of the process flow."
-        )
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(caption)
         doc.add_picture(diag_file, width=Inches(5.5))
         doc.add_paragraph()
+        return True
 
     except Exception:
         traceback.print_exc()
+        return False
 
 
 # ============================================================

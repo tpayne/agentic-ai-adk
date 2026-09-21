@@ -43,17 +43,20 @@ design_document_schema.json's sections must be modified. Reference the REAL
 schema paths -- do not invent new top-level keys:
 - affected_sections: which top-level sections are impacted (e.g.
   "high_level_design.components", "low_level_design.database_design",
-  "architecture_description.architecture_decisions", "quality_attributes",
+  "architecture_description.architecture_analysis", "quality_attributes",
   "requirements.non_functional_requirements", etc.) -- use exact schema paths,
   not approximations.
 - change_type: "add" | "modify" | "remove" per affected section.
 - rationale: why this change is needed, tied to the user's request.
 - new_or_updated_values: the concrete field-level content to write, structured
-  per the real schema shape for that section (e.g. an architecture_decisions
-  entry needs id/title/status/context/decision/consequences, not free text).
+  per the real schema shape for that section (e.g. an architecture_analysis
+  entry needs title/description/recommendation, plus strengths/weaknesses/
+  risks and, if a genuine alternative is being compared, an alternatives
+  entry -- not a status, decision date, or "decided by": this is analysis
+  and a recommendation, not the minutes of a decision meeting).
 - downstream_impact: any other sections that may need consistency updates as a
-  result (e.g. adding a component may require a new architecture_decision, or
-  a new risk_register entry).
+  result (e.g. adding a component may require updating an
+  architecture_analysis entry, or a new risk_register entry).
 - constraints / assumptions: MANDATORY if the change touches security,
   compliance, or infrastructure -- identify any new or affected regulatory,
   budget, timeline, or technical constraints.

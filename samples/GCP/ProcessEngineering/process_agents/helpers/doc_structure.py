@@ -6,6 +6,7 @@ from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from datetime import datetime
+import re
 import traceback
 import logging
 
@@ -37,13 +38,22 @@ _WIDE_COLUMN_KEYWORDS = {
     "description", "decision", "consequences", "context", "rationale",
     "mitigation", "notes", "instruction", "definition", "alternatives",
     "alternatives considered", "responsibilities", "objectives",
+    "acceptance criteria", "measure method", "measurement method",
+    "applicability", "requirement",
 }
 
 
 def _column_width_weight(header_text: str) -> float:
     key = header_text.strip().lower()
     if key in _NARROW_COLUMN_KEYWORDS:
-        return 1.0
+        # 1.3, not 1.0: a genuinely short value ("Critical", "High") is
+        # fine at the old narrower width, but several narrow-keyword
+        # headers now hold longer category-style text -- an ISO/IEC
+        # 25010 characteristic name ("Performance Efficiency") or a
+        # risk category ("Operational") -- that was hard-wrapping
+        # letter-by-letter ("Performa\nnce\nEfficiency") at the old
+        # weight, confirmed against a real rendered table.
+        return 1.3
     if any(kw in key for kw in _WIDE_COLUMN_KEYWORDS):
         return 2.6
     return 1.5
@@ -90,6 +100,57 @@ def _add_bullet(doc, text, indent=False):
     if indent:
         p.paragraph_format.left_indent = Inches(0.3)
     p.add_run(f"• {text}")
+
+
+def _set_cell_bullets(cell, value, empty_text: str = "—") -> None:
+    """
+    Fills a table cell with bulleted content, for review-feedback columns
+    like "Description"/"Acceptance Criteria"/"Measure Method" that asked
+    to be rendered as bullets rather than a plain paragraph. A list value
+    (e.g. acceptance_criteria) becomes one "• " line per item; a plain
+    string value (e.g. description, which the schema defines as a single
+    string, not a list) becomes a single "• " line, so every cell in a
+    "(bulleted)" column looks the same regardless of whether the
+    underlying field happens to be a list or a scalar. An empty/missing
+    value renders as a plain em dash with NO bullet -- a bulleted empty
+    dash reads as an actual (empty) list item rather than "not
+    applicable".
+    """
+    cell.text = ""  # clears the single empty default paragraph
+    first_paragraph = cell.paragraphs[0]
+
+    items = value if isinstance(value, list) else ([value] if value not in (None, "") else [])
+    items = [str(item) for item in items if str(item).strip()]
+
+    if not items:
+        first_paragraph.add_run(empty_text)
+        return
+
+    first_paragraph.add_run(f"• {items[0]}")
+    for extra in items[1:]:
+        p = cell.add_paragraph()
+        p.add_run(f"• {extra}")
+
+
+_LEADING_NUMBER_PREFIX_RE = re.compile(r"^\s*(\d+)(?:\.\d+)*")
+
+
+def _leading_number(heading: str, default: int = 1) -> int:
+    """
+    Pulls the leading top-level number off a heading string a caller
+    passes in (e.g. "4.0 System Context" -> 4), so a section's X.Y
+    subsection headings can be derived from whatever number the caller
+    actually used for the section's own Heading 1 -- rather than each
+    section-renderer hardcoding its own top-level digit, which would
+    silently go stale the moment _build_design_document's section order
+    changes (Heading-1 numbers get corrected by
+    _renumber_design_document_headings afterwards, but that pass only
+    rewrites Heading-1 paragraphs, never a Heading-2 subsection number a
+    renderer already wrote as a literal string).
+    """
+    match = _LEADING_NUMBER_PREFIX_RE.match(str(heading or ""))
+    return int(match.group(1)) if match else default
+
 
 def apply_iso_table_formatting(table: docx.table.Table, document: docx.Document) -> None:
     """

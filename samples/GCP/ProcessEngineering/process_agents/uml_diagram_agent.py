@@ -392,14 +392,30 @@ def generate_uml_diagram(
         title = diagram_descriptor.get("title") or "Diagram"
         out_path = _out_path(diagram_descriptor)
 
-        if dtype == "sequence" and diagram_descriptor.get("participants") and diagram_descriptor.get("steps"):
+        # NOTE: none of the branches below gate on `dtype` matching the
+        # data they draw from. `diagram_type` is an LLM-authored enum
+        # field on the descriptor and isn't reliably consistent with the
+        # descriptor's actual containing structure -- confirmed against
+        # a real generated document where a class_design.diagram entry
+        # (sitting directly above a real, non-empty "classes" list) was
+        # tagged diagram_type="context" instead of "class", so a
+        # dtype=="class" gate silently produced "[Class not yet
+        # generated]" even though fully real class data was one field
+        # away. Every branch here dispatches on the SHAPE of the data
+        # actually present instead, the same way the five branches below
+        # (integration_points/external_systems/environments/elements/
+        # component_name+interfaces) already did before this fix --
+        # `dtype` is only used in the final debug log line and in
+        # _render_diagram_descriptor's fallback note label, never to
+        # gate whether a real diagram gets drawn.
+        if diagram_descriptor.get("participants") and diagram_descriptor.get("steps"):
             result = _draw_sequence_diagram(
                 out_path, title, diagram_descriptor["participants"], diagram_descriptor["steps"]
             )
             if result:
                 return result
 
-        if dtype == "class" and context.get("classes"):
+        if context.get("classes"):
             result = _draw_class_diagram(out_path, title, context["classes"])
             if result:
                 return result
@@ -413,6 +429,28 @@ def generate_uml_diagram(
                     "label": ip.get("protocol") or ip.get("integration_pattern"),
                 }
                 for ip in integration_points if isinstance(ip, dict)
+            ]
+            result = _draw_edge_graph(out_path, title, edges)
+            if result:
+                return result
+
+        # Components with their own declared dependencies (no separate
+        # integration_points edges needed) -- e.g. a Container/Component
+        # (C4 Level 2/3) view whose context dict holds
+        # high_level_design.components[] directly rather than a
+        # standalone integration_points list. Each component becomes a
+        # node; each real "depends on" relationship it names becomes an
+        # edge, exactly like integration_points above, just sourced from
+        # a different real field.
+        components = context.get("components")
+        if isinstance(components, list) and any(
+            isinstance(c, dict) and c.get("component_name") and c.get("dependencies") for c in components
+        ):
+            edges = [
+                {"source": c["component_name"], "target": dep, "label": None}
+                for c in components if isinstance(c, dict) and c.get("component_name")
+                for dep in (c.get("dependencies") or [])
+                if isinstance(dep, str)
             ]
             result = _draw_edge_graph(out_path, title, edges)
             if result:

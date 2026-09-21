@@ -215,66 +215,89 @@
       ],
       "additionalProperties": false
     },
-    "decisionRecord": {
+    "architectureAnalysis": {
       "type": "object",
-      "description": "Architecture Decision Record (ADR).",
+      "description": "Analysis of an architectural approach for a given concern: its own description/strengths/weaknesses/risks, any alternatives considered on the same basis, and a recommendation. Deliberately replaces the earlier ADR-style decisionRecord (id/title/status/context/decision/consequences/alternatives_considered/date/decided_by) -- framing this as a record of a decision meeting produced fabricated dates and approvers, since the generating agent has no such meeting to draw on. This is the agent's own analysis and recommendation, not a minuted decision, so it carries no status/date/decided_by fields at all.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "e.g. ADR-001"
+          "description": "e.g. AA-001"
         },
         "title": {
           "type": "string"
         },
-        "status": {
+        "description": {
           "type": "string",
-          "enum": [
-            "proposed",
-            "accepted",
-            "deprecated",
-            "superseded"
-          ]
+          "description": "Description of this architectural approach."
         },
-        "context": {
-          "type": "string"
-        },
-        "decision": {
-          "type": "string"
-        },
-        "consequences": {
-          "type": "string"
-        },
-        "alternatives_considered": {
+        "strengths": {
           "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weaknesses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "alternatives": {
+          "type": "array",
+          "description": "Alternative architectural approaches considered, if any were required for this concern.",
           "items": {
             "type": "object",
             "properties": {
               "option": {
                 "type": "string"
               },
-              "reason_rejected": {
+              "description": {
                 "type": "string"
+              },
+              "strengths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "weaknesses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "comparison_to_recommended": {
+                "type": "string",
+                "description": "What this alternative resolves, or newly introduces, compared to the described/recommended architecture above."
+              },
+              "risks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
-              "option"
+              "option",
+              "description"
             ],
             "additionalProperties": false
           }
         },
-        "date": {
-          "type": "string",
-          "format": "date"
-        },
-        "decided_by": {
+        "recommendation": {
           "type": "string"
         }
       },
       "required": [
-        "id",
         "title",
-        "status",
-        "decision"
+        "description",
+        "recommendation"
       ],
       "additionalProperties": false
     },
@@ -940,14 +963,12 @@
             "additionalProperties": false
           }
         },
-        "architecture_decisions": {
+        "architecture_analysis": {
           "type": "array",
+          "description": "Analysis of the architecture(s) considered for this design -- description/strengths/weaknesses/risks, alternatives, and a recommendation per concern. Replaces the earlier ADR-style architecture_decisions/architecture_rationale (see $defs.architectureAnalysis).",
           "items": {
-            "$ref": "#/$defs/decisionRecord"
+            "$ref": "#/$defs/architectureAnalysis"
           }
-        },
-        "architecture_rationale": {
-          "type": "string"
         }
       },
       "additionalProperties": false
@@ -1441,8 +1462,9 @@
         },
         "detailed_sequence_flows": {
           "type": "array",
+          "description": "Document-level sequence flows that span multiple components (e.g. an end-to-end lifecycle), as opposed to a single component's own sequence_flows. Uses the same self-contained sequenceDiagramSpec shape -- confirmed against a real generated document where this array was still left at the old diagramReference (bookkeeping-only) shape, so an end-to-end sequence diagram never had participants/steps to render from.",
           "items": {
-            "$ref": "#/$defs/diagramReference"
+            "$ref": "#/$defs/sequenceDiagramSpec"
           }
         },
         "exception_handling_strategy": {

@@ -18,18 +18,34 @@ logger = logging.getLogger("ProcessArchitect.DocGovernance")
 # 12.0 GOVERNANCE REQUIREMENTS
 # ============================================================
 
-def _add_governance_requirements_section(doc, items):
-    """12.0 Governance Requirements — ISO formatted."""
-    doc.add_heading("12.0 Governance Requirements", level=1)
+def _add_governance_requirements_section(
+    doc, items, heading="12.0 Governance Requirements", subject_noun="process",
+):
+    """
+    Governance Requirements — ISO formatted. `heading` defaults to this
+    function's original process-document number ("12.0"), so existing
+    callers keep their current output; the design-document builder
+    passes its own re-sequenced heading instead, since "12.0" collided
+    with whatever the design doc's own section 12 actually was.
+
+    `subject_noun` is the word used in "apply to this <subject_noun>"
+    below -- defaults to "process" for existing callers; the design
+    document builder passes "architecture" (confirmed leaking as a
+    literal "apply to this process" sentence into a generated
+    Architecture Specification otherwise).
+    Returns True (always renders at least a heading + a sentence).
+    """
+    doc.add_heading(heading, level=1)
 
     if not items:
         doc.add_paragraph("There are no governance requirements to document.")
-        return
+        return True
 
-    doc.add_paragraph("The following governance requirements apply to this process:")
+    doc.add_paragraph(f"The following governance requirements apply to this {subject_noun}:")
 
     for item in items:
         _add_bullet(doc, item)
+    return True
 
 
 # ============================================================
@@ -123,15 +139,25 @@ def _add_change_management_section(doc, items):
 # 17.0 CONTINUOUS IMPROVEMENT
 # ============================================================
 
-def _add_continuous_improvement_section(doc, items):
-    """17.0 Continuous Improvement — ISO formatted."""
-    doc.add_heading("17.0 Continuous Improvement", level=1)
+def _add_continuous_improvement_section(
+    doc, items, heading="17.0 Continuous Improvement", subject_noun="process",
+):
+    """
+    Continuous Improvement — ISO formatted. `heading` defaults to this
+    function's original process-document number ("17.0"); the design
+    document builder passes its own re-sequenced heading instead.
+
+    `subject_noun` -- see _add_governance_requirements_section; the
+    design document builder passes "architecture" here too.
+    Returns True (always renders at least a heading + a sentence).
+    """
+    doc.add_heading(heading, level=1)
 
     if not items:
         doc.add_paragraph("There are no continuous improvement items to document.")
-        return
+        return True
 
-    doc.add_paragraph("The following continuous improvement practices apply to this process:")
+    doc.add_paragraph(f"The following continuous improvement practices apply to this {subject_noun}:")
 
     for ci in items:
         if not isinstance(ci, dict):
@@ -147,20 +173,35 @@ def _add_continuous_improvement_section(doc, items):
             _add_header(doc, "Improvement Inputs:")
             for inp in inputs:
                 _add_bullet(doc, inp)
+    return True
 
 
 # ============================================================
 # APPENDIX A — STRUCTURED APPENDIX
 # ============================================================
 
-def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
-    """Appendix A: structured appendix content — ISO formatted."""
+def _add_appendix_from_json(
+    doc: docx.Document, appendix: dict, heading: str = "Appendix A: Reference Documents",
+    subject_noun: str = "process",
+) -> bool:
+    """
+    Structured appendix content — ISO formatted. `heading` defaults to
+    this function's original label; pass a re-lettered one if an earlier
+    appendix ends up empty (see _add_additional_data_section) so letters
+    stay contiguous (A, B, C...) instead of jumping straight to C.
+
+    `subject_noun` -- see _add_governance_requirements_section; the
+    design document builder passes "architecture" here too (confirmed
+    leaking as "related to the process" on a real generated design
+    document's final Appendix A page otherwise).
+    Returns True if it rendered anything, False on a silent no-op.
+    """
     try:
         if not isinstance(appendix, dict) or not appendix:
-            return
+            return False
 
-        doc.add_heading("Appendix A: Reference Documents", level=1)
-        doc.add_paragraph("The following appendix contains reference materials related to the process:")
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(f"The following appendix contains reference materials related to the {subject_noun}:")
 
         for key, val in appendix.items():
             section_title = str(key).replace("_", " ").title()
@@ -198,44 +239,70 @@ def _add_appendix_from_json(doc: docx.Document, appendix: dict) -> None:
             else:
                 _render_generic_value(doc, val)
 
+        return True
+
     except Exception:
         traceback.print_exc()
+        return False
 
 
 # ============================================================
 # APPENDIX B — ADDITIONAL SOURCE DATA
 # ============================================================
 
-def _add_additional_data_section(doc: docx.Document, data: dict, consumed_keys: set) -> None:
-    """Appendix B: Additional JSON data not covered elsewhere."""
+def _add_additional_data_section(
+    doc: docx.Document,
+    data: dict,
+    consumed_keys: set,
+    heading: str = "Appendix B: Additional Source Data",
+) -> bool:
+    """
+    Additional JSON data not covered elsewhere. Returns True if it
+    rendered anything, False on a silent no-op (nothing left over once
+    every schema field is accounted for -- this is common and expected,
+    not an error). Callers use this return value to decide whether to
+    insert a page break around this appendix: unconditionally adding one
+    both before AND after this call, regardless of whether it rendered
+    anything, is what produced a genuinely blank page whenever there was
+    no leftover data (confirmed in a generated document: two explicit
+    page breaks in a row with nothing but an empty paragraph between
+    them, exactly where this appendix would have gone).
+    """
     try:
         if not isinstance(data, dict):
-            return
+            return False
 
         remaining = {k: v for k, v in data.items() if k not in consumed_keys}
         if not remaining:
-            return
+            return False
 
-        doc.add_heading("Appendix B: Additional Source Data", level=1)
+        doc.add_heading(heading, level=1)
         doc.add_paragraph(
             "This appendix contains additional structured data from the normalized source JSON "
             "that is not covered in the main sections."
         )
 
         _render_generic_value(doc, remaining)
+        return True
 
     except Exception:
         traceback.print_exc()
+        return False
 
 
 # ============================================================
 # APPENDIX C — GLOSSARY
 # ============================================================
 
-def _add_glossary(doc: docx.Document) -> None:
-    """Appendix C: Glossary — ISO formatted table."""
+def _add_glossary(doc: docx.Document, heading: str = "Appendix C: Glossary") -> bool:
+    """
+    Glossary — ISO formatted table. `heading` defaults to this
+    function's original label; pass a re-lettered one so this appendix's
+    letter stays contiguous with whichever ones actually rendered before
+    it. Returns True (always renders).
+    """
     try:
-        doc.add_heading("Appendix C: Glossary", level=1)
+        doc.add_heading(heading, level=1)
         doc.add_paragraph("This glossary contains definitions of common terms used in the process documentation:")
 
         terms = {
@@ -256,9 +323,11 @@ def _add_glossary(doc: docx.Document) -> None:
             row[1].text = definition
 
         apply_iso_table_formatting(table, doc)
+        return True
 
     except Exception:
         traceback.print_exc()
+        return False
 
 def _add_critical_success_factors_section(doc, factors):
     """Adds Critical Success Factors as a table."""

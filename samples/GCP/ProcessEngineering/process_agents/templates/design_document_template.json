@@ -106,25 +106,39 @@
                 ]
             }
         ],
-        "architecture_decisions": [
+        "architecture_analysis": [
             {
                 "id": "string",
                 "title": "string",
-                "status": "proposed",
-                "context": "string",
-                "decision": "string",
-                "consequences": "string",
-                "alternatives_considered": [
+                "description": "string",
+                "strengths": [
+                    "string"
+                ],
+                "weaknesses": [
+                    "string"
+                ],
+                "risks": [
+                    "string"
+                ],
+                "alternatives": [
                     {
                         "option": "string",
-                        "reason_rejected": "string"
+                        "description": "string",
+                        "strengths": [
+                            "string"
+                        ],
+                        "weaknesses": [
+                            "string"
+                        ],
+                        "comparison_to_recommended": "string",
+                        "risks": [
+                            "string"
+                        ]
                     }
                 ],
-                "date": "string",
-                "decided_by": "string"
+                "recommendation": "string"
             }
-        ],
-        "architecture_rationale": "string"
+        ]
     },
     "requirements": {
         "functional_requirements": [
@@ -322,10 +336,23 @@
                 "sequence_flows": [
                     {
                         "diagram_id": "string",
-                        "diagram_type": "context",
-                        "notation_standard": "C4",
+                        "diagram_type": "sequence",
                         "title": "string",
                         "description": "string",
+                        "participants": [
+                            "string"
+                        ],
+                        "steps": [
+                            {
+                                "step_number": 1,
+                                "from_participant": "string",
+                                "to_participant": "string",
+                                "message": "string",
+                                "is_async": false,
+                                "is_return": false,
+                                "notes": "string"
+                            }
+                        ],
                         "file_reference": "string"
                     }
                 ],
@@ -414,10 +441,23 @@
         "detailed_sequence_flows": [
             {
                 "diagram_id": "string",
-                "diagram_type": "context",
-                "notation_standard": "C4",
+                "diagram_type": "sequence",
                 "title": "string",
                 "description": "string",
+                "participants": [
+                    "string"
+                ],
+                "steps": [
+                    {
+                        "step_number": 1,
+                        "from_participant": "string",
+                        "to_participant": "string",
+                        "message": "string",
+                        "is_async": false,
+                        "is_return": false,
+                        "notes": "string"
+                    }
+                ],
                 "file_reference": "string"
             }
         ],

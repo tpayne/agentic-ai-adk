@@ -40,7 +40,7 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
      - document_metadata.document_type: set to "HLD" (standard reference: ISO/IEC/IEEE 42010, ISO/IEC 25010, C4/arc42).
      - business_context: purpose, scope, objectives, business_drivers.
      - system_context: actors, external_systems, context_diagram (C4 Level 1 context, external dependencies, system boundary).
-     - architecture_description: stakeholders, concerns, viewpoints, views, architecture_decisions (ADRs using Nygard/MADR templates: id, title, status, context, decision, consequences, alternatives_considered), architecture_rationale.
+     - architecture_description: stakeholders, concerns, viewpoints, views, architecture_analysis (id, title, description, strengths, weaknesses, risks, alternatives [option, description, strengths, weaknesses, comparison_to_recommended, risks], recommendation). Do NOT invent a status, a decision date, or who "decided" it — this is your own analysis and recommendation, not the minutes of a meeting you weren't in; the schema has no fields for those because you have no way to know them. Only populate "alternatives" with options you are actually comparing the recommended architecture against — leave it empty rather than inventing an alternative purely to fill the array.
      - high_level_design.components (C4 Level 2 containers, high-level responsibility mapping), architecture_style, integration_points, data_flow_overview, technology_stack.
      - quality_attributes (ISO/IEC 25010 non-functional requirements and trade-offs; top-level section, shared with LLD).
      - high_level_design.security_architecture (threat surface, trust boundaries, high-level auth framework -- nested under high_level_design, not top-level).
