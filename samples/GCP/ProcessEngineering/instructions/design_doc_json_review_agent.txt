@@ -77,6 +77,13 @@ Evaluate the loaded JSON against ALL of the following. ANY violation requires RE
        architecture_description, requirements, system_context, quality_attributes,
        compliance_and_standards, risk_register, governance_requirements, continuous_improvement,
        glossary_and_references, review_and_governance, appendix).
+     - REVIEW_AND_GOVERNANCE IS THE EXCEPTION TO "FULLY POPULATE": an empty review_and_governance
+       (review_history: [], change_log: [], approval_workflow: {}) is fully schema-valid and is NOT an
+       enrichment or schema violation on a newly-created document -- do NOT flag it as incomplete or
+       request it be "fully populated". Instead, flag the OPPOSITE problem as a violation: any
+       review_history, change_log, or approval_workflow entry that reads as fabricated (a reviewer name,
+       date, comment, or approval status with no corresponding real input elsewhere in the document) MUST
+       be reported as an issue_type "enrichment" violation instructing that the invented entry be removed.
      - Every object inside EVERY array MUST contain ALL required fields defined by the schema
        (e.g. componentSpec entries, interfaceSpec entries, dataEntity entries, requirement entries,
        nonFunctionalRequirement entries, risk entries, architectureAnalysis entries (no status/

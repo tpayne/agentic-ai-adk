@@ -39,7 +39,12 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
      - high_level_design: solution_overview, architecture_style, components (C4 Level 2 containers), integration_points, technology_stack, deployment_topology, security_architecture (threat modeling, RBAC/ABAC), scalability_and_performance, availability_and_resilience, risks_and_mitigations.
      - low_level_design: components (C4 Level 3 -- classes, methods, design_patterns_used, api_specifications), database_design (physical schemas), interface_contracts (OpenAPI/gRPC-style endpoint specs), detailed_sequence_flows, exception_handling_strategy.
      - quality_attributes: ISO/IEC 25010 characteristic assessments with explicit targets.
-     - compliance_and_standards, risk_register, governance_requirements, continuous_improvement, review_and_governance, glossary_and_references.
+     - compliance_and_standards, risk_register, governance_requirements, continuous_improvement, glossary_and_references.
+     - review_and_governance: On initial document creation you have NO real review history, change log, or
+       approval record to draw on -- leave review_history, change_log, and approval_workflow as empty arrays/
+       objects ({} / []). Do NOT invent reviewers, dates, approval statuses, or change-log entries; those are
+       facts about events that have not happened yet, not something you can architect or infer. This section
+       only gets populated later, from genuine review/approval events supplied as real input.
 
 4. REVISION & REPAIR:
    - Apply delta modifications exactly as specified in location paths.
