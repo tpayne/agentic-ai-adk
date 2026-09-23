@@ -144,7 +144,10 @@ def _build_session():
         status=5,
         backoff_factor=0.4,                 # baseline; your adapter adds modelSleep + jitter on top
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        # This agent only ever issues GET (see perform_openapi_call's method check below);
+        # kept single-verb here too so a future change to the call path can't silently
+        # regain write access to the upstream API via retry plumbing alone.
+        allowed_methods=["GET"],
         raise_on_status=False,
         respect_retry_after_header=True      # honor Retry-After if server sets it
     )
@@ -190,6 +193,12 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         return {"ok": False, "error": "OpenAPI spec is missing a valid server URL"}
 
     method = (request.get("method") or "GET").upper()
+    if method != "GET":
+        # This agent's role is read-only fact-checking against a live system, never mutation.
+        # The OpenAPI spec may legitimately declare POST/PUT/PATCH/DELETE operations for other
+        # consumers of that API -- that does not make them safe for an automated grounding pass
+        # to invoke. Reject every non-GET verb outright, regardless of what the spec allows.
+        return {"ok": False, "error": f"Method not permitted for grounding calls (read-only): {method}"}
     path = str(request.get("path", "")).strip()
     if not path:
         return {"ok": False, "error": "Request path is required"}
@@ -211,7 +220,6 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
 
     session = _build_session()
     verify = _resolve_verify()
-    body = request.get("body")
 
     tval = getProperty("HTTP_TIMEOUT_SECONDS", default=15)
     try:
@@ -220,10 +228,16 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         timeout = 15.0
 
     try:
-        if method == "GET":
-            resp = session.get(url, params=params, timeout=timeout, verify=verify)
-        else:
-            resp = session.request(method, url, json=body, timeout=timeout, verify=verify)
+        # allow_redirects=False: a redirect response is never auto-followed. Following one
+        # blindly would let the upstream server hand this agent a different URL entirely --
+        # including one outside the OpenAPI spec's declared server -- bypassing the endpoint
+        # allowlist above. A redirect is treated as a failed call instead (see below).
+        resp = session.get(url, params=params, timeout=timeout, verify=verify, allow_redirects=False)
+
+        if resp.is_redirect or resp.is_permanent_redirect:
+            location = resp.headers.get("Location", "")
+            logger.error(f"Refusing to follow redirect from {url} to {location}")
+            return {"ok": False, "error": f"Endpoint returned a redirect, which is not followed: {resp.status_code}"}
 
         resp.raise_for_status()
         try:
