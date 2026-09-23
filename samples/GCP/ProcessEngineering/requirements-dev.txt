@@ -1,0 +1,2 @@
+# Test tooling for the ProcessEngineering sample.
+coverage>=7.0
