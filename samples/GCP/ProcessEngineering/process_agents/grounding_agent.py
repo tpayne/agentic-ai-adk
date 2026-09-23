@@ -3,6 +3,7 @@
 import yaml
 import sys
 import json
+import re
 import requests
 import certifi
 import time
@@ -12,15 +13,12 @@ import logging
 import os
 
 from pathlib import Path
+from urllib.parse import urlparse
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from google.adk.agents import LlmAgent
 from google.genai import types
 from google.adk.tools.tool_context import ToolContext
-
-# NEW: import urllib3 and the warning class for conditional suppression
-import urllib3
-from urllib3.exceptions import InsecureRequestWarning
 
 from .utils import (
     load_master_process_json,
@@ -28,12 +26,63 @@ from .utils import (
     getProperty,
 )
 
-# Conditionally suppress InsecureRequestWarning ONLY if you’ve explicitly allowed insecure HTTPS.
-# Prefer setting a valid CA bundle so you can keep verification ON.  (See notes below.)
-if str(getProperty("ALLOW_INSECURE_HTTPS", default=False)).lower() in ("1", "true", "yes"):
-    urllib3.disable_warnings(InsecureRequestWarning)  # suppress only this warning
-
 logger = logging.getLogger("ProcessArchitect.Grounding")
+
+
+def _resolve_spec_base_url(spec: dict):
+    """Return the server URL from the OpenAPI spec, or None if the spec is unusable."""
+    servers = spec.get("servers", []) if isinstance(spec, dict) else []
+    if not isinstance(servers, list) or not servers:
+        return None
+
+    for server in servers:
+        if not isinstance(server, dict):
+            continue
+        url = str(server.get("url", "")).strip()
+        if not url:
+            continue
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return url.rstrip("/")
+    return None
+
+
+def _path_matches_openapi_template(template: str, candidate: str) -> bool:
+    """Allow only endpoints that exist in the OpenAPI path table for the called method."""
+    if not template or not candidate:
+        return False
+
+    template = template.strip()
+    candidate = candidate.strip()
+    if not template.startswith("/"):
+        template = "/" + template
+    if not candidate.startswith("/"):
+        candidate = "/" + candidate
+
+    regex = re.escape(template)
+    regex = regex.replace(r"\{", "{").replace(r"\}", "}")
+    regex = re.sub(r"\{[^{}]+\}", r"[^/]+", regex)
+    return re.fullmatch(regex, candidate) is not None
+
+
+def _validate_requested_endpoint(spec: dict, method: str, path: str) -> bool:
+    """Reject any path/method pair not explicitly present in the OpenAPI spec."""
+    if not isinstance(spec, dict):
+        return False
+
+    method = (method or "GET").upper()
+    spec_paths = spec.get("paths", {})
+    if not isinstance(spec_paths, dict):
+        return False
+
+    for template, operations in spec_paths.items():
+        if not isinstance(operations, dict):
+            continue
+        if method.lower() not in operations:
+            continue
+        if _path_matches_openapi_template(str(template), str(path)):
+            return True
+    return False
 
 # ---------------------------------------------------------
 # TOOL: Load OpenAPI spec
@@ -136,10 +185,18 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     if "_empty" in spec:
         return {"ok": False, "error": "Spec unavailable"}
 
-    servers = spec.get("servers", [])
-    base_url = servers[0].get("url", "") if servers and isinstance(servers, list) else ""
-    path = request.get("path", "")
+    base_url = _resolve_spec_base_url(spec)
+    if not base_url:
+        return {"ok": False, "error": "OpenAPI spec is missing a valid server URL"}
+
+    method = (request.get("method") or "GET").upper()
+    path = str(request.get("path", "")).strip()
+    if not path:
+        return {"ok": False, "error": "Request path is required"}
+
     params = request.get("params", {}) or {}
+    if not isinstance(params, dict):
+        return {"ok": False, "error": "Request params must be an object"}
 
     for key in list(params.keys()):
         placeholder = "{" + key + "}"
@@ -147,11 +204,13 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
             path = path.replace(placeholder, str(params[key]))
             params.pop(key)
 
-    url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+    if not _validate_requested_endpoint(spec, method, path):
+        return {"ok": False, "error": f"Endpoint not allowed by OpenAPI spec: {method} {path}"}
+
+    url = f"{base_url}/{path.lstrip('/')}"
 
     session = _build_session()
     verify = _resolve_verify()
-    method = (request.get("method") or "GET").upper()
     body = request.get("body")
 
     tval = getProperty("HTTP_TIMEOUT_SECONDS", default=15)
@@ -177,24 +236,6 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
         return {"ok": True, "data": data}
 
     except requests.exceptions.SSLError as ssl_err:
-        allow_insecure = str(getProperty("ALLOW_INSECURE_HTTPS", default=False)).lower() in ("1", "true", "yes")
-        if allow_insecure:
-            logger.warning("TLS verification failed. Retrying with verify=False (INSECURE!)")
-            try:
-                time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-                if method == "GET":
-                    resp = session.get(url, params=params, timeout=timeout, verify=False)
-                else:
-                    resp = session.request(method, url, json=body, timeout=timeout, verify=False)
-                resp.raise_for_status()
-                try:
-                    data = resp.json()
-                except ValueError:
-                    data = {"raw": resp.text, "content_type": resp.headers.get("Content-Type", "")}
-                return {"ok": True, "data": data, "_insecure": True, "_warning": "verify=False used"}
-            except Exception as e:
-                logger.error(f"Insecure retry failed: {e}")
-                return {"ok": False, "error": f"TLS error then insecure retry failed: {ssl_err}"}
         logger.error(f"TLS verification failed: {ssl_err}")
         return {"ok": False, "error": f"TLS verification failed: {ssl_err}"}
 
