@@ -814,6 +814,60 @@ coordinate those tasks). The table below lists the named agents and their
 **direct** sub-agents. A dash means the agent is a leaf agent; tools used by an
 agent are not listed as sub-agents.
 
+### Complete source-module inventory
+
+The following table covers every Python module in `process_agents` (excluding
+generated `__pycache__` files). The **Agents defined** column names the runtime
+agents exported or constructed by that module; **Direct sub-agents** lists
+children only where the module builds a composite agent.
+
+| Source module | Purpose | Agents defined | Direct sub-agents |
+| :--- | :--- | :--- | :--- |
+| `__init__.py` | Package marker. | None | — |
+| `agent.py` | Configures the model provider, logging, signal handling, local chat support, and top-level orchestration. | `Process_Architect_Orchestrator` | Registered process, design-document, cloud-architecture, scenario, simulation, document, and subprocess entry points |
+| `agent_registry.py` | Imports and groups agents into pipeline registries. | Registry collections | Create, update, cloud, and design-document pipeline agent lists |
+| `agent_wrappers.py` | Provides shared ADK wrappers, model resolution, retry behavior, and callbacks. | `DefaultLlmAgent`, `DefaultAgent`, `ProcessLlmAgent`, `ProcessAgent` | — |
+| `analysis_agent.py` | Extracts process objectives and records analysis metadata. | `Analysis_Agent` | — |
+| `app.py` | Flask application exposing process generation, status, version, and API endpoints. | Flask application | Root workflow via `build_process_model()` |
+| `cloudarch_agent.py` | Generates cloud-architecture content and metadata. | `CloudArch_Agent` | — |
+| `cloudarch_pipeline_agent.py` | Repeats cloud-architecture generation, review, and approval. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, stop controller |
+| `cloudarch_reviewer_agent.py` | Reviews generated cloud architecture and records feedback. | `CloudArch_Reviewer_Agent` | — |
+| `compliance_agent.py` | Audits process designs for governance and compliance. | `Compliance_Agent` | — |
+| `consultant_agent.py` | Provides general process-engineering consultation. | `Consultant_Agent` | — |
+| `consultant_design_agent.py` | Provides architecture and process-design consultation. | `Design_Consultant_Agent` | — |
+| `create_process_agent.py` | Builds the end-to-end process creation pipeline. | Design compliance loop, JSON normalization loop, `Full_Design_Pipeline` | Analysis, design, compliance, simulation, grounding, normalization, review, subprocess, document, mute, and unmute agents |
+| `design_agent.py` | Generates and refines process designs. | `Design_Agent` | — |
+| `design_doc_agent.py` | Provides the general design-document generation agent. | `Design_Doc_Agent` | — |
+| `design_doc_analysis_agent.py` | Extracts architectural requirements and design-document scope. | `Design_Doc_Analysis_Agent` | — |
+| `design_doc_compliance_agent.py` | Audits architecture documents for compliance. | `Design_Doc_Compliance_Agent` | — |
+| `design_doc_create_agent.py` | Builds the HLD/LLD design-document creation pipeline. | Design-document compliance loop, JSON normalization loop, `Full_Design_Doc_Pipeline` | HLD, LLD, compliance, refinement, simulation, grounding, normalization, review, document, mute, and unmute agents |
+| `design_doc_hld_agent.py` | Produces the high-level architecture design. | `Design_Doc_HLD_Agent` | — |
+| `design_doc_lld_agent.py` | Produces the low-level architecture design. | `Design_Doc_LLD_Agent` | — |
+| `design_doc_update_agent.py` | Builds the pipeline for modifying an existing design document. | Design-document update loop, normalization loop, `Update_Design_Doc_Pipeline` | HLD, LLD, compliance, refinement, simulation, grounding, normalization, review, document, mute, and unmute update agents |
+| `design_simulation_agent.py` | Simulates architecture availability, risks, dependencies, and blast radius. | `Design_Architecture_Simulation_Agent`, `Design_Architecture_Simulation_Query_Agent` | — |
+| `doc_creation_agent.py` | Coordinates graph extraction and document generation. | `Doc_Creation_Agent` | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+| `doc_generation_agent.py` | Builds process and design-document artifacts, including Word output. | `Document_Generation_Agent` | — |
+| `edge_inference_agent.py` | Converts process JSON into graph and diagram data. | `Edge_Inference_Agent` | — |
+| `grounding_agent.py` | Validates generated claims against approved OpenAPI sources. | `Grounding_Validation_Agent` | — |
+| `json_normalizer_agent.py` | Repairs and normalizes generated JSON. | `JSON_Normalizer_Agent` | — |
+| `json_review_agent.py` | Reviews normalized JSON and records feedback. | `JSON_Review_Agent` | — |
+| `json_writer_agent.py` | Persists approved process or design-document JSON. | `JSON_Writer_Agent` | — |
+| `scenario_agent.py` | Tests generated processes against user scenarios. | `Scenario_Tester` | — |
+| `scenario_design_agent.py` | Tests architecture designs against user scenarios. | `Design_Scenario_Tester` | — |
+| `simulation_agent.py` | Runs process simulation, bottleneck, sensitivity, and result-query workflows. | `Simulation_Optimization_Agent`, `Simulation_Optimization_Query_Agent` | — |
+| `step_diagram_agent.py` | Extracts subprocess steps and diagram metadata. | Diagram helper functions | — |
+| `subprocess_driver_agent.py` | Coordinates subprocess generation and persistence per process step. | `Subprocess_Driver_Agent_*` | `Subprocess_Generator_Agent`, `Subprocess_Writer_Agent` |
+| `subprocess_generator_agent.py` | Generates structured subprocess definitions and controls. | `Subprocess_Generator_Agent` | — |
+| `subprocess_writer_agent.py` | Persists generated subprocess artifacts. | `Subprocess_Writer_Agent` | — |
+| `uml_diagram_agent.py` | Renders UML-style diagrams from structured descriptors. | UML diagram tool functions | — |
+| `update_process_agent.py` | Builds the end-to-end existing-process update pipeline. | Update compliance loop, normalization loop, `Update_Design_Pipeline` | Analysis, design, compliance, simulation, grounding, normalization, review, subprocess, document, mute, and unmute update agents |
+| `utils.py` | Shared persistence, schema validation, templates, configuration, and context loading. | Utility functions | — |
+| `utils_agent.py` | Provides output controls, approval handling, and loop-stop control. | `Stop_Controller`, `Mute_Agent`, `Unmute_Agent` | — |
+
+The pipeline table below describes the runtime composition and direct child
+relationships. Suffixes such as `_Update` and `_DesignDoc` identify cloned
+instances with pipeline-specific prompts, callbacks, or output keys.
+
 | Agent | What it does | Direct sub-agents |
 | :--- | :--- | :--- |
 | `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, simulation, cloud-architecture, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
