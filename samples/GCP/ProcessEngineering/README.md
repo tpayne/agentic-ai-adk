@@ -806,6 +806,80 @@ The `Design_Architecture_Simulation_Query_Agent` provides quantitative evidence 
 
 ---
 
+## Agent inventory
+
+The ProcessEngineering sample is composed of leaf agents (which perform a
+focused analysis or artifact-generation task) and pipeline agents (which
+coordinate those tasks). The table below lists the named agents and their
+**direct** sub-agents. A dash means the agent is a leaf agent; tools used by an
+agent are not listed as sub-agents.
+
+| Agent | What it does | Direct sub-agents |
+| :--- | :--- | :--- |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, simulation, cloud-architecture, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
+| `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
+| `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
+| `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
+| `JSON_Normalization_Retry_Loop` | Repeatedly normalizes and reviews process JSON, then writes the stabilized result. | `Normalizer_Review_Sequence`, `JSON_Writer_Agent` |
+| `Normalizer_Review_Sequence` | Performs one normalization-review-stop iteration for process JSON. | `JSON_Normalizer_Agent`, `JSON_Review_Agent`, `JSON_Review_Stop_Controller` |
+| `Update_Design_Pipeline` | Updates an existing process and regenerates its validated artifacts. | `Mute_Agent_Update`, `Process_Update_Analyst`, `Update_Compliance_Loop`, `Update_Normalization_Loop`, `Subprocess_Driver_Agent_Update`, `Doc_Creation_Agent`, `Unmute_Agent_Update` |
+| `Update_Compliance_Loop` | Repeats process-update design and governance checks. | `Iterative_Update_Stage` |
+| `Iterative_Update_Stage` | Executes one process-update review iteration. | `Design_Agent_Update`, `Compliance_Agent_Update`, `Design_Compliance_Agent_Update`, `Simulation_Optimization_Agent_Update`, `Design_Architecture_Simulation_Agent_Update`, `Grounding_Validation_Agent_Update`, `Design_Grounding_Agent_Update`, `Stop_Controller_Update` |
+| `Update_Normalization_Loop` | Normalizes, reviews, and writes updated process JSON. | `Update_Normalizer_Sequence`, `JSON_Writer_Update` |
+| `Update_Normalizer_Sequence` | Performs one updated-process normalization-review-stop iteration. | `JSON_Normalizer_Update`, `JSON_Review_Update`, `JSON_Review_Stop_Controller_Update` |
+| `Full_Design_Doc_Pipeline` | Creates a new HLD/LLD or combined architecture design document and its artifacts. | `Mute_DesignDoc_Create`, `Design_Doc_Analysis_Agent`, `Design_Doc_Compliance_Loop`, `Design_Doc_JSON_Normalization_Loop`, `CreateDoc`, `Unmute_DesignDoc_Create` |
+| `Design_Doc_Compliance_Loop` | Repeats HLD/LLD generation, governance, resilience, and grounding checks. | `Iterative_Design_Doc_Stage` |
+| `Iterative_Design_Doc_Stage` | Executes one design-document review iteration. | `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Doc_Refinement_Agent`, `Design_Architecture_Simulation_Agent`, `Design_Doc_Simulation_Refinement_Agent`, `Grounding_Agent_DesignDoc`, `Design_Doc_Grounding_Agent`, `Stop_Controller_DesignDoc_Create` |
+| `Design_Doc_JSON_Normalization_Loop` | Stabilizes and persists design-document JSON. | `Design_Doc_Normalizer_Review_Sequence`, `JSON_Writer_DesignDoc` |
+| `Design_Doc_Normalizer_Review_Sequence` | Performs one design-document normalization-review-stop iteration. | `JSON_Normalizer_DesignDoc`, `JSON_Review_DesignDoc`, `JSON_Review_Stop_Controller_DesignDoc` |
+| `Update_Design_Doc_Pipeline` | Updates an existing architectural design document and rebuilds its artifacts. | `Mute_Agent_DesignDoc_Update`, `Design_Doc_Update_Analyst`, `Design_Doc_Update_Compliance_Loop`, `Design_Doc_Update_Normalization_Loop`, `UpdateDoc`, `Unmute_Agent_DesignDoc_Update` |
+| `Design_Doc_Update_Compliance_Loop` | Repeats HLD/LLD update, governance, simulation, and grounding checks. | `Iterative_Design_Doc_Update_Stage` |
+| `Iterative_Design_Doc_Update_Stage` | Executes one design-document update iteration. | `Design_Doc_HLD_Agent_Update`, `Design_Doc_LLD_Agent_Update`, `Design_Doc_Compliance_Agent_Update`, `Design_Doc_Agent_Update`, `Design_Architecture_Simulation_Agent_Update`, `Design_Doc_Simulation_Refinement_Agent_Update`, `Grounding_Validation_Agent_DesignDoc_Update`, `Design_Doc_Agent_Grounding_Update`, `Stop_Controller_DesignDoc_Update` |
+| `Design_Doc_Update_Normalization_Loop` | Normalizes, reviews, and writes updated design-document JSON. | `Design_Doc_Update_Normalizer_Sequence`, `JSON_Writer_DesignDoc_Update` |
+| `Design_Doc_Update_Normalizer_Sequence` | Performs one updated design-document normalization-review-stop iteration. | `JSON_Normalizer_DesignDoc_Update`, `JSON_Review_DesignDoc_Update`, `JSON_Review_Stop_Controller_DesignDoc_Update` |
+| `CloudArch_Pipeline` | Generates and reviews a cloud architecture diagram until it is approved. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, `Stop_Controller_CloudArch` |
+| `Analysis_Agent` | Extracts process objectives, requirements, and traceability context from the request. | — |
+| `Process_Update_Analyst` | Loads and analyzes an existing process before modification. | — |
+| `Design_Doc_Analysis_Agent` | Extracts architectural requirements and document scope. | — |
+| `Design_Doc_Update_Analyst` | Loads and analyzes an existing design document before modification. | — |
+| `Design_Agent` | Generates or refines the process design. | — |
+| `Compliance_Agent` | Reviews a process for governance and compliance concerns. | — |
+| `Design_Compliance_Agent` | Performs design-specific compliance checks. | — |
+| `Design_Doc_HLD_Agent` | Produces the high-level architecture design. | — |
+| `Design_Doc_LLD_Agent` | Produces the low-level architecture design. | — |
+| `Design_Doc_Compliance_Agent` | Audits an architecture design document against its governance requirements. | — |
+| `Design_Doc_Agent` | Provides the general design-document agent entry point. | — |
+| `Simulation_Optimization_Agent` | Simulates process behavior and reports performance, bottlenecks, and sensitivity results. | — |
+| `Simulation_Optimization_Query_Agent` | Answers queries about process simulation results. | — |
+| `Design_Architecture_Simulation_Agent` | Simulates architecture availability, risk, dependencies, and blast radius. | — |
+| `Design_Architecture_Simulation_Query_Agent` | Answers queries about architecture simulation results. | — |
+| `Grounding_Validation_Agent` | Grounds process or design claims against approved OpenAPI-backed sources. | — |
+| `JSON_Normalizer_Agent` | Repairs and normalizes generated process or design-document JSON. | — |
+| `JSON_Review_Agent` | Reviews normalized JSON and records approval or corrective feedback. | — |
+| `JSON_Writer_Agent` | Persists the approved process JSON. | — |
+| `Scenario_Tester` | Evaluates process behavior against user-supplied scenarios. | — |
+| `Design_Scenario_Tester` | Evaluates architecture designs against user-supplied scenarios. | — |
+| `Consultant_Agent` | Provides process-engineering consultation and recommendations. | — |
+| `Design_Consultant_Agent` | Provides architecture and design consultation. | — |
+| `CloudArch_Agent` | Generates cloud-architecture descriptions and diagram input. | — |
+| `CloudArch_Reviewer_Agent` | Reviews generated cloud architecture and supplies iteration feedback. | — |
+| `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |
+| `Doc_Creation_Sequence` | Runs the document artifact stages in order. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+| `Edge_Inference_Agent` | Derives graph edges, lanes, labels, and dependencies from process JSON. | — |
+| `Document_Generation_Agent` | Builds process and design-document deliverables, including Word output. | — |
+| `Subprocess_Driver_Agent_*` | Coordinates per-step subprocess generation and writing for create, update, or top-level runs. | `Subprocess_Generator_Agent`, `Subprocess_Writer_Agent` |
+| `Subprocess_Generator_Agent` | Generates structured subprocess definitions for process steps. | — |
+| `Subprocess_Writer_Agent` | Persists generated subprocess artifacts. | — |
+| `Stop_Controller` | Stops iterative loops when review criteria are satisfied or limits are reached. | — |
+| `Mute_Agent` / `Unmute_Agent` | Suppresses or restores noisy pipeline output around long-running workflows. | — |
+| `UML_Diagram_Agent` | Renders requested UML-style diagrams from structured descriptors. | — |
+
+Names with suffixes such as `_Update`, `_DesignDoc`, and `_DesignDoc_Update`
+are intentionally separate instances. They share behavior with their base
+agent but use pipeline-specific prompts, callbacks, or output keys.
+
+---
+
 ## Contributing
 
 Thank you for your interest in improving this sample! To make contributing simple and consistent, please follow these guidelines.
