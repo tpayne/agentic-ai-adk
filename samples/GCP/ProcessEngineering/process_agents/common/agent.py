@@ -424,9 +424,12 @@ def build_web_app(https: bool = True):
             web_session_id, response_text = asyncio.run(
                 _run_chat_turn(session_id, query.strip())
             )
-        except Exception as e:
-            logger.error(f"Web chat error: {e}")
-            return jsonify({"status": "error", "error": str(e)}), 500
+        except Exception:
+            logger.exception("Web chat error")
+            return jsonify({
+                "status": "error",
+                "error": "An internal error has occurred.",
+            }), 500
 
         resp = make_response(jsonify({
             "status": "ok",
