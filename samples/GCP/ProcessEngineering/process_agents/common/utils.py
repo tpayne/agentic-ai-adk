@@ -2337,8 +2337,9 @@ def load_full_process_context(schema_type: Optional[str] = None) -> dict:
             with open(master_path, "r", encoding="utf-8") as f:
                 context["master_process"] = json.load(f)
                 context["system_status"] = "OK"
-        except Exception as e:
-            context["system_status"] = f"ERROR: {e}"
+        except Exception:
+            logger.exception("Failed to load master process context from %s", master_path)
+            context["system_status"] = "ERROR"
     if resolved_type == "process":
         sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
         if os.path.exists(sub_dir):
