@@ -508,6 +508,125 @@ Exiting Process Architect Orchestrator.
 Then run your commands as appropriately.
 ---
 
+## Running as a Web Service (REST API)
+
+The same root agent (`process_agents.agent`) can also be run **detached** as a
+Flask web service instead of a local CLI chat loop, exposing the orchestrator
+over a REST `/chat` endpoint. This is off by default -- it only activates when
+`-d`/`--detached` is passed.
+
+```bash
+python -m process_agents.agent -d
+```
+
+Flags:
+
+| Flag | Description |
+|---|---|
+| `-d`, `--detached` | Run as a detached web service instead of the interactive/file/single-prompt CLI. |
+| `--http` | Serve plain HTTP on port `8080` instead of the default HTTPS on port `443`. |
+| `-p`, `--port` | Override the listening port (default: `443` for HTTPS, `8080` for `--http`). |
+
+`-d` alone serves **HTTPS on port 443** by default. Add `--http` for plain
+HTTP on port 8080, or `-p`/`--port` to listen on a different port either way:
+
+```bash
+# HTTPS on the default port 443 (requires root/cap_net_bind_service on most systems)
+python -m process_agents.agent -d
+
+# HTTPS on a non-privileged port
+python -m process_agents.agent -d -p 8443
+
+# Plain HTTP on the default port 8080
+python -m process_agents.agent -d --http
+
+# Plain HTTP on a custom port
+python -m process_agents.agent -d --http -p 9000
+```
+
+### TLS certificates
+
+If `sslCertFile` and `sslKeyFile` are set in `properties/agentapp.properties`
+(or the equivalent env vars), those are used for HTTPS. Otherwise an ad-hoc,
+self-signed certificate is generated automatically (requires the `pyOpenSSL`
+package, already listed in `requirements.txt`) -- fine for local testing, but
+you should supply real certificates for anything beyond that:
+
+```ini
+[SETTINGS]
+sslCertFile = "/path/to/fullchain.pem"
+sslKeyFile  = "/path/to/privkey.pem"
+```
+
+### REST API
+
+The service exposes:
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/chat` | Send a query, get the agent's response. |
+| `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
+| `GET` | `/status` | Liveness probe. |
+
+`POST /chat` takes a JSON body with a `query` field, and an optional
+`session_id` to continue an existing conversation:
+
+```json
+{
+  "query": "create an End-to-End AI Governance process that includes (RAI + Risk Management + Operating Models + Change Management)",
+  "session_id": "optional-existing-session-id"
+}
+```
+
+It replies with the `session_id` (create a new one if you didn't supply one,
+or if the one you supplied is unknown), the original `query`, and the agent's
+`response`:
+
+```json
+{
+  "status": "ok",
+  "session_id": "2c5689ca-095a-465d-971e-06b18e200ea9",
+  "query": "create an End-to-End AI Governance process ...",
+  "response": "Successfully generated a professional ISO-formatted Word document: output/End-to-End_AI_Governance_Process.docx"
+}
+```
+
+The response also sets a `process_architect_session` cookie carrying the same
+`session_id`, so browser-based or cookie-aware clients (e.g. a follow-up chat
+UI) get multi-turn continuity for free without having to track and resend
+`session_id` themselves. Pure REST clients (curl, server-to-server callers)
+can instead track and resend `session_id` explicitly -- whichever is
+supplied wins, and if neither resolves to a known session a fresh one is
+created and handed back both ways. Each session keeps its own conversation
+history server-side, so multiple chats/users can run concurrently against the
+same running service.
+
+Example with curl, preserving the session cookie across calls:
+
+```bash
+# First turn -- starts a new session
+curl -sk -c cookies.txt -X POST https://localhost:8443/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "create a simple 3-step onboarding process"}'
+
+# Follow-up turn -- reuses the session via the cookie jar
+curl -sk -b cookies.txt -X POST https://localhost:8443/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "now add an approval step before go-live"}'
+
+# Or track the session explicitly instead of using cookies
+curl -sk -X POST https://localhost:8443/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "now add an approval step before go-live", "session_id": "<session_id from the first response>"}'
+
+# Drop a session's state when you're done with it
+curl -sk -X DELETE https://localhost:8443/chat/<session_id>
+```
+
+(`-k` above skips certificate verification, appropriate only when testing
+against the ad-hoc self-signed certificate -- drop it once you're using a
+real certificate.)
+
 ## Docker Usage
 
 Build:

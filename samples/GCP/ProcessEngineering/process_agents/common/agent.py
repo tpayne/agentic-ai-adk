@@ -4,6 +4,9 @@ import os
 import signal
 import sys
 import logging
+import secrets
+import threading
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import pkgutil
@@ -314,6 +317,183 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
 
 
 # ---------------------------------------------------------
+# WEB SERVICE MODE (Flask REST API, activated by -d/--detached)
+# ---------------------------------------------------------
+# Maps an opaque web session id (handed to callers as "session_id" and also
+# set as a cookie) to the underlying ADK user_id/session_id pair, so a single
+# shared Runner/session_service can multiplex many concurrent chats.
+_web_sessions: dict = {}
+_web_sessions_lock = threading.Lock()
+_web_runner = None
+_web_session_service = None
+_WEB_APP_NAME = "ProcessArchitect"
+WEB_SESSION_COOKIE = "process_architect_session"
+
+
+async def _get_or_create_web_session(existing_session_id: Optional[str]):
+    """
+    Resolve a web session id to its ADK (user_id, session_id) pair.
+
+    If existing_session_id is missing/unknown, a fresh ADK session is
+    created and registered under a new web session id, which is returned
+    alongside the pair.
+    """
+    global _web_runner, _web_session_service
+
+    if existing_session_id:
+        with _web_sessions_lock:
+            entry = _web_sessions.get(existing_session_id)
+        if entry:
+            return existing_session_id, entry["user_id"], entry["session_id"]
+
+    if _web_session_service is None:
+        _web_session_service = InMemorySessionService()
+    if _web_runner is None:
+        _web_runner = Runner(
+            app=root_app,
+            app_name=_WEB_APP_NAME,
+            session_service=_web_session_service,
+        )
+
+    user_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    await _web_session_service.create_session(
+        app_name=_WEB_APP_NAME,
+        user_id=user_id,
+        session_id=session_id,
+        state={},
+    )
+
+    web_session_id = str(uuid.uuid4())
+    with _web_sessions_lock:
+        _web_sessions[web_session_id] = {"user_id": user_id, "session_id": session_id}
+    return web_session_id, user_id, session_id
+
+
+async def _run_chat_turn(existing_session_id: Optional[str], query: str):
+    """Resolve/create the web session, then run one query through it."""
+    web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
+
+    content = types.Content(role="user", parts=[types.Part(text=query)])
+    final_response = None
+    async for event in _web_runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=content,
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            final_response = event.content.parts[0].text
+
+    return web_session_id, (final_response or "")
+
+
+def build_web_app(https: bool = True):
+    """
+    Build (but do not run) the Flask REST app for -d/--detached mode.
+
+    Exposes:
+      POST   /chat            {"query": "...", "session_id": "..." (optional)}
+                               -> {"status": "ok", "session_id": "...",
+                                   "query": "...", "response": "..."}
+      DELETE /chat/<session_id>  Drops server-side state for that session.
+      GET    /status           Liveness probe.
+
+    Sessions are tracked both by an explicit "session_id" JSON field (for
+    plain REST/CLI clients) and by a cookie (for browser-based clients) --
+    whichever is supplied wins; if neither resolves to a known session, a
+    new one is created and handed back both ways.
+    """
+    from flask import Flask, request, jsonify, make_response
+
+    web_app = Flask("ProcessArchitectWebService")
+    web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
+
+    @web_app.route("/chat", methods=["POST"])
+    def chat():
+        payload = request.get_json(silent=True) or {}
+        query = payload.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return jsonify({
+                "status": "error",
+                "error": "Field 'query' is required and must be a non-empty string.",
+            }), 400
+
+        session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+
+        try:
+            web_session_id, response_text = asyncio.run(
+                _run_chat_turn(session_id, query.strip())
+            )
+        except Exception as e:
+            logger.error(f"Web chat error: {e}")
+            return jsonify({"status": "error", "error": str(e)}), 500
+
+        resp = make_response(jsonify({
+            "status": "ok",
+            "session_id": web_session_id,
+            "query": query,
+            "response": response_text,
+        }))
+        resp.set_cookie(
+            WEB_SESSION_COOKIE,
+            web_session_id,
+            httponly=True,
+            samesite="Lax",
+            secure=https,
+        )
+        return resp
+
+    @web_app.route("/chat/<session_id>", methods=["DELETE"])
+    def chat_reset(session_id):
+        with _web_sessions_lock:
+            existed = _web_sessions.pop(session_id, None) is not None
+        return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
+
+    @web_app.route("/status", methods=["GET"])
+    def status():
+        return jsonify({"status": "live"})
+
+    return web_app
+
+
+def run_web_service(port: Optional[int], use_https: bool):
+    """Build and serve the Flask REST app until interrupted."""
+    web_app = build_web_app(https=use_https)
+
+    listen_port = port if port is not None else (443 if use_https else 8080)
+    host = getProperty("host", default="0.0.0.0")
+
+    ssl_context = None
+    if use_https:
+        cert_file = getProperty("sslCertFile")
+        key_file = getProperty("sslKeyFile")
+        if cert_file and key_file:
+            ssl_context = (cert_file, key_file)
+        else:
+            try:
+                import OpenSSL  # noqa: F401
+                ssl_context = "adhoc"
+                display_text(
+                    "No sslCertFile/sslKeyFile configured -- serving HTTPS with an "
+                    "ad-hoc, self-signed certificate. Do not use this in production.",
+                    type="warning",
+                )
+            except ImportError:
+                display_text(
+                    "HTTPS requested but no sslCertFile/sslKeyFile are configured and "
+                    "'pyOpenSSL' is not installed (needed to generate an ad-hoc "
+                    "certificate). Install pyOpenSSL, configure sslCertFile/sslKeyFile "
+                    "in properties/agentapp.properties, or rerun with --http.",
+                    type="error",
+                )
+                sys.exit(1)
+
+    scheme = "https" if use_https else "http"
+    display_text(f"- Starting Process Architect web service on {scheme}://{host}:{listen_port} (POST /chat)...")
+    web_app.run(host=host, port=listen_port, ssl_context=ssl_context, threaded=True, debug=False)
+
+
+# ---------------------------------------------------------
 # FILE MODE
 # ---------------------------------------------------------
 async def process_file(file_path: str):
@@ -547,7 +727,35 @@ async def run_cli():
         required=False,
         help="Process a single prompt, print the response, and exit (no interactive loop). E.g.: -i \"tell me what this process is about\""
     )
+    mode_group.add_argument(
+        "-d", "--detached",
+        dest="detached",
+        action="store_true",
+        help="Run as a detached Flask web service exposing a REST 'POST /chat' endpoint "
+             "(multi-session via cookie or an explicit session_id), instead of the "
+             "interactive/file/single-prompt CLI. See --http and --port."
+    )
+    parser.add_argument(
+        "--http",
+        dest="http",
+        action="store_true",
+        help="With --detached, serve plain HTTP on port 8080 instead of the default HTTPS on port 443."
+    )
+    parser.add_argument(
+        "-p", "--port",
+        dest="port",
+        type=int,
+        required=False,
+        help="With --detached, override the listening port (default: 443 for HTTPS, 8080 for --http)."
+    )
     args = parser.parse_args()
+
+    if not args.detached and (args.http or args.port is not None):
+        parser.error("--http and --port only apply with -d/--detached.")
+
+    if args.detached:
+        run_web_service(port=args.port, use_https=not args.http)
+        return
 
     if args.file:
         await process_file(args.file)
