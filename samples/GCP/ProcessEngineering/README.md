@@ -1,10 +1,10 @@
 # ADK Business Process Architect
 
-This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to generating professional process documentation and validated workflows.
+This sample hosts a specialized multi-agent suite built on the Google Agent Development Kit (ADK). The system automates the lifecycle of business process engineering from initial requirements through to generating professional process documentation and validated workflows. It also supports an equivalent lifecycle for architectural design documentation (High-Level Design, Low-Level Design, or Combined), covering the same create/query/what-if/simulate/update pattern.
 
-Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process based on that business process request.
+Basically, this agent will take a raw prompt and design, test, and document a full end-to-end process (or a full architectural design document) based on that request.
 
-In other words, this agent is used for automated process engineering - going from very rough requirements through to tested documentation. A handy tool for consultants.
+In other words, this agent is used for automated process engineering and automated solution/architecture documentation - going from very rough requirements through to tested documentation. A handy tool for consultants and architects alike.
 
 This application is based on Google ADK but is using `LiteLlm`, so you can use multiple model providers. To use different models, set the appropriate model in the `agentapp.properties` file. 
 
@@ -33,10 +33,16 @@ The following are a list of known issues: -
 - This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
 - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
-- Sometimes the root agent gets confused as to which agent to use to address a query. If you get this, you can change to prompt to something like **"using the Consulting Agent...."** and it will use the right one. Agents available are: -
-    * Consulting Agent for general queries
-    * Simulation Agent for running simulations
-    * Scenario Testing Agent for running "what if" type queries
+- The same applies to design documents: if generating a new HLD/LLD/Combined design from scratch, clear out any old `design_data.json` from `output/`; if you are querying, testing, or updating an existing design document, leave `output/` alone as it is used as input for the design queries, scenario tests, and simulations.
+- Sometimes the root agent gets confused as to which agent to use to address a query. If you get this, you can change the prompt to something like **"using the Consulting Agent...."** and it will use the right one. Agents available are: -
+    * Consulting Agent for general queries about an existing **process**
+    * Simulation Agent for running simulations on a **process**
+    * Scenario Testing Agent for running "what if" type queries against a **process**
+    * Design Consultant Agent for general queries about an existing **design document** (HLD/LLD/Combined)
+    * Design Architecture Simulation Query Agent for running resilience, scalability, security, and latency simulations against a **design document**
+    * Design Scenario Tester for running "what if" type queries against a **design document**
+    * CloudArch Pipeline for generating or regenerating cloud architecture diagrams from a **design document**
+  If the root agent picks the wrong domain (e.g. it treats a design-document question as a process question, or vice-versa), naming the agent explicitly in your prompt (e.g. **"using the Design Consultant Agent..."**) will steer it correctly.
 
 ---
 
@@ -51,6 +57,17 @@ The ADK pipeline provides:
 - **Automated High-Fidelity Artifacts**:
   - Process diagrams (level 1 and 2) embedded in the process document.
   - A professional Word document describing the business process and related information, aligned to ITIL and ISO-style conventions.
+- **Autonomous Design Document Pipeline**: A parallel "Solution Architect" workflow (`Full_Design_Doc_Pipeline` / `Update_Design_Doc_Pipeline`) that transforms raw architecture requirements into a High-Level Design (HLD), Low-Level Design (LLD), or Combined design document, following the same requirements → design → review → normalize → document flow as the process pipeline.
+- **Self-Auditing Design Review Loop**: A design-side review/compliance loop iterates over the HLD/LLD/Combined document, checking it against `design_document_schema.json` and standards references (e.g. TOGAF ADM, C4 Model, ISO/IEC/IEEE 42010) until it is structurally and content-complete.
+- **Self-Auditing Design Simulation Gate**: A `Design_Architecture_Simulation_Agent` runs the same four-dimension simulation (below) as an internal gate inside `Full_Design_Doc_Pipeline`/`Update_Design_Doc_Pipeline`, triggering revisions if resilience, scalability, security, or latency issues are found — the design-side equivalent of the process pipeline's Self-Auditing Simulation Gate.
+- **Cloud Architecture Diagramming (`CloudArch_Pipeline`)**: A dedicated reviewer/generator loop (`cloudarch_agent`, `cloudarch_reviewer_agent`) produces and iteratively refines a cloud/UML-style architecture diagram from the design document's components, dependencies, and integration points.
+- **Real LLD Sequence Diagrams**: Each Low-Level Design component's `sequence_flows` entries carry their own inline participants and ordered steps (`design_document_schema.json`'s `sequenceDiagramSpec`), rendered as an actual UML-style sequence diagram (lifelines, sync/async calls, returns) and embedded in the generated document — not a placeholder reference to a diagram that was never produced.
+- **Four-Dimension Design Simulation**: A `Design_Architecture_Simulation_Query_Agent` runs a single composite simulation over an existing design document covering:
+  - **Resilience** — a Monte Carlo blast-radius/cascading-failure model built from component dependencies, integration points, declared availability targets, and risk register entries, identifying single points of failure and an overall resilience risk rating.
+  - **Scalability** — structural bottleneck detection (components many others depend on with no declared elastic/auto-scaling technology), plus any scalability-tagged risks.
+  - **Security** — a control-coverage checklist, compliance-standard status tally, security-tagged risks, and an externally-exposed-without-full-controls check.
+  - **Latency** — declared performance/latency targets cross-checked against the deepest dependency chain in the architecture, flagging undeclared latency budgets on long request paths.
+- **Design Consultant & Scenario Testing**: A `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while a `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation agent for any quantitative estimate.
 
 ---
 
@@ -60,6 +77,18 @@ The ADK pipeline provides:
 2. **Iterative Refinement**: Design and Compliance agents loop, refining the process until operational and regulatory criteria are satisfied. This cycle includes testing and optimization.
 3. **Schema Stabilization**: The Normalizer Agent maps the finalized design to a stable documentation contract and saves the state to `process_data.json`.
 4. **Artifact Engineering**: The Documentation Agent renders diagrams and generates the final specification (Word document) from the local state.
+
+---
+
+### 🚀 Autonomous Design Document Execution Flow
+
+1. **Requirement Extraction**: The Design Analysis Agent converts user intent (target architecture, constraints, quality attributes) into a machine-readable design requirements specification, and determines whether an HLD, LLD, or Combined document is being requested.
+2. **Iterative Refinement**: Design and review agents loop over the HLD/LLD/Combined content — components, dependencies, integration points, risk register, security architecture, scalability/performance targets — until the document is structurally complete against `design_document_schema.json`.
+3. **Schema Stabilization**: The design-side Normalizer Agent maps the finalized design to the stable `design_document_schema.json` contract and saves the state to `output/design_data.json`.
+4. **Cloud Architecture Diagramming**: The `CloudArch_Pipeline` reviewer/generator loop renders a cloud/UML-style architecture diagram from the components, dependencies, and integration points in the finalized design.
+5. **Artifact Engineering**: The Documentation Agent renders the final design specification (Word document) from the local `design_data.json` state, alongside the generated architecture diagram.
+
+Once a design document exists on disk, it can be queried (`Design_Consultant_Agent`), tested against what-if scenarios (`Design_Scenario_Tester`), simulated across resilience/scalability/security/latency (`Design_Architecture_Simulation_Query_Agent`), or updated and re-documented (`Update_Design_Doc_Pipeline`) — mirroring the equivalent process-side capabilities above.
 
 ---
 
@@ -292,9 +321,14 @@ The ADK pipeline provides:
 ├── instructions
 │   ├── agent.txt
 │   ├── analysis_agent.txt
+│   ├── cloudarch_agent.txt
+│   ├── cloudarch_reviewer_agent.txt
 │   ├── compliance_agent.txt
 │   ├── consultant_agent.txt
+│   ├── consultant_design_agent.txt
 │   ├── design_agent.txt
+│   ├── design_scenario_tester_agent.txt
+│   ├── design_simulation_query_agent.txt
 │   ├── doc_generation_agent.txt
 │   ├── edge_inference_agent.txt
 │   ├── grounding_agent.txt
@@ -306,6 +340,7 @@ The ADK pipeline provides:
 │   ├── simulation_query_agent.txt
 │   ├── stop_controller_agent.txt
 │   ├── subprocess_generator_agent.txt
+│   ├── uml_diagram_agent.txt
 │   └── update_analysis_agent.txt
 ├── process_agents
 │   ├── __init__.py
@@ -341,12 +376,17 @@ The ADK pipeline provides:
 │   ├── agent.py
 │   ├── analysis_agent.py
 │   ├── app.py
+│   ├── cloudarch_agent.py
+│   ├── cloudarch_pipeline_agent.py
+│   ├── cloudarch_reviewer_agent.py
 │   ├── compliance_agent.py
 │   ├── consultant_agent.py
+│   ├── consultant_design_agent.py
 │   ├── create_process_agent.py
 │   ├── data
 │   │   └── openapi.yaml
 │   ├── design_agent.py
+│   ├── design_simulation_agent.py
 │   ├── doc_creation_agent.py
 │   ├── doc_generation_agent.py
 │   ├── edge_inference_agent.py
@@ -377,6 +417,7 @@ The ADK pipeline provides:
 │   │   ├── script.js
 │   │   └── style.css
 │   ├── scenario_agent.py
+│   ├── scenario_design_agent.py
 │   ├── simulation_agent.py
 │   ├── step_diagram_agent.py
 │   ├── subprocess_driver_agent.py
@@ -384,6 +425,7 @@ The ADK pipeline provides:
 │   ├── subprocess_writer_agent.py
 │   ├── templates
 │   │   └── index.html
+│   ├── uml_diagram_agent.py
 │   ├── update_process_agent.py
 │   ├── utils_agent.py
 │   └── utils.py
@@ -543,6 +585,51 @@ Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission 
 
 ---
 
+## Sample Prompts — Design Documents
+
+The following are sample prompts for the design-document (HLD/LLD/Combined architecture) side of the pipeline:
+- Creating new design documents (HLD, LLD, or Combined)
+- Querying or reviewing an existing design document
+- Reviewing "what-if" scenarios on an existing design document
+- Running the four-dimension (resilience/scalability/security/latency) architecture simulation
+- Updating an existing design document and regenerating the documentation
+- Generating or regenerating a cloud architecture diagram from a design document
+
+### Creating Design Documents
+- "Create a High-Level Design document for a ServiceNow-based Configuration Management and Discovery platform covering AWS and on-premises MID Server clusters, ECC Queue, and Identification & Reconciliation Engine, including component dependencies, integration points, availability targets, and a risk register."
+- "Design a Combined HLD/LLD document for a payments microservices platform on AWS, including component-level interfaces, technology stack, security architecture (authN/authZ, data protection, compliance standards), and scalability/performance targets."
+- "As a Solution Architect, produce a High-Level Design for a multi-region disaster-recovery-capable order management system, including system context, external systems, integration points, and a risk register mapped to likelihood/impact."
+- "Create a Low-Level Design document detailing the internal components, sequence flows, and interfaces of the notification service described in our existing HLD."
+- "Act as a Cloud Solutions Architect and produce a design document for a data lake ingestion platform on AWS, including scalability strategy (auto-scaling groups, sharding), security architecture, and compliance mapping to ISO/IEC 27001 and applicable data-protection standards."
+
+### Reviewing or Querying Existing Design Documents
+- "Which components does the Identification & Reconciliation Engine depend on?"
+- "What is the declared availability target for this architecture?"
+- "Who owns the PAM/CyberArk integration in this design?"
+- "Describe the overall system context and its external systems."
+- "Using the Design Consultant Agent, review the design and flag any gaps against our security architecture requirements."
+
+### Running What-If Scenarios on Existing Design Documents
+- "What if the AWS MID Server cluster region goes down — what else is affected?"
+- "What would happen if the ServiceNow ECC Queue became unavailable for an hour?"
+- "If the PAM/secrets vault integration is compromised, which components and stakeholders are impacted?"
+
+### Running Design Architecture Simulations
+- "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
+- "Can you check this architecture for single points of failure and scalability bottlenecks?"
+- "Is this design's security and compliance posture adequate, and are there any latency risks in the longest dependency chain?"
+
+### Applying Updates to Existing Design Documents & Regenerating the Documentation
+- "Update the design to add a secondary AWS region for the MID Server cluster for resilience"
+- "Add an explicit auto-scaling strategy for the Identification & Reconciliation Engine"
+- "Modify the design to document a compliance control for the discovery service accounts risk"
+
+### Generating or Regenerating Cloud Architecture Diagrams
+- "Generate a cloud architecture diagram for the current design document"
+- "Regenerate the architecture diagram to reflect the updated component list"
+
+---
+
 ## Running the document generator manually
 
 To run the document generator manually, you must: -
@@ -555,6 +642,8 @@ python -m process_agents.doc_generation_agent output/process_data.json
 ```
 
 This will regenerate the documents without deleting any process files.
+
+The same applies to design documents — ensure `design_data.json` is present in the `output/` directory, then run the equivalent design-side document generation step (via the doc generation agent pointed at `output/design_data.json`) to regenerate the Word document and architecture diagram without deleting any design files.
 
 ---
 
@@ -689,6 +778,159 @@ The following table outlines the alignment of the process JSON generated with in
 1. **Quality (ISO 9001):** The process architecture enforces a "Risk-Based Thinking" approach. By defining `process_owners` and `success_criteria` for every stage, the design ensures accountability and measurable performance.
 2. **Regulatory (ISO 15378):** As a pharmaceutical-specific standard, compliance is demonstrated through the mandatory **Change Control** procedures and the enforcement of GxP standards across the Discovery-to-Commercialization lifecycle.
 3. **Risk (ISO 31000):** The design moves beyond simple identification by pairing every identified `risk` with a specific `control` mechanism, creating a resilient operational framework.
+
+---
+
+### Design Document Standards Alignment
+
+The following table outlines the alignment of the design document JSON (`design_document_schema.json`) generated with common architecture and quality standards.
+
+| Standard | Description | Alignment Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO/IEC/IEEE 42010:2022** | Systems and Software Engineering — Architecture Description | **High** | `system_context`, `high_level_design`, and `low_level_design` sections map directly to architecture viewpoints and views; `quality_attributes[]` records architecturally significant requirements. |
+| **TOGAF ADM** | The Open Group Architecture Framework — Architecture Development Method | **Medium-High** | `system_context.external_systems`, `high_level_design.components`, and `risk_register`/`risks_and_mitigations` align to Business/Data/Application/Technology architecture phases and governance gates. |
+| **ISO/IEC 25010:2011** | Systems and Software Quality Requirements and Evaluation (SQuaRE) | **Medium-High** | `quality_attributes[]` (`characteristic` enum including `performance_efficiency`, `security`, etc., each with a `metric`/`target`) map to SQuaRE quality characteristics. |
+| **C4 Model** | Context, Containers, Components, Code | **Medium** | `system_context` → Context; `high_level_design.components` → Containers/Components; `low_level_design` → Code-level detail. |
+| **IEEE 1471** | Recommended Practice for Architectural Description | **Medium** | Predecessor of ISO/IEC/IEEE 42010; the same `system_context`/`high_level_design` structure satisfies its stakeholder/viewpoint concerns. |
+| **arc42** | Pragmatic Architecture Documentation Template | **Medium** | `high_level_design.availability_and_resilience`, `scalability_and_performance`, and `security_architecture` map to arc42's cross-cutting concepts and quality-scenario sections. |
+| **ISO/IEC 27001** | Information Security Management | **Low-Medium** | `security_architecture` (`authentication_mechanism`, `authorization_model`, `data_protection_measures`, `compliance_standards[]`) and `compliance_and_standards.applicable_standards[]` provide a starting control inventory, but require a full ISMS mapping for certification-grade evidence. |
+
+### Design-Side Simulation & Analysis Coverage
+
+The `Design_Architecture_Simulation_Query_Agent` provides quantitative evidence against several of the standards above without requiring any additional fields to be added to the schema:
+
+1. **Resilience/Availability:** A Monte Carlo blast-radius simulation over `high_level_design.components[].dependencies`, `integration_points[]`, `availability_and_resilience.availability_target`, and the combined `risk_register`/`risks_and_mitigations` produces single-point-of-failure and cascading-failure evidence relevant to ISO/IEC 42010 and arc42's availability quality scenarios.
+2. **Scalability:** Fan-in ("structural bottleneck") analysis against `scalability_and_performance.scaling_strategy` and declared elastic technologies in `technology_stack[]` produces evidence relevant to ISO/IEC 25010's Performance Efficiency and Capacity sub-characteristics.
+3. **Security/Compliance:** A control-coverage checklist plus a tally of `compliance_and_standards.applicable_standards[].compliance_status` produces evidence relevant to ISO/IEC 27001 and the standards declared in `security_architecture.compliance_standards[]`.
+4. **Latency:** Declared `quality_attributes[]` performance targets cross-checked against the deepest dependency chain in the component graph produce evidence relevant to ISO/IEC 25010's Time Behaviour sub-characteristic.
+
+---
+
+## Agent inventory
+
+The ProcessEngineering sample is composed of leaf agents (which perform a
+focused analysis or artifact-generation task) and pipeline agents (which
+coordinate those tasks). The table below lists the named agents and their
+**direct** sub-agents. A dash means the agent is a leaf agent; tools used by an
+agent are not listed as sub-agents.
+
+### Complete source-module inventory
+
+The following table covers every Python module in `process_agents` (excluding
+generated `__pycache__` files). The **Agents defined** column names the runtime
+agents exported or constructed by that module; **Direct sub-agents** lists
+children only where the module builds a composite agent.
+
+| Source module | Purpose | Agents defined | Direct sub-agents |
+| :--- | :--- | :--- | :--- |
+| `__init__.py` | Package marker. | None | — |
+| `agent.py` | Configures the model provider, logging, signal handling, local chat support, and top-level orchestration. | `Process_Architect_Orchestrator` | Registered process, design-document, cloud-architecture, scenario, simulation, document, and subprocess entry points |
+| `agent_registry.py` | Imports and groups agents into pipeline registries. | Registry collections | Create, update, cloud, and design-document pipeline agent lists |
+| `agent_wrappers.py` | Provides shared ADK wrappers, model resolution, retry behavior, and callbacks. | `DefaultLlmAgent`, `DefaultAgent`, `ProcessLlmAgent`, `ProcessAgent` | — |
+| `analysis_agent.py` | Extracts process objectives and records analysis metadata. | `Analysis_Agent` | — |
+| `app.py` | Flask application exposing process generation, status, version, and API endpoints. | Flask application | Root workflow via `build_process_model()` |
+| `cloudarch_agent.py` | Generates cloud-architecture content and metadata. | `CloudArch_Agent` | — |
+| `cloudarch_pipeline_agent.py` | Repeats cloud-architecture generation, review, and approval. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, stop controller |
+| `cloudarch_reviewer_agent.py` | Reviews generated cloud architecture and records feedback. | `CloudArch_Reviewer_Agent` | — |
+| `compliance_agent.py` | Audits process designs for governance and compliance. | `Compliance_Agent` | — |
+| `consultant_agent.py` | Provides general process-engineering consultation. | `Consultant_Agent` | — |
+| `consultant_design_agent.py` | Provides architecture and process-design consultation. | `Design_Consultant_Agent` | — |
+| `create_process_agent.py` | Builds the end-to-end process creation pipeline. | Design compliance loop, JSON normalization loop, `Full_Design_Pipeline` | Analysis, design, compliance, simulation, grounding, normalization, review, subprocess, document, mute, and unmute agents |
+| `design_agent.py` | Generates and refines process designs. | `Design_Agent` | — |
+| `design_doc_agent.py` | Provides the general design-document generation agent. | `Design_Doc_Agent` | — |
+| `design_doc_analysis_agent.py` | Extracts architectural requirements and design-document scope. | `Design_Doc_Analysis_Agent` | — |
+| `design_doc_compliance_agent.py` | Audits architecture documents for compliance. | `Design_Doc_Compliance_Agent` | — |
+| `design_doc_create_agent.py` | Builds the HLD/LLD design-document creation pipeline. | Design-document compliance loop, JSON normalization loop, `Full_Design_Doc_Pipeline` | HLD, LLD, compliance, refinement, simulation, grounding, normalization, review, document, mute, and unmute agents |
+| `design_doc_hld_agent.py` | Produces the high-level architecture design. | `Design_Doc_HLD_Agent` | — |
+| `design_doc_lld_agent.py` | Produces the low-level architecture design. | `Design_Doc_LLD_Agent` | — |
+| `design_doc_update_agent.py` | Builds the pipeline for modifying an existing design document. | Design-document update loop, normalization loop, `Update_Design_Doc_Pipeline` | HLD, LLD, compliance, refinement, simulation, grounding, normalization, review, document, mute, and unmute update agents |
+| `design_simulation_agent.py` | Simulates architecture availability, risks, dependencies, and blast radius. | `Design_Architecture_Simulation_Agent`, `Design_Architecture_Simulation_Query_Agent` | — |
+| `doc_creation_agent.py` | Coordinates graph extraction and document generation. | `Doc_Creation_Agent` | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+| `doc_generation_agent.py` | Builds process and design-document artifacts, including Word output. | `Document_Generation_Agent` | — |
+| `edge_inference_agent.py` | Converts process JSON into graph and diagram data. | `Edge_Inference_Agent` | — |
+| `grounding_agent.py` | Validates generated claims against approved OpenAPI sources. | `Grounding_Validation_Agent` | — |
+| `json_normalizer_agent.py` | Repairs and normalizes generated JSON. | `JSON_Normalizer_Agent` | — |
+| `json_review_agent.py` | Reviews normalized JSON and records feedback. | `JSON_Review_Agent` | — |
+| `json_writer_agent.py` | Persists approved process or design-document JSON. | `JSON_Writer_Agent` | — |
+| `scenario_agent.py` | Tests generated processes against user scenarios. | `Scenario_Tester` | — |
+| `scenario_design_agent.py` | Tests architecture designs against user scenarios. | `Design_Scenario_Tester` | — |
+| `simulation_agent.py` | Runs process simulation, bottleneck, sensitivity, and result-query workflows. | `Simulation_Optimization_Agent`, `Simulation_Optimization_Query_Agent` | — |
+| `step_diagram_agent.py` | Extracts subprocess steps and diagram metadata. | Diagram helper functions | — |
+| `subprocess_driver_agent.py` | Coordinates subprocess generation and persistence per process step. | `Subprocess_Driver_Agent_*` | `Subprocess_Generator_Agent`, `Subprocess_Writer_Agent` |
+| `subprocess_generator_agent.py` | Generates structured subprocess definitions and controls. | `Subprocess_Generator_Agent` | — |
+| `subprocess_writer_agent.py` | Persists generated subprocess artifacts. | `Subprocess_Writer_Agent` | — |
+| `uml_diagram_agent.py` | Renders UML-style diagrams from structured descriptors. | UML diagram tool functions | — |
+| `update_process_agent.py` | Builds the end-to-end existing-process update pipeline. | Update compliance loop, normalization loop, `Update_Design_Pipeline` | Analysis, design, compliance, simulation, grounding, normalization, review, subprocess, document, mute, and unmute update agents |
+| `utils.py` | Shared persistence, schema validation, templates, configuration, and context loading. | Utility functions | — |
+| `utils_agent.py` | Provides output controls, approval handling, and loop-stop control. | `Stop_Controller`, `Mute_Agent`, `Unmute_Agent` | — |
+
+The pipeline table below describes the runtime composition and direct child
+relationships. Suffixes such as `_Update` and `_DesignDoc` identify cloned
+instances with pipeline-specific prompts, callbacks, or output keys.
+
+| Agent | What it does | Direct sub-agents |
+| :--- | :--- | :--- |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, simulation, cloud-architecture, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
+| `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
+| `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
+| `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
+| `JSON_Normalization_Retry_Loop` | Repeatedly normalizes and reviews process JSON, then writes the stabilized result. | `Normalizer_Review_Sequence`, `JSON_Writer_Agent` |
+| `Normalizer_Review_Sequence` | Performs one normalization-review-stop iteration for process JSON. | `JSON_Normalizer_Agent`, `JSON_Review_Agent`, `JSON_Review_Stop_Controller` |
+| `Update_Design_Pipeline` | Updates an existing process and regenerates its validated artifacts. | `Mute_Agent_Update`, `Process_Update_Analyst`, `Update_Compliance_Loop`, `Update_Normalization_Loop`, `Subprocess_Driver_Agent_Update`, `Doc_Creation_Agent`, `Unmute_Agent_Update` |
+| `Update_Compliance_Loop` | Repeats process-update design and governance checks. | `Iterative_Update_Stage` |
+| `Iterative_Update_Stage` | Executes one process-update review iteration. | `Design_Agent_Update`, `Compliance_Agent_Update`, `Design_Compliance_Agent_Update`, `Simulation_Optimization_Agent_Update`, `Design_Architecture_Simulation_Agent_Update`, `Grounding_Validation_Agent_Update`, `Design_Grounding_Agent_Update`, `Stop_Controller_Update` |
+| `Update_Normalization_Loop` | Normalizes, reviews, and writes updated process JSON. | `Update_Normalizer_Sequence`, `JSON_Writer_Update` |
+| `Update_Normalizer_Sequence` | Performs one updated-process normalization-review-stop iteration. | `JSON_Normalizer_Update`, `JSON_Review_Update`, `JSON_Review_Stop_Controller_Update` |
+| `Full_Design_Doc_Pipeline` | Creates a new HLD/LLD or combined architecture design document and its artifacts. | `Mute_DesignDoc_Create`, `Design_Doc_Analysis_Agent`, `Design_Doc_Compliance_Loop`, `Design_Doc_JSON_Normalization_Loop`, `CreateDoc`, `Unmute_DesignDoc_Create` |
+| `Design_Doc_Compliance_Loop` | Repeats HLD/LLD generation, governance, resilience, and grounding checks. | `Iterative_Design_Doc_Stage` |
+| `Iterative_Design_Doc_Stage` | Executes one design-document review iteration. | `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Doc_Refinement_Agent`, `Design_Architecture_Simulation_Agent`, `Design_Doc_Simulation_Refinement_Agent`, `Grounding_Agent_DesignDoc`, `Design_Doc_Grounding_Agent`, `Stop_Controller_DesignDoc_Create` |
+| `Design_Doc_JSON_Normalization_Loop` | Stabilizes and persists design-document JSON. | `Design_Doc_Normalizer_Review_Sequence`, `JSON_Writer_DesignDoc` |
+| `Design_Doc_Normalizer_Review_Sequence` | Performs one design-document normalization-review-stop iteration. | `JSON_Normalizer_DesignDoc`, `JSON_Review_DesignDoc`, `JSON_Review_Stop_Controller_DesignDoc` |
+| `Update_Design_Doc_Pipeline` | Updates an existing architectural design document and rebuilds its artifacts. | `Mute_Agent_DesignDoc_Update`, `Design_Doc_Update_Analyst`, `Design_Doc_Update_Compliance_Loop`, `Design_Doc_Update_Normalization_Loop`, `UpdateDoc`, `Unmute_Agent_DesignDoc_Update` |
+| `Design_Doc_Update_Compliance_Loop` | Repeats HLD/LLD update, governance, simulation, and grounding checks. | `Iterative_Design_Doc_Update_Stage` |
+| `Iterative_Design_Doc_Update_Stage` | Executes one design-document update iteration. | `Design_Doc_HLD_Agent_Update`, `Design_Doc_LLD_Agent_Update`, `Design_Doc_Compliance_Agent_Update`, `Design_Doc_Agent_Update`, `Design_Architecture_Simulation_Agent_Update`, `Design_Doc_Simulation_Refinement_Agent_Update`, `Grounding_Validation_Agent_DesignDoc_Update`, `Design_Doc_Agent_Grounding_Update`, `Stop_Controller_DesignDoc_Update` |
+| `Design_Doc_Update_Normalization_Loop` | Normalizes, reviews, and writes updated design-document JSON. | `Design_Doc_Update_Normalizer_Sequence`, `JSON_Writer_DesignDoc_Update` |
+| `Design_Doc_Update_Normalizer_Sequence` | Performs one updated design-document normalization-review-stop iteration. | `JSON_Normalizer_DesignDoc_Update`, `JSON_Review_DesignDoc_Update`, `JSON_Review_Stop_Controller_DesignDoc_Update` |
+| `CloudArch_Pipeline` | Generates and reviews a cloud architecture diagram until it is approved. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, `Stop_Controller_CloudArch` |
+| `Analysis_Agent` | Extracts process objectives, requirements, and traceability context from the request. | — |
+| `Process_Update_Analyst` | Loads and analyzes an existing process before modification. | — |
+| `Design_Doc_Analysis_Agent` | Extracts architectural requirements and document scope. | — |
+| `Design_Doc_Update_Analyst` | Loads and analyzes an existing design document before modification. | — |
+| `Design_Agent` | Generates or refines the process design. | — |
+| `Compliance_Agent` | Reviews a process for governance and compliance concerns. | — |
+| `Design_Compliance_Agent` | Performs design-specific compliance checks. | — |
+| `Design_Doc_HLD_Agent` | Produces the high-level architecture design. | — |
+| `Design_Doc_LLD_Agent` | Produces the low-level architecture design. | — |
+| `Design_Doc_Compliance_Agent` | Audits an architecture design document against its governance requirements. | — |
+| `Design_Doc_Agent` | Provides the general design-document agent entry point. | — |
+| `Simulation_Optimization_Agent` | Simulates process behavior and reports performance, bottlenecks, and sensitivity results. | — |
+| `Simulation_Optimization_Query_Agent` | Answers queries about process simulation results. | — |
+| `Design_Architecture_Simulation_Agent` | Simulates architecture availability, risk, dependencies, and blast radius. | — |
+| `Design_Architecture_Simulation_Query_Agent` | Answers queries about architecture simulation results. | — |
+| `Grounding_Validation_Agent` | Grounds process or design claims against approved OpenAPI-backed sources. | — |
+| `JSON_Normalizer_Agent` | Repairs and normalizes generated process or design-document JSON. | — |
+| `JSON_Review_Agent` | Reviews normalized JSON and records approval or corrective feedback. | — |
+| `JSON_Writer_Agent` | Persists the approved process JSON. | — |
+| `Scenario_Tester` | Evaluates process behavior against user-supplied scenarios. | — |
+| `Design_Scenario_Tester` | Evaluates architecture designs against user-supplied scenarios. | — |
+| `Consultant_Agent` | Provides process-engineering consultation and recommendations. | — |
+| `Design_Consultant_Agent` | Provides architecture and design consultation. | — |
+| `CloudArch_Agent` | Generates cloud-architecture descriptions and diagram input. | — |
+| `CloudArch_Reviewer_Agent` | Reviews generated cloud architecture and supplies iteration feedback. | — |
+| `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |
+| `Doc_Creation_Sequence` | Runs the document artifact stages in order. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+| `Edge_Inference_Agent` | Derives graph edges, lanes, labels, and dependencies from process JSON. | — |
+| `Document_Generation_Agent` | Builds process and design-document deliverables, including Word output. | — |
+| `Subprocess_Driver_Agent_*` | Coordinates per-step subprocess generation and writing for create, update, or top-level runs. | `Subprocess_Generator_Agent`, `Subprocess_Writer_Agent` |
+| `Subprocess_Generator_Agent` | Generates structured subprocess definitions for process steps. | — |
+| `Subprocess_Writer_Agent` | Persists generated subprocess artifacts. | — |
+| `Stop_Controller` | Stops iterative loops when review criteria are satisfied or limits are reached. | — |
+| `Mute_Agent` / `Unmute_Agent` | Suppresses or restores noisy pipeline output around long-running workflows. | — |
+| `UML_Diagram_Agent` | Renders requested UML-style diagrams from structured descriptors. | — |
+
+Names with suffixes such as `_Update`, `_DesignDoc`, and `_DesignDoc_Update`
+are intentionally separate instances. They share behavior with their base
+agent but use pipeline-specific prompts, callbacks, or output keys.
 
 ---
 
