@@ -95,7 +95,7 @@ def main():
     applicationName = getProperty("APP")
     logger.debug(f"Application {applicationName} running...")    
 
-    app.run(debug=getProperty("debug"), 
+    app.run(debug=False, 
             host=getProperty("host"), 
             port=getProperty("port"))
 
