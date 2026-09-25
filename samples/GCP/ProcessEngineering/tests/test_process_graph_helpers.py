@@ -21,11 +21,14 @@ def _install_graph_stubs():
     networkx.DiGraph = DiGraph
     networkx.spring_layout = lambda graph, seed=None: {}
 
-    pyplot = types.ModuleType("matplotlib.pyplot")
-    pyplot.subplots = lambda **kwargs: (None, None)
-    matplotlib = sys.modules.setdefault("matplotlib", types.ModuleType("matplotlib"))
-    matplotlib.pyplot = pyplot
-    sys.modules.setdefault("matplotlib.pyplot", pyplot)
+    try:
+        import matplotlib.pyplot  # noqa: F401  (ensure the real package is fully importable)
+    except ImportError:
+        pyplot = types.ModuleType("matplotlib.pyplot")
+        pyplot.subplots = lambda **kwargs: (None, None)
+        matplotlib = sys.modules.setdefault("matplotlib", types.ModuleType("matplotlib"))
+        matplotlib.pyplot = pyplot
+        sys.modules.setdefault("matplotlib.pyplot", pyplot)
 
 
 _install_graph_stubs()

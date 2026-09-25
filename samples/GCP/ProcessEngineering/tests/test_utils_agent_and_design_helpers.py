@@ -66,15 +66,26 @@ class DesignHelperTests(unittest.TestCase):
         class FakeDoc:
             def __init__(self):
                 self.paragraphs = []
+                self.runs = []
 
             def add_paragraph(self, text="", style=None):
                 self.paragraphs.append((text, style))
-                return types.SimpleNamespace(add_run=lambda *args, **kwargs: None)
+
+                def add_run(run_text="", **kwargs):
+                    self.runs.append(run_text)
+                    return types.SimpleNamespace(bold=None)
+
+                return types.SimpleNamespace(
+                    paragraph_format=types.SimpleNamespace(
+                        left_indent=None, space_before=None, space_after=None
+                    ),
+                    add_run=add_run,
+                )
 
         doc = FakeDoc()
         doc_design_sections._add_bulleted_group(doc, "Controls", ["one", "two"], 0.25)
         self.assertTrue(doc.paragraphs)
-        self.assertEqual(doc.paragraphs[0][0], "Controls")
+        self.assertEqual(doc.runs[0], "Controls:")
 
 
 if __name__ == "__main__":

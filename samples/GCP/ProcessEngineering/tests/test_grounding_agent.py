@@ -91,9 +91,14 @@ def _install_dependency_stubs():
     class ToolContext:
         pass
 
+    class HttpOptions:
+        def __init__(self, **kwargs):
+            self.timeout = kwargs.get("timeout")
+
     class GenerateContentConfig:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+            self.http_options = kwargs.get("http_options")
 
     models.LlmRequest = type("LlmRequest", (), {})
     models.LlmResponse = type("LlmResponse", (), {})
@@ -107,7 +112,9 @@ def _install_dependency_stubs():
     agents.Agent = Agent
     models_lite_llm.LiteLlm = LiteLlm
     tool_context.ToolContext = ToolContext
-    genai.types = types.SimpleNamespace(GenerateContentConfig=GenerateContentConfig)
+    genai.types = types.SimpleNamespace(
+        GenerateContentConfig=GenerateContentConfig, HttpOptions=HttpOptions
+    )
     adk.agents = agents
     agents.callback_context = callback_context
     adk.models = models

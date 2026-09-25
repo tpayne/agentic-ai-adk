@@ -37,11 +37,18 @@ def _install_adk_stubs():
     adk.agents = agents
     adk.tools = tools
     google.adk = adk
+    class HttpOptions:
+        def __init__(self, **kwargs):
+            self.timeout = kwargs.get("timeout")
+
     class GenerateContentConfig:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+            self.http_options = kwargs.get("http_options")
 
-    genai.types = types.SimpleNamespace(GenerateContentConfig=GenerateContentConfig)
+    genai.types = types.SimpleNamespace(
+        GenerateContentConfig=GenerateContentConfig, HttpOptions=HttpOptions
+    )
 
 
 _install_adk_stubs()

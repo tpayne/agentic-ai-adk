@@ -216,10 +216,22 @@ root_agent = ProcessLlmAgent(
 # LOCAL CHAT LOOP SUPPORT
 # ---------------------------------------------------------
 from google.adk.runners import Runner
+from google.adk.apps import App
+from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
 import asyncio
 import uuid
+
+# root_agent transfers between many sub_agents (see sub_agents=[...] above), so
+# every transfer swaps the system instruction/tool set and would otherwise
+# resend the whole (often 40k+ token, per output/logs/*.log) prompt uncached.
+# context_cache_config gives each agent its own cache across turns.
+root_app = App(
+    name="ProcessArchitect",
+    root_agent=root_agent,
+    context_cache_config=ContextCacheConfig(),
+)
 
 
 def display_text(text: str, type: str = "info"):
@@ -272,6 +284,18 @@ async def run_shell_command(cmdline: str):
         display_text(f"[Shell]: Error executing command: {e}", type="error")
 
 async def init_session_and_runner(app_name: str = "ProcessArchitect"):
+    # output/stop_counter.json persists across sessions on disk (LoopAgents
+    # read/write it via stop_if_ready). It's normally cleared by Stage 1 of
+    # the create/update pipelines (log_*_metadata's _remove_previous_approval_logs),
+    # but that only runs if this session's first turn happens to route
+    # through Stage 1. A killed prior run, or a first turn that transfers
+    # straight into a later loop-bearing stage, can leave a stale nonzero
+    # count that makes *this* session's loop escalate after too few
+    # iterations. Since this always runs at the start of a fresh session
+    # (including "clear"), reset it here unconditionally too.
+    from .utils_agent import _reset_stop_counter, PROJECT_ROOT
+    _reset_stop_counter(os.path.join(PROJECT_ROOT, "output", "stop_counter.json"))
+
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
     session_service = InMemorySessionService()
@@ -282,7 +306,7 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
         state={}
     )
     runner = Runner(
-        agent=root_agent,
+        app=root_app,
         app_name=app_name,
         session_service=session_service
     )
