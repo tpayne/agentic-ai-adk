@@ -57,7 +57,7 @@ def _install_google_stubs():
 
 
 _install_google_stubs()
-from process_agents import utils  # noqa: E402
+from process_agents.common import utils  # noqa: E402
 
 
 def valid_process():

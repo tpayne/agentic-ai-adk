@@ -5,7 +5,7 @@ from unittest.mock import patch
 from test_grounding_agent import _install_dependency_stubs
 
 _install_dependency_stubs()
-from process_agents import agent_wrappers  # noqa: E402
+from process_agents.common import agent_wrappers  # noqa: E402
 
 
 class CloneOverrideTests(unittest.TestCase):

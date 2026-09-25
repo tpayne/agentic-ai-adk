@@ -16,10 +16,10 @@ if "pydantic" not in sys.modules:
     pydantic.Field = lambda default=None, **kwargs: default
     sys.modules["pydantic"] = pydantic
 
-from process_agents import utils_agent  # noqa: E402
+from process_agents.common import utils_agent  # noqa: E402
 
 try:
-    from process_agents.helpers import doc_design_sections  # noqa: E402
+    from process_agents.common.helpers import doc_design_sections  # noqa: E402
 except ModuleNotFoundError as error:
     if error.name != "docx":
         raise

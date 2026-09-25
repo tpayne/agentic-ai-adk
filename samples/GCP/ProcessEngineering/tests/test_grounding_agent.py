@@ -125,7 +125,7 @@ def _install_dependency_stubs():
 
 
 _install_dependency_stubs()
-from process_agents import grounding_agent  # noqa: E402
+from process_agents.common import grounding_agent  # noqa: E402
 
 
 class GroundingValidationTests(unittest.TestCase):

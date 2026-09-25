@@ -32,7 +32,7 @@ def _install_graph_stubs():
 
 
 _install_graph_stubs()
-from process_agents import edge_inference_agent, step_diagram_agent  # noqa: E402
+from process_agents.common import edge_inference_agent, step_diagram_agent  # noqa: E402
 
 
 class EdgeInferenceHelperTests(unittest.TestCase):

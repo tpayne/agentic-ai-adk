@@ -1,0 +1,568 @@
+# process_agents/agent.py
+
+import os
+import signal
+import sys
+import logging
+from datetime import datetime
+from dotenv import load_dotenv
+import pkgutil
+import google
+import google.adk
+from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+
+google.__path__ = pkgutil.extend_path(google.__path__, google.__name__)
+google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name__)
+
+from .utils import (
+    load_instruction,
+    validate_instruction_files,
+    getProperty,
+    getResponseColour,
+    ANSI_RED,
+    ANSI_GREEN, 
+    ANSI_CYAN, 
+    ANSI_RESET
+)
+
+import argparse
+
+# Load variables from .env file of env into os.environ
+load_dotenv()
+
+def configure_model_provider(model: str) -> None:
+    """
+    Given a MODEL string, verify the right credentials are present and set
+    ADK_MODEL_PROVIDER accordingly.
+
+    Supported forms:
+      - Bare Gemini name (no "/"), e.g. "gemini-3-flash-preview"
+          -> Vertex AI if GOOGLE_CLOUD_PROJECT/GOOGLE_PROJECT_ID is set,
+             else the Gemini API if GOOGLE_API_KEY is set.
+      - "anthropic/..."  -> requires ANTHROPIC_API_KEY
+      - "openai/..."     -> requires OPENAI_API_KEY
+      - "bedrock/..."    -> requires AWS region + credentials
+    """
+    # --- Bare Gemini model name: native ADK path, not LiteLLM ---
+    if "/" not in model:
+        project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_PROJECT_ID")
+        if project:
+            os.environ["ADK_MODEL_PROVIDER"] = "vertex"
+            os.environ["GOOGLE_CLOUD_LOCATION"] = getProperty("GOOGLE_CLOUD_LOCATION", default="us-central1")
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+            os.environ["GOOGLE_CLOUD_PROJECT"] = project
+        elif os.getenv("GOOGLE_API_KEY"):
+            os.environ["ADK_MODEL_PROVIDER"] = "api_key"
+        else:
+            raise EnvironmentError(
+                f"MODEL='{model}' is a Gemini model — set GOOGLE_CLOUD_PROJECT or "
+                "GOOGLE_PROJECT_ID (for Vertex AI), or GOOGLE_API_KEY (for the Gemini "
+                "API), in your environment."
+            )
+        return
+
+    provider = model.split("/", 1)[0]
+
+    # --- Anthropic direct ---
+    if provider == "anthropic":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            raise EnvironmentError(f"MODEL='{model}' requires ANTHROPIC_API_KEY to be set.")
+        os.environ["ADK_MODEL_PROVIDER"] = "anthropic"
+
+    # --- OpenAI ---
+    elif provider == "openai":
+        if not os.getenv("OPENAI_API_KEY"):
+            raise EnvironmentError(f"MODEL='{model}' requires OPENAI_API_KEY to be set.")
+        os.environ["ADK_MODEL_PROVIDER"] = "openai"
+
+    # --- AWS Bedrock ---
+    elif provider == "bedrock":
+        region = (
+            os.getenv("AWS_REGION_NAME")
+            or os.getenv("AWS_REGION")
+            or getProperty("AWS_REGION_NAME", default=None)
+        )
+        if not region:
+            raise EnvironmentError(
+                f"MODEL='{model}' requires AWS_REGION_NAME (or AWS_REGION) to be set."
+            )
+        os.environ["AWS_REGION_NAME"] = region
+        # Note: we can't reliably detect IAM-role auth (EC2/ECS/EKS instance
+        # profiles, IRSA) from env vars alone, so we only hard-fail when
+        # neither static keys nor a named profile are present — the common
+        # "forgot to configure anything locally" case.
+        if not (
+            (os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"))
+            or os.getenv("AWS_PROFILE")
+        ):
+            raise EnvironmentError(
+                f"MODEL='{model}' requires AWS credentials: set "
+                "AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, AWS_PROFILE, or run "
+                "under an IAM role with Bedrock access."
+            )
+        os.environ["ADK_MODEL_PROVIDER"] = "bedrock"
+        import litellm
+        litellm.modify_params = True  # required for multi-turn tool calls on Bedrock
+
+    else:
+        raise EnvironmentError(
+            f"Unrecognized provider prefix '{provider}/' in MODEL='{model}'. "
+            "Supported: anthropic/, openai/, bedrock/ (or a bare Gemini name)."
+        )
+
+
+# --- usage ---
+MODEL = getProperty("MODEL", default="gemini-3-flash-preview")
+configure_model_provider(MODEL)
+
+# ---------------------------------------------------------
+# LOGGING SETUP
+# ---------------------------------------------------------
+log_dir = "output/logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f"pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(log_format)
+file_handler.flush = lambda: file_handler.stream.flush()
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_format)
+logger = logging.getLogger("ProcessArchitect")
+logger.addHandler(file_handler)
+logger.propagate = False
+logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
+
+LOGLEVEL = getProperty("LOGLEVEL")
+if LOGLEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+    LOGLEVEL = "WARNING"
+logger.setLevel(LOGLEVEL)
+
+runtime_file = os.path.join(log_dir, "runtime_errors.log")
+if os.path.exists(runtime_file):
+    try:
+        os.remove(runtime_file)
+    except Exception as e:
+        logger.error(f"Failed to remove runtime file: {str(e)}")
+sys.stderr = open(runtime_file, "a")
+
+# Import sub-agents
+from .agent_registry import (
+    full_design_pipeline,
+    consultant_agent,
+    consultant_design_agent,
+    cloudarch_pipeline,
+    scenario_tester_agent,
+    design_scenario_tester_agent,
+    update_design_pipeline,
+    simulation_query_agent,
+    design_simulation_query_agent,
+    build_doc_creation_agent,
+    SubprocessDriverAgent,
+    full_design_doc_pipeline,
+    update_design_doc_pipeline,
+)
+
+# Validate instruction files before proceeding
+logger.debug("Validating instruction files...")
+if not validate_instruction_files():
+    logger.error("Instruction file validation failed. Aborting pipeline.")
+    sys.exit(1)
+logger.debug("Pipeline initialised...")
+
+# Signal handler for abnormal errors
+def handler(signum, frame):
+    signame = signal.Signals(signum).name
+    sys.stdout = sys.__stdout__
+    sys.stdout.flush()
+    print(f"\n{ANSI_RED} - Received signal {signame} ({signum}). Terminating Process Architect Orchestrator.{ANSI_RESET}", end="\n")
+    sys.stderr = sys.__stderr__
+    sys.stderr.flush()
+    logger.warning("Trapped signal %d", signum)
+    sys.exit(1)
+
+signal.signal(signal.SIGBUS, handler)
+signal.signal(signal.SIGABRT, handler)
+signal.signal(signal.SIGILL, handler)
+signal.signal(signal.SIGTERM, handler)
+
+# ---------------------------------------------------------
+# ROOT AGENT
+# ---------------------------------------------------------
+from .agent_wrappers import ProcessLlmAgent  # DefaultLlmAgent shortcut
+
+root_agent = ProcessLlmAgent(
+    name="Process_Architect_Orchestrator",
+    instruction_file="common/agent.txt",
+    before_model_callback=None,  # Disable before callback for root agent
+    after_model_callback=None,   # Disable after callback for root agent
+    sub_agents=[
+        full_design_pipeline,
+        consultant_agent,
+        consultant_design_agent,
+        cloudarch_pipeline,
+        scenario_tester_agent,
+        design_scenario_tester_agent,
+        update_design_pipeline,
+        simulation_query_agent,
+        design_simulation_query_agent,
+        build_doc_creation_agent("Create_Doc_Agent"),
+        SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
+        full_design_doc_pipeline,
+        update_design_doc_pipeline,
+    ],
+)
+
+# ---------------------------------------------------------
+# LOCAL CHAT LOOP SUPPORT
+# ---------------------------------------------------------
+from google.adk.runners import Runner
+from google.adk.apps import App
+from google.adk.agents.context_cache_config import ContextCacheConfig
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.genai import types
+import asyncio
+import uuid
+
+# root_agent transfers between many sub_agents (see sub_agents=[...] above), so
+# every transfer swaps the system instruction/tool set and would otherwise
+# resend the whole (often 40k+ token, per output/logs/*.log) prompt uncached.
+# context_cache_config gives each agent its own cache across turns.
+root_app = App(
+    name="ProcessArchitect",
+    root_agent=root_agent,
+    context_cache_config=ContextCacheConfig(),
+)
+
+
+def display_text(text: str, type: str = "info"):
+    colour = getResponseColour("responseColourInfo")
+    warning = getResponseColour("responseColourWarning")
+    error = getResponseColour("responseColourError")    
+    if not colour:
+        colour = ANSI_GREEN
+    if not warning:
+        warning = ANSI_CYAN
+    if not error:
+        error = ANSI_RED
+    if type == "info":
+        print(f"{colour}{text}{ANSI_RESET}")
+    elif type == "warning":
+        print(f"{warning}[Warning]: {text}{ANSI_RESET}")
+    elif type == "error":
+        print(f"{error}[Error]: {text}{ANSI_RESET}")
+    sys.stdout.flush()
+
+def is_shell_command(text: str) -> bool:
+    if text is None:
+        return False
+    return text.strip().startswith("$")
+
+
+async def run_shell_command(cmdline: str):
+    import asyncio
+    stripped = cmdline.strip()
+    command = stripped[1:].strip()
+    display_text(f"[Shell]: {command}")
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+
+        if stdout:
+            display_text(stdout.decode("utf-8", errors="replace"), end="")
+
+        if stderr:
+            display_text(f"[Shell]: {stderr.decode('utf-8', errors='replace')}", type="error")
+
+        if proc.returncode != 0:
+            display_text(f"Shell command exited with code {proc.returncode}", type="error")
+
+    except Exception as e:
+        display_text(f"[Shell]: Error executing command: {e}", type="error")
+
+async def init_session_and_runner(app_name: str = "ProcessArchitect"):
+    # output/stop_counter.json persists across sessions on disk (LoopAgents
+    # read/write it via stop_if_ready). It's normally cleared by Stage 1 of
+    # the create/update pipelines (log_*_metadata's _remove_previous_approval_logs),
+    # but that only runs if this session's first turn happens to route
+    # through Stage 1. A killed prior run, or a first turn that transfers
+    # straight into a later loop-bearing stage, can leave a stale nonzero
+    # count that makes *this* session's loop escalate after too few
+    # iterations. Since this always runs at the start of a fresh session
+    # (including "clear"), reset it here unconditionally too.
+    from .utils_agent import _reset_stop_counter, PROJECT_ROOT
+    _reset_stop_counter(os.path.join(PROJECT_ROOT, "output", "stop_counter.json"))
+
+    user_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    session_service = InMemorySessionService()
+    await session_service.create_session(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+        state={}
+    )
+    runner = Runner(
+        app=root_app,
+        app_name=app_name,
+        session_service=session_service
+    )
+    return runner, user_id, session_id
+
+
+# ---------------------------------------------------------
+# FILE MODE
+# ---------------------------------------------------------
+async def process_file(file_path: str):
+    try:
+        with open(file_path, "r", encoding="utf-8-sig"):
+            pass
+    except Exception as e:
+        display_text(f"- Error opening file '{file_path}': {e}", type="error")
+        sys.exit(1)
+
+    runner, user_id, session_id = await init_session_and_runner()
+
+    async def handle_logical_line(line: str) -> bool:
+        """
+        Process one fully-assembled (continuation-joined) instruction line.
+        Returns True if the caller should stop reading further lines.
+        """
+        nonlocal runner, user_id, session_id
+
+        if not line:
+            return False
+
+        if line.lower() in ["exit", "quit", "stop"]:
+            display_text("Exiting Process Architect Orchestrator.")
+            return True
+        elif line.lower() == "clear":
+            display_text("[Action]: Clearing all histories and resetting session...")
+            runner, user_id, session_id = await init_session_and_runner()
+            return False
+        elif line.startswith("#"):
+            display_text(f"[Comment]: {line}")
+            return False
+        elif line.lower().startswith("sleep") or line.lower().startswith("wait"):
+            parts = line.split()
+            secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
+            display_text(f"[Action]: Sleeping for {secs} seconds...")
+            await asyncio.sleep(float(secs))
+            return False
+        elif is_shell_command(line):
+            await run_shell_command(line)
+            await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            return False
+
+        display_text(f"[user-file]: {line}")
+
+        content = types.Content(role="user", parts=[types.Part(text=line)])
+        final_response = None
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
+
+        if final_response:
+            display_text(f"[ArchitectBot]: {final_response}")
+        else:
+            display_text(f"[ArchitectBot]: [No final response]")
+
+        await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
+        return False
+
+    try:
+        with open(file_path, "r", encoding="utf-8-sig") as f:
+            # Lines ending in "\" continue onto the next line, joined with a
+            # single space rather than a newline, so:
+            #   one \
+            #   two three \
+            #   four
+            # is assembled and submitted as one logical line: "one two three four".
+            continuation_parts = []
+
+            for raw_line in f:
+                bare = raw_line.rstrip("\n").rstrip("\r")
+
+                if bare.rstrip().endswith("\\"):
+                    continuation_parts.append(bare.rstrip()[:-1].strip())
+                    continue
+
+                continuation_parts.append(bare.strip())
+                line = " ".join(part for part in continuation_parts if part)
+                continuation_parts = []
+
+                if await handle_logical_line(line):
+                    break
+            else:
+                # File ended mid-continuation (trailing "\" on the last
+                # line) -- submit whatever was accumulated rather than
+                # silently dropping it.
+                if continuation_parts:
+                    line = " ".join(part for part in continuation_parts if part)
+                    await handle_logical_line(line)
+
+    except Exception as e:
+        sys.stdout = sys.__stdout__
+        sys.stdout.flush()
+        display_text(f"- Error processing file: {str(e)}", type="error")
+        sys.exit(1)
+
+
+# ---------------------------------------------------------
+# SINGLE-PROMPT MODE
+# ---------------------------------------------------------
+async def process_single_prompt(prompt: str):
+    """Send one prompt, print the response, and return -- no REPL loop, no
+    file parsing. For scripted/one-shot use, e.g.:
+        python -m process_agents.agent -i "tell me what this process is about"
+    """
+    runner, user_id, session_id = await init_session_and_runner()
+
+    try:
+        content = types.Content(role="user", parts=[types.Part(text=prompt)])
+        final_response = None
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
+
+        if final_response:
+            display_text(f"[ArchitectBot]: {final_response}")
+        else:
+            display_text(f"[ArchitectBot]: [No final response]")
+
+    except Exception as e:
+        sys.stdout = sys.__stdout__
+        sys.stdout.flush()
+        display_text(f"- An error occurred: {str(e)}", type="error")
+        sys.exit(1)
+
+
+# ---------------------------------------------------------
+# INTERACTIVE MODE
+# ---------------------------------------------------------
+async def start_local_chat():
+    display_text("Process Architect Orchestrator (local mode)")
+    display_text("Type 'exit' to quit. Use '\\' at the end of a line to continue on a new line.")
+
+    runner, user_id, session_id = await init_session_and_runner()
+
+    while True:
+        try:
+            input_buffer = []
+            while True:
+                prompt_prefix = "[user]: " if not input_buffer else "... "
+                raw_line = input(prompt_prefix)
+
+                if raw_line.rstrip().endswith("\\"):
+                    # Strip trailing backslash and keep accumulating
+                    input_buffer.append(raw_line.rstrip()[:-1].strip())
+                else:
+                    input_buffer.append(raw_line.strip())
+                    break
+
+            # Joined with a single space, not a newline, so continuation
+            # lines are submitted as one logical line -- consistent with
+            # process_file's handling of "\" continuation.
+            user_input = " ".join(part for part in input_buffer if part).strip()
+
+        except (EOFError, KeyboardInterrupt):
+            display_text("\nExiting Process Architect Orchestrator.")
+            break
+
+        if not user_input:
+            continue
+
+        if user_input.lower() in ["exit", "quit", "stop"]:
+            display_text("Exiting Process Architect Orchestrator.")
+            break
+        elif user_input.lower() == "clear":
+            display_text("[Action]: Clearing all histories and resetting session...")
+            runner, user_id, session_id = await init_session_and_runner()
+            continue
+        elif user_input.startswith("#"):
+            display_text(f"[Comment]: {user_input}")
+            continue
+        elif user_input.lower().startswith("sleep") or user_input.lower().startswith("wait"):
+            parts = user_input.split()
+            secs = parts[1] if len(parts) > 1 else getProperty("modelSleep", default=0.5)
+            display_text(f"[Action]: Sleeping for {secs} seconds...")
+            await asyncio.sleep(float(secs))
+            continue
+        elif is_shell_command(user_input):
+            await run_shell_command(user_input)
+            await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            continue
+
+        try:
+            content = types.Content(role="user", parts=[types.Part(text=user_input)])
+            events = runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=content
+            )
+
+            final_response = None
+            async for event in events:
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
+
+            if final_response:
+                display_text(f"[ArchitectBot]: {final_response}")
+            else:
+                display_text(f"[ArchitectBot]: [No final response]")
+
+        except Exception as e:
+            sys.stdout = sys.__stdout__
+            sys.stdout.flush()
+            display_text(f"- An error occurred: {str(e)}", type="error")
+            
+# ---------------------------------------------------------
+# CLI Entry
+# ---------------------------------------------------------
+async def run_cli():
+    parser = argparse.ArgumentParser(description="Process Architect Orchestrator")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "-f", "--file",
+        dest="file",
+        type=str,
+        required=False,
+        help="Process file instructions from a text file (one instruction per line). If not provided, starts in interactive chat mode."
+    )
+    mode_group.add_argument(
+        "-i", "--input",
+        dest="input",
+        type=str,
+        required=False,
+        help="Process a single prompt, print the response, and exit (no interactive loop). E.g.: -i \"tell me what this process is about\""
+    )
+    args = parser.parse_args()
+
+    if args.file:
+        await process_file(args.file)
+        return
+
+    if args.input:
+        await process_single_prompt(args.input)
+        return
+
+    display_text("- Starting Process Architect Orchestrator in local chat mode...")
+    await start_local_chat()
+
+# ---------------------------------------------------------
+# MAIN EXECUTION BLOCK
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    logger.debug("Pipeline initialized and ready for execution.")
+    asyncio.run(run_cli())

@@ -52,7 +52,7 @@ def _install_adk_stubs():
 
 
 _install_adk_stubs()
-from process_agents import simulation_agent  # noqa: E402
+from process_agents.process import simulation_agent  # noqa: E402
 
 
 def process(steps):
