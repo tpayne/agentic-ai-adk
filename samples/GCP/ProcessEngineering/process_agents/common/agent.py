@@ -130,8 +130,15 @@ file_handler.setFormatter(log_format)
 file_handler.flush = lambda: file_handler.stream.flush()
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_format)
+# WARNING+ only (retries, backoff, cache/eviction errors, etc.) -- LOGLEVEL
+# below is usually DEBUG, which is fine for the file but would flood an
+# interactive session. Without this handler attached at all, a long-running
+# pipeline that's silently retrying/backing off (e.g. on 429s, or a stalled
+# call) produces zero visible signal on the terminal -- it just looks hung.
+console_handler.setLevel(logging.WARNING)
 logger = logging.getLogger("ProcessArchitect")
 logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 logger.propagate = False
 logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
 
@@ -220,6 +227,7 @@ root_agent = ProcessLlmAgent(
 # ---------------------------------------------------------
 from google.adk.runners import Runner
 from google.adk.apps import App
+from google.adk.apps.app import EventsCompactionConfig
 from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
@@ -230,10 +238,29 @@ import uuid
 # every transfer swaps the system instruction/tool set and would otherwise
 # resend the whole (often 40k+ token, per output/logs/*.log) prompt uncached.
 # context_cache_config gives each agent its own cache across turns.
+#
+# events_compaction_config addresses the other half of that same growth: the
+# full_design_doc_pipeline chains ~15 sub-agents through one shared session,
+# each of whose turns get appended to it, so a single elaborate run's prompt
+# can balloon into the hundreds of thousands of tokens purely from that
+# shared history (observed: ~850k tokens/call on a real run, which then blew
+# through the per-minute quota and forced long retry/backoff cycles). Every
+# stage that reads real prior output does so via a tool call against files
+# on disk (load_master_process_json etc.), not by re-reading it out of chat
+# history, so it's safe to let ADK compact old conversation turns into an
+# LLM-generated summary once a single agent's own prompt crosses
+# contextCompactionTokenThreshold, keeping only the last
+# contextCompactionEventRetention raw events for continuity. This runs
+# per-agent, mid-pipeline (before each model call), not just between
+# separate user turns.
 root_app = App(
     name="ProcessArchitect",
     root_agent=root_agent,
     context_cache_config=ContextCacheConfig(),
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=int(getProperty("contextCompactionTokenThreshold", default=150000)),
+        event_retention_size=int(getProperty("contextCompactionEventRetention", default=8)),
+    ),
 )
 
 
