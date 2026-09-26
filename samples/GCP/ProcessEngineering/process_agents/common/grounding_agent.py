@@ -203,7 +203,15 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
     if not path:
         return {"ok": False, "error": "Request path is required"}
 
-    params = request.get("params", {}) or {}
+    # Accept both "params" and "parameters": the instruction file never tells the
+    # model which key to use, and "parameters" is the term OpenAPI specs
+    # themselves use for path/query parameters, so the model frequently sends
+    # that instead. Reading only "params" silently dropped the whole object in
+    # that case, leaving path placeholders like "{title}" unsubstituted --
+    # they'd get sent to the server literally (URL-encoded as "%7Btitle%7D"),
+    # producing a 404 that looked like a bad title/query rather than a
+    # request that was never actually built correctly.
+    params = request.get("params") or request.get("parameters") or {}
     if not isinstance(params, dict):
         return {"ok": False, "error": "Request params must be an object"}
 
@@ -255,7 +263,11 @@ def perform_openapi_call(tool_context: ToolContext, request_json: str):
 
     except Exception as e:
         time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-        logger.error(f"Perform OpenAPI call error: {e}")
+        # DEBUG, not ERROR: a single failed lookup (404, timeout, etc.) is
+        # handled -- the {"ok": False, ...} return goes back to the grounding
+        # agent, which just tries a different query/endpoint on its own, the
+        # same way a search returning no results isn't an application error.
+        logger.debug(f"Perform OpenAPI call error (handled, agent will retry another query): {e}")
         return {"ok": False, "error": str(e)}
 
 # ---------------------------------------------------------

@@ -2280,7 +2280,12 @@ def persist_final_json(json_content, schema_type: Optional[str] = None) -> str:
             return "ERROR: JSON content is not a valid object."
 
         if len(issues) > 0:
-            logger.error(f"Validation issues: {issues}")
+            # DEBUG, not ERROR/WARNING: this is validate-BEFORE-save catching a bad
+            # draft, not a failure -- the structured issues list below goes straight
+            # back to the calling agent, which routinely just fixes it and retries
+            # next turn (this is the normal, expected self-correction path, not
+            # something a user watching the console needs to be alerted to).
+            logger.debug(f"Validation issues (returned to caller for self-correction): {issues}")
             return json.dumps({
                 "ERROR": "JSON validation failed",
                 "schema_type": resolved_type,
