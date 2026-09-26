@@ -41,105 +41,144 @@ def status_logger(goal_count: int):
     logger.debug(f"StopAgent - Logger Goals Identified: {goal_count}.")
     return f"Logging status with {goal_count} identified objectives."
 
-def stop_if_ready(tool_context: ToolContext):
-    """
-    Hard stop if either:
-      - loopHardStop property is "true"/"1"/"on"; OR
-      - approval.json indicates all three approvals; OR
-      - persistent loop counter exceeds SAFE_LOOP_ITERS
-    """
-
-    logger.debug("Evaluating stop_if_ready conditions.")
-
-    # ---------------------------------------------------------
-    # 1. Persistent counter setup
-    # ---------------------------------------------------------
-    counter_path = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
-    SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
-
-    # Load existing counter
-    loop_count = 0
-    if os.path.exists(counter_path):
-        try:
-            with open(counter_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                loop_count = int(data.get("count", 0))
-        except Exception:
-            loop_count = 0
-
-    # Increment counter
-    loop_count += 1
-
-    # Persist updated counter
-    try:
-        with open(counter_path, "w", encoding="utf-8") as f:
-            json.dump({"count": loop_count}, f)
-    except Exception:
-        logger.debug("Failed to persist stop counter.")
-
-    logger.debug(f"Stop Controller loop count = {loop_count} / {SAFE_LOOP_ITERS}")
-
-    # ---------------------------------------------------------
-    # 2. Hard stop override
-    # ---------------------------------------------------------
-    hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
-    if hard_stop:
-        tool_context.actions.escalate = True
-        logger.debug("Hard stop condition met via loopHardStop property.")
-        _reset_stop_counter(counter_path)
-        return "Hard stop condition met via loopHardStop property — exiting loop."
-
-    # ---------------------------------------------------------
-    # 3. Max iteration stop
-    # ---------------------------------------------------------
-    if loop_count >= SAFE_LOOP_ITERS:
-        tool_context.actions.escalate = True
-        logger.debug("Max loop iterations exceeded — exiting loop.")
-        _reset_stop_counter(counter_path)
-        return "Max loop iterations exceeded — exiting loop."
-
-    # ---------------------------------------------------------
-    # 4. Approval-state stop
-    # ---------------------------------------------------------
-    approval_path = os.path.join(PROJECT_ROOT, "output", "approval.json")
-    approval_state = {}
-
-    if os.path.exists(approval_path):
-        try:
-            with open(approval_path, "r", encoding="utf-8") as f:
-                approval_state = json.load(f)
-        except Exception:
-            approval_state = {}
-
-    logger.debug(f"Current approval state: {approval_state}")
-
+def _default_required_approvals() -> dict:
+    """Approval-key gate for the process/design-doc pipelines: compliance +
+    simulation (+ grounding, if enabled). Evaluated fresh on every call since
+    enableGroundingAgent is a static-but-checked-live property."""
     required = {
         "compliance_status": "APPROVED",
         "simulation_status": "APPROVED",
     }
-
     if getProperty("enableGroundingAgent", default="true"):
         required["grounding_status"] = "APPROVED"
+    return required
 
-    if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
-        tool_context.actions.escalate = True
-        logger.debug("JSON APPROVED detected in status — exiting loop.")
-        _reset_stop_counter(counter_path)
-        return "JSON APPROVED detected — exiting loop."
 
-    if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
-        tool_context.actions.escalate = True
-        logger.debug("JSON APPROVED detected in required approvals — exiting loop.")    
-        _reset_stop_counter(counter_path)
-        return "JSON APPROVED detected — exiting loop."
+def _build_stop_if_ready(required_keys_fn):
+    """
+    Builds a stop_if_ready tool gated on whatever {approval.json key:
+    expected value} mapping `required_keys_fn()` returns.
 
-    if all(approval_state.get(k) == v for k, v in required.items()):
-        tool_context.actions.escalate = True
-        logger.debug("All required approvals present — exiting loop.")
-        _reset_stop_counter(counter_path)
-        return "All approvals present — exiting loop."
+    This exists because different pipelines write different approval.json
+    keys (see save_iteration_feedback's approval_markers in utils.py):
+    process/design-doc reviewers write compliance_status/simulation_status/
+    grounding_status, but the CloudArch reviewer writes cloudarch_status.
+    A single stop_if_ready hardcoded to the first set can never see the
+    second -- it would keep reporting "no stop conditions met" and the loop
+    would always burn the full loopIterations regardless of whether the
+    CloudArch reviewer approved on iteration 1. Each pipeline's stop
+    controller must be built with the key set that pipeline's reviewer(s)
+    actually write.
+    """
 
-    return "Continue with loop — no stop conditions met."
+    def stop_if_ready(tool_context: ToolContext):
+        """
+        Hard stop if either:
+          - loopHardStop property is "true"/"1"/"on"; OR
+          - approval.json indicates all required approvals; OR
+          - persistent loop counter exceeds SAFE_LOOP_ITERS
+        """
+
+        logger.debug("Evaluating stop_if_ready conditions.")
+
+        # ---------------------------------------------------------
+        # 1. Persistent counter setup
+        # ---------------------------------------------------------
+        counter_path = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
+        SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
+
+        # Load existing counter
+        loop_count = 0
+        if os.path.exists(counter_path):
+            try:
+                with open(counter_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    loop_count = int(data.get("count", 0))
+            except Exception:
+                loop_count = 0
+
+        # Increment counter
+        loop_count += 1
+
+        # Persist updated counter
+        try:
+            with open(counter_path, "w", encoding="utf-8") as f:
+                json.dump({"count": loop_count}, f)
+        except Exception:
+            logger.debug("Failed to persist stop counter.")
+
+        logger.debug(f"Stop Controller loop count = {loop_count} / {SAFE_LOOP_ITERS}")
+
+        # ---------------------------------------------------------
+        # 2. Hard stop override
+        # ---------------------------------------------------------
+        hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
+        if hard_stop:
+            tool_context.actions.escalate = True
+            logger.debug("Hard stop condition met via loopHardStop property.")
+            _reset_stop_counter(counter_path)
+            return "Hard stop condition met via loopHardStop property — exiting loop."
+
+        # ---------------------------------------------------------
+        # 3. Max iteration stop
+        # ---------------------------------------------------------
+        if loop_count >= SAFE_LOOP_ITERS:
+            tool_context.actions.escalate = True
+            logger.debug("Max loop iterations exceeded — exiting loop.")
+            _reset_stop_counter(counter_path)
+            return "Max loop iterations exceeded — exiting loop."
+
+        # ---------------------------------------------------------
+        # 4. Approval-state stop
+        # ---------------------------------------------------------
+        approval_path = os.path.join(PROJECT_ROOT, "output", "approval.json")
+        approval_state = {}
+
+        if os.path.exists(approval_path):
+            try:
+                with open(approval_path, "r", encoding="utf-8") as f:
+                    approval_state = json.load(f)
+            except Exception:
+                approval_state = {}
+
+        logger.debug(f"Current approval state: {approval_state}")
+
+        required = required_keys_fn()
+
+        if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
+            tool_context.actions.escalate = True
+            logger.debug("JSON APPROVED detected in status — exiting loop.")
+            _reset_stop_counter(counter_path)
+            return "JSON APPROVED detected — exiting loop."
+
+        if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
+            tool_context.actions.escalate = True
+            logger.debug("JSON APPROVED detected in required approvals — exiting loop.")
+            _reset_stop_counter(counter_path)
+            return "JSON APPROVED detected — exiting loop."
+
+        if all(approval_state.get(k) == v for k, v in required.items()):
+            tool_context.actions.escalate = True
+            logger.debug("All required approvals present — exiting loop.")
+            _reset_stop_counter(counter_path)
+            return "All approvals present — exiting loop."
+
+        return "Continue with loop — no stop conditions met."
+
+    return stop_if_ready
+
+
+# Default gate: process/design-doc pipelines (compliance + simulation +
+# optional grounding). Kept as a module-level `stop_if_ready` name since
+# stop_controller_agent below (and its process/design-doc clones) already
+# reference it this way.
+stop_if_ready = _build_stop_if_ready(_default_required_approvals)
+
+# CloudArch's reviewer writes cloudarch_status, not compliance/simulation/
+# grounding_status -- see _build_stop_if_ready's docstring. Used by
+# cloudarch_pipeline_agent.py's stop-controller clone instead of the
+# default stop_if_ready.
+cloudarch_stop_if_ready = _build_stop_if_ready(lambda: {"cloudarch_status": "APPROVED"})
 
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""
