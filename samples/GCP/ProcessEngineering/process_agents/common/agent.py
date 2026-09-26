@@ -4,6 +4,9 @@ import os
 import signal
 import sys
 import logging
+import secrets
+import threading
+from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import pkgutil
@@ -127,8 +130,15 @@ file_handler.setFormatter(log_format)
 file_handler.flush = lambda: file_handler.stream.flush()
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_format)
+# WARNING+ only (retries, backoff, cache/eviction errors, etc.) -- LOGLEVEL
+# below is usually DEBUG, which is fine for the file but would flood an
+# interactive session. Without this handler attached at all, a long-running
+# pipeline that's silently retrying/backing off (e.g. on 429s, or a stalled
+# call) produces zero visible signal on the terminal -- it just looks hung.
+console_handler.setLevel(logging.WARNING)
 logger = logging.getLogger("ProcessArchitect")
 logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 logger.propagate = False
 logging.getLogger("google_adk.google.adk.agents.llm_agent").setLevel(logging.ERROR)
 
@@ -217,6 +227,7 @@ root_agent = ProcessLlmAgent(
 # ---------------------------------------------------------
 from google.adk.runners import Runner
 from google.adk.apps import App
+from google.adk.apps.app import EventsCompactionConfig
 from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
@@ -227,10 +238,29 @@ import uuid
 # every transfer swaps the system instruction/tool set and would otherwise
 # resend the whole (often 40k+ token, per output/logs/*.log) prompt uncached.
 # context_cache_config gives each agent its own cache across turns.
+#
+# events_compaction_config addresses the other half of that same growth: the
+# full_design_doc_pipeline chains ~15 sub-agents through one shared session,
+# each of whose turns get appended to it, so a single elaborate run's prompt
+# can balloon into the hundreds of thousands of tokens purely from that
+# shared history (observed: ~850k tokens/call on a real run, which then blew
+# through the per-minute quota and forced long retry/backoff cycles). Every
+# stage that reads real prior output does so via a tool call against files
+# on disk (load_master_process_json etc.), not by re-reading it out of chat
+# history, so it's safe to let ADK compact old conversation turns into an
+# LLM-generated summary once a single agent's own prompt crosses
+# contextCompactionTokenThreshold, keeping only the last
+# contextCompactionEventRetention raw events for continuity. This runs
+# per-agent, mid-pipeline (before each model call), not just between
+# separate user turns.
 root_app = App(
     name="ProcessArchitect",
     root_agent=root_agent,
     context_cache_config=ContextCacheConfig(),
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=int(getProperty("contextCompactionTokenThreshold", default=150000)),
+        event_retention_size=int(getProperty("contextCompactionEventRetention", default=8)),
+    ),
 )
 
 
@@ -311,6 +341,186 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
         session_service=session_service
     )
     return runner, user_id, session_id
+
+
+# ---------------------------------------------------------
+# WEB SERVICE MODE (Flask REST API, activated by -d/--detached)
+# ---------------------------------------------------------
+# Maps an opaque web session id (handed to callers as "session_id" and also
+# set as a cookie) to the underlying ADK user_id/session_id pair, so a single
+# shared Runner/session_service can multiplex many concurrent chats.
+_web_sessions: dict = {}
+_web_sessions_lock = threading.Lock()
+_web_runner = None
+_web_session_service = None
+_WEB_APP_NAME = "ProcessArchitect"
+WEB_SESSION_COOKIE = "process_architect_session"
+
+
+async def _get_or_create_web_session(existing_session_id: Optional[str]):
+    """
+    Resolve a web session id to its ADK (user_id, session_id) pair.
+
+    If existing_session_id is missing/unknown, a fresh ADK session is
+    created and registered under a new web session id, which is returned
+    alongside the pair.
+    """
+    global _web_runner, _web_session_service
+
+    if existing_session_id:
+        with _web_sessions_lock:
+            entry = _web_sessions.get(existing_session_id)
+        if entry:
+            return existing_session_id, entry["user_id"], entry["session_id"]
+
+    if _web_session_service is None:
+        _web_session_service = InMemorySessionService()
+    if _web_runner is None:
+        _web_runner = Runner(
+            app=root_app,
+            app_name=_WEB_APP_NAME,
+            session_service=_web_session_service,
+        )
+
+    user_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    await _web_session_service.create_session(
+        app_name=_WEB_APP_NAME,
+        user_id=user_id,
+        session_id=session_id,
+        state={},
+    )
+
+    web_session_id = str(uuid.uuid4())
+    with _web_sessions_lock:
+        _web_sessions[web_session_id] = {"user_id": user_id, "session_id": session_id}
+    return web_session_id, user_id, session_id
+
+
+async def _run_chat_turn(existing_session_id: Optional[str], query: str):
+    """Resolve/create the web session, then run one query through it."""
+    web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
+
+    content = types.Content(role="user", parts=[types.Part(text=query)])
+    final_response = None
+    async for event in _web_runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=content,
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            final_response = event.content.parts[0].text
+
+    return web_session_id, (final_response or "")
+
+
+def build_web_app(https: bool = True):
+    """
+    Build (but do not run) the Flask REST app for -d/--detached mode.
+
+    Exposes:
+      POST   /chat            {"query": "...", "session_id": "..." (optional)}
+                               -> {"status": "ok", "session_id": "...",
+                                   "query": "...", "response": "..."}
+      DELETE /chat/<session_id>  Drops server-side state for that session.
+      GET    /status           Liveness probe.
+
+    Sessions are tracked both by an explicit "session_id" JSON field (for
+    plain REST/CLI clients) and by a cookie (for browser-based clients) --
+    whichever is supplied wins; if neither resolves to a known session, a
+    new one is created and handed back both ways.
+    """
+    from flask import Flask, request, jsonify, make_response
+
+    web_app = Flask("ProcessArchitectWebService")
+    web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
+
+    @web_app.route("/chat", methods=["POST"])
+    def chat():
+        payload = request.get_json(silent=True) or {}
+        query = payload.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return jsonify({
+                "status": "error",
+                "error": "Field 'query' is required and must be a non-empty string.",
+            }), 400
+
+        session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+
+        try:
+            web_session_id, response_text = asyncio.run(
+                _run_chat_turn(session_id, query.strip())
+            )
+        except Exception:
+            logger.exception("Web chat error")
+            return jsonify({
+                "status": "error",
+                "error": "An internal error has occurred.",
+            }), 500
+
+        resp = make_response(jsonify({
+            "status": "ok",
+            "session_id": web_session_id,
+            "query": query,
+            "response": response_text,
+        }))
+        resp.set_cookie(
+            WEB_SESSION_COOKIE,
+            web_session_id,
+            httponly=True,
+            samesite="Lax",
+            secure=https,
+        )
+        return resp
+
+    @web_app.route("/chat/<session_id>", methods=["DELETE"])
+    def chat_reset(session_id):
+        with _web_sessions_lock:
+            existed = _web_sessions.pop(session_id, None) is not None
+        return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
+
+    @web_app.route("/status", methods=["GET"])
+    def status():
+        return jsonify({"status": "live"})
+
+    return web_app
+
+
+def run_web_service(port: Optional[int], use_https: bool):
+    """Build and serve the Flask REST app until interrupted."""
+    web_app = build_web_app(https=use_https)
+
+    listen_port = port if port is not None else (443 if use_https else 8080)
+    host = getProperty("host", default="0.0.0.0")
+
+    ssl_context = None
+    if use_https:
+        cert_file = getProperty("sslCertFile")
+        key_file = getProperty("sslKeyFile")
+        if cert_file and key_file:
+            ssl_context = (cert_file, key_file)
+        else:
+            try:
+                import OpenSSL  # noqa: F401
+                ssl_context = "adhoc"
+                display_text(
+                    "No sslCertFile/sslKeyFile configured -- serving HTTPS with an "
+                    "ad-hoc, self-signed certificate. Do not use this in production.",
+                    type="warning",
+                )
+            except ImportError:
+                display_text(
+                    "HTTPS requested but no sslCertFile/sslKeyFile are configured and "
+                    "'pyOpenSSL' is not installed (needed to generate an ad-hoc "
+                    "certificate). Install pyOpenSSL, configure sslCertFile/sslKeyFile "
+                    "in properties/agentapp.properties, or rerun with --http.",
+                    type="error",
+                )
+                sys.exit(1)
+
+    scheme = "https" if use_https else "http"
+    display_text(f"- Starting Process Architect web service on {scheme}://{host}:{listen_port} (POST /chat)...")
+    web_app.run(host=host, port=listen_port, ssl_context=ssl_context, threaded=True, debug=False)
 
 
 # ---------------------------------------------------------
@@ -547,7 +757,35 @@ async def run_cli():
         required=False,
         help="Process a single prompt, print the response, and exit (no interactive loop). E.g.: -i \"tell me what this process is about\""
     )
+    mode_group.add_argument(
+        "-d", "--detached",
+        dest="detached",
+        action="store_true",
+        help="Run as a detached Flask web service exposing a REST 'POST /chat' endpoint "
+             "(multi-session via cookie or an explicit session_id), instead of the "
+             "interactive/file/single-prompt CLI. See --http and --port."
+    )
+    parser.add_argument(
+        "--http",
+        dest="http",
+        action="store_true",
+        help="With --detached, serve plain HTTP on port 8080 instead of the default HTTPS on port 443."
+    )
+    parser.add_argument(
+        "-p", "--port",
+        dest="port",
+        type=int,
+        required=False,
+        help="With --detached, override the listening port (default: 443 for HTTPS, 8080 for --http)."
+    )
     args = parser.parse_args()
+
+    if not args.detached and (args.http or args.port is not None):
+        parser.error("--http and --port only apply with -d/--detached.")
+
+    if args.detached:
+        run_web_service(port=args.port, use_https=not args.http)
+        return
 
     if args.file:
         await process_file(args.file)

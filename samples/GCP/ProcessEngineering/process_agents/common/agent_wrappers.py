@@ -7,6 +7,7 @@ import functools
 import logging
 import random
 import re
+import time
 from typing import Any, Dict, Optional, Sequence, Callable, List, Union
 
 from google.adk.agents import LlmAgent, Agent
@@ -246,12 +247,52 @@ def _wrap_with_retry(model_obj: Any, *, model_name: str) -> Any:
         current_request = llm_request
         while True:
             yielded_any = False
+            # MODEL_TIMEOUT_MS is also passed as `http_options.timeout` (see
+            # _apply_default_timeout below), but that's an httpx per-request
+            # timeout, which for a *streamed* response only bounds the gap
+            # between chunks, not the call's total duration — a slow model
+            # that keeps trickling bytes can run well past the configured
+            # budget without ever tripping it. Enforce a real wall-clock
+            # deadline for the whole call here instead, so a stalled-but-not-
+            # dead stream still gets cut off and retried like any other
+            # transient error.
+            deadline = (
+                time.monotonic() + _model_timeout_s
+                if MODEL_TIMEOUT_MS is not None else None
+            )
+            agen = original_fn(current_request, stream=stream)
             try:
-                async for response in original_fn(current_request, stream=stream):
+                while True:
+                    if deadline is not None:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise TimeoutError(
+                                f"Model call for '{model_name}' timed out after "
+                                f"{_model_timeout_s:.0f}s (modelTimeoutSeconds "
+                                "total-call budget)."
+                            )
+                        try:
+                            response = await asyncio.wait_for(agen.__anext__(), timeout=remaining)
+                        except asyncio.TimeoutError:
+                            raise TimeoutError(
+                                f"Model call for '{model_name}' timed out after "
+                                f"{_model_timeout_s:.0f}s (modelTimeoutSeconds "
+                                "total-call budget)."
+                            ) from None
+                    else:
+                        response = await agen.__anext__()
                     yielded_any = True
                     yield response
+            except StopAsyncIteration:
                 return
             except Exception as exc:
+                try:
+                    await agen.aclose()
+                except Exception:
+                    # Best-effort cleanup only -- e.g. aclose() can itself
+                    # raise if called right after wait_for() cancelled an
+                    # in-flight __anext__(). Never let that mask exc below.
+                    pass
                 if yielded_any or attempt >= RETRY_MAX_ATTEMPTS or not _is_retryable_error(exc):
                     raise
                 delay = _backoff_delay(attempt, exc)
