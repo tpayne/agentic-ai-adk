@@ -12,7 +12,6 @@ from .design_simulation_agent import design_simulation_agent
 
 from ..common.json_normalizer_agent import json_normalizer_agent
 from ..common.json_review_agent import json_review_agent
-from ..common.json_writer_agent import json_writer_agent
 from ..common.doc_creation_agent import build_doc_creation_agent
 from ..common.grounding_agent import grounding_agent
 
@@ -178,7 +177,7 @@ sub_agents = [
 
 # Optionally include grounding agents, same gate/flag the process
 # pipeline uses (create_process_agent.py).
-if getProperty("enableGroundingAgent", default="true"):
+if getProperty("enableGroundingAgent", default="false"):
     logger.debug("Grounding agent ENABLED in design doc loop.")
     sub_agents += [
         grounding_agent_instance,
@@ -236,17 +235,6 @@ json_stop_agent = ProcessAgent(
     after_model_callback=stop_controller_agent.after_model_callback,
 )
 
-json_writer_agent_instance = ProcessAgent(
-    name="JSON_Writer_DesignDoc",
-    model=json_writer_agent.model,
-    description=json_writer_agent.description,
-    instruction=json_writer_agent.instruction,
-    tools=json_writer_agent.tools,
-    output_key=json_writer_agent.output_key,
-    before_model_callback=json_writer_agent.before_model_callback,
-    after_model_callback=json_writer_agent.after_model_callback,
-)
-
 design_doc_json_normalization_loop = SequentialAgent(
     name="Design_Doc_JSON_Normalization_Loop",
     sub_agents=[
@@ -255,7 +243,6 @@ design_doc_json_normalization_loop = SequentialAgent(
             sub_agents=[json_normalizer_agent_instance, json_review_agent_instance, json_stop_agent],
             max_iterations=SAFE_LOOP_ITERS
         ),
-        json_writer_agent_instance
     ],
 )
 

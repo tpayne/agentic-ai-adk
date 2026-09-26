@@ -49,7 +49,7 @@ def _default_required_approvals() -> dict:
         "compliance_status": "APPROVED",
         "simulation_status": "APPROVED",
     }
-    if getProperty("enableGroundingAgent", default="true"):
+    if getProperty("enableGroundingAgent", default="false"):
         required["grounding_status"] = "APPROVED"
     return required
 

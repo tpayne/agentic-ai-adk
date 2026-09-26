@@ -14,7 +14,6 @@ from ..common.utils import load_iteration_feedback
 from ..common.json_normalizer_agent import json_normalizer_agent
 from ..common.json_review_agent import json_review_agent
 from ..common.doc_creation_agent import build_doc_creation_agent
-from ..common.json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from ..common.grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent
@@ -137,19 +136,6 @@ reviewer_inst = ProcessLlmAgent(
     after_model_callback=json_review_agent.after_model_callback
 )
 
-# Writer stays a lightweight (non-LLM) agent per your latest version
-writer_inst = ProcessAgent(
-    name=json_writer_agent.name + "_Update",
-    model=json_writer_agent.model,
-    description=json_writer_agent.description,
-    instruction=json_writer_agent.instruction,
-    tools=json_writer_agent.tools,
-    generate_content_config=json_writer_agent.generate_content_config,
-    output_key=json_writer_agent.output_key,
-    before_model_callback=json_writer_agent.before_model_callback,
-    after_model_callback=json_writer_agent.after_model_callback
-)
-
 design_simulation_inst = ProcessAgent(
     name=design_agent.name + "_Simulation_Update",
     model=design_agent.model,
@@ -212,7 +198,7 @@ sub_update_agents = [
     simulation_inst,
     design_simulation_inst,
 ]
-if getProperty("enableGroundingAgent", default="true"):
+if getProperty("enableGroundingAgent", default="false"):
     logger.debug("Grounding agent ENABLED in design loop.")
     sub_update_agents += [
         grounding_inst,
@@ -253,7 +239,6 @@ json_update_normalization_loop = SequentialAgent(
             sub_agents=[normalizer_inst, reviewer_inst, json_stop_agent_instance],
             max_iterations=SAFE_LOOP_ITERS,
         ),
-        writer_inst,
     ],
 )
 
