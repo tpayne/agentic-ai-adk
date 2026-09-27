@@ -1,0 +1,100 @@
+{
+  "resilience": {
+    "avg_blast_radius": 0.002,
+    "blast_radius_variance": 0.044676615807377355,
+    "critical_incident_rate": 0.002,
+    "resilience_risk_rating": "Low",
+    "single_points_of_failure": [
+      "ServiceNow ECC Queue Pipeline",
+      "Identification and Reconciliation Engine (IRE)",
+      "HAM Professional Lifecycle Engine"
+    ],
+    "per_component_failure_probability": {
+      "ServiceNow ECC Queue Pipeline": 0.0005,
+      "Identification and Reconciliation Engine (IRE)": 0.0005,
+      "HAM Professional Lifecycle Engine": 0.0005,
+      "SAM Professional Reconciliation Engine": 0.0005,
+      "AWS Cloud MID Server Cluster": 0.0005,
+      "On-Premises Data Center MID Server Cluster": 0.0005
+    },
+    "component_count": 6,
+    "unresolved_references": [
+      "AWS Secrets Manager",
+      "Amazon Web Services (AWS) Multi-Account Cloud",
+      "HashiCorp Vault",
+      "Physical Enterprise Data Centers (DC1 & DC2)",
+      "ServiceNow Content Service Library"
+    ]
+  },
+  "scalability": {
+    "expected_load": "Sustain ingestion and IRE processing of up to 2,000 ECC Queue discovery payloads per minute during batch schedules; scan up to 50,000 target CIs across 25 AWS accounts and 2 physical DCs per 8-hour window.",
+    "scaling_strategy_declared": true,
+    "scaling_strategy": "Multi-tiered horizontal and elastic scaling architecture: 1. ECC Queue Pipeline Elasticity: ServiceNow Advanced High Availability (AHA) multi-node application server cluster with dynamic load balancing across active-active worker nodes; database tier leverages MariaDB multi-master Galera clustering with automated 7-day range table partitioning on ecc_queue to prevent lock contention and buffer ingestion bursts up to 5,000 payloads/minute. 2. IRE Horizontal & Parallel Scaling: Multi-threaded sensor processing pools scaling dynamically from 16 to 64 concurrent background workers per application node based on queue depth, utilizing non-blocking asynchronous event dispatching to decouple CI updates from HAM/SAM downstream tasks. 3. MID Server Horizontal Elasticity: Active-active MID Server clusters deployed in AWS EC2 Auto-Scaling Groups spanning 2 Availability Zones and on-premises VMware vSphere clusters with automated load balancing via ServiceNow MID Server IP-range clustering and capability mapping, incorporating dynamic probe jitter and adaptive rate limiting to prevent network interconnect saturation. 4. Storage & Memory Scaling: Dynamic attachment offloading for payloads exceeding 1MB (GZIP compressed) and JVM heap auto-tuning (16 GB -Xmx per MID node) with memory pressure shedding.",
+    "performance_targets": [
+      "ECC Queue payload processing latency < 5 seconds per standard CI payload.",
+      "Probe response latency < 250ms for on-premise SNMPv3/WMI and < 150ms for AWS Cloud API calls.",
+      "Support up to 100 concurrent discovery worker threads per MID Server cluster without Java heap degradation.",
+      "Zero degradation to ServiceNow user interface response times (< 1.2s average transaction time) during active discovery cycles.",
+      "Sustain peak ingestion throughput >= 2,000 ECC Queue payloads/minute without queue backlog accumulation exceeding 15 minutes."
+    ],
+    "structural_bottlenecks": [],
+    "flagged_risks": [
+      {
+        "id": "RISK-DISC-001",
+        "description": "Discovery storms or network bandwidth exhaustion during synchronized large-scale subnet sweeps over hybrid AWS Direct Connect circuits.",
+        "likelihood": "medium",
+        "impact": "high"
+      },
+      {
+        "id": "RISK-DISC-004",
+        "description": "ServiceNow platform throttling or semaphore pool saturation caused by excessive ECC Queue payload ingestion during peak business hours.",
+        "likelihood": "medium",
+        "impact": "high"
+      }
+    ]
+  },
+  "security": {
+    "missing_controls": [],
+    "compliance_summary": {
+      "compliant": 5
+    },
+    "non_compliant_standards": [],
+    "flagged_risks": [
+      {
+        "id": "RISK-DISC-005",
+        "description": "Compromise of a MID Server host leading to lateral network traversal within on-premises management VLANs or AWS private subnets.",
+        "likelihood": "low",
+        "impact": "critical"
+      },
+      {
+        "id": "RISK-DISC-006",
+        "description": "Administrative network traversal exposure and credential compromise during agentless remote discovery sweeps across enterprise subnets.",
+        "likelihood": "medium",
+        "impact": "high"
+      }
+    ],
+    "external_exposure_without_full_controls": false,
+    "security_risk_rating": "Medium"
+  },
+  "latency": {
+    "declared_latency_targets": [
+      {
+        "metric": "ECC Queue processing throughput and CI processing latency",
+        "target": ">= 2,000 ECC Queue payloads/min; latency < 5 sec per CI payload"
+      }
+    ],
+    "parsed_latency_values": [
+      "5sec"
+    ],
+    "deepest_dependency_chain_length": 5,
+    "deepest_dependency_chain": [
+      "HAM Professional Lifecycle Engine",
+      "Identification and Reconciliation Engine (IRE)",
+      "SAM Professional Reconciliation Engine",
+      "ServiceNow ECC Queue Pipeline",
+      "AWS Cloud MID Server Cluster"
+    ],
+    "latency_budget_risk": false
+  },
+  "overall_risk_rating": "Medium"
+}
