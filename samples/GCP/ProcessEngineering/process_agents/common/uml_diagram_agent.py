@@ -464,10 +464,27 @@ def generate_uml_diagram(
                 or context.get("system_name")
                 or "This System"
             )
-            spokes = [
-                {"label": es.get("name"), "edge_label": es.get("interface_type")}
-                for es in external_systems if isinstance(es, dict)
-            ]
+            # "name" is the schema's required field for an external system,
+            # but _validate_design_json only checks top-level shape, not
+            # this deep -- an entry missing it (still possible in practice)
+            # used to just drop out of `spokes` silently in
+            # _draw_hub_and_spoke ("s.get('label')" is falsy), and if EVERY
+            # entry was missing it, the whole diagram failed with an opaque
+            # "no drawable data" rather than drawing the (still real, still
+            # useful) description-based fallback. Confirmed against a real
+            # generated document: a context diagram fell back to "[Context
+            # not yet generated for this document.]" even though its
+            # System Context section had a populated External Systems
+            # table one section earlier in the same document.
+            spokes = []
+            for idx, es in enumerate(external_systems):
+                if not isinstance(es, dict):
+                    continue
+                description = es.get("description")
+                if description and len(description) > 40:
+                    description = description[:37] + "..."
+                label = es.get("name") or description or f"External System {idx + 1}"
+                spokes.append({"label": label, "edge_label": es.get("interface_type")})
             result = _draw_hub_and_spoke(out_path, title, hub, spokes)
             if result:
                 return result
@@ -497,7 +514,23 @@ def generate_uml_diagram(
             if result:
                 return result
 
-        logger.debug(f"No drawable structural data found for diagram '{title}' (type={dtype}).")
+        # Every branch above either found nothing at all, or found a
+        # candidate key but it produced zero usable nodes/spokes once
+        # filtered (e.g. "external_systems" present but every entry
+        # missing both a name and a description). Logging which keys were
+        # actually present -- even though they didn't pan out -- turns a
+        # dead-end "no data found" into an actionable "this key had data,
+        # but not enough of it" the next time a diagram silently falls
+        # back to the placeholder note.
+        candidate_keys = (
+            "classes", "integration_points", "components", "external_systems",
+            "environments", "elements", "component_name", "interfaces", "dependencies",
+        )
+        present = [k for k in candidate_keys if context.get(k)]
+        logger.debug(
+            f"No drawable structural data found for diagram '{title}' (type={dtype}). "
+            f"Context keys present but insufficient: {present or 'none'}."
+        )
         return ""
 
     except Exception:

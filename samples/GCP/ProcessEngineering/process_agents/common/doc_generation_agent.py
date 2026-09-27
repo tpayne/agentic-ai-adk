@@ -57,6 +57,7 @@ from .helpers.doc_design_sections import (
     _add_risk_register_section,
     _add_architecture_analysis,
     _add_low_level_design_section,
+    _add_glossary_and_references_section,
 )
 
 
@@ -718,9 +719,9 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     if glossary_and_references:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("11.0 Glossary and References", level=1)
-        _render_generic_value(doc, glossary_and_references, system_name=system_label)
-        rendered = True
+        rendered = _add_glossary_and_references_section(
+            doc, glossary_and_references, heading="11.0 Glossary and References"
+        )
 
     # Appendices
     if appendix:

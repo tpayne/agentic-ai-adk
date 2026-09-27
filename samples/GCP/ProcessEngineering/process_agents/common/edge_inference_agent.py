@@ -523,7 +523,46 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
                 if edge not in edges:
                     edges.append(edge)
 
-    # 3) Fallback when no explicit relationships were declared.
+    # 3) detailed_sequence_flows -- the SAME data the Low-Level Design's own
+    #    "Runtime Processing and Sequence Flows" section draws its sequence
+    #    diagrams from (see uml_diagram_agent.generate_uml_diagram). Tried
+    #    before the arbitrary declaration-order fallback below: a real,
+    #    ordered from_participant -> to_participant step is a far better
+    #    signal for this diagram's edges than "whichever order the LLM
+    #    happened to list components in the JSON array", and -- critically
+    #    -- draws this diagram from the same source of truth as the LLD's
+    #    sequence flows so the two can't contradict each other. Confirmed
+    #    from a real generated document: with no usable integration_points/
+    #    dependencies, the old declaration-order fallback below produced a
+    #    simple top-to-bottom chain that had no relationship to the actual
+    #    runtime order the LLD's own sequence flows described -- architecture
+    #    review flagged exactly this as a hard-to-defend inconsistency.
+    if not edges:
+        sequence_flows = lld.get("detailed_sequence_flows") if isinstance(lld, dict) else None
+        if isinstance(sequence_flows, list):
+            for flow in sequence_flows:
+                if not isinstance(flow, dict):
+                    continue
+                steps = flow.get("steps")
+                if not isinstance(steps, list):
+                    continue
+                ordered_steps = sorted(
+                    (s for s in steps if isinstance(s, dict)),
+                    key=lambda s: s.get("step_number") if isinstance(s.get("step_number"), (int, float)) else 0,
+                )
+                for step in ordered_steps:
+                    source = step.get("from_participant")
+                    target = step.get("to_participant")
+                    if not (isinstance(source, str) and source.strip() and isinstance(target, str) and target.strip()):
+                        continue
+                    source_label = _normalize_node_label(source)
+                    target_label = _normalize_node_label(target)
+                    if source_label in node_names and target_label in node_names and source_label != target_label:
+                        edge = (source_label, target_label)
+                        if edge not in edges:
+                            edges.append(edge)
+
+    # 4) Fallback when no explicit relationships were declared anywhere.
     if not edges:
         if len(node_names) == 1:
             only = node_names[0]
@@ -534,8 +573,8 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
             label_map.setdefault("End", "End")
         else:
             logger.warning(
-                "No integration_points/dependencies inferred between %d components; "
-                "falling back to declaration-order chain", len(node_names)
+                "No integration_points/dependencies/sequence_flows inferred between %d "
+                "components; falling back to declaration-order chain", len(node_names)
             )
             for i in range(len(node_names) - 1):
                 edges.append((node_names[i], node_names[i + 1]))

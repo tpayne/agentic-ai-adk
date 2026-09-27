@@ -296,12 +296,43 @@ def _add_version_history_table(
         traceback.print_exc()
 
 
-def _add_table_of_contents(doc: docx.Document) -> None:
+def _enable_auto_update_fields(doc: docx.Document) -> None:
     """
-    Insert a Word Table of Contents field (updates inside Word).
-    The user must right-click and 'Update Field' after opening.
+    Sets settings.xml's w:updateFields to true, so Word recalculates every
+    field (the TOC inserted by _add_table_of_contents, in particular) the
+    moment the document is opened, instead of showing whatever placeholder/
+    cached text the field's w:t run holds until a manual right-click ->
+    Update Field / F9. python-docx has no high-level API for this element,
+    hence the raw oxml.
+
+    Without this, a reviewer with no reason to know Word fields exist just
+    sees the field's literal instructional text as if it were the actual
+    document content -- confirmed directly: an architecture review flagged
+    the TOC as broken/unfinished because it was reading "Right-click and
+    select 'Update Field' to generate the Table of Contents." as the
+    document's real Table of Contents section, not a placeholder.
     """
     try:
+        settings = doc.settings.element
+        if settings.find(qn("w:updateFields")) is not None:
+            return
+        update_fields = OxmlElement("w:updateFields")
+        update_fields.set(qn("w:val"), "true")
+        settings.append(update_fields)
+    except Exception:
+        traceback.print_exc()
+
+
+def _add_table_of_contents(doc: docx.Document) -> None:
+    """
+    Insert a Word Table of Contents field. Word recalculates it (replacing
+    the placeholder text below with the real, page-numbered TOC) on open --
+    see _enable_auto_update_fields, which this also calls -- rather than
+    requiring the reader to know to right-click and Update Field manually.
+    """
+    try:
+        _enable_auto_update_fields(doc)
+
         paragraph = doc.add_paragraph()
         run = paragraph.add_run()
 

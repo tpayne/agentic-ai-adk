@@ -120,16 +120,19 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
         else:
             doc.add_paragraph("This section provides a high-level overview of the system design.")
 
-        business_drivers = business_context.get("business_drivers")
-        objectives = business_context.get("objectives")
-        goal_items = [g for g in (business_drivers or objectives or []) if isinstance(g, str) and g.strip()]
-        if goal_items:
-            doc.add_paragraph(
-                "This design is driven by the following business goals: "
-                + "; ".join(goal_items[:3])
-                + ("; among others." if len(goal_items) > 3 else ".")
-            )
-
+        # Used to also add a one-paragraph "This design is driven by the
+        # following business goals: X; Y; Z; among others." summary here,
+        # semicolon-joining the same business_drivers/objectives content
+        # that gets its own proper bulleted subsection a few paragraphs
+        # below (1.4 Business Drivers, or Objectives). That's the exact
+        # SAME content rendered twice -- once as a run-on sentence, once as
+        # clean bullets -- flagged directly by architecture review as
+        # "concatenated into a single, clunky run-on sentence" that "should
+        # be refactored to match the clean bulleted list already present in
+        # Section 1.4 Business Drivers". Removed rather than reformatted:
+        # the bulleted subsection below already covers this, an executive
+        # summary doesn't need the same list twice in two formats one
+        # paragraph apart.
         subsection = 1
 
         doc.add_heading(f"1.{subsection} Document Structure", level=2)

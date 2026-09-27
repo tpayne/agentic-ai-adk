@@ -837,3 +837,111 @@ def _add_low_level_design_section(
     except Exception:
         traceback.print_exc()
         return False
+
+
+# ============================================================
+# GLOSSARY AND REFERENCES
+# ============================================================
+
+def _add_glossary_and_references_section(
+    doc: docx.Document, glossary_and_references: dict, heading: str = "11.0 Glossary and References",
+) -> bool:
+    """
+    Glossary and References -- glossary (term/definition table) and
+    references (citation table) as before, but "diagrams" gets its own
+    bespoke handling instead of falling through to the generic
+    dict-dump renderer.
+
+    design_document_schema.json documents glossary_and_references.diagrams
+    as a "Master index of all diagrams referenced anywhere in the
+    document" -- a List-of-Figures-style INDEX entry (diagram_id,
+    diagram_type, title, ...), not a place a diagram is meant to be drawn
+    for the first time. The generic renderer doesn't know that distinction:
+    it sees a list of dicts shaped like diagram descriptors
+    (_looks_like_diagram_descriptor) and tries to actually draw each one
+    via _render_diagram_descriptor -- passing `glossary_and_references`
+    itself as the drawing context, which holds none of the structural data
+    (external_systems, integration_points, ...) any diagram actually needs.
+    Confirmed against a real generated document: the SAME conceptual
+    architecture diagram that renders correctly in 4.0 System Context (from
+    system_context.context_diagram, with the right context) showed up a
+    second time here as a failed "[Context not yet generated for this
+    document.]" placeholder -- and architecture review flagged its mere
+    presence there as misplaced regardless, since an index entry isn't
+    supposed to BE the diagram. This renders it as what the schema says it
+    is: a reference table naming each diagram and where to find it, with
+    no attempt to redraw anything.
+    """
+    try:
+        if not isinstance(glossary_and_references, dict) or not glossary_and_references:
+            return False
+
+        glossary = [g for g in (glossary_and_references.get("glossary") or []) if isinstance(g, dict)]
+        references = [r for r in (glossary_and_references.get("references") or []) if isinstance(r, dict)]
+        diagrams = [d for d in (glossary_and_references.get("diagrams") or []) if isinstance(d, dict)]
+
+        if not glossary and not references and not diagrams:
+            return False
+
+        lead = _leading_number(heading, default=11)
+
+        doc.add_heading(heading, level=1)
+
+        subsection = 1
+
+        if glossary:
+            doc.add_heading(f"{lead}.{subsection} Glossary", level=2)
+            subsection += 1
+            doc.add_paragraph("This glossary defines terms used throughout this document.")
+
+            headers = ["Term", "Definition"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for g in sorted(glossary, key=lambda g: str(g.get("term") or "").lower()):
+                row = table.add_row().cells
+                row[0].text = str(g.get("term", ""))
+                _set_cell_bullets(row[1], g.get("definition"))
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
+
+        if references:
+            doc.add_heading(f"{lead}.{subsection} References", level=2)
+            subsection += 1
+            doc.add_paragraph("The following external references were used in the development of this design.")
+
+            headers = ["Title", "Source", "Version"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for r in references:
+                row = table.add_row().cells
+                title = str(r.get("title", ""))
+                url = r.get("url")
+                row[0].text = f"{title} ({url})" if url else title
+                row[1].text = str(r.get("source") or "")
+                row[2].text = str(r.get("version") or "")
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
+
+        if diagrams:
+            doc.add_heading(f"{lead}.{subsection} List of Figures", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following diagrams appear elsewhere in this document, indexed here for reference."
+            )
+
+            headers = ["Title", "Type", "Notation"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for d in diagrams:
+                row = table.add_row().cells
+                row[0].text = str(d.get("title") or d.get("diagram_id") or "")
+                row[1].text = str(d.get("diagram_type") or "").replace("_", " ").title()
+                row[2].text = str(d.get("notation_standard") or "")
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
