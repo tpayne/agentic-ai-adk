@@ -56,6 +56,7 @@ from .helpers.doc_design_sections import (
     _add_compliance_and_standards_section,
     _add_risk_register_section,
     _add_architecture_analysis,
+    _add_low_level_design_section,
 )
 
 
@@ -461,7 +462,11 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
 
     requirements = data.get("requirements")
     system_context = data.get("system_context")
-    high_level_design = data.get("high_level_design")
+    # high_level_design is intentionally not extracted or rendered anywhere
+    # in this document -- see the "used to re-render high_level_design here
+    # too" comment further down, in Part II, for why. It stays in
+    # `consumed_keys` below purely so it doesn't reappear via the Appendix B
+    # leftover-data catch-all; no local variable is needed for that.
     low_level_design = data.get("low_level_design")
     quality_attributes = data.get("quality_attributes")
     compliance_and_standards = data.get("compliance_and_standards")
@@ -690,23 +695,25 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     # below.
 
     # ---------------- PART II: LOW-LEVEL DESIGN (LLD) ----------------
+    # Used to re-render `high_level_design` here too, as its own
+    # "5.0 High-Level Design" section, immediately before Low-Level Design --
+    # i.e. the exact same content already covered by every section in Part I
+    # (Sections 1-11 are built from this same object), presented a second
+    # time via the generic dumper. Confirmed by architecture review as
+    # reading like a whole second HLD sitting inside the LLD part, making it
+    # unclear where the approved architecture ends and implementation detail
+    # begins. Part II now starts directly with Low-Level Design, per that
+    # review's preferred fix -- nothing here needs `high_level_design` again.
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_part_divider(doc, "PART II: LOW-LEVEL DESIGN (LLD)")
 
-    if high_level_design:
-        if rendered:
-            add_iso_page_break(doc)
-        doc.add_heading("5.0 High-Level Design", level=1)
-        _render_generic_value(doc, high_level_design, system_name=system_label)
-        rendered = True
-
     if low_level_design:
         if rendered:
             add_iso_page_break(doc)
-        doc.add_heading("6.0 Low-Level Design", level=1)
-        _render_generic_value(doc, low_level_design, system_name=system_label)
-        rendered = True
+        rendered = _add_low_level_design_section(
+            doc, low_level_design, heading="5.0 Low-Level Design", system_name=system_label
+        )
 
     if glossary_and_references:
         if rendered:
@@ -762,6 +769,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
 
 _LEADING_NUMBER_RE = re.compile(r"^\d+(?:\.\d+)*\s+")
 _APPENDIX_PREFIX_RE = re.compile(r"^Appendix\s+[A-Za-z]:\s*", re.IGNORECASE)
+_SUBSECTION_NUMBER_RE = re.compile(r"^\d+\.(\d+)\s+(.*)$")
 
 
 def _set_paragraph_text(paragraph, new_text: str) -> None:
@@ -812,11 +820,37 @@ def _renumber_design_document_headings(doc: docx.Document) -> None:
     sections are never left with a gap or a collision. "Document
     Control" and "Table of Contents" are left alone since they were
     never numbered to begin with.
+
+    Heading 2 subsections (e.g. "12.1 Runtime Processing and Sequence
+    Flows", written by a renderer as f"{lead}.{subsection} ...", where
+    `lead` came from _leading_number() on that renderer's OWN, possibly
+    stale, Heading-1 string) are also corrected here: their trailing
+    ".Y title" is kept as-is -- Y is still the right position within its
+    own section -- and only the leading section number is swapped for
+    whatever `section_no` its enclosing Heading 1 was actually just
+    corrected to. Without this, a subsection's leading number silently
+    goes stale the moment renumbering changes its parent's number (e.g.
+    Low-Level Design corrected from a stale "12.0" placeholder to an
+    actual "11.0", while its own "12.1"-"12.6" subsections -- written
+    once, before this pass ever runs -- stayed at "12.x", producing
+    "11.0 Low-Level Design" followed by "12.1 Runtime Processing ..."
+    directly beneath it). Confirmed via architecture review feedback on
+    a real generated document.
     """
     section_no = 0
     appendix_idx = 0
     for paragraph in doc.paragraphs:
-        if paragraph.style is None or paragraph.style.name != "Heading 1":
+        if paragraph.style is None:
+            continue
+
+        if paragraph.style.name == "Heading 2":
+            match = _SUBSECTION_NUMBER_RE.match(paragraph.text)
+            if match and section_no:
+                subsection_idx, rest = match.groups()
+                _set_paragraph_text(paragraph, f"{section_no}.{subsection_idx} {rest}")
+            continue
+
+        if paragraph.style.name != "Heading 1":
             continue
         text = paragraph.text
 

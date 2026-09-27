@@ -20,7 +20,6 @@ from .compliance_agent import compliance_agent
 from ..common.json_normalizer_agent import json_normalizer_agent
 from ..common.json_review_agent import json_review_agent
 from ..common.doc_creation_agent import build_doc_creation_agent
-from ..common.json_writer_agent import json_writer_agent
 from .simulation_agent import simulation_agent
 from ..common.grounding_agent import grounding_agent
 from .subprocess_driver_agent import SubprocessDriverAgent  # driver for subprocess generation
@@ -101,7 +100,7 @@ sub_agents = [
 ]
 
 # Optionally include grounding agents based on configuration
-if getProperty("enableGroundingAgent", default="true"):
+if getProperty("enableGroundingAgent", default="false"):
     logger.debug("Grounding agent ENABLED in design loop.")
     sub_agents += [
         grounding_agent,
@@ -137,7 +136,15 @@ json_stop_agent = ProcessAgent(
     after_model_callback=stop_controller_agent.after_model_callback,
 )
 
-# JSON Normalization pipeline: normalize, review (with stop), then write JSON output
+# JSON Normalization pipeline: normalize (persists on every branch -- see
+# json_normalizer_agent.txt), review, stop when approved or budget exhausted.
+# No separate write/persist stage: json_writer_agent used to run here as a
+# final step, but it only ever re-loaded and re-saved whatever
+# json_normalizer_agent had already unconditionally persisted moments
+# earlier -- confirmed via its instructions (load -> strip stray text ->
+# persist verbatim, no enrichment) and persist_final_json's own "No changes
+# detected" no-op path. Removed as a pure redundant LLM call; the agent
+# definition itself is untouched in common/json_writer_agent.py.
 json_normalization_loop = SequentialAgent(
     name="JSON_Normalization_Retry_Loop",
     sub_agents=[
@@ -146,7 +153,6 @@ json_normalization_loop = SequentialAgent(
             sub_agents=[json_normalizer_agent, json_review_agent, json_stop_agent],
             max_iterations=SAFE_LOOP_ITERS
         ),
-        json_writer_agent
     ],
 )
 

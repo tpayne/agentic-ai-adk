@@ -262,39 +262,33 @@ def _log_agent_activity(message: str):
     _safe_sleep_from_property("modelSleep", default=0.25)
     logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
-def _remove_previous_stop_signal_logs():
-    """
-    Silently remove output/approval.json and the loop stop-counter log, so
-    a stale approval/stop signal from a previous run or a previous stage
-    doesn't cause a design-doc loop to exit early. Mirrors
-    design_doc_analysis_agent.py's local _remove_previous_approval_logs,
-    but lives here since log_design_metadata (unlike log_analysis_metadata)
-    is shared across multiple agent modules (HLD, LLD, Combined) rather
-    than owned by a single one.
-    """
-    approvalLog = os.path.join(PROJECT_ROOT, "output", "approval.json")
-    counterLog = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
-    try:
-        if os.path.exists(approvalLog):
-            os.remove(approvalLog)
-        if os.path.exists(counterLog):
-            os.remove(counterLog)
-    except Exception:
-        pass
-
 def log_design_metadata(status: str = "in_progress", document_type: str = "") -> str:
     """
     Shared tool for the design-doc agents (HLD, LLD, Combined): called at
-    the start of every iteration to log status and synchronize system
-    state (clearing any stale approval/stop-counter signal left over from
-    a previous stage or run, so this iteration is judged on its own
-    merits rather than an old signal).
+    the start of every iteration to log status.
 
     status: free-text iteration status, e.g. "in_progress", "revising".
     document_type: "HLD", "LLD", or "Combined" if known/relevant.
+
+    NOTE: this used to also call a _remove_previous_stop_signal_logs() that
+    deleted output/approval.json and output/stop_counter.json on every call.
+    That was meant to clear a *stale* signal left over from a previous run,
+    but this tool isn't only called at the start of a fresh run -- every
+    design-agent clone in the review loop (HLD/LLD instances, the
+    post-compliance/post-simulation/post-grounding refinement instances)
+    calls it at the start of its own turn, including the turns that run
+    immediately after a reviewer just approved within the *same* pass. Since
+    the deletion was unconditional, each of those refinement turns erased
+    whatever the reviewer immediately before it had just written, so
+    Stop_Controller (which runs last in the sequence) could never observe an
+    approval and the loop always ran the full loopIterations regardless of
+    review outcome. design_doc_analysis_agent.py's own
+    _remove_previous_approval_logs already clears stale state once, at the
+    start of the pipeline (Stage 1, before the review loop begins), which is
+    the only point where "stale signal from a previous run" actually applies
+    -- so no other cleanup is needed here.
     """
     _safe_sleep_from_property("modelSleep", default=0.25)
-    _remove_previous_stop_signal_logs()
     logger.debug(f"Design Metadata - Status: {status}, Document Type: {document_type or 'unspecified'}.")
     return f"Design metadata logged (status={status})."
 
@@ -467,9 +461,29 @@ def _validate_design_json(data: dict):
 
     metadata = data.get("document_metadata")
     if not isinstance(metadata, dict):
+        # A real design document has ~14 top-level keys. Observed in practice
+        # (a real run got stuck calling this ~25 times over ~30 minutes,
+        # never converging): an agent mid-revision sometimes passes only the
+        # section(s) it just edited rather than the full merged document --
+        # e.g. {"appendix": ..., "architecture_description": ...} -- which
+        # will *always* fail this exact check no matter how correct those
+        # edits are, and looks identical to a genuinely missing field from
+        # the caller's side. Flagging the likely partial-object case here,
+        # in the message itself, gives the agent a shot at self-correcting
+        # on the first failure instead of repeating the same partial
+        # submission indefinitely.
+        hint = ""
+        if isinstance(data, dict) and 0 < len(data) < 8:
+            hint = (
+                f" (this object has only {len(data)} top-level key(s): "
+                f"{sorted(data.keys())} -- a complete design document has "
+                "around 14; if you are mid-revision, merge your edits into "
+                "the FULL document loaded via load_master_design_json and "
+                "validate that, not just the section(s) you changed)"
+            )
         issues.append({
             "location": "$.document_metadata",
-            "issue": "Missing or invalid required top-level key 'document_metadata'"
+            "issue": "Missing or invalid required top-level key 'document_metadata'" + hint
         })
         return issues
 
@@ -2286,7 +2300,12 @@ def persist_final_json(json_content, schema_type: Optional[str] = None) -> str:
             return "ERROR: JSON content is not a valid object."
 
         if len(issues) > 0:
-            logger.error(f"Validation issues: {issues}")
+            # DEBUG, not ERROR/WARNING: this is validate-BEFORE-save catching a bad
+            # draft, not a failure -- the structured issues list below goes straight
+            # back to the calling agent, which routinely just fixes it and retries
+            # next turn (this is the normal, expected self-correction path, not
+            # something a user watching the console needs to be alerted to).
+            logger.debug(f"Validation issues (returned to caller for self-correction): {issues}")
             return json.dumps({
                 "ERROR": "JSON validation failed",
                 "schema_type": resolved_type,

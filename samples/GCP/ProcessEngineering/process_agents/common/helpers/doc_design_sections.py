@@ -32,7 +32,12 @@ from .doc_structure import (
     _set_cell_bullets,
     _leading_number,
 )
-from .doc_content import _render_diagram_descriptor
+from .doc_content import (
+    _render_diagram_descriptor,
+    _render_generic_value,
+    _stringify_nested,
+    _add_prose_field,
+)
 
 logger = logging.getLogger("ProcessArchitect.DocDesignSections")
 
@@ -570,6 +575,264 @@ def _add_architecture_analysis(doc: docx.Document, architecture_analysis, level:
             doc.add_paragraph()
 
         return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# ============================================================
+# PART II: LOW-LEVEL DESIGN
+# ============================================================
+
+def _component_name(component: dict) -> str:
+    return str(component.get("component_name") or component.get("name") or "Component")
+
+
+def _add_low_level_design_section(
+    doc: docx.Document, low_level_design: dict, heading: str = "12.0 Low-Level Design",
+    system_name: str = None,
+) -> bool:
+    """
+    Low-Level Design, grouped by design discipline (runtime flows,
+    component design, interfaces, configuration, operations, and
+    optionally detailed engineering constructs) rather than repeated in
+    full for every component. Per architecture review feedback: the
+    previous rendering (the generic dumper, one heading per component,
+    each with algorithm details / error handling / pseudocode / unit
+    test strategy / API specs / class design / class diagrams /
+    configuration / logging-and-monitoring / sequence flows underneath
+    it) was "difficult to navigate ... repetitive for reviewers", and
+    forced a reader interested in only e.g. interfaces or configuration
+    to search through every component section to assemble the full
+    picture. Sections below intentionally mirror that review's proposed
+    structure:
+      13.1 Runtime Processing and Sequence Flows
+      13.2 Component Design (+ Data Design, for database_design, which
+           the review's structure didn't explicitly place but which is
+           schema content that still needs to live somewhere -- grouped
+           here as it's a structural/architectural concern, not runtime
+           behaviour, an interface, configuration, or an operational
+           concern)
+      13.3 Interface Design
+      13.4 Configuration Design
+      13.5 Operational Design
+      13.6 Detailed Engineering Design -- optional, and only rendered at
+           all if the source content actually goes beyond architecture-
+           level detail into concrete engineering constructs (class
+           design, pseudocode, ...). Per the same review: "This section
+           should only be retained if the document is intended to
+           support engineering implementation rather than architecture
+           governance review." design_doc_agent.txt's LLD generation
+           instructions have also been tightened to stop manufacturing
+           this level of detail unless genuinely warranted, so on a
+           well-behaved run this subsection is typically absent, not
+           just optional.
+
+    Field names beyond design_document_schema.json's formal componentSpec
+    (component_name, description, responsibilities, technology_stack,
+    interfaces, dependencies, owner) are read defensively via .get() with
+    a couple of plausible alternate spellings, since design_doc_agent.txt
+    instructs the generating agent to elaborate components with
+    additional LLD-specific fields (classes, methods, design patterns,
+    API specs, configuration, monitoring, ...) that aren't part of the
+    strict schema -- _validate_design_json only checks the document's
+    top-level shape, not this nested detail, so the exact field set
+    genuinely varies call to call.
+    """
+    try:
+        if not isinstance(low_level_design, dict) or not low_level_design:
+            return False
+
+        components = [c for c in (low_level_design.get("components") or []) if isinstance(c, dict)]
+        database_design = low_level_design.get("database_design")
+        interface_contracts = [
+            i for i in (low_level_design.get("interface_contracts") or []) if isinstance(i, dict)
+        ]
+        detailed_sequence_flows = [
+            s for s in (low_level_design.get("detailed_sequence_flows") or []) if isinstance(s, dict)
+        ]
+        exception_handling_strategy = low_level_design.get("exception_handling_strategy")
+
+        if not any([components, database_design, interface_contracts,
+                    detailed_sequence_flows, exception_handling_strategy]):
+            return False
+
+        lead = _leading_number(heading, default=12)
+
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This part elaborates the High-Level Design (Part I) into "
+            "implementation-ready detail, organised by design discipline -- "
+            "runtime behaviour, component design, interfaces, configuration, "
+            "and operations -- so a reviewer interested in one discipline can "
+            "find it in one place rather than across every component section."
+        )
+
+        subsection = 1
+        rendered_any = False
+
+        # ---------------- 13.1 Runtime Processing and Sequence Flows ----------------
+        component_flows = [
+            (_component_name(c), flow)
+            for c in components
+            for flow in (c.get("sequence_flows") or [])
+            if isinstance(flow, dict)
+        ]
+        if detailed_sequence_flows or component_flows:
+            doc.add_heading(f"{lead}.{subsection} Runtime Processing and Sequence Flows", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following sequence flows describe how this design's components "
+                "interact at runtime to fulfil its key scenarios."
+            )
+            for flow in detailed_sequence_flows:
+                _render_diagram_descriptor(
+                    doc, flow, level=3, context=low_level_design, system_name=system_name
+                )
+            for name, flow in component_flows:
+                _render_diagram_descriptor(
+                    doc, flow, level=3, context={"component_name": name}, system_name=system_name
+                )
+            rendered_any = True
+
+        # ---------------- 13.2 Component Design (+ Data Design) ----------------
+        if components or database_design:
+            doc.add_heading(f"{lead}.{subsection} Component Design", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following describes each component's purpose, responsibilities, "
+                "dependencies, key design decisions, and scope and operational boundaries."
+            )
+            for c in sorted(components, key=lambda c: _natural_sort_key(_component_name(c))):
+                doc.add_heading(_component_name(c), level=3)
+                description = c.get("description")
+                if description:
+                    doc.add_paragraph(str(description))
+                _add_bulleted_group(doc, "Responsibilities", c.get("responsibilities"), indent_inches=0.0)
+                _add_bulleted_group(doc, "Dependencies", c.get("dependencies"), indent_inches=0.0)
+                _add_bulleted_group(
+                    doc, "Key Design Decisions",
+                    c.get("key_design_decisions") or c.get("design_decisions"), indent_inches=0.0,
+                )
+                scope = c.get("scope_and_operational_boundaries") or c.get("scope_and_boundaries")
+                if scope:
+                    _add_prose_field(doc, "Scope and Operational Boundaries", _stringify_nested(scope))
+                _add_bulleted_group(doc, "Technology Stack", c.get("technology_stack"), indent_inches=0.0)
+                owner = c.get("owner")
+                if owner:
+                    _add_prose_field(doc, "Owner", str(owner))
+                doc.add_paragraph()
+
+            if isinstance(database_design, dict) and database_design:
+                doc.add_heading("Data Design", level=3)
+                _render_generic_value(doc, database_design, system_name=system_name)
+
+            rendered_any = True
+
+        # ---------------- 13.3 Interface Design ----------------
+        component_interfaces = [
+            (_component_name(c), iface)
+            for c in components
+            for iface in (c.get("interfaces") or c.get("api_specifications") or [])
+            if isinstance(iface, dict)
+        ]
+        if interface_contracts or component_interfaces:
+            doc.add_heading(f"{lead}.{subsection} Interface Design", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following interfaces are exposed or consumed by this design's components."
+            )
+
+            headers = ["Interface", "Owning Component", "Protocol", "Authentication", "Error Handling"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for owner_name, iface in [(None, i) for i in interface_contracts] + component_interfaces:
+                row = table.add_row().cells
+                row[0].text = str(iface.get("interface_name") or iface.get("name") or "")
+                row[1].text = str(owner_name or "—")
+                row[2].text = str(iface.get("protocol") or "")
+                row[3].text = str(iface.get("authentication") or "")
+                _set_cell_bullets(row[4], iface.get("error_handling"))
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
+
+            rendered_any = True
+
+        # ---------------- 13.4 Configuration Design ----------------
+        config_by_component = [
+            (_component_name(c), c.get("configuration_parameters") or c.get("configuration"))
+            for c in components
+            if c.get("configuration_parameters") or c.get("configuration")
+        ]
+        if config_by_component:
+            doc.add_heading(f"{lead}.{subsection} Configuration Design", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following consolidates the key configuration parameters for each component."
+            )
+            for name, config in config_by_component:
+                doc.add_heading(name, level=3)
+                _render_generic_value(doc, config, system_name=system_name)
+
+            rendered_any = True
+
+        # ---------------- 13.5 Operational Design ----------------
+        _OPERATIONAL_FIELDS = (
+            "logging_and_monitoring", "monitoring", "logging", "alerting",
+            "capacity_limits", "error_handling", "recovery_behaviour", "recovery_behavior",
+        )
+        ops_by_component = []
+        for c in components:
+            ops_fields = {k: c[k] for k in _OPERATIONAL_FIELDS if c.get(k)}
+            if ops_fields:
+                ops_by_component.append((_component_name(c), ops_fields))
+
+        if ops_by_component or exception_handling_strategy:
+            doc.add_heading(f"{lead}.{subsection} Operational Design", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "The following consolidates monitoring, logging, alerting, capacity, "
+                "and error-recovery behaviour across this design's components."
+            )
+            if exception_handling_strategy:
+                _add_prose_field(
+                    doc, "Exception Handling Strategy", _stringify_nested(exception_handling_strategy)
+                )
+                doc.add_paragraph()
+            for name, ops_fields in ops_by_component:
+                doc.add_heading(name, level=3)
+                _render_generic_value(doc, ops_fields, system_name=system_name)
+
+            rendered_any = True
+
+        # ---------------- 13.6 Detailed Engineering Design (optional) ----------------
+        _ENGINEERING_FIELDS = (
+            "class_design", "class_diagrams", "pseudocode",
+            "algorithm_details", "unit_test_strategy", "internal_modules",
+        )
+        engineering_by_component = []
+        for c in components:
+            eng_fields = {k: c[k] for k in _ENGINEERING_FIELDS if c.get(k)}
+            if eng_fields:
+                engineering_by_component.append((_component_name(c), eng_fields))
+
+        if engineering_by_component:
+            doc.add_heading(f"{lead}.{subsection} Detailed Engineering Design", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "This section is included only where the source content goes beyond "
+                "architecture-level detail into concrete engineering constructs. It "
+                "supports engineering implementation rather than architecture "
+                "governance review, and can be skipped by reviewers focused on the latter."
+            )
+            for name, eng_fields in engineering_by_component:
+                doc.add_heading(name, level=3)
+                _render_generic_value(doc, eng_fields, system_name=system_name)
+
+            rendered_any = True
+
+        return rendered_any
 
     except Exception:
         traceback.print_exc()

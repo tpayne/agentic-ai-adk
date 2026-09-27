@@ -5,6 +5,7 @@ litellm>=1.55.0
 
 # Web App
 flask>=3.0.0
+pyOpenSSL>=24.0.0  # ad-hoc self-signed HTTPS cert for `agent.py -d` when no sslCertFile/sslKeyFile is configured
 
 # Data Handling
 pandas

@@ -6,7 +6,7 @@ from google.adk.agents import LoopAgent
 from ..common.utils import getProperty
 from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
-from ..common.utils_agent import stop_controller_agent
+from ..common.utils_agent import stop_controller_agent, status_logger, cloudarch_stop_if_ready
 from ..common.agent_wrappers import ProcessAgent
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
@@ -21,12 +21,23 @@ SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
 # have one parent, so this second consumer clones it, same as
 # design_doc_create_agent.py / design_doc_update_agent.py /
 # update_process_agent.py all do for the same reason.
+#
+# tools is cloudarch_stop_if_ready, NOT stop_controller_agent.tools: the
+# default stop_if_ready only ever checks compliance_status/simulation_status
+# /grounding_status in approval.json, but cloudarch_reviewer_agent writes
+# cloudarch_status (see save_iteration_feedback's approval_markers). Using
+# the default meant this stop controller could never recognize a CloudArch
+# approval and always ran the full loopIterations regardless of review
+# outcome -- confirmed from a real run's log: the reviewer approved on
+# iteration 1, approval.json correctly recorded cloudarch_status=APPROVED,
+# and stop_if_ready still reported "no stop conditions met" because it
+# wasn't one of the keys it was ever checking.
 stop_controller_agent_instance = ProcessAgent(
     name=stop_controller_agent.name + "_CloudArch",
     model=stop_controller_agent.model,
     description=stop_controller_agent.description,
     instruction=stop_controller_agent.instruction,
-    tools=stop_controller_agent.tools,
+    tools=[status_logger, cloudarch_stop_if_ready],
     output_key=stop_controller_agent.output_key,
     before_model_callback=stop_controller_agent.before_model_callback,
     after_model_callback=stop_controller_agent.after_model_callback,

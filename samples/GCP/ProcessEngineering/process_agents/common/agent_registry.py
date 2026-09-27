@@ -14,7 +14,6 @@ from .doc_creation_agent import build_doc_creation_agent
 from .grounding_agent import grounding_agent
 from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
-from .json_writer_agent import json_writer_agent
 from ..process.scenario_agent import scenario_tester_agent
 from ..design.scenario_design_agent import design_scenario_tester_agent
 from ..process.simulation_agent import simulation_agent
@@ -52,7 +51,6 @@ from ..process.update_process_agent import (
     grounding_inst,
     design_compliance_inst,
     json_stop_agent_instance,
-    writer_inst,
     mute_agent_instance,
     unmute_agent_instance,
     stop_controller_agent_instance,
@@ -64,12 +62,13 @@ from ..process.update_process_agent import (
 # the design-doc modules define instance variables that share a name with
 # the process pipeline's own instances above (json_stop_agent,
 # mute_agent_instance, unmute_agent_instance, stop_controller_agent_instance,
-# normalizer_inst, reviewer_inst, writer_inst, json_stop_agent_instance).
+# normalizer_inst, reviewer_inst, json_stop_agent_instance).
 # Importing these unqualified alongside the process pipeline's identically-
 # named imports would silently shadow one or the other in this module's
 # namespace, corrupting whichever pipeline list is built second. Aliasing
 # with a "_dd" suffix keeps both pipelines' instances independently
-# addressable.
+# addressable. (writer_inst/json_writer_agent no longer appear here --
+# the redundant JSON-writer stage was removed from all four pipelines.)
 # ---------------------------------------------------------------------
 from ..design.design_doc_analysis_agent import design_doc_analysis_agent
 from ..design.design_doc_hld_agent import design_doc_hld_agent
@@ -102,7 +101,6 @@ from ..design.design_doc_update_agent import (
     design_doc_grounding_instance as design_doc_grounding_instance_dd,
     normalizer_inst as normalizer_inst_dd,
     reviewer_inst as reviewer_inst_dd,
-    writer_inst as writer_inst_dd,
     mute_agent_instance as mute_agent_instance_dd,
     unmute_agent_instance as unmute_agent_instance_dd,
     stop_controller_agent_instance as stop_controller_agent_instance_dd,
@@ -128,8 +126,7 @@ CREATE_PIPELINE_AGENTS = [
     json_normalizer_agent,
     json_review_agent,
     json_stop_agent,
-    json_writer_agent,
-    
+
     # Utility Agents
     mute_agent,
     unmute_agent
@@ -152,8 +149,7 @@ UPDATE_PIPELINE_AGENTS = [
     normalizer_inst,
     reviewer_inst,
     json_stop_agent_instance,
-    writer_inst,
-    
+
     # Utility Instances
     mute_agent_instance,
     unmute_agent_instance,
@@ -186,7 +182,6 @@ CREATE_DESIGN_DOC_PIPELINE_AGENTS = [
     json_normalizer_agent,
     json_review_agent,
     json_stop_agent_dd,
-    json_writer_agent,
 
     # Utility Agents
     mute_agent,
@@ -212,7 +207,6 @@ UPDATE_DESIGN_DOC_PIPELINE_AGENTS = [
     normalizer_inst_dd,
     reviewer_inst_dd,
     json_stop_agent_instance_dd,
-    writer_inst_dd,
 
     # Utility Instances
     mute_agent_instance_dd,
