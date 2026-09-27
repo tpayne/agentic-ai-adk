@@ -461,9 +461,29 @@ def _validate_design_json(data: dict):
 
     metadata = data.get("document_metadata")
     if not isinstance(metadata, dict):
+        # A real design document has ~14 top-level keys. Observed in practice
+        # (a real run got stuck calling this ~25 times over ~30 minutes,
+        # never converging): an agent mid-revision sometimes passes only the
+        # section(s) it just edited rather than the full merged document --
+        # e.g. {"appendix": ..., "architecture_description": ...} -- which
+        # will *always* fail this exact check no matter how correct those
+        # edits are, and looks identical to a genuinely missing field from
+        # the caller's side. Flagging the likely partial-object case here,
+        # in the message itself, gives the agent a shot at self-correcting
+        # on the first failure instead of repeating the same partial
+        # submission indefinitely.
+        hint = ""
+        if isinstance(data, dict) and 0 < len(data) < 8:
+            hint = (
+                f" (this object has only {len(data)} top-level key(s): "
+                f"{sorted(data.keys())} -- a complete design document has "
+                "around 14; if you are mid-revision, merge your edits into "
+                "the FULL document loaded via load_master_design_json and "
+                "validate that, not just the section(s) you changed)"
+            )
         issues.append({
             "location": "$.document_metadata",
-            "issue": "Missing or invalid required top-level key 'document_metadata'"
+            "issue": "Missing or invalid required top-level key 'document_metadata'" + hint
         })
         return issues
 

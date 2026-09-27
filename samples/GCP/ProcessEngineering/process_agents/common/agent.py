@@ -226,6 +226,7 @@ root_agent = ProcessLlmAgent(
 # LOCAL CHAT LOOP SUPPORT
 # ---------------------------------------------------------
 from google.adk.runners import Runner
+from google.adk.agents import RunConfig
 from google.adk.apps import App
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -261,6 +262,24 @@ root_app = App(
         token_threshold=int(getProperty("contextCompactionTokenThreshold", default=150000)),
         event_retention_size=int(getProperty("contextCompactionEventRetention", default=8)),
     ),
+)
+
+# Circuit breaker of last resort for a single invocation (one top-level user
+# turn, including every sub-agent it delegates through). loopIterations/
+# stop_if_ready only cap how many times an *outer* LoopAgent repeats; they do
+# nothing to bound how long any *one* agent's own turn can run once it starts
+# repeatedly calling tools without producing a final response. Observed for
+# real: an agent stuck re-submitting a bad payload to a validator call after
+# call, never converging, never handing off to Stop_Controller -- 68+ minutes
+# and still going when killed by hand. ADK's own default here is 500, which
+# at that run's ~90-150s/call pace would still have meant hours, not minutes.
+# maxLlmCallsPerInvocation is intentionally generous relative to what a
+# normal full pipeline run needs (so it won't cut off legitimate work) --
+# it's a backstop against a *future* stuck-loop pattern we haven't seen yet,
+# not a performance tuning knob. If it fires, the invocation raises rather
+# than silently truncating output, so it's diagnosable rather than mysterious.
+RUN_CONFIG = RunConfig(
+    max_llm_calls=int(getProperty("maxLlmCallsPerInvocation", default=200))
 )
 
 
@@ -407,6 +426,7 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str):
         user_id=user_id,
         session_id=session_id,
         new_message=content,
+        run_config=RUN_CONFIG,
     ):
         if event.is_final_response() and event.content and event.content.parts:
             final_response = event.content.parts[0].text
@@ -574,7 +594,8 @@ async def process_file(file_path: str):
         async for event in runner.run_async(
             user_id=user_id,
             session_id=session_id,
-            new_message=content
+            new_message=content,
+            run_config=RUN_CONFIG,
         ):
             if event.is_final_response() and event.content and event.content.parts:
                 final_response = event.content.parts[0].text
@@ -641,7 +662,8 @@ async def process_single_prompt(prompt: str):
         async for event in runner.run_async(
             user_id=user_id,
             session_id=session_id,
-            new_message=content
+            new_message=content,
+            run_config=RUN_CONFIG,
         ):
             if event.is_final_response() and event.content and event.content.parts:
                 final_response = event.content.parts[0].text
@@ -719,7 +741,8 @@ async def start_local_chat():
             events = runner.run_async(
                 user_id=user_id,
                 session_id=session_id,
-                new_message=content
+                new_message=content,
+                run_config=RUN_CONFIG,
             )
 
             final_response = None
