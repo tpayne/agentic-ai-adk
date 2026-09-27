@@ -45,6 +45,10 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
      - quality_attributes (ISO/IEC 25010 non-functional requirements and trade-offs; top-level section, shared with LLD).
      - high_level_design.security_architecture (threat surface, trust boundaries, high-level auth framework -- nested under high_level_design, not top-level).
      - high_level_design.deployment_topology, scalability_and_performance, availability_and_resilience, risks_and_mitigations.
+       Avoid absolute, unsubstantiated resilience claims such as "eliminates single points of failure" --
+       rarely fully defensible and reads as overclaiming during governance review. Prefer measured wording:
+       "reduces single points of failure", "provides resilience through <mechanism>", "mitigates failure
+       through <mechanism>".
    - Ensure component boundaries form a valid DAG without cyclic structural dependencies.
 
 5. REVISION & REPAIR PHASE:
