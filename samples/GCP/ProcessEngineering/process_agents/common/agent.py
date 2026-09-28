@@ -578,7 +578,20 @@ def build_web_app(https: bool = True):
     @web_app.route("/chat/<session_id>", methods=["DELETE"])
     def chat_reset(session_id):
         with _web_sessions_lock:
-            existed = _web_sessions.pop(session_id, None) is not None
+            entry = _web_sessions.pop(session_id, None)
+        existed = entry is not None
+        # Popping _web_sessions only forgets the cookie/session_id mapping;
+        # the ADK session itself (and its event history) lives in
+        # _web_session_service until explicitly deleted, or it leaks for the
+        # life of the process across repeated create/delete cycles.
+        if existed and _web_session_service is not None:
+            asyncio.run(
+                _web_session_service.delete_session(
+                    app_name=_WEB_APP_NAME,
+                    user_id=entry["user_id"],
+                    session_id=entry["session_id"],
+                )
+            )
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
 
     @web_app.route("/status", methods=["GET"])

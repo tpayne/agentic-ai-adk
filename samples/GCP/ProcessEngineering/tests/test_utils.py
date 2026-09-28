@@ -103,6 +103,24 @@ def valid_process():
     return top_level
 
 
+def valid_design(document_type="LLD"):
+    design = {
+        "document_metadata": {
+            "document_id": "D1",
+            "document_type": document_type,
+            "system_name": "System",
+            "title": "Title",
+            "version": "1.0",
+            "status": "Draft",
+        },
+    }
+    if document_type in ("HLD", "Combined"):
+        design["high_level_design"] = {}
+    if document_type in ("LLD", "Combined"):
+        design["low_level_design"] = {}
+    return design
+
+
 class UtilsValidationTests(unittest.TestCase):
     def setUp(self):
         self.sleep_patch = patch.object(utils, "_safe_sleep_from_property")
@@ -154,22 +172,39 @@ class UtilsValidationTests(unittest.TestCase):
         )
 
     def test_design_validator_enforces_document_type_sections(self):
-        base = {
-            "document_metadata": {
-                "document_id": "D1",
-                "document_type": "Combined",
-                "system_name": "System",
-                "title": "Title",
-                "version": "1.0",
-                "status": "Draft",
-            },
-            "high_level_design": {},
-            "low_level_design": {},
-        }
+        base = valid_design("Combined")
         self.assertEqual(utils._validate_design_json(base), [])
         del base["low_level_design"]
         issues = utils._validate_design_json(base)
         self.assertTrue(any("low_level_design" in issue["location"] for issue in issues))
+
+    def test_design_validator_accepts_document_type_specific_sections(self):
+        for document_type in ("HLD", "LLD", "Combined"):
+            with self.subTest(document_type=document_type):
+                result = utils.validate_design_json(valid_design(document_type))
+                self.assertTrue(result["valid"])
+                self.assertEqual(result["schema_type"], "design")
+
+    def test_design_validator_reports_missing_metadata_and_invalid_type(self):
+        design = valid_design()
+        del design["document_metadata"]["system_name"]
+        result = utils.validate_design_json(design)
+        self.assertFalse(result["valid"])
+        self.assertTrue(
+            any(
+                "document_metadata.system_name" in issue["location"]
+                for issue in result["issues"]
+            )
+        )
+
+        design = valid_design()
+        design["document_metadata"]["document_type"] = "Unknown"
+        result = utils.validate_design_json(design)
+        self.assertFalse(result["valid"])
+        self.assertEqual(
+            result["issues"][0]["location"],
+            "$.document_metadata.document_type",
+        )
 
 
 class UtilsPersistenceTests(unittest.TestCase):
@@ -228,6 +263,21 @@ class UtilsPersistenceTests(unittest.TestCase):
         self.assertEqual(result["system_status"], "OK")
         self.assertEqual(result["master_process"]["process_name"], "Master")
         self.assertEqual(result["subprocesses"], [{"step_name": "One"}])
+
+    def test_persist_final_design_json_validates_before_writing(self):
+        with patch.object(utils, "_save_raw_data_to_json", return_value="saved") as writer:
+            result = utils.persist_final_design_json({"document_metadata": {}})
+
+        self.assertIn("JSON validation failed", result)
+        writer.assert_not_called()
+
+    def test_persist_final_design_json_routes_valid_document_to_design_output(self):
+        with patch.object(utils, "_save_raw_data_to_json", return_value="saved") as writer:
+            result = utils.persist_final_design_json(valid_design("LLD"))
+
+        self.assertEqual(result, "saved")
+        writer.assert_called_once()
+        self.assertEqual(writer.call_args.kwargs["schema_type"], "design")
 
 
 if __name__ == "__main__":
