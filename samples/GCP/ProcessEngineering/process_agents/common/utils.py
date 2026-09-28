@@ -2641,7 +2641,13 @@ def load_master_process_json(schema_type: Optional[str] = None) -> Union[dict, N
 
     # File existence
     if not os.path.exists(path):
-        logger.warning(f"{path} does not exist. Attempting to load template file {template_path}.")
+        # DEBUG, not WARNING: this is the normal, expected bootstrap path for
+        # the very first call of a fresh create run -- there is no baseline
+        # yet by design, so falling back to the template isn't an anomaly.
+        # At WARNING it hit the console handler added for genuinely
+        # actionable signals (retries, timeouts, quota pressure) and just
+        # read as a spurious error on every single "create from scratch" run.
+        logger.debug(f"{path} does not exist. Attempting to load template file {template_path}.")
         return _load_template_json(template_path, schema_type=resolved_type)
 
     try:
