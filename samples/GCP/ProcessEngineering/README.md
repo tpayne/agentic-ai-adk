@@ -558,6 +558,33 @@ sslCertFile = "/path/to/fullchain.pem"
 sslKeyFile  = "/path/to/privkey.pem"
 ```
 
+### Authentication and rate limiting
+
+`-d` defaults to HTTPS on `0.0.0.0` -- reachable from more than just localhost
+-- but the service itself has no user/session management. **Set `webApiKey`
+before exposing it beyond your own machine**:
+
+```ini
+[SETTINGS]
+webApiKey = "a-long-random-value"
+```
+
+Once set, every route except `/status` requires it via either header:
+
+```bash
+curl -sk -X POST https://localhost:8443/chat \
+  -H "Authorization: Bearer a-long-random-value" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "hello"}'
+
+# or: -H "X-API-Key: a-long-random-value"
+```
+
+If unset, the service still runs (it's a sample tool, unauthenticated by
+default) but prints a loud startup warning. Every route is also capped at
+`webRateLimitPerMinute` requests/minute per source IP (default 30; `<= 0`
+disables it).
+
 ### REST API
 
 The service exposes:

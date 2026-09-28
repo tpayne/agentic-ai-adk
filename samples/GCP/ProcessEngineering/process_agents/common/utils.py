@@ -2760,52 +2760,61 @@ def load_instruction(filename: str) -> str:
 # Validate that all required instruction files exist and are readable
 def validate_instruction_files() -> bool:
     """
-    Validates that all instruction files exist and are readable.
-    Logs a single consolidated error if any are missing.
+    Validates that every instruction file under instructions/ exists and is
+    readable. Logs a single consolidated error if any are missing/unreadable.
+
+    Previously a hand-maintained list of 14 filenames, covering only
+    common/ and process/ -- every file actually added under design/ or
+    cloudarch/ (design_doc_agent.txt, design_doc_lld_agent.txt,
+    cloudarch_agent.txt, ... -- 15 real files at last count) was silently
+    never checked, since nothing kept that list in sync with the directory.
+    That made this validator ineffective for exactly the agents most likely
+    to be missing an instruction file after a refactor: a real one wouldn't
+    have been caught here at all, only by whatever agent construction
+    crashed on it later (see the ordering note where this is called, in
+    agent.py, for the other half of that problem). Discovering files by
+    walking the directory instead means there is no separate list to fall
+    out of sync -- every .txt file that exists gets checked, automatically.
+
+    This still can't catch the opposite failure (an agent's instruction_file
+    referencing a path that doesn't exist at all, e.g. a typo) since a
+    nonexistent file was never a candidate to discover in the first place;
+    that surfaces as an import-time error from the agent construction that
+    references it, same as always.
     """
     instruction_dir = os.path.join(PROJECT_ROOT, "instructions")
 
-    required_files = [
-        "common/agent.txt",
-        "process/analysis_agent.txt",
-        "process/compliance_agent.txt",
-        "process/consultant_agent.txt",
-        "process/design_agent.txt",
-        "common/doc_generation_agent.txt",
-        "common/edge_inference_agent.txt",
-        "common/json_normalizer_agent.txt",
-        "common/json_review_agent.txt",
-        "common/json_writer_agent.txt",
-        "process/scenario_tester_agent.txt",
-        "process/simulation_agent.txt",
-        "process/subprocess_generator_agent.txt",
-        "process/update_analysis_agent.txt"
-    ]
+    if not os.path.isdir(instruction_dir):
+        logger.error(f"Instruction directory not found: {instruction_dir}")
+        return False
 
-    missing = []
+    discovered = []
+    for root, _dirs, files in os.walk(instruction_dir):
+        for name in files:
+            if name.endswith(".txt"):
+                full_path = os.path.join(root, name)
+                discovered.append(os.path.relpath(full_path, instruction_dir))
+
     unreadable = []
 
-    for filename in required_files:
+    for filename in sorted(discovered):
         path = os.path.join(instruction_dir, filename)
-        if not os.path.exists(path):
-            missing.append(filename)
-            continue
-
         try:
             with open(path, "r", encoding="utf-8") as f:
                 _ = f.read(50)  # sanity check
         except Exception as e:
             unreadable.append((filename, str(e)))
 
-    if missing or unreadable:
+    if not discovered:
+        logger.error(f"No instruction files (*.txt) found under {instruction_dir}.")
+        return False
+
+    if unreadable:
         logger.error("Instruction file validation failed.")
-        if missing:
-            logger.error(f"Missing: {missing}")
-        if unreadable:
-            logger.error(f"Unreadable: {unreadable}")
+        logger.error(f"Unreadable: {unreadable}")
         return False
     else:
-        _log_agent_activity("All instruction files validated successfully.")
+        _log_agent_activity(f"All {len(discovered)} instruction files validated successfully.")
         return True
 
 # ---------------------------------------------------------------------

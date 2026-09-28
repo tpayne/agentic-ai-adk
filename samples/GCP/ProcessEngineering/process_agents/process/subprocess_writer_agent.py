@@ -14,7 +14,7 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 
-from ..common.utils import getProperty
+from ..common.utils import getProperty, safe_filename_component
 
 logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 
@@ -52,12 +52,40 @@ class SubprocessWriterAgent(BaseAgent):
         # Determine output path
         # ---------------------------------------------------------
         step = ctx.session.state.get("current_process_step", {})
-        step_name = step.get("step_name", "unnamed_step").replace(" ", "_")
+        raw_step_name = step.get("step_name", "unnamed_step")
 
         output_dir = SUBPROCESS_DIR
         os.makedirs(output_dir, exist_ok=True)
 
+        # step_name is LLM-generated content, not a trusted filename. A bare
+        # .replace(" ", "_") leaves "/" and ".." untouched, so a step named
+        # e.g. "../../../etc/cron.d/evil" or given as an absolute path would
+        # let os.path.join escape output_dir entirely (an absolute second
+        # argument to os.path.join discards the first outright) and
+        # overwrite an arbitrary .json file writable by this process.
+        # safe_filename_component collapses it to a single safe path
+        # component (strips "/", "..", and other separators); the resolved
+        # path is then double-checked to still be inside output_dir before
+        # ever being opened for writing.
+        step_name = safe_filename_component(raw_step_name)
         output_path = os.path.join(output_dir, f"{step_name}.json")
+
+        resolved_dir = os.path.realpath(output_dir)
+        resolved_path = os.path.realpath(output_path)
+        if os.path.commonpath([resolved_dir, resolved_path]) != resolved_dir:
+            logger.error(
+                f"[{self.name}] Refusing to write outside {output_dir}: "
+                f"step_name={raw_step_name!r} resolved to {resolved_path!r}"
+            )
+            yield Event(
+                author=self.name,
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(text="Writer Error: Resolved output path is outside the subprocess output directory.")],
+                ),
+            )
+            return
+
         await asyncio.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
 
         # ---------------------------------------------------------

@@ -6,6 +6,8 @@ import sys
 import logging
 import secrets
 import threading
+import time
+import hmac
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
@@ -155,6 +157,19 @@ if os.path.exists(runtime_file):
         logger.error(f"Failed to remove runtime file: {str(e)}")
 sys.stderr = open(runtime_file, "a")
 
+# Validate instruction files BEFORE importing agent_registry, not after.
+# agent_registry transitively imports every design/process/cloudarch agent
+# module, each of which constructs its agents (with instruction_file=...)
+# at import time -- a missing file previously raised FileNotFoundError
+# straight out of that import, crashing with a raw traceback, well before
+# this validator ever got a chance to run and report it cleanly. This
+# function has no dependency on agent_registry, so running it first is safe.
+logger.debug("Validating instruction files...")
+if not validate_instruction_files():
+    logger.error("Instruction file validation failed. Aborting pipeline.")
+    sys.exit(1)
+logger.debug("Pipeline initialised...")
+
 # Import sub-agents
 from .agent_registry import (
     full_design_pipeline,
@@ -171,13 +186,6 @@ from .agent_registry import (
     full_design_doc_pipeline,
     update_design_doc_pipeline,
 )
-
-# Validate instruction files before proceeding
-logger.debug("Validating instruction files...")
-if not validate_instruction_files():
-    logger.error("Instruction file validation failed. Aborting pipeline.")
-    sys.exit(1)
-logger.debug("Pipeline initialised...")
 
 # Signal handler for abnormal errors
 def handler(signum, frame):
@@ -283,10 +291,15 @@ RUN_CONFIG = RunConfig(
 )
 
 
-def display_text(text: str, type: str = "info"):
+def display_text(text: str, type: str = "info", end: str = "\n"):
+    # `end` exists so run_shell_command can print already-newline-terminated
+    # subprocess stdout without doubling it up (display_text(..., end=""))
+    # -- previously missing entirely, so that call raised TypeError and
+    # silently dropped the shell command's real output, reporting a
+    # (fake) execution error instead.
     colour = getResponseColour("responseColourInfo")
     warning = getResponseColour("responseColourWarning")
-    error = getResponseColour("responseColourError")    
+    error = getResponseColour("responseColourError")
     if not colour:
         colour = ANSI_GREEN
     if not warning:
@@ -294,11 +307,11 @@ def display_text(text: str, type: str = "info"):
     if not error:
         error = ANSI_RED
     if type == "info":
-        print(f"{colour}{text}{ANSI_RESET}")
+        print(f"{colour}{text}{ANSI_RESET}", end=end)
     elif type == "warning":
-        print(f"{warning}[Warning]: {text}{ANSI_RESET}")
+        print(f"{warning}[Warning]: {text}{ANSI_RESET}", end=end)
     elif type == "error":
-        print(f"{error}[Error]: {text}{ANSI_RESET}")
+        print(f"{error}[Error]: {text}{ANSI_RESET}", end=end)
     sys.stdout.flush()
 
 def is_shell_command(text: str) -> bool:
@@ -375,6 +388,37 @@ _web_session_service = None
 _WEB_APP_NAME = "ProcessArchitect"
 WEB_SESSION_COOKIE = "process_architect_session"
 
+# ---------------------------------------------------------
+# WEB SERVICE: AUTH + RATE LIMITING
+# ---------------------------------------------------------
+# --detached defaults to HTTPS on 0.0.0.0 (see run_web_service), i.e.
+# reachable from anywhere the port is open, not just localhost -- but the
+# service itself has no user/session management of its own. Without these,
+# anyone who can reach it can create sessions and trigger model calls that
+# may incur real cost or exhaust resources. Both are opt-in via config
+# (webApiKey / webRateLimitPerMinute) rather than hardcoded on, since this
+# is still a local sample tool by default, but they give an easy,
+# no-new-dependency way to lock it down before exposing it further.
+_web_rate_limit_lock = threading.Lock()
+_web_rate_limit_state: dict = {}  # client key -> [monotonic timestamps within the current window]
+
+
+def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
+    """Fixed 60s sliding window per client_key. limit_per_minute <= 0 disables
+    the check entirely (returns True unconditionally)."""
+    if limit_per_minute <= 0:
+        return True
+    now = time.monotonic()
+    window_start = now - 60.0
+    with _web_rate_limit_lock:
+        timestamps = [t for t in _web_rate_limit_state.get(client_key, ()) if t >= window_start]
+        if len(timestamps) >= limit_per_minute:
+            _web_rate_limit_state[client_key] = timestamps
+            return False
+        timestamps.append(now)
+        _web_rate_limit_state[client_key] = timestamps
+        return True
+
 
 async def _get_or_create_web_session(existing_session_id: Optional[str]):
     """
@@ -449,11 +493,49 @@ def build_web_app(https: bool = True):
     plain REST/CLI clients) and by a cookie (for browser-based clients) --
     whichever is supplied wins; if neither resolves to a known session, a
     new one is created and handed back both ways.
+
+    Every route except /status requires webApiKey (if configured) via an
+    "Authorization: Bearer <key>" or "X-API-Key" header, and is capped at
+    webRateLimitPerMinute requests/minute per source IP -- see the AUTH +
+    RATE LIMITING block above for why.
     """
     from flask import Flask, request, jsonify, make_response
 
     web_app = Flask("ProcessArchitectWebService")
     web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
+
+    api_key = getProperty("webApiKey")
+    if not api_key:
+        display_text(
+            "No webApiKey configured -- the web service is UNAUTHENTICATED. Anyone who can "
+            "reach it can create sessions and trigger model calls that may incur cost or "
+            "exhaust resources. Set webApiKey in properties/agentapp.properties (or the "
+            "WEBAPIKEY env var) before exposing this beyond localhost.",
+            type="warning",
+        )
+    rate_limit_per_minute = int(getProperty("webRateLimitPerMinute", default=30))
+
+    def _api_key_matches(candidate: Optional[str]) -> bool:
+        # Constant-time comparison: a naive `==` leaks how many leading
+        # characters matched via response-time differences, which is a real
+        # (if slow) way to brute-force a shared secret over the network.
+        return isinstance(candidate, str) and hmac.compare_digest(candidate, api_key)
+
+    @web_app.before_request
+    def _enforce_web_controls():
+        if request.path == "/status":
+            return None  # liveness probe stays open: no auth, no rate limit
+
+        if api_key:
+            auth_header = request.headers.get("Authorization", "")
+            bearer_token = auth_header[7:] if auth_header.startswith("Bearer ") else None
+            if not (_api_key_matches(bearer_token) or _api_key_matches(request.headers.get("X-API-Key"))):
+                return jsonify({"status": "error", "error": "Unauthorized"}), 401
+
+        if not _check_rate_limit(request.remote_addr or "unknown", rate_limit_per_minute):
+            return jsonify({"status": "error", "error": "Rate limit exceeded"}), 429
+
+        return None
 
     @web_app.route("/chat", methods=["POST"])
     def chat():

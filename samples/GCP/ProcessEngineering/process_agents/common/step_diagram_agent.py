@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from typing import Dict, List, Tuple, Any
 
+from .utils import safe_filename_component
+
 logger = logging.getLogger("ProcessArchitect.StepDiagram")
 
 OUTPUT_DIR = "output/step_diagrams"
@@ -140,9 +142,24 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
         else:
             pos = nx.spring_layout(G, seed=42)
 
-        # Output path
-        safe_name = step_name.replace(" ", "_").replace("/", "_")
+        # Output path. step_name is caller-supplied (LLM-generated process
+        # step content, not a trusted filename) -- safe_filename_component
+        # collapses it to a single safe path component (strips "/", "..",
+        # and other separators/reserved characters) instead of the previous
+        # bare space/slash replacement, which left "../" sequences and
+        # other Windows-reserved characters untouched. The resolved path is
+        # then double-checked to still be inside OUTPUT_DIR before writing.
+        safe_name = safe_filename_component(step_name)
         out_path = os.path.join(OUTPUT_DIR, f"{safe_name}.png")
+
+        resolved_dir = os.path.realpath(OUTPUT_DIR)
+        resolved_path = os.path.realpath(out_path)
+        if os.path.commonpath([resolved_dir, resolved_path]) != resolved_dir:
+            logger.error(
+                f"Refusing to write outside {OUTPUT_DIR}: "
+                f"step_name={step_name!r} resolved to {resolved_path!r}"
+            )
+            return ""
         # Large canvas
         fig, ax = plt.subplots(figsize=(18, 10))
         ax.axis("off")
