@@ -254,9 +254,21 @@ def _add_system_context_section(
             doc.add_paragraph()
 
         if isinstance(context_diagram, dict) and context_diagram:
+            # _render_diagram_descriptor renders d.get("title") as-is, with no
+            # number prefix -- fine for a nested sub-diagram elsewhere in the
+            # document, but here it sits as a direct sibling of the numbered
+            # "4.1 Actors"/"4.2 External Systems" subsections above, so an
+            # unnumbered heading between two numbered ones reads as
+            # inconsistent. Number it the same way via a shallow copy rather
+            # than changing _render_diagram_descriptor itself, which other
+            # callers rely on rendering the title unmodified.
+            numbered_diagram = dict(context_diagram)
+            diagram_title = numbered_diagram.get("title") or "Context Diagram"
+            numbered_diagram["title"] = f"{lead}.{subsection} {diagram_title}"
             _render_diagram_descriptor(
-                doc, context_diagram, level=2, context=system_context, system_name=system_name
+                doc, numbered_diagram, level=2, context=system_context, system_name=system_name
             )
+            subsection += 1
 
         return True
 
