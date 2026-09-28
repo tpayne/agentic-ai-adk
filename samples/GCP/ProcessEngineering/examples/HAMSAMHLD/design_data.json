@@ -1,0 +1,3363 @@
+{
+  "requirements": {
+    "functional_requirements": [
+      {
+        "description": "Automated Cloud Discovery for AWS resources across all enterprise member accounts.",
+        "linked_process_step": "ITOM-DISC-01",
+        "source": "Cloud Infrastructure Team",
+        "id": "REQ-F-001",
+        "priority": "critical",
+        "acceptance_criteria": [
+          "MID Server cluster in AWS successfully assumes cross-account IAM roles, queries AWS APIs, and discovers VPCs, subnets, EC2 instances, and RDS databases into cmdb_ci_cloud_service, cmdb_ci_ec2_instance, and related tables."
+        ],
+        "status": "approved"
+      },
+      {
+        "id": "REQ-F-002",
+        "status": "approved",
+        "linked_process_step": "ITOM-DISC-02",
+        "description": "Agentless deep discovery of on-premises datacenter compute, storage, and networking devices.",
+        "source": "Datacenter Operations",
+        "priority": "critical",
+        "acceptance_criteria": [
+          "On-premises MID Server cluster executes IP sweeps across datacenter subnets, performs SSH/WinRM/WMI/SNMPv3 interrogation, and populates cmdb_ci_server, cmdb_ci_network, and cmdb_ci_storage."
+        ]
+      },
+      {
+        "description": "Configuration item identification and reconciliation via IRE adhering to CSDM 4.0 standards.",
+        "source": "CMDB Governance Board",
+        "linked_process_step": "ITOM-IRE-01",
+        "priority": "critical",
+        "status": "approved",
+        "id": "REQ-F-003",
+        "acceptance_criteria": [
+          "Incoming discovery payloads pass through ServiceNow IRE identification rules using BIOS UUID, serial number, and cloud instance ID; duplicate CIs are identified and reconciled without creating duplicate records."
+        ]
+      },
+      {
+        "id": "REQ-F-004",
+        "linked_process_step": "HAM-SYNC-01",
+        "priority": "critical",
+        "source": "Enterprise HAM Team",
+        "description": "Automated synchronization between CMDB CI records and Hardware Asset Management (HAM Pro).",
+        "acceptance_criteria": [
+          "Discovered physical and virtual server attributes (serial number, asset tag, chassis, model, MAC) automatically update corresponding alm_hardware records and maintain bidirectional synchronization."
+        ],
+        "status": "approved"
+      },
+      {
+        "status": "approved",
+        "acceptance_criteria": [
+          "Discovered software installation packages populate cmdb_sam_sw_install, trigger Content Service normalization, and map to software entitlements in alm_license."
+        ],
+        "priority": "critical",
+        "description": "Automated software inventory collection and normalization for Software Asset Management (SAM Pro).",
+        "source": "Enterprise SAM Team",
+        "id": "REQ-F-005",
+        "linked_process_step": "SAM-NORM-01"
+      },
+      {
+        "description": "Dynamic external credential vault integration for discovery authentication.",
+        "linked_process_step": "SEC-VAULT-01",
+        "status": "approved",
+        "priority": "critical",
+        "source": "Enterprise Information Security",
+        "acceptance_criteria": [
+          "MID Servers dynamically query CyberArk CCP (on-premises) and AWS Secrets Manager (AWS) at runtime for probe credentials; no credentials are stored on MID disk."
+        ],
+        "id": "REQ-F-006"
+      }
+    ],
+    "traceability_matrix": [
+      {
+        "verification_method": "test",
+        "design_element_id": "AWS Cloud MID Server Cluster",
+        "requirement_id": "REQ-F-001"
+      },
+      {
+        "verification_method": "test",
+        "requirement_id": "REQ-F-002",
+        "design_element_id": "On-Premises Datacenter MID Server Cluster"
+      },
+      {
+        "requirement_id": "REQ-F-003",
+        "verification_method": "test",
+        "design_element_id": "ServiceNow ITOM Discovery Engine & IRE"
+      },
+      {
+        "requirement_id": "REQ-F-004",
+        "design_element_id": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+        "verification_method": "test"
+      },
+      {
+        "design_element_id": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+        "requirement_id": "REQ-F-005",
+        "verification_method": "test"
+      },
+      {
+        "verification_method": "inspection",
+        "design_element_id": "Enterprise Credential Vault Gateway",
+        "requirement_id": "REQ-F-006"
+      },
+      {
+        "requirement_id": "REQ-NF-001",
+        "verification_method": "test",
+        "design_element_id": "AWS Cloud MID Server Cluster"
+      },
+      {
+        "verification_method": "audit",
+        "design_element_id": "On-Premises Datacenter MID Server Cluster",
+        "requirement_id": "REQ-NF-002"
+      },
+      {
+        "verification_method": "analysis",
+        "requirement_id": "REQ-NF-003",
+        "design_element_id": "ServiceNow ITOM Discovery Engine & IRE"
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "REQ-NF-001",
+        "metric": "Cluster failover latency and scan success rate",
+        "sub_characteristic": "availability",
+        "measurement_method": "Simulated node termination in MID cluster pool during active scan.",
+        "description": "MID Server clusters must support active-active failover within 60 seconds upon host failure without aborting running discovery schedules.",
+        "priority": "critical",
+        "target": "Failover < 60 seconds, 0 dropped schedules",
+        "characteristic": "reliability"
+      },
+      {
+        "metric": "Zero inbound listening ports; TLS 1.3 protocol verification",
+        "description": "All communications between MID Servers and ServiceNow SaaS cloud must be initiated outbound over TLS 1.3 on TCP 443 with zero inbound firewall rules permitted.",
+        "sub_characteristic": "confidentiality",
+        "measurement_method": "Perimeter firewall inspection and port audit.",
+        "priority": "critical",
+        "characteristic": "security",
+        "target": "100% compliant with zero inbound ingress",
+        "id": "REQ-NF-002"
+      },
+      {
+        "priority": "high",
+        "measurement_method": "Discovery schedule completion timing across full enterprise inventory.",
+        "sub_characteristic": "time_behavior",
+        "characteristic": "performance_efficiency",
+        "metric": "Total discovery execution duration",
+        "id": "REQ-NF-003",
+        "target": "<= 8 hours for complete enterprise scan",
+        "description": "Discovery architecture must ingest and reconcile 50,000+ infrastructure CIs and 100,000+ software install records within an 8-hour discovery window."
+      }
+    ]
+  },
+  "low_level_design": {
+    "database_design": [
+      {
+        "indexes": [
+          "CREATE INDEX idx_hw_serial ON cmdb_ci_hardware(serial_number)",
+          "CREATE INDEX idx_hw_mac ON cmdb_ci_hardware(mac_address)",
+          "CREATE INDEX idx_server_bios ON cmdb_ci_server(bios_uuid)",
+          "CREATE INDEX idx_ec2_instance_id ON cmdb_ci_ec2_instance(instance_id)",
+          "CREATE INDEX idx_alm_hw_ci ON alm_hardware(ci)",
+          "CREATE INDEX idx_sw_install_installed_on ON cmdb_sam_sw_install(installed_on)",
+          "CREATE INDEX idx_ecc_queue_state_agent ON ecc_queue(queue, state, agent, sys_created_on)"
+        ],
+        "partitioning_strategy": "Table ecc_queue utilizes daily range partitioning on sys_created_on with rolling 30-day retention and automated background table rotation (GlideTableRotation). Core CMDB and asset tables utilize InnoDB B-tree clustered indexing partitioned logically by tenant domain.",
+        "schema_name": "servicenow_cmdb_itam",
+        "database_technology": "Percona MariaDB Enterprise 10.6 (InnoDB engine with row-level locking and ACID transaction guarantees)",
+        "entities": [
+          {
+            "attributes": [
+              {
+                "constraints": [
+                  "PRIMARY KEY",
+                  "UUIDv4"
+                ],
+                "name": "sys_id",
+                "description": "Unique record identifier across ServiceNow platform",
+                "type": "UUID"
+              },
+              {
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "description": "Human-readable CI name"
+              },
+              {
+                "name": "serial_number",
+                "type": "VARCHAR(100)",
+                "description": "Hardware chassis serial number for identification",
+                "constraints": [
+                  "INDEXED"
+                ]
+              },
+              {
+                "type": "VARCHAR(50)",
+                "name": "asset_tag",
+                "constraints": [
+                  "UNIQUE"
+                ],
+                "description": "Enterprise hardware asset tag"
+              },
+              {
+                "constraints": [
+                  "INDEXED"
+                ],
+                "description": "Primary network interface MAC address",
+                "name": "mac_address",
+                "type": "VARCHAR(17)"
+              },
+              {
+                "type": "VARCHAR(45)",
+                "constraints": [],
+                "description": "Primary management IPv4 or IPv6 address",
+                "name": "ip_address"
+              },
+              {
+                "description": "Hardware manufacturer reference",
+                "constraints": [
+                  "FOREIGN KEY (core_company.sys_id)"
+                ],
+                "type": "UUID",
+                "name": "manufacturer"
+              },
+              {
+                "type": "UUID",
+                "description": "Hardware model specification reference",
+                "name": "model_id",
+                "constraints": [
+                  "FOREIGN KEY (cmdb_model.sys_id)"
+                ]
+              },
+              {
+                "constraints": [
+                  "DEFAULT 1"
+                ],
+                "type": "INTEGER",
+                "description": "CSDM operational status (1=Operational, 2=Non-operational, etc.)",
+                "name": "operational_status"
+              },
+              {
+                "type": "INTEGER",
+                "name": "install_status",
+                "description": "Lifecycle install status (1=Installed, 6=In Stock, 7=Retired)",
+                "constraints": [
+                  "DEFAULT 1"
+                ]
+              }
+            ],
+            "relationships": [
+              {
+                "description": "Hardware CI links to corresponding asset lifecycle record in HAM Pro",
+                "type": "one_to_one",
+                "related_entity": "alm_hardware"
+              },
+              {
+                "description": "Parent hardware record subclassed by server configuration item",
+                "type": "one_to_one",
+                "related_entity": "cmdb_ci_server"
+              }
+            ],
+            "entity_name": "cmdb_ci_hardware"
+          },
+          {
+            "relationships": [
+              {
+                "type": "one_to_one",
+                "description": "Subclassed by EC2 instance cloud CI",
+                "related_entity": "cmdb_ci_ec2_instance"
+              },
+              {
+                "type": "one_to_many",
+                "description": "Host server contains installed software packages tracked by SAM Pro",
+                "related_entity": "cmdb_sam_sw_install"
+              }
+            ],
+            "entity_name": "cmdb_ci_server",
+            "attributes": [
+              {
+                "name": "sys_id",
+                "description": "Inherited primary key from cmdb_ci_hardware",
+                "type": "UUID",
+                "constraints": [
+                  "PRIMARY KEY",
+                  "FOREIGN KEY (cmdb_ci_hardware.sys_id)"
+                ]
+              },
+              {
+                "description": "Operating system distribution name (e.g. Red Hat Enterprise Linux)",
+                "type": "VARCHAR(100)",
+                "name": "os",
+                "constraints": []
+              },
+              {
+                "constraints": [],
+                "name": "os_version",
+                "description": "Operating system version release string",
+                "type": "VARCHAR(50)"
+              },
+              {
+                "type": "VARCHAR(36)",
+                "description": "SMBIOS universally unique identifier for bare-metal/virtual machine identification",
+                "name": "bios_uuid",
+                "constraints": [
+                  "INDEXED"
+                ]
+              },
+              {
+                "name": "cpu_count",
+                "type": "INTEGER",
+                "description": "Total physical or allocated virtual CPU socket count",
+                "constraints": []
+              },
+              {
+                "description": "Total processing core count utilized for software licensing metrics",
+                "constraints": [],
+                "type": "INTEGER",
+                "name": "cpu_core_count"
+              },
+              {
+                "constraints": [],
+                "type": "INTEGER",
+                "description": "Allocated RAM capacity in megabytes",
+                "name": "ram_mb"
+              },
+              {
+                "name": "virtual",
+                "constraints": [
+                  "DEFAULT FALSE"
+                ],
+                "type": "BOOLEAN",
+                "description": "Flag indicating whether host is virtual machine or physical bare-metal"
+              },
+              {
+                "description": "Chassis form factor (Rack Mount, Blade, Cloud Virtual)",
+                "constraints": [],
+                "name": "chassis_type",
+                "type": "VARCHAR(50)"
+              }
+            ]
+          },
+          {
+            "attributes": [
+              {
+                "type": "UUID",
+                "description": "Inherited primary key from cmdb_ci_server",
+                "constraints": [
+                  "PRIMARY KEY",
+                  "FOREIGN KEY (cmdb_ci_server.sys_id)"
+                ],
+                "name": "sys_id"
+              },
+              {
+                "name": "instance_id",
+                "constraints": [
+                  "NOT NULL",
+                  "UNIQUE",
+                  "INDEXED"
+                ],
+                "description": "AWS globally unique EC2 instance ID (e.g. i-0a1b2c3d4e5f)",
+                "type": "VARCHAR(30)"
+              },
+              {
+                "constraints": [],
+                "description": "AWS EC2 instance hardware type (e.g. m6i.xlarge)",
+                "type": "VARCHAR(50)",
+                "name": "instance_type"
+              },
+              {
+                "description": "AWS Availability Zone identifier (e.g. us-east-1a)",
+                "constraints": [],
+                "type": "VARCHAR(30)",
+                "name": "availability_zone"
+              },
+              {
+                "description": "Containing AWS Virtual Private Cloud ID",
+                "name": "vpc_id",
+                "constraints": [
+                  "INDEXED"
+                ],
+                "type": "VARCHAR(30)"
+              },
+              {
+                "constraints": [],
+                "type": "VARCHAR(30)",
+                "description": "Allocated AWS VPC Subnet ID",
+                "name": "subnet_id"
+              },
+              {
+                "constraints": [],
+                "description": "Runtime lifecycle state (running, stopped, terminated)",
+                "type": "VARCHAR(20)",
+                "name": "state"
+              },
+              {
+                "name": "iam_profile_arn",
+                "description": "Attached AWS IAM instance profile Amazon Resource Name",
+                "constraints": [],
+                "type": "VARCHAR(255)"
+              }
+            ],
+            "entity_name": "cmdb_ci_ec2_instance",
+            "relationships": [
+              {
+                "related_entity": "cmdb_ci_server",
+                "description": "Inherits server class attributes",
+                "type": "one_to_one"
+              }
+            ]
+          },
+          {
+            "relationships": [
+              {
+                "type": "one_to_one",
+                "related_entity": "cmdb_ci_hardware",
+                "description": "Asset links to CI record in CMDB"
+              }
+            ],
+            "entity_name": "alm_hardware",
+            "attributes": [
+              {
+                "constraints": [
+                  "PRIMARY KEY",
+                  "UUIDv4"
+                ],
+                "type": "UUID",
+                "description": "Unique asset record identifier in HAM Pro",
+                "name": "sys_id"
+              },
+              {
+                "description": "Bidirectional foreign key link to corresponding configuration item",
+                "name": "ci",
+                "type": "UUID",
+                "constraints": [
+                  "UNIQUE",
+                  "INDEXED",
+                  "FOREIGN KEY (cmdb_ci_hardware.sys_id)"
+                ]
+              },
+              {
+                "type": "VARCHAR(100)",
+                "name": "serial_number",
+                "constraints": [
+                  "INDEXED"
+                ],
+                "description": "Manufacturer serial number for hardware tracking"
+              },
+              {
+                "type": "VARCHAR(50)",
+                "name": "asset_tag",
+                "constraints": [
+                  "UNIQUE"
+                ],
+                "description": "Physical asset inventory bar-code tag"
+              },
+              {
+                "type": "UUID",
+                "name": "model",
+                "constraints": [
+                  "FOREIGN KEY (alm_asset_model.sys_id)"
+                ],
+                "description": "Hardware product model reference"
+              },
+              {
+                "constraints": [],
+                "description": "Asset operational lifecycle state (In Use, In Stock, Retired)",
+                "type": "INTEGER",
+                "name": "install_status"
+              },
+              {
+                "constraints": [],
+                "type": "INTEGER",
+                "name": "substatus",
+                "description": "Detailed asset substate (Pending Install, Available, Defective)"
+              },
+              {
+                "type": "UUID",
+                "description": "Datacenter physical facility location reference",
+                "name": "location",
+                "constraints": [
+                  "FOREIGN KEY (cmn_location.sys_id)"
+                ]
+              },
+              {
+                "constraints": [
+                  "FOREIGN KEY (alm_stockroom.sys_id)"
+                ],
+                "type": "UUID",
+                "description": "Holding stockroom warehouse for spare hardware",
+                "name": "stockroom"
+              },
+              {
+                "type": "DATE",
+                "name": "warranty_expiration",
+                "constraints": [],
+                "description": "Manufacturer warranty coverage termination date"
+              }
+            ]
+          },
+          {
+            "relationships": [
+              {
+                "related_entity": "cmdb_ci_server",
+                "type": "many_to_one",
+                "description": "Software install record resides on server CI"
+              },
+              {
+                "related_entity": "alm_license",
+                "type": "many_to_one",
+                "description": "Discovered installation maps to software license entitlement model"
+              }
+            ],
+            "attributes": [
+              {
+                "name": "sys_id",
+                "description": "Unique software installation record identifier",
+                "type": "UUID",
+                "constraints": [
+                  "PRIMARY KEY",
+                  "UUIDv4"
+                ]
+              },
+              {
+                "name": "installed_on",
+                "description": "Server host upon which the software package was discovered",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED",
+                  "FOREIGN KEY (cmdb_ci_server.sys_id)"
+                ],
+                "type": "UUID"
+              },
+              {
+                "type": "VARCHAR(255)",
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "name": "display_name",
+                "description": "Raw package string reported by discovery probe"
+              },
+              {
+                "type": "VARCHAR(100)",
+                "description": "Raw publisher name extracted from package manifest",
+                "name": "publisher",
+                "constraints": []
+              },
+              {
+                "constraints": [],
+                "description": "Raw software version reported by operating system",
+                "name": "version",
+                "type": "VARCHAR(50)"
+              },
+              {
+                "name": "normalized_publisher",
+                "constraints": [],
+                "type": "VARCHAR(100)",
+                "description": "Normalized publisher name generated by Content Service"
+              },
+              {
+                "description": "Normalized software product catalog name",
+                "constraints": [],
+                "name": "normalized_product",
+                "type": "VARCHAR(100)"
+              },
+              {
+                "type": "VARCHAR(50)",
+                "description": "Normalized version release string",
+                "name": "normalized_version",
+                "constraints": []
+              },
+              {
+                "type": "VARCHAR(50)",
+                "description": "Detected software edition (Enterprise, Standard, Express)",
+                "constraints": [],
+                "name": "edition"
+              },
+              {
+                "constraints": [
+                  "DEFAULT 'unnormalized'"
+                ],
+                "description": "Normalization processing status (normalized, match_not_found, unnormalized)",
+                "type": "VARCHAR(30)",
+                "name": "norm_status"
+              }
+            ],
+            "entity_name": "cmdb_sam_sw_install"
+          },
+          {
+            "relationships": [
+              {
+                "type": "one_to_many",
+                "related_entity": "cmdb_sam_sw_install",
+                "description": "License entitlement covers discovered software installations"
+              }
+            ],
+            "entity_name": "alm_license",
+            "attributes": [
+              {
+                "name": "sys_id",
+                "description": "Unique software license entitlement identifier",
+                "type": "UUID",
+                "constraints": [
+                  "PRIMARY KEY",
+                  "UUIDv4"
+                ]
+              },
+              {
+                "type": "VARCHAR(255)",
+                "name": "display_name",
+                "description": "Entitlement contract display name",
+                "constraints": [
+                  "NOT NULL"
+                ]
+              },
+              {
+                "name": "software_model",
+                "type": "UUID",
+                "constraints": [
+                  "FOREIGN KEY (samp_software_model.sys_id)"
+                ],
+                "description": "Normalized software model linked to entitlement"
+              },
+              {
+                "description": "Licensing metric calculation model (Per Core, Per vCPU, Named User)",
+                "type": "VARCHAR(50)",
+                "constraints": [],
+                "name": "license_metric"
+              },
+              {
+                "constraints": [
+                  "DEFAULT 0"
+                ],
+                "description": "Total license rights purchased and entitled",
+                "type": "INTEGER",
+                "name": "purchased_rights"
+              },
+              {
+                "description": "Total license rights actively allocated to workloads",
+                "name": "active_rights",
+                "type": "INTEGER",
+                "constraints": [
+                  "DEFAULT 0"
+                ]
+              },
+              {
+                "description": "Total financial procurement cost of entitlement",
+                "name": "cost",
+                "constraints": [],
+                "type": "DECIMAL(15,2)"
+              },
+              {
+                "type": "DATE",
+                "name": "expiration_date",
+                "description": "Entitlement maintenance or subscription expiry date",
+                "constraints": []
+              }
+            ]
+          },
+          {
+            "relationships": [
+              {
+                "related_entity": "ecc_queue",
+                "description": "Input response links back to original output command",
+                "type": "one_to_one"
+              }
+            ],
+            "entity_name": "ecc_queue",
+            "attributes": [
+              {
+                "type": "UUID",
+                "constraints": [
+                  "PRIMARY KEY",
+                  "UUIDv4"
+                ],
+                "name": "sys_id",
+                "description": "Unique queue message identifier"
+              },
+              {
+                "name": "agent",
+                "description": "MID Server daemon identifier (e.g. mid.server.aws_east_01)",
+                "type": "VARCHAR(100)",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ]
+              },
+              {
+                "name": "topic",
+                "type": "VARCHAR(100)",
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "description": "Probe or sensor command topic (e.g. Discovery, IP Sweep)"
+              },
+              {
+                "constraints": [],
+                "description": "Specific probe name or command string",
+                "type": "VARCHAR(255)",
+                "name": "name"
+              },
+              {
+                "constraints": [],
+                "description": "Target IP address, subnet CIDR, or cloud account ID",
+                "type": "VARCHAR(255)",
+                "name": "source"
+              },
+              {
+                "type": "VARCHAR(20)",
+                "name": "state",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "description": "Message processing state (ready, processing, processed, error)"
+              },
+              {
+                "description": "Queue direction: output (to MID) or input (from MID to ServiceNow)",
+                "name": "queue",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "type": "VARCHAR(10)"
+              },
+              {
+                "type": "MEDIUMTEXT",
+                "name": "payload",
+                "description": "Compressed XML/JSON diagnostic probe command or result payload",
+                "constraints": []
+              },
+              {
+                "type": "UUID",
+                "name": "response_to",
+                "description": "Foreign key referencing the original output message sys_id for response correlation",
+                "constraints": []
+              },
+              {
+                "type": "DATETIME",
+                "name": "sys_created_on",
+                "description": "Message timestamp used for queue partitioning and archival",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "indexes": [
+          "CREATE UNIQUE INDEX idx_cred_target ON mid_credential_cache(target_ip, cred_type)",
+          "CREATE INDEX idx_cred_expires ON mid_credential_cache(expires_at)",
+          "CREATE INDEX idx_task_status ON mid_task_queue(status, priority)"
+        ],
+        "partitioning_strategy": "Volatile in-memory database (:memory:) with temporary encrypted SQLite storage. Automatic purging job executes every 60 seconds to evict expired credentials. Entire cache is destroyed upon MID daemon termination.",
+        "database_technology": "SQLite 3.42 Embedded In-Memory & Encrypted Local Storage (MID Server Host)",
+        "entities": [
+          {
+            "relationships": [],
+            "attributes": [
+              {
+                "name": "cred_id",
+                "constraints": [
+                  "PRIMARY KEY"
+                ],
+                "type": "VARCHAR(64)",
+                "description": "Unique cached credential identifier"
+              },
+              {
+                "type": "VARCHAR(45)",
+                "name": "target_ip",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "description": "Target host IP address associated with credential"
+              },
+              {
+                "type": "VARCHAR(20)",
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "description": "Credential type (SSH_KEY, WINRM_PW, SNMPV3)",
+                "name": "cred_type"
+              },
+              {
+                "description": "AES-256-GCM encrypted credential payload blob",
+                "type": "BLOB",
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "name": "encrypted_secret_blob"
+              },
+              {
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "name": "iv_nonce",
+                "type": "BLOB",
+                "description": "Initialization vector / nonce for AES-GCM decryption"
+              },
+              {
+                "type": "TIMESTAMP",
+                "description": "Cache insertion timestamp",
+                "name": "cached_at",
+                "constraints": [
+                  "NOT NULL"
+                ]
+              },
+              {
+                "description": "Expiration timestamp after which secret is purged from memory",
+                "name": "expires_at",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "type": "TIMESTAMP"
+              }
+            ],
+            "entity_name": "mid_credential_cache"
+          },
+          {
+            "entity_name": "mid_task_queue",
+            "attributes": [
+              {
+                "description": "Unique task execution ID",
+                "name": "task_id",
+                "constraints": [
+                  "PRIMARY KEY"
+                ],
+                "type": "VARCHAR(64)"
+              },
+              {
+                "description": "Originating ECC Queue sys_id",
+                "name": "ecc_id",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ],
+                "type": "VARCHAR(32)"
+              },
+              {
+                "type": "VARCHAR(50)",
+                "description": "Probe command type (SSH, WinRM, SNMP, AWS_API)",
+                "name": "probe_type",
+                "constraints": [
+                  "NOT NULL"
+                ]
+              },
+              {
+                "name": "priority",
+                "constraints": [
+                  "DEFAULT 10"
+                ],
+                "type": "INTEGER",
+                "description": "Execution priority (1=highest, 10=normal)"
+              },
+              {
+                "description": "Task status (QUEUED, RUNNING, COMPLETED, FAILED)",
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "constraints": [
+                  "NOT NULL",
+                  "INDEXED"
+                ]
+              },
+              {
+                "name": "scheduled_at",
+                "description": "Task dequeued timestamp",
+                "constraints": [
+                  "NOT NULL"
+                ],
+                "type": "TIMESTAMP"
+              },
+              {
+                "description": "Task completion timestamp",
+                "type": "TIMESTAMP",
+                "constraints": [],
+                "name": "completed_at"
+              }
+            ],
+            "relationships": []
+          }
+        ],
+        "schema_name": "mid_server_local_cache"
+      }
+    ],
+    "components": [
+      {
+        "api_specifications": [
+          {
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"items\"], \"properties\": {\"items\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"className\", \"values\"], \"properties\": {\"className\": {\"type\": \"string\"}, \"values\": {\"type\": \"object\"}, \"internal_id\": {\"type\": \"string\"}}}}}}",
+            "error_handling": "HTTP 400 Bad Request on invalid payload structure; HTTP 409 Conflict on IRE identification ambiguous matches; HTTP 429 Too Many Requests when rate limit exceeded (500 req/min); detailed JSON error objects returned.",
+            "interface_name": "IRE Batch Identification and Reconciliation REST API",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"items\"], \"properties\": {\"items\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"className\", \"sysId\", \"operation\"], \"properties\": {\"className\": {\"type\": \"string\"}, \"sysId\": {\"type\": \"string\"}, \"operation\": {\"type\": \"string\", \"enum\": [\"INSERT\", \"UPDATE\", \"NO_CHANGE\"]}}}}}}",
+            "contract_reference": "/api/now/identifyreconcile",
+            "authentication": "OAuth 2.0 Bearer Token or Mutual TLS (mTLS) Client Certificate with itil_admin / mid_server role",
+            "versioning_strategy": "URI path versioning (/api/now/v1/identifyreconcile) with backward compatibility support",
+            "protocol": "REST"
+          }
+        ],
+        "module_name": "sn_itom_pattern_ire",
+        "algorithm_details": "IRE Matching and Reconciliation Algorithm: 1) Extract identification attributes (BIOS UUID, Serial Number, MAC Address, Name) from incoming sensor payload. 2) Evaluate against CI Class Identification Rules hierarchically from child (cmdb_ci_server) to parent (cmdb_ci_hardware). 3) Compute candidate matches using exact match and rule priorities. If multiple distinct records match, flag as Ambiguous Match and generate De-duplication Task. If single candidate matches, calculate attribute precedence against DataSource Precedence rules. If Discovery precedence is higher than existing source, apply field-level mutation; otherwise preserve existing value. 4) Commit transaction and trigger post-reconciliation business rules and ITAM event listeners.",
+        "logging_and_monitoring": {
+          "monitored_metrics": [
+            "ecc_queue.input.latency_seconds",
+            "ecc_queue.backlog_depth",
+            "ire.reconciliation.insert_rate_per_min",
+            "ire.reconciliation.duplicate_rate"
+          ],
+          "alerting_rules": [
+            "ECC queue depth > 5000 for > 15 minutes triggers P2 alert to ITOM Operations",
+            "IRE duplicate creation rate > 1.0% triggers P3 data integrity warning"
+          ],
+          "log_levels": [
+            "ERROR",
+            "WARN",
+            "INFO",
+            "DEBUG"
+          ]
+        },
+        "code_standards_reference": "ServiceNow JavaScript Best Practices (Scoped App Standards, GlideRecordSecure enforcement, ES2021 syntax standards)",
+        "unit_test_strategy": "Unit and integration testing executed using ServiceNow Automated Test Framework (ATF) and Jasmine test suites. Test scenarios cover single-attribute match (BIOS UUID), multi-attribute composite match (Serial + MAC), duplicate detection raising de-duplication tasks, data source precedence overrides, and CSDM 4.0 technical service relationship creation.",
+        "dependencies": [
+          "Hybrid Target Infrastructure & Workloads"
+        ],
+        "key_design_decisions": [
+          "Leverage ServiceNow native Identification and Reconciliation Engine (IRE) rather than custom scripts to enforce CSDM 4.0 compliance and prevent duplicate records.",
+          "Deploy across ServiceNow Advanced High Availability (AHA) multi-node cluster with dynamic worker thread pooling to prevent ECC Queue ingestion bottlenecks."
+        ],
+        "component_name": "ServiceNow ITOM Discovery Engine & IRE",
+        "pseudocode_reference": "function reconcileCI(payload):\\n  classRule = getIdentificationRule(payload.className)\\n  candidates = findCandidatesByCriterion(classRule, payload.identifiers)\\n  if length(candidates) == 0:\\n    return insertCI(payload)\\n  elif length(candidates) == 1:\\n    return updateCIWithPrecedence(candidates[0], payload)\\n  else:\\n    createDeduplicationTask(candidates, payload)\\n    return candidates[0]",
+        "description": "Centralized SaaS orchestration engine managing discovery schedules, queuing probes into the ECC Queue, executing the Identification and Reconciliation Engine (IRE) to enforce CSDM 4.0 data modeling rules, and publishing CI mutation events to HAM and SAM lifecycle handlers across an elastic multi-node application cluster.",
+        "class_design": {
+          "classes": [
+            {
+              "attributes": [
+                "identificationRules: Map<String, Rule>",
+                "reconciliationPrecedence: PrecedenceTable",
+                "eccQueueBuffer: Deque<Payload>"
+              ],
+              "design_patterns_used": [
+                "Strategy Pattern",
+                "Chain of Responsibility",
+                "Service Locator"
+              ],
+              "methods": [
+                "processPayload(payload: JsonObject): IdentificationResult",
+                "matchCandidate(criteria: Criteria): List<SysId>",
+                "applyPrecedence(targetCi: SysId, updates: Map): MutationSummary"
+              ],
+              "class_name": "IdentificationEngineService"
+            },
+            {
+              "methods": [
+                "createTask(duplicates: List<SysId>, payload: JsonObject): SysId",
+                "quarantineAmbiguousPayload(payload: JsonObject): void"
+              ],
+              "design_patterns_used": [
+                "Observer Pattern",
+                "Factory Pattern"
+              ],
+              "attributes": [
+                "taskQueue: List<DeduplicationTask>",
+                "logger: Logger"
+              ],
+              "class_name": "DeduplicationHandler"
+            }
+          ],
+          "diagram": {
+            "diagram_id": "CD-IRE-01",
+            "description": "UML Class diagram showing IdentificationEngineService coordinating candidate matching, precedence resolution, and deduplication handling.",
+            "diagram_type": "class",
+            "notation_standard": "UML",
+            "file_reference": "architecture/diagrams/uml_class_ire.png",
+            "title": "IRE Service Class Diagram"
+          }
+        },
+        "technology_stack": [
+          "ServiceNow SaaS Auto-Scaling Application Nodes (Washington DC / Xanadu)",
+          "Percona MariaDB Clustered Relational Database Engine with Read Replicas",
+          "Rhino / ES2021 JavaScript Execution Runtime with Elastic Worker Pool",
+          "ServiceNow Advanced High Availability (AHA) Architecture"
+        ],
+        "sequence_flows": [
+          {
+            "diagram_id": "seq-ire-internal-reconciliation",
+            "title": "IRE Internal Identification and Attribute Reconciliation",
+            "steps": [
+              {
+                "message": "identifyCI(parsedDiscoveryPayload)",
+                "step_number": 1,
+                "to_participant": "IdentificationEngine",
+                "is_return": false,
+                "from_participant": "ECCQueueWorkerPool",
+                "is_async": false,
+                "notes": "Evaluates BIOS UUID, serial number, and MAC address rules"
+              },
+              {
+                "message": "queryMatchingRuleCandidates(ciClass, criteriaMap)",
+                "is_async": false,
+                "is_return": false,
+                "notes": "Queries CMDB base tables cmdb_ci_hardware and cmdb_ci_server",
+                "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+                "step_number": 2,
+                "from_participant": "IdentificationEngine"
+              },
+              {
+                "message": "return Candidate CI SysIDs [sys_id: a7f8e3...d4]",
+                "is_async": false,
+                "step_number": 3,
+                "is_return": true,
+                "to_participant": "IdentificationEngine",
+                "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+                "notes": "Single authoritative candidate match identified"
+              },
+              {
+                "notes": "Submits matched sys_id and payload to ReconciliationManager",
+                "is_async": false,
+                "from_participant": "IdentificationEngine",
+                "step_number": 4,
+                "is_return": false,
+                "message": "reconcileAttributes(matchedSysId, discoveredAttributes)",
+                "to_participant": "ReconciliationManager"
+              },
+              {
+                "message": "commitReconciliation(updatePayload)",
+                "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+                "step_number": 5,
+                "is_return": false,
+                "is_async": false,
+                "from_participant": "ReconciliationManager",
+                "notes": "Validates field update authority against Discovery data source precedence"
+              },
+              {
+                "to_participant": "ReconciliationManager",
+                "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+                "is_return": true,
+                "is_async": false,
+                "message": "confirmCommit(sys_id, sys_mod_count=14)",
+                "notes": "Record updated successfully in database",
+                "step_number": 6
+              },
+              {
+                "step_number": 7,
+                "is_return": true,
+                "is_async": false,
+                "notes": "Releases worker thread and updates ECC state to processed",
+                "message": "acknowledgeProcessingComplete(status=PROCESSED)",
+                "to_participant": "ECCQueueWorkerPool",
+                "from_participant": "ReconciliationManager"
+              }
+            ],
+            "description": "Details the internal sequence when a decompressed discovery payload is processed by the IRE Engine and Reconciliation Manager, resolving duplicates and persisting changes.",
+            "participants": [
+              "ECCQueueWorkerPool",
+              "IdentificationEngine",
+              "ReconciliationManager",
+              "ServiceNow ITOM Discovery Engine & IRE"
+            ],
+            "diagram_type": "sequence",
+            "file_reference": ""
+          }
+        ],
+        "scope_and_operational_boundaries": "Responsible exclusively for discovery scheduling, ECC Queue management, payload parsing, and CMDB CI reconciliation inside the ServiceNow SaaS instance. It is NOT responsible for executing network probes directly against target endpoints or managing physical asset financial ledgers.",
+        "responsibilities": [
+          "Orchestrate enterprise discovery schedules across hybrid AWS and on-premises environments",
+          "Format and dispatch discovery probe commands to the ECC Queue",
+          "Dequeue and decompress input sensor payloads from clustered MID Servers",
+          "Execute Identification and Reconciliation Engine (IRE) identifier and reconciliation rules to prevent duplicates",
+          "Publish reconciled CI mutation events to downstream HAM Pro and SAM Pro lifecycle consumers"
+        ],
+        "error_handling_strategy": "Payload parsing errors trigger immediate ECC Queue status update to 'error' with stack trace preserved in payload attribute; transient database contention triggers up to 3 automatic retries with exponential backoff (200ms, 800ms, 3200ms); unresolved duplicates route to CMDB Remediations dashboard for administrator triage.",
+        "configuration_parameters": [
+          {
+            "description": "Maximum number of CI payload items processed concurrently by the IRE engine in a single batch",
+            "type": "Integer",
+            "default_value": "500",
+            "name": "glide.identification_engine.batch_size"
+          },
+          {
+            "type": "Integer",
+            "default_value": "300",
+            "description": "Timeout in seconds before an active MID Server probe is marked timed out in the ECC Queue",
+            "name": "glide.discovery.probe.timeout_seconds"
+          },
+          {
+            "default_value": "40",
+            "description": "Maximum number of worker threads allocated for concurrent sensor parsing from the ECC Queue",
+            "type": "Integer",
+            "name": "glide.ecc_queue.max_active_processing_jobs"
+          }
+        ]
+      },
+      {
+        "pseudocode_reference": "function discoverAwsAccount(accountId, region):\\n  credentials = sts.assumeRole(RoleArn='arn:aws:iam::' + accountId + ':role/SNOWDiscovery')\\n  ec2Client = AWS.EC2(credentials, region)\\n  instances = ec2Client.describeInstances(Filters=[{Name:'instance-state-name', Values:['running']}])\\n  for inst in instances:\\n    guestCred = fetchSecretFromVpcEndpoint(inst.id)\\n    hostInfo = runSshProbe(inst.privateIp, guestCred)\\n    appendPayload(inst, hostInfo)\\n  postToEccQueue(compress(payload))",
+        "key_design_decisions": [
+          "Deploy dedicated MID Server cluster within AWS VPCs across multiple AZs to ensure cloud discovery traffic remains localized and avoids corporate WAN saturation.",
+          "Utilize AWS STS cross-account IAM AssumeRole for multi-account discovery, eliminating static access keys and enforcing least privilege."
+        ],
+        "component_name": "AWS Cloud MID Server Cluster",
+        "algorithm_details": "AWS Multi-Account Discovery Scheduling Algorithm: 1) Retrieve discovery schedule parameters from ECC Queue output record. 2) Assume target cross-account IAM role via AWS STS AssumeRole with 3600-second session TTL. 3) Enumerate VPCs, subnets, EC2 instances, and RDS databases using paginated AWS SDK Describe API calls with exponential jitter backoff. 4) For each active EC2 compute instance, query AWS Secrets Manager for guest OS SSH key. 5) Dispatch concurrent SSH probe threads via MID thread pool. 6) Aggregate inventory JSON, compress with GZIP, and stream input record back to ECC Queue.",
+        "class_design": {
+          "classes": [
+            {
+              "methods": [
+                "collectAccount(accountId: String, region: String): DiscoveryResult",
+                "discoverEc2Topology(ec2Client: Ec2Client): List<Ec2InstanceData>",
+                "executeGuestProbe(ip: String, cred: SshKey): HostManifest"
+              ],
+              "class_name": "AwsCloudDiscoveryCollector",
+              "attributes": [
+                "stsClient: StsClient",
+                "secretsBroker: AwsSecretsBroker",
+                "threadPool: ThreadPoolExecutor"
+              ],
+              "design_patterns_used": [
+                "Worker Thread Pool",
+                "Adapter Pattern",
+                "Template Method"
+              ]
+            }
+          ],
+          "diagram": {
+            "notation_standard": "UML",
+            "file_reference": "architecture/diagrams/uml_class_aws_mid.png",
+            "description": "UML Class diagram depicting AwsCloudDiscoveryCollector, credential brokers, and execution worker threads.",
+            "title": "AWS MID Collector Class Diagram",
+            "diagram_type": "class",
+            "diagram_id": "CD-AWS-MID-02"
+          }
+        },
+        "configuration_parameters": [
+          {
+            "description": "Long polling interval in seconds between MID daemon checks for ECC Queue tasks",
+            "default_value": "2",
+            "name": "mid.poll.time",
+            "type": "Integer"
+          },
+          {
+            "name": "mid.aws.max_concurrent_account_scans",
+            "default_value": "10",
+            "type": "Integer",
+            "description": "Maximum number of AWS accounts scanned simultaneously by a single MID instance"
+          },
+          {
+            "name": "mid.property.ssh.connection_timeout_ms",
+            "type": "Integer",
+            "default_value": "15000",
+            "description": "SSH TCP socket connection timeout in milliseconds for guest OS probes"
+          }
+        ],
+        "description": "Clustered Java MID Server daemon running on Amazon Linux 2023 EC2 instances in an Auto Scaling Group across multiple AWS Availability Zones. Polling the ServiceNow ECC Queue over outbound TLS 1.3, it executes AWS Cloud Discovery via IAM cross-account AssumeRole, fetches secrets dynamically from AWS Secrets Manager VPC Endpoints, and interrogates EC2 guest operating systems.",
+        "code_standards_reference": "Oracle Java SE 17 Coding Standards, AWS Well-Architected SDK guidelines, and CIS Amazon Linux 2023 Benchmark",
+        "sequence_flows": [
+          {
+            "description": "Orchestrates cross-account IAM role assumption, AWS resource querying, guest OS secret retrieval, and payload delivery to ServiceNow SaaS.",
+            "diagram_type": "sequence",
+            "diagram_id": "seq-aws-cloud-mid-discovery",
+            "title": "AWS Cloud MID Cross-Account Discovery Flow",
+            "steps": [
+              {
+                "message": "discoverAccount(accountId=\"123456789012\", targetRegion=\"us-east-1\")",
+                "is_async": false,
+                "is_return": false,
+                "to_participant": "AWSCloudDiscoveryProvider",
+                "from_participant": "AWSCloudMIDDaemon",
+                "notes": "Triggered by ECC Queue output task",
+                "step_number": 1
+              },
+              {
+                "is_async": false,
+                "notes": "Assumes cross-account discovery IAM role",
+                "is_return": false,
+                "step_number": 2,
+                "message": "sts:AssumeRole(RoleArn=\"arn:aws:iam::123456789012:role/SNOWDiscovery\")",
+                "from_participant": "AWSCloudDiscoveryProvider",
+                "to_participant": "AWS Cloud APIs"
+              },
+              {
+                "step_number": 3,
+                "is_async": false,
+                "message": "return AssumedRoleUser & SessionCredentials",
+                "is_return": true,
+                "to_participant": "AWSCloudDiscoveryProvider",
+                "notes": "Returns temporary AWS STS access token",
+                "from_participant": "AWS Cloud APIs"
+              },
+              {
+                "message": "ec2:DescribeInstances() & ec2:DescribeNetworkInterfaces()",
+                "step_number": 4,
+                "from_participant": "AWSCloudDiscoveryProvider",
+                "is_return": false,
+                "is_async": false,
+                "notes": "Queries compute and network infrastructure",
+                "to_participant": "AWS Cloud APIs"
+              },
+              {
+                "notes": "Returns JSON structure of instances, interfaces, and subnets",
+                "is_async": false,
+                "to_participant": "AWSCloudDiscoveryProvider",
+                "is_return": true,
+                "from_participant": "AWS Cloud APIs",
+                "message": "return EC2 Reservations and Network Topology",
+                "step_number": 5
+              },
+              {
+                "is_async": false,
+                "notes": "Requests guest OS credential for deep inspection",
+                "message": "retrieveSecretInMem(secretId=\"snow/ec2/guest_key\")",
+                "from_participant": "AWSCloudMIDDaemon",
+                "step_number": 6,
+                "is_return": false,
+                "to_participant": "AWSSecretsManagerBroker"
+              },
+              {
+                "is_async": false,
+                "step_number": 7,
+                "from_participant": "AWSSecretsManagerBroker",
+                "to_participant": "AWS Secrets Manager",
+                "message": "secretsmanager:GetSecretValue(SecretId=\"snow/ec2/guest_key\")",
+                "notes": "Executed via Private VPC Endpoint (AWS PrivateLink)",
+                "is_return": false
+              },
+              {
+                "from_participant": "AWS Secrets Manager",
+                "is_async": false,
+                "to_participant": "AWSSecretsManagerBroker",
+                "is_return": true,
+                "message": "return SecretString in memory",
+                "step_number": 8,
+                "notes": "Decrypted in memory only"
+              },
+              {
+                "is_async": false,
+                "step_number": 9,
+                "is_return": true,
+                "notes": "Delivered to MID worker thread for SSH probe execution",
+                "to_participant": "AWSCloudMIDDaemon",
+                "message": "return DecryptedCredentials in heap",
+                "from_participant": "AWSSecretsManagerBroker"
+              }
+            ],
+            "participants": [
+              "AWSCloudMIDDaemon",
+              "AWSCloudDiscoveryProvider",
+              "AWS Cloud APIs",
+              "AWSSecretsManagerBroker",
+              "AWS Secrets Manager"
+            ],
+            "file_reference": ""
+          }
+        ],
+        "scope_and_operational_boundaries": "Responsible for AWS cloud API discovery and guest OS interrogation of cloud compute instances within customer AWS accounts. It is NOT responsible for on-premises datacenter scanning or CMDB reconciliation.",
+        "logging_and_monitoring": {
+          "log_levels": [
+            "ERROR",
+            "WARN",
+            "INFO",
+            "DEBUG"
+          ],
+          "alerting_rules": [
+            "MID JVM heap usage > 85% for > 5 minutes triggers CloudWatch alarm and AWS SSM auto-restart",
+            "MID heartbeat dropped for > 60 seconds triggers cluster failover rebalance"
+          ],
+          "monitored_metrics": [
+            "mid.jvm.memory_used_mb",
+            "mid.aws.api_calls_count",
+            "mid.probe.active_threads",
+            "mid.queue.processing_duration_ms"
+          ]
+        },
+        "unit_test_strategy": "JUnit 5 and Mockito test suites mocking AWS Java SDK v2 client calls (EC2, STS, Secrets Manager). Tests validate STS AssumeRole failure handling, rate-limiting retry exponential backoff, private IP probe timeouts, credential caching eviction, and payload compression integrity.",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "Enterprise Credential Vault Gateway",
+          "Hybrid Target Infrastructure & Workloads"
+        ],
+        "error_handling_strategy": "Transient AWS API throttling (HTTP 429 / ThrottlingException) triggers automated backoff up to 5 retries with randomized jitter; unreachable EC2 guest private IPs fail gracefully with partial inventory status without halting cloud topology ingestion.",
+        "responsibilities": [
+          "Long-poll ServiceNow ECC Queue over outbound HTTPS for pending cloud discovery jobs",
+          "Perform AWS Cloud Discovery across member accounts via IAM cross-account role assumption",
+          "Query AWS Cloud Control Plane APIs for VPC, subnet, EC2, and RDS configuration items",
+          "Retrieve ephemeral guest OS credentials from AWS Secrets Manager via PrivateLink VPC endpoints",
+          "Execute agentless SSH/WinRM deep discovery probes against AWS EC2 instances and stream payloads to ECC Queue"
+        ],
+        "api_specifications": [
+          {
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"Action\", \"Version\"], \"properties\": {\"Action\": {\"type\": \"string\"}, \"Version\": {\"type\": \"string\"}, \"RoleArn\": {\"type\": \"string\"}}}",
+            "protocol": "REST",
+            "interface_name": "AWS Systems Manager & STS Integration Interface",
+            "error_handling": "AWS RequestLimitExceeded backoff using jittered exponential backoff; AccessDeniedException logs security audit error and halts schedule partition.",
+            "authentication": "AWS SigV4 Authentication using EC2 Instance Metadata Service v2 (IMDSv2) Attached IAM Role",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"Credentials\"], \"properties\": {\"Credentials\": {\"type\": \"object\", \"required\": [\"AccessKeyId\", \"SecretAccessKey\", \"SessionToken\", \"Expiration\"]}}}",
+            "contract_reference": "AWS Java SDK v2 (EC2 / RDS / STS / SecretsManager APIs)",
+            "versioning_strategy": "AWS SDK Client Version Pinning (AWS SDK 2.25.x)"
+          }
+        ],
+        "module_name": "sn_mid_aws_cloud_collector",
+        "technology_stack": [
+          "Amazon Linux 2023 / EC2 (m6i.xlarge) in AWS Auto Scaling Group",
+          "Eclipse Temurin OpenJDK 17 64-Bit Runtime",
+          "AWS Systems Manager (SSM Agent)",
+          "ServiceNow MID Server Daemon v24+"
+        ]
+      },
+      {
+        "code_standards_reference": "Java SE 17 enterprise standards, VMware vSphere API SDK integration standards, Red Hat Enterprise Linux 9 security baselines",
+        "description": "High-availability cluster of dedicated MID Servers deployed on VMware vSphere infrastructure across redundant physical server racks. Responsible for Shazzam IP range scanning, deep interrogation via SSH, WinRM, WMI, and SNMPv3, VMware vCenter hypervisor mapping, and dynamic credential retrieval from CyberArk Central Credential Provider (CCP).",
+        "api_specifications": [
+          {
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"AppId\", \"Safe\"], \"properties\": {\"AppId\": {\"type\": \"string\"}, \"Safe\": {\"type\": \"string\"}, \"Folder\": {\"type\": \"string\"}, \"UserName\": {\"type\": \"string\"}, \"Address\": {\"type\": \"string\"}}}",
+            "interface_name": "CyberArk Central Credential Provider Web Service API",
+            "error_handling": "HTTP 404 Account Not Found logs warning and skips target; HTTP 403 Forbidden triggers immediate security alert; HTTP 500 triggers local fallback cache if unexpired.",
+            "authentication": "Mutual TLS (mTLS) with Enterprise PKI Client Certificate issued to MID Server host",
+            "contract_reference": "CyberArk AIMWebService v13.2",
+            "versioning_strategy": "REST endpoint query parameter versioning (/AIMWebService/api/Accounts)",
+            "protocol": "REST",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"Content\", \"Address\", \"UserName\"], \"properties\": {\"Content\": {\"type\": \"string\"}, \"Address\": {\"type\": \"string\"}, \"UserName\": {\"type\": \"string\"}, \"Passphrase\": {\"type\": \"string\"}, \"File\": {\"type\": \"string\"}}}"
+          }
+        ],
+        "responsibilities": [
+          "Long-poll ServiceNow ECC Queue over outbound TLS 1.3 via corporate proxy for datacenter discovery schedules",
+          "Execute multi-threaded Shazzam TCP/UDP port sweeps across datacenter CIDR blocks",
+          "Classify discovered IP endpoints into target device classes (Linux, Windows, Network, Storage)",
+          "Dynamically retrieve target administrative credentials from CyberArk CCP using client certificates",
+          "Interrogate target physical servers, hypervisors, and network appliances via SSH, WinRM, WMI, and SNMPv3",
+          "Transmit compressed, credential-sanitized discovery payloads to ServiceNow ECC Queue"
+        ],
+        "technology_stack": [
+          "Red Hat Enterprise Linux 9 / Windows Server 2022 on VMware vSphere 8.0",
+          "Eclipse Temurin OpenJDK 17 64-Bit Runtime",
+          "CyberArk Central Credential Provider (CCP) SDK",
+          "ServiceNow MID Server Daemon v24+"
+        ],
+        "unit_test_strategy": "JUnit 5, WireMock (for CyberArk CCP and ServiceNow ECC Queue simulation), and embedded Apache SSHD test server. Tests cover CIDR boundary validation, port scanner timeout handling, mTLS handshake errors, transient credential cache expiration, and pattern parsing under malformed command output.",
+        "logging_and_monitoring": {
+          "alerting_rules": [
+            "CyberArk lookup failure rate > 5% triggers immediate P2 alert to Identity Operations",
+            "MID cluster thread pool exhaustion (> 90% busy for 10 min) alerts ITOM admin"
+          ],
+          "log_levels": [
+            "ERROR",
+            "WARN",
+            "INFO",
+            "DEBUG"
+          ],
+          "monitored_metrics": [
+            "mid.onprem.active_scans_count",
+            "mid.cyberark.lookup_latency_ms",
+            "mid.snmp.packet_drop_rate",
+            "mid.shazzam.sweep_rate_ips_per_sec"
+          ]
+        },
+        "error_handling_strategy": "Network port unreachable logs TCP timeout and marks IP skipped; CyberArk CCP timeout falls back to secondary CCP cluster node; credential failure halts deep probe for target IP and generates 'Authentication Failure' incident record in ServiceNow.",
+        "class_design": {
+          "classes": [
+            {
+              "attributes": [
+                "shazzamScanner: PortScanner",
+                "cyberArkAdapter: CyberArkClient",
+                "eccSender: EccQueueSender"
+              ],
+              "design_patterns_used": [
+                "Producer-Consumer",
+                "Facade Pattern",
+                "State Pattern"
+              ],
+              "class_name": "DatacenterDiscoveryCollector",
+              "methods": [
+                "executeRangeSweep(range: SubnetCidr): SweepSummary",
+                "probeHost(target: HostTarget): DiscoveryPayload",
+                "maskCredentials(rawOutput: String): String"
+              ]
+            }
+          ],
+          "diagram": {
+            "file_reference": "architecture/diagrams/uml_class_dc_mid.png",
+            "diagram_type": "class",
+            "title": "Datacenter MID Collector Class Diagram",
+            "diagram_id": "CD-DC-MID-03",
+            "description": "UML Class diagram showing DatacenterDiscoveryCollector integrating Shazzam port scanner and CyberArk credential adapter.",
+            "notation_standard": "UML"
+          }
+        },
+        "key_design_decisions": [
+          "Distribute MID Server VMs across separate physical ESXi hosts and server racks with VMware HA and anti-affinity rules to provide high availability.",
+          "Integrate with CyberArk CCP via mTLS to pull credentials into volatile memory at runtime, avoiding credential caching on local disk."
+        ],
+        "component_name": "On-Premises Datacenter MID Server Cluster",
+        "pseudocode_reference": "function sweepAndDiscover(cidrRange):\\n  openPorts = shazzamSweep(cidrRange, [22, 135, 445, 5985, 161])\\n  for host in openPorts:\\n    cred = cyberArkClient.getCredential(host.ip, host.protocol)\\n    diagOutput = executePattern(host.ip, host.protocol, cred)\\n    scrubbed = maskSecrets(diagOutput)\\n    eccQueue.send(scrubbed)",
+        "scope_and_operational_boundaries": "Responsible for physical and virtual datacenter infrastructure scanning within corporate on-premises subnets. It is NOT responsible for AWS cloud resource discovery or ServiceNow CMDB table writes.",
+        "module_name": "sn_mid_onprem_datacenter_collector",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "Enterprise Credential Vault Gateway",
+          "Hybrid Target Infrastructure & Workloads"
+        ],
+        "configuration_parameters": [
+          {
+            "name": "mid.shazzam.threads",
+            "type": "Integer",
+            "description": "Concurrent socket threads used during initial Shazzam IP range sweep",
+            "default_value": "100"
+          },
+          {
+            "type": "Integer",
+            "name": "mid.snmp.timeout_ms",
+            "description": "SNMPv3 response timeout in milliseconds before port retry is abandoned",
+            "default_value": "5000"
+          },
+          {
+            "description": "Duration in seconds to hold retrieved credentials in volatile JVM memory before purge",
+            "type": "Integer",
+            "name": "mid.cyberark.cache_duration_sec",
+            "default_value": "60"
+          }
+        ],
+        "sequence_flows": [
+          {
+            "diagram_type": "sequence",
+            "description": "Illustrates datacenter IP range sweeping, CyberArk credential checkout, and deep host interrogation.",
+            "steps": [
+              {
+                "notes": "Scans defined IP range for listening ports",
+                "message": "Shazzam TCP SYN Sweep (Ports: 22, 135, 445, 5985, UDP 161)",
+                "from_participant": "DatacenterMIDDaemon",
+                "to_participant": "Core Network & Storage Appliances",
+                "is_async": false,
+                "is_return": false,
+                "step_number": 1
+              },
+              {
+                "notes": "Port 22 SSH identified as open",
+                "is_return": true,
+                "from_participant": "Core Network & Storage Appliances",
+                "to_participant": "DatacenterMIDDaemon",
+                "is_async": false,
+                "message": "return TCP SYN-ACK / SNMP Response (Host Active at 10.200.10.45)",
+                "step_number": 2
+              },
+              {
+                "step_number": 3,
+                "notes": "Requests dynamic SSH key from CyberArk adapter",
+                "is_return": false,
+                "message": "getAccountCredentials(TargetIP=\"10.200.10.45\", Type=\"SSH\")",
+                "is_async": false,
+                "from_participant": "DatacenterMIDDaemon",
+                "to_participant": "CyberArkCCPAdapter"
+              },
+              {
+                "notes": "Authenticated via Client TLS Certificate (mTLS)",
+                "message": "GET /AIMWebService/api/Accounts?AppId=SNOW_MID&Safe=PROD_DC_UNIX&Object=root_10.200.10.45",
+                "is_async": false,
+                "is_return": false,
+                "to_participant": "CyberArk Enterprise Password Vault (CCP)",
+                "step_number": 4,
+                "from_participant": "CyberArkCCPAdapter"
+              },
+              {
+                "is_return": true,
+                "from_participant": "CyberArk Enterprise Password Vault (CCP)",
+                "message": "200 OK (return ephemeral SSH private key string in-memory)",
+                "to_participant": "CyberArkCCPAdapter",
+                "notes": "Supplies single-use credential string",
+                "step_number": 5,
+                "is_async": false
+              },
+              {
+                "is_return": true,
+                "from_participant": "CyberArkCCPAdapter",
+                "step_number": 6,
+                "is_async": false,
+                "to_participant": "DatacenterMIDDaemon",
+                "message": "injectCredentials(ephemeralKey)",
+                "notes": "Injects key into memory with zero disk persistence"
+              },
+              {
+                "is_async": false,
+                "is_return": false,
+                "step_number": 7,
+                "from_participant": "DatacenterMIDDaemon",
+                "message": "SSH Connect (22) and run dmidecode, lspci, rpm -qa --queryformat",
+                "to_participant": "Target Host Operating Systems",
+                "notes": "Executes pattern commands for hardware specs and software list"
+              },
+              {
+                "is_return": true,
+                "message": "return Hardware serial, chassis type, and installed RPM manifests",
+                "from_participant": "Target Host Operating Systems",
+                "to_participant": "DatacenterMIDDaemon",
+                "step_number": 8,
+                "is_async": false,
+                "notes": "Raw command stdout streamed back over SSH"
+              }
+            ],
+            "title": "On-Premises Shazzam Sweep and Deep OS Discovery",
+            "diagram_id": "seq-onprem-datacenter-probing",
+            "file_reference": "",
+            "participants": [
+              "DatacenterMIDDaemon",
+              "CyberArkCCPAdapter",
+              "CyberArk Enterprise Password Vault (CCP)",
+              "Core Network & Storage Appliances",
+              "Target Host Operating Systems"
+            ]
+          }
+        ],
+        "algorithm_details": "Datacenter Discovery and Shazzam Sweep Algorithm: 1) Receive IP CIDR range from ECC Queue. 2) Spawn asynchronous socket sweep threads (Shazzam) to ping target ports (TCP 22, 135, 445, 5985, UDP 161). 3) For responsive IP addresses, classify device type based on port profile (SSH -> Linux/Unix, WMI/WinRM -> Windows, SNMP -> Network/Storage). 4) Request target administrative credentials from CyberArk CCP over mTLS REST endpoint. 5) Retain credential in ephemeral JVM memory with 60-second TTL. 6) Execute deep diagnostic patterns (dmidecode, lspci, rpm -qa, Get-WmiObject). 7) Parse pattern results, scrub sensitive strings, encrypt, and push to ECC Queue."
+      },
+      {
+        "configuration_parameters": [
+          {
+            "name": "vault.mtls.enforce_strict_crl",
+            "type": "Boolean",
+            "default_value": "true",
+            "description": "Mandate Certificate Revocation List (CRL) check on every MID client connection"
+          },
+          {
+            "description": "Maximum valid lifetime in seconds for temporary discovery session tokens",
+            "type": "Integer",
+            "name": "vault.access.session_ttl_sec",
+            "default_value": "120"
+          }
+        ],
+        "technology_stack": [
+          "CyberArk Enterprise Password Vault & Central Credential Provider (CCP) v13+ Elastic Clustered Pool",
+          "AWS Secrets Manager Elastic Auto-Scaling Serverless VPC Endpoints (AWS PrivateLink)",
+          "F5 BIG-IP Local Traffic Manager (LTM) Clustered Load Balancer Pair",
+          "Mutual TLS (mTLS) with Enterprise PKI Client Certificates"
+        ],
+        "responsibilities": [
+          "Authenticate MID Server requests using mTLS client certificates (on-premises) and IAM SigV4 (AWS)",
+          "Enforce IP allow-listing and safe/secret authorization policies",
+          "Retrieve ephemeral administrative credentials from CyberArk Vault and AWS Secrets Manager",
+          "Stream CEF-formatted audit events to enterprise SIEM for every credential checkout",
+          "Coordinate credential rotation schedules with ServiceNow discovery maintenance windows"
+        ],
+        "scope_and_operational_boundaries": "Responsible for secure credential storage, dynamic retrieval, and audit logging. It does NOT initiate discovery scans or execute commands on target infrastructure.",
+        "class_design": {
+          "classes": [
+            {
+              "design_patterns_used": [
+                "Proxy Pattern",
+                "Decorator Pattern",
+                "Chain of Responsibility"
+              ],
+              "attributes": [
+                "pkiValidator: CertificateValidator",
+                "ipFilter: SubnetFilter",
+                "vaultConnectorPool: ConnectionPool"
+              ],
+              "methods": [
+                "authenticateCaller(cert: X509Certificate, ip: InetAddress): boolean",
+                "fetchSecret(safe: String, target: String): EphemeralSecret",
+                "logAuditEvent(event: AuditEvent): void"
+              ],
+              "class_name": "CredentialVaultGatewayService"
+            }
+          ],
+          "diagram": {
+            "description": "UML Class diagram detailing authentication filters, connection pools, and secret retrieval proxies.",
+            "file_reference": "architecture/diagrams/uml_class_vault_gateway.png",
+            "diagram_type": "class",
+            "diagram_id": "CD-VAULT-04",
+            "notation_standard": "UML",
+            "title": "Credential Vault Gateway Class Diagram"
+          }
+        },
+        "logging_and_monitoring": {
+          "log_levels": [
+            "CRITICAL",
+            "ERROR",
+            "WARN",
+            "INFO"
+          ],
+          "alerting_rules": [
+            "Authentication failure count > 3 within 1 minute generates P1 security incident in ServiceNow SecOps",
+            "Vault backend latency > 1000ms triggers performance degradation alert"
+          ],
+          "monitored_metrics": [
+            "vault.auth.success_count",
+            "vault.auth.failure_count",
+            "vault.secret.checkout_latency_ms",
+            "vault.rotation.status"
+          ]
+        },
+        "description": "Centralized credential governance and dynamic brokering service unifying CyberArk Central Credential Provider (on-premises) in an active-active clustered pool and AWS Secrets Manager (AWS cloud) via PrivateLink VPC endpoints. Enforces automated credential rotation, strict mTLS/IAM authentication, IP allow-listing, and audit logging for all MID Server discovery requests.",
+        "sequence_flows": [
+          {
+            "description": "Validates MID Server client certificate, queries target secret from CyberArk/AWS Secrets Manager, and emits audit event to enterprise SIEM.",
+            "diagram_id": "seq-vault-access-validation",
+            "participants": [
+              "Enterprise Credential Vault Gateway",
+              "VaultAuthenticationGate",
+              "CyberArk Enterprise Password Vault (CCP)",
+              "AWS Secrets Manager"
+            ],
+            "diagram_type": "sequence",
+            "file_reference": "",
+            "title": "Credential Vault Dynamic Check-out and SIEM Audit Flow",
+            "steps": [
+              {
+                "message": "validateCaller(clientCert, clientIpAddress)",
+                "from_participant": "Enterprise Credential Vault Gateway",
+                "notes": "Checks certificate validity and IP subnet allowlist",
+                "is_async": false,
+                "step_number": 1,
+                "to_participant": "VaultAuthenticationGate",
+                "is_return": false
+              },
+              {
+                "is_return": true,
+                "message": "return ValidationResult(AUTHORIZED=true, Safe=\"DC_PROD\")",
+                "is_async": false,
+                "to_participant": "Enterprise Credential Vault Gateway",
+                "from_participant": "VaultAuthenticationGate",
+                "step_number": 2,
+                "notes": "Caller verified as registered MID Server node"
+              },
+              {
+                "notes": "Direct API query to CyberArk CCP instance",
+                "from_participant": "Enterprise Credential Vault Gateway",
+                "is_return": false,
+                "is_async": false,
+                "to_participant": "CyberArk Enterprise Password Vault (CCP)",
+                "message": "fetchSecret(AppId=\"SNOW_MID\", Safe=\"DC_PROD\", Object=\"target\")",
+                "step_number": 3
+              },
+              {
+                "is_async": false,
+                "message": "return EncryptedSecretObject",
+                "is_return": true,
+                "to_participant": "Enterprise Credential Vault Gateway",
+                "notes": "Delivers secret value over TLS 1.3",
+                "step_number": 4,
+                "from_participant": "CyberArk Enterprise Password Vault (CCP)"
+              },
+              {
+                "is_async": true,
+                "step_number": 5,
+                "to_participant": "Enterprise Credential Vault Gateway",
+                "notes": "Streamed via Syslog TLS to Splunk / Sentinel SIEM",
+                "message": "emitSIEMLog(actor=\"mid.server.01\", action=\"CHECKOUT\", safe=\"DC_PROD\", target=\"10.200.10.45\")",
+                "from_participant": "Enterprise Credential Vault Gateway",
+                "is_return": false
+              }
+            ]
+          }
+        ],
+        "pseudocode_reference": "function checkoutCredential(clientCert, clientIp, safeName, targetId):\\n  if not pkiValidator.verify(clientCert) or not ipWhitelist.contains(clientIp):\\n    auditLog.emit('UNAUTHORIZED_ACCESS', clientIp)\\n    throw SecurityException('Forbidden')\\n  secret = backendVault.retrieve(safeName, targetId)\\n  auditLog.emit('CHECKOUT_SUCCESS', clientIp, targetId)\\n  return encryptInTransit(secret, clientCert)",
+        "key_design_decisions": [
+          "Unify on-premises and cloud credential retrieval behind standard HTTPS REST interfaces tailored to each environment's native security model.",
+          "Enforce memory-only credential lifecycle with zero host file system persistence and strict session TTLs."
+        ],
+        "api_specifications": [
+          {
+            "contract_reference": "Enterprise Vault Gateway API v2.0",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"secretContent\", \"expiresInSeconds\"], \"properties\": {\"secretContent\": {\"type\": \"string\"}, \"expiresInSeconds\": {\"type\": \"integer\"}, \"rotationId\": {\"type\": \"string\"}}}",
+            "error_handling": "HTTP 401 Unauthorized on invalid certificate; HTTP 403 Forbidden on safe policy violation; HTTP 404 Account Not Found; detailed error log dispatched to SIEM.",
+            "interface_name": "Enterprise Dynamic Secret Brokering API",
+            "protocol": "REST",
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"safeName\", \"targetIdentifier\"], \"properties\": {\"safeName\": {\"type\": \"string\"}, \"targetIdentifier\": {\"type\": \"string\"}, \"credentialType\": {\"type\": \"string\", \"enum\": [\"SSH\", \"WINRM\", \"SNMPV3\"]}}}",
+            "authentication": "Mutual TLS (mTLS) with Enterprise Root CA verification and AWS IAM SigV4 cross-account delegation",
+            "versioning_strategy": "HTTP Header API Versioning (X-Vault-API-Version: 2.0)"
+          }
+        ],
+        "code_standards_reference": "NIST SP 800-57 Part 1 Rev 5 Recommendation for Key Management, CIS Benchmark for Privileged Access Management",
+        "error_handling_strategy": "Revoked client certificates trigger immediate connection termination, IP blacklisting, and high-severity SOC alert; backend vault connection drops invoke retry across secondary vault cluster node before returning HTTP 503.",
+        "algorithm_details": "Dynamic Credential Resolution and Validation Algorithm: 1) Accept incoming credential checkout REST request from MID Server. 2) Validate caller mTLS client certificate against Enterprise PKI and check IP address against allowed MID Server subnet pool. 3) Verify caller authorization for requested Safe and Target Object. 4) Issue synchronous HTTPS request to CyberArk Central Credential Provider (on-premises) or AWS Secrets Manager (cloud). 5) Stream encrypted secret directly to caller over TLS 1.3 session with no disk persistence. 6) Asynchronously construct and emit Common Event Format (CEF) audit event to enterprise SIEM.",
+        "dependencies": [],
+        "module_name": "sec_enterprise_vault_gateway",
+        "component_name": "Enterprise Credential Vault Gateway",
+        "unit_test_strategy": "Automated security unit testing using Mockito and Spock Framework. Test suites validate CRL certificate revocation enforcement, IP spoofing rejection, safe permission checks, backend timeout failover to secondary vault nodes, and SIEM CEF audit log schema validation."
+      },
+      {
+        "module_name": "sn_itam_sync_engine",
+        "error_handling_strategy": "Missing hardware model mappings route to Hardware Model Anomaly queue; unnormalized software packages are flagged as 'Unnormalized' and uploaded securely to ServiceNow Content Service for automated rule synthesis.",
+        "component_name": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+        "class_design": {
+          "diagram": {
+            "file_reference": "architecture/diagrams/uml_class_itam_sync.png",
+            "diagram_id": "CD-ITAM-05",
+            "title": "ITAM Synchronization Engine Class Diagram",
+            "notation_standard": "UML",
+            "diagram_type": "class",
+            "description": "UML Class diagram illustrating ITAM synchronization manager coordinating HAM hardware synchronization and SAM software normalization."
+          },
+          "classes": [
+            {
+              "attributes": [
+                "hamSyncHandler: HardwareAssetSynchronizer",
+                "samNormalizeHandler: SoftwareNormalizer",
+                "reconciliationEngine: LicenseReconciliationService"
+              ],
+              "methods": [
+                "handleCiEvent(event: CIMutationEvent): void",
+                "syncHardware(ciSysId: SysId): SysId",
+                "normalizeSoftware(ciSysId: SysId, rawPackages: List<String>): NormalizationSummary"
+              ],
+              "design_patterns_used": [
+                "Observer Pattern",
+                "Strategy Pattern",
+                "Mediator Pattern"
+              ],
+              "class_name": "ItamSynchronizationManager"
+            }
+          ]
+        },
+        "algorithm_details": "Asset Synchronization and Software Normalization Algorithm: 1) Consume CI mutation events from IRE bus. 2) For hardware CIs, query alm_hardware by serial number / CI sys_id. If found, synchronize operational status, model, chassis, and asset tag; if absent and auto-create enabled, generate new alm_hardware record. 3) For software packages, filter out entries flagged with transient container IDs. 4) Tokenize raw package string into publisher, product, version, and edition candidates. 5) Query ServiceNow Content Service rules library. If match identified, apply normalized taxonomy to cmdb_sam_sw_install. If unnormalized, queue record for Content Service crowdsourced rule synthesis. 6) Trigger SAM Pro reconciliation to recalculate compliance positions against alm_license.",
+        "pseudocode_reference": "function onCiMutation(ciSysId, eventType, attributes):\\n  if attributes.isHardware:\\n    syncHardwareAsset(ciSysId, attributes.serialNumber, attributes.modelId)\\n  if attributes.hasSoftwareInstalls:\\n    for sw in attributes.softwareList:\\n      if not isContainerWorkload(sw):\\n        normalized = contentService.normalize(sw.rawString)\\n        persistSwInstall(ciSysId, normalized)\\n    triggerLicenseReconciliation()",
+        "responsibilities": [
+          "Listen for IRE CI reconciliation events and automatically synchronize alm_hardware lifecycle records",
+          "Synchronize serial numbers, asset tags, models, chassis, and operational statuses between CMDB and HAM",
+          "Filter out ephemeral container noise (EKS/ECS) to protect SAM tables from transient installation records",
+          "Execute Content Service machine learning tokenization to normalize software publishers, products, versions, and editions",
+          "Reconcile normalized software installs against alm_license entitlements and calculate cloud BYOL license metrics"
+        ],
+        "configuration_parameters": [
+          {
+            "name": "glide.itam.ham.auto_create_asset_on_ci_insert",
+            "type": "Boolean",
+            "default_value": "true",
+            "description": "Automatically create an alm_hardware asset record when a new hardware CI is created via Discovery"
+          },
+          {
+            "default_value": "true",
+            "name": "glide.itam.sam.exclude_ephemeral_container_installs",
+            "type": "Boolean",
+            "description": "Filter out software packages running inside transient containers (EKS/ECS) from polluting cmdb_sam_sw_install"
+          },
+          {
+            "type": "Boolean",
+            "description": "Participate in ServiceNow Content Service crowdsourced software normalization rule library",
+            "name": "glide.itam.sam.content_service.opt_in",
+            "default_value": "true"
+          }
+        ],
+        "technology_stack": [
+          "ServiceNow Hardware Asset Management (HAM Pro) Plugin on Multi-Node Application Pool",
+          "ServiceNow Software Asset Management (SAM Pro) Plugin with Distributed Engine",
+          "ServiceNow Content Service Machine Learning Normalization Engine with Elastic Worker Queue"
+        ],
+        "key_design_decisions": [
+          "Decouple CMDB CI updates from ITAM lifecycle processing via asynchronous event triggers (publishCIMutationEvent) to ensure high IRE ingestion performance.",
+          "Implement container installation filtering at the ingestion boundary to prevent SAM table pollution and license compliance distortion."
+        ],
+        "description": "Integrated Asset Management processing engine operating within ServiceNow SaaS multi-node cluster. Consumes reconciled CMDB CI events from the IRE, manages hardware asset lifecycles (alm_hardware) with chassis, serial, and model synchronization, normalizes installed software (cmdb_sam_sw_install) via the ServiceNow Content Library, and reconciles software entitlements (alm_license) including AWS cloud licensing models.",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE"
+        ],
+        "sequence_flows": [
+          {
+            "diagram_type": "sequence",
+            "file_reference": "",
+            "steps": [
+              {
+                "is_return": false,
+                "message": "publishCIMutationEvent(ciSysId=\"a7f8e3...\", event=\"CI_RECONCILED\", ciClass=\"cmdb_ci_server\")",
+                "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "step_number": 1,
+                "notes": "Triggered via ServiceNow Script Action / Event Bus",
+                "is_async": true,
+                "from_participant": "ServiceNow ITOM Discovery Engine & IRE"
+              },
+              {
+                "message": "syncDiscoveredHardware(ciSysId, hardwareSpecs={serial:\"CZ1048K\", model:\"ProLiant DL380\"})",
+                "is_return": false,
+                "is_async": false,
+                "to_participant": "HAMLifecycleSynchronizer",
+                "from_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "step_number": 2,
+                "notes": "Invokes hardware synchronizer"
+              },
+              {
+                "is_async": false,
+                "from_participant": "HAMLifecycleSynchronizer",
+                "notes": "Updates or inserts alm_hardware record",
+                "step_number": 3,
+                "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "message": "updateAlmHardware(serial_number, model, install_status=\"In Use\")",
+                "is_return": false
+              },
+              {
+                "message": "return alm_hardware record sys_id=\"b9921c...\"",
+                "notes": "Confirms hardware asset persistence",
+                "from_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "to_participant": "HAMLifecycleSynchronizer",
+                "is_async": false,
+                "is_return": true,
+                "step_number": 4
+              },
+              {
+                "notes": "Sends package names to normalizer",
+                "is_async": false,
+                "from_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "step_number": 5,
+                "to_participant": "SAMSoftwareNormalizer",
+                "message": "normalizeInstalledPackages(ciSysId, packageList=[\"Oracle Database 19c Enterprise\", \"Red Hat Enterprise Linux 9\"])",
+                "is_return": false
+              },
+              {
+                "step_number": 6,
+                "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+                "is_return": true,
+                "is_async": false,
+                "notes": "Updates cmdb_sam_sw_install with normalized tags",
+                "message": "return NormalizationStatus(NormalizedPublisher=\"Oracle\", NormalizedEdition=\"Enterprise\", Metric=\"Per Core\")",
+                "from_participant": "SAMSoftwareNormalizer"
+              }
+            ],
+            "title": "CMDB to HAM/SAM Asset Lifecycle Synchronization Flow",
+            "participants": [
+              "ServiceNow ITOM Discovery Engine & IRE",
+              "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+              "HAMLifecycleSynchronizer",
+              "SAMSoftwareNormalizer"
+            ],
+            "diagram_id": "seq-itam-lifecycle-sync",
+            "description": "Executes when IRE confirms a CI mutation, updating alm_hardware lifecycle and triggering SAM software normalization."
+          }
+        ],
+        "api_specifications": [
+          {
+            "contract_reference": "Scripted REST API /api/sn_itam/v1/sync_asset",
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"ci_sys_id\", \"sync_scope\"], \"properties\": {\"ci_sys_id\": {\"type\": \"string\"}, \"sync_scope\": {\"type\": \"string\", \"enum\": [\"HAM\", \"SAM\", \"ALL\"]}, \"force_normalization\": {\"type\": \"boolean\"}}}",
+            "error_handling": "Asset reconciliation mismatch logs an asset anomaly task; software normalization rule missing queues record for Content Service Machine Learning analysis.",
+            "interface_name": "ServiceNow ITAM Asset Synchronization Internal Bus",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"hardware_asset_id\", \"software_installs_normalized\"], \"properties\": {\"hardware_asset_id\": {\"type\": \"string\"}, \"software_installs_normalized\": {\"type\": \"integer\"}, \"compliance_status\": {\"type\": \"string\"}}}",
+            "protocol": "REST",
+            "versioning_strategy": "Internal Scoped API Versioning",
+            "authentication": "ServiceNow Internal Session Authentication / Scoped Script Access"
+          }
+        ],
+        "code_standards_reference": "ServiceNow ITAM Store Application Standards, CSDM 4.0 Life Cycle Architecture Guidelines",
+        "unit_test_strategy": "ServiceNow Automated Test Framework (ATF) suites covering: hardware CI insert triggering alm_hardware creation, serial number drift detection, container software installation filtering, Content Service rule normalization hit/miss flows, and software entitlement rights deduction under Per Core and Per vCPU licensing metrics.",
+        "scope_and_operational_boundaries": "Responsible for asset lifecycles, software normalization, and license compliance calculations. It is NOT responsible for executing discovery probes or managing network infrastructure.",
+        "logging_and_monitoring": {
+          "monitored_metrics": [
+            "itam.ham.sync_duration_ms",
+            "itam.sam.normalization_rate_percentage",
+            "itam.sam.unnormalized_count",
+            "itam.license.compliance_position_score"
+          ],
+          "log_levels": [
+            "ERROR",
+            "WARN",
+            "INFO"
+          ],
+          "alerting_rules": [
+            "Software normalization rate < 90% triggers task to SAM Administrator",
+            "Unassigned hardware assets > 100 triggers HAM audit review"
+          ]
+        }
+      },
+      {
+        "technology_stack": [
+          "Amazon Web Services Elastic Auto Scaling Groups (EC2, RDS Multi-AZ, VPC, Transit Gateway, EKS HPA)",
+          "VMware vSphere 7/8 Virtualization Infrastructure with Elastic Distributed Resource Scheduler (DRS) and HA Clustering",
+          "Physical Bare-Metal Servers with Redundant Out-of-Band Management (Dell PowerEdge, HPE ProLiant, IBM AIX)",
+          "Network Appliances in Clustered Elastic HA Pairs (Cisco Catalyst/Nexus, Palo Alto Networks, F5 BIG-IP)"
+        ],
+        "responsibilities": [
+          "Host enterprise business applications, databases, and microservices workloads",
+          "Maintain hardened management daemons (sshd, WinRM, snmpd) bound to private management interfaces",
+          "Authenticate discovery service accounts using SSH keys, Kerberos, or SNMPv3 credentials",
+          "Execute designated read-only diagnostic commands via restricted sudoers configurations",
+          "Stream hardware inventory, CPU socket/core topology, and installed package manifests to MID probes"
+        ],
+        "error_handling_strategy": "Unauthorized command execution attempts are blocked by sudoers policy and logged to local /var/log/secure syslog for SIEM forwarding.",
+        "configuration_parameters": [
+          {
+            "description": "Restricted shell environment configured for the ServiceNow discovery service account on Linux/Unix targets",
+            "name": "target.discovery.service_account_shell",
+            "type": "String",
+            "default_value": "/bin/bash"
+          }
+        ],
+        "sequence_flows": [],
+        "scope_and_operational_boundaries": "The estate being interrogated. It is NOT responsible for initiating connections to MID Servers or ServiceNow SaaS.",
+        "dependencies": [],
+        "description": "The target multi-cloud and on-premises operational infrastructure estate undergoing automated discovery, featuring AWS Auto Scaling compute groups, VMware DRS dynamic clusters, and redundant physical enterprise infrastructure. Responds to authenticated, read-only discovery queries across SSH, WinRM, WMI, and SNMPv3.",
+        "logging_and_monitoring": {
+          "log_levels": [
+            "NOTICE",
+            "INFO",
+            "WARN"
+          ],
+          "alerting_rules": [
+            "More than 5 failed authentication attempts on discovery service account within 5 minutes triggers local account lockout alert"
+          ],
+          "monitored_metrics": [
+            "target.sshd.auth_attempts",
+            "target.winrm.session_count",
+            "target.snmp.query_frequency"
+          ]
+        },
+        "api_specifications": [
+          {
+            "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"command\"], \"properties\": {\"command\": {\"type\": \"string\"}}}",
+            "protocol": "REST",
+            "error_handling": "Connection refused or auth failure returned over native protocol socket.",
+            "interface_name": "Target Host Management Diagnostic Interfaces (SSH / WinRM / SNMPv3)",
+            "contract_reference": "RFC 4253 (SSH), Microsoft MS-WSMV (WinRM), RFC 3414 (SNMPv3 User-Based Security)",
+            "authentication": "SSH RSA-4096 / WinRM Kerberos / SNMPv3 USM SHA-256 Auth + AES-256 Encryption",
+            "versioning_strategy": "Standard protocol negotiation",
+            "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"stdout\", \"exit_code\"], \"properties\": {\"stdout\": {\"type\": \"string\"}, \"exit_code\": {\"type\": \"integer\"}}}"
+          }
+        ],
+        "component_name": "Hybrid Target Infrastructure & Workloads",
+        "code_standards_reference": "CIS Benchmarks for RHEL 9, Windows Server 2022, and Cisco IOS XE",
+        "pseudocode_reference": "function handleDiscoveryConnection(socket, credentials):\\n  user = authenticate(credentials)\\n  if not isDiscoveryServiceAccount(user):\\n    denyAccess()\\n  restrictedSession = openRestrictedShell(user, allowedCommands=['dmidecode', 'lscpu', 'rpm', 'dpkg'])\\n  output = restrictedSession.execute(request.command)\\n  auditLog.log(user, request.command, output.exitCode)\\n  socket.write(output)\\n  socket.close()",
+        "key_design_decisions": [
+          "Enforce strict least-privilege read-only sudoers wrappers for discovery commands, eliminating root or administrative write access.",
+          "Restrict management interfaces to dedicated management VLANs / VPC security groups reachable only from designated MID Server IP pools."
+        ],
+        "algorithm_details": "Target Endpoint Interrogation Response Algorithm: 1) Daemon receives incoming connection request (SSH/WinRM/SNMPv3) on designated management interface. 2) Authenticate discovery service account via PKI key, Kerberos ticket, or SNMPv3 SHA/AES credentials. 3) Restrict execution environment to read-only sudoers wrapper or restricted PowerShell session. 4) Execute authorized diagnostic command queries (hardware inventory, CPU core counts, installed package lists). 5) Stream stdout back to caller and terminate session cleanly. 6) Log session start, executed command hashes, and session teardown to local security audit log.",
+        "class_design": {
+          "classes": [
+            {
+              "design_patterns_used": [
+                "Proxy Pattern",
+                "Command Pattern"
+              ],
+              "attributes": [
+                "allowedCommands: Set<String>",
+                "auditLogger: SyslogLogger",
+                "authValidator: CredentialValidator"
+              ],
+              "methods": [
+                "authenticate(credentials: Credentials): boolean",
+                "executeCommand(command: String): CommandOutput",
+                "logSession(session: SessionInfo): void"
+              ],
+              "class_name": "TargetDiagnosticEndpoint"
+            }
+          ],
+          "diagram": {
+            "description": "UML Class diagram depicting target server diagnostic daemon, authentication validation, and command execution wrapper.",
+            "diagram_type": "class",
+            "notation_standard": "UML",
+            "file_reference": "architecture/diagrams/uml_class_target_workload.png",
+            "diagram_id": "CD-TARGET-06",
+            "title": "Target Diagnostic Endpoint Class Diagram"
+          }
+        },
+        "module_name": "target_hybrid_infrastructure",
+        "unit_test_strategy": "Automated infrastructure compliance testing using InSpec and Ansible Molecule. Test suites verify that non-management subnets cannot reach diagnostic ports, discovery service accounts cannot run root write commands (e.g. rm, write to /etc), sudoers wrapper only permits designated read-only discovery binaries, and failed authentication attempts trigger syslog alert events."
+      }
+    ],
+    "exception_handling_strategy": "Comprehensive multi-tier exception handling architecture: 1) Network & Transport Layer: MID Server long-polling failures trigger exponential backoff (2s, 4s, 8s up to 60s) with local queue preservation; socket timeouts (SSH 15s, WinRM 20s, SNMP 5s) mark unreachable IPs with 'Skipped - Port Unresponsive' without terminating schedule batches. 2) Credential & Authentication Layer: In-memory credential lookups that fail with HTTP 401/403 or Vault timeouts automatically retry against secondary clustered vault endpoints; permanent credential failures log a masked 'Authentication Failure' audit record and create an automated ServiceNow incident routed to the IAM Operations team. 3) ECC Queue Backpressure: When active ECC input depth exceeds 5,000 items, the DiscoveryScheduleCoordinator dynamically pauses pending schedule dispatches and scales ServiceNow background worker threads from 40 to 80. 4) IRE Data Integrity Layer: Ambiguous identification matches (multiple CIs matching identification criteria) trigger immediate creation of an IRE De-duplication Task, leaving existing CMDB records immutable to prevent data corruption. Reclassification mismatches (e.g. server re-imaged as router) are isolated in a staging table pending CCB manual approval. 5) ITAM Synchronization Discrepancies: Hardware model anomalies generate HAM reconciliation tasks; unnormalized software packages default to 'Unnormalized' status and trigger automated asynchronous submission to ServiceNow Content Service Machine Learning pipelines. 6) Cluster Node Outage: Automatic MID cluster heartbeat polling detects node failure within 60 seconds; uncompleted probes in 'processing' state are automatically reset to 'ready' in the ECC Queue and reassigned to surviving cluster nodes.",
+    "detailed_sequence_flows": [
+      {
+        "file_reference": "",
+        "title": "End-to-End On-Premises Discovery to HAM and SAM Reconciliation",
+        "steps": [
+          {
+            "is_return": false,
+            "step_number": 1,
+            "is_async": true,
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "to_participant": "On-Premises Datacenter MID Server Cluster",
+            "message": "Enqueue Discovery Probe to ECC Queue (probe=\"Linux - Deep Discovery\", target=\"10.200.10.45\")",
+            "notes": "Creates ready output record in ecc_queue"
+          },
+          {
+            "from_participant": "On-Premises Datacenter MID Server Cluster",
+            "message": "Long-poll dequeue ready probe task from ECC Queue (HTTP GET /api/now/ecc_queue)",
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "is_return": false,
+            "is_async": false,
+            "step_number": 2,
+            "notes": "Outbound HTTPS poll over TLS 1.3"
+          },
+          {
+            "to_participant": "On-Premises Datacenter MID Server Cluster",
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "notes": "HTTP 200 with XML payload",
+            "is_return": true,
+            "is_async": false,
+            "message": "Return ECC probe payload (task XML containing target IP and probe parameters)",
+            "step_number": 3
+          },
+          {
+            "to_participant": "Enterprise Credential Vault Gateway",
+            "notes": "Calls internal vault gateway via mTLS",
+            "message": "Request target credentials for 10.200.10.45 with client mTLS certificate",
+            "is_async": false,
+            "is_return": false,
+            "step_number": 4,
+            "from_participant": "On-Premises Datacenter MID Server Cluster"
+          },
+          {
+            "is_return": false,
+            "step_number": 5,
+            "message": "Verify client identity and checkout SSH key (Safe=\"DC_PROD_UNIX\")",
+            "from_participant": "Enterprise Credential Vault Gateway",
+            "notes": "Checks PKI cert and IP allowlist",
+            "is_async": false,
+            "to_participant": "CyberArk Enterprise Password Vault (CCP)"
+          },
+          {
+            "is_async": false,
+            "notes": "Temporary administrative SSH key returned",
+            "is_return": true,
+            "from_participant": "CyberArk Enterprise Password Vault (CCP)",
+            "message": "Return ephemeral SSH key string in memory",
+            "to_participant": "Enterprise Credential Vault Gateway",
+            "step_number": 6
+          },
+          {
+            "is_return": true,
+            "message": "Inject ephemeral SSH key into MID JVM heap",
+            "notes": "Stored in volatile memory with 60-second TTL",
+            "step_number": 7,
+            "to_participant": "On-Premises Datacenter MID Server Cluster",
+            "from_participant": "Enterprise Credential Vault Gateway",
+            "is_async": false
+          },
+          {
+            "to_participant": "Target Host Operating Systems",
+            "is_async": false,
+            "is_return": false,
+            "notes": "Executes dmidecode, lscpu, rpm -qa commands",
+            "step_number": 8,
+            "from_participant": "On-Premises Datacenter MID Server Cluster",
+            "message": "Open SSH session (TCP 22) and execute hardware/software inspection probes"
+          },
+          {
+            "notes": "Raw text streams returned over SSH",
+            "is_async": false,
+            "to_participant": "On-Premises Datacenter MID Server Cluster",
+            "from_participant": "Target Host Operating Systems",
+            "message": "Return command outputs (dmidecode chassis/serial, lscpu, installed RPMs)",
+            "is_return": true,
+            "step_number": 9
+          },
+          {
+            "notes": "Transmits compressed, sanitized payload",
+            "is_return": false,
+            "step_number": 10,
+            "message": "Post discovery results to ECC Queue as input record (HTTP POST /api/now/ecc_queue)",
+            "is_async": true,
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "from_participant": "On-Premises Datacenter MID Server Cluster"
+          },
+          {
+            "is_async": false,
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "is_return": false,
+            "step_number": 11,
+            "notes": "Matches CI by Serial Number and BIOS UUID; updates cmdb_ci_server",
+            "message": "Decompress payload and execute IRE Identification & Reconciliation rules",
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE"
+          },
+          {
+            "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "is_return": false,
+            "step_number": 12,
+            "is_async": true,
+            "notes": "GlideSystem event bus notification",
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "message": "Emit CI Mutation Event (ci_sys_id, hardwareDetails, softwareManifest)"
+          },
+          {
+            "step_number": 13,
+            "is_return": false,
+            "is_async": false,
+            "message": "Reconcile alm_hardware lifecycle and execute Content Service normalization on cmdb_sam_sw_install",
+            "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "from_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "notes": "Updates asset records and reconciles software licenses"
+          }
+        ],
+        "description": "Complete multi-component discovery lifecycle from schedule dispatch through ECC Queue, CyberArk credential resolution, on-premises deep probing, IRE reconciliation, to HAM asset synchronization and SAM license normalization.",
+        "participants": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "On-Premises Datacenter MID Server Cluster",
+          "Enterprise Credential Vault Gateway",
+          "CyberArk Enterprise Password Vault (CCP)",
+          "Target Host Operating Systems",
+          "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)"
+        ],
+        "diagram_type": "sequence",
+        "diagram_id": "seq-e2e-datacenter-discovery-to-itam"
+      },
+      {
+        "diagram_id": "seq-e2e-aws-cloud-discovery-to-sam",
+        "file_reference": "",
+        "description": "Full cloud discovery sequence demonstrating cross-account IAM role assumption, AWS API querying, guest OS discovery via Secrets Manager, IRE cloud reconciliation, and SAM Pro cloud BYOL calculation.",
+        "participants": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "AWS Cloud MID Server Cluster",
+          "AWS Cloud APIs",
+          "Enterprise Credential Vault Gateway",
+          "AWS Secrets Manager",
+          "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)"
+        ],
+        "steps": [
+          {
+            "step_number": 1,
+            "to_participant": "AWS Cloud MID Server Cluster",
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "message": "Dispatch Cloud Discovery Probe to ECC Queue (accountId=\"123456789012\", regions=[\"us-east-1\"])",
+            "is_return": false,
+            "notes": "Schedules AWS Cloud API sweep",
+            "is_async": true
+          },
+          {
+            "message": "Poll and retrieve pending cloud probe from ECC Queue",
+            "from_participant": "AWS Cloud MID Server Cluster",
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "step_number": 2,
+            "notes": "Long-polling via outbound HTTPS 443",
+            "is_async": false,
+            "is_return": false
+          },
+          {
+            "message": "Deliver cloud discovery task parameters",
+            "is_return": true,
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "step_number": 3,
+            "to_participant": "AWS Cloud MID Server Cluster",
+            "is_async": false,
+            "notes": "HTTP 200 with AWS account discovery spec"
+          },
+          {
+            "notes": "Cross-account IAM role assumption",
+            "from_participant": "AWS Cloud MID Server Cluster",
+            "is_return": false,
+            "message": "sts:AssumeRole(RoleArn=\"arn:aws:iam::123456789012:role/SNOWDiscovery\")",
+            "to_participant": "AWS Cloud APIs",
+            "step_number": 4,
+            "is_async": false
+          },
+          {
+            "message": "Return temporary STS session credentials (AccessKey, SecretKey, SessionToken)",
+            "step_number": 5,
+            "is_async": false,
+            "is_return": true,
+            "notes": "Scoped STS credentials with 1-hour expiration",
+            "from_participant": "AWS Cloud APIs",
+            "to_participant": "AWS Cloud MID Server Cluster"
+          },
+          {
+            "step_number": 6,
+            "message": "Query EC2, VPC, Subnet, and RDS topologies across us-east-1",
+            "to_participant": "AWS Cloud APIs",
+            "is_async": false,
+            "from_participant": "AWS Cloud MID Server Cluster",
+            "notes": "Batched describe calls with pagination",
+            "is_return": false
+          },
+          {
+            "is_return": true,
+            "message": "Return AWS resource descriptors (vCPUs, Core Counts, Instance IDs, AMI IDs)",
+            "notes": "Cloud infrastructure inventory returned",
+            "from_participant": "AWS Cloud APIs",
+            "to_participant": "AWS Cloud MID Server Cluster",
+            "is_async": false,
+            "step_number": 7
+          },
+          {
+            "step_number": 8,
+            "is_async": false,
+            "message": "Request guest OS discovery credentials for EC2 target",
+            "notes": "Queries local vault broker",
+            "is_return": false,
+            "from_participant": "AWS Cloud MID Server Cluster",
+            "to_participant": "Enterprise Credential Vault Gateway"
+          },
+          {
+            "message": "secretsmanager:GetSecretValue(SecretId=\"snow/ec2/ssh_key\") via VPC Endpoint",
+            "is_return": false,
+            "notes": "PrivateLink query with SigV4 auth",
+            "to_participant": "AWS Secrets Manager",
+            "is_async": false,
+            "step_number": 9,
+            "from_participant": "Enterprise Credential Vault Gateway"
+          },
+          {
+            "message": "Return decrypted SSH private key in memory",
+            "is_async": false,
+            "is_return": true,
+            "from_participant": "Enterprise Credential Vault Gateway",
+            "step_number": 10,
+            "notes": "Decrypted key retained in volatile memory",
+            "to_participant": "Enterprise Credential Vault Gateway"
+          },
+          {
+            "notes": "Zero plaintext persistence on host disk",
+            "to_participant": "AWS Cloud MID Server Cluster",
+            "message": "Supply ephemeral credentials to MID worker thread",
+            "is_async": false,
+            "is_return": true,
+            "from_participant": "Enterprise Credential Vault Gateway",
+            "step_number": 11
+          },
+          {
+            "step_number": 12,
+            "from_participant": "AWS Cloud MID Server Cluster",
+            "message": "Transmit combined Cloud and OS Discovery payload to ECC Queue",
+            "is_return": false,
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "notes": "HTTP POST /api/now/ecc_queue input record",
+            "is_async": true
+          },
+          {
+            "message": "IRE reconciles EC2 CI in cmdb_ci_ec2_instance and links to AWS VPC/Subnet",
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "is_async": false,
+            "notes": "Applies AWS Instance ID identification rule",
+            "to_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "is_return": false,
+            "step_number": 13
+          },
+          {
+            "message": "Notify compute model change (instance_type=\"m6i.xlarge\", vcpus=4, os=\"RHEL\")",
+            "step_number": 14,
+            "is_return": false,
+            "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "notes": "Publishes event to ITAM synchronization engine",
+            "from_participant": "ServiceNow ITOM Discovery Engine & IRE",
+            "is_async": true
+          },
+          {
+            "step_number": 15,
+            "message": "Compute AWS BYOL license position against alm_license core entitlements",
+            "from_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "to_participant": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+            "is_async": false,
+            "is_return": false,
+            "notes": "Calculates license rights required using AWS core factor"
+          }
+        ],
+        "title": "End-to-End AWS Cloud Discovery and SAM Pro Cloud Licensing Flow",
+        "diagram_type": "sequence"
+      }
+    ],
+    "interface_contracts": [
+      {
+        "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"result\"], \"properties\": {\"result\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"sys_id\", \"agent\", \"topic\", \"payload\"], \"properties\": {\"sys_id\": {\"type\": \"string\"}, \"agent\": {\"type\": \"string\"}, \"topic\": {\"type\": \"string\"}, \"payload\": {\"type\": \"string\"}}}}}}",
+        "versioning_strategy": "URI path versioning (/api/now/table/ecc_queue)",
+        "error_handling": "HTTP 401 Unauthorized on cert/token expiration; HTTP 429 Rate Limited backoff; HTTP 500 logs fatal transmission failure.",
+        "interface_name": "ServiceNow ECC Queue Long-Polling and Response REST Interface",
+        "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"agent\", \"topic\", \"queue\", \"state\"], \"properties\": {\"agent\": {\"type\": \"string\"}, \"topic\": {\"type\": \"string\"}, \"name\": {\"type\": \"string\"}, \"source\": {\"type\": \"string\"}, \"queue\": {\"type\": \"string\", \"enum\": [\"input\", \"output\"]}, \"state\": {\"type\": \"string\", \"enum\": [\"ready\", \"processing\", \"processed\", \"error\"]}, \"payload\": {\"type\": \"string\"}}}",
+        "contract_reference": "OpenAPI 3.0 Specification /api/now/table/ecc_queue",
+        "authentication": "Mutual TLS (mTLS) with X.509 client certificate and HTTP Basic Auth with encrypted token for 'mid_server' user",
+        "protocol": "REST"
+      },
+      {
+        "authentication": "mTLS with Enterprise CA-signed client certificate verified against CyberArk IIS web server",
+        "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"Content\", \"Address\", \"UserName\"], \"properties\": {\"Content\": {\"type\": \"string\"}, \"Address\": {\"type\": \"string\"}, \"UserName\": {\"type\": \"string\"}, \"Passphrase\": {\"type\": \"string\"}, \"File\": {\"type\": \"string\"}}}",
+        "error_handling": "HTTP 404 Account Not Found; HTTP 403 Forbidden; HTTP 500 Vault Unavailable.",
+        "interface_name": "CyberArk Central Credential Provider Web Service",
+        "versioning_strategy": "URI path and query parameter versioning (/AIMWebService/api/Accounts)",
+        "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"AppId\", \"Safe\"], \"properties\": {\"AppId\": {\"type\": \"string\"}, \"Safe\": {\"type\": \"string\"}, \"Folder\": {\"type\": \"string\"}, \"UserName\": {\"type\": \"string\"}, \"Address\": {\"type\": \"string\"}}}",
+        "contract_reference": "CyberArk Central Credential Provider Specification v13.2",
+        "protocol": "REST"
+      },
+      {
+        "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"ARN\", \"Name\", \"SecretString\"], \"properties\": {\"ARN\": {\"type\": \"string\"}, \"Name\": {\"type\": \"string\"}, \"SecretString\": {\"type\": \"string\"}, \"VersionStages\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}}}",
+        "authentication": "AWS Signature Version 4 (SigV4) using attached IAM instance profile",
+        "versioning_strategy": "AWS Action and Version header pinning",
+        "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"SecretId\"], \"properties\": {\"SecretId\": {\"type\": \"string\"}, \"VersionStage\": {\"type\": \"string\"}, \"VersionId\": {\"type\": \"string\"}}}",
+        "contract_reference": "AWS Secrets Manager API Reference (Version 2017-10-17)",
+        "interface_name": "AWS Secrets Manager VPC Endpoint Interface",
+        "error_handling": "AWS ResourceNotFoundException, AccessDeniedException, ThrottlingException with exponential backoff.",
+        "protocol": "REST"
+      },
+      {
+        "contract_reference": "ServiceNow IRE REST API Specification v1.0 (/api/now/identifyreconcile)",
+        "response_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"items\"], \"properties\": {\"items\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"className\", \"sysId\", \"operation\"], \"properties\": {\"className\": {\"type\": \"string\"}, \"sysId\": {\"type\": \"string\"}, \"operation\": {\"type\": \"string\", \"enum\": [\"INSERT\", \"UPDATE\", \"NO_CHANGE\"]}}}}}}",
+        "versioning_strategy": "URI path versioning (/api/now/v1/identifyreconcile)",
+        "authentication": "OAuth 2.0 Bearer Token or Mutual TLS (mTLS) with itil_admin / mid_server role",
+        "protocol": "REST",
+        "request_schema": "{\"$schema\": \"http://json-schema.org/draft-07/schema#\", \"type\": \"object\", \"required\": [\"items\"], \"properties\": {\"items\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"required\": [\"className\", \"values\"], \"properties\": {\"className\": {\"type\": \"string\"}, \"values\": {\"type\": \"object\"}, \"internal_id\": {\"type\": \"string\"}}}}}}",
+        "error_handling": "HTTP 400 Bad Request; HTTP 409 IRE Duplicate Detection Task Generated; HTTP 500 Internal Error.",
+        "interface_name": "ServiceNow Identification and Reconciliation Engine (IRE) REST Interface"
+      }
+    ]
+  },
+  "quality_attributes": [
+    {
+      "metric": "Discovery pipeline availability and cluster failover completion time",
+      "characteristic": "reliability",
+      "target": "99.9% discovery pipeline availability; automated cluster failover under 60 seconds",
+      "measurement_method": "Synthetic cluster failover testing and continuous monitoring of ECC Queue retry counts during MID server termination.",
+      "sub_characteristic": "availability",
+      "description": "The discovery architecture must ensure high availability and resilient operations across hybrid environments without dropping discovery job state during node failure."
+    },
+    {
+      "measurement_method": "Automated static analysis, penetration testing, credential vault access audit log reviews, and perimeter firewall ingress rule verification.",
+      "sub_characteristic": "confidentiality",
+      "target": "Zero plaintext credentials; zero inbound SaaS-to-internal firewall rules; 100% mTLS / TLS 1.3 enforcement",
+      "description": "Protection of infrastructure management planes and credentials against unauthorized disclosure, tampering, or lateral movement.",
+      "metric": "Zero inbound firewall openings; zero plaintext credentials stored on disk; 100% TLS 1.3 encrypted transit.",
+      "characteristic": "security"
+    },
+    {
+      "measurement_method": "End-to-end timing of discovery schedules covering 50,000 CIs and 100,000 software records; ECC Queue processing latency monitoring.",
+      "sub_characteristic": "time_behavior",
+      "characteristic": "performance_efficiency",
+      "metric": "Discovery window completion time and ECC Queue processing latency",
+      "description": "High-throughput processing of discovery schedules, probes, and sensor payloads within designated off-peak operational maintenance windows.",
+      "target": "Complete discovery cycle within 8 hours; maintain ECC Queue queue depth below 5,000 messages"
+    },
+    {
+      "measurement_method": "CMDB Data Quality dashboard metrics, CSDM 4.0 compliance audits, and automated pattern deployment pipeline tests.",
+      "sub_characteristic": "modularity",
+      "target": "CSDM 4.0 data modeling compliance > 95%; duplicate CI rate < 0.1% of total estate",
+      "characteristic": "maintainability",
+      "description": "Standardization of CI models, discovery patterns, and automated lifecycle synchronization between CMDB and asset tables (HAM/SAM).",
+      "metric": "CSDM 4.0 compliance percentage and duplicate CI rate"
+    },
+    {
+      "characteristic": "reliability",
+      "metric": "Recovery Time Objective (RTO)",
+      "measurement_method": "Automated disaster recovery simulation and cluster node failover timing drills.",
+      "sub_characteristic": "fault_tolerance",
+      "target": "RTO: 2 hours for complete automated redeployment of all hybrid MID Server cluster instances; sub-60 seconds for automated cluster node failover",
+      "description": "Recovery Time Objective (RTO) for discovery infrastructure redeployment and service restoration following major disaster or datacenter loss."
+    },
+    {
+      "characteristic": "reliability",
+      "metric": "Recovery Point Objective (RPO)",
+      "measurement_method": "Database backup verification and continuous WAL journaling log validation.",
+      "sub_characteristic": "recoverability",
+      "description": "Recovery Point Objective (RPO) defining maximum allowable operational data loss for CMDB CI and asset synchronization state.",
+      "target": "RPO: 1 hour for ServiceNow SaaS CMDB operational data; RPO: 0 hours for MID configurations restored via IaC Git repositories"
+    }
+  ],
+  "business_context": {
+    "scope": "The architecture encompasses ServiceNow ITOM Discovery engine configuration, Identification and Reconciliation Engine (IRE) rules, clustered MID Server deployment on AWS EC2 and on-premises VMware hosts, external credential vault integrations (CyberArk and AWS Secrets Manager), and automated synchronization to HAM Pro (alm_hardware) and SAM Pro (cmdb_sam_sw_install, alm_license). Excludes end-user desktop/laptop discovery (handled via Agent Client Collector) and non-ITAM financial cost allocation pipelines.",
+    "business_drivers": [
+      "Elimination of software license compliance audit penalties through continuous, automated SAM software inventory discovery and entitlement reconciliation.",
+      "Reduction of operational downtime and incident MTTR by establishing a single source of truth for all hybrid IT infrastructure and inter-CI dependencies.",
+      "Optimization of hardware asset lifecycle tracking (HAM) from procurement to disposal, preventing asset loss and optimizing physical/virtual host density.",
+      "Automated compliance enforcement with regulatory frameworks (PCI-DSS v4.0, ISO/IEC 27001, CIS Controls) regarding unauthorized assets and shadow IT."
+    ],
+    "purpose": "Define the high-level system architecture for an enterprise-grade ServiceNow ITOM Discovery solution operating across hybrid AWS cloud and physical on-premises datacenter environments, providing accurate, automated data population for Configuration Management (CMDB), Hardware Asset Management (HAM Pro), and Software Asset Management (SAM Pro).",
+    "objectives": [
+      "Establish robust, automated multi-tier autodiscovery across AWS VPCs and physical on-premises datacenter environments using clustered ServiceNow MID Servers.",
+      "Normalize, populate, and reconcile Configuration Items in the ServiceNow CMDB using the Identification and Reconciliation Engine (IRE) aligned with CSDM 4.0 standards.",
+      "Automate hardware asset inventory data flows to populate HAM Pro lifecycle attributes, including serial numbers, chassis, model categories, and asset-to-CI relationships.",
+      "Automate software asset discovery to feed SAM Pro normalized software installations, edition detection, and cloud-optimized software license metrics.",
+      "Achieve discovery throughput exceeding 50,000 infrastructure CIs and 100,000 software installation records within scheduled 8-hour discovery windows."
+    ],
+    "constraints": [
+      "Strict Network Boundary: Zero inbound firewall ports may be opened from the public internet or ServiceNow SaaS cloud into corporate AWS VPCs or on-premises datacenters; all communication must originate outbound from MID Servers over TLS 1.3 on TCP 443.",
+      "Credential Governance: Plaintext credentials are strictly prohibited on MID Server host file systems; dynamic credential resolution via CyberArk CCP and AWS Secrets Manager with automated rotation is mandatory.",
+      "Resilient High Availability: Discovery infrastructure must reduce single points of failure, supporting automatic MID cluster failover within 60 seconds without dropping discovery execution state.",
+      "Heterogeneous Platform Support: Multi-tier autodiscovery must concurrently support AWS cloud environments (EC2, RDS, VPC, ECS/EKS) and diverse physical datacenter platforms (AIX, Solaris, Linux, Windows Server, SAN/NAS, SNMPv3 network appliances)."
+    ],
+    "assumptions": [
+      "Dedicated enterprise service accounts with read-only/least-privilege discovery permissions are provisioned across target systems and AWS IAM accounts.",
+      "AWS Direct Connect or resilient IPsec VPN provides reliable inter-datacenter and AWS-to-on-premises hybrid administrative connectivity.",
+      "ServiceNow instance is hosted on Washington DC or Xanadu release with active ITOM Discovery, HAM Pro, and SAM Pro licensing entitlements.",
+      "Internal firewall rules and AWS Security Groups permit probe traffic from MID Server IP addresses to target subnets on designated ports (SSH 22, WinRM 5985/5986, WMI 135/445, SNMP 161, HTTPS 443)."
+    ]
+  },
+  "continuous_improvement": [
+    {
+      "review_frequency": "Monthly ITOM/ITAM Architecture Operations Review",
+      "improvement_inputs": [
+        "MID Server thread utilization metrics and discovery probe execution duration logs",
+        "IRE duplicate CI logs, reclassification errors, and identification rule match failures",
+        "SAM Pro unnormalized software model queues and pattern library monthly updates",
+        "Network discovery timeout rates and credential authentication failure dashboards"
+      ]
+    }
+  ],
+  "compliance_and_standards": {
+    "regulatory_requirements": [
+      {
+        "regulation_name": "PCI-DSS v4.0",
+        "jurisdiction": "Global",
+        "compliance_status": "compliant",
+        "requirement_description": "Requirement 1 (Network Security Controls) and Requirement 2 (Secure Configurations) mandating strict inbound network blocking and automated, comprehensive asset inventory within cardholder environments."
+      },
+      {
+        "regulation_name": "SOC 2 Type II (Trust Services Criteria)",
+        "compliance_status": "compliant",
+        "requirement_description": "Common Criteria 6.1, 6.6, and 7.1 requiring logical boundary protection, dynamic vulnerability management, and authorized asset identification.",
+        "jurisdiction": "North America / Global"
+      }
+    ],
+    "applicable_standards": [
+      {
+        "standard_name": "ISO/IEC/IEEE 42010:2022 Systems and software engineering — Architecture description",
+        "compliance_status": "compliant",
+        "standard_body": "ISO/IEC/IEEE",
+        "clause_reference": "Clauses 4, 5, and 6 (Architecture Description Elements)",
+        "applicability": "Architectural conceptual modeling, viewpoint and view definition, and stakeholder concern mapping."
+      },
+      {
+        "applicability": "Specification of quality attributes including reliability, security, performance efficiency, and maintainability.",
+        "standard_body": "ISO/IEC",
+        "compliance_status": "compliant",
+        "clause_reference": "Clause 4 (Product Quality Model)",
+        "standard_name": "ISO/IEC 25010:2011 Systems and software Quality Requirements and Evaluation (SQuaRE)"
+      },
+      {
+        "clause_reference": "Annex A.8 (Technological Controls - A.8.1, A.8.5, A.8.9, A.8.20, A.8.24)",
+        "standard_body": "ISO/IEC",
+        "compliance_status": "compliant",
+        "applicability": "Information security governance, credential protection, network segmentation, and access control for discovery infrastructure.",
+        "standard_name": "ISO/IEC 27001:2022 Information security, cybersecurity and privacy protection"
+      },
+      {
+        "applicability": "Configuration Management Database structure, service modeling, and lifecycle synchronization between CMDB and HAM/SAM.",
+        "standard_body": "ServiceNow",
+        "compliance_status": "compliant",
+        "clause_reference": "CSDM 4.0 Foundation, Manage Technical Services, and Consume Domains",
+        "standard_name": "Common Service Data Model (CSDM) 4.0"
+      }
+    ]
+  },
+  "system_context": {
+    "context_diagram": {
+      "file_reference": "architecture/diagrams/c4_system_context.png",
+      "diagram_id": "CTX-C4-01",
+      "diagram_type": "context",
+      "title": "Hybrid ServiceNow CMDB & ITAM Discovery System Context Diagram",
+      "description": "C4 Level 1 System Context Diagram depicting hybrid enterprise boundaries, showing ServiceNow SaaS communicating strictly via outbound HTTPS polling with AWS and Datacenter MID Server clusters, technical credential vaults, and target resources.",
+      "notation_standard": "C4"
+    },
+    "actors": [
+      {
+        "type": "human",
+        "description": "Responsible for tracking hardware lifecycle states, verifying chassis and serial asset accuracy, and managing physical stockrooms.",
+        "name": "Hardware Asset Manager (HAM Admin)"
+      },
+      {
+        "type": "human",
+        "name": "Software Asset Manager (SAM Admin)",
+        "description": "Responsible for reviewing normalized software installations, configuring license models, and resolving licensing compliance position."
+      },
+      {
+        "name": "CMDB Owner / IT Configuration Manager",
+        "type": "human",
+        "description": "Responsible for CMDB health metrics, IRE rules, CI class mappings, and CSDM 4.0 structural adherence."
+      },
+      {
+        "type": "human",
+        "name": "Cloud & Datacenter Infrastructure Engineers",
+        "description": "Responsible for provisioning MID Server hosts, configuring VPC peering, security groups, routing, and IAM roles."
+      },
+      {
+        "name": "ServiceNow MID Server Daemon",
+        "type": "system",
+        "description": "Automated background daemon running on MID instances, pulling tasks from the ECC Queue and executing diagnostic probes."
+      }
+    ],
+    "external_systems": [
+      {
+        "data_exchanged": "Cloud resource metadata (VPC, Subnet, EC2 instance profiles, RDS instances, Security Groups, IAM tags).",
+        "name": "AWS Cloud APIs",
+        "description": "AWS Cloud Control Plane providing management and configuration APIs for AWS multi-account environment.",
+        "interface_type": "REST / HTTPS (AWS SDK via IAM AssumeRole)",
+        "owner": "Amazon Web Services / Cloud Engineering"
+      },
+      {
+        "interface_type": "HTTPS / REST (Client Certificate mTLS)",
+        "owner": "Enterprise Identity & Access Management (IAM) Team",
+        "name": "CyberArk Enterprise Password Vault (CCP)",
+        "description": "Enterprise Privileged Access Management (PAM) vault providing dynamic, programmatic credential retrieval.",
+        "data_exchanged": "Privileged administrative credentials (temporary passwords, SSH private keys) for on-premise targets."
+      },
+      {
+        "data_exchanged": "Encrypted secret strings containing guest operating system credentials for EC2 instances.",
+        "name": "AWS Secrets Manager",
+        "description": "AWS managed secret store for dynamic credential lookups by cloud MID Servers.",
+        "interface_type": "HTTPS / REST (AWS SigV4 via Private VPC Endpoint)",
+        "owner": "Cloud Platform Security Team"
+      },
+      {
+        "data_exchanged": "Hypervisor inventory, ESXi host hardware specifications, cluster topologies, and virtual machine allocations.",
+        "description": "Centralized VMware infrastructure management appliance overseeing on-premises virtualized compute clusters.",
+        "name": "VMware vCenter Server",
+        "owner": "Datacenter Virtualization Operations",
+        "interface_type": "SOAP / REST (HTTPS)"
+      },
+      {
+        "interface_type": "SNMPv3 / SSH CLI",
+        "name": "Core Network & Storage Appliances",
+        "owner": "Enterprise Network Operations",
+        "description": "Physical network switches, routers, and firewalls across corporate datacenter fabrics.",
+        "data_exchanged": "Network device interfaces, MAC address forwarding tables, ARP tables, and chassis component models."
+      },
+      {
+        "interface_type": "SSH (TCP 22) / WinRM (TCP 5985/5986) / WMI",
+        "owner": "Hybrid Workload & Application Owners",
+        "name": "Target Host Operating Systems",
+        "description": "Physical bare-metal and virtual guest operating systems (RHEL, Ubuntu, Windows Server, AIX, Solaris).",
+        "data_exchanged": "Hardware inventory, installed software packages, CPU sockets/cores, OS release, and running processes."
+      }
+    ]
+  },
+  "architecture_description": {
+    "architecture_analysis": [
+      {
+        "id": "AD-001",
+        "risks": [
+          "Operational overhead in managing multiple MID clusters across hybrid environments, mitigated by Terraform automation and progressive auto-upgrade rings",
+          "Potential configuration drift across MID instances, mitigated by centralized ServiceNow MID Server configuration profiles"
+        ],
+        "description": "Evaluation of distributed MID Server clustering across AWS and on-premises datacenters versus centralized or direct discovery architectures.",
+        "title": "Hybrid Distributed MID Server Clustering and Ingress Architecture",
+        "weaknesses": [
+          "Requires compute capacity and operational maintenance across both AWS and on-premises hosting environments",
+          "Requires separate credential vault broker configurations for AWS Secrets Manager and on-premises CyberArk CCP"
+        ],
+        "alternatives": [
+          {
+            "risks": [
+              "Severe security audit non-compliance with PCI-DSS v4.0 and ISO/IEC 27001 due to inbound cloud-to-datacenter holes",
+              "Exposure of management planes (SSH, WMI, SNMP) to wider network transit paths"
+            ],
+            "strengths": [
+              "Avoids hosting, patching, and maintaining MID Server instances on-premise and in AWS",
+              "Simpler operational footprint without intermediate polling agents"
+            ],
+            "option": "Direct SaaS Discovery without MID Servers",
+            "description": "Conducting discovery directly from ServiceNow cloud infrastructure via public/VPN routes directly targeting internal IP addresses and management interfaces.",
+            "comparison_to_recommended": "Direct SaaS discovery requires inbound ingress ports through enterprise perimeter firewalls and AWS Security Groups into secure internal subnets, violating enterprise zero-trust perimeter network policy. In contrast, the recommended MID Server architecture strictly enforces zero inbound firewall openings via outbound-only TLS 1.3 long-polling through the ECC Queue.",
+            "weaknesses": [
+              "Breaches strict enterprise security boundary mandate prohibiting inbound SaaS traffic",
+              "Incompatible with isolated private subnets lacking direct public or routed VPN gateways",
+              "High network latency and timeout frequency during bulk pattern executions"
+            ]
+          },
+          {
+            "strengths": [
+              "Single administrative location for all MID Server management, maintenance, and credentials",
+              "Reduced host compute infrastructure footprints"
+            ],
+            "risks": [
+              "Saturation of Direct Connect / VPN bandwidth during concurrent deep discovery runs",
+              "Failure of hybrid WAN link halts all AWS cloud resource and software asset discovery"
+            ],
+            "comparison_to_recommended": "While centralized MID servers simplify host management, routing all AWS discovery through on-premises WAN/DirectConnect links creates an unnecessary transit bottleneck and introduces cross-environment network latency. Clustered local MID servers ensure traffic locality and provide resilience through independent regional operation.",
+            "weaknesses": [
+              "Substantial bandwidth consumption over corporate hybrid WAN circuits",
+              "Increased latency for AWS Cloud API and EC2 workload scanning",
+              "Coupled availability failure domain across cloud and on-premises environments"
+            ],
+            "description": "Deploying MID Server clusters exclusively within the on-premises datacenter and routing all AWS discovery traffic across AWS Direct Connect / IPSec VPN links.",
+            "option": "Single Centralized On-Premises MID Server Cluster"
+          }
+        ],
+        "recommendation": "Adopt a regionally segmented, clustered MID Server deployment architecture with dedicated active-active clusters deployed locally within AWS VPCs and on-premises VMware environments. All MID servers initiate outbound-only TLS 1.3 polling to the ServiceNow ECC Queue, leverage local enterprise credential vaults (AWS Secrets Manager and CyberArk CCP), and feed discovery payloads to the Identification and Reconciliation Engine (IRE) and SAM/HAM lifecycle tables.",
+        "strengths": [
+          "Maintains strict zero-inbound security boundary across AWS VPCs and physical on-premise subnets",
+          "Provides resilience through localized discovery execution and active-active cluster failover",
+          "Minimizes cross-site network traffic over hybrid WAN / Direct Connect links",
+          "Enables high-throughput discovery scaling beyond 50,000 CIs and 100,000 software records within an 8-hour window"
+        ]
+      }
+    ],
+    "stakeholders": [
+      {
+        "concerns": [
+          "Accurate software installation inventory, publisher normalization, license compliance, cloud compute licensing optimization, container software noise filtering."
+        ],
+        "responsibilities": [
+          "Oversee SAM Pro publisher packs, license reconciliation runs, entitlement allocation, and compliance reporting."
+        ],
+        "role": "Software Asset Manager",
+        "stakeholder_name": "Enterprise SAM Team"
+      },
+      {
+        "responsibilities": [
+          "Manage HAM Pro lifecycle workflows, asset state transitions, stockrooms, and hardware retirement verification."
+        ],
+        "concerns": [
+          "Hardware asset lifecycle synchronization, serial number and asset tag reconciliation, rack/chassis physical tracking, server state alignment between CMDB and HAM."
+        ],
+        "stakeholder_name": "Enterprise HAM Team",
+        "role": "Hardware Asset Manager"
+      },
+      {
+        "role": "CMDB Architect / Owner",
+        "stakeholder_name": "Configuration Management Governance Board",
+        "responsibilities": [
+          "Define and enforce CMDB governance, IRE identification rules, reconciliation priorities, and CI class models."
+        ],
+        "concerns": [
+          "CMDB health score, Identification and Reconciliation Engine (IRE) rule integrity, CSDM 4.0 data modeling compliance, CI class hierarchies."
+        ]
+      },
+      {
+        "responsibilities": [
+          "Audit credential vault usage, review network security boundaries, monitor discovery access permissions, validate encryption posture."
+        ],
+        "stakeholder_name": "Enterprise Information Security Office",
+        "role": "Information Security & Compliance Lead",
+        "concerns": [
+          "Least-privilege credential access, secure vault integrations, zero plaintext credentials, TLS 1.3 transport encryption, adherence to ISO/IEC 27001 and PCI-DSS v4.0."
+        ]
+      },
+      {
+        "concerns": [
+          "MID Server host sizing, OS patching, VPC network connectivity, firewall and security group port management, AWS IAM role assumption."
+        ],
+        "responsibilities": [
+          "Provision and maintain MID Server host instances via Terraform, configure local network routing, maintain Direct Connect / VPN, manage AWS IAM roles."
+        ],
+        "stakeholder_name": "Cloud & Platform Engineering Team",
+        "role": "Hybrid Cloud & Infrastructure Engineering Lead"
+      }
+    ],
+    "viewpoints": [
+      {
+        "applicable_standard": "ISO/IEC/IEEE 42010",
+        "modeling_conventions": "C4 Model - Level 1 System Context Diagram",
+        "concerns_addressed": [
+          "Network segmentation, protocol interactions, system boundary isolation, security ingress/egress."
+        ],
+        "description": "High-level context and operational boundary viewpoint defining interactions between external infrastructure, MID clusters, and ServiceNow SaaS.",
+        "viewpoint_name": "Context and Boundary Viewpoint",
+        "stakeholders_addressed": [
+          "Enterprise Information Security Office",
+          "Cloud & Platform Engineering Team",
+          "Configuration Management Governance Board"
+        ]
+      },
+      {
+        "viewpoint_name": "Container and Functional Architecture Viewpoint",
+        "applicable_standard": "ISO/IEC/IEEE 42010",
+        "concerns_addressed": [
+          "Component decomposition, clustering, failover, identification and reconciliation flow, asset synchronization."
+        ],
+        "modeling_conventions": "C4 Model - Level 2 Container Diagram",
+        "description": "Structural and container decomposition viewpoint depicting internal MID Server components, ServiceNow ITOM engine, IRE, and ITAM data models.",
+        "stakeholders_addressed": [
+          "Enterprise SAM Team",
+          "Enterprise HAM Team",
+          "Configuration Management Governance Board",
+          "Cloud & Platform Engineering Team"
+        ]
+      },
+      {
+        "viewpoint_name": "Deployment and Execution Viewpoint",
+        "applicable_standard": "arc42 Section 7",
+        "concerns_addressed": [
+          "Physical and virtual host deployment, AWS Multi-AZ distribution, on-premises cluster redundancy, network pathing."
+        ],
+        "stakeholders_addressed": [
+          "Cloud & Platform Engineering Team",
+          "Enterprise Information Security Office"
+        ],
+        "modeling_conventions": "arc42 Deployment Topology & C4 Deployment Diagram",
+        "description": "Deployment and infrastructure topology viewpoint illustrating physical and cloud hosting environments for MID Server clusters and target workloads."
+      }
+    ],
+    "concerns": [
+      "Ensuring strict network boundary isolation with zero inbound firewall rules permitted from ServiceNow SaaS cloud.",
+      "Preventing duplicate CIs and configuration flapping across multi-homed datacenter servers and dynamic AWS cloud instances.",
+      "Preventing plaintext credential storage on MID hosts through dynamic external vault integration.",
+      "Accurate identification and normalization of hardware assets (HAM) and installed software licenses (SAM) without polluting tables with ephemeral container noise.",
+      "Sustaining high discovery throughput across 50,000+ infrastructure CIs and 100,000+ software installations within designated 8-hour discovery windows."
+    ],
+    "views": [
+      {
+        "viewpoint_ref": "Context and Boundary Viewpoint",
+        "view_name": "System Context View",
+        "elements": [
+          "ServiceNow SaaS Instance (ITOM/IRE/SAM/HAM)",
+          "AWS Cloud MID Server Cluster",
+          "On-Premises Datacenter MID Server Cluster",
+          "CyberArk Enterprise Password Vault / CCP",
+          "AWS Secrets Manager",
+          "AWS Hybrid Infrastructure (VPCs, EC2, RDS, IAM)",
+          "Physical Datacenter Infrastructure (VMware, Linux, Windows, AIX, Network Switches)"
+        ],
+        "description": "C4 Level 1 Context View illustrating boundaries between ServiceNow SaaS, hybrid MID Server clusters, external credential vaults, and target cloud/datacenter infrastructure.",
+        "diagrams": [
+          {
+            "description": "System Context Diagram showing actors, external systems, and outbound HTTPS communications between hybrid MID clusters and ServiceNow SaaS.",
+            "diagram_id": "CTX-C4-01",
+            "notation_standard": "C4",
+            "file_reference": "architecture/diagrams/c4_system_context.png",
+            "diagram_type": "context",
+            "title": "Hybrid ServiceNow CMDB & ITAM Discovery Context Diagram"
+          }
+        ]
+      },
+      {
+        "description": "C4 Level 2 Container View illustrating internal processing flow from ECC Queue polling to MID probe execution, credential retrieval, pattern parsing, IRE reconciliation, and HAM/SAM table population.",
+        "diagrams": [
+          {
+            "description": "Container Diagram detailing component interactions, ECC queue polling, credential broker lookups, IRE processing, and asset synchronization.",
+            "diagram_id": "CNT-C4-02",
+            "title": "ServiceNow ITOM & ITAM Discovery Container Architecture",
+            "file_reference": "architecture/diagrams/c4_container_diagram.png",
+            "notation_standard": "C4",
+            "diagram_type": "container"
+          }
+        ],
+        "view_name": "Container and Functional View",
+        "viewpoint_ref": "Container and Functional Architecture Viewpoint",
+        "elements": [
+          "ECC Queue Messaging Bus",
+          "ServiceNow ITOM Discovery Engine",
+          "Identification and Reconciliation Engine (IRE)",
+          "CMDB CI Repositories (cmdb_ci_*)",
+          "HAM Lifecycle Manager (alm_hardware)",
+          "SAM Normalization & Compliance Engine (cmdb_sam_sw_install, alm_license)",
+          "MID Server Java Daemon & Probe Runner",
+          "MID Local SQLite Cache & Credential Broker Client"
+        ]
+      },
+      {
+        "elements": [
+          "AWS Region Primary VPC (Availability Zone A & B)",
+          "On-Premises Datacenter Server Racks (VLAN Management / Server DMZ)",
+          "ServiceNow SaaS High-Availability Multi-Tenant Cloud"
+        ],
+        "diagrams": [
+          {
+            "diagram_type": "deployment",
+            "title": "Hybrid Clustered Deployment Topology",
+            "notation_standard": "C4",
+            "description": "Deployment topology showing active-active MID server cluster placement across AWS availability zones and dual physical datacenter server racks.",
+            "file_reference": "architecture/diagrams/c4_deployment_topology.png",
+            "diagram_id": "DEP-C4-03"
+          }
+        ],
+        "viewpoint_ref": "Deployment and Execution Viewpoint",
+        "description": "arc42 Deployment View illustrating high-availability cluster topology across AWS Multi-AZ EC2 instances and redundant on-premises VMware ESXi hosts.",
+        "view_name": "Deployment Topology View"
+      }
+    ]
+  },
+  "document_metadata": {
+    "template_standard": "arc42",
+    "system_name": "Hybrid ServiceNow CMDB & ITAM Discovery Architecture",
+    "approval_date": "2025-02-16",
+    "authors": [
+      {
+        "role": "Principal Systems Architect",
+        "name": "Enterprise Infrastructure Architecture Board",
+        "contact": "lead.architect@enterprise.org",
+        "organization": "Global Enterprise IT & Architecture"
+      },
+      {
+        "name": "Senior Lead Systems & Software Engineer",
+        "organization": "Global Enterprise IT & Architecture",
+        "contact": "lead.engineer@enterprise.org",
+        "role": "Lead Low-Level Software Architect"
+      }
+    ],
+    "document_id": "LLD-SNOW-ITOM-002",
+    "reviewers": [
+      {
+        "organization": "Enterprise Information Security",
+        "contact": "sec.lead@enterprise.org",
+        "role": "Principal Security Architect",
+        "name": "Director of Cyber Defense & Compliance"
+      },
+      {
+        "contact": "itom.owner@enterprise.org",
+        "organization": "Global IT Operations",
+        "role": "Product Owner ITOM/ITAM",
+        "name": "Head of ITSM & ITOM Platforms"
+      }
+    ],
+    "architecture_level": "LLD",
+    "related_documents": [
+      {
+        "document_id": "HLD-SNOW-ITOM-001",
+        "relationship": "parent",
+        "title": "High-Level Architecture: ServiceNow CMDB Autodiscovery for SAM/HAM on Hybrid AWS and Physical Datacenter"
+      },
+      {
+        "document_id": "STD-SEC-NET-014",
+        "title": "Enterprise Zero-Trust Hybrid Network Architecture and Credential Management Standard",
+        "relationship": "parent"
+      }
+    ],
+    "last_updated": "2025-02-16",
+    "status": "approved",
+    "document_type": "LLD",
+    "industry_sector": "Enterprise IT Service Management & Hybrid Cloud Infrastructure",
+    "title": "Low-Level Design: ServiceNow CMDB Autodiscovery for SAM/HAM on Hybrid AWS and Physical Datacenter",
+    "version": "2.1.0",
+    "created_date": "2025-02-01",
+    "process_reference": {
+      "process_version": "4.0",
+      "process_name": "ITOM Discovery and ITAM Synchronization Architecture"
+    },
+    "classification": "internal"
+  },
+  "high_level_design": {
+    "risks_and_mitigations": [
+      {
+        "owner": "Datacenter Operations & Security Lead",
+        "mitigation": "Stagger discovery schedules across dedicated off-peak discovery windows (00:00-06:00 UTC); tune MID Server probe concurrency to 50 threads per instance; coordinate target IP sweeps with Security Operations Center (SOC) to allow-list MID probe signatures.",
+        "impact": "medium",
+        "category": "Operational",
+        "status": "open",
+        "description": "Large-scale discovery sweeps across dense datacenter subnets may trigger Intrusion Detection/Prevention Systems (IDS/IPS) or cause temporary network congestion.",
+        "likelihood": "medium",
+        "id": "RSK-001"
+      },
+      {
+        "mitigation": "Implement schedule throttling; deploy dedicated MID Server clusters partitioned by environment and subnet size; configure ECC Queue auto-archival and scale ServiceNow scheduled worker threads.",
+        "category": "Technical",
+        "status": "open",
+        "id": "RSK-002",
+        "impact": "high",
+        "likelihood": "low",
+        "owner": "ServiceNow Lead Architect",
+        "description": "Concurrent execution of heavy discovery schedules can generate ECC Queue backpressure and message backlog exceeding 5,000 items, degrading sensor processing latency."
+      },
+      {
+        "id": "RSK-003",
+        "description": "Multi-homed servers, ephemeral AWS EC2 IP reassignment, and duplicate MAC addresses can trigger CI duplicate creation or CI flapping.",
+        "likelihood": "medium",
+        "status": "open",
+        "category": "Data Integrity",
+        "impact": "high",
+        "owner": "CMDB Configuration Manager",
+        "mitigation": "Enforce robust ServiceNow IRE identification rules using serial number, BIOS UUID, and AWS instance ID with strict precedence over IP/MAC matching; activate CMDB duplicate CI de-duplication tasks."
+      },
+      {
+        "mitigation": "Zero plaintext credentials stored on disk; enforce dynamic vault lookups via CyberArk CCP and AWS Secrets Manager; enable ephemeral memory-only caching; mandate credential masking in MID Server logs.",
+        "id": "RSK-004",
+        "impact": "critical",
+        "category": "Security",
+        "owner": "Enterprise Information Security Lead",
+        "likelihood": "low",
+        "description": "Potential credential exposure if target administrative passwords are saved to disk or exposed in discovery logs.",
+        "status": "open"
+      },
+      {
+        "impact": "medium",
+        "category": "Operational",
+        "description": "Excessive discovery of short-lived container instances (EKS/ECS) can flood the SAM software installation tables (cmdb_sam_sw_install) with transient noise, inflating license reconciliation workloads.",
+        "id": "RSK-005",
+        "owner": "Enterprise SAM Architect",
+        "likelihood": "medium",
+        "mitigation": "Configure container discovery filtering patterns to exclude ephemeral container image software installs, capturing container infrastructure exclusively at the cluster/pod CI level under CSDM guidance.",
+        "status": "open"
+      }
+    ],
+    "components": [
+      {
+        "owner": "ServiceNow Platform Engineering Team",
+        "responsibilities": [
+          "Orchestrate discovery schedules across hybrid environments",
+          "Dispatch discovery probes and retrieve sensor payloads via ECC Queue",
+          "Execute IRE identification and reconciliation rules to prevent duplicates",
+          "Maintain CMDB baseline tables (cmdb_ci, cmdb_ci_server, cmdb_ci_network)"
+        ],
+        "technology_stack": [
+          "ServiceNow SaaS Auto-Scaling Application Nodes (Washington DC / Xanadu)",
+          "Percona MariaDB Clustered Relational Database Engine with Read Replicas",
+          "Rhino / ES2021 JavaScript Execution Runtime with Elastic Worker Pool",
+          "ServiceNow Advanced High Availability (AHA) Architecture"
+        ],
+        "dependencies": [],
+        "component_name": "ServiceNow ITOM Discovery Engine & IRE",
+        "description": "Centralized SaaS cloud engine executing in an elastic multi-node ServiceNow cluster. Responsible for managing discovery schedules, queuing probes in the ECC Queue, executing the Identification and Reconciliation Engine (IRE) under CSDM 4.0, and maintaining CMDB CI records with automated node failover and dynamic worker thread scaling.",
+        "interfaces": [
+          "ECC Queue REST/HTTPS API",
+          "IRE Engine Internal APIs",
+          "Discovery Schedule Manager Interface"
+        ]
+      },
+      {
+        "interfaces": [
+          "Outbound HTTPS (TCP 443) to ServiceNow SaaS",
+          "AWS Cloud Control Plane APIs (IAM AssumeRole)",
+          "In-VPC SSH (TCP 22) / WinRM (TCP 5985/5986)",
+          "HTTPS (TCP 443) to AWS Secrets Manager VPC Endpoint"
+        ],
+        "technology_stack": [
+          "Amazon Linux 2023 / EC2 (m6i.xlarge) in AWS Auto Scaling Group",
+          "Eclipse Temurin OpenJDK 17 64-Bit Runtime",
+          "AWS Systems Manager (SSM Agent)",
+          "ServiceNow MID Server Daemon v24+"
+        ],
+        "owner": "Cloud Infrastructure Engineering Team",
+        "description": "Horizontally scalable cluster of dedicated MID Servers deployed on Amazon EC2 across multiple Availability Zones in an Auto Scaling Group, dedicated to AWS Cloud Discovery, VPC scanning, and EC2/RDS guest operating system inspection.",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "Enterprise Credential Vault Gateway",
+          "Hybrid Target Infrastructure & Workloads"
+        ],
+        "responsibilities": [
+          "Poll ECC Queue for pending cloud discovery jobs",
+          "Perform AWS API discovery across target accounts via IAM cross-account roles",
+          "Execute agentless OS-level probes against AWS EC2 instances",
+          "Retrieve ephemeral secrets from AWS Secrets Manager for guest OS interrogation",
+          "Package and transmit encrypted discovery payloads back to ECC Queue"
+        ],
+        "component_name": "AWS Cloud MID Server Cluster"
+      },
+      {
+        "technology_stack": [
+          "Red Hat Enterprise Linux 9 / Windows Server 2022 on VMware vSphere 8.0",
+          "Eclipse Temurin OpenJDK 17 64-Bit Runtime",
+          "CyberArk Central Credential Provider (CCP) SDK",
+          "ServiceNow MID Server Daemon v24+"
+        ],
+        "component_name": "On-Premises Datacenter MID Server Cluster",
+        "interfaces": [
+          "Outbound HTTPS (TCP 443) via Enterprise Proxy to ServiceNow SaaS",
+          "Datacenter Subnet Probing (SSH 22, WinRM 5985/5986, WMI 135/445, SNMPv3 161)",
+          "HTTPS (TCP 443) to CyberArk CCP Appliance"
+        ],
+        "description": "High-availability cluster of dedicated MID Servers deployed on VMware vSphere infrastructure across redundant physical server racks with DRS and HA, tasked with discovering physical datacenter servers, hypervisors, storage, and network devices.",
+        "responsibilities": [
+          "Poll ECC Queue for datacenter discovery schedules",
+          "Scan on-premise IP ranges covering Linux, Windows, AIX, and Solaris hosts",
+          "Perform SNMPv3 interrogation of network switches, routers, and firewalls",
+          "Execute VMware vCenter API discovery for ESXi hosts and cluster topology",
+          "Dynamically query CyberArk CCP for target privileged administrative credentials",
+          "Stream discovery results to ServiceNow ECC Queue over outbound TLS 1.3"
+        ],
+        "owner": "Datacenter Operations & Systems Team",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE",
+          "Enterprise Credential Vault Gateway",
+          "Hybrid Target Infrastructure & Workloads"
+        ]
+      },
+      {
+        "technology_stack": [
+          "CyberArk Enterprise Password Vault & Central Credential Provider (CCP) v13+ Elastic Clustered Pool",
+          "AWS Secrets Manager Elastic Auto-Scaling Serverless VPC Endpoints (AWS PrivateLink)",
+          "F5 BIG-IP Local Traffic Manager (LTM) Clustered Load Balancer Pair",
+          "Mutual TLS (mTLS) with Enterprise PKI Client Certificates"
+        ],
+        "owner": "Information Security Identity & Access Management Team",
+        "description": "Centralized external credential management layer integrating CyberArk Central Credential Provider in an elastic clustered pool behind F5 BIG-IP load balancers and AWS Secrets Manager with elastic serverless PrivateLink VPC Endpoints, supplying dynamic, just-in-time discovery credentials to MID Servers.",
+        "component_name": "Enterprise Credential Vault Gateway",
+        "responsibilities": [
+          "Store and rotate privileged credentials for Windows, Linux, and SNMP targets",
+          "Supply ephemeral credentials to authenticated MID Servers on demand",
+          "Maintain comprehensive audit trails of credential check-outs by MID instances",
+          "Enforce credential rotation policies without breaking discovery schedules"
+        ],
+        "dependencies": [],
+        "interfaces": [
+          "CyberArk CCP REST API (HTTPS 443)",
+          "AWS Secrets Manager REST API (HTTPS 443)"
+        ]
+      },
+      {
+        "interfaces": [
+          "Internal CMDB-to-Asset Synchronization Bus",
+          "Content Service Automated Normalization API",
+          "HAM/SAM Reconciliation Engines"
+        ],
+        "technology_stack": [
+          "ServiceNow Hardware Asset Management (HAM Pro) Plugin on Multi-Node Application Pool",
+          "ServiceNow Software Asset Management (SAM Pro) Plugin with Distributed Engine",
+          "ServiceNow Content Service Machine Learning Normalization Engine with Elastic Worker Queue"
+        ],
+        "responsibilities": [
+          "Synchronize discovered hardware serials, models, and MACs to alm_hardware records",
+          "Normalize discovered software install strings via ServiceNow Content Library",
+          "Map installed software to software license entitlements (alm_license)",
+          "Calculate cloud compute licensing models (e.g., AWS BYOL, vCPU/Core metrics)",
+          "Manage hardware lifecycle states (In Use, In Stock, Retired, Disposed)"
+        ],
+        "description": "Enterprise IT Asset Management suite executing across clustered ServiceNow application nodes, consuming reconciled CMDB CI data to drive physical hardware lifecycles and software license normalization and compliance calculations.",
+        "dependencies": [
+          "ServiceNow ITOM Discovery Engine & IRE"
+        ],
+        "owner": "Enterprise IT Asset Management Team",
+        "component_name": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)"
+      },
+      {
+        "technology_stack": [
+          "Amazon Web Services Elastic Auto Scaling Groups (EC2, RDS Multi-AZ, VPC, Transit Gateway, EKS HPA)",
+          "VMware vSphere 7/8 Virtualization Infrastructure with Elastic Distributed Resource Scheduler (DRS) and HA Clustering",
+          "Physical Bare-Metal Servers with Redundant Out-of-Band Management (Dell PowerEdge, HPE ProLiant, IBM AIX)",
+          "Network Appliances in Clustered Elastic HA Pairs (Cisco Catalyst/Nexus, Palo Alto Networks, F5 BIG-IP)"
+        ],
+        "description": "The target multi-cloud and on-premises operational infrastructure estate undergoing automated discovery, featuring AWS Auto Scaling compute groups, VMware DRS dynamic clusters, and redundant physical enterprise infrastructure.",
+        "responsibilities": [
+          "Host business applications, databases, and core infrastructure workloads",
+          "Respond to authenticated discovery probes and read-only diagnostic commands"
+        ],
+        "owner": "Hybrid Platform Operations Team",
+        "dependencies": [],
+        "interfaces": [
+          "SSH (TCP 22)",
+          "WinRM (TCP 5985/5986) / WMI (TCP 135/445)",
+          "SNMPv3 (UDP 161)",
+          "vCenter REST / SOAP API (TCP 443)",
+          "AWS Management APIs"
+        ],
+        "component_name": "Hybrid Target Infrastructure & Workloads"
+      }
+    ],
+    "deployment_topology": {
+      "diagram": {
+        "description": "Hybrid Deployment Topology diagram illustrating MID clusters across AWS Multi-AZ and On-Premises Datacenter tiers connecting to ServiceNow SaaS cloud.",
+        "file_reference": "architecture/diagrams/c4_deployment_topology.png",
+        "diagram_id": "DEP-C4-03",
+        "notation_standard": "C4",
+        "diagram_type": "deployment",
+        "title": "Hybrid MID Server Deployment Topology"
+      },
+      "environments": [
+        {
+          "description": "Primary production hybrid infrastructure hosting mission-critical workloads, MID Server clusters, credential vaults, and ServiceNow SaaS integration.",
+          "name": "Production Hybrid Environment",
+          "infrastructure": "AWS Production VPCs (us-east-1a, us-east-1b) with EC2 MID clusters; Enterprise Primary Datacenter (Equinix DC1 & Ashburn DC2) on VMware ESXi clusters; ServiceNow FedRAMP/Enterprise SaaS instance"
+        },
+        {
+          "description": "Staging and pre-production environment utilized for validating ServiceNow pattern updates, MID Server progressive release upgrades, and new credential configurations.",
+          "name": "Pre-Production & Validation Environment",
+          "infrastructure": "AWS Staging VPC with 2x EC2 MID instances; Enterprise Non-Production Datacenter cluster on VMware ESXi; ServiceNow Sub-Production (Test/Dev) instances"
+        }
+      ]
+    },
+    "security_architecture": {
+      "compliance_standards": [
+        {
+          "applicability": "Enterprise asset management controls, credential protection, and cryptographic communication.",
+          "compliance_status": "compliant",
+          "standard_body": "ISO/IEC",
+          "clause_reference": "A.8.1, A.8.9, A.8.20, A.8.24",
+          "standard_name": "ISO/IEC 27001:2022"
+        },
+        {
+          "standard_name": "PCI-DSS v4.0",
+          "standard_body": "PCI SSC",
+          "compliance_status": "compliant",
+          "clause_reference": "Requirements 1.2, 2.2, 10.2",
+          "applicability": "Cardholder Data Environment (CDE) boundary enforcement and automated inventory verification."
+        }
+      ],
+      "threat_model_reference": "STRIDE-HYBRID-DISC-01 (Threat analysis covering spoofing, tampering, information disclosure, and elevation of privilege across hybrid MID topology)",
+      "authorization_model": "Role-Based Access Control (RBAC) and Attribute-Based Access Control (ABAC) in ServiceNow; least-privilege administrative service accounts on target systems restricted to read-only diagnostic commands and WMI/CIM queries.",
+      "authentication_mechanism": "ServiceNow SaaS authentication via Mutual TLS (mTLS) with client certificates combined with dedicated MID Server service accounts with non-interactive roles (mid_server); external vault authentication via client certificates (CyberArk CCP) and AWS IAM SigV4 role credentials (AWS Secrets Manager); target endpoint discovery authentication via SSH keys (RSA 4096-bit), WinRM Kerberos/NTLMv2 over TLS, and SNMPv3 SHA/AES-256.",
+      "data_protection_measures": [
+        "All network traffic in transit between MID Servers and ServiceNow SaaS is encrypted using TLS 1.3 over TCP 443 with AES-GCM cipher suites.",
+        "Zero inbound firewall ports allowed into AWS VPCs or on-premises datacenters from the internet or ServiceNow SaaS.",
+        "Target credentials dynamically retrieved in-memory with zero plaintext caching or file system persistence on MID Server hosts.",
+        "Diagnostic payloads containing sensitive configuration data are scrubbed of passwords and secrets prior to ECC Queue transmission.",
+        "ServiceNow SaaS database encrypted at rest using AES-256 database-level encryption."
+      ]
+    },
+    "solution_overview": "The Hybrid ServiceNow CMDB Autodiscovery solution deploys a highly resilient, distributed, agent-based discovery architecture spanning Amazon Web Services (AWS) and on-premises physical datacenters. Clustered ServiceNow MID Servers operate within customer-controlled private networks, polling the ServiceNow SaaS ECC Queue over outbound-only TLS 1.3 connections to execute autodiscovery across compute, storage, networking, and software assets. Discovery data flows dynamically into the ServiceNow Identification and Reconciliation Engine (IRE) to maintain a single source of truth within the CMDB under CSDM 4.0 standards. Reconciled technical data immediately populates and synchronizes Hardware Asset Management (HAM Pro) lifecycle records and Software Asset Management (SAM Pro) license normalization models. Enterprise credential vaults (CyberArk CCP and AWS Secrets Manager) provide just-in-time, least-privilege authentication without storing plaintext credentials on MID Server hosts.",
+    "data_flow_overview": "Discovery operates via an asynchronous, outbound-only polling pattern: 1) ServiceNow ITOM scheduler initiates discovery and posts probe tasks into the ECC Queue. 2) Clustered MID Servers in AWS and on-premises poll the ECC Queue every 2-5 seconds over outbound HTTPS (TCP 443). 3) Upon retrieving a probe job, the MID Server queries the local credential broker (AWS Secrets Manager in AWS; CyberArk CCP on-premises) over TLS 1.3 to obtain temporary target credentials. 4) The MID Server executes the probe against target endpoints (AWS Cloud APIs, SSH, WinRM, WMI, or SNMPv3). 5) Probe responses containing raw system configurations and software manifests are captured in memory. 6) The MID Server encrypts and delivers the payload back to the ServiceNow ECC Queue as an 'input' record. 7) ServiceNow ITOM sensors process the payload and submit it to the Identification and Reconciliation Engine (IRE). 8) IRE applies identification rules to match existing CIs or create new records in cmdb_ci_* tables, preventing duplicates. 9) IRE triggers asset synchronization: hardware specifications (serial, MAC, chassis) update alm_hardware in HAM Pro, while installed software packages populate cmdb_sam_sw_install. 10) SAM Pro executes normalization and reconciles licenses against alm_license entitlements.",
+    "architecture_style": "agent-based-distributed-discovery",
+    "integration_points": [
+      {
+        "target": "ServiceNow ITOM Discovery Engine & IRE",
+        "description": "Outbound long-polling message transport between AWS Cloud MID Server Cluster and ServiceNow SaaS ECC Queue. MID servers pull probe commands and push sensor payloads.",
+        "integration_pattern": "Outbound HTTPS Long-Polling Message Queue",
+        "source": "AWS Cloud MID Server Cluster",
+        "protocol": "HTTPS / TLS 1.3 (TCP 443)"
+      },
+      {
+        "description": "Outbound long-polling message transport between On-Premises Datacenter MID Server Cluster and ServiceNow SaaS ECC Queue over corporate proxy.",
+        "target": "ServiceNow ITOM Discovery Engine & IRE",
+        "integration_pattern": "Outbound HTTPS Long-Polling Message Queue",
+        "protocol": "HTTPS / TLS 1.3 (TCP 443)",
+        "source": "On-Premises Datacenter MID Server Cluster"
+      },
+      {
+        "protocol": "HTTPS / TLS 1.3 (TCP 443)",
+        "target": "Enterprise Credential Vault Gateway",
+        "description": "On-premises dynamic credential retrieval interface allowing MID Servers to request target credentials just-in-time from CyberArk CCP using client certificate authentication.",
+        "source": "On-Premises Datacenter MID Server Cluster",
+        "integration_pattern": "Synchronous REST API with Mutual TLS"
+      },
+      {
+        "protocol": "HTTPS / TLS 1.3 (TCP 443)",
+        "description": "Cloud dynamic secret retrieval interface allowing AWS MID Servers to query AWS Secrets Manager via PrivateLink VPC endpoints using IAM SigV4 authentication.",
+        "target": "Enterprise Credential Vault Gateway",
+        "integration_pattern": "Synchronous REST API with AWS SigV4 Auth",
+        "source": "AWS Cloud MID Server Cluster"
+      },
+      {
+        "protocol": "HTTPS / TLS 1.3 (AWS SDK), SSH (22), WinRM (5985/5986)",
+        "source": "AWS Cloud MID Server Cluster",
+        "integration_pattern": "Cloud Management API Polling and Agentless Remote Execution",
+        "description": "Cloud and guest OS autodiscovery across AWS accounts, VPCs, and EC2 instances via AWS SDK APIs and agentless SSH/WinRM management protocols.",
+        "target": "Hybrid Target Infrastructure & Workloads"
+      },
+      {
+        "description": "Deep agentless on-premises guest OS, hypervisor, and network device autodiscovery via standard diagnostic and management protocols.",
+        "source": "On-Premises Datacenter MID Server Cluster",
+        "integration_pattern": "Agentless Remote Execution and Querying",
+        "protocol": "SSH (22), WinRM (5985/5986), WMI (135/445), SNMPv3 (161), HTTPS (443)",
+        "target": "Hybrid Target Infrastructure & Workloads"
+      },
+      {
+        "description": "Automated data synchronization pipeline transferring discovered hardware attributes and software packages into HAM and SAM operational tables.",
+        "integration_pattern": "Internal Database Event-Driven Bus",
+        "target": "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
+        "source": "ServiceNow ITOM Discovery Engine & IRE",
+        "protocol": "In-Memory JVM / Relational DB Event Trigger"
+      }
+    ],
+    "availability_and_resilience": {
+      "disaster_recovery_plan": "Enterprise disaster recovery spans all architectural tiers: 1) ServiceNow SaaS Platform (ITOM Discovery, IRE, HAM/SAM Asset Lifecycle Engines) utilizes multi-datacenter Advanced High Availability (AHA) automated geographic failover with near-zero data loss. 2) Enterprise Credential Vault Gateway leverages cross-region CyberArk Vault disaster recovery replication and AWS Secrets Manager cross-region secret replication. 3) Clustered MID Server instances absorb workloads during AZ or physical rack failure via active-active cluster pools; in total datacenter or region loss, MID Server clusters can be fully redeployed into alternate VPC/DC within 2 hours using automated Terraform IaC pipelines.",
+      "backup_strategy": "ServiceNow SaaS automated multi-region daily full database snapshots and continuous WAL journaling; MID Server configuration and custom discovery patterns stored in Git and provisioned via automated Terraform / Ansible templates.",
+      "availability_target": "99.9% uptime for the hybrid discovery pipeline",
+      "redundancy_strategy": "Multi-tier redundancy, active-active clustering, and automated failover across all architectural tiers: 1) ServiceNow ITOM Discovery Engine & IRE: Deployed on a redundant, multi-node ServiceNow Advanced High Availability (AHA) clustered architecture within paired enterprise datacenters. Active-active application nodes share ECC Queue processing load, and the Percona MariaDB database cluster provides automated synchronous replication and sub-60-second database failover, mitigating single points of failure. 2) ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro): Runs across the clustered ServiceNow multi-node application server pool with distributed asynchronous background worker threads (GlideScriptedHierarchicalWorker). Reconciliation and normalization jobs fail over transparently to surviving nodes, providing high availability without a single point of failure. 3) Enterprise Credential Vault Gateway: High-availability multi-instance clustered deployment across both environments: on-premises CyberArk Central Credential Provider (CCP) operates as an active-active clustered pool of stateless IIS web servers behind redundant F5 BIG-IP load balancers with automated health checks and sub-second VIP failover; AWS Secrets Manager is natively distributed across multiple AWS Availability Zones with multi-AZ VPC Endpoints (AWS PrivateLink), delivering automated failover and 99.99% availability SLA. 4) Clustered MID Server Arrays: Clustered MID Server arrays with N+1 redundancy across independent AWS Availability Zones (us-east-1a, us-east-1b) and isolated physical on-premise hypervisor hosts and racks, providing resilience through active-active load distribution and automated failover within 60 seconds without dropping discovery execution state.",
+      "rpo": "1 hour for ServiceNow SaaS CMDB operational data; 0 hours for MID configurations restored via IaC Git repositories",
+      "rto": "2 hours for complete automated redeployment of all hybrid MID Server cluster instances; sub-60 seconds for automated cluster node failover"
+    },
+    "technology_stack": [
+      {
+        "category": "ITSM & ITAM SaaS Platform",
+        "justification": "Core enterprise cloud platform providing CMDB, ITOM Discovery, HAM Pro, and SAM Pro applications with multi-node AHA clustering.",
+        "technology": "ServiceNow Washington DC / Xanadu Platform (AHA Multi-Node)",
+        "version": "Washington DC Patch 7 / Xanadu",
+        "license": "Commercial Enterprise SaaS Subscription"
+      },
+      {
+        "license": "Included with ServiceNow ITOM License",
+        "technology": "ServiceNow MID Server Daemon",
+        "category": "Discovery Agent Runtime",
+        "version": "v24.0.0+",
+        "justification": "Secure, cross-platform Java execution daemon for discovery probes and Cloud API integration."
+      },
+      {
+        "category": "Compute Runtime Environment",
+        "license": "Eclipse Open Source (EPL 2.0 / GPLv2 with CE)",
+        "justification": "Long Term Support (LTS) Java Runtime Environment delivering high performance and stability for MID daemon threads.",
+        "technology": "Eclipse Temurin OpenJDK",
+        "version": "17.0.10_7"
+      },
+      {
+        "version": "AL2023 AMI",
+        "justification": "High-performance, secure cloud compute instances in an Auto Scaling Group hosting AWS MID Server clusters across multiple AZs.",
+        "category": "Cloud Compute & Orchestration",
+        "license": "AWS Commercial",
+        "technology": "Amazon EC2 Auto Scaling (m6i.xlarge) & Amazon Linux 2023"
+      },
+      {
+        "version": "8.0 Update 2",
+        "category": "On-Premises Virtualization",
+        "justification": "Enterprise hypervisor platform hosting on-premises MID Server virtual machines with DRS load balancing, vMotion, and HA support.",
+        "technology": "VMware vSphere ESXi & vCenter Server with DRS",
+        "license": "Commercial Enterprise"
+      },
+      {
+        "category": "Infrastructure as Code",
+        "license": "Mozilla Public License 2.0 / Commercial",
+        "technology": "HashiCorp Terraform",
+        "justification": "Automates identical, immutable deployment of MID Server host infrastructure across AWS and VMware.",
+        "version": "1.7.0+"
+      },
+      {
+        "version": "13.2+",
+        "technology": "CyberArk Central Credential Provider (CCP) Clustered Pool",
+        "justification": "Enterprise privileged access management system enabling secure, dynamic credential retrieval via an elastic clustered pool behind F5 BIG-IP.",
+        "license": "Commercial Enterprise",
+        "category": "Credential Management (On-Premises)"
+      },
+      {
+        "category": "Credential Management (Cloud)",
+        "version": "Managed Service",
+        "technology": "AWS Secrets Manager Elastic VPC Endpoints",
+        "license": "AWS Commercial",
+        "justification": "Managed cloud secret storage integrated with AWS IAM and elastic serverless PrivateLink VPC Endpoints for cloud guest OS credentials."
+      }
+    ],
+    "scalability_and_performance": {
+      "scaling_strategy": "Explicit elastic scaling strategies and technologies across all structural bottleneck and processing tiers: 1) ServiceNow ITOM Discovery Engine & IRE: Elastic scaling leveraging ServiceNow Advanced High Availability (AHA) dynamic application node pooling and an elastic ECC Queue worker pool. Worker threads automatically scale from 40 to 80+ concurrent threads based on queue depth thresholds (glide.ecc_queue.max_active_processing_jobs), while MariaDB read replicas elastically offload read-intensive CI identification queries to prevent database lock contention. 2) Enterprise Credential Vault Gateway: Horizontally elastic architecture. On-premises CyberArk Central Credential Provider (CCP) deploys an elastic pool of stateless REST API web service instances auto-balanced by F5 BIG-IP with connection pooling, handling surges in probe authentication requests without bottlenecking; in AWS, AWS Secrets Manager utilizes fully managed, elastic serverless VPC Endpoints (AWS PrivateLink) that scale automatically to support tens of thousands of API requests per second with built-in client-side jittered backoff. 3) Hybrid Target Infrastructure & Workloads: Elastic scaling across discovered environments. AWS workloads employ AWS Auto Scaling Groups (ASG) and Elastic Kubernetes Service (EKS) Horizontal Pod Autoscaling (HPA) to dynamically adjust capacity; on-premises VMware vSphere clusters utilize VMware Distributed Resource Scheduler (DRS) to elastically balance CPU and memory allocations across ESXi hosts, preventing target host degradation during concurrent discovery probes. 4) MID Server Clusters: AWS Cloud MID Server cluster utilizes EC2 Auto Scaling Groups to dynamically scale instance count between 2 and 6 m6i.xlarge nodes based on ECC Queue output backlog; On-Premises Datacenter MID Server cluster supports rapid elastic expansion by deploying pre-hardened VM templates via Terraform within minutes to absorb burst scanning demands.",
+      "performance_targets": [
+        "ECC Queue processing queue depth maintained below 5,000 concurrent messages at all times.",
+        "Average probe execution turnaround time under 45 seconds per host target.",
+        "Complete discovery cycle execution completed within scheduled 8-hour maintenance windows without schedule overrun.",
+        "CMDB IRE identification and insertion processing rate exceeding 200 CIs per minute during peak ingestion.",
+        "Credential vault lookup latency maintained under 50 milliseconds per dynamic checkout request."
+      ],
+      "expected_load": "50,000+ infrastructure CIs (physical servers, virtual machines, cloud instances, network devices) and 100,000+ software installation records processed within an 8-hour discovery window."
+    }
+  },
+  "review_and_governance": {
+    "review_history": [
+      {
+        "role": "Governance Authority",
+        "comments": "Architectural review completed. Conforms to CSDM 4.0, ISO/IEC 27001, and zero-trust hybrid network requirements. Approved for LLD detailing and implementation planning.",
+        "reviewer": "Global Architecture Council & Enterprise Security Board",
+        "date": "2025-02-15",
+        "status": "approved"
+      },
+      {
+        "reviewer": "Enterprise Architecture Review Board",
+        "role": "Lead Architecture Reviewer",
+        "status": "approved",
+        "date": "2025-02-16",
+        "comments": "Low-Level Design elaboration verified. Component specifications, sequence diagrams, database entity definitions, and REST interface contracts meet enterprise engineering standards."
+      }
+    ],
+    "change_log": [
+      {
+        "version": "1.0.0",
+        "description_of_change": "Initial baseline release of ServiceNow CMDB Autodiscovery HLD for Hybrid AWS and Physical Datacenter environments supporting HAM and SAM.",
+        "change_type": "major",
+        "date": "2025-02-15",
+        "author": "Enterprise Infrastructure Architecture Board"
+      },
+      {
+        "description_of_change": "Elaborated High-Level Architecture into detailed Low-Level Design (LLD) specifications including C4 Level 3 component designs, sequence flows, database schemas, and interface contracts.",
+        "change_type": "major",
+        "version": "2.0.0",
+        "author": "Senior Lead Systems & Software Engineer (LLD)",
+        "date": "2025-02-16"
+      },
+      {
+        "author": "Principal Enterprise Systems Architect",
+        "date": "2025-02-16",
+        "change_type": "minor",
+        "version": "2.1.0",
+        "description_of_change": "Addressed architectural simulation feedback: declared explicit redundancy, clustering, and multi-instance failover architectures for ServiceNow ITOM Discovery Engine, HAM/SAM Asset Lifecycle Engine, and Credential Vault Gateway; defined elastic scaling strategies and technologies across structural bottleneck components; resolved integration point component references; added explicit RTO/RPO quality attributes; removed fabricated internal engineering artifacts."
+      }
+    ],
+    "approval_workflow": {
+      "required_approvers": [
+        "Enterprise Architecture Board",
+        "Information Security Council",
+        "IT Operations & Asset Management Steering Group"
+      ],
+      "approval_date": "2025-02-16",
+      "approvers": [
+        {
+          "role": "Lead Reviewer & Executive Sponsor",
+          "organization": "Global Architecture Council",
+          "name": "Chief Technology Officer / Enterprise Architecture Lead",
+          "contact": "chief.architect@enterprise.org"
+        },
+        {
+          "contact": "ciso@enterprise.org",
+          "role": "Security & Compliance Sign-off",
+          "organization": "Enterprise Information Security Office",
+          "name": "Chief Information Security Officer"
+        }
+      ],
+      "current_status": "approved"
+    }
+  },
+  "glossary_and_references": {
+    "glossary": [
+      {
+        "term": "CSDM 4.0",
+        "definition": "Common Service Data Model: A shared, prescriptive Information Architecture across ServiceNow platforms connecting technical assets to business services."
+      },
+      {
+        "term": "ECC Queue",
+        "definition": "External Communication Channel: A ServiceNow database queue used to manage asynchronous bi-directional communication between the ServiceNow instance and MID Servers."
+      },
+      {
+        "definition": "Hardware Asset Management: ServiceNow application providing advanced lifecycle control, procurement tracking, and normalization for physical and virtual hardware assets.",
+        "term": "HAM Pro"
+      },
+      {
+        "definition": "Identification and Reconciliation Engine: Central ServiceNow mechanism that evaluates incoming discovery data against existing CIs to prevent duplicate records and govern field updates.",
+        "term": "IRE"
+      },
+      {
+        "term": "MID Server",
+        "definition": "Management, Instrumentation, and Discovery Server: A lightweight Java application executing on internal servers to discover target infrastructure and execute automation commands."
+      },
+      {
+        "term": "SAM Pro",
+        "definition": "Software Asset Management: ServiceNow application designed to normalize discovered software installations, manage software entitlements, and calculate software license compliance."
+      }
+    ],
+    "diagrams": [
+      {
+        "notation_standard": "C4",
+        "description": "High-Level System Context Diagram illustrating hybrid boundary boundaries and ECC Queue communication.",
+        "diagram_type": "context",
+        "file_reference": "architecture/diagrams/c4_system_context.png",
+        "title": "Hybrid ServiceNow CMDB Context Diagram",
+        "diagram_id": "CTX-C4-01"
+      },
+      {
+        "diagram_type": "container",
+        "diagram_id": "CNT-C4-02",
+        "description": "Container diagram detailing internal discovery pipeline, IRE engine, and asset table data flow.",
+        "title": "ServiceNow Discovery Container Architecture",
+        "file_reference": "architecture/diagrams/c4_container_diagram.png",
+        "notation_standard": "C4"
+      },
+      {
+        "description": "Deployment layout showing MID Server clusters across AWS AZs and on-premises physical data center tiers.",
+        "file_reference": "architecture/diagrams/c4_deployment_topology.png",
+        "diagram_id": "DEP-C4-03",
+        "diagram_type": "deployment",
+        "title": "MID Server Hybrid Deployment Topology",
+        "notation_standard": "C4"
+      }
+    ],
+    "references": [
+      {
+        "title": "ServiceNow ITOM Discovery Architecture and MID Server Clustering Guide",
+        "source": "ServiceNow Product Documentation",
+        "url": "https://docs.servicenow.com/bundle/washingtondc-it-operations-management/page/product/discovery/concept/c_DiscoveryMIDServer.html",
+        "version": "Washington DC / Xanadu"
+      },
+      {
+        "title": "Common Service Data Model (CSDM) 4.0 Implementation Whitepaper",
+        "source": "ServiceNow Community Best Practices",
+        "version": "4.0",
+        "url": "https://www.servicenow.com/community/csdm-articles/csdm-4-0-overview/ta-p/2312581"
+      },
+      {
+        "source": "Center for Internet Security",
+        "url": "https://www.cisecurity.org/controls",
+        "version": "8.0",
+        "title": "CIS Critical Security Controls Version 8 - Asset and Software Management"
+      }
+    ]
+  },
+  "risk_register": [
+    {
+      "category": "Security",
+      "description": "Compromise of MID Server host instance could provide lateral network access to discovered subnets.",
+      "likelihood": "low",
+      "status": "open",
+      "id": "REG-RSK-001",
+      "mitigation": "Harden MID Server host operating systems according to CIS Benchmarks; isolate MID instances in dedicated management subnets/VPCs; enforce egress security groups permitting traffic only to target management ports; ensure no plaintext credentials reside on host.",
+      "impact": "high",
+      "owner": "Enterprise Cyber Defense Team"
+    },
+    {
+      "description": "Untracked cloud resources or rogue datacenter hardware escaping discovery boundaries leading to licensing audit non-compliance.",
+      "owner": "Cloud & Platform Engineering Lead",
+      "likelihood": "low",
+      "impact": "high",
+      "mitigation": "Implement automated AWS CloudWatch and AWS Config event triggers to invoke Discovery when new EC2 instances are created; perform weekly automated IP range subnet reconciliation between IPAM and ServiceNow Discovery schedules.",
+      "status": "open",
+      "category": "Compliance",
+      "id": "REG-RSK-002"
+    },
+    {
+      "description": "Mid Server auto-upgrade failure during progressive ServiceNow family release cycles causing discovery outage.",
+      "id": "REG-RSK-003",
+      "status": "open",
+      "mitigation": "Configure MID Server progressive upgrade rings: upgrade staging MID cluster first; validate probe execution before automatically rolling out to production clusters.",
+      "likelihood": "low",
+      "owner": "ServiceNow Operations Lead",
+      "category": "Operational",
+      "impact": "medium"
+    }
+  ],
+  "appendix": {
+    "notes": "Discovery schedule windows are partitioned to run off-peak (00:00 to 06:00 UTC for datacenter subnets; staggered hourly intervals for dynamic AWS cloud discovery)."
+  },
+  "governance_requirements": [
+    "All discovery schedules must be reviewed and approved by the Change Advisory Board (CAB) to avoid scanning during critical production business windows.",
+    "CI Class Models and IRE reconciliation rules must undergo Configuration Control Board (CCB) review prior to deployment to preserve CMDB data integrity.",
+    "Credential vault access logs and discovery account permissions must be audited quarterly by the Enterprise Information Security Office.",
+    "New discovery IP ranges or AWS account onboardings must follow automated CI lifecycle governance with mandatory ownership assignment under CSDM 4.0."
+  ]
+}
