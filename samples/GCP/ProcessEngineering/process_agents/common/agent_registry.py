@@ -5,6 +5,8 @@ from ..process.consultant_agent import consultant_agent
 from ..design.consultant_design_agent import consultant_design_agent
 from ..cloudarch.cloudarch_agent import cloudarch_agent
 from ..cloudarch.cloudarch_reviewer_agent import cloudarch_reviewer_agent
+from ..cloudarch.cloudarch_consultant_agent import consultant_cloudarch_agent
+from ..cloudarch.cloudarch_simulation_agent import cloudarch_simulation_query_agent
 from ..cloudarch.cloudarch_pipeline_agent import (
     cloudarch_pipeline,
     stop_controller_agent_instance as stop_controller_agent_instance_cloudarch,

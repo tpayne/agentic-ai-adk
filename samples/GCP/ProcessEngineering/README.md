@@ -60,7 +60,8 @@ The ADK pipeline provides:
 - **Autonomous Design Document Pipeline**: A parallel "Solution Architect" workflow (`Full_Design_Doc_Pipeline` / `Update_Design_Doc_Pipeline`) that transforms raw architecture requirements into a High-Level Design (HLD), Low-Level Design (LLD), or Combined design document, following the same requirements → design → review → normalize → document flow as the process pipeline.
 - **Self-Auditing Design Review Loop**: A design-side review/compliance loop iterates over the HLD/LLD/Combined document, checking it against `design_document_schema.json` and standards references (e.g. TOGAF ADM, C4 Model, ISO/IEC/IEEE 42010) until it is structurally and content-complete.
 - **Self-Auditing Design Simulation Gate**: A `Design_Architecture_Simulation_Agent` runs the same four-dimension simulation (below) as an internal gate inside `Full_Design_Doc_Pipeline`/`Update_Design_Doc_Pipeline`, triggering revisions if resilience, scalability, security, or latency issues are found — the design-side equivalent of the process pipeline's Self-Auditing Simulation Gate.
-- **Cloud Architecture Diagramming (`CloudArch_Pipeline`)**: A dedicated reviewer/generator loop (`cloudarch_agent`, `cloudarch_reviewer_agent`) produces and iteratively refines a cloud/UML-style architecture diagram from the design document's components, dependencies, and integration points. Diagram XML is generated and validated/saved locally (`save_drawio`) regardless of the setting below. Optionally, setting `enableDrawioShapeSearch = True` in `agentapp.properties` (off by default) also gives `CloudArch_Agent` a `search_shapes` tool backed by the official [draw.io MCP server](https://www.drawio.com/docs/manual/generate/drawio-mcp-server/) (`npx -y @drawio/mcp`, requires Node.js on PATH) so it can look up accurate platform-specific shape style strings instead of guessing them; the server's other, browser-opening tools are not used since this pipeline runs unattended.
+- **Cloud Architecture Diagramming (`CloudArch_Pipeline`)**: A dedicated reviewer/generator loop (`cloudarch_agent`, `cloudarch_reviewer_agent`) produces and iteratively refines a cloud/UML-style architecture diagram from the design document's components, dependencies, and integration points. The same pipeline also applies natural-language refinements to an existing diagram (e.g. "add a WAF in front of the load balancer") — the generator loads the current diagram (`load_drawio`) before modifying it, rather than only ever starting from scratch. Diagram XML is generated and validated/saved locally (`save_drawio`) regardless of the setting below. Optionally, setting `enableDrawioShapeSearch = True` in `agentapp.properties` (off by default) also gives `CloudArch_Agent` a `search_shapes` tool backed by the official [draw.io MCP server](https://www.drawio.com/docs/manual/generate/drawio-mcp-server/) (`npx -y @drawio/mcp`, requires Node.js on PATH) so it can look up accurate platform-specific shape style strings instead of guessing them; the server's other, browser-opening tools are not used since this pipeline runs unattended.
+- **Cloud Architecture Consultant & Simulation**: A `CloudArch_Consultant_Agent` answers questions about an existing cloud architecture diagram (its purpose, components, and connections) grounded strictly in the diagram's own XML, while a `CloudArch_Simulation_Query_Agent` runs a structural resilience (blast-radius Monte Carlo), scalability (fan-in bottleneck), and latency (dependency chain depth) simulation directly against the diagram — not the source design document, since the diagram is often more granular (WAF/KMS/IAM/CloudFront-level detail a design document's abstract component list wouldn't enumerate). The consultant automatically hands quantitative or "dry run" requests off to the simulation agent, and modification requests off to `CloudArch_Pipeline`.
 - **Real LLD Sequence Diagrams**: Each Low-Level Design component's `sequence_flows` entries carry their own inline participants and ordered steps (`design_document_schema.json`'s `sequenceDiagramSpec`), rendered as an actual UML-style sequence diagram (lifelines, sync/async calls, returns) and embedded in the generated document — not a placeholder reference to a diagram that was never produced.
 - **Four-Dimension Design Simulation**: A `Design_Architecture_Simulation_Query_Agent` runs a single composite simulation over an existing design document covering:
   - **Resilience** — a Monte Carlo blast-radius/cascading-failure model built from component dependencies, integration points, declared availability targets, and risk register entries, identifying single points of failure and an overall resilience risk rating.
@@ -88,7 +89,7 @@ The ADK pipeline provides:
 4. **Cloud Architecture Diagramming**: The `CloudArch_Pipeline` reviewer/generator loop renders a cloud/UML-style architecture diagram from the components, dependencies, and integration points in the finalized design.
 5. **Artifact Engineering**: The Documentation Agent renders the final design specification (Word document) from the local `design_data.json` state, alongside the generated architecture diagram.
 
-Once a design document exists on disk, it can be queried (`Design_Consultant_Agent`), tested against what-if scenarios (`Design_Scenario_Tester`), simulated across resilience/scalability/security/latency (`Design_Architecture_Simulation_Query_Agent`), or updated and re-documented (`Update_Design_Doc_Pipeline`) — mirroring the equivalent process-side capabilities above.
+Once a design document exists on disk, it can be queried (`Design_Consultant_Agent`), tested against what-if scenarios (`Design_Scenario_Tester`), simulated across resilience/scalability/security/latency (`Design_Architecture_Simulation_Query_Agent`), or updated and re-documented (`Update_Design_Doc_Pipeline`) — mirroring the equivalent process-side capabilities above. Once a cloud architecture diagram exists, it has the same query/simulate/update parity: queried (`CloudArch_Consultant_Agent`), simulated across resilience/scalability/latency (`CloudArch_Simulation_Query_Agent`), or modified via natural language (`CloudArch_Pipeline`).
 
 ---
 
@@ -740,6 +741,9 @@ The following are sample prompts for the design-document (HLD/LLD/Combined archi
 - Running the four-dimension (resilience/scalability/security/latency) architecture simulation
 - Updating an existing design document and regenerating the documentation
 - Generating or regenerating a cloud architecture diagram from a design document
+- Modifying an existing cloud architecture diagram via natural language
+- Querying or reviewing an existing cloud architecture diagram
+- Running a resilience/scalability/latency simulation over an existing cloud architecture diagram
 
 ### Creating Design Documents
 - "Create a High-Level Design document for a ServiceNow-based Configuration Management and Discovery platform covering AWS and on-premises MID Server clusters, ECC Queue, and Identification & Reconciliation Engine, including component dependencies, integration points, availability targets, and a risk register."
@@ -773,6 +777,21 @@ The following are sample prompts for the design-document (HLD/LLD/Combined archi
 ### Generating or Regenerating Cloud Architecture Diagrams
 - "Generate a cloud architecture diagram for the current design document"
 - "Regenerate the architecture diagram to reflect the updated component list"
+
+### Modifying Cloud Architecture Diagrams via Natural Language
+- "Add a WAF in front of the load balancer in the architecture diagram"
+- "Update the cloud diagram to include a Redis cache between the API and the database"
+- "In the drawio diagram, replace the ALB with an API Gateway"
+
+### Reviewing or Querying Existing Cloud Architecture Diagrams
+- "What does this cloud architecture diagram show?"
+- "What connects to the load balancer in the diagram?"
+- "Review the current diagram for best-practice gaps — is there anything missing for security or observability?"
+
+### Running Cloud Architecture Diagram Simulations
+- "Simulate a failure in this cloud architecture diagram — what are the single points of failure?"
+- "Will the architecture in the diagram scale under load?"
+- "Do a dry run of this cloud architecture diagram"
 
 ---
 
@@ -976,8 +995,10 @@ children only where the module builds a composite agent.
 | `analysis_agent.py` | Extracts process objectives and records analysis metadata. | `Analysis_Agent` | — |
 | `app.py` | Flask application exposing process generation, status, version, and API endpoints. | Flask application | Root workflow via `build_process_model()` |
 | `cloudarch_agent.py` | Generates cloud-architecture content and metadata. | `CloudArch_Agent` | — |
-| `cloudarch_pipeline_agent.py` | Repeats cloud-architecture generation, review, and approval. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, stop controller |
+| `cloudarch_consultant_agent.py` | Answers questions about an existing cloud architecture diagram. | `CloudArch_Consultant_Agent` | — |
+| `cloudarch_pipeline_agent.py` | Repeats cloud-architecture generation, review, and approval; resets stale approval state before each run. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, stop controller |
 | `cloudarch_reviewer_agent.py` | Reviews generated cloud architecture and records feedback. | `CloudArch_Reviewer_Agent` | — |
+| `cloudarch_simulation_agent.py` | Simulates diagram resilience, scalability, and latency directly from the drawio graph. | `CloudArch_Simulation_Query_Agent` | — |
 | `compliance_agent.py` | Audits process designs for governance and compliance. | `Compliance_Agent` | — |
 | `consultant_agent.py` | Provides general process-engineering consultation. | `Consultant_Agent` | — |
 | `consultant_design_agent.py` | Provides architecture and process-design consultation. | `Design_Consultant_Agent` | — |
@@ -1016,7 +1037,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 
 | Agent | What it does | Direct sub-agents |
 | :--- | :--- | :--- |
-| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, simulation, cloud-architecture, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
 | `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
 | `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
 | `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
@@ -1037,7 +1058,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 | `Iterative_Design_Doc_Update_Stage` | Executes one design-document update iteration. | `Design_Doc_HLD_Agent_Update`, `Design_Doc_LLD_Agent_Update`, `Design_Doc_Compliance_Agent_Update`, `Design_Doc_Agent_Update`, `Design_Architecture_Simulation_Agent_Update`, `Design_Doc_Simulation_Refinement_Agent_Update`, `Grounding_Validation_Agent_DesignDoc_Update`, `Design_Doc_Agent_Grounding_Update`, `Stop_Controller_DesignDoc_Update` |
 | `Design_Doc_Update_Normalization_Loop` | Normalizes, reviews, and writes updated design-document JSON. | `Design_Doc_Update_Normalizer_Sequence`, `JSON_Writer_DesignDoc_Update` |
 | `Design_Doc_Update_Normalizer_Sequence` | Performs one updated design-document normalization-review-stop iteration. | `JSON_Normalizer_DesignDoc_Update`, `JSON_Review_DesignDoc_Update`, `JSON_Review_Stop_Controller_DesignDoc_Update` |
-| `CloudArch_Pipeline` | Generates and reviews a cloud architecture diagram until it is approved. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, `Stop_Controller_CloudArch` |
+| `CloudArch_Pipeline` | Generates, refines, and reviews a cloud architecture diagram until it is approved. Also handles natural-language modification requests against an existing diagram. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, `Stop_Controller_CloudArch` |
 | `Analysis_Agent` | Extracts process objectives, requirements, and traceability context from the request. | — |
 | `Process_Update_Analyst` | Loads and analyzes an existing process before modification. | — |
 | `Design_Doc_Analysis_Agent` | Extracts architectural requirements and document scope. | — |
@@ -1063,6 +1084,8 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 | `Design_Consultant_Agent` | Provides architecture and design consultation. | — |
 | `CloudArch_Agent` | Generates cloud-architecture descriptions and diagram input. | — |
 | `CloudArch_Reviewer_Agent` | Reviews generated cloud architecture and supplies iteration feedback. | — |
+| `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram, grounded in its XML. | — |
+| `CloudArch_Simulation_Query_Agent` | Simulates resilience, scalability, and latency directly against an existing cloud architecture diagram. | — |
 | `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |
 | `Doc_Creation_Sequence` | Runs the document artifact stages in order. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
 | `Edge_Inference_Agent` | Derives graph edges, lanes, labels, and dependencies from process JSON. | — |

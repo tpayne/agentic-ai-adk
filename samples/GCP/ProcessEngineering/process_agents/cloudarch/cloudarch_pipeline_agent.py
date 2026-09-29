@@ -1,6 +1,7 @@
 # process_agents/cloudarch_pipeline_agent.py
 
 import logging
+import os
 from google.adk.agents import LoopAgent
 
 from ..common.utils import getProperty
@@ -12,6 +13,45 @@ from ..common.agent_wrappers import ProcessAgent
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
 SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
+
+
+def _reset_cloudarch_approval_state(callback_context=None) -> None:
+    """
+    Clears any stale output/approval.json / output/stop_counter.json left
+    over from an earlier, unrelated pipeline run, before CloudArch_Pipeline's
+    review loop starts.
+
+    process/analysis_agent.py and design/design_doc_analysis_agent.py both
+    already do this at the start of their own pipelines, but CloudArch never
+    had an equivalent -- and it needs one for a subtler reason than "stale
+    data looks confusing": _build_stop_if_ready's stop_if_ready (see
+    common/utils_agent.py) has a blanket check --
+    `"JSON APPROVED" in approval_state.get("status", "")` -- that fires for
+    EVERY pipeline's stop controller, including cloudarch_stop_if_ready, even
+    though CloudArch's own reviewer never writes to the "status" key (it
+    writes cloudarch_status). If an earlier, unrelated process/design-doc run
+    left status="JSON APPROVED" sitting in the shared approval.json,
+    CloudArch's stop controller would report "JSON APPROVED detected --
+    exiting loop" on iteration 1 regardless of whether cloudarch_reviewer_agent
+    has approved anything THIS run -- confirmed from a real run's log, where
+    the stop reason was misleadingly "JSON APPROVED detected" instead of the
+    genuine cloudarch_status=APPROVED reason, and the same stale marker could
+    just as easily short-circuit a run that genuinely still needed revision.
+
+    Runs exactly once per CloudArch_Pipeline invocation via before_agent_callback
+    -- NOT as one of cloudarch_agent's own tools, since that agent runs on
+    every loop iteration and a reset there would erase cloudarch_status right
+    after cloudarch_reviewer_agent writes it on iteration 1, breaking the
+    approval check on iteration 2 for any run that needs more than one pass.
+    """
+    for name in ("approval.json", "stop_counter.json"):
+        path = os.path.join("output", name)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+    return None
 
 # ---------------------------------------------------------
 # STOP CONTROLLER CLONE
@@ -67,6 +107,10 @@ cloudarch_review_loop = LoopAgent(
         stop_controller_agent_instance,
     ],
     max_iterations=SAFE_LOOP_ITERS,
+    # Runs exactly once, before the first loop iteration -- see
+    # _reset_cloudarch_approval_state's docstring for why this can't live
+    # inside cloudarch_agent's own tools instead.
+    before_agent_callback=_reset_cloudarch_approval_state,
 )
 
 # ---------------------------------------------------------

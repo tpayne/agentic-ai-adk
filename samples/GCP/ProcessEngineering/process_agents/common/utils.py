@@ -2024,6 +2024,71 @@ def load_drawio() -> dict:
         logger.error(f"Error loading DrawIO file: {e}")
         return {"status": "ERROR", "xml": None}
 
+
+_SHAPE_TOKEN_RE = re.compile(r"shape=mxgraph\.(\w+)\.([\w_]+);")
+
+
+def parse_drawio_graph(xml_content: str) -> dict:
+    """
+    Parses mxGraph XML (as saved by save_drawio) into a plain Python
+    {"vertices": [...], "edges": [...]} structure, for callers that need
+    to reason about the diagram's structure (e.g. cloudarch_simulation_agent)
+    rather than its raw markup.
+
+    Vertices are REAL SERVICE NODES ONLY: a cell counts as a vertex if it
+    has vertex="1" and its style contains a "shape=mxgraph.<provider>.<slug>;"
+    token -- the icon reference every real generated service node carries.
+    Layout/grouping boxes (title banners, VPC/AZ/subnet containers) use a
+    plain rounded-rectangle style with no such token and are deliberately
+    excluded: they aren't independently-failing components, they're page
+    layout. Each vertex: {"id", "value", "shape_provider", "shape_slug"}.
+
+    Edges are cells with edge="1" and both source and target set (an edge
+    dangling from/to nothing carries no structural information). Each edge:
+    {"id", "value", "source", "target"}. Unlike the design-document JSON
+    schema's free-text dependency strings, source/target here are already
+    real cell ids -- no fuzzy name resolution is needed.
+
+    Returns {"vertices": [], "edges": []} on any parse failure, rather than
+    raising, so a caller can treat "nothing simulatable" uniformly whether
+    the cause was missing data or malformed XML.
+    """
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.fromstring(xml_content)
+    except Exception as e:
+        logger.error(f"Failed to parse DrawIO XML in parse_drawio_graph: {e}")
+        return {"vertices": [], "edges": []}
+
+    vertices = []
+    edges = []
+    for cell in root.findall(".//mxCell"):
+        style = cell.get("style") or ""
+        if cell.get("vertex") == "1":
+            match = _SHAPE_TOKEN_RE.search(style)
+            if not match:
+                continue
+            vertices.append({
+                "id": cell.get("id"),
+                "value": (cell.get("value") or "").strip(),
+                "shape_provider": match.group(1),
+                "shape_slug": match.group(2),
+            })
+        elif cell.get("edge") == "1":
+            source, target = cell.get("source"), cell.get("target")
+            if not source or not target:
+                continue
+            edges.append({
+                "id": cell.get("id"),
+                "value": (cell.get("value") or "").strip(),
+                "source": source,
+                "target": target,
+            })
+
+    return {"vertices": vertices, "edges": edges}
+
+
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Saves the finalized JSON to output/process_data.json (or
