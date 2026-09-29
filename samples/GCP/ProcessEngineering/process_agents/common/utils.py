@@ -582,13 +582,26 @@ def _detect_schema_type_from_disk() -> str:
     return "process"
 
 
-def save_drawio(xml_content) -> str:
+def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
     """
     Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
     Includes lock protection, validation, unchanged-file detection, and
-    a provider-aware shape + container mapping pass for Azure, AWS, and GCP.
-    Shared helpers (_log_agent_activity, _safe_sleep_from_property, etc.)
-    are assumed to exist in the environment.
+    (when run_shape_mapping is True) a provider-aware shape + container
+    mapping pass for Azure, AWS, and GCP. Shared helpers
+    (_log_agent_activity, _safe_sleep_from_property, etc.) are assumed to
+    exist in the environment.
+
+    run_shape_mapping=False skips the heuristic icon/container
+    reinterpretation pass (_apply_shape_mappings) while still running the
+    structural safety net (_validate_and_repair_mxgraph). This is for
+    callers -- namely save_drawio_structured -- whose XML was built by
+    a deterministic layout engine and is already correct: the mapping
+    pass is fuzzy-match-based and designed to reinterpret freehand
+    LLM-guessed XML, and it misfires on structured-engine output (every
+    icon-bearing component has a child icon cell, which the mapping
+    pass's has_children check treats as "this must be a container",
+    rewriting its style and destroying the engine's already-correct
+    icon/label composition).
     """
 
     # --- HYBRID SHAPE MAPPINGS (EXTENSIBLE) ---
@@ -2098,7 +2111,7 @@ def save_drawio(xml_content) -> str:
                 "You MUST regenerate the architecture."
             )
 
-        mapped_xml = _apply_shape_mappings(raw_xml)
+        mapped_xml = _apply_shape_mappings(raw_xml) if run_shape_mapping else raw_xml
 
         try:
             import xml.etree.ElementTree as ET
@@ -2139,6 +2152,14 @@ def save_drawio(xml_content) -> str:
 
     finally:
         release_lock()
+
+def save_drawio(xml_content) -> str:
+    """
+    Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
+    Includes lock protection, validation, unchanged-file detection, and
+    a provider-aware shape + container mapping pass for Azure, AWS, and GCP.
+    """
+    return _save_drawio_core(xml_content, run_shape_mapping=True)
 
 def load_drawio() -> dict:
     """
@@ -2231,6 +2252,78 @@ def parse_drawio_graph(xml_content: str) -> dict:
             })
 
     return {"vertices": vertices, "edges": edges}
+
+
+def save_drawio_structured(
+    title: str,
+    subtitle: str,
+    zones: list,
+    components: list,
+    edges: list,
+) -> str:
+    """
+    Builds and saves a cloud architecture diagram from STRUCTURED content --
+    no coordinates, no drawio XML -- rather than raw XML with hand-picked
+    positions. A deterministic layout engine (cloudarch_layout_agent.py)
+    computes every box's size and position and routes every edge, so the
+    kinds of layout defects seen with freehand XML (icons overlapping their
+    own label, boxes too short for their text, edge labels landing on top of
+    an unrelated box) cannot occur -- they are prevented by construction,
+    not by guessing coordinates correctly. Prefer this tool over save_drawio
+    whenever the architecture organizes into zones/tiers with components and
+    connections between them (the normal case); fall back to save_drawio
+    only for an architecture that genuinely does not fit that shape.
+
+    title, subtitle: diagram title banner text (subtitle may be "").
+
+    zones: list of dicts, each:
+      {"id": str, "label": str, "sublabel": str (optional, ""),
+       "row": int (optional, default 0), "color": str (optional hex),
+       "stack": "vertical"|"horizontal" (optional, default "vertical"),
+       "width": int (optional)}
+      Zones sharing the same "row" are laid out as side-by-side columns, in
+      the order given. Higher row numbers stack as a full-width band below
+      all lower rows (e.g. a governance/security strip spanning the bottom).
+      "stack": "horizontal" arranges that zone's own components side by
+      side instead of stacked -- use this for a full-width band of several
+      peer boxes (e.g. Observability | IAM | KMS | Security Controls).
+
+    components: list of dicts, each:
+      {"id": str, "zone_id": str, "label": str,
+       "bullets": [str, ...] (optional), "shape": str (optional, e.g.
+       "mxgraph.gcp2.cloud_run"), "icon_color": str (optional hex),
+       "color": str (optional hex), "width": int (optional)}
+      Every component MUST reference a real zone_id. If "shape" is given,
+      a correctly-sized and positioned icon is added automatically -- do
+      not describe icon position/size yourselves, it is handled for you.
+
+    edges: list of dicts, each:
+      {"source": str, "target": str, "label": str (optional, ""),
+       "number": int (optional), "color": str (optional hex),
+       "dashed": bool (optional, false)}
+      source/target must be component ids (or zone ids, for a zone-to-zone
+      connection). "number" prefixes the label "N. " if a label is given.
+      Routing and label placement are computed for you; do not describe
+      waypoints yourselves.
+    """
+    from ..cloudarch.cloudarch_layout_agent import build_structured_drawio_xml
+
+    try:
+        xml_content = build_structured_drawio_xml(
+            title=title, subtitle=subtitle or None,
+            zones=zones, components=components, edges=edges,
+        )
+    except Exception:
+        error_trace = traceback.format_exc()
+        logger.error(f"Failed to build structured DrawIO layout: {error_trace}")
+        return (
+            "ERROR: Failed to build the diagram from the structured input. "
+            "Check that every component's zone_id references a real zone id, "
+            "and that every edge's source/target reference real component or "
+            "zone ids. Check logs for the full error."
+        )
+
+    return _save_drawio_core(xml_content, run_shape_mapping=False)
 
 
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:

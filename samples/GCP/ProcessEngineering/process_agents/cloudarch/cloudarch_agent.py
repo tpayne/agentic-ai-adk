@@ -13,6 +13,7 @@ from ..common.utils import (
     load_master_process_json,
     getProperty,
     save_drawio,
+    save_drawio_structured,
     load_drawio,
     load_iteration_feedback,
 )
@@ -39,6 +40,7 @@ _cloudarch_tools = [
     load_master_process_json,
     load_iteration_feedback,
     log_cloudarch_metadata,
+    save_drawio_structured,
     save_drawio,
     load_drawio,
 ]
