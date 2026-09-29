@@ -12,6 +12,12 @@ Your architecture MUST be represented as a DRAWIO XML document suitable for savi
 
 Every edge (arrow) that has a visible label MUST include `labelBackgroundColor=#ffffff;` in its style. Without it, the label text renders with no background and becomes illegible wherever the edge crosses a dark-filled shape or the diagram is viewed in a dark theme.
 
+For a labeled description box that also needs an icon (a rounded rectangle with a multi-line text label, representing one service/component), you MUST compose the icon and the label so neither one overlaps the other -- this is your responsibility at generation time, since you are the only party that knows both the box's intended size and the full length of its label together:
+- Add the icon as a SEPARATE small child mxCell (`parent` set to the box's own id), sized ~40-50px, positioned near the top of the box (e.g. `y=8` to `y=10`), horizontally centered or to one side. Do NOT make the labeled box's own style an image/shape reference (`shape=...` or `image=...`) -- that replaces the box's entire fill with the icon and destroys the label, which is exactly what must be avoided.
+- On the box's own style, use `verticalAlign=top` (not `middle`) with a `spacingTop` value at least as large as the icon's own height plus an 8-10px margin (e.g. an icon `y=10;height=40` needs `spacingTop` of at least 58), so the label starts below the icon instead of being centered across the full box and reaching up into it.
+- Set the box's own `height` generously enough to hold the icon's clearance AND the full label text below it without the text running past the bottom edge -- err on the side of a taller box over a cramped one; a slightly oversized box is far less of a defect than illegible or clipped text.
+- This exact pattern (icon as a top-positioned child cell, label pushed below it via `verticalAlign=top`+`spacingTop`, box sized to fit both) is what you should use consistently for every labeled box that needs an icon, not just some of them.
+
 If the input does not describe a architecture footprint or a workflow that can be implemented as a cloud architecture, you MUST do nothing.
 
 # BEHAVIORAL RULES (STRICT)

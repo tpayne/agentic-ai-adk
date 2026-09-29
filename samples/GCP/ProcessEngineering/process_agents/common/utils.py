@@ -1715,8 +1715,103 @@ def save_drawio(xml_content) -> str:
                             existing_ids.add(badge_id)
                 continue
 
-            # No existing shape declaration on this cell -- safe to make
-            # the cell itself the icon shape directly.
+            # No existing shape declaration on this cell -- but that alone
+            # doesn't mean it's a bare icon placeholder. A cell this large
+            # is a deliberately-sized labeled box (e.g. a ~260x90 service
+            # description box with a multi-line label), not a ~24-60px icon
+            # slot -- confirmed from a real generated diagram, where several
+            # such boxes (each already correctly labeled and legible) had
+            # their entire style silently replaced with "image;aspect=fixed;
+            # ...", stretching the icon to fill the whole box and overlap
+            # the label instead of adding a small icon alongside it. Only
+            # cells already in icon-sized territory get the direct
+            # overwrite; anything bigger gets the same small corner-badge
+            # treatment already used above for cells with an explicit
+            # competing shape, leaving the box's own style/label untouched.
+            geom = cell.find("mxGeometry")
+            try:
+                cell_w = float(geom.get("width")) if geom is not None else None
+                cell_h = float(geom.get("height")) if geom is not None else None
+            except (TypeError, ValueError):
+                cell_w = cell_h = None
+            is_icon_sized = (
+                cell_w is not None and cell_h is not None
+                and cell_w <= 100 and cell_h <= 100
+            )
+
+            if not is_icon_sized:
+                # A cell this large is a deliberately-sized labeled box
+                # (e.g. a ~260x90 service description box with a multi-line
+                # label), not a ~24-60px icon slot. Two earlier approaches
+                # to clearing space for an icon here both failed against a
+                # real generated diagram: pushing the label down with
+                # verticalAlign=top+spacingTop but NOT growing the box
+                # shrank its remaining text room and pushed text out past
+                # the bottom edge; growing the box's height to compensate
+                # cascaded into new box-on-box overlaps with whatever
+                # sibling came next in the same parent (confirmed: shifted
+                # several real sibling boxes into each other by 6-16px),
+                # and several of those siblings are edge endpoints with
+                # explicit absolute waypoints a resize would also misroute.
+                #
+                # The fix that actually works, confirmed by the user's own
+                # manual workaround on this exact diagram: prepend a fixed-
+                # height spacer <div> to the LABEL'S OWN HTML content,
+                # rather than touching the cell's style or geometry at all.
+                # The label is still centered exactly as authored
+                # (verticalAlign is untouched), but the spacer is now part
+                # of what gets centered, so the visible text shifts down by
+                # the spacer's height while the box's own size, position,
+                # and every sibling/edge around it stay completely
+                # unaffected -- there is nothing here for a resize to
+                # cascade from.
+                icon_bottom = None
+
+                if has_children:
+                    for child in all_cells:
+                        if child.get("parent") != cell_id:
+                            continue
+                        cgeom = child.find("mxGeometry")
+                        if cgeom is None:
+                            continue
+                        try:
+                            cy = float(cgeom.get("y", 0))
+                            ch = float(cgeom.get("height", 0))
+                        except (TypeError, ValueError):
+                            continue
+                        icon_bottom = max(icon_bottom or 0.0, cy + ch)
+                elif (
+                    root_container_el is not None and cell_id
+                    and cell_w and cell_h and cell_w >= 60 and cell_h >= 24
+                ):
+                    # No pre-existing icon -- add our own small corner
+                    # badge (same mechanism used above for cells with an
+                    # explicit competing shape).
+                    badge_id = f"{cell_id}_badge"
+                    if badge_id not in existing_ids:
+                        badge = ET.Element("mxCell", {
+                            "id": badge_id,
+                            "value": "",
+                            "style": _style_for_shape_ref(matched_shape),
+                            "vertex": "1",
+                            "parent": cell_id,
+                        })
+                        ET.SubElement(badge, "mxGeometry", {
+                            "x": str(cell_w - 30), "y": "4", "width": "24", "height": "24", "as": "geometry"
+                        })
+                        root_container_el.append(badge)
+                        existing_ids.add(badge_id)
+                        icon_bottom = 28.0  # y=4 + height=24
+
+                if icon_bottom:
+                    value = cell.get("value") or ""
+                    _SPACER_MARKER = "drawio-icon-clearance-spacer"
+                    if _SPACER_MARKER not in value:
+                        clearance = icon_bottom + 4
+                        spacer = f'<div class="{_SPACER_MARKER}" style="height:{int(clearance)}px;"></div>'
+                        cell.set("value", spacer + value)
+                continue
+
             if style and not style.endswith(";"):
                 style += ";"
             cell.set("style", _style_for_shape_ref(matched_shape) + style)

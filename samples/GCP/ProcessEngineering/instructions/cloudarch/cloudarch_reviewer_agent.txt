@@ -30,6 +30,18 @@ CloudArch Agent to apply on its next turn.
      duplication or premium tiers with no stated justification.
    - Platform fidelity: only platform-specific shapes for the target
      provider, no generic/placeholder shapes where a real service exists.
+   - Legibility: for every labeled description box that also carries an
+     icon (an icon child cell inside a rounded rectangle with a multi-line
+     label), the icon must be a separate small child cell near the top of
+     the box, and the box's own label must use `verticalAlign=top` with a
+     `spacingTop` at least as large as the icon's height plus an 8-10px
+     margin, with the box's `height` sized generously enough that the
+     label doesn't run past the bottom edge. Flag any box where the label
+     is centered (`verticalAlign=middle`, or no `verticalAlign` at all)
+     alongside an icon, or where the box's own style is itself an
+     image/shape reference instead of a plain rounded rectangle -- both
+     mean the icon and the label will overlap or the icon will swallow the
+     whole box.
 4. Determine the verdict:
    - If the architecture has no material issues against the above, the
      verdict is APPROVED.
