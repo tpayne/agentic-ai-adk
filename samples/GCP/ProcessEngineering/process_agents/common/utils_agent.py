@@ -120,17 +120,21 @@ def _build_stop_if_ready(required_keys_fn):
             return "Hard stop condition met via loopHardStop property — exiting loop."
 
         # ---------------------------------------------------------
-        # 3. Max iteration stop
+        # 3. Approval-state stop
         # ---------------------------------------------------------
-        if loop_count >= SAFE_LOOP_ITERS:
-            tool_context.actions.escalate = True
-            logger.debug("Max loop iterations exceeded — exiting loop.")
-            _reset_stop_counter(counter_path)
-            return "Max loop iterations exceeded — exiting loop."
-
-        # ---------------------------------------------------------
-        # 4. Approval-state stop
-        # ---------------------------------------------------------
+        # Checked BEFORE the max-iteration stop below, not after: the
+        # reviewer's own turn (which writes approval.json) always runs
+        # immediately before this tool call within the same iteration, so
+        # on the last allowed iteration a genuine approval and "iteration
+        # budget exhausted" can both be true at once. Checking max-iteration
+        # first would report the run as exhausted/incomplete even though it
+        # actually succeeded on its last attempt -- confirmed from a real
+        # run where the reviewer approved on iteration 2/2, but because the
+        # max-iteration check ran first, the stop controller's own visible
+        # response described the run as having hit its iteration limit
+        # instead of recognizing the approval, and (with no real "we
+        # succeeded" signal to work from) went on to improvise a verbose,
+        # internals-leaking summary instead of a clean approval message.
         approval_path = os.path.join(PROJECT_ROOT, "output", "approval.json")
         approval_state = {}
 
@@ -162,6 +166,15 @@ def _build_stop_if_ready(required_keys_fn):
             logger.debug("All required approvals present — exiting loop.")
             _reset_stop_counter(counter_path)
             return "All approvals present — exiting loop."
+
+        # ---------------------------------------------------------
+        # 4. Max iteration stop
+        # ---------------------------------------------------------
+        if loop_count >= SAFE_LOOP_ITERS:
+            tool_context.actions.escalate = True
+            logger.debug("Max loop iterations exceeded — exiting loop.")
+            _reset_stop_counter(counter_path)
+            return "Max loop iterations exceeded — exiting loop."
 
         return "Continue with loop — no stop conditions met."
 

@@ -1765,6 +1765,23 @@ def save_drawio(xml_content) -> str:
                 # and every sibling/edge around it stay completely
                 # unaffected -- there is nothing here for a resize to
                 # cascade from.
+                # verticalAlign=top is the signal cloudarch_agent.txt now
+                # tells the model to set whenever IT composes an icon+label
+                # box itself (icon as a top-positioned child, label pushed
+                # below via verticalAlign=top+spacingTop) -- confirmed
+                # against a real generation that mostly followed this
+                # correctly. Treat it as "already handled": both branches
+                # below used to fire regardless, double-clearing boxes the
+                # model had already spaced correctly (spacingTop=58 in the
+                # style AND a second spacer prepended to the value, ~110px
+                # of dead space before any visible text) and, separately,
+                # adding an unwanted badge+spacer to large section/summary
+                # containers (e.g. a 430x740 zone label, a 1540x85 legend
+                # strip) whose title text happened to fuzzy-match a shape
+                # keyword despite not being a single-service box at all.
+                if "verticalAlign=top" in style:
+                    continue
+
                 icon_bottom = None
 
                 if has_children:
@@ -1782,11 +1799,15 @@ def save_drawio(xml_content) -> str:
                         icon_bottom = max(icon_bottom or 0.0, cy + ch)
                 elif (
                     root_container_el is not None and cell_id
-                    and cell_w and cell_h and cell_w >= 60 and cell_h >= 24
+                    and cell_w and cell_h and 60 <= cell_w <= 450 and 24 <= cell_h <= 250
                 ):
                     # No pre-existing icon -- add our own small corner
                     # badge (same mechanism used above for cells with an
-                    # explicit competing shape).
+                    # explicit competing shape). The upper bound excludes
+                    # large section/zone containers and summary/legend
+                    # blocks (observed real sizes: 430x740, 390x285,
+                    # 1540x85) -- genuine single-service boxes observed in
+                    # real diagrams top out around 390x215.
                     badge_id = f"{cell_id}_badge"
                     if badge_id not in existing_ids:
                         badge = ET.Element("mxCell", {
@@ -1971,6 +1992,34 @@ def save_drawio(xml_content) -> str:
             notes.append(
                 f'mxCell id="{cell.get("id")}" (edge label) had no labelBackgroundColor; '
                 f"set to #ffffff for legibility."
+            )
+
+        # --- 7. HTML labels without html=1 -------------------------------
+        # A cell's value with real markup (<b>, <br/>, <font>, <span>, ...)
+        # only renders as formatted text if its style includes html=1;
+        # without it, draw.io shows the literal tag characters as visible
+        # text instead of interpreting them -- confirmed against a real
+        # generated diagram, where the title banner and swimlane container
+        # headers were missing html=1 (every individual service box had it)
+        # and rendered raw "<b>Internal Corporate Network...</b>" text
+        # instead of a bold heading. Purely additive: a cell whose value
+        # happens to contain a literal "<" that isn't one of these known
+        # tags is untouched, and adding html=1 to a cell that already
+        # renders correctly is a no-op.
+        _HTML_TAG_RE = re.compile(r"<(b|br|font|span|div|i|u)[ />]", re.IGNORECASE)
+        for cell in root_container.findall("mxCell"):
+            value = cell.get("value") or ""
+            if not _HTML_TAG_RE.search(value):
+                continue
+            style = cell.get("style") or ""
+            if "html=1" in style:
+                continue
+            style = style if style.endswith(";") or not style else style + ";"
+            cell.set("style", style + "html=1;")
+            notes.append(
+                f'mxCell id="{cell.get("id")}" had HTML markup in its value but no '
+                f"html=1 in its style; added html=1 so the markup renders instead of "
+                f"showing as literal text."
             )
 
         return tree, notes

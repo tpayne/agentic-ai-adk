@@ -49,6 +49,35 @@ class UtilsAgentTests(unittest.TestCase):
             result = utils_agent.status_logger(3)
         self.assertIn("3 identified objectives", result)
 
+    def test_stop_if_ready_recognizes_approval_on_final_iteration(self):
+        # Regression test: the approval-state check must run BEFORE the
+        # max-iteration check. The reviewer's own turn (which writes
+        # approval.json) always runs immediately before this tool call
+        # within the same loop iteration, so a genuine approval and "this
+        # is the last allowed iteration" can both be true at once -- if the
+        # max-iteration check fired first, a real last-iteration approval
+        # was reported as "exhausted" instead of "approved" (confirmed from
+        # a real run's log).
+        cloudarch_stop_if_ready = utils_agent._build_stop_if_ready(
+            lambda: {"cloudarch_status": "APPROVED"}
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "output").mkdir()
+            (Path(directory) / "output" / "stop_counter.json").write_text(
+                json.dumps({"count": 1})  # about to become 2/2 -- the last allowed iteration
+            )
+            (Path(directory) / "output" / "approval.json").write_text(
+                json.dumps({"cloudarch_status": "APPROVED"})
+            )
+            tool_context = types.SimpleNamespace(
+                actions=types.SimpleNamespace(escalate=False)
+            )
+            with patch.object(utils_agent, "PROJECT_ROOT", directory):
+                result = cloudarch_stop_if_ready(tool_context)
+
+        self.assertEqual(result, "All approvals present — exiting loop.")
+        self.assertTrue(tool_context.actions.escalate)
+
 
 @unittest.skipIf(doc_design_sections is None, "python-docx is not installed")
 class DesignHelperTests(unittest.TestCase):

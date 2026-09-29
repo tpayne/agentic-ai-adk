@@ -688,21 +688,39 @@ async def process_file(file_path: str):
 
         display_text(f"[user-file]: {line}")
 
-        content = types.Content(role="user", parts=[types.Part(text=line)])
-        final_response = None
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-            run_config=RUN_CONFIG,
-        ):
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+        # A failure on this one line (a transient API error, the
+        # max_llm_calls circuit breaker, a tool raising deep inside a
+        # pipeline, etc.) must not abort the rest of the file -- this is
+        # the same per-turn try/except start_local_chat's REPL loop already
+        # has (see below), so an interactive session survives a bad turn
+        # and keeps prompting. This function previously had no such guard:
+        # any exception here propagated out of the "for raw_line in f"
+        # loop in process_file() straight into its own outer try/except,
+        # which prints one error and calls sys.exit(1) -- silently
+        # abandoning every remaining line in the file after whichever one
+        # happened to fail, which is what "only processes the first
+        # command" looks like from the outside.
+        try:
+            content = types.Content(role="user", parts=[types.Part(text=line)])
+            final_response = None
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=content,
+                run_config=RUN_CONFIG,
+            ):
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
 
-        if final_response:
-            display_text(f"[ArchitectBot]: {final_response}")
-        else:
-            display_text(f"[ArchitectBot]: [No final response]")
+            if final_response:
+                display_text(f"[ArchitectBot]: {final_response}")
+            else:
+                display_text(f"[ArchitectBot]: [No final response]")
+
+        except Exception as e:
+            sys.stdout = sys.__stdout__
+            sys.stdout.flush()
+            display_text(f"- An error occurred: {str(e)}", type="error")
 
         await asyncio.sleep(float(getProperty("modelSleep", default=0.5)))
         return False
