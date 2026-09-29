@@ -22,3 +22,7 @@ scipy
 
 # Security updates
 starlette>=0.49.1
+
+# MCP Integration (optional; only used when enableDrawioShapeSearch is on --
+# also requires Node.js/npx on PATH to run the drawio MCP server itself)
+mcp>=1.0.0

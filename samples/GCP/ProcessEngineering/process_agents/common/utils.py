@@ -1855,6 +1855,29 @@ def save_drawio(xml_content) -> str:
                 geom.set("as", "geometry")
                 notes.append(f'mxCell id="{cell.get("id")}" (vertex) had no <mxGeometry>; injected a default 120x60 box.')
 
+        # --- 6. Edge label legibility -------------------------------------
+        # An edge label with no explicit labelBackgroundColor renders
+        # transparently, so wherever the edge crosses a dark-filled shape (or
+        # the viewer is in dark mode) the label's fontColor -- usually a dark
+        # near-black chosen for a light canvas -- becomes illegible against
+        # an equally dark background. A white label backplate keeps the text
+        # readable regardless of what's behind the edge or which theme the
+        # diagram is opened in.
+        for cell in root_container.findall("mxCell"):
+            if cell.get("edge") != "1":
+                continue
+            if not (cell.get("value") or "").strip():
+                continue
+            style = cell.get("style") or ""
+            if "labelBackgroundColor=" in style:
+                continue
+            style = style if style.endswith(";") or not style else style + ";"
+            cell.set("style", style + "labelBackgroundColor=#ffffff;")
+            notes.append(
+                f'mxCell id="{cell.get("id")}" (edge label) had no labelBackgroundColor; '
+                f"set to #ffffff for legibility."
+            )
+
         return tree, notes
 
     output_dir = os.path.join(PROJECT_ROOT, "output")
