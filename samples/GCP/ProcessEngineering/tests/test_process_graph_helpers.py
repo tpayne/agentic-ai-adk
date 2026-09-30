@@ -31,6 +31,8 @@ def _install_graph_stubs():
         sys.modules.setdefault("matplotlib.pyplot", pyplot)
 
 
+# These tests cover graph extraction, not rendering, so layout dependencies
+# are stubbed to keep imports lightweight.
 _install_graph_stubs()
 from process_agents.common import edge_inference_agent, step_diagram_agent  # noqa: E402
 

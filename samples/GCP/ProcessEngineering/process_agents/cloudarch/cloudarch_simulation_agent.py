@@ -162,6 +162,8 @@ def _run_core_cloudarch_simulation(
 
     blast_fractions: List[float] = []
     critical_hits = 0
+    # Each trial samples independent component failures; the impacts graph
+    # expands those seeds to include every transitively affected service.
     for _ in range(iterations):
         failed = {vid for vid in vertex_ids if random.random() < comp_prob.get(vid, _DEFAULT_BASELINE_FAILURE_PROB)}
         if not failed:

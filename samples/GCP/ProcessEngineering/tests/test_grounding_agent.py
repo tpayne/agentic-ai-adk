@@ -124,6 +124,7 @@ def _install_dependency_stubs():
     google.adk = adk
 
 
+# Install import-time SDK/HTTP stubs before loading the agent to keep tests offline.
 _install_dependency_stubs()
 from process_agents.common import grounding_agent  # noqa: E402
 
