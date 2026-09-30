@@ -8,7 +8,7 @@ import re
 import traceback
 import logging
 import configparser
-from typing import Any, Union
+from typing import Any, Dict, List, Union
 
 from typing import Optional
 
@@ -1490,7 +1490,37 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
         # whose label happened to contain a generic word like "region" or
         # "cluster" got swapped for a giant background container image
         # sized for a completely different kind of shape.
-        parent_ids = {c.get("parent") for c in all_cells if c.get("parent")}
+        #
+        # A plain "does this cell have ANY child" check is not enough,
+        # though: every correctly-composed labeled service box in this
+        # codebase's own mandated pattern has exactly one child -- its own
+        # icon cell (empty value, a bare shape=... style, per
+        # cloudarch_agent.txt's icon-as-child-cell rule) -- which is NOT
+        # evidence the box is a container. Confirmed as a real, reproducible
+        # bug: a service box titled e.g. "Private Google Access (PGA)
+        # Subnet" or "VPC Service Controls" has only its own icon as a
+        # child, but its label fuzzy-matches a container keyword ("Subnet",
+        # "VPC"), so it was being rewritten into the generic GCP container
+        # fallback style on every single save -- permanently undoing the
+        # LLM's correct icon composition and making the issue unfixable
+        # (the reviewer flags it, the generator regenerates the correct
+        # style, this same pass corrupts it right back, forever). A cell
+        # only counts as having real container evidence if it has a child
+        # that ISN'T a pure icon leaf.
+        def _is_pure_icon_child(child_cell) -> bool:
+            child_value = (child_cell.get("value") or "").strip()
+            child_style = child_cell.get("style") or ""
+            return child_value == "" and "shape=" in child_style
+
+        children_by_parent: Dict[str, List[Any]] = {}
+        for c in all_cells:
+            pid = c.get("parent")
+            if pid:
+                children_by_parent.setdefault(pid, []).append(c)
+        parent_ids = {
+            pid for pid, kids in children_by_parent.items()
+            if any(not _is_pure_icon_child(k) for k in kids)
+        }
 
         # Needed for the corner-badge icon on containers (see below).
         provider_accent = {
@@ -2276,6 +2306,15 @@ def save_drawio_structured(
 
     title, subtitle: diagram title banner text (subtitle may be "").
 
+    EVERY zone id and every component id MUST be unique across the WHOLE
+    diagram, not just within its own zone -- reusing an id for two
+    different resources (e.g. naming two different "Vertex AI ..."
+    services the same id because they sound related) silently collapses
+    them onto the exact same box, producing two components' text and
+    icons rendered fused together and unreadable. If two resources are
+    similar, give them distinct, specific ids (e.g. "vertex_search" and
+    "vertex_models", not "vertex" twice).
+
     zones: list of dicts, each:
       {"id": str, "label": str, "sublabel": str (optional, ""),
        "row": int (optional, default 0), "color": str (optional hex),
@@ -2297,6 +2336,20 @@ def save_drawio_structured(
       a correctly-sized and positioned icon is added automatically -- do
       not describe icon position/size yourselves, it is handled for you.
 
+      ONE COMPONENT PER NAMED, ICON-BEARING RESOURCE -- do not fold
+      multiple distinct resources into a single component's bullets. If a
+      subnet contains a route table and a Cloud Run service, that is
+      THREE components (subnet, route table, Cloud Run), each stacked in
+      the same zone with its own icon -- not one "subnet" component whose
+      bullets happen to mention the route table and Cloud Run by name. A
+      bullet is for an ATTRIBUTE of its own component (a CIDR range, a
+      protocol, an encryption method, a scaling policy) -- never for
+      another resource that itself would have an icon in a professional
+      architecture diagram. This is what makes the result an architecture
+      diagram instead of a block diagram: every real resource gets its
+      own visible box and icon, not a text mention inside someone else's
+      box.
+
     edges: list of dicts, each:
       {"source": str, "target": str, "label": str (optional, ""),
        "number": int (optional), "color": str (optional hex),
@@ -2313,14 +2366,15 @@ def save_drawio_structured(
             title=title, subtitle=subtitle or None,
             zones=zones, components=components, edges=edges,
         )
-    except Exception:
+    except Exception as e:
         error_trace = traceback.format_exc()
         logger.error(f"Failed to build structured DrawIO layout: {error_trace}")
         return (
-            "ERROR: Failed to build the diagram from the structured input. "
-            "Check that every component's zone_id references a real zone id, "
-            "and that every edge's source/target reference real component or "
-            "zone ids. Check logs for the full error."
+            f"ERROR: Failed to build the diagram from the structured input -- {e} "
+            "Check that every zone id and every component id is unique across "
+            "the whole diagram, that every component's zone_id references a "
+            "real zone id, and that every edge's source/target reference real "
+            "component or zone ids. Check logs for the full error."
         )
 
     return _save_drawio_core(xml_content, run_shape_mapping=False)

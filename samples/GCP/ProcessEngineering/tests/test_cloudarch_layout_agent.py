@@ -96,6 +96,10 @@ class EdgeRoutingTests(unittest.TestCase):
         components = [
             {"id": "top", "zone_id": "z1", "label": "Top", "bullets": ["x"]},
             {"id": "bottom", "zone_id": "z1", "label": "Bottom", "bullets": ["x"]},
+            # "far" is a 3rd component in z1, stacked below "bottom" -- so
+            # "top" and "far" are NOT adjacent (bottom sits between them),
+            # while "top"/"bottom" and "bottom"/"far" remain adjacent pairs.
+            {"id": "far", "zone_id": "z1", "label": "Far", "bullets": ["x"]},
             {"id": "other", "zone_id": "z2", "label": "Other", "bullets": ["x"]},
             {"id": "gov_item", "zone_id": "z_gov", "label": "GovItem", "bullets": ["x"]},
         ]
@@ -113,6 +117,44 @@ class EdgeRoutingTests(unittest.TestCase):
         row_bottoms = self._row_bottoms(zone_boxes)
         waypoints = layout._route_edge(
             {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms
+        )
+        self.assertEqual(waypoints, [])
+
+    def test_non_adjacent_same_zone_edge_routes_through_the_side_margin_not_through_bottom(self):
+        # Regression test for the "lines cutting through boxes" bug: "top"
+        # and "far" are both in z1 but "bottom" sits between them in the
+        # stack. A bare straight line from top to far would cut straight
+        # through bottom's box. The route must instead go through the
+        # zone's own side margin -- to the LEFT of every component in z1,
+        # never through bottom's interior.
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = self._row_bottoms(zone_boxes)
+        waypoints = layout._route_edge(
+            {"source": "top", "target": "far"}, comp_boxes["top"], comp_boxes["far"], 0, row_bottoms
+        )
+        self.assertEqual(len(waypoints), 2)
+        margin_x = waypoints[0][0]
+        self.assertEqual(waypoints[1][0], margin_x)
+        # Must sit strictly to the left of every component in the zone
+        # (inside the zone's own border, outside every component's box).
+        for comp_id in ("top", "bottom", "far"):
+            self.assertLess(margin_x, comp_boxes[comp_id].x)
+        self.assertGreater(margin_x, zone_boxes["z1"].x)
+        # And the vertical run must not pass through bottom's box (it
+        # can't, since margin_x < bottom.x, but assert it explicitly).
+        by_wp, ty_wp = waypoints[0][1], waypoints[1][1]
+        bottom = comp_boxes["bottom"]
+        self.assertFalse(bottom.x < margin_x < bottom.right)
+
+    def test_adjacent_same_zone_edges_unaffected_by_non_adjacent_fix(self):
+        # bottom<->far are immediate neighbors (order 1, 2) despite "far"
+        # being the 3rd component added for the non-adjacency tests above.
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = self._row_bottoms(zone_boxes)
+        waypoints = layout._route_edge(
+            {"source": "bottom", "target": "far"}, comp_boxes["bottom"], comp_boxes["far"], 0, row_bottoms
         )
         self.assertEqual(waypoints, [])
 
@@ -149,6 +191,70 @@ class EdgeRoutingTests(unittest.TestCase):
             self.assertGreater(channel_y, zone_boxes[zid].bottom)
         self.assertLess(channel_y, zone_boxes["z_gov"].y)
 
+    def test_second_edge_between_identical_pair_gets_offset_not_identical_line(self):
+        # Regression test: a request/response pair of edges between the SAME
+        # two components previously both returned [] (no waypoint at all),
+        # so they drew on the exact same straight line with labels rendering
+        # on top of each other. The 2nd (and later) edge between an identical
+        # pair must now get a nonzero perpendicular offset.
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = self._row_bottoms(zone_boxes)
+        first = layout._route_edge(
+            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms
+        )
+        second = layout._route_edge(
+            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 1, row_bottoms
+        )
+        self.assertEqual(first, [])
+        self.assertEqual(len(second), 1)
+        self.assertNotEqual(second[0], first)
+
+    def test_channel_key_groups_edges_that_would_otherwise_collide(self):
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        # Same pair, both directions -> same channel.
+        self.assertEqual(
+            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"]),
+            layout._channel_key(comp_boxes["bottom"], comp_boxes["top"]),
+        )
+        # Same zone-pair gap, different component pairs -> same channel.
+        self.assertEqual(
+            layout._channel_key(comp_boxes["top"], comp_boxes["other"]),
+            layout._channel_key(comp_boxes["bottom"], comp_boxes["other"]),
+        )
+        # A same-zone pair must not collide with an inter-zone channel key.
+        self.assertNotEqual(
+            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"]),
+            layout._channel_key(comp_boxes["top"], comp_boxes["other"]),
+        )
+
+    def test_stagger_offset_alternates_and_grows_outward(self):
+        self.assertEqual(layout._stagger_offset(0, 10), 0.0)
+        self.assertEqual(layout._stagger_offset(1, 10), 10.0)
+        self.assertEqual(layout._stagger_offset(2, 10), -10.0)
+        self.assertEqual(layout._stagger_offset(3, 10), 20.0)
+        self.assertEqual(layout._stagger_offset(4, 10), -20.0)
+
+    def test_stagger_offset_respects_clamp(self):
+        self.assertEqual(layout._stagger_offset(9, 10, clamp=15), 15.0)
+        self.assertEqual(layout._stagger_offset(10, 10, clamp=15), -15.0)
+
+    def test_two_edges_sharing_the_zone_gap_get_different_waypoints(self):
+        # Two edges with different component pairs but similar enough
+        # vertical position that, pre-fix, a global (not channel-local)
+        # stagger could coincidentally assign them the same offset.
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = self._row_bottoms(zone_boxes)
+        edge_a = layout._route_edge(
+            {"source": "top", "target": "other"}, comp_boxes["top"], comp_boxes["other"], 0, row_bottoms
+        )
+        edge_b = layout._route_edge(
+            {"source": "bottom", "target": "other"}, comp_boxes["bottom"], comp_boxes["other"], 1, row_bottoms
+        )
+        self.assertNotEqual(edge_a[0][1], edge_b[0][1])
+
     def test_cross_row_waypoints_never_land_inside_an_unrelated_component(self):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
@@ -180,6 +286,68 @@ class BuildXmlTests(unittest.TestCase):
         self.assertIn("z1", ids)
         self.assertIn("c1", ids)
         self.assertIn("c1_icon", ids)
+
+    def test_bidirectional_edges_between_same_pair_get_visibly_different_labels(self):
+        # End-to-end regression test for the label-collision fix: a request
+        # edge and a response edge between the identical two components must
+        # not render as two edges with identical waypoints (which previously
+        # produced overlapping labels, e.g. two numbered steps merging into
+        # unreadable text in the rendered diagram).
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[
+                {"id": "a", "zone_id": "z1", "label": "A", "bullets": ["x"]},
+                {"id": "b", "zone_id": "z1", "label": "B", "bullets": ["x"]},
+            ],
+            edges=[
+                {"source": "a", "target": "b", "number": 1, "label": "Request"},
+                {"source": "b", "target": "a", "number": 2, "label": "Response"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edge_cells = [c for c in root.findall(".//mxCell") if c.get("edge") == "1"]
+        self.assertEqual(len(edge_cells), 2)
+
+        def waypoints_of(cell):
+            return [
+                (p.get("x"), p.get("y"))
+                for p in cell.findall("./mxGeometry/Array[@as='points']/mxPoint")
+            ]
+
+        wp0, wp1 = waypoints_of(edge_cells[0]), waypoints_of(edge_cells[1])
+        self.assertNotEqual(wp0, wp1)
+
+    def test_duplicate_component_id_raises_with_offending_id_named(self):
+        # Regression test: previously a duplicate component id silently
+        # collapsed both components onto the same box (component_boxes is
+        # dict-keyed by id, so the second overwrites the first), rendering
+        # as two components' text and icons fused on top of each other in
+        # the actual generated diagram. This must fail loudly instead.
+        with self.assertRaises(ValueError) as ctx:
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[
+                    {"id": "vertex", "zone_id": "z1", "label": "Vertex AI Search"},
+                    {"id": "vertex", "zone_id": "z1", "label": "Vertex AI Models"},
+                ],
+                edges=[],
+            )
+        self.assertIn("vertex", str(ctx.exception))
+
+    def test_duplicate_zone_id_raises_with_offending_id_named(self):
+        with self.assertRaises(ValueError) as ctx:
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[
+                    {"id": "z1", "label": "Zone A"},
+                    {"id": "z1", "label": "Zone B"},
+                ],
+                components=[],
+                edges=[],
+            )
+        self.assertIn("z1", str(ctx.exception))
 
     def test_dangling_component_zone_reference_raises(self):
         with self.assertRaises(KeyError):

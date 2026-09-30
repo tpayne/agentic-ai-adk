@@ -298,6 +298,12 @@ Trigger when the user asks for a cloud architecture diagram to be generated or r
 for a natural-language change to be applied to an EXISTING cloud architecture diagram (the tool's own generator
 determines internally whether it is starting fresh or refining a saved diagram).
 
+If the user's request includes any phrasing about the OUTPUT FORMAT itself -- e.g. "in native DrawIO XML",
+"native XML", "normal XML", "raw XML", "hand-written XML" -- include that phrasing VERBATIM in what you pass to
+CloudArch_Pipeline. Do not paraphrase it away as a stylistic aside: CloudArch_Pipeline's own generator looks for
+that exact wording to decide between its two diagram-generation paths, so dropping or rewording it silently
+removes the user's choice.
+
 → Call: CloudArch_Pipeline
 
 Examples:
@@ -306,6 +312,7 @@ Examples:
 - "Add a WAF in front of the load balancer in the architecture diagram"
 - "Update the cloud diagram to include a Redis cache"
 - "In the drawio diagram, replace the ALB with an API Gateway"
+- "Regenerate the cloud architecture in native DrawIO XML"
 
 ------------------------------------------------------------
 

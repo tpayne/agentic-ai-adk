@@ -66,6 +66,7 @@
 # separately to build_structured_drawio_xml.
 
 import xml.etree.ElementTree as ET
+from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 # ============================================================
@@ -75,15 +76,22 @@ PAGE_MARGIN = 40
 TITLE_HEIGHT = 70
 ZONE_GAP = 50          # horizontal gap between row-0 (column) zones -- the
                         # reserved channel inter-zone edges route through
-ROW_GAP = 45            # vertical gap between one row of zones and the next
-                        # -- the reserved channel drop-down edges route through
+ROW_GAP = 60            # vertical gap between one row of zones and the next
+                        # -- the reserved channel drop-down edges route through.
+                        # Wider than the bare minimum so several staggered
+                        # edge labels sharing one row boundary have room to
+                        # separate without touching either zone's edge.
 ZONE_HEADER_H_PLAIN = 45
 ZONE_HEADER_H_SUBLABEL = 62
 ZONE_INNER_MARGIN = 18   # margin inside a zone, above/below/beside its children
 COMPONENT_GAP = 30       # vertical gap between stacked components in the
                         # same zone -- the reserved channel same-zone edges
                         # route through
-COMPONENT_H_MARGIN = 15  # left/right margin inside a zone for its components
+COMPONENT_H_MARGIN = 26  # left/right margin inside a zone for its components --
+                        # also the reserved channel non-adjacent same-zone
+                        # edges route through (see _route_edge's "zone_skip"
+                        # case), so it needs a bit more than pure visual
+                        # breathing room
 DEFAULT_ZONE_WIDTH = 340
 ICON_SIZE = 40
 ICON_TOP_MARGIN = 10
@@ -94,6 +102,27 @@ LINE_HEIGHT = 16
 COMPONENT_BOTTOM_MARGIN = 20
 DEFAULT_COMPONENT_COLOR = "#4285F4"
 DEFAULT_ZONE_COLOR = "#4285F4"
+
+# Stagger step sizes for edges that share a routing channel with other
+# edges (see _channel_key/_stagger_offset). Each channel kind has very
+# different amounts of real room to spread out in, so each gets its own
+# step and, for the tightest channel, a hard clamp.
+STAGGER_STEP_ZONE_GAP = 20    # horizontal inter-zone gap -- spans a whole
+                               # row's height, so there's ample vertical room
+STAGGER_STEP_ROW_GAP = 10     # inter-row channel -- bounded by ROW_GAP
+ROW_GAP_STAGGER_CLAMP = ROW_GAP / 2 - 10  # never let a waypoint get within
+                               # 10px of either zone edge bounding the channel
+SAME_PAIR_OFFSET = 18         # perpendicular nudge for the 2nd+ edge between
+                               # the exact same two components (e.g. a
+                               # request/response pair) -- with no offset at
+                               # all these would draw as two edges on the
+                               # identical straight line, midpoint labels
+                               # rendering on top of each other
+ZONE_SKIP_STEP = 6            # stagger step within a zone's own side margin,
+                               # for edges connecting NON-adjacent components
+                               # in the same zone (see _route_edge)
+ZONE_SKIP_CLAMP_VERTICAL = COMPONENT_H_MARGIN / 2 - 4
+ZONE_SKIP_CLAMP_HORIZONTAL = ZONE_INNER_MARGIN / 2 - 4
 
 
 def _line_count(component: Dict[str, Any]) -> int:
@@ -120,15 +149,26 @@ def _html_value(label: str, bullets: Optional[List[str]]) -> str:
 class _Box:
     """A component's or zone's resolved absolute bounding box, kept around
     after layout so the edge router can compute collision-free routes
-    without re-deriving positions."""
-    __slots__ = ("id", "x", "y", "w", "h", "zone_id", "row")
+    without re-deriving positions.
+
+    order and stack are only meaningful for COMPONENT boxes: order is this
+    component's position (0, 1, 2, ...) within its own zone's stacking
+    order, and stack is that zone's "vertical"/"horizontal" arrangement --
+    together they let the edge router tell whether two components in the
+    same zone are immediate neighbors (safe to connect with a bare
+    straight line through the gap between them) or not (a straight line
+    would cut through every sibling box in between)."""
+    __slots__ = ("id", "x", "y", "w", "h", "zone_id", "row", "order", "stack")
 
     def __init__(self, id_: str, x: float, y: float, w: float, h: float,
-                 zone_id: Optional[str] = None, row: int = 0):
+                 zone_id: Optional[str] = None, row: int = 0,
+                 order: int = 0, stack: str = "vertical"):
         self.id = id_
         self.x, self.y, self.w, self.h = x, y, w, h
         self.zone_id = zone_id
         self.row = row
+        self.order = order
+        self.stack = stack
 
     @property
     def cx(self) -> float:
@@ -147,6 +187,43 @@ class _Box:
         return self.y + self.h
 
 
+def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
+    """
+    Every zone id and every component id must be unique across the WHOLE
+    diagram, not just within its own zone -- edges, and this module's own
+    id-keyed box lookups, both assume one id maps to exactly one box.
+
+    A duplicate component id is silently destructive rather than merely
+    wrong: component_boxes is a dict keyed by id, so the second component
+    sharing an id overwrites the first's entry, and BOTH components (still
+    two separate entries in the input list) end up emitted at the exact
+    same coordinates -- two boxes' text and icons rendered on top of each
+    other -- and any edge connected to that id gets routed against
+    whichever one won the overwrite. This has been observed in practice:
+    an LLM-generated payload reused an id (e.g. two different "Vertex..."
+    services both called "vertex") across two conceptually-similar
+    services, and the result was fused, unreadable overlapping boxes with
+    edge labels bleeding into them. Failing loudly and immediately here,
+    with the exact offending ids named, lets the caller fix its input
+    instead of silently getting a corrupted diagram back.
+    """
+    zone_id_counts = Counter(z.get("id") for z in zones)
+    component_id_counts = Counter(c.get("id") for c in components)
+    dup_zone_ids = sorted(zid for zid, n in zone_id_counts.items() if zid is not None and n > 1)
+    dup_component_ids = sorted(cid for cid, n in component_id_counts.items() if cid is not None and n > 1)
+    if dup_zone_ids or dup_component_ids:
+        parts = []
+        if dup_zone_ids:
+            parts.append(f"duplicate zone id(s): {dup_zone_ids}")
+        if dup_component_ids:
+            parts.append(f"duplicate component id(s): {dup_component_ids}")
+        raise ValueError(
+            "Every zone id and every component id must be unique across the "
+            "whole diagram -- " + "; ".join(parts) + ". Give each one a "
+            "distinct id (e.g. a more specific suffix) and retry."
+        )
+
+
 def _layout_zones_and_components(
     zones: List[Dict[str, Any]], components: List[Dict[str, Any]]
 ) -> Tuple[Dict[str, _Box], Dict[str, _Box], float, float]:
@@ -154,6 +231,8 @@ def _layout_zones_and_components(
     Computes absolute boxes for every zone and every component.
     Returns (zone_boxes, component_boxes, canvas_width, canvas_height).
     """
+    _validate_unique_ids(zones, components)
+
     comps_by_zone: Dict[str, List[Dict[str, Any]]] = {}
     for c in components:
         comps_by_zone.setdefault(c["zone_id"], []).append(c)
@@ -202,11 +281,12 @@ def _layout_zones_and_components(
 
                 inner_x = cx + COMPONENT_H_MARGIN
                 inner_y = cy + header_h + ZONE_INNER_MARGIN
-                for child in zone_children:
+                for order_idx, child in enumerate(zone_children):
                     w = child.get("width") or child_w
                     h = _component_height(child)
                     component_boxes[child["id"]] = _Box(
-                        child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num
+                        child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num,
+                        order=order_idx, stack=stack,
                     )
                     inner_x += w + ZONE_GAP
 
@@ -217,13 +297,14 @@ def _layout_zones_and_components(
                 zone_w = zone.get("width") or DEFAULT_ZONE_WIDTH
                 inner_w = zone_w - 2 * COMPONENT_H_MARGIN
                 child_y = y_cursor + header_h + ZONE_INNER_MARGIN
-                for child in zone_children:
+                for order_idx, child in enumerate(zone_children):
                     h = _component_height(child)
                     w = child.get("width") or inner_w
                     component_boxes[child["id"]] = _Box(
                         child["id"],
                         x_cursor + COMPONENT_H_MARGIN, child_y, w, h,
                         zone_id=zone_id, row=row_num,
+                        order=order_idx, stack=stack,
                     )
                     child_y += h + COMPONENT_GAP
 
@@ -243,35 +324,113 @@ def _layout_zones_and_components(
     return zone_boxes, component_boxes, canvas_width, canvas_height
 
 
+def _channel_key(src: _Box, tgt: _Box) -> Tuple[str, Any]:
+    """
+    Identifies which shared routing channel an edge falls into. Two edges
+    with the same key will draw through the exact same reserved space (the
+    same gap, the same inter-row band, or -- worst case -- the exact same
+    straight line between two boxes) unless given different stagger slots,
+    so this is the grouping _stagger_offset's slot-per-channel counter uses.
+    """
+    # zone_id is None for zone-level boxes (a zone-to-zone edge), so the
+    # None-vs-None case is excluded -- two DIFFERENT zones in the same row
+    # must not be misread as "the same zone".
+    if src.zone_id is not None and src.zone_id == tgt.zone_id and src.row == tgt.row:
+        if abs(src.order - tgt.order) == 1:
+            # Immediate neighbors in the zone's stack -- a request and its
+            # response between this identical pair draw the identical
+            # straight line with no waypoint at all otherwise, so this is
+            # its own, tightest channel.
+            return ("pair", frozenset({src.id, tgt.id}))
+        # Non-adjacent components in the same zone all share the same
+        # reserved margin channel (see _route_edge) regardless of which
+        # specific pair -- grouped by zone so they still fan out from
+        # each other rather than overlapping by coincidence.
+        return ("zone_skip", src.zone_id)
+    if src.row == tgt.row:
+        return ("h", frozenset({src.zone_id, tgt.zone_id}))
+    return ("v", min(src.row, tgt.row))
+
+
+def _stagger_offset(slot: int, step: float, clamp: Optional[float] = None) -> float:
+    """
+    Maps a per-channel slot index (0, 1, 2, ...) to a signed offset that
+    alternates and grows outward from the channel's center: 0, +step,
+    -step, +2*step, -2*step, ... so edges sharing a channel fan out evenly
+    on both sides of the "natural" route instead of drifting one direction.
+    """
+    if slot == 0:
+        return 0.0
+    magnitude = ((slot + 1) // 2) * step
+    if clamp is not None:
+        magnitude = min(magnitude, clamp)
+    return magnitude if slot % 2 == 1 else -magnitude
+
+
 def _route_edge(
     edge: Dict[str, Any],
     src: _Box,
     tgt: _Box,
-    edge_index: int,
+    channel_slot: int,
     row_bottoms: Dict[int, float],
 ) -> List[Tuple[float, float]]:
     """
     Returns a list of intermediate waypoints (possibly empty) for this edge,
     chosen so the route -- and therefore its default-midpoint label -- never
-    passes through a box: same-zone edges use the fixed vertical gap between
-    stacked components; different-zone-same-row edges use the fixed
+    passes through a box: adjacent same-zone edges use the fixed gap between
+    neighboring stacked components; non-adjacent same-zone edges use the
+    zone's own side margin; different-zone-same-row edges use the fixed
     horizontal gap between columns; cross-row edges drop through the fixed
-    horizontal channel between rows. All three gaps are reserved space no
-    box is ever placed in, by construction.
+    horizontal channel between rows. All of these are reserved space no box
+    is ever placed in, by construction.
 
     row_bottoms maps a row number to the bottom edge of the TALLEST zone in
     that row (not any single component's, and not even just its own zone's --
     a shorter zone in the same row would otherwise still have components
     poking into what should be the shared inter-row channel).
-    """
-    stagger = (edge_index % 5) * 8  # keeps multiple edges sharing a channel from drawing on top of each other
 
-    if src.zone_id == tgt.zone_id and src.row == tgt.row:
-        # Same zone: components are stacked vertically (or, for a horizontal
-        # zone, side by side) -- either way they're immediate neighbors with
-        # a reserved gap between them; mxGraph's own point-to-point routing
-        # through that gap needs no explicit waypoint.
-        return []
+    channel_slot is this edge's position (0, 1, 2, ...) among all edges that
+    share its _channel_key -- the caller assigns these per-channel, not
+    globally, so two edges sharing a channel always get visibly different
+    offsets regardless of how many unrelated edges exist elsewhere.
+    """
+    # zone_id is None for zone-level boxes themselves (a zone-to-zone
+    # edge), so the None-vs-None check below must be excluded explicitly --
+    # otherwise two DIFFERENT zones in the same row would be misread as
+    # "the same zone" and fall into logic keyed off a component's own
+    # margin, which doesn't apply to a zone box at all.
+    if src.zone_id is not None and src.zone_id == tgt.zone_id and src.row == tgt.row:
+        if abs(src.order - tgt.order) == 1:
+            if channel_slot == 0:
+                # The common case: a single edge between immediate
+                # neighbors draws a plain straight line through the
+                # reserved inter-component gap, no waypoint needed.
+                return []
+            # A 2nd+ edge between the identical pair (e.g. a reply edge)
+            # would otherwise draw on the exact same line -- nudge it
+            # perpendicular to whichever axis the two boxes are actually
+            # separated along.
+            mid_x = (src.cx + tgt.cx) / 2
+            mid_y = (src.cy + tgt.cy) / 2
+            offset = _stagger_offset(channel_slot, SAME_PAIR_OFFSET)
+            if abs(tgt.cy - src.cy) >= abs(tgt.cx - src.cx):
+                return [(mid_x + offset, mid_y)]
+            return [(mid_x, mid_y + offset)]
+
+        # Non-adjacent components in the same zone: a bare straight line
+        # between them would cut straight through every sibling box
+        # stacked in between. Every component in a zone shares the same
+        # left edge (vertical stack) or the same top edge (horizontal
+        # stack), so the thin margin strip just inside the zone border is
+        # reserved space no component ever occupies -- route through that
+        # instead, exactly like the cross-zone/cross-row channels below.
+        if src.stack == "horizontal":
+            offset = _stagger_offset(channel_slot, ZONE_SKIP_STEP, clamp=ZONE_SKIP_CLAMP_HORIZONTAL)
+            margin_y = src.y - ZONE_INNER_MARGIN / 2 + offset
+            return [(src.cx, margin_y), (tgt.cx, margin_y)]
+        offset = _stagger_offset(channel_slot, ZONE_SKIP_STEP, clamp=ZONE_SKIP_CLAMP_VERTICAL)
+        margin_x = src.x - COMPONENT_H_MARGIN / 2 + offset
+        return [(margin_x, src.cy), (margin_x, tgt.cy)]
 
     if src.row == tgt.row:
         # Different zones, same row: route through the fixed horizontal gap
@@ -283,7 +442,7 @@ def _route_edge(
             gap_x = (tgt.right + src.x) / 2
         else:
             gap_x = (src.cx + tgt.cx) / 2
-        gap_y = (src.cy + tgt.cy) / 2 + stagger
+        gap_y = (src.cy + tgt.cy) / 2 + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
         return [(gap_x, gap_y)]
 
     # Different rows: drop into the horizontal channel between rows, travel
@@ -291,7 +450,9 @@ def _route_edge(
     # TALLEST zone in the upper row, regardless of which component/zone
     # within that row the edge actually starts from.
     upper_row = min(src.row, tgt.row)
-    channel_y = row_bottoms[upper_row] + ROW_GAP / 2 + stagger
+    channel_y = row_bottoms[upper_row] + ROW_GAP / 2 + _stagger_offset(
+        channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+    )
     return [(src.cx, channel_y), (tgt.cx, channel_y)]
 
 
@@ -406,13 +567,32 @@ def build_structured_drawio_xml(
     for zbox in zone_boxes.values():
         row_bottoms[zbox.row] = max(row_bottoms.get(zbox.row, 0.0), zbox.bottom)
 
+    # Assign each edge a slot number (0, 1, 2, ...) local to the channel it
+    # shares with other edges, so edges converging on the same gap/band/pair
+    # get visibly different offsets regardless of their absolute position in
+    # the edges list -- a global counter (the previous approach) could put
+    # two edges sharing a channel arbitrarily far apart in index and give
+    # them the same offset by coincidence.
+    channel_slot_counts: Dict[Tuple[str, Any], int] = {}
+    channel_slots: List[int] = []
+    for edge in edges:
+        src = all_boxes.get(edge["source"])
+        tgt = all_boxes.get(edge["target"])
+        if src is None or tgt is None:
+            channel_slots.append(0)
+            continue
+        key = _channel_key(src, tgt)
+        slot = channel_slot_counts.get(key, 0)
+        channel_slot_counts[key] = slot + 1
+        channel_slots.append(slot)
+
     for i, edge in enumerate(edges):
         src = all_boxes.get(edge["source"])
         tgt = all_boxes.get(edge["target"])
         if src is None or tgt is None:
             continue  # dangling reference -- skip rather than emit a broken edge
 
-        waypoints = _route_edge(edge, src, tgt, i, row_bottoms)
+        waypoints = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms)
         label = edge.get("label", "")
         if edge.get("number") is not None and label:
             label = f"{edge['number']}. {label}"
