@@ -7,6 +7,7 @@ This app loads process context data, exposes it via a REST API, and serves a web
 """
 
 from flask import Flask, render_template, jsonify
+from typing import Any
 from process_agents.common.utils import (
     load_full_process_context,
     getProperty
@@ -25,6 +26,12 @@ app = Flask(
 )
 
 def build_process_model():
+    """
+    Reshapes load_full_process_context's output (master process + loose
+    subprocess list) into the flat structure the web UI's index.html/JS
+    actually consumes -- notably indexing subprocesses by their parent
+    step_name so the UI can look one up by step without scanning the list.
+    """
     ctx = load_full_process_context()
     if isinstance(ctx, str):
         try:

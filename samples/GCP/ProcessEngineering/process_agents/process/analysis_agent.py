@@ -15,7 +15,12 @@ from ..common.utils import (
 logger = logging.getLogger("ProcessArchitect.Analysis")
 
 def _remove_previous_approval_logs():
-    # Silently remove output/approval.json, ignore exceptions
+    # Called once at the start of a fresh analysis pass (via
+    # log_analysis_metadata below) to clear approval/loop-counter state
+    # left over from a PRIOR, unrelated pipeline run -- otherwise a stale
+    # "APPROVED" status or loop count from before could make this run's
+    # stop controller think review is already done before it has actually
+    # happened. Silently remove output/approval.json, ignore exceptions.
     approvalLog = "output/approval.json"
     counterLog = "output/stop_counter.json"
     try:

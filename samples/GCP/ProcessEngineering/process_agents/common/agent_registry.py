@@ -1,3 +1,8 @@
+# Central re-export point: pulls every agent/pipeline object defined across
+# process/, design/, and cloudarch/ into one module so agent.py's
+# root_agent can assemble them into sub_agents=[...] without importing each
+# domain package directly. Purely aggregation -- no logic of its own.
+#
 # Import base/shared agents referenced in pipelines
 from ..process.analysis_agent import analysis_agent
 from ..process.compliance_agent import compliance_agent

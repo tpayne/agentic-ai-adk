@@ -117,6 +117,8 @@ _CACHE_EVICTED_MARKERS = ("cachedcontent",)
 
 
 def _status_code_of(exc: BaseException) -> Optional[int]:
+    """Best-effort numeric HTTP/RPC status code from an exception, checking
+    the handful of attribute names different provider SDKs use for it."""
     for attr in ("code", "status_code", "http_status"):
         val = getattr(exc, attr, None)
         if isinstance(val, int):
@@ -125,6 +127,8 @@ def _status_code_of(exc: BaseException) -> Optional[int]:
 
 
 def _is_cache_eviction_error(exc: BaseException) -> bool:
+    """True for the specific transient 403 shape described above (_CACHE_EVICTED_MARKERS):
+    a context cache Gemini evicted early, surfaced as a permission error rather than a plain miss."""
     if _status_code_of(exc) != 403:
         return False
     text = f" {exc} ".lower()
@@ -132,6 +136,9 @@ def _is_cache_eviction_error(exc: BaseException) -> bool:
 
 
 def _is_retryable_error(exc: BaseException) -> bool:
+    """True if `exc` looks transient and worth a backoff-retry: a known
+    cache-eviction 403, a status code in _RETRYABLE_STATUS_CODES, or -- when
+    no status code is available -- a message matching _RETRYABLE_MESSAGE_MARKERS."""
     if _is_cache_eviction_error(exc):
         return True
     code = _status_code_of(exc)
@@ -165,6 +172,8 @@ _RETRY_DELAY_TEXT_PATTERN = re.compile(r"retry in\s+(\d+(?:\.\d+)?)\s*s", re.IGN
 
 
 def _parse_duration_seconds(value: Any) -> Optional[float]:
+    """Coerces a raw number or a protobuf-style duration string (e.g. "4.15s")
+    into seconds as a float; returns None for anything else."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     if isinstance(value, str) and value.endswith("s"):
@@ -367,6 +376,11 @@ def _maybe_build_generate_config(
     top_p: Optional[float] = None,
     top_k: Optional[int] = None,
 ) -> Optional[types.GenerateContentConfig]:
+    # Returns None (not a config with all-default fields) when none of the
+    # "quick knobs" were passed, so the caller (DefaultLlmAgent.__init__)
+    # can tell "no override requested" apart from "an explicit
+    # generate_content_config was passed in" and fall through to that
+    # explicit one instead of silently replacing it.
     if temperature is None and top_p is None and top_k is None:
         return None
     return types.GenerateContentConfig(temperature=temperature, top_p=top_p, top_k=top_k)
@@ -391,6 +405,15 @@ def _apply_default_timeout(
 SubAgentLike = Union[Any, Callable[[], Any]]
 
 def _resolve_sub_agents(sub_agents: Optional[Sequence[SubAgentLike]]) -> Optional[List[Any]]:
+    # Each entry may be a ready-made agent, OR a zero-arg callable that
+    # builds one lazily -- useful when a sub-agent's own construction has
+    # side effects or import-order requirements that shouldn't run until
+    # the parent agent is actually being built. A callable/agent entry may
+    # also itself resolve to a list/tuple (e.g. a module that exposes
+    # several related agents as one group); that one level of nesting is
+    # flattened here so callers can pass either a single agent or a group
+    # interchangeably in the same sub_agents list. None entries (a
+    # callable that decided it has nothing to contribute) are dropped.
     if sub_agents is None:
         return None
     resolved: List[Any] = []
@@ -409,6 +432,26 @@ def _resolve_sub_agents(sub_agents: Optional[Sequence[SubAgentLike]]) -> Optiona
 
 
 class DefaultLlmAgent(LlmAgent):
+    """
+    google.adk.agents.LlmAgent subclass every LlmAgent in this codebase is
+    actually built through (via the ProcessLlmAgent factory below), rather
+    than constructing LlmAgent directly -- so all of the following apply
+    uniformly to every agent without each one having to opt in:
+      - instruction_file="..." loads and inlines the instruction text
+        (instruction="..." directly still works too, and wins if both are
+        given).
+      - model resolution goes through _resolve_model, which wraps the
+        underlying model object with the retry/backoff and timeout
+        behavior documented at the top of this file.
+      - before_model_callback/after_model_callback default to
+        review_messages/review_outputs (the output-scrubbing hooks in
+        utils.py) unless explicitly overridden -- pass None to disable
+        scrubbing for a specific agent rather than omitting the kwarg,
+        since omitting it still applies the default.
+      - sub_agents accepts lazy callables and one level of list/tuple
+        nesting (see _resolve_sub_agents).
+    """
+
     def __init__(
         self,
         *,
@@ -486,6 +529,15 @@ class DefaultLlmAgent(LlmAgent):
     # internal calls like `agent.clone(update={"rerun_on_resume": True})`.
 
 class DefaultAgent(Agent):
+    """
+    Same role as DefaultLlmAgent above, for google.adk.agents.Agent (which
+    is itself just an alias of LlmAgent -- see the clone() note at the
+    bottom of this class). Kept as a separate class only so callers can
+    express intent via ProcessAgent vs. ProcessLlmAgent; the two wrappers'
+    behavior is otherwise identical except that DefaultAgent does not
+    accept the temperature/top_p/top_k "quick knobs" convenience kwargs.
+    """
+
     def __init__(
         self,
         *,
@@ -550,7 +602,9 @@ class DefaultAgent(Agent):
     # note on DefaultLlmAgent above. (google.adk.agents.Agent is literally
     # google.adk.agents.LlmAgent, so this class needs the identical fix.)
 
-# Convenience factories
+# Convenience factories -- the actual constructors every agent module in
+# this codebase calls; see DefaultLlmAgent/DefaultAgent's docstrings above
+# for what constructing through these gets you for free.
 def ProcessLlmAgent(name: str, **overrides: Any) -> DefaultLlmAgent:
     return DefaultLlmAgent(name=name, **overrides)
 

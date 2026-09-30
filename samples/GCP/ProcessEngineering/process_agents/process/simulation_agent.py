@@ -230,6 +230,19 @@ def perform_sensitivity_analysis(process_json_str: str) -> str:
 # ============================================================
 
 def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[str, Any]:
+    """
+    PERT-style Monte Carlo cycle-time simulation over the process's own
+    declared step dependencies. Each trial samples every step's duration
+    independently from a triangular distribution (low=0.8x, mode=1x,
+    high=2.2x its estimated_duration), computes each step's finish time as
+    max(its dependencies' finish times) + its own sampled duration, and the
+    trial's overall cycle time is the latest finish time across all steps.
+    Aggregating `iterations` trials yields an average/variance cycle time;
+    resource_contention_risk is derived from how large that variance is
+    relative to the average (a process with the same total runtime every
+    trial is low-risk; one that swings wildly trial to trial is not), and
+    bottlenecks ranks steps by their own average sampled duration.
+    """
     from collections import Counter
     
     steps = data.get("process_steps", [])

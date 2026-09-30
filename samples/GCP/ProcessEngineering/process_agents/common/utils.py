@@ -1,4 +1,12 @@
 # process_agents/utils.py
+#
+# Shared tool-function library for every agent in this pipeline (process,
+# design, and cloudarch). Functions here are exposed directly to the LLM as
+# callable tools (their docstrings double as the tool's schema description
+# seen by the model), so signatures and docstrings are part of the agent
+# contract, not just internal documentation. Also hosts the shared
+# persistence layer (output/*.json, output/cloudarch_drawio.xml) and the
+# drawio XML repair/shape-mapping pipeline used by the CloudArch agents.
 import os
 import json
 import glob
@@ -85,9 +93,16 @@ PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'agentapp.properties'
 
 def getProperty(prop: str, section: str = 'SETTINGS',
                 default: Union[str, int, float, bool, None] = None) -> Any:
+    # Return type is inferred from the string value's content, not declared
+    # by the caller: "true"/"false"/"on"/"off" become bool, anything that
+    # parses as int/float is coerced to that, otherwise it stays a string.
+    # A property meant to stay a literal string (e.g. a zero-padded code)
+    # can silently change type if it happens to look numeric.
     global _CACHE
     if _CACHE is None:
-        # One-time disk read with error handling for path
+        # Read agentapp.properties once per process and cache it in _CACHE --
+        # edits to the file on disk are not picked up until the process
+        # restarts.
         config = configparser.ConfigParser()
         if os.path.exists(PROPERTIES_FILE):
             config.read(PROPERTIES_FILE)
@@ -250,6 +265,10 @@ def getResponseColour(code: str = "responseColourInfo") -> str:
     return ANSI_RESET
 
 def _safe_sleep_from_property(name: str, default: float = 0.25):
+    # Deliberate artificial delay (base + up to 0.75s of jitter), not error
+    # handling -- called before most tool responses to pace agent turns and
+    # avoid bursts of near-simultaneous model/tool calls. The base duration
+    # is configurable per-property (e.g. "modelSleep") in agentapp.properties.
     pv = getProperty(name, default=default)
     try:
         base = float(pv)
@@ -1209,9 +1228,18 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
     }
 
     def _azure_title_segment(seg: str) -> str:
+        # Real Azure2 SVG filenames title-case each underscore-separated
+        # word (e.g. "virtual_machine" -> "Virtual_Machine"), except for a
+        # known set of acronyms that stay fully uppercase (e.g. "vm" ->
+        # "VM", not "Vm") -- _AZURE_ACRONYMS holds that exception list.
         return seg.upper() if seg.lower() in _AZURE_ACRONYMS else seg.capitalize()
 
     def _azure_legacy_ref_to_image(category: str, name: str) -> str:
+        # Converts a legacy "mxgraph.azure.<category>.<name>" reference
+        # into the real img/lib/azure2/... SVG path _repair_legacy_azure_shapes
+        # substitutes it with -- first checking for a hand-verified
+        # category/name override (needed when the filename doesn't follow
+        # the plain title-casing rule), falling back to that rule otherwise.
         override = _AZURE_NAME_OVERRIDES.get((category, name))
         if override:
             override_cat, title = override
@@ -1246,6 +1274,8 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
     }
 
     def _repair_known_bad_image_paths(style: str) -> str:
+        """Swaps any already-image-formatted but wrong Azure SVG reference
+        (per _AZURE_KNOWN_BAD_IMAGE_PATHS above) for the real one."""
         for bad, good in _AZURE_KNOWN_BAD_IMAGE_PATHS.items():
             if bad in style:
                 style = style.replace(bad, good)
@@ -2081,6 +2111,13 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
         return "INFO: No XML content provided to save_drawio, so nothing has been done."
 
     def acquire_lock(timeout: float = 5.0) -> bool:
+        # Simple advisory file lock (a sentinel .lock file, not flock/fcntl)
+        # guarding output/cloudarch_drawio.xml against concurrent writers.
+        # Polls every 100ms for up to `timeout` seconds. NOTE: this is not
+        # stale-lock-aware -- if a process dies after creating the lock
+        # file but before release_lock() runs, the lock file is left
+        # behind and every subsequent save_drawio call will time out here
+        # until it's removed manually.
         start = time.time()
         while time.time() - start < timeout:
             if not os.path.exists(lock_path):
@@ -2424,6 +2461,11 @@ def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> s
     raw_path = paths["raw_file"]
 
     def acquire_lock(timeout: float = 5.0) -> bool:
+        # Same advisory sentinel-file locking pattern as save_drawio's
+        # acquire_lock (not stale-lock-aware -- a crashed process leaves
+        # this file behind and blocks every future save until it's removed
+        # manually), scoped to whichever schema's data file is being
+        # written (process_data.json or design_data.json).
         start = time.time()
         while time.time() - start < timeout:
             if not os.path.exists(lock_path):
@@ -3202,6 +3244,12 @@ def validate_instruction_files() -> bool:
 import re
 
 def _clean_text(text: str) -> str:
+    # Shared scrubbing primitive behind review_messages/review_outputs (the
+    # ADK before/after-model callbacks below) and CleanedStdout: strips the
+    # three concrete leakage patterns that have shown up in real pipeline
+    # output -- an internal "For context:" prefix meant for the next agent
+    # in the chain, raw ADK tool-call trace lines, and markdown code fences
+    # -- so none of them reach a user-visible transcript or log file.
     if not text:
         return ""
 
@@ -3225,6 +3273,12 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 def _safe_clean(text: str) -> str:
+    # Same as _clean_text, but never returns an empty string -- some
+    # callers treat "" as "no content was provided" and skip further
+    # processing, which would be wrong here since the ORIGINAL text was
+    # non-empty and only became empty after stripping leaked internals.
+    # "<no-op>" makes that distinction visible instead of silently
+    # vanishing.
     cleaned = _clean_text(text)
     return cleaned if cleaned.strip() else "<no-op>"
 
@@ -3238,6 +3292,12 @@ STATUS_MARKERS = [
 ]
 
 def _is_status_marker(text: str) -> bool:
+    # A part whose text IS one of these exact control strings must pass
+    # through review_messages/review_outputs untouched -- the stop
+    # controller and orchestrator pattern-match on these literal strings
+    # to decide whether a loop/pipeline is done, so cleaning (or, worse,
+    # a _safe_clean "<no-op>" substitution) would silently break that
+    # matching even though the text looks like harmless status output.
     return any(marker in text for marker in STATUS_MARKERS)
 
 
@@ -3246,6 +3306,14 @@ def _is_status_marker(text: str) -> bool:
 # ---------------------------------------------------------------------
 
 def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    # ADK before_model_callback: runs on every agent turn, just before the
+    # request is sent to the model. Scrubs leaked internals (see
+    # _clean_text) out of the OUTGOING conversation history/prompt so a
+    # prior turn's "For context:" prefix or raw tool-trace text doesn't
+    # get fed back into the next model call as if it were legitimate
+    # conversation content. Always returns None (never short-circuits the
+    # call) -- it only mutates `part.text` in place before the request
+    # proceeds.
     # Collect available context attributes and log them in a single debug call
     attrs = []
     for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
@@ -3280,6 +3348,13 @@ def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) 
 # AFTER MODEL: scrub outgoing text (for logs / downstream agents)
 # ---------------------------------------------------------------------
 def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
+    # ADK after_model_callback: the counterpart to review_messages, run on
+    # the model's RESPONSE before it becomes visible to the user or the
+    # next agent in the pipeline. This is the actual fix point for the
+    # "internals-leaking" output bugs (e.g. a verbose response quoting
+    # raw cell ids/style attributes reaching the user instead of a clean
+    # status string) -- this is where that gets scrubbed, not at the
+    # instruction-following level alone.
     # Collect available context attributes and log them in a single debug call
     attrs = []
     for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
@@ -3303,6 +3378,10 @@ def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse)
             if (
                 hasattr(part, "text")
                 and isinstance(part.text, str)
+                # A Part with more than just `.text` set also carries a
+                # function_call/function_response payload alongside a text
+                # field -- only clean PURE text parts, never touch a part
+                # that's actually a structured tool call/result.
                 and len(part.__dict__.keys()) == 1
             ):
                 if _is_status_marker(part.text):
@@ -3314,6 +3393,14 @@ def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse)
     return llm_response
 
 class CleanedStdout:
+    """
+    A file-like object used to redirect a subprocess/CLI run's stdout to a
+    log file, applying the same _clean_text scrubbing used for agent
+    messages -- so redirected console output (e.g. from the `-f <file>`
+    batch-command CLI mode) doesn't end up with raw tool traces or
+    "For context:" prefixes baked into the saved log either.
+    """
+
     def __init__(self, path: str):
         self.file = open(path, "w", encoding="utf-8")
 

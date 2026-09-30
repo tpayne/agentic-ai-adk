@@ -320,6 +320,23 @@ def _run_core_design_simulation(
     iterations: int = 2000,
     overrides: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
+    """
+    Monte Carlo blast-radius simulation (see the module docstring above for
+    what it's grounded in). Each of `iterations` trials independently fails
+    every component per its own baseline-plus-risk-adjusted probability,
+    expands that seed set through the dependency/integration impacts graph
+    via _blast_radius, and records the resulting fraction of the
+    architecture affected; aggregating across trials yields the average/
+    variance blast radius and a "critical incident" rate (trials where
+    >=50% of the architecture was affected) that drive the Low/Medium/High
+    resilience_risk_rating. single_points_of_failure is ranked by each
+    component's OWN isolated blast radius (if only it failed) times its
+    failure probability -- a deterministic ranking, not a simulation
+    outcome -- so it stays stable across repeated runs at the same
+    `iterations`. `overrides` lets a caller (e.g. a what-if scenario) pin
+    specific components' failure probability instead of using the derived
+    baseline.
+    """
     hld = data.get("high_level_design") or {}
     components = _gather_components(data)
     if not components:
