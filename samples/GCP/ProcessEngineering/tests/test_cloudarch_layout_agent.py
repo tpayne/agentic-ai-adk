@@ -85,6 +85,18 @@ class LayoutOverlapTests(unittest.TestCase):
         row0 = [zone_boxes[z] for z in ("z1", "z2", "z3")]
         self.assertEqual(len({b.y for b in row0}), 1)  # all start at the same y
 
+    def test_horizontal_zone_in_a_later_row_stretches_to_match_earlier_row_width(self):
+        # Regression test: a "stack": "horizontal" zone's width was
+        # previously computed purely from its own children, contradicting
+        # its own "full-width band" doc comment -- a governance strip with
+        # few/narrow children (z_gov here has 2 default-width children,
+        # narrower than row 0's 3-column total) stayed narrower than the
+        # row above it instead of stretching to match.
+        zones, components = self._sample()
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        row0_right_edge = max(zone_boxes[z].right for z in ("z1", "z2", "z3"))
+        self.assertAlmostEqual(zone_boxes["z_gov"].right, row0_right_edge, delta=1)
+
 
 class EdgeRoutingTests(unittest.TestCase):
     def _sample(self):
@@ -357,6 +369,39 @@ class BuildXmlTests(unittest.TestCase):
                 components=[{"id": "c1", "zone_id": "NO_SUCH_ZONE", "label": "Orphan"}],
                 edges=[],
             )
+
+    def test_zone_id_equal_to_component_id_raises(self):
+        # Regression test: same-kind duplicate checks (component vs
+        # component, zone vs zone) previously missed a zone id reused as a
+        # component id. build_structured_drawio_xml's
+        # all_boxes = {**component_boxes, **zone_boxes} would silently let
+        # the zone's box overwrite the component's in that merge, routing
+        # any edge referencing "shared" against the wrong box.
+        with self.assertRaises(ValueError) as ctx:
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "shared", "label": "Zone"}],
+                components=[{"id": "shared", "zone_id": "shared", "label": "Comp"}],
+                edges=[],
+            )
+        self.assertIn("shared", str(ctx.exception))
+
+    def test_component_id_collides_with_another_components_generated_icon_id_raises(self):
+        # Regression test: a component literally named "<other id>_icon"
+        # collides with the auto-generated icon cell id of a DIFFERENT
+        # component that has a shape -- two mxCell elements would end up
+        # with the identical id in the emitted XML.
+        with self.assertRaises(ValueError) as ctx:
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[
+                    {"id": "service", "zone_id": "z1", "label": "Service", "shape": "mxgraph.gcp2.cloud_run"},
+                    {"id": "service_icon", "zone_id": "z1", "label": "Unrelated"},
+                ],
+                edges=[],
+            )
+        self.assertIn("service_icon", str(ctx.exception))
 
     def test_dangling_edge_reference_is_skipped_not_fatal(self):
         # An edge to a nonexistent component id is dropped rather than

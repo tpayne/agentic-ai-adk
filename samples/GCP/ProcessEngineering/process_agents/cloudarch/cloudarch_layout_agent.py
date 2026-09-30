@@ -206,20 +206,49 @@ def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str,
     edge labels bleeding into them. Failing loudly and immediately here,
     with the exact offending ids named, lets the caller fix its input
     instead of silently getting a corrupted diagram back.
+
+    Same-kind duplicates (two zones sharing an id, or two components
+    sharing an id) are the common case, but not the only way two boxes can
+    collide: build_structured_drawio_xml's `all_boxes = {**component_boxes,
+    **zone_boxes}` means a zone id equal to a component id lets one
+    silently overwrite the other in that merge, and any component with a
+    "shape" gets an auto-generated icon cell id of "<component id>_icon" --
+    which collides just as destructively with a DIFFERENT component or
+    zone that happens to already use that exact string as its own id.
+    Every id that will actually end up as an XML id= attribute must be
+    globally unique, across all of these sources at once.
     """
     zone_id_counts = Counter(z.get("id") for z in zones)
     component_id_counts = Counter(c.get("id") for c in components)
     dup_zone_ids = sorted(zid for zid, n in zone_id_counts.items() if zid is not None and n > 1)
     dup_component_ids = sorted(cid for cid, n in component_id_counts.items() if cid is not None and n > 1)
-    if dup_zone_ids or dup_component_ids:
+
+    zone_id_set = {zid for zid in zone_id_counts if zid is not None}
+    component_id_set = {cid for cid in component_id_counts if cid is not None}
+    icon_id_set = {
+        f"{c['id']}_icon" for c in components
+        if c.get("shape") and c.get("id") is not None
+    }
+    cross_collisions = sorted(
+        (zone_id_set & component_id_set)
+        | (icon_id_set & (zone_id_set | component_id_set))
+    )
+
+    if dup_zone_ids or dup_component_ids or cross_collisions:
         parts = []
         if dup_zone_ids:
             parts.append(f"duplicate zone id(s): {dup_zone_ids}")
         if dup_component_ids:
             parts.append(f"duplicate component id(s): {dup_component_ids}")
+        if cross_collisions:
+            parts.append(
+                "id(s) reused across zones, components, or a component's "
+                f"auto-generated icon cell id: {cross_collisions}"
+            )
         raise ValueError(
-            "Every zone id and every component id must be unique across the "
-            "whole diagram -- " + "; ".join(parts) + ". Give each one a "
+            "Every zone id, component id, and component-generated icon id "
+            "(\"<component id>_icon\") must be unique across the whole "
+            "diagram -- " + "; ".join(parts) + ". Give each one a "
             "distinct id (e.g. a more specific suffix) and retry."
         )
 
@@ -268,11 +297,23 @@ def _layout_zones_and_components(
                     default=DEFAULT_ZONE_WIDTH,
                 )
                 content_h = max((_component_height(c) for c in zone_children), default=0)
-                zone_w = zone.get("width") or (
+                natural_w = (
                     len(zone_children) * child_w
                     + max(0, len(zone_children) - 1) * ZONE_GAP
                     + 2 * COMPONENT_H_MARGIN
                 )
+                # Stretch to the width already established by earlier rows
+                # (e.g. row 0's columns), so this actually reads as a
+                # full-width band rather than only as wide as its own
+                # children -- canvas_width at this point reflects every row
+                # already laid out above this one (it's updated at the end
+                # of each row's iteration, below), so a single-component
+                # governance strip doesn't end up narrower than the
+                # multi-column architecture row it sits under. Falls back
+                # to natural_w when this IS the first row (canvas_width is
+                # still its initial PAGE_MARGIN value, so available_w is 0).
+                available_w = max(0.0, canvas_width - 2 * PAGE_MARGIN)
+                zone_w = zone.get("width") or max(natural_w, available_w)
                 zone_h = header_h + content_h + 2 * ZONE_INNER_MARGIN
 
                 cx = x_cursor
