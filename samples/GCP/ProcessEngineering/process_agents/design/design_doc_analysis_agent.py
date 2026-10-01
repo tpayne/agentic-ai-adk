@@ -8,6 +8,8 @@ from typing import Any
 
 from ..common.utils import (
     save_iteration_feedback,
+    load_directory_context,
+    load_requirements_summary,
     getProperty,
 )
 
@@ -52,6 +54,8 @@ design_doc_analysis_agent = ProcessLlmAgent(
     tools=[
         record_analysis_request,
         log_analysis_metadata,
+        load_directory_context,
+        load_requirements_summary,
         save_iteration_feedback,
     ],
 )

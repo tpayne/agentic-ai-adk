@@ -42,6 +42,8 @@ The following are a list of known issues: -
     * Design Architecture Simulation Query Agent for running resilience, scalability, security, and latency simulations against a **design document**
     * Design Scenario Tester for running "what if" type queries against a **design document**
     * CloudArch Pipeline for generating or regenerating cloud architecture diagrams from a **design document**
+    * Requirements Summary Agent for reading a directory of files and summarising/saving the requirements found in them, **without** creating a process, design, or architecture
+    * Requirements Consultant Agent for general queries about a previously saved requirements summary (including flagged conflicts, priorities, clarifications, inferred requirements, and coverage gaps)
   If the root agent picks the wrong domain (e.g. it treats a design-document question as a process question, or vice-versa), naming the agent explicitly in your prompt (e.g. **"using the Design Consultant Agent..."**) will steer it correctly.
 
 ---
@@ -69,6 +71,10 @@ The ADK pipeline provides:
   - **Security** — a control-coverage checklist, compliance-standard status tally, security-tagged risks, and an externally-exposed-without-full-controls check.
   - **Latency** — declared performance/latency targets cross-checked against the deepest dependency chain in the architecture, flagging undeclared latency budgets on long request paths.
 - **Design Consultant & Scenario Testing**: A `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while a `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation agent for any quantitative estimate.
+- **File-Based Requirements Extraction (opt-in)**: Any process, design-document, or cloud-architecture creation/refinement request can source its requirements from a directory of files instead of (or alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a process for onboarding new vendors."* `load_directory_context` extracts and combines text from every `.txt`/`.md`/`.docx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx` file directly inside the given directory using pure-Python extractors (no system binaries required). This is strictly opt-in — absent that explicit phrasing, no agent ever reads a directory on its own.
+- **Standalone Requirements Summarization & Consultation**: A `Requirements_Summary_Agent` can read a directory of files on its own — without running a full creation pipeline — synthesize a structured requirements summary, report it in plain language in chat, and save it to `output/requirements_summary.json` for later reuse (e.g. *"read the files in ./vendor-docs and summarize the requirements"*). A `Requirements_Consultant_Agent` then lets you ask follow-up questions about that saved summary at any time (e.g. *"what's in the saved requirements summary?"*), and any later process/design/architecture creation request can reuse it instead of re-reading the original documents by saying so explicitly (e.g. *"create a process using the saved requirements summary"*).
+- **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
+- **Requirement Traceability Register**: Every atomic requirement identified during analysis gets a stable id (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which source file it came from, and one or more concrete acceptance criteria. For the design-document pipeline, this register is mapped directly into `design_document_schema.json`'s `requirements.functional_requirements`/`requirements.non_functional_requirements`/`requirements.traceability_matrix` sections — closing a gap where the HLD/Combined generator previously never populated that part of the schema — giving every generated design document real, ISO/IEC/IEEE 29148-style requirement traceability.
 
 ---
 
@@ -98,7 +104,23 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 ```
 .
 ├── CODE_OF_CONDUCT.md
+├── codeDoc
+│   ├── adk-composition.md
+│   ├── application-classes.md
+│   ├── class-diagram.png
+│   ├── class-hierarchy.md
+│   ├── class-inventory.md
+│   ├── generate_diagrams.py
+│   ├── README.md
+│   ├── sequence-cloudarch-pipeline.png
+│   ├── sequence-design-doc-create.png
+│   ├── sequence-design-doc-update.png
+│   ├── sequence-process-create.png
+│   └── sequence-process-update.png
 ├── CONTRIBUTORS.md
+├── demo
+│   ├── .gitattributes
+│   └── Agentic Process Demo.mp4
 ├── Dockerfile
 ├── examples
 │   ├── AgileSAFE
@@ -143,6 +165,71 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │       ├── Sprint_Planning.json
 │   │       ├── Sprint_Retrospective.json
 │   │       └── Sprint_Review.json
+│   ├── AIIntro
+│   │   ├── approval.json
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── responsible_ai_rfp_standard_for_consulting_flow.png
+│   │   ├── Responsible_AI_RFP_Standard_for_Consulting.docx
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── AI_Suitability_&_Ethics_Screening.png
+│   │   │   ├── Guardrail_&_Safety_Design.png
+│   │   │   ├── Internal_Review_&_Governance_Approval.png
+│   │   │   ├── Opportunity_Identification_&_Intake.png
+│   │   │   ├── Proposal_Finalization_&_Submission.png
+│   │   │   └── Technical_Solution_Architecture.png
+│   │   └── subprocesses
+│   │       ├── AI_Suitability_&_Ethics_Screening.json
+│   │       ├── Guardrail_&_Safety_Design.json
+│   │       ├── Internal_Review_&_Governance_Approval.json
+│   │       ├── Opportunity_Identification_&_Intake.json
+│   │       ├── Proposal_Finalization_&_Submission.json
+│   │       └── Technical_Solution_Architecture.json
+│   ├── AINistEUAct
+│   │   ├── ai_regulatory_compliance_framework_(nist_&_eu_ai_act)_flow.png
+│   │   ├── AI_Regulatory_Compliance_Framework_(NIST_&_EU_AI_Act).docx
+│   │   ├── approval.json
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Conduct_Data_Protection_Impact_Assessment_(DPIA).png
+│   │   │   ├── Deploy_and_monitor_with_human_oversight.png
+│   │   │   ├── Document_technical_specifications_for_EU_AI_Act_compliance.png
+│   │   │   ├── EU_AI_Act_Conformity_Assessment_and_Registration.png
+│   │   │   ├── Identify_AI_use_cases_and_risk_classification.png
+│   │   │   ├── Implement_NIST_AI_RMF_-_Govern_and_Map.png
+│   │   │   ├── Implement_NIST_AI_RMF_-_Measure_and_Manage.png
+│   │   │   └── Perform_bias_testing_and_model_validation.png
+│   │   └── subprocesses
+│   │       ├── Conduct_Data_Protection_Impact_Assessment_(DPIA).json
+│   │       ├── Deploy_and_monitor_with_human_oversight.json
+│   │       ├── Document_technical_specifications_for_EU_AI_Act_compliance.json
+│   │       ├── EU_AI_Act_Conformity_Assessment_and_Registration.json
+│   │       ├── Identify_AI_use_cases_and_risk_classification.json
+│   │       ├── Implement_NIST_AI_RMF_-_Govern_and_Map.json
+│   │       ├── Implement_NIST_AI_RMF_-_Measure_and_Manage.json
+│   │       └── Perform_bias_testing_and_model_validation.json
+│   ├── AIStrategy
+│   │   ├── ai-enhanced_process_flow.png
+│   │   ├── AI-Enhanced_Process.docx
+│   │   ├── approval.json
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── AI_Model_Deployment.png
+│   │   │   ├── AI_Model_Training_and_Validation.png
+│   │   │   ├── AI-Powered_Service_Usage.png
+│   │   │   ├── Data_Collection_and_Preparation.png
+│   │   │   └── Performance_Monitoring_and_Feedback.png
+│   │   └── subprocesses
+│   │       ├── AI_Model_Deployment.json
+│   │       ├── AI_Model_Training_and_Validation.json
+│   │       ├── AI-Powered_Service_Usage.json
+│   │       ├── Data_Collection_and_Preparation.json
+│   │       └── Performance_Monitoring_and_Feedback.json
 │   ├── DataCentreMigration
 │   │   ├── data_centre_migration_with_progress_tracking_and_escalation_flow.png
 │   │   ├── Data_Centre_Migration_with_Progress_Tracking_and_Escalation.docx
@@ -165,6 +252,36 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │       ├── Identify_Data_Owners.json
 │   │       ├── Implement_Data_Quality_Checks.json
 │   │       └── Monitor_Data_Usage.json
+│   ├── DesignServiceHLD
+│   │   ├── approval.json
+│   │   ├── cloudarch_drawio.xml
+│   │   ├── design_data.json
+│   │   ├── design_simulation_results.json
+│   │   ├── iteration_feedback.json
+│   │   ├── process_flow.png
+│   │   ├── servicenow_cmdb_auto-discovery_&_asset_management_(ham_sam)_hybrid_aws_and_on-premises_architecture_flow.png
+│   │   ├── ServiceNow_CMDB_Auto-Discovery_&_Asset_Management_(HAM_SAM)_Hybrid_AWS_and_On-Premises_Architecture.docx
+│   │   ├── step_diagrams
+│   │   ├── subprocesses
+│   │   └── uml_diagrams
+│   │       ├── ctx-diag-001.png
+│   │       ├── diag-cont-001.png
+│   │       ├── diag-ctx-001.png
+│   │       ├── diag-dep-001.png
+│   │       ├── seq-aws-disc-001.png
+│   │       ├── seq-e2e-1.png
+│   │       ├── seq-ecc-poll-001.png
+│   │       ├── seq-ham-sync-001.png
+│   │       ├── seq-ire-1.png
+│   │       ├── seq-ire-process-001.png
+│   │       ├── seq-onprem-disc-001.png
+│   │       ├── seq-sam-reconcile-001.png
+│   │       ├── uml-aws-mid-001.png
+│   │       ├── uml-ecc-001.png
+│   │       ├── uml-ham-001.png
+│   │       ├── uml-ire-001.png
+│   │       ├── uml-onprem-mid-001.png
+│   │       └── uml-sam-001.png
 │   ├── EnergyProvider
 │   │   ├── Business_Customer_Incident_Management.docx
 │   │   └── process_data.json
@@ -192,6 +309,77 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │   │   └── World_Stabilization.json
 │   │   ├── world_creation_flow.png
 │   │   └── World_Creation.docx
+│   ├── GovDataFrameworks
+│   │   ├── approval.json
+│   │   ├── iteration_feedback.json
+│   │   ├── moj_ai_and_data_governance_framework_flow.png
+│   │   ├── MoJ_AI_and_Data_Governance_Framework.docx
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Control_Implementation.png
+│   │   │   ├── Data_Classification_&_Inventory.png
+│   │   │   ├── Governance_Sign-off.png
+│   │   │   ├── Operational_Monitoring.png
+│   │   │   ├── Project_Registration.png
+│   │   │   ├── Risk_&_Impact_Assessment.png
+│   │   │   └── Verification_&_Audit.png
+│   │   └── subprocesses
+│   │       ├── Control_Implementation.json
+│   │       ├── Data_Classification_&_Inventory.json
+│   │       ├── Governance_Sign-off.json
+│   │       ├── Operational_Monitoring.json
+│   │       ├── Project_Registration.json
+│   │       ├── Risk_&_Impact_Assessment.json
+│   │       └── Verification_&_Audit.json
+│   ├── HAMCM
+│   │   ├── approval.json
+│   │   ├── Enterprise_Hardware_Asset_and_Configuration_Management_Process.docx
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Change-Controlled_Migration,_Decommissioning,_and_Secure_Hardware_Disposal.png
+│   │   │   ├── Data_Centre_Migration_Staging,_Rack-and-Stack,_and_Initial_Discovery.png
+│   │   │   ├── Goods_Receipt,_Tagging,_and_alm_hardware_Asset_Staging.png
+│   │   │   ├── Hardware_Procurement_and_Asset_Pre-Registration.png
+│   │   │   ├── Mandatory_Operational_Approval_Gate_and_Baseline_Production_Activation.png
+│   │   │   ├── Operational_Maintenance,_Automated_Discovery_Reconciliation,_and_'No_Ticket_No_Touch'_Enforcement.png
+│   │   │   └── Pre-Operational_Verification,_Discovery_Reconciliation,_and_Technical_Readiness_Gate.png
+│   │   └── subprocesses
+│   │       ├── Change-Controlled_Migration,_Decommissioning,_and_Secure_Hardware_Disposal.json
+│   │       ├── Data_Centre_Migration_Staging,_Rack-and-Stack,_and_Initial_Discovery.json
+│   │       ├── Goods_Receipt,_Tagging,_and_alm_hardware_Asset_Staging.json
+│   │       ├── Hardware_Procurement_and_Asset_Pre-Registration.json
+│   │       ├── Mandatory_Operational_Approval_Gate_and_Baseline_Production_Activation.json
+│   │       ├── Operational_Maintenance,_Automated_Discovery_Reconciliation,_and_'No_Ticket_No_Touch'_Enforcement.json
+│   │       └── Pre-Operational_Verification,_Discovery_Reconciliation,_and_Technical_Readiness_Gate.json
+│   ├── HAMSAMHLD
+│   │   ├── approval.json
+│   │   ├── design_data.json
+│   │   ├── design_simulation_results.json
+│   │   ├── iteration_feedback.json
+│   │   ├── low-level_design__servicenow_cmdb_autodiscovery_for_sam_ham_on_hybrid_aws_and_physical_datacenter_flow.png
+│   │   ├── Low-Level_Design__ServiceNow_CMDB_Autodiscovery_for_SAM_HAM_on_Hybrid_AWS_and_Physical_Datacenter.docx
+│   │   ├── step_diagrams
+│   │   ├── subprocesses
+│   │   └── uml_diagrams
+│   │       ├── cd-aws-mid-02.png
+│   │       ├── cd-dc-mid-03.png
+│   │       ├── cd-ire-01.png
+│   │       ├── cd-itam-05.png
+│   │       ├── cd-target-06.png
+│   │       ├── cd-vault-04.png
+│   │       ├── cnt-c4-02.png
+│   │       ├── ctx-c4-01.png
+│   │       ├── dep-c4-03.png
+│   │       ├── seq-aws-cloud-mid-discovery.png
+│   │       ├── seq-e2e-aws-cloud-discovery-to-sam.png
+│   │       ├── seq-e2e-datacenter-discovery-to-itam.png
+│   │       ├── seq-ire-internal-reconciliation.png
+│   │       ├── seq-itam-lifecycle-sync.png
+│   │       ├── seq-onprem-datacenter-probing.png
+│   │       └── seq-vault-access-validation.png
 │   ├── HRAI
 │   │   ├── genai_augmented_hr_process_flow.png
 │   │   ├── GenAI_Augmented_HR_Process.docx
@@ -215,8 +403,30 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │       ├── Onboarding.json
 │   │       └── Training_and_Development.json
 │   ├── LiveRuns
+│   │   ├── query.md
 │   │   ├── sample_consultSimulation_agents.md
 │   │   └── sample_pharma_queries.md
+│   ├── MOJAIStrategy
+│   │   ├── approval.json
+│   │   ├── cloudarch_drawio.xml
+│   │   ├── iteration_feedback.json
+│   │   ├── MoJ_AI_Data_Quality_and_Governance_Framework.docx
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── Algorithmic_Fairness_&_Ethical_Assessment.png
+│   │   │   ├── Architecture_&_Security_Baseline_Review.png
+│   │   │   ├── Data_Quality_&_Provenance_Verification.png
+│   │   │   ├── Formal_Governance_Gate_&_Sign-Off.png
+│   │   │   ├── Inception_&_Classification.png
+│   │   │   └── Post-Deployment_Monitoring_&_Continuous_Audit.png
+│   │   └── subprocesses
+│   │       ├── Algorithmic_Fairness_&_Ethical_Assessment.json
+│   │       ├── Architecture_&_Security_Baseline_Review.json
+│   │       ├── Data_Quality_&_Provenance_Verification.json
+│   │       ├── Formal_Governance_Gate_&_Sign-Off.json
+│   │       ├── Inception_&_Classification.json
+│   │       └── Post-Deployment_Monitoring_&_Continuous_Audit.json
 │   ├── PharmaDrugDev
 │   │   ├── drug_development_value_chain_flow.png
 │   │   ├── Drug_Development_Value_Chain.docx
@@ -283,158 +493,184 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │       ├── Root_Cause_Analysis.json
 │   │       ├── Stock-out_Identification.json
 │   │       └── Verification_and_Documentation.json
-│   └── TOGAF
-│       ├── approval.json
-│       ├── iteration_feedback.json
-│       ├── logs
-│       │   ├── pipeline_20260209_212641.log
-│       │   ├── runtime_errors.log
-│       │   └── runtime_outputs.log
-│       ├── process_data.json
-│       ├── simulation_results.json
-│       ├── step_diagrams
-│       │   ├── 1._Architecture_Vision.png
-│       │   ├── 2._Business_Architecture.png
-│       │   ├── 3._Information_Systems_Architecture.png
-│       │   ├── 4._Technology_Architecture.png
-│       │   ├── 5._Opportunities_&_Solutions.png
-│       │   ├── 6._Migration_Planning.png
-│       │   ├── 7._Implementation_Governance.png
-│       │   ├── 8._Architecture_Change_Management.png
-│       │   └── 9._Architecture_Monitoring.png
-│       ├── subprocesses
-│       │   ├── 1._Architecture_Vision.json
-│       │   ├── 2._Business_Architecture.json
-│       │   ├── 3._Information_Systems_Architecture.json
-│       │   ├── 4._Technology_Architecture.json
-│       │   ├── 5._Opportunities_&_Solutions.json
-│       │   ├── 6._Migration_Planning.json
-│       │   ├── 7._Implementation_Governance.json
-│       │   ├── 8._Architecture_Change_Management.json
-│       │   └── 9._Architecture_Monitoring.json
-│       ├── togaf_enterprise_architecture_management_flow.png
-│       └── TOGAF_Enterprise_Architecture_Management.docx
+│   ├── TOGAF
+│   │   ├── approval.json
+│   │   ├── iteration_feedback.json
+│   │   ├── process_data.json
+│   │   ├── simulation_results.json
+│   │   ├── step_diagrams
+│   │   │   ├── 1._Architecture_Vision.png
+│   │   │   ├── 2._Business_Architecture.png
+│   │   │   ├── 3._Information_Systems_Architecture.png
+│   │   │   ├── 4._Technology_Architecture.png
+│   │   │   ├── 5._Opportunities_&_Solutions.png
+│   │   │   ├── 6._Migration_Planning.png
+│   │   │   ├── 7._Implementation_Governance.png
+│   │   │   ├── 8._Architecture_Change_Management.png
+│   │   │   └── 9._Architecture_Monitoring.png
+│   │   ├── subprocesses
+│   │   │   ├── 1._Architecture_Vision.json
+│   │   │   ├── 2._Business_Architecture.json
+│   │   │   ├── 3._Information_Systems_Architecture.json
+│   │   │   ├── 4._Technology_Architecture.json
+│   │   │   ├── 5._Opportunities_&_Solutions.json
+│   │   │   ├── 6._Migration_Planning.json
+│   │   │   ├── 7._Implementation_Governance.json
+│   │   │   ├── 8._Architecture_Change_Management.json
+│   │   │   └── 9._Architecture_Monitoring.json
+│   │   ├── togaf_enterprise_architecture_management_flow.png
+│   │   └── TOGAF_Enterprise_Architecture_Management.docx
+│   └── XML
+│       ├── DataProcessing
+│       │   ├── cloudarch_drawio.jpg
+│       │   └── cloudarch_drawio.xml.drawio
+│       └── Sample
+│           ├── cloudarch_drawio.jpg
+│           └── cloudarch_drawio.xml
 ├── images
 │   ├── image001.png
 │   ├── image002.png
 │   ├── image003.png
-│   └── image004.png
+│   ├── image004.png
+│   ├── image005.png
+│   └── image006.png
 ├── instructions
-│   ├── agent.txt
-│   ├── analysis_agent.txt
-│   ├── cloudarch_agent.txt
-│   ├── cloudarch_reviewer_agent.txt
-│   ├── compliance_agent.txt
-│   ├── consultant_agent.txt
-│   ├── consultant_design_agent.txt
-│   ├── design_agent.txt
-│   ├── design_scenario_tester_agent.txt
-│   ├── design_simulation_query_agent.txt
-│   ├── doc_generation_agent.txt
-│   ├── edge_inference_agent.txt
-│   ├── grounding_agent.txt
-│   ├── json_normalizer_agent.txt
-│   ├── json_review_agent.txt
-│   ├── json_writer_agent.txt
-│   ├── scenario_tester_agent.txt
-│   ├── simulation_agent.txt
-│   ├── simulation_query_agent.txt
-│   ├── stop_controller_agent.txt
-│   ├── subprocess_generator_agent.txt
-│   ├── uml_diagram_agent.txt
-│   └── update_analysis_agent.txt
+│   ├── cloudarch
+│   │   ├── cloudarch_agent.txt
+│   │   ├── cloudarch_consultant_agent.txt
+│   │   ├── cloudarch_reviewer_agent.txt
+│   │   └── cloudarch_simulation_query_agent.txt
+│   ├── common
+│   │   ├── agent.txt
+│   │   ├── doc_generation_agent.txt
+│   │   ├── edge_inference_agent.txt
+│   │   ├── grounding_agent.txt
+│   │   ├── json_normalizer_agent.txt
+│   │   ├── json_review_agent.txt
+│   │   ├── json_writer_agent.txt
+│   │   ├── requirements_consultant_agent.txt
+│   │   ├── requirements_summary_agent.txt
+│   │   └── stop_controller_agent.txt
+│   ├── design
+│   │   ├── consultant_design_agent.txt
+│   │   ├── design_doc_agent.txt
+│   │   ├── design_doc_analysis_agent.txt
+│   │   ├── design_doc_compliance_agent.txt
+│   │   ├── design_doc_hld_agent.txt
+│   │   ├── design_doc_lld_agent.txt
+│   │   ├── design_doc_update_analysis_agent.txt
+│   │   ├── design_scenario_tester_agent.txt
+│   │   ├── design_simulation_agent.txt
+│   │   └── design_simulation_query_agent.txt
+│   └── process
+│       ├── analysis_agent.txt
+│       ├── compliance_agent.txt
+│       ├── consultant_agent.txt
+│       ├── design_agent.txt
+│       ├── scenario_tester_agent.txt
+│       ├── simulation_agent.txt
+│       ├── simulation_query_agent.txt
+│       ├── subprocess_generator_agent.txt
+│       └── update_analysis_agent.txt
 ├── process_agents
 │   ├── __init__.py
-│   ├── __pycache__
-│   │   ├── __init__.cpython-314.pyc
-│   │   ├── agent_registry.cpython-314.pyc
-│   │   ├── agent_wrappers.cpython-314.pyc
-│   │   ├── agent.cpython-314.pyc
-│   │   ├── analysis_agent.cpython-314.pyc
-│   │   ├── app.cpython-314.pyc
-│   │   ├── compliance_agent.cpython-314.pyc
-│   │   ├── consultant_agent.cpython-314.pyc
-│   │   ├── create_process_agent.cpython-314.pyc
-│   │   ├── design_agent.cpython-314.pyc
-│   │   ├── doc_creation_agent.cpython-314.pyc
-│   │   ├── doc_generation_agent.cpython-314.pyc
-│   │   ├── edge_inference_agent.cpython-314.pyc
-│   │   ├── grounding_agent.cpython-314.pyc
-│   │   ├── json_normalizer_agent.cpython-314.pyc
-│   │   ├── json_review_agent.cpython-314.pyc
-│   │   ├── json_writer_agent.cpython-314.pyc
-│   │   ├── scenario_agent.cpython-314.pyc
-│   │   ├── simulation_agent.cpython-314.pyc
-│   │   ├── step_diagram_agent.cpython-314.pyc
-│   │   ├── subprocess_driver_agent.cpython-314.pyc
-│   │   ├── subprocess_generator_agent.cpython-314.pyc
-│   │   ├── subprocess_writer_agent.cpython-314.pyc
-│   │   ├── update_process_agent.cpython-314.pyc
-│   │   ├── utils_agent.cpython-314.pyc
-│   │   └── utils.cpython-314.pyc
-│   ├── agent_registry.py
-│   ├── agent_wrappers.py
 │   ├── agent.py
-│   ├── analysis_agent.py
 │   ├── app.py
-│   ├── cloudarch_agent.py
-│   ├── cloudarch_pipeline_agent.py
-│   ├── cloudarch_reviewer_agent.py
-│   ├── compliance_agent.py
-│   ├── consultant_agent.py
-│   ├── consultant_design_agent.py
-│   ├── create_process_agent.py
+│   ├── cloudarch
+│   │   ├── __init__.py
+│   │   ├── cloudarch_agent.py
+│   │   ├── cloudarch_consultant_agent.py
+│   │   ├── cloudarch_layout_agent.py
+│   │   ├── cloudarch_pipeline_agent.py
+│   │   ├── cloudarch_reviewer_agent.py
+│   │   └── cloudarch_simulation_agent.py
+│   ├── common
+│   │   ├── __init__.py
+│   │   ├── agent_registry.py
+│   │   ├── agent_wrappers.py
+│   │   ├── agent.py
+│   │   ├── app.py
+│   │   ├── doc_creation_agent.py
+│   │   ├── doc_generation_agent.py
+│   │   ├── edge_inference_agent.py
+│   │   ├── grounding_agent.py
+│   │   ├── helpers
+│   │   │   ├── doc_content.py
+│   │   │   ├── doc_design_sections.py
+│   │   │   ├── doc_governance.py
+│   │   │   ├── doc_structure.py
+│   │   │   ├── doc_technical.py
+│   │   │   └── themes
+│   │   │       ├── __init__.py
+│   │   │       ├── corporate_standard.json
+│   │   │       └── loader.py
+│   │   ├── json_normalizer_agent.py
+│   │   ├── json_review_agent.py
+│   │   ├── json_writer_agent.py
+│   │   ├── requirements_consultant_agent.py
+│   │   ├── requirements_summary_agent.py
+│   │   ├── step_diagram_agent.py
+│   │   ├── uml_diagram_agent.py
+│   │   ├── utils_agent.py
+│   │   └── utils.py
 │   ├── data
 │   │   └── openapi.yaml
-│   ├── design_agent.py
-│   ├── design_simulation_agent.py
-│   ├── doc_creation_agent.py
+│   ├── design
+│   │   ├── __init__.py
+│   │   ├── consultant_design_agent.py
+│   │   ├── design_doc_agent.py
+│   │   ├── design_doc_analysis_agent.py
+│   │   ├── design_doc_compliance_agent.py
+│   │   ├── design_doc_create_agent.py
+│   │   ├── design_doc_hld_agent.py
+│   │   ├── design_doc_lld_agent.py
+│   │   ├── design_doc_update_agent.py
+│   │   ├── design_simulation_agent.py
+│   │   └── scenario_design_agent.py
 │   ├── doc_generation_agent.py
 │   ├── edge_inference_agent.py
-│   ├── grounding_agent.py
-│   ├── helpers
+│   ├── process
 │   │   ├── __init__.py
-│   │   ├── __pycache__
-│   │   │   ├── __init__.cpython-314.pyc
-│   │   │   ├── doc_content.cpython-314.pyc
-│   │   │   ├── doc_governance.cpython-314.pyc
-│   │   │   ├── doc_structure.cpython-314.pyc
-│   │   │   └── doc_technical.cpython-314.pyc
-│   │   ├── doc_content.py
-│   │   ├── doc_governance.py
-│   │   ├── doc_structure.py
-│   │   ├── doc_technical.py
-│   │   └── themes
-│   │       ├── __init__.py
-│   │       ├── __pycache__
-│   │       │   ├── __init__.cpython-314.pyc
-│   │       │   └── loader.cpython-314.pyc
-│   │       ├── corporate_standard.json
-│   │       └── loader.py
-│   ├── json_normalizer_agent.py
-│   ├── json_review_agent.py
-│   ├── json_writer_agent.py
+│   │   ├── analysis_agent.py
+│   │   ├── compliance_agent.py
+│   │   ├── consultant_agent.py
+│   │   ├── create_process_agent.py
+│   │   ├── design_agent.py
+│   │   ├── scenario_agent.py
+│   │   ├── simulation_agent.py
+│   │   ├── subprocess_driver_agent.py
+│   │   ├── subprocess_generator_agent.py
+│   │   ├── subprocess_writer_agent.py
+│   │   └── update_process_agent.py
 │   ├── public
 │   │   ├── script.js
 │   │   └── style.css
-│   ├── scenario_agent.py
-│   ├── scenario_design_agent.py
-│   ├── simulation_agent.py
-│   ├── step_diagram_agent.py
-│   ├── subprocess_driver_agent.py
-│   ├── subprocess_generator_agent.py
-│   ├── subprocess_writer_agent.py
-│   ├── templates
-│   │   └── index.html
-│   ├── uml_diagram_agent.py
-│   ├── update_process_agent.py
-│   ├── utils_agent.py
-│   └── utils.py
+│   └── templates
+│       ├── design_document_schema.json
+│       ├── design_document_template.json
+│       ├── index.html
+│       └── process_schema.json
 ├── properties
 │   └── agentapp.properties
 ├── README.md
-└── requirements.txt
-
+├── requirements-dev.txt
+├── requirements.txt
+└── tests
+    ├── __init__.py
+    ├── README.md
+    ├── test_agent_wrappers.py
+    ├── test_cloudarch_drawio_mcp.py
+    ├── test_cloudarch_layout_agent.py
+    ├── test_cloudarch_simulation_agent.py
+    ├── test_design_simulation_agent.py
+    ├── test_grounding_agent.py
+    ├── test_load_directory_context.py
+    ├── test_process_graph_helpers.py
+    ├── test_requirements_summary_tools.py
+    ├── test_simulation_agent.py
+    ├── test_utils_agent_and_design_helpers.py
+    ├── test_utils.py
+    └── test_web_service.py
 ```
 
 ---
@@ -705,6 +941,8 @@ Discovery → Pre‑Clinical → Clinical Development → Regulatory Submission 
 - “Generate a clear, human‑centred process that uses modern AI capabilities to improve efficiency, decision‑making, and accessibility for the widest range of people. The process should emphasize responsible use of AI, scalability, and meaningful real‑world benefit across diverse users.”
 - "I am an enterprise architect working for the Ministry of Justice (UK) and I need to introduce an AI standard framework for data governance and quality that all projects need to adhere to. Create a process that projects need to follow to manage AI and data quality and governance - including security and data classification. The process must comply with best practice, NIST, EU AI regulations and UK AI Regulations. The process needs to be fully auditable and comply with UK government standards."
 - "Act as an expert ITIL 4 Master, ServiceNow Architect, and UK banking compliance consultant to author a rigorous, FCA-compliant Hardware Asset Management (HAM) and Configuration Management (CM) Process Definition Document for a tier-1 UK trading bank undergoing a critical data centre migration. The documentation must establish an end-to-end, auditable lifecycle for all hardware Configuration Items (CIs)—spanning procurement, staging, operational use, change control, and retirement/disposal—to remediate the bank's current weak process adherence and satisfy data centre acceptance criteria. It must explicitly detail a "No Ticket, No Touch" policy where any divergence between ServiceNow Discovery and the CMDB baseline automatically triggers an unauthorized change incident, establish a RACI matrix (mapping Procurement, Migration Teams, and CAB), enforce mandatory ServiceNow approval gates before CIs transition to an "Operational" state, and align CMDB data integrity (>99.5% accuracy target) directly with FCA Operational Resilience regulations (PS21/3). Avoid generic ITIL theory; deliver a formal, authoritative, and prescriptive banking-grade framework featuring precise ServiceNow asset-to-CI state transition tables and automated enforcement policies designed to overcome organizational resistance."
+- "Read the files in ./vendor-docs and create a process for onboarding new vendors." *(reads every supported file in that directory as source material instead of/alongside direct chat text — see "File-Based Requirements Extraction" above)*
+- "Use the saved requirements summary to create a process for onboarding new vendors." *(reuses a requirements summary saved earlier via the Requirements Summary Agent — see below — instead of re-reading the original documents)*
 
 ### Reviewing or Querying Existing Processes
 - "Tell me what happens when a security audit is triggered?"
@@ -751,6 +989,8 @@ The following are sample prompts for the design-document (HLD/LLD/Combined archi
 - "As a Solution Architect, produce a High-Level Design for a multi-region disaster-recovery-capable order management system, including system context, external systems, integration points, and a risk register mapped to likelihood/impact."
 - "Create a Low-Level Design document detailing the internal components, sequence flows, and interfaces of the notification service described in our existing HLD."
 - "Act as a Cloud Solutions Architect and produce a design document for a data lake ingestion platform on AWS, including scalability strategy (auto-scaling groups, sharding), security architecture, and compliance mapping to ISO/IEC 27001 and applicable data-protection standards."
+- "Scan the documents in ./architecture-notes and design a system for our new order management platform." *(file-based requirements extraction, same as the process-side example above)*
+- "Design a Combined HLD/LLD using the saved requirements summary, including any inferred requirements." *(reuses a saved requirements summary and opts in to its inferred/derived requirements — otherwise they're never used by the generator; see below)*
 
 ### Reviewing or Querying Existing Design Documents
 - "Which components does the Identification & Reconciliation Engine depend on?"
@@ -792,6 +1032,43 @@ The following are sample prompts for the design-document (HLD/LLD/Combined archi
 - "Simulate a failure in this cloud architecture diagram — what are the single points of failure?"
 - "Will the architecture in the diagram scale under load?"
 - "Do a dry run of this cloud architecture diagram"
+
+---
+
+## Sample Prompts — Standalone Requirements Extraction & Review
+
+These prompts use `Requirements_Summary_Agent` and `Requirements_Consultant_Agent` directly, without
+running any process/design/architecture creation pipeline. Useful when you want to extract and
+review requirements from a pile of documents before deciding what to build from them.
+
+### Reading & Summarizing Files
+
+- "Read the files in ./vendor-docs and summarize the requirements."
+- "Just read the files in that folder and summarize the requirements to the screen."
+- "Scan ./architecture-notes and extract the requirements into a requirements summary file for later use."
+
+Each run reports a plain-language narrative in chat (goals, requirements, constraints, and any
+flagged conflicts/priorities/clarifications/inferred requirements/coverage gaps) and saves a
+structured, traceable requirements register to `output/requirements_summary.json` — every
+requirement gets a stable id (`FR-*`/`NFR-*`/`GOAL-*`/`CON-*`), the source file(s) it came from, and
+concrete acceptance criteria where testable.
+
+### Reviewing a Saved Requirements Summary
+
+- "What's in the saved requirements summary?"
+- "Review the requirements summary for conflicts."
+- "Are there any conflicting requirements in the saved summary?"
+- "What's the priority of the requirements we extracted?"
+- "Which requirements need further clarification?"
+- "What inferred or derived requirements did you identify, and why?"
+- "What areas aren't covered at all by the source material?"
+
+### Reusing a Saved Requirements Summary in a Creation Request
+
+- "Create a process using the saved requirements summary."
+- "Design a system using the saved requirements summary, including any inferred requirements." *(the
+  "including any inferred requirements" phrasing is required to opt in — otherwise inferred/derived
+  requirements are never used to drive scope, by design.)*
 
 ---
 
@@ -953,6 +1230,7 @@ The following table outlines the alignment of the design document JSON (`design_
 | Standard | Description | Alignment Level | JSON Evidence / Logic |
 | :--- | :--- | :--- | :--- |
 | **ISO/IEC/IEEE 42010:2022** | Systems and Software Engineering — Architecture Description | **High** | `system_context`, `high_level_design`, and `low_level_design` sections map directly to architecture viewpoints and views; `quality_attributes[]` records architecturally significant requirements. |
+| **ISO/IEC/IEEE 29148:2018** | Systems and Software Engineering — Requirements Engineering | **High** | `requirements.functional_requirements`/`requirements.non_functional_requirements` (stable `FR-*`/`NFR-*` ids, `priority`, `source`, `acceptance_criteria`, `status`) and `requirements.traceability_matrix` (`requirement_id` → `design_element_id` → `verification_method`) are populated directly from the analysis-stage requirements register produced by `Analysis_Agent`/`Design_Doc_Analysis_Agent`/`Requirements_Summary_Agent`. |
 | **TOGAF ADM** | The Open Group Architecture Framework — Architecture Development Method | **Medium-High** | `system_context.external_systems`, `high_level_design.components`, and `risk_register`/`risks_and_mitigations` align to Business/Data/Application/Technology architecture phases and governance gates. |
 | **ISO/IEC 25010:2011** | Systems and Software Quality Requirements and Evaluation (SQuaRE) | **Medium-High** | `quality_attributes[]` (`characteristic` enum including `performance_efficiency`, `security`, etc., each with a `metric`/`target`) map to SQuaRE quality characteristics. |
 | **C4 Model** | Context, Containers, Components, Code | **Medium** | `system_context` → Context; `high_level_design.components` → Containers/Components; `low_level_design` → Code-level detail. |
@@ -1019,6 +1297,8 @@ children only where the module builds a composite agent.
 | `json_normalizer_agent.py` | Repairs and normalizes generated JSON. | `JSON_Normalizer_Agent` | — |
 | `json_review_agent.py` | Reviews normalized JSON and records feedback. | `JSON_Review_Agent` | — |
 | `json_writer_agent.py` | Persists approved process or design-document JSON. | `JSON_Writer_Agent` | — |
+| `requirements_consultant_agent.py` | Answers questions about a previously saved requirements summary — explanation, conflicts, clarifications, priorities, inferred requirements, and coverage gaps — grounded strictly in its JSON. | `Requirements_Consultant_Agent` | — |
+| `requirements_summary_agent.py` | Reads a directory of files (on request, standalone — no creation pipeline runs), synthesizes a requirements register (ids, source files, acceptance criteria), flags requirements-quality issues, and saves the result to `output/requirements_summary.json` for later reuse. | `Requirements_Summary_Agent` | — |
 | `scenario_agent.py` | Tests generated processes against user scenarios. | `Scenario_Tester` | — |
 | `scenario_design_agent.py` | Tests architecture designs against user scenarios. | `Design_Scenario_Tester` | — |
 | `simulation_agent.py` | Runs process simulation, bottleneck, sensitivity, and result-query workflows. | `Simulation_Optimization_Agent`, `Simulation_Optimization_Query_Agent` | — |
@@ -1037,7 +1317,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 
 | Agent | What it does | Direct sub-agents |
 | :--- | :--- | :--- |
-| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, and document workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline` |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, document, and requirements-summarization workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline`, `Requirements_Summary_Agent`, `Requirements_Consultant_Agent` |
 | `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
 | `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
 | `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
@@ -1086,6 +1366,8 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 | `CloudArch_Reviewer_Agent` | Reviews generated cloud architecture and supplies iteration feedback. | — |
 | `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram, grounded in its XML. | — |
 | `CloudArch_Simulation_Query_Agent` | Simulates resilience, scalability, and latency directly against an existing cloud architecture diagram. | — |
+| `Requirements_Summary_Agent` | Reads a directory of files and produces/saves a structured, traceable requirements summary (functional/non-functional/goal/constraint register with ids, source files, and acceptance criteria; conflicts, priorities, clarifications, inferred requirements, and coverage gaps). | — |
+| `Requirements_Consultant_Agent` | Answers questions about the saved requirements summary, grounded strictly in its JSON. | — |
 | `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |
 | `Doc_Creation_Sequence` | Runs the document artifact stages in order. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
 | `Edge_Inference_Agent` | Derives graph edges, lanes, labels, and dependencies from process JSON. | — |

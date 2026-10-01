@@ -9,6 +9,8 @@ from typing import Any
 
 from ..common.utils import (
     save_iteration_feedback,
+    load_directory_context,
+    load_requirements_summary,
     getProperty,
 )
 
@@ -58,6 +60,8 @@ analysis_agent = ProcessLlmAgent(
     tools=[
         log_analysis_metadata,
         record_analysis_request,
+        load_directory_context,
+        load_requirements_summary,
         save_iteration_feedback,
     ],
 )

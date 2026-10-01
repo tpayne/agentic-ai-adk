@@ -195,6 +195,8 @@ from .agent_registry import (
     SubprocessDriverAgent,
     full_design_doc_pipeline,
     update_design_doc_pipeline,
+    requirements_summary_agent,
+    requirements_consultant_agent,
 )
 
 # Signal handler for abnormal errors
@@ -244,6 +246,8 @@ root_agent = ProcessLlmAgent(
         SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
         full_design_doc_pipeline,
         update_design_doc_pipeline,
+        requirements_summary_agent,
+        requirements_consultant_agent,
     ],
 )
 
