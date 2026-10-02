@@ -93,15 +93,23 @@ COMPONENT_H_MARGIN = 26  # left/right margin inside a zone for its components --
                         # case), so it needs a bit more than pure visual
                         # breathing room
 DEFAULT_ZONE_WIDTH = 340
-ICON_SIZE = 40
+ICON_SIZE = 56          # deliberately large/dominant -- matches official AWS/
+                        # Azure/GCP Architecture Icons reference-diagram
+                        # conventions, where the icon is the primary visual
+                        # element, not a small decoration above a text block
 ICON_TOP_MARGIN = 10
-SPACING_TOP_WITH_ICON = ICON_TOP_MARGIN + ICON_SIZE + 8   # = 58, matches the
+SPACING_TOP_WITH_ICON = ICON_TOP_MARGIN + ICON_SIZE + 8   # = 74, matches the
                         # formula given to the LLM elsewhere in this pipeline
 SPACING_TOP_NO_ICON = 12
 LINE_HEIGHT = 16
 COMPONENT_BOTTOM_MARGIN = 20
-DEFAULT_COMPONENT_COLOR = "#4285F4"
-DEFAULT_ZONE_COLOR = "#4285F4"
+DEFAULT_COMPONENT_COLOR = "#5F6368"  # neutral gray -- deliberately NOT a
+                        # provider brand color (the old default, Google's
+                        # own #4285F4 "Google Blue", silently tinted every
+                        # AWS/Azure diagram whose components didn't
+                        # explicitly set their own color) -- a safety net
+                        # for a forgotten color, not a provider's identity
+DEFAULT_ZONE_COLOR = "#5F6368"
 
 # Stagger step sizes for edges that share a routing channel with other
 # edges (see _channel_key/_stagger_offset). Each channel kind has very
@@ -253,12 +261,46 @@ def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str,
         )
 
 
+def _zone_natural_width(zone: Dict[str, Any], zone_children: List[Dict[str, Any]]) -> float:
+    """
+    This zone's own width with NO row-level stretching applied -- an explicit
+    override if given, else (for a horizontal-stack zone) however wide its
+    own children actually need, else (vertical-stack) the plain default
+    column width. Used to compute each row's natural total width in PASS 1
+    of _layout_zones_and_components, and as the baseline every eligible
+    zone in a short row gets stretched FROM in PASS 2.
+    """
+    if zone.get("width"):
+        return zone["width"]
+    if zone.get("stack", "vertical") == "horizontal":
+        child_w = max(
+            (c.get("width") or DEFAULT_ZONE_WIDTH for c in zone_children),
+            default=DEFAULT_ZONE_WIDTH,
+        )
+        return (
+            len(zone_children) * child_w
+            + max(0, len(zone_children) - 1) * ZONE_GAP
+            + 2 * COMPONENT_H_MARGIN
+        )
+    return DEFAULT_ZONE_WIDTH
+
+
 def _layout_zones_and_components(
     zones: List[Dict[str, Any]], components: List[Dict[str, Any]]
 ) -> Tuple[Dict[str, _Box], Dict[str, _Box], float, float]:
     """
     Computes absolute boxes for every zone and every component.
     Returns (zone_boxes, component_boxes, canvas_width, canvas_height).
+
+    Two passes, deliberately -- a single forward pass that stretches each
+    row to "whatever canvas_width happens to be so far" was confirmed (in
+    practice, against a real generated diagram) to compound: a row with two
+    horizontal-stack zones, each independently stretching to the full width
+    established by the row above, ends up roughly DOUBLE that width (not
+    matching it) -- and that doubled width then becomes the next row's own
+    stretch target, doubling again. Earlier, never-restretched rows are left
+    stranded at a fraction of the final, inflated canvas width -- exactly
+    the "wasted space" this was rewritten to fix.
     """
     _validate_unique_ids(zones, components)
 
@@ -270,15 +312,41 @@ def _layout_zones_and_components(
     for z in zones:
         rows.setdefault(int(z.get("row", 0)), []).append(z)
 
+    def row_natural_width(row_zones: List[Dict[str, Any]]) -> float:
+        widths = [_zone_natural_width(z, comps_by_zone.get(z["id"], [])) for z in row_zones]
+        return sum(widths) + max(0, len(widths) - 1) * ZONE_GAP
+
+    # PASS 1: the one true target content width every row should fill -- the
+    # widest row's own natural (unstretched) width, computed once, up front,
+    # from every row at once rather than incrementally from whatever's been
+    # placed so far.
+    target_width = max((row_natural_width(rows[r]) for r in rows), default=0.0)
+
     zone_boxes: Dict[str, _Box] = {}
     component_boxes: Dict[str, _Box] = {}
 
     y_cursor = PAGE_MARGIN + TITLE_HEIGHT
-    canvas_width = PAGE_MARGIN  # grows as row-0 columns are placed
+    canvas_width = PAGE_MARGIN + target_width
 
+    # PASS 2: position every row, stretching it to target_width -- shared out
+    # across THIS row's own eligible zones (any zone without an explicit
+    # "width" override), not independently re-claimed in full by each one.
+    # A row with no eligible zones (every zone has an explicit width) is
+    # centered within target_width instead, so it reads as intentional
+    # rather than stuck flush-left with space only on the right.
     for row_num in sorted(rows.keys()):
         row_zones = rows[row_num]
-        x_cursor = PAGE_MARGIN
+        natural_widths = {
+            z["id"]: _zone_natural_width(z, comps_by_zone.get(z["id"], [])) for z in row_zones
+        }
+        row_natural_total = sum(natural_widths.values()) + max(0, len(row_zones) - 1) * ZONE_GAP
+        shortfall = max(0.0, target_width - row_natural_total)
+
+        eligible_ids = {z["id"] for z in row_zones if not z.get("width")}
+        extra_per_eligible = shortfall / len(eligible_ids) if eligible_ids else 0.0
+        row_x_offset = shortfall / 2 if not eligible_ids else 0.0  # center an unstretchable row
+
+        x_cursor = PAGE_MARGIN + row_x_offset
         row_height = 0
 
         for zone in row_zones:
@@ -286,41 +354,43 @@ def _layout_zones_and_components(
             zone_children = comps_by_zone.get(zone_id, [])
             header_h = _zone_header_height(zone)
             stack = zone.get("stack", "vertical")
+            zone_w = natural_widths[zone_id] + (
+                extra_per_eligible if zone_id in eligible_ids else 0.0
+            )
 
             if stack == "horizontal":
-                # A full-width strip of side-by-side boxes (e.g. a governance
-                # row). Width is however wide its children need to be; if
-                # that's less than the full remaining canvas width, it's
-                # stretched to fill it so the row still reads as one band.
                 child_w = max(
                     (c.get("width") or DEFAULT_ZONE_WIDTH for c in zone_children),
                     default=DEFAULT_ZONE_WIDTH,
                 )
                 content_h = max((_component_height(c) for c in zone_children), default=0)
-                natural_w = (
-                    len(zone_children) * child_w
-                    + max(0, len(zone_children) - 1) * ZONE_GAP
-                    + 2 * COMPONENT_H_MARGIN
-                )
-                # Stretch to the width already established by earlier rows
-                # (e.g. row 0's columns), so this actually reads as a
-                # full-width band rather than only as wide as its own
-                # children -- canvas_width at this point reflects every row
-                # already laid out above this one (it's updated at the end
-                # of each row's iteration, below), so a single-component
-                # governance strip doesn't end up narrower than the
-                # multi-column architecture row it sits under. Falls back
-                # to natural_w when this IS the first row (canvas_width is
-                # still its initial PAGE_MARGIN value, so available_w is 0).
-                available_w = max(0.0, canvas_width - 2 * PAGE_MARGIN)
-                zone_w = zone.get("width") or max(natural_w, available_w)
                 zone_h = header_h + content_h + 2 * ZONE_INNER_MARGIN
 
                 cx = x_cursor
                 cy = y_cursor
                 zone_boxes[zone_id] = _Box(zone_id, cx, cy, zone_w, zone_h, row=row_num)
 
-                inner_x = cx + COMPONENT_H_MARGIN
+                # Redistribute any slack between zone_w and what the children
+                # actually need as EXTRA GAP between them, so a stretched (or
+                # explicitly wide) zone's children spread out to use its full
+                # width instead of clustering at the left edge with dead
+                # space past the last one.
+                content_w = (
+                    len(zone_children) * child_w
+                    + max(0, len(zone_children) - 1) * ZONE_GAP
+                    + 2 * COMPONENT_H_MARGIN
+                )
+                n = len(zone_children)
+                if n == 0:
+                    inner_x = cx + COMPONENT_H_MARGIN
+                    gap = ZONE_GAP
+                elif n == 1:
+                    w0 = zone_children[0].get("width") or child_w
+                    inner_x = cx + (zone_w - w0) / 2
+                    gap = ZONE_GAP
+                else:
+                    inner_x = cx + COMPONENT_H_MARGIN
+                    gap = ZONE_GAP + (zone_w - content_w) / (n - 1)
                 inner_y = cy + header_h + ZONE_INNER_MARGIN
                 for order_idx, child in enumerate(zone_children):
                     w = child.get("width") or child_w
@@ -329,13 +399,12 @@ def _layout_zones_and_components(
                         child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num,
                         order=order_idx, stack=stack,
                     )
-                    inner_x += w + ZONE_GAP
+                    inner_x += w + gap
 
                 x_cursor += zone_w + ZONE_GAP
                 row_height = max(row_height, zone_h)
 
             else:
-                zone_w = zone.get("width") or DEFAULT_ZONE_WIDTH
                 inner_w = zone_w - 2 * COMPONENT_H_MARGIN
                 child_y = y_cursor + header_h + ZONE_INNER_MARGIN
                 for order_idx, child in enumerate(zone_children):
@@ -358,7 +427,6 @@ def _layout_zones_and_components(
                 x_cursor += zone_w + ZONE_GAP
                 row_height = max(row_height, zone_h)
 
-        canvas_width = max(canvas_width, x_cursor - ZONE_GAP + PAGE_MARGIN)
         y_cursor += row_height + ROW_GAP
 
     canvas_height = y_cursor - ROW_GAP + PAGE_MARGIN
@@ -478,13 +546,31 @@ def _route_edge(
         # between the two zone columns -- the x midway between whichever
         # pair of edges actually face each other.
         if src.right <= tgt.x:
-            gap_x = (src.right + tgt.x) / 2
+            base_gap_x = (src.right + tgt.x) / 2
         elif tgt.right <= src.x:
-            gap_x = (tgt.right + src.x) / 2
+            base_gap_x = (tgt.right + src.x) / 2
         else:
-            gap_x = (src.cx + tgt.cx) / 2
-        gap_y = (src.cy + tgt.cy) / 2 + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
-        return [(gap_x, gap_y)]
+            base_gap_x = (src.cx + tgt.cx) / 2
+        gap_x = base_gap_x + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
+        if src.cy == tgt.cy:
+            # Already vertically aligned -- a single waypoint at the shared y
+            # is already a clean right-angle path (exit -> waypoint is
+            # horizontal, waypoint -> entry is horizontal, no vertical
+            # segment needed at all).
+            return [(gap_x, src.cy)]
+        # NOT vertically aligned (the common case -- src/tgt are rarely at the
+        # exact same stack position within their own, independently-stacked
+        # zones). A SINGLE waypoint at the midpoint of the two centers was the
+        # previous approach here, but that produces two DIAGONAL segments
+        # (confirmed against a real generated diagram: exit and entry points
+        # are each pinned to their own box's own cy, which does not equal the
+        # midpoint y, so neither segment ends up horizontal OR vertical) --
+        # exactly what renders as an edge that looks disconnected from its
+        # box once the box has no visible border to anchor the eye to. Two
+        # waypoints at the SAME gap_x instead give three axis-aligned
+        # segments: exit (src's own cy) -> horizontal -> (gap_x, src.cy) ->
+        # vertical -> (gap_x, tgt.cy) -> horizontal -> entry (tgt's own cy).
+        return [(gap_x, src.cy), (gap_x, tgt.cy)]
 
     # Different rows: drop into the horizontal channel between rows, travel
     # across it, then drop into the target. The channel sits below the
@@ -495,6 +581,31 @@ def _route_edge(
         channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
     )
     return [(src.cx, channel_y), (tgt.cx, channel_y)]
+
+
+def _connection_point(box: _Box, towards_x: float, towards_y: float) -> Tuple[float, float]:
+    """
+    Returns a fixed (fractional X, fractional Y) connection point on `box`'s
+    own boundary -- 0.0/1.0 on each axis, e.g. (0.5, 0.0) for top-center,
+    (1.0, 0.5) for right-center -- facing whichever side the edge actually
+    travels towards (its first/last waypoint, or the other endpoint's center
+    if the edge has no waypoints at all).
+
+    Without this, an edge cell that only specifies source/target (no exitX/
+    exitY/entryX/entryY) gets a "floating" connection point that drawio
+    computes on its own at render time -- and that computed point does not
+    reliably match the direction _route_edge's own waypoints actually
+    approach from, which has been observed to render as the arrow ending
+    short of the box, in open space, rather than visibly touching it
+    (especially on a long cross-row edge, or now that components render
+    with no visible border to anchor the eye to where the box "is"). Pinning
+    an explicit, correct point removes the guesswork entirely.
+    """
+    dx = towards_x - box.cx
+    dy = towards_y - box.cy
+    if abs(dx) >= abs(dy):
+        return (1.0, 0.5) if dx >= 0 else (0.0, 0.5)
+    return (0.5, 1.0) if dy >= 0 else (0.5, 0.0)
 
 
 def build_structured_drawio_xml(
@@ -521,7 +632,13 @@ def build_structured_drawio_xml(
         "dx": "1600", "dy": "900", "grid": "1", "gridSize": "10", "guides": "1",
         "tooltips": "1", "connect": "1", "arrows": "1", "fold": "1", "page": "1",
         "pageScale": "1", "pageWidth": str(int(canvas_w)), "pageHeight": str(int(canvas_h)),
-        "math": "0", "shadow": "0",
+        "math": "0", "shadow": "0", "background": "#FFFFFF",
+        # Explicit white page background -- without it, the canvas renders
+        # using whatever theme the viewer/exporter happens to be in (e.g. a
+        # dark-mode drawio client), which turns the deliberately white,
+        # light-bordered boxes into stark cards floating on a black void.
+        # A professional architecture diagram should look the same
+        # regardless of the viewer's own theme.
     })
     root = ET.SubElement(graph_model, "root")
     ET.SubElement(root, "mxCell", {"id": "0"})
@@ -556,8 +673,19 @@ def build_structured_drawio_xml(
             "id": zone["id"], "value": value, "vertex": "1", "parent": "1",
             "style": (
                 f"swimlane;startSize={header_h};rounded=1;arcSize=4;fillColor=#F8F9FA;"
-                f"strokeColor={color};strokeWidth=1.5;html=1;fontStyle=1;fontSize=12;"
-                f"align=center;verticalAlign=middle;container=1;collapsible=0;"
+                f"swimlaneFillColor=#F8F9FA;"
+                # swimlaneFillColor is mxgraph's own style key for a swimlane's BODY/
+                # lane area, distinct from fillColor (which some renderers apply only
+                # to the header bar for a swimlane-shaped cell) -- set both to the
+                # same value so the body fill can't silently fall through to
+                # whatever's behind the canvas regardless of which one a given
+                # viewer actually honors.
+                f"strokeColor={color};strokeWidth=2;html=1;fontStyle=1;fontSize=12;"
+                f"fontColor=#202124;align=center;verticalAlign=middle;container=1;collapsible=0;"
+                # fontColor was previously left unset on this swimlane header title,
+                # which has been observed to render pale/near-illegible against the
+                # light header fill -- pin it explicitly rather than rely on
+                # whatever default a given viewer falls back to.
             ),
         })
         ET.SubElement(cell, "mxGeometry", {
@@ -578,13 +706,32 @@ def build_structured_drawio_xml(
         color = component.get("color", DEFAULT_COMPONENT_COLOR)
         value = _html_value(component["label"], component.get("bullets"))
 
-        comp_cell = ET.SubElement(root, "mxCell", {
-            "id": component["id"], "value": value, "vertex": "1", "parent": component["zone_id"],
-            "style": (
+        if has_icon:
+            # No visible box around an icon-bearing component -- just the icon with its
+            # title/caption underneath, floating on the zone's own background. Matches
+            # professional AWS/Azure/GCP reference diagrams, which reserve a bordered box
+            # for GROUPING containers (zones) and render individual resource icons
+            # borderless. Geometry (box.w/box.h, spacing_top) is unchanged -- only the
+            # visible fill/stroke disappear, so overlap-prevention and edge routing (both
+            # computed from this same reserved box) are completely unaffected.
+            box_style = (
+                f"whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;"
+                f"verticalAlign=top;align=center;fontSize=11;fontColor=#202124;"
+                f"spacingTop={spacing_top};"
+            )
+        else:
+            # No icon -- keep the bordered box. Without an icon, a borderless floating
+            # text label wouldn't read as a distinct component at all; the box is what
+            # visually anchors it.
+            box_style = (
                 f"rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor={color};"
                 f"strokeWidth=1.5;verticalAlign=top;align=center;fontSize=11;fontColor=#202124;"
                 f"spacingTop={spacing_top};"
-            ),
+            )
+
+        comp_cell = ET.SubElement(root, "mxCell", {
+            "id": component["id"], "value": value, "vertex": "1", "parent": component["zone_id"],
+            "style": box_style,
         })
         ET.SubElement(comp_cell, "mxGeometry", {
             "x": str(int(local_x)), "y": str(int(local_y)),
@@ -640,14 +787,33 @@ def build_structured_drawio_xml(
         color = edge.get("color", "#5f6368")
         dashed = "dashed=1;" if edge.get("dashed") else ""
 
+        # Pin exact connection points instead of letting drawio float them --
+        # see _connection_point's own docstring for why.
+        first_wp = waypoints[0] if waypoints else (tgt.cx, tgt.cy)
+        last_wp = waypoints[-1] if waypoints else (src.cx, src.cy)
+        exit_x, exit_y = _connection_point(src, *first_wp)
+        entry_x, entry_y = _connection_point(tgt, *last_wp)
+
         edge_cell = ET.SubElement(root, "mxCell", {
             "id": f"edge_{i}_{edge['source']}_{edge['target']}",
             "value": f"<b>{label}</b>" if label else "",
             "edge": "1", "parent": "1", "source": edge["source"], "target": edge["target"],
             "style": (
-                f"edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;"
-                f"html=1;startArrow=classic;endArrow=classic;strokeColor={color};strokeWidth=2;"
+                # Deliberately NOT edgeStyle=orthogonalEdgeStyle -- that is drawio's
+                # own AUTOMATIC router, which computes (and can override) its own
+                # path rather than reliably treating our waypoints/connection
+                # points as literal, especially crossing a swimlane/container
+                # boundary. Our own _route_edge waypoints are already constructed
+                # to form clean right-angle paths (consecutive points deliberately
+                # share an X or Y coordinate) -- a plain polyline through our exact
+                # points (no edgeStyle at all) draws the same right-angle shape
+                # without handing any interpretation authority to an auto-router
+                # that has been observed to disconnect from the actual target box.
+                f"rounded=1;html=1;startArrow=none;endArrow=classic;"
+                f"strokeColor={color};strokeWidth=2;"
                 f"{dashed}fontColor=#202124;fontSize=10;labelBackgroundColor=#ffffff;"
+                f"exitX={exit_x};exitY={exit_y};exitDx=0;exitDy=0;"
+                f"entryX={entry_x};entryY={entry_y};entryDx=0;entryDy=0;"
             ),
         })
         geom = ET.SubElement(edge_cell, "mxGeometry", {"relative": "1", "as": "geometry"})

@@ -26,9 +26,9 @@ class ComponentHeightTests(unittest.TestCase):
 
     def test_matches_documented_formula(self):
         # The exact example given to the LLM in cloudarch_agent.txt: a title
-        # plus 4 bullets (5 lines total) with spacingTop=58 needs height >= 158.
+        # plus 4 bullets (5 lines total) with spacingTop=74 needs height >= 174.
         component = {"label": "X", "bullets": ["a", "b", "c", "d"], "shape": "mxgraph.gcp2.cloud_run"}
-        self.assertEqual(layout._component_height(component), 158)
+        self.assertEqual(layout._component_height(component), 174)
 
 
 class LayoutOverlapTests(unittest.TestCase):
@@ -96,6 +96,54 @@ class LayoutOverlapTests(unittest.TestCase):
         zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
         row0_right_edge = max(zone_boxes[z].right for z in ("z1", "z2", "z3"))
         self.assertAlmostEqual(zone_boxes["z_gov"].right, row0_right_edge, delta=1)
+
+    def test_multi_zone_rows_stretch_to_the_same_width_without_compounding(self):
+        # Regression test for a real generated diagram: stretching a
+        # horizontal-stack zone to "the canvas width established so far" was
+        # applied independently to EVERY zone in a row, with no awareness of
+        # its row-mates -- so a row of two such zones each claimed the full
+        # available width, making that row roughly DOUBLE the previous row's
+        # width. That doubled width then became the next row's own stretch
+        # target, doubling again. Four rows (2, 2, 1, 2 horizontal-stack
+        # zones, mirroring the real diagram's shape) must all land on the
+        # exact same total width -- not grow row over row.
+        def comps(zone_id, n):
+            return [
+                {"id": f"{zone_id}_c{i}", "zone_id": zone_id, "label": "X", "shape": "mxgraph.aws4.lambda"}
+                for i in range(n)
+            ]
+
+        zones = [
+            {"id": "z0a", "row": 0, "stack": "horizontal"},
+            {"id": "z0b", "row": 0, "stack": "horizontal"},
+            {"id": "z1a", "row": 1, "stack": "horizontal"},
+            {"id": "z1b", "row": 1, "stack": "horizontal"},
+            {"id": "z2a", "row": 2, "stack": "horizontal"},
+            {"id": "z3a", "row": 3, "stack": "horizontal"},
+            {"id": "z3b", "row": 3, "stack": "horizontal"},
+        ]
+        components = (
+            comps("z0a", 2) + comps("z0b", 4) + comps("z1a", 4) + comps("z1b", 2)
+            + comps("z2a", 5) + comps("z3a", 4) + comps("z3b", 4)
+        )
+        zone_boxes, comp_boxes, canvas_w, _ = layout._layout_zones_and_components(zones, components)
+
+        row_right_edges = {
+            row: max(zone_boxes[z].right for z in ids)
+            for row, ids in {
+                0: ("z0a", "z0b"), 1: ("z1a", "z1b"), 2: ("z2a",), 3: ("z3a", "z3b"),
+            }.items()
+        }
+        target = row_right_edges[0]
+        for row, right_edge in row_right_edges.items():
+            self.assertAlmostEqual(right_edge, target, delta=1, msg=f"row {row} did not match the target width")
+
+        # A stretched zone's children must spread out to fill it, not stay
+        # clustered at the left edge with dead space before the zone's own
+        # right border.
+        z1b_box = zone_boxes["z1b"]
+        last_child = comp_boxes["z1b_c1"]
+        self.assertAlmostEqual(z1b_box.right - last_child.right, layout.COMPONENT_H_MARGIN, delta=1)
 
 
 class EdgeRoutingTests(unittest.TestCase):
@@ -182,6 +230,28 @@ class EdgeRoutingTests(unittest.TestCase):
         # Must sit strictly between the two zone columns, in the reserved gap.
         self.assertGreater(wx, zone_boxes["z1"].right)
         self.assertLess(wx, zone_boxes["z2"].x)
+
+    def test_same_row_edge_between_vertically_offset_components_is_axis_aligned(self):
+        # Regression test: a real generated diagram (confirmed against the
+        # actual XML) showed a "same row, different zone" edge rendering as
+        # two DIAGONAL segments and looking disconnected from its target box.
+        # "bottom" (2nd item in z1) and "other" (1st, only item in z2) sit at
+        # different vertical positions -- the previous single-waypoint-at-
+        # the-midpoint approach produced a path where neither segment was
+        # purely horizontal or vertical. Every consecutive pair of points in
+        # the full path (src's own center, each waypoint, tgt's own center)
+        # must share either their x or their y for the rendered path to be a
+        # clean right-angle route.
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = self._row_bottoms(zone_boxes)
+        src, tgt = comp_boxes["bottom"], comp_boxes["other"]
+        self.assertNotEqual(src.cy, tgt.cy)  # precondition: genuinely offset
+        waypoints = layout._route_edge({"source": "bottom", "target": "other"}, src, tgt, 0, row_bottoms)
+        self.assertEqual(len(waypoints), 2)
+        full_path = [(src.cx, src.cy)] + waypoints + [(tgt.cx, tgt.cy)]
+        for (x1, y1), (x2, y2) in zip(full_path, full_path[1:]):
+            self.assertTrue(x1 == x2 or y1 == y2, f"diagonal segment: ({x1},{y1}) -> ({x2},{y2})")
 
     def test_cross_row_edge_uses_tallest_zone_in_the_row_not_the_component(self):
         # Regression test: this previously used the SOURCE COMPONENT's own
