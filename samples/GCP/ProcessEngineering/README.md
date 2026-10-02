@@ -797,9 +797,10 @@ sslKeyFile  = "/path/to/privkey.pem"
 
 ### Authentication and rate limiting
 
-`-d` defaults to HTTPS on `0.0.0.0` -- reachable from more than just localhost
--- but the service itself has no user/session management. **Set `webApiKey`
-before exposing it beyond your own machine**:
+`-d` defaults to HTTPS on `127.0.0.1` (loopback-only) specifically so it's
+safe to run with no further config for local use. **Set `webApiKey` before
+exposing it beyond your own machine** (i.e. before changing `host` to
+`0.0.0.0` or any other non-loopback address):
 
 ```ini
 [SETTINGS]
@@ -817,10 +818,13 @@ curl -sk -X POST https://localhost:8443/chat \
 # or: -H "X-API-Key: a-long-random-value"
 ```
 
-If unset, the service still runs (it's a sample tool, unauthenticated by
-default) but prints a loud startup warning. Every route is also capped at
-`webRateLimitPerMinute` requests/minute per source IP (default 30; `<= 0`
-disables it).
+If `host` is changed to a non-loopback address with no `webApiKey`
+configured, the service refuses to start at all rather than silently running
+an unauthenticated, model-backed chat API reachable from anywhere the port
+is open — set `allowInsecureWebService = True` instead if you specifically
+want that (e.g. a trusted internal network with no key). Every route is also
+capped at `webRateLimitPerMinute` requests/minute per source IP (default 30;
+`<= 0` disables it).
 
 ### REST API
 

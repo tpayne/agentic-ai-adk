@@ -4,6 +4,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -119,6 +120,41 @@ class RequirementsSummaryToolsTests(unittest.TestCase):
 
         result = utils.load_requirements_summary()
         self.assertEqual(result["status"], "ERROR")
+
+    def test_load_with_tool_context_prefers_this_sessions_own_summary(self):
+        """
+        Two concurrent web sessions each have their own ToolContext/state.
+        If session A saves, then session B saves (overwriting the shared
+        on-disk file), session A's own later load must still see A's
+        summary, not B's -- this is the cross-session-leakage fix.
+        """
+        session_a = SimpleNamespace(state={})
+        session_b = SimpleNamespace(state={})
+
+        utils.save_requirements_summary({"summary": "session A's requirements"}, tool_context=session_a)
+        utils.save_requirements_summary({"summary": "session B's requirements"}, tool_context=session_b)
+
+        loaded_a = utils.load_requirements_summary(tool_context=session_a)
+        self.assertEqual(loaded_a["summary"], "session A's requirements")
+
+        loaded_b = utils.load_requirements_summary(tool_context=session_b)
+        self.assertEqual(loaded_b["summary"], "session B's requirements")
+
+        # The shared file still reflects whichever save happened last --
+        # that single cross-process slot is unchanged, deliberate behavior.
+        loaded_no_context = utils.load_requirements_summary()
+        self.assertEqual(loaded_no_context["summary"], "session B's requirements")
+
+    def test_load_with_tool_context_falls_back_to_shared_file_if_session_never_saved(self):
+        """A session that never called save itself (e.g. a fresh session
+        explicitly asked to reuse a prior run's saved summary) still finds
+        the shared file."""
+        utils.save_requirements_summary({"summary": "from an earlier run"})
+
+        fresh_session = SimpleNamespace(state={})
+        loaded = utils.load_requirements_summary(tool_context=fresh_session)
+        self.assertEqual(loaded["status"], "OK")
+        self.assertEqual(loaded["summary"], "from an earlier run")
 
 
 if __name__ == "__main__":

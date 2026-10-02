@@ -2265,7 +2265,13 @@ def _extract_txt_file(path: str) -> str:
 def _extract_docx_file(path: str) -> str:
     import docx
     doc = docx.Document(path)
-    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    parts = [p.text for p in doc.paragraphs if p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)
 
 
 def _extract_pdf_file(path: str) -> str:
@@ -3156,16 +3162,28 @@ def save_iteration_feedback(feedback_data: Any):
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
 
-def save_requirements_summary(summary: dict) -> str:
+def save_requirements_summary(summary: dict, tool_context: Optional[ToolContext] = None) -> str:
     """
     Persists a structured requirements summary -- built by
     Requirements_Summary_Agent from load_directory_context's extracted
     text -- to output/requirements_summary.json, so a LATER
     process/design/cloudarch creation request can reuse it via
     load_requirements_summary() instead of re-reading the original
-    directory. Single-slot: this call overwrites any previously saved
-    summary, mirroring save_drawio's "most recent" persistence model
-    rather than keeping a history of every extraction.
+    directory. Single-slot on disk: this call overwrites any previously
+    saved summary, mirroring save_drawio's "most recent" persistence
+    model rather than keeping a history of every extraction.
+
+    When invoked as a registered tool (tool_context supplied automatically
+    by the ADK runtime, never by the LLM), the summary is ALSO cached in
+    this session's own state. load_requirements_summary() checks that
+    session-local copy before falling back to the shared file -- across
+    the web service's concurrent sessions, this stops one session's
+    own later "what did I just save" turn from reading back whatever a
+    DIFFERENT concurrent session most recently overwrote the shared file
+    with. The shared file itself is left as the deliberate, single
+    cross-process slot the "use the saved requirements summary" override
+    already documents (see cloudarch_agent.txt Mode 6 and equivalents) --
+    only same-session reuse is disambiguated here.
 
     Deliberately schema-agnostic (not process_schema.json or
     design_document_schema.json shaped) -- a later creation agent already
@@ -3187,6 +3205,8 @@ def save_requirements_summary(summary: dict) -> str:
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
+        if tool_context is not None:
+            tool_context.state["requirements_summary"] = summary
         logger.debug(f"Requirements summary saved to {path}.")
         return f"SUCCESS: Requirements summary persisted to {path}"
     except Exception as e:
@@ -3194,19 +3214,30 @@ def save_requirements_summary(summary: dict) -> str:
         return f"ERROR: Could not save requirements summary: {e}"
 
 
-def load_requirements_summary() -> dict:
+def load_requirements_summary(tool_context: Optional[ToolContext] = None) -> dict:
     """
-    Loads the most recently saved requirements summary (written by
-    save_requirements_summary), so a process/design/cloudarch creation
-    agent can reuse previously file-extracted requirements as source
-    material without re-reading the original directory.
+    Loads the requirements summary this session itself most recently
+    saved (via this session's own state, see save_requirements_summary),
+    falling back to the shared output/requirements_summary.json file if
+    this session never saved one -- e.g. the user explicitly asked to
+    reuse a summary saved in an earlier, separate run/session. Session
+    state is checked first specifically so that two concurrent web
+    sessions each calling save then load never see each other's summary.
 
-    Returns {"status": "NOT_FOUND"} if nothing has been saved yet, so the
-    caller can fall back to its other input modes rather than fabricate
-    content for a summary that was never created.
+    Returns {"status": "NOT_FOUND"} if nothing has been saved yet (in
+    this session or on disk), so the caller can fall back to its other
+    input modes rather than fabricate content for a summary that was
+    never created.
     """
     _log_agent_activity("Loading requirements summary from disk...")
     _safe_sleep_from_property("modelSleep", default=0.25)
+
+    if tool_context is not None:
+        session_summary = tool_context.state.get("requirements_summary")
+        if isinstance(session_summary, dict):
+            result = dict(session_summary)
+            result.setdefault("status", "OK")
+            return result
 
     path = os.path.join(PROJECT_ROOT, "output", "requirements_summary.json")
     if not os.path.exists(path):
