@@ -110,6 +110,25 @@ class LoadDirectoryContextTests(unittest.TestCase):
         self.assertIn("legacy.doc", skipped)
         self.assertIn("re-save as .docx", skipped["legacy.doc"])
 
+    def test_docx_table_text_is_extracted_not_silently_dropped(self):
+        import docx
+
+        with tempfile.TemporaryDirectory() as d:
+            doc = docx.Document()
+            doc.add_paragraph("Requirements register:")
+            table = doc.add_table(rows=2, cols=2)
+            table.rows[0].cells[0].text = "REQ-1"
+            table.rows[0].cells[1].text = "Support SSO login"
+            table.rows[1].cells[0].text = "REQ-2"
+            table.rows[1].cells[1].text = "Encrypt data at rest"
+            doc.save(str(Path(d) / "requirements.docx"))
+
+            result = utils.load_directory_context(d)
+
+        self.assertEqual(result["status"], "OK")
+        self.assertIn("Support SSO login", result["combined_text"])
+        self.assertIn("Encrypt data at rest", result["combined_text"])
+
     def test_unsupported_extension_is_skipped_not_fatal(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "readme.txt").write_text("real content")

@@ -412,18 +412,25 @@ _web_sessions: dict = {}
 _web_sessions_lock = threading.Lock()
 _web_runner = None
 _web_session_service = None
+# Guards the lazy-init of _web_runner/_web_session_service below: Flask's
+# threaded request handling means two concurrent first requests can both see
+# them as None and each build their own Runner/InMemorySessionService, after
+# which whichever one wins the final "if None" assignment leaves the other
+# thread's session created in a service the shared runner doesn't use.
+_web_runtime_init_lock = threading.Lock()
 _WEB_APP_NAME = "ProcessArchitect"
 WEB_SESSION_COOKIE = "process_architect_session"
 
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
-# --detached defaults to HTTPS on 0.0.0.0 (see run_web_service), i.e.
-# reachable from anywhere the port is open, not just localhost -- but the
-# service itself has no user/session management of its own. Without these,
-# anyone who can reach it can create sessions and trigger model calls that
-# may incur real cost or exhaust resources. Both are opt-in via config
-# (webApiKey / webRateLimitPerMinute) rather than hardcoded on, since this
+# --detached defaults to HTTPS on 127.0.0.1 (loopback-only, see
+# run_web_service) -- widening host beyond loopback with no webApiKey
+# configured makes run_web_service refuse to start (see the
+# is_loopback/api_key_configured/allow_insecure check there) rather than
+# silently exposing an unauthenticated, model-backed chat API. Both
+# webApiKey and webRateLimitPerMinute remain opt-in config rather than
+# hardcoded on, since this
 # is still a local sample tool by default, but they give an easy,
 # no-new-dependency way to lock it down before exposing it further.
 _web_rate_limit_lock = threading.Lock()
@@ -463,14 +470,16 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
         if entry:
             return existing_session_id, entry["user_id"], entry["session_id"]
 
-    if _web_session_service is None:
-        _web_session_service = InMemorySessionService()
-    if _web_runner is None:
-        _web_runner = Runner(
-            app=root_app,
-            app_name=_WEB_APP_NAME,
-            session_service=_web_session_service,
-        )
+    if _web_runner is None or _web_session_service is None:
+        with _web_runtime_init_lock:
+            if _web_session_service is None:
+                _web_session_service = InMemorySessionService()
+            if _web_runner is None:
+                _web_runner = Runner(
+                    app=root_app,
+                    app_name=_WEB_APP_NAME,
+                    session_service=_web_session_service,
+                )
 
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
@@ -630,10 +639,26 @@ def build_web_app(https: bool = True):
 
 def run_web_service(port: Optional[int], use_https: bool):
     """Build and serve the Flask REST app until interrupted."""
+    host = getProperty("host", default="127.0.0.1")
+
+    is_loopback = host in ("127.0.0.1", "localhost", "::1")
+    api_key_configured = bool(getProperty("webApiKey"))
+    allow_insecure = bool(getProperty("allowInsecureWebService", default=False))
+    if not is_loopback and not api_key_configured and not allow_insecure:
+        display_text(
+            f"Refusing to start: host={host!r} is reachable beyond localhost and no webApiKey "
+            "is configured, which would expose the chat API (and the model calls/cost behind "
+            "it) to any client that can reach this port. Fix one of: set webApiKey in "
+            "properties/agentapp.properties (or the WEBAPIKEY env var); set host=127.0.0.1 to "
+            "restrict this to local access only; or set allowInsecureWebService=True to "
+            "explicitly accept the risk.",
+            type="error",
+        )
+        sys.exit(1)
+
     web_app = build_web_app(https=use_https)
 
     listen_port = port if port is not None else (443 if use_https else 8080)
-    host = getProperty("host", default="0.0.0.0")
 
     ssl_context = None
     if use_https:
