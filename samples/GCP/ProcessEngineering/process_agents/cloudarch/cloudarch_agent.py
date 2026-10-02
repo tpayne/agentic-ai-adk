@@ -88,7 +88,7 @@ cloudarch_agent = ProcessLlmAgent(
     instruction_file="cloudarch/cloudarch_agent.txt",
     tools=_cloudarch_tools,
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.1,
-        top_p=1,
+        temperature=float(getProperty("cloudarchTemperature", default=0.1)),
+        top_p=float(getProperty("cloudarchTopP", default=1)),
     ),
 )

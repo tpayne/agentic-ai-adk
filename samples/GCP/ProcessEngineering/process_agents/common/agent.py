@@ -76,6 +76,18 @@ def configure_model_provider(model: str) -> None:
 
     provider = model.split("/", 1)[0]
 
+    # Every branch below (anthropic/openai/bedrock) is routed through
+    # LiteLLM (see agent_wrappers._resolve_model). Some models impose
+    # stricter parameter constraints than our own per-agent "quick knobs"
+    # assume -- e.g. litellm rejects any non-default temperature outright
+    # for some Claude models ("litellm.UnsupportedParamsError: ... Only
+    # temperature=1 is supported"). drop_params tells litellm to silently
+    # drop a param a given model doesn't support instead of raising, so
+    # each agent's own tuned temperature/top_p still applies for models
+    # that support it and is harmlessly ignored for ones that don't.
+    import litellm
+    litellm.drop_params = True
+
     # --- Anthropic direct ---
     if provider == "anthropic":
         if not os.getenv("ANTHROPIC_API_KEY"):
@@ -114,7 +126,6 @@ def configure_model_provider(model: str) -> None:
                 "under an IAM role with Bedrock access."
             )
         os.environ["ADK_MODEL_PROVIDER"] = "bedrock"
-        import litellm
         litellm.modify_params = True  # required for multi-turn tool calls on Bedrock
 
     else:
