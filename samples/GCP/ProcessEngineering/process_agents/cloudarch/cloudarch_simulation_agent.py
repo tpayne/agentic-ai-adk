@@ -124,6 +124,10 @@ def _risk_added_probability(vertex_value: str, risk_items: List[Dict[str, Any]])
 
 
 def _gather_risk_items(context_data: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Pulls whatever risk entries exist in a loaded process/design context
+    (high_level_design.risks_and_mitigations and/or a top-level
+    risk_register), for _risk_added_probability to optionally match
+    against. Returns [] if there's nothing usable -- never required."""
     if not isinstance(context_data, dict):
         return []
     items = []
@@ -140,6 +144,18 @@ def _run_core_cloudarch_simulation(
     risk_items: List[Dict[str, Any]],
     iterations: int = 2000,
 ) -> Dict[str, Any]:
+    """
+    Monte Carlo resilience simulation: each of `iterations` trials
+    independently fails every vertex per its own baseline (+ risk-adjusted)
+    probability, expands that seed set through the impacts graph via
+    _blast_radius, and records the resulting fraction of the diagram
+    affected. Aggregating across trials yields an average/variance blast
+    radius and a "critical incident" rate (trials where >=50% of the
+    diagram was affected), which together drive the Low/Medium/High
+    resilience_risk_rating. single_points_of_failure ranks vertices by
+    their OWN isolated blast radius (if only this one thing failed) times
+    its failure probability, not by simulation outcome alone.
+    """
     if not vertices:
         raise ValueError(
             "No simulatable service nodes found in the diagram (vertices with a "
@@ -162,6 +178,8 @@ def _run_core_cloudarch_simulation(
 
     blast_fractions: List[float] = []
     critical_hits = 0
+    # Each trial samples independent component failures; the impacts graph
+    # expands those seeds to include every transitively affected service.
     for _ in range(iterations):
         failed = {vid for vid in vertex_ids if random.random() < comp_prob.get(vid, _DEFAULT_BASELINE_FAILURE_PROB)}
         if not failed:

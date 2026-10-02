@@ -50,6 +50,8 @@ _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def _priority_sort_key(priority) -> int:
+    # Unrecognized/missing priority values sort last (99), after every
+    # real priority level, rather than colliding with "low" or crashing.
     return _PRIORITY_ORDER.get(str(priority or "").strip().lower(), 99)
 
 

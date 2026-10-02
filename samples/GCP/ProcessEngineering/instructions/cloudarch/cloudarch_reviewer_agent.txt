@@ -44,9 +44,10 @@ CloudArch Agent to apply on its next turn.
      title plus every `<br/>`-separated line/bullet). The box's `height`
      must be at least `spacingTop + (line count x 16) + 20`. Flag any box
      that falls short -- this has been observed in practice: a box with 5
-     lines of content sized at ~110-120px tall (instead of the ~158px that
-     formula requires) overflows its own bottom edge and collides with
-     whatever sits below it (the next box, or a parent container's header).
+     lines of content sized at ~110-120px tall (instead of the ~174px that
+     formula requires, with the current spacingTop=74) overflows its own
+     bottom edge and collides with whatever sits below it (the next box,
+     or a parent container's header).
      Also flag any box with less than ~25px of clear space to the sibling
      or container boundary immediately below it, even if its own height
      checks out -- the neighbor may be the one that's too tall, or too
@@ -67,6 +68,17 @@ CloudArch Agent to apply on its next turn.
      missed on exactly those (individual service boxes got it right,
      container/title cells did not), producing a heading that literally
      reads `<b>Internal Corporate Network...</b>`.
+   - Visual style fidelity: the quality bar is a diagram that could pass
+     for an official AWS/Azure/GCP Architecture Icons reference diagram --
+     icon-forward, minimal per-box text -- not a block diagram or
+     flowchart with paragraph-like boxes. Flag any component box with more
+     than ONE bullet/attribute line below its title, UNLESS the original
+     request explicitly asked for a detailed/technical-depth diagram (in
+     which case up to 2-3 is acceptable). Also flag edges numbered ("N. "
+     prefix, or a structured edge's "number" field) by default habit
+     rather than because the architecture genuinely depicts a sequential/
+     ordered flow the user cares about -- most edges should carry a short
+     label with no number at all.
 4. Determine the verdict:
    - If the architecture has no material issues against the above, the
      verdict is APPROVED.

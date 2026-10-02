@@ -16,6 +16,14 @@ import google
 import google.adk
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
 
+# `google` and `google.adk` are namespace packages -- multiple
+# independently-installed distributions (this app's own code plus
+# google-adk, google-genai, etc.) all contribute modules under the same
+# `google.*` import path. extend_path ensures Python's import machinery
+# searches every installed location for submodules under these names
+# instead of only the first `google`/`google.adk` directory it finds,
+# which would otherwise hide sibling packages installed elsewhere on
+# sys.path.
 google.__path__ = pkgutil.extend_path(google.__path__, google.__name__)
 google.adk.__path__ = pkgutil.extend_path(google.adk.__path__, google.adk.__name__)
 
@@ -187,10 +195,17 @@ from .agent_registry import (
     SubprocessDriverAgent,
     full_design_doc_pipeline,
     update_design_doc_pipeline,
+    requirements_summary_agent,
+    requirements_consultant_agent,
 )
 
 # Signal handler for abnormal errors
 def handler(signum, frame):
+    # Restore the real stdout/stderr first -- if the crash happens while
+    # silence_console() has stdout redirected to CleanedStdout (mid
+    # generation-pipeline run), printing this message before restoring
+    # would otherwise vanish into the log file instead of reaching the
+    # user's terminal.
     signame = signal.Signals(signum).name
     sys.stdout = sys.__stdout__
     sys.stdout.flush()
@@ -231,6 +246,8 @@ root_agent = ProcessLlmAgent(
         SubprocessDriverAgent(name="Subprocess_Driver_Agent_Main"),
         full_design_doc_pipeline,
         update_design_doc_pipeline,
+        requirements_summary_agent,
+        requirements_consultant_agent,
     ],
 )
 
@@ -319,12 +336,18 @@ def display_text(text: str, type: str = "info", end: str = "\n"):
     sys.stdout.flush()
 
 def is_shell_command(text: str) -> bool:
+    # A leading "$" is this CLI's escape convention for running a raw
+    # shell command instead of sending the line to the agent -- used by
+    # both the interactive chat loop and -f <file> batch mode.
     if text is None:
         return False
     return text.strip().startswith("$")
 
 
 async def run_shell_command(cmdline: str):
+    """Executes a "$ <command>" line (see is_shell_command) via the shell
+    and streams its stdout/stderr through display_text, rather than
+    sending it to the agent."""
     import asyncio
     stripped = cmdline.strip()
     command = stripped[1:].strip()
@@ -646,6 +669,14 @@ def run_web_service(port: Optional[int], use_https: bool):
 # FILE MODE
 # ---------------------------------------------------------
 async def process_file(file_path: str):
+    """
+    -f <file> batch mode: reads `file_path` line by line and submits each
+    logical line (see the backslash-continuation handling below) to the
+    agent in turn, as if it had been typed interactively one at a time.
+    Recognizes the same control lines as the interactive REPL (exit/quit/
+    stop, clear, "#" comments, sleep/wait, "$ ..." shell commands) via
+    handle_logical_line.
+    """
     try:
         with open(file_path, "r", encoding="utf-8-sig"):
             pass

@@ -13,8 +13,11 @@ from ..common.utils import (
     load_master_process_json,
     getProperty,
     save_drawio,
+    save_drawio_structured,
     load_drawio,
     load_iteration_feedback,
+    load_directory_context,
+    load_requirements_summary,
 )
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -38,7 +41,10 @@ def log_cloudarch_metadata(status: str):
 _cloudarch_tools = [
     load_master_process_json,
     load_iteration_feedback,
+    load_directory_context,
+    load_requirements_summary,
     log_cloudarch_metadata,
+    save_drawio_structured,
     save_drawio,
     load_drawio,
 ]

@@ -70,6 +70,31 @@ Your ONLY visible output is the final persist_final_json tool call.
         - process context,
         - subprocess definitions (if present).
 
+4A-1. REQUIREMENTS-QUALITY AWARENESS:
+   - If the Requirements Specification (via metadata.extracted_requirements) includes
+     "requirement_priorities", "conflicting_requirements", "requirements_needing_clarification", or
+     "coverage_gaps":
+       - When two requirements compete for the same design decision, prefer the higher-priority one
+         (per "requirement_priorities") rather than guessing.
+       - Record any unresolved "conflicting_requirements", open "requirements_needing_clarification"
+         items, or "coverage_gaps" into the JSON design's own "risks_and_controls" field so they are
+         not silently dropped -- do not invent a resolution the Requirements Specification didn't
+         actually provide. If "requirements_register" is present, cite each item's requirement_id
+         (e.g. "FR-003: ...") in the note for traceability, even though process_schema.json has no
+         dedicated id field of its own to store it in.
+   - If these fields are absent or empty, skip this step entirely.
+
+4A-2. INFERRED/DERIVED REQUIREMENTS (OPT-IN ONLY):
+   - If metadata.extracted_requirements.include_inferred_requirements is true, treat the entries in
+     "inferred_requirements" as real requirements, exactly like any other requirement in the
+     Requirements Specification, when building process_steps/system_requirements/etc.
+   - If include_inferred_requirements is false or absent (the default), you MUST NOT let
+     "inferred_requirements" drive any process_step, system_requirement, or other scope-defining
+     field -- they were never actually requested. You MAY optionally note them as a non-binding
+     forward-looking suggestion in "risks_and_controls" (clearly labeled as not currently in scope,
+     e.g. "Potential future consideration (not in current scope): ..."), but never present them as
+     if they were an actual requirement of this process.
+
 4B. DEPENDENCY GRAPH VALIDITY:
    - All 'dependencies' MUST form a valid directed acyclic graph (DAG).
    - You MUST NOT create circular or recursive dependencies.

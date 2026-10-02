@@ -97,6 +97,11 @@ class SubprocessDriverAgent(BaseAgent):
 
         if not steps:
             logger.debug("No process_steps found; skipping subprocess generation.")
+            # `if False: yield` is never executed (the loop below already
+            # has real `yield Event(...)` statements that make this whole
+            # function an async generator); this is just an explicit,
+            # self-documenting marker that this particular early-return
+            # path intentionally yields nothing rather than one real event.
             if False:
                 yield
             return

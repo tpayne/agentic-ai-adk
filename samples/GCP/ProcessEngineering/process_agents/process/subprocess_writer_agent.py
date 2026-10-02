@@ -22,6 +22,14 @@ SUBPROCESS_DIR = "output/subprocesses"
 os.makedirs(SUBPROCESS_DIR, exist_ok=True)
 
 class SubprocessWriterAgent(BaseAgent):
+    """
+    Second half of the per-step pipeline SubprocessDriverAgent builds
+    (generator -> writer): takes the SubprocessFlow the generator agent
+    just produced (read from ctx.session.state["current_subprocess_flow"],
+    not passed directly) and persists it to its own JSON file under
+    output/subprocesses/, named after the parent process step.
+    """
+
     def __init__(self, name="Subprocess_Writer_Agent"):
         super().__init__(name=name)
 

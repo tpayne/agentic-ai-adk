@@ -222,6 +222,14 @@ from .utils import (
 # Function to kill all console output
 
 def silence_console():
+    """
+    Redirects sys.stdout to a CleanedStdout-wrapped log file
+    (output/logs/runtime_outputs.log) for the duration of a generation
+    pipeline run, so verbose ADK/model console chatter doesn't spam the
+    user's terminal -- only the one-line "Starting..." banner below is
+    printed before the switch. Paired with restore_console, which points
+    sys.stdout back at the real terminal once the pipeline finishes.
+    """
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Silencing console output.")
     print(f"{ANSI_GREEN}- Starting generation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}. This will take some time...{ANSI_RESET}", end="\n")
@@ -231,6 +239,8 @@ def silence_console():
     return "Console output silenced."
 
 def restore_console():
+    """Points sys.stdout back at the real terminal (sys.__stdout__),
+    undoing silence_console's redirect once the pipeline run finishes."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Restoring console output.")
     sys.stdout = sys.__stdout__

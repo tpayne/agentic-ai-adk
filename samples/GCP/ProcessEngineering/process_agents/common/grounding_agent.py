@@ -88,6 +88,15 @@ def _validate_requested_endpoint(spec: dict, method: str, path: str) -> bool:
 # TOOL: Load OpenAPI spec
 # ---------------------------------------------------------
 def load_openapi(tool_context=None):
+    """
+    Loads and parses the OpenAPI spec configured via the OPENAPI_SPEC
+    property. Returns the parsed spec dict on success, or a
+    {"_empty": True, "reason": "missing"|"invalid_path: ..."|"invalid: ..."|
+    "no_paths"} sentinel on any failure -- callers (e.g.
+    perform_openapi_call) check for the "_empty" key rather than catching
+    an exception, so a missing/unconfigured spec is a normal, handled case
+    rather than a crash.
+    """
     spec_path = None
     try:
         openapi_spec = getProperty("OPENAPI_SPEC", default=None)

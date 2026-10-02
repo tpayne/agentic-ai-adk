@@ -1,4 +1,12 @@
 # process_agents/utils.py
+#
+# Shared tool-function library for every agent in this pipeline (process,
+# design, and cloudarch). Functions here are exposed directly to the LLM as
+# callable tools (their docstrings double as the tool's schema description
+# seen by the model), so signatures and docstrings are part of the agent
+# contract, not just internal documentation. Also hosts the shared
+# persistence layer (output/*.json, output/cloudarch_drawio.xml) and the
+# drawio XML repair/shape-mapping pipeline used by the CloudArch agents.
 import os
 import json
 import glob
@@ -8,7 +16,7 @@ import re
 import traceback
 import logging
 import configparser
-from typing import Any, Union
+from typing import Any, Dict, List, Union
 
 from typing import Optional
 
@@ -85,9 +93,16 @@ PROPERTIES_FILE = os.path.join(PROJECT_ROOT, 'properties', 'agentapp.properties'
 
 def getProperty(prop: str, section: str = 'SETTINGS',
                 default: Union[str, int, float, bool, None] = None) -> Any:
+    # Return type is inferred from the string value's content, not declared
+    # by the caller: "true"/"false"/"on"/"off" become bool, anything that
+    # parses as int/float is coerced to that, otherwise it stays a string.
+    # A property meant to stay a literal string (e.g. a zero-padded code)
+    # can silently change type if it happens to look numeric.
     global _CACHE
     if _CACHE is None:
-        # One-time disk read with error handling for path
+        # Read agentapp.properties once per process and cache it in _CACHE --
+        # edits to the file on disk are not picked up until the process
+        # restarts.
         config = configparser.ConfigParser()
         if os.path.exists(PROPERTIES_FILE):
             config.read(PROPERTIES_FILE)
@@ -250,6 +265,10 @@ def getResponseColour(code: str = "responseColourInfo") -> str:
     return ANSI_RESET
 
 def _safe_sleep_from_property(name: str, default: float = 0.25):
+    # Deliberate artificial delay (base + up to 0.75s of jitter), not error
+    # handling -- called before most tool responses to pace agent turns and
+    # avoid bursts of near-simultaneous model/tool calls. The base duration
+    # is configurable per-property (e.g. "modelSleep") in agentapp.properties.
     pv = getProperty(name, default=default)
     try:
         base = float(pv)
@@ -582,13 +601,26 @@ def _detect_schema_type_from_disk() -> str:
     return "process"
 
 
-def save_drawio(xml_content) -> str:
+def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
     """
     Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
     Includes lock protection, validation, unchanged-file detection, and
-    a provider-aware shape + container mapping pass for Azure, AWS, and GCP.
-    Shared helpers (_log_agent_activity, _safe_sleep_from_property, etc.)
-    are assumed to exist in the environment.
+    (when run_shape_mapping is True) a provider-aware shape + container
+    mapping pass for Azure, AWS, and GCP. Shared helpers
+    (_log_agent_activity, _safe_sleep_from_property, etc.) are assumed to
+    exist in the environment.
+
+    run_shape_mapping=False skips the heuristic icon/container
+    reinterpretation pass (_apply_shape_mappings) while still running the
+    structural safety net (_validate_and_repair_mxgraph). This is for
+    callers -- namely save_drawio_structured -- whose XML was built by
+    a deterministic layout engine and is already correct: the mapping
+    pass is fuzzy-match-based and designed to reinterpret freehand
+    LLM-guessed XML, and it misfires on structured-engine output (every
+    icon-bearing component has a child icon cell, which the mapping
+    pass's has_children check treats as "this must be a container",
+    rewriting its style and destroying the engine's already-correct
+    icon/label composition).
     """
 
     # --- HYBRID SHAPE MAPPINGS (EXTENSIBLE) ---
@@ -1196,9 +1228,18 @@ def save_drawio(xml_content) -> str:
     }
 
     def _azure_title_segment(seg: str) -> str:
+        # Real Azure2 SVG filenames title-case each underscore-separated
+        # word (e.g. "virtual_machine" -> "Virtual_Machine"), except for a
+        # known set of acronyms that stay fully uppercase (e.g. "vm" ->
+        # "VM", not "Vm") -- _AZURE_ACRONYMS holds that exception list.
         return seg.upper() if seg.lower() in _AZURE_ACRONYMS else seg.capitalize()
 
     def _azure_legacy_ref_to_image(category: str, name: str) -> str:
+        # Converts a legacy "mxgraph.azure.<category>.<name>" reference
+        # into the real img/lib/azure2/... SVG path _repair_legacy_azure_shapes
+        # substitutes it with -- first checking for a hand-verified
+        # category/name override (needed when the filename doesn't follow
+        # the plain title-casing rule), falling back to that rule otherwise.
         override = _AZURE_NAME_OVERRIDES.get((category, name))
         if override:
             override_cat, title = override
@@ -1233,6 +1274,8 @@ def save_drawio(xml_content) -> str:
     }
 
     def _repair_known_bad_image_paths(style: str) -> str:
+        """Swaps any already-image-formatted but wrong Azure SVG reference
+        (per _AZURE_KNOWN_BAD_IMAGE_PATHS above) for the real one."""
         for bad, good in _AZURE_KNOWN_BAD_IMAGE_PATHS.items():
             if bad in style:
                 style = style.replace(bad, good)
@@ -1477,7 +1520,37 @@ def save_drawio(xml_content) -> str:
         # whose label happened to contain a generic word like "region" or
         # "cluster" got swapped for a giant background container image
         # sized for a completely different kind of shape.
-        parent_ids = {c.get("parent") for c in all_cells if c.get("parent")}
+        #
+        # A plain "does this cell have ANY child" check is not enough,
+        # though: every correctly-composed labeled service box in this
+        # codebase's own mandated pattern has exactly one child -- its own
+        # icon cell (empty value, a bare shape=... style, per
+        # cloudarch_agent.txt's icon-as-child-cell rule) -- which is NOT
+        # evidence the box is a container. Confirmed as a real, reproducible
+        # bug: a service box titled e.g. "Private Google Access (PGA)
+        # Subnet" or "VPC Service Controls" has only its own icon as a
+        # child, but its label fuzzy-matches a container keyword ("Subnet",
+        # "VPC"), so it was being rewritten into the generic GCP container
+        # fallback style on every single save -- permanently undoing the
+        # LLM's correct icon composition and making the issue unfixable
+        # (the reviewer flags it, the generator regenerates the correct
+        # style, this same pass corrupts it right back, forever). A cell
+        # only counts as having real container evidence if it has a child
+        # that ISN'T a pure icon leaf.
+        def _is_pure_icon_child(child_cell) -> bool:
+            child_value = (child_cell.get("value") or "").strip()
+            child_style = child_cell.get("style") or ""
+            return child_value == "" and "shape=" in child_style
+
+        children_by_parent: Dict[str, List[Any]] = {}
+        for c in all_cells:
+            pid = c.get("parent")
+            if pid:
+                children_by_parent.setdefault(pid, []).append(c)
+        parent_ids = {
+            pid for pid, kids in children_by_parent.items()
+            if any(not _is_pure_icon_child(k) for k in kids)
+        }
 
         # Needed for the corner-badge icon on containers (see below).
         provider_accent = {
@@ -2038,6 +2111,13 @@ def save_drawio(xml_content) -> str:
         return "INFO: No XML content provided to save_drawio, so nothing has been done."
 
     def acquire_lock(timeout: float = 5.0) -> bool:
+        # Simple advisory file lock (a sentinel .lock file, not flock/fcntl)
+        # guarding output/cloudarch_drawio.xml against concurrent writers.
+        # Polls every 100ms for up to `timeout` seconds. NOTE: this is not
+        # stale-lock-aware -- if a process dies after creating the lock
+        # file but before release_lock() runs, the lock file is left
+        # behind and every subsequent save_drawio call will time out here
+        # until it's removed manually.
         start = time.time()
         while time.time() - start < timeout:
             if not os.path.exists(lock_path):
@@ -2098,7 +2178,7 @@ def save_drawio(xml_content) -> str:
                 "You MUST regenerate the architecture."
             )
 
-        mapped_xml = _apply_shape_mappings(raw_xml)
+        mapped_xml = _apply_shape_mappings(raw_xml) if run_shape_mapping else raw_xml
 
         try:
             import xml.etree.ElementTree as ET
@@ -2140,6 +2220,14 @@ def save_drawio(xml_content) -> str:
     finally:
         release_lock()
 
+def save_drawio(xml_content) -> str:
+    """
+    Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
+    Includes lock protection, validation, unchanged-file detection, and
+    a provider-aware shape + container mapping pass for Azure, AWS, and GCP.
+    """
+    return _save_drawio_core(xml_content, run_shape_mapping=True)
+
 def load_drawio() -> dict:
     """
     Loads the most recently persisted DrawIO XML from
@@ -2167,6 +2255,205 @@ def load_drawio() -> dict:
     except Exception as e:
         logger.error(f"Error loading DrawIO file: {e}")
         return {"status": "ERROR", "xml": None}
+
+
+def _extract_txt_file(path: str) -> str:
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+        return f.read()
+
+
+def _extract_docx_file(path: str) -> str:
+    import docx
+    doc = docx.Document(path)
+    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+
+def _extract_pdf_file(path: str) -> str:
+    # pypdf extracts embedded text only -- a scanned/image-only PDF with no
+    # text layer yields empty strings per page (no OCR is attempted), which
+    # load_directory_context surfaces as "no extractable text" rather than
+    # silently pretending the file contributed content.
+    from pypdf import PdfReader
+    reader = PdfReader(path)
+    pages = [page.extract_text() or "" for page in reader.pages]
+    return "\n\n".join(p for p in pages if p.strip())
+
+
+def _extract_eml_file(path: str) -> str:
+    import email
+    from email import policy
+    with open(path, "rb") as f:
+        msg = email.message_from_binary_file(f, policy=policy.default)
+
+    header_lines = [
+        f"{header}: {msg.get(header)}" for header in ("Subject", "From", "To", "Date")
+        if msg.get(header)
+    ]
+
+    body = ""
+    if msg.is_multipart():
+        # Prefer the first real text/plain body part; a part that also
+        # carries a filename is an attachment, not the message body, even
+        # if its content type happens to be text/plain (e.g. a .txt
+        # attachment) -- skip those.
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain" and not part.get_filename():
+                body = part.get_content()
+                break
+    else:
+        body = msg.get_content()
+
+    return "\n".join(header_lines) + "\n\n" + (body or "")
+
+
+def _extract_msg_file(path: str) -> str:
+    import extract_msg
+    msg = extract_msg.Message(path)
+    try:
+        header_lines = [
+            f"{label}: {value}" for label, value in (
+                ("Subject", msg.subject), ("From", msg.sender),
+                ("To", msg.to), ("Date", msg.date),
+            ) if value
+        ]
+        return "\n".join(header_lines) + "\n\n" + (msg.body or "")
+    finally:
+        msg.close()
+
+
+_EXCEL_MAX_ROWS_PER_SHEET = 200
+
+
+def _extract_excel_file(path: str) -> str:
+    # .xls (legacy binary) needs xlrd, .xlsx (modern XML) needs openpyxl --
+    # pandas picks the right engine automatically from the file extension,
+    # as long as both packages are installed (see requirements.txt).
+    import pandas as pd
+    sheets = pd.read_excel(path, sheet_name=None)
+    parts = []
+    for sheet_name, df in sheets.items():
+        truncated_df = df.head(_EXCEL_MAX_ROWS_PER_SHEET)
+        note = ""
+        if len(df) > _EXCEL_MAX_ROWS_PER_SHEET:
+            note = f"\n... ({len(df) - _EXCEL_MAX_ROWS_PER_SHEET} more rows truncated)"
+        parts.append(f"[Sheet: {sheet_name}]\n{truncated_df.to_string(index=False)}{note}")
+    return "\n\n".join(parts)
+
+
+# Legacy .doc (binary, pre-2007 Word) is deliberately absent -- python-docx
+# only reads the modern .docx XML format. A .doc file is caught below and
+# reported in files_skipped with a specific "re-save as .docx" reason,
+# rather than silently falling through to "unsupported file type".
+_DIRECTORY_CONTEXT_EXTRACTORS = {
+    ".txt": _extract_txt_file,
+    ".md": _extract_txt_file,
+    ".docx": _extract_docx_file,
+    ".pdf": _extract_pdf_file,
+    ".eml": _extract_eml_file,
+    ".msg": _extract_msg_file,
+    ".xls": _extract_excel_file,
+    ".xlsx": _extract_excel_file,
+}
+
+
+def load_directory_context(directory: str) -> dict:
+    """
+    Reads every supported file directly inside `directory` (not recursive --
+    only that directory's own files, not subdirectories) and returns their
+    extracted text, concatenated and labeled by filename, for use as source
+    material in a process/design/architecture requirements-extraction step.
+    This is a purely mechanical text-extraction tool -- turning the
+    returned text into a structured requirements JSON is the calling
+    agent's own job via its instructions, exactly like it already handles
+    direct chat text today.
+
+    Supported: .txt, .md, .docx, .pdf, .eml, .msg, .xls, .xlsx. Unsupported
+    or unreadable files are skipped (not fatal to the rest of the
+    directory) and listed in "files_skipped" with a reason -- e.g. legacy
+    .doc is explicitly unsupported (re-save as .docx), a corrupt file's
+    exception message is included, and a file with no extractable text
+    (e.g. an image-only PDF) is noted rather than silently contributing
+    nothing.
+
+    Returns {"status": "NOT_FOUND", "directory": <resolved path>} if the
+    directory doesn't exist. Otherwise {"status": "OK", "directory": ...,
+    "files_processed": [...], "files_skipped": [{"file":..., "reason":...}],
+    "combined_text": "..."}. combined_text is capped at
+    directoryContextMaxChars (default 150,000 characters, configurable in
+    agentapp.properties) with a truncation note appended if exceeded --
+    consistent with this pipeline's existing prompt-size guardrails
+    (events_compaction_config in common/agent.py, the max_llm_calls circuit
+    breaker) rather than letting a large directory silently blow out the
+    model's context window.
+    """
+    _log_agent_activity(f"Loading directory context from {directory}...")
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    resolved = os.path.abspath(directory)
+    if not os.path.isdir(resolved):
+        return {"status": "NOT_FOUND", "directory": resolved}
+
+    max_chars = int(getProperty("directoryContextMaxChars", default=150000))
+
+    try:
+        entries = sorted(os.listdir(resolved))
+    except Exception as e:
+        logger.error(f"Failed to list directory {resolved}: {e}")
+        return {"status": "ERROR", "directory": resolved, "error": str(e)}
+
+    files_processed = []
+    files_skipped = []
+    sections = []
+
+    for name in entries:
+        full_path = os.path.join(resolved, name)
+        if not os.path.isfile(full_path):
+            continue
+
+        ext = os.path.splitext(name)[1].lower()
+        extractor = _DIRECTORY_CONTEXT_EXTRACTORS.get(ext)
+        if extractor is None:
+            reason = (
+                "legacy .doc (unsupported -- re-save as .docx)" if ext == ".doc"
+                else f"unsupported file type '{ext or '(no extension)'}'"
+            )
+            files_skipped.append({"file": name, "reason": reason})
+            continue
+
+        try:
+            text = (extractor(full_path) or "").strip()
+        except Exception as e:
+            files_skipped.append({"file": name, "reason": f"failed to read: {e}"})
+            continue
+
+        if not text:
+            files_skipped.append({"file": name, "reason": "no extractable text"})
+            continue
+
+        files_processed.append(name)
+        sections.append(f"=== {name} ===\n{text}")
+
+    if not files_processed:
+        logger.warning(f"No supported/readable files found in {resolved}.")
+
+    combined_text = "\n\n".join(sections)
+    truncated = len(combined_text) > max_chars
+    if truncated:
+        combined_text = combined_text[:max_chars] + (
+            f"\n\n[... truncated at {max_chars} characters; raise the "
+            "directoryContextMaxChars property to include more ...]"
+        )
+
+    result = {
+        "status": "OK",
+        "directory": resolved,
+        "files_processed": files_processed,
+        "files_skipped": files_skipped,
+        "combined_text": combined_text,
+    }
+    if truncated:
+        result["truncated"] = True
+    return result
 
 
 _SHAPE_TOKEN_RE = re.compile(r"shape=mxgraph\.(\w+)\.([\w_]+);")
@@ -2233,6 +2520,102 @@ def parse_drawio_graph(xml_content: str) -> dict:
     return {"vertices": vertices, "edges": edges}
 
 
+def save_drawio_structured(
+    title: str,
+    subtitle: str,
+    zones: list,
+    components: list,
+    edges: list,
+) -> str:
+    """
+    Builds and saves a cloud architecture diagram from STRUCTURED content --
+    no coordinates, no drawio XML -- rather than raw XML with hand-picked
+    positions. A deterministic layout engine (cloudarch_layout_agent.py)
+    computes every box's size and position and routes every edge, so the
+    kinds of layout defects seen with freehand XML (icons overlapping their
+    own label, boxes too short for their text, edge labels landing on top of
+    an unrelated box) cannot occur -- they are prevented by construction,
+    not by guessing coordinates correctly. Prefer this tool over save_drawio
+    whenever the architecture organizes into zones/tiers with components and
+    connections between them (the normal case); fall back to save_drawio
+    only for an architecture that genuinely does not fit that shape.
+
+    title, subtitle: diagram title banner text (subtitle may be "").
+
+    EVERY zone id and every component id MUST be unique across the WHOLE
+    diagram, not just within its own zone -- reusing an id for two
+    different resources (e.g. naming two different "Vertex AI ..."
+    services the same id because they sound related) silently collapses
+    them onto the exact same box, producing two components' text and
+    icons rendered fused together and unreadable. If two resources are
+    similar, give them distinct, specific ids (e.g. "vertex_search" and
+    "vertex_models", not "vertex" twice).
+
+    zones: list of dicts, each:
+      {"id": str, "label": str, "sublabel": str (optional, ""),
+       "row": int (optional, default 0), "color": str (optional hex),
+       "stack": "vertical"|"horizontal" (optional, default "vertical"),
+       "width": int (optional)}
+      Zones sharing the same "row" are laid out as side-by-side columns, in
+      the order given. Higher row numbers stack as a full-width band below
+      all lower rows (e.g. a governance/security strip spanning the bottom).
+      "stack": "horizontal" arranges that zone's own components side by
+      side instead of stacked -- use this for a full-width band of several
+      peer boxes (e.g. Observability | IAM | KMS | Security Controls).
+
+    components: list of dicts, each:
+      {"id": str, "zone_id": str, "label": str,
+       "bullets": [str, ...] (optional), "shape": str (optional, e.g.
+       "mxgraph.gcp2.cloud_run"), "icon_color": str (optional hex),
+       "color": str (optional hex), "width": int (optional)}
+      Every component MUST reference a real zone_id. If "shape" is given,
+      a correctly-sized and positioned icon is added automatically -- do
+      not describe icon position/size yourselves, it is handled for you.
+
+      ONE COMPONENT PER NAMED, ICON-BEARING RESOURCE -- do not fold
+      multiple distinct resources into a single component's bullets. If a
+      subnet contains a route table and a Cloud Run service, that is
+      THREE components (subnet, route table, Cloud Run), each stacked in
+      the same zone with its own icon -- not one "subnet" component whose
+      bullets happen to mention the route table and Cloud Run by name. A
+      bullet is for an ATTRIBUTE of its own component (a CIDR range, a
+      protocol, an encryption method, a scaling policy) -- never for
+      another resource that itself would have an icon in a professional
+      architecture diagram. This is what makes the result an architecture
+      diagram instead of a block diagram: every real resource gets its
+      own visible box and icon, not a text mention inside someone else's
+      box.
+
+    edges: list of dicts, each:
+      {"source": str, "target": str, "label": str (optional, ""),
+       "number": int (optional), "color": str (optional hex),
+       "dashed": bool (optional, false)}
+      source/target must be component ids (or zone ids, for a zone-to-zone
+      connection). "number" prefixes the label "N. " if a label is given.
+      Routing and label placement are computed for you; do not describe
+      waypoints yourselves.
+    """
+    from ..cloudarch.cloudarch_layout_agent import build_structured_drawio_xml
+
+    try:
+        xml_content = build_structured_drawio_xml(
+            title=title, subtitle=subtitle or None,
+            zones=zones, components=components, edges=edges,
+        )
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        logger.error(f"Failed to build structured DrawIO layout: {error_trace}")
+        return (
+            f"ERROR: Failed to build the diagram from the structured input -- {e} "
+            "Check that every zone id and every component id is unique across "
+            "the whole diagram, that every component's zone_id references a "
+            "real zone id, and that every edge's source/target reference real "
+            "component or zone ids. Check logs for the full error."
+        )
+
+    return _save_drawio_core(xml_content, run_shape_mapping=False)
+
+
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Saves the finalized JSON to output/process_data.json (or
@@ -2277,6 +2660,11 @@ def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> s
     raw_path = paths["raw_file"]
 
     def acquire_lock(timeout: float = 5.0) -> bool:
+        # Same advisory sentinel-file locking pattern as save_drawio's
+        # acquire_lock (not stale-lock-aware -- a crashed process leaves
+        # this file behind and blocks every future save until it's removed
+        # manually), scoped to whichever schema's data file is being
+        # written (process_data.json or design_data.json).
         start = time.time()
         while time.time() - start < timeout:
             if not os.path.exists(lock_path):
@@ -2768,6 +3156,73 @@ def save_iteration_feedback(feedback_data: Any):
         logger.error(f"Error saving feedback: {e}")
         return f"ERROR: Could not save feedback: {str(e)}"
 
+def save_requirements_summary(summary: dict) -> str:
+    """
+    Persists a structured requirements summary -- built by
+    Requirements_Summary_Agent from load_directory_context's extracted
+    text -- to output/requirements_summary.json, so a LATER
+    process/design/cloudarch creation request can reuse it via
+    load_requirements_summary() instead of re-reading the original
+    directory. Single-slot: this call overwrites any previously saved
+    summary, mirroring save_drawio's "most recent" persistence model
+    rather than keeping a history of every extraction.
+
+    Deliberately schema-agnostic (not process_schema.json or
+    design_document_schema.json shaped) -- a later creation agent already
+    knows how to turn free-form source material into its own specific
+    schema, the same way it already handles direct chat text today; this
+    is just a reusable, more distilled version of that same source
+    material, not a pre-built document.
+    """
+    _log_agent_activity("Persisting requirements summary to disk...")
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    if not isinstance(summary, dict):
+        return "ERROR: summary must be a JSON object."
+
+    output_dir = os.path.join(PROJECT_ROOT, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "requirements_summary.json")
+
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+        logger.debug(f"Requirements summary saved to {path}.")
+        return f"SUCCESS: Requirements summary persisted to {path}"
+    except Exception as e:
+        logger.error(f"Error saving requirements summary: {e}")
+        return f"ERROR: Could not save requirements summary: {e}"
+
+
+def load_requirements_summary() -> dict:
+    """
+    Loads the most recently saved requirements summary (written by
+    save_requirements_summary), so a process/design/cloudarch creation
+    agent can reuse previously file-extracted requirements as source
+    material without re-reading the original directory.
+
+    Returns {"status": "NOT_FOUND"} if nothing has been saved yet, so the
+    caller can fall back to its other input modes rather than fabricate
+    content for a summary that was never created.
+    """
+    _log_agent_activity("Loading requirements summary from disk...")
+    _safe_sleep_from_property("modelSleep", default=0.25)
+
+    path = os.path.join(PROJECT_ROOT, "output", "requirements_summary.json")
+    if not os.path.exists(path):
+        return {"status": "NOT_FOUND"}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            summary = json.load(f)
+        if isinstance(summary, dict):
+            summary.setdefault("status", "OK")
+        return summary
+    except Exception as e:
+        logger.error(f"Error loading requirements summary: {e}")
+        return {"status": "ERROR", "error": str(e)}
+
+
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:
     """
     Loads a JSON template from the process_agents/templates directory.
@@ -3055,6 +3510,12 @@ def validate_instruction_files() -> bool:
 import re
 
 def _clean_text(text: str) -> str:
+    # Shared scrubbing primitive behind review_messages/review_outputs (the
+    # ADK before/after-model callbacks below) and CleanedStdout: strips the
+    # three concrete leakage patterns that have shown up in real pipeline
+    # output -- an internal "For context:" prefix meant for the next agent
+    # in the chain, raw ADK tool-call trace lines, and markdown code fences
+    # -- so none of them reach a user-visible transcript or log file.
     if not text:
         return ""
 
@@ -3078,6 +3539,12 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 def _safe_clean(text: str) -> str:
+    # Same as _clean_text, but never returns an empty string -- some
+    # callers treat "" as "no content was provided" and skip further
+    # processing, which would be wrong here since the ORIGINAL text was
+    # non-empty and only became empty after stripping leaked internals.
+    # "<no-op>" makes that distinction visible instead of silently
+    # vanishing.
     cleaned = _clean_text(text)
     return cleaned if cleaned.strip() else "<no-op>"
 
@@ -3091,6 +3558,12 @@ STATUS_MARKERS = [
 ]
 
 def _is_status_marker(text: str) -> bool:
+    # A part whose text IS one of these exact control strings must pass
+    # through review_messages/review_outputs untouched -- the stop
+    # controller and orchestrator pattern-match on these literal strings
+    # to decide whether a loop/pipeline is done, so cleaning (or, worse,
+    # a _safe_clean "<no-op>" substitution) would silently break that
+    # matching even though the text looks like harmless status output.
     return any(marker in text for marker in STATUS_MARKERS)
 
 
@@ -3099,6 +3572,14 @@ def _is_status_marker(text: str) -> bool:
 # ---------------------------------------------------------------------
 
 def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    # ADK before_model_callback: runs on every agent turn, just before the
+    # request is sent to the model. Scrubs leaked internals (see
+    # _clean_text) out of the OUTGOING conversation history/prompt so a
+    # prior turn's "For context:" prefix or raw tool-trace text doesn't
+    # get fed back into the next model call as if it were legitimate
+    # conversation content. Always returns None (never short-circuits the
+    # call) -- it only mutates `part.text` in place before the request
+    # proceeds.
     # Collect available context attributes and log them in a single debug call
     attrs = []
     for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
@@ -3133,6 +3614,13 @@ def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) 
 # AFTER MODEL: scrub outgoing text (for logs / downstream agents)
 # ---------------------------------------------------------------------
 def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
+    # ADK after_model_callback: the counterpart to review_messages, run on
+    # the model's RESPONSE before it becomes visible to the user or the
+    # next agent in the pipeline. This is the actual fix point for the
+    # "internals-leaking" output bugs (e.g. a verbose response quoting
+    # raw cell ids/style attributes reaching the user instead of a clean
+    # status string) -- this is where that gets scrubbed, not at the
+    # instruction-following level alone.
     # Collect available context attributes and log them in a single debug call
     attrs = []
     for attr in ["agent_name", "agent_id", "pipeline_name", "stage_name", "metadata", "tool_name", "error_code", "error_message"]:
@@ -3156,6 +3644,10 @@ def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse)
             if (
                 hasattr(part, "text")
                 and isinstance(part.text, str)
+                # A Part with more than just `.text` set also carries a
+                # function_call/function_response payload alongside a text
+                # field -- only clean PURE text parts, never touch a part
+                # that's actually a structured tool call/result.
                 and len(part.__dict__.keys()) == 1
             ):
                 if _is_status_marker(part.text):
@@ -3167,6 +3659,14 @@ def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse)
     return llm_response
 
 class CleanedStdout:
+    """
+    A file-like object used to redirect a subprocess/CLI run's stdout to a
+    log file, applying the same _clean_text scrubbing used for agent
+    messages -- so redirected console output (e.g. from the `-f <file>`
+    batch-command CLI mode) doesn't end up with raw tool traces or
+    "For context:" prefixes baked into the saved log either.
+    """
+
     def __init__(self, path: str):
         self.file = open(path, "w", encoding="utf-8")
 

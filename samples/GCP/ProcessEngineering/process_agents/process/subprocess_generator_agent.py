@@ -73,6 +73,12 @@ class SubprocessFlow(BaseModel):
 # -----------------------------
 from ..common.agent_wrappers import ProcessLlmAgent
 def build_subprocess_generator_agent():
+    # before/after_model_callback=None opts out of DefaultLlmAgent's usual
+    # review_messages/review_outputs text-scrubbing default (see
+    # agent_wrappers.py) -- this agent's whole response IS structured JSON
+    # (output_schema=SubprocessFlow, response_mime_type=application/json),
+    # not free text that could contain leaked "For context:"/tool-trace
+    # text, so there's nothing for those hooks to usefully scrub here.
     return ProcessLlmAgent(
             name="Subprocess_Generator_Agent",
             generate_content_config=types.GenerateContentConfig(
