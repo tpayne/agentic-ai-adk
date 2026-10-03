@@ -4,7 +4,7 @@ import sys
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, call, patch
 
 
 class WebServiceSessionDeleteTest(unittest.TestCase):
@@ -226,6 +226,130 @@ class WebServiceInsecureDefaultTest(unittest.TestCase):
             {"host": "0.0.0.0", "allowInsecureWebService": True}
         )
         mock_build_web_app.assert_called_once()
+
+
+class WebServiceRequestControlsTest(unittest.TestCase):
+    """Exercise the Flask request boundary without running an ADK/model turn."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {
+            "webApiKey": self.API_KEY,
+            "webRateLimitPerMinute": 100,
+        }
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    def test_chat_requires_a_configured_api_key(self):
+        missing = self.client.post("/chat", json={"query": "hello"})
+        invalid = self.client.post(
+            "/chat", json={"query": "hello"}, headers={"X-API-Key": "wrong"}
+        )
+
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(missing.get_json()["error"], "Unauthorized")
+        self.assertEqual(invalid.status_code, 401)
+        self.assertEqual(invalid.get_json()["error"], "Unauthorized")
+
+    def test_valid_api_key_in_supported_headers_reaches_chat_handler(self):
+        run_chat_turn = AsyncMock(return_value=("session-123", "stub response"))
+        bearer_scheme = "Bearer"
+        with patch.object(self.agent, "_run_chat_turn", run_chat_turn):
+            for headers in (
+                self._authorized_headers(),
+                {"Authorization": bearer_scheme + " " + self.API_KEY},
+            ):
+                with self.subTest(headers=headers):
+                    response = self.client.post(
+                        "/chat",
+                        json={"query": "hello"},
+                        headers=headers,
+                    )
+
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(
+                        response.get_json(),
+                        {
+                            "status": "ok",
+                            "session_id": "session-123",
+                            "query": "hello",
+                            "response": "stub response",
+                        },
+                    )
+
+        self.assertEqual(
+            run_chat_turn.await_args_list,
+            [call(None, "hello"), call(None, "hello")],
+        )
+
+    def test_status_is_open_and_does_not_consume_the_rate_limit(self):
+        self.properties["webRateLimitPerMinute"] = 1
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+        for _ in range(3):
+            response = self.client.get("/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.get_json(), {"status": "live"})
+
+        first_protected_request = self.client.delete(
+            "/chat/unknown-session", headers=self._authorized_headers()
+        )
+        second_protected_request = self.client.delete(
+            "/chat/another-unknown-session", headers=self._authorized_headers()
+        )
+        self.assertEqual(first_protected_request.status_code, 200)
+        self.assertEqual(second_protected_request.status_code, 429)
+        self.assertEqual(
+            second_protected_request.get_json()["error"], "Rate limit exceeded"
+        )
+
+    def test_invalid_json_and_query_values_are_rejected_before_chat_runs(self):
+        invalid_requests = [
+            {"data": "{not-json", "content_type": "application/json"},
+            {"json": {}},
+            {"json": {"query": ""}},
+            {"json": {"query": "  "}},
+            {"json": {"query": 12}},
+            {"json": {"query": ["not", "a", "string"]}},
+        ]
+        run_chat_turn = AsyncMock()
+
+        with patch.object(self.agent, "_run_chat_turn", run_chat_turn):
+            for request_data in invalid_requests:
+                with self.subTest(request_data=request_data):
+                    response = self.client.post(
+                        "/chat",
+                        headers=self._authorized_headers(),
+                        **request_data,
+                    )
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.get_json()["status"], "error")
+                    self.assertIn("query", response.get_json()["error"])
+
+        run_chat_turn.assert_not_awaited()
 
 
 if __name__ == "__main__":
