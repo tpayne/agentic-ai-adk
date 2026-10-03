@@ -7,6 +7,7 @@ import random
 
 from ..common.utils import (
     load_full_process_context,
+    load_requirements_summary,
 )
 
 logger = logging.getLogger("ProcessArchitect.Consultant")
@@ -20,5 +21,5 @@ consultant_agent = ProcessLlmAgent(
     name="Consultant_Agent",
     description="Use this for questions about EXISTING processes. It cannot create new ones.",
     instruction_file="process/consultant_agent.txt",
-    tools=[load_full_process_context],
+    tools=[load_full_process_context, load_requirements_summary],
 )

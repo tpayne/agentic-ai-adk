@@ -6,6 +6,7 @@ import random
 
 from ..common.utils import (
     load_full_process_context,
+    load_requirements_summary,
 )
 
 logger = logging.getLogger("ProcessArchitect.ScenarioTester")
@@ -19,5 +20,5 @@ scenario_tester_agent = ProcessLlmAgent(
     name="Scenario_Tester",
     description="Use this agent to test and simulate scenarios on EXISTING processes. It cannot create new processes.",
     instruction_file="process/scenario_tester_agent.txt",
-    tools=[load_full_process_context],
+    tools=[load_full_process_context, load_requirements_summary],
 )

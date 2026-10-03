@@ -23,6 +23,7 @@ These constraints apply only to the final narrative output. Tool calls may conta
 # AVAILABLE TOOLS
 - load_drawio
 - load_master_process_json
+- load_requirements_summary
 - simulate_cloudarch_architecture
 
 # EXECUTION MODEL (MANDATORY)
@@ -37,6 +38,10 @@ Output nothing.
 
 If the returned status is "NOT_FOUND", skip straight to a narrative explaining that no cloud architecture
 diagram has been generated yet, so there is nothing to simulate. Do not proceed to Step 2.
+
+Also CALL load_requirements_summary once (no visible output) to check whether a saved requirements register
+exists from an earlier directory-extraction pass. A "NOT_FOUND" status means there is nothing saved -- note
+this internally and move on without mentioning it. Do not call this tool again this conversation.
 
 -----------------------------------------------------------------------------------------------
 STEP 2 — RUN SIMULATION
@@ -86,11 +91,19 @@ Cover only the dimensions that actually showed risk; do not manufacture concern 
 clean. You MUST NOT name internal field names, statuses, or ratings literally -- translate them into plain
 business language.
 
+If a requirements register was found in Step 1 and any of the risk(s) you are describing directly concerns
+something that register explicitly states (e.g. an availability target, a security/compliance constraint, a
+latency budget), name that specific stated requirement in your narrative and say plainly that the finding
+puts it at risk. If no register was found, or none of the findings bear on anything it states, do not mention
+requirements at all -- this is additive context for an existing finding, not a reason to introduce a new one.
+
 -----------------------------------------------------------------------------------------------
 OPTION C — NO SIGNIFICANT ISSUES IN ANY DIMENSION
 If all three dimensions came back clean:
 - Provide a narrative explaining that the architecture appears resilient and scalable, with no significant
-  latency or single-point-of-failure concerns identified in this analysis.
+  latency or single-point-of-failure concerns identified in this analysis. If a requirements register was
+  found in Step 1, you may add that nothing in this analysis indicates risk to its stated requirements --
+  only if that register exists; do not invent one.
 
 # SCOPE NOTE
 This analysis does not cover security-control coverage (e.g. presence of a WAF, encryption, or IAM

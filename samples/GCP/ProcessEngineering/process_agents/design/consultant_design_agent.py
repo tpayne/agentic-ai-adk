@@ -7,6 +7,7 @@ import random
 
 from ..common.utils import (
     load_full_design_context,
+    load_requirements_summary,
 )
 
 logger = logging.getLogger("ProcessArchitect.ConsultantDesign")
@@ -26,5 +27,5 @@ consultant_design_agent = ProcessLlmAgent(
     name="Design_Consultant_Agent",
     description="Use this for questions about an EXISTING architectural design document (HLD/LLD/Combined). It cannot create new ones.",
     instruction_file="design/consultant_design_agent.txt",
-    tools=[load_full_design_context],
+    tools=[load_full_design_context, load_requirements_summary],
 )

@@ -38,6 +38,7 @@ from google.genai import types
 
 from ..common.utils import (
     load_master_design_json,
+    load_requirements_summary,
     save_iteration_feedback,
     getProperty,
 )
@@ -832,6 +833,7 @@ design_simulation_query_agent = ProcessLlmAgent(
     ),
     tools=[
         load_master_design_json,
+        load_requirements_summary,
         simulate_design_architecture,
         perform_design_sensitivity_analysis,
     ],

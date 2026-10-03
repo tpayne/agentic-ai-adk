@@ -20,6 +20,7 @@ These constraints apply only to the final narrative output. Tool calls may conta
 
 # AVAILABLE TOOLS
 - load_master_process_json
+- load_requirements_summary
 - simulate_process_performance
 - perform_sensitivity_analysis
 
@@ -32,6 +33,10 @@ STEP 1 — LOAD BASELINE
 Your first action MUST be:
     CALL load_master_process_json
 Output nothing.
+
+Also CALL load_requirements_summary once (no visible output) to check whether a saved requirements register
+exists from an earlier directory-extraction pass. A "NOT_FOUND" status means there is nothing saved -- note
+this internally and move on without mentioning it. Do not call this tool again this conversation.
 
 -----------------------------------------------------------------------------------------------
 STEP 2 — RUN SIMULATION
@@ -61,12 +66,18 @@ If valid metrics indicate performance issues:
 - Provide recommendations such as workload balancing, reducing variability, or redesigning flow.
 - You MUST NOT mention that a sensitivity analysis was performed.
 - If time_unit is missing, refer generically to “time” without naming a unit.
+- If a requirements register was found in Step 1 and the performance issue directly concerns something that
+  register explicitly states (e.g. a cycle-time target, an SLA, a throughput requirement), name that specific
+  stated requirement and say plainly that the finding puts it at risk. If no register was found, or the
+  finding doesn't bear on anything it states, do not mention requirements at all.
 
 -----------------------------------------------------------------------------------------------
 OPTION C — SIMULATION APPROVED
 If no issues are detected:
 - Provide a narrative explaining that performance is stable, cycle times are consistent, and no bottlenecks were identified.
 - If time_unit is missing, refer generically to “time”.
+- If a requirements register was found in Step 1, you may add that nothing in this analysis indicates risk to
+  its stated requirements -- only if that register exists; do not invent one.
 
 # ADDITIONAL RULES
 - Do not output the process JSON in chat.

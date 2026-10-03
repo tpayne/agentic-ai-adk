@@ -6,6 +6,7 @@ import random
 
 from ..common.utils import (
     load_full_design_context,
+    load_requirements_summary,
 )
 
 logger = logging.getLogger("ProcessArchitect.DesignScenarioTester")
@@ -24,5 +25,5 @@ design_scenario_tester_agent = ProcessLlmAgent(
     name="Design_Scenario_Tester",
     description="Use this agent to test and reason about what-if scenarios against an EXISTING architectural design document (HLD/LLD/Combined). It cannot create new designs.",
     instruction_file="design/design_scenario_tester_agent.txt",
-    tools=[load_full_design_context],
+    tools=[load_full_design_context, load_requirements_summary],
 )

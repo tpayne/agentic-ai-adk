@@ -11,6 +11,7 @@ from google.genai import types
 
 from ..common.utils import (
     load_master_process_json,
+    load_requirements_summary,
     save_iteration_feedback,
     getProperty,
 )
@@ -466,6 +467,7 @@ simulation_query_agent = ProcessLlmAgent(
     description="Runs discrete-event simulations to identify bottlenecks and optimization opportunities in response to queries.",
     tools=[
         load_master_process_json,
+        load_requirements_summary,
         simulate_process_performance,
         perform_sensitivity_analysis,
     ],

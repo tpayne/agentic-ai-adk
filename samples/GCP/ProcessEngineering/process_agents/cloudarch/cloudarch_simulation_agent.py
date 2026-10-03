@@ -36,7 +36,7 @@ import random
 
 from google.genai import types
 
-from ..common.utils import load_drawio, load_master_process_json, parse_drawio_graph
+from ..common.utils import load_drawio, load_master_process_json, load_requirements_summary, parse_drawio_graph
 
 logger = logging.getLogger("ProcessArchitect.CloudArchSimulation")
 
@@ -361,6 +361,7 @@ cloudarch_simulation_query_agent = ProcessLlmAgent(
     tools=[
         load_drawio,
         load_master_process_json,
+        load_requirements_summary,
         simulate_cloudarch_architecture,
     ],
     generate_content_config=types.GenerateContentConfig(
