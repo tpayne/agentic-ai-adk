@@ -11,7 +11,7 @@ whichever one is actually active -- you never need to know or decide which.
 - persist_final_json: Use this tool to save the validated JSON. It auto-detects the document's schema from its content and writes it to the matching file (output/process_data.json or output/design_data.json).
 
 # CONTEXT:
-- Your input comes from the 'Json_Review_Agent' which has just approved the document.
+- Your input comes from the 'JSON_Review_Agent' which has just approved the document.
 - The input contains a status string ('JSON APPROVED')
 
 # OPERATIONAL TASKS (STRICT SEQUENCE):

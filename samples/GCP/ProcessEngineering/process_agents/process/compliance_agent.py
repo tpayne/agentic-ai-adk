@@ -25,7 +25,7 @@ def log_compliance_metadata(status: str):
 # -----------------------------
 from ..common.agent_wrappers import ProcessLlmAgent
 compliance_agent = ProcessLlmAgent(
-    name='Compliance_Review_Agent',
+    name='Compliance_Agent',
     description='Audits processes against sector best practices.',
     instruction_file="process/compliance_agent.txt",
     tools=[

@@ -35,7 +35,7 @@ def exit_loop(tool_context: ToolContext):
 # -----------------------------
 from .agent_wrappers import ProcessLlmAgent
 json_review_agent = ProcessLlmAgent(
-    name='Json_Review_Agent',
+    name='JSON_Review_Agent',
     description='Review JSON for validity, compliance, and best practices.',
     include_contents="default",
     tools=[
