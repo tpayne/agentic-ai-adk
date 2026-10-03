@@ -111,8 +111,16 @@ def getProperty(prop: str, section: str = 'SETTINGS',
     try:
         val = _CACHE.get(section, prop)
     except (configparser.NoOptionError, configparser.NoSectionError):
-        # Fallback to environment variable
+        # Fallback to environment variable. os.getenv is case-sensitive, but
+        # shell convention is all-uppercase env var names (e.g. WEBAPIKEY for
+        # a property documented/configured as "webApiKey") -- try the exact
+        # property name first (for callers that already use that casing,
+        # e.g. GOOGLE_API_KEY), then an uppercased version, so a property's
+        # documented "set the FOO env var" guidance actually works regardless
+        # of which casing the property name itself happens to use.
         env_val = os.getenv(prop)
+        if env_val is None:
+            env_val = os.getenv(prop.upper())
         if env_val is not None:
             val = env_val
         else:
