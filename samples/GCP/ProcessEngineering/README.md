@@ -30,7 +30,6 @@ The following are a list of known issues: -
 
 - Treat this ADK sample as a BETA. Large language models can produce unpredictable results.
 - The sample code could be refined. Some safeguards and helper functions can be optimized, removed, or reduced.
-- This agent is only able to create processes and cannot hold general conversations or modify processes based on queries or test proposed process flows based on user input. If I have the time or need, I might add this functionality in the future. **This functionality is now mostly implemented, but not completely**
 - If you are generating a new process from scratch, then it would be best to remove the `output/` sub-directory as it may contain old process files. 
 - However, if you are looking to modify or query an existing process, then you MUST leave the `output/` sub-directory alone as this is used as input for the process queries and reviews. If you delete the directory is this case, then there will be no process definitions to read.
 - The same applies to design documents: if generating a new HLD/LLD/Combined design from scratch, clear out any old `design_data.json` from `output/`; if you are querying, testing, or updating an existing design document, leave `output/` alone as it is used as input for the design queries, scenario tests, and simulations.
