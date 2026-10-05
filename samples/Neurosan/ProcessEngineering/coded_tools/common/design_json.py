@@ -59,6 +59,13 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
     "architecture_description": {
         "stakeholders": [{"stakeholder_name": "", "role": "", "concerns": [], "responsibilities": []}],
         "concerns": [],
+        "viewpoints": [
+            {
+                "viewpoint_name": "", "description": "", "stakeholders_addressed": [],
+                "concerns_addressed": [], "modeling_conventions": "", "applicable_standard": "",
+            }
+        ],
+        "views": [{"view_name": "", "viewpoint_ref": "", "description": "", "diagrams": [], "elements": []}],
         "architecture_analysis": [
             {
                 "title": "",
@@ -82,12 +89,29 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             }
         ],
     },
-    "system_context": {},
+    "system_context": {
+        "actors": [{"name": "", "type": "", "description": ""}],
+        "external_systems": [{"name": "", "description": "", "interface_type": "", "data_exchanged": "", "owner": ""}],
+        "context_diagram": {
+            "diagram_id": "", "diagram_type": "context", "notation_standard": "", "title": "", "description": "",
+        },
+    },
     "high_level_design": {
         "solution_overview": "",
         "architecture_style": "",
-        "components": [{"component_name": "", "description": "", "dependencies": [], "type": ""}],
+        "components": [
+            {
+                "component_name": "", "description": "", "dependencies": [], "type": "",
+                "technology_stack": [], "interfaces": [], "owner": "",
+            }
+        ],
         "integration_points": [{"source": "", "target": "", "integration_pattern": "", "protocol": "", "description": ""}],
+        "data_flow_overview": "",
+        "technology_stack": [{"category": "", "technology": "", "version": "", "justification": "", "license": ""}],
+        "deployment_topology": {
+            "environments": [{"name": "", "description": "", "infrastructure": ""}],
+            "diagram": {"diagram_id": "", "diagram_type": "deployment", "notation_standard": "", "title": "", "description": ""},
+        },
         "security_architecture": {
             "authentication_mechanism": "", "authorization_model": "",
             "data_protection_measures": [], "threat_model_reference": "",
@@ -101,8 +125,74 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             {"id": "", "description": "", "category": "", "likelihood": "", "impact": "", "mitigation": "", "owner": "", "status": ""}
         ],
     },
+    # "sequence_flows"/"class_design" specifically are what let
+    # _render_diagram_descriptor -> generate_uml_diagram actually draw a
+    # real UML sequence/class diagram instead of a "[Diagram not yet
+    # generated]" placeholder note -- confirmed directly: a real generated
+    # design document with no low_level_design shape hint at all produced
+    # zero sequence_flows/class_design/interface_contracts anywhere, so
+    # the entire "Runtime Processing and Sequence Flows" subsection never
+    # had anything to render, even though the renderer fully supports it.
     "low_level_design": {
-        "components": [{"component_name": "", "description": "", "responsibilities": [], "configuration_parameters": []}],
+        "components": [
+            {
+                "component_name": "", "description": "", "responsibilities": [],
+                "configuration_parameters": [{"name": "", "type": "", "default_value": "", "description": ""}],
+                "api_specifications": [
+                    {
+                        "interface_name": "", "protocol": "REST", "contract_reference": "",
+                        "request_schema": "", "response_schema": "", "authentication": "",
+                        "versioning_strategy": "", "error_handling": "",
+                    }
+                ],
+                "sequence_flows": [
+                    {
+                        "diagram_id": "", "diagram_type": "sequence", "notation_standard": "UML",
+                        "title": "", "description": "",
+                        "participants": ["", ""],
+                        "steps": [
+                            {
+                                "step_number": 1, "from_participant": "", "to_participant": "",
+                                "message": "", "is_async": False, "is_return": False, "notes": "",
+                            }
+                        ],
+                    }
+                ],
+                "class_design": {
+                    "classes": [{"class_name": "", "attributes": [], "methods": [], "design_patterns_used": []}],
+                },
+                "logging_and_monitoring": {"log_levels": [], "monitored_metrics": [], "alerting_rules": []},
+                "algorithm_details": "",
+                "error_handling_strategy": "",
+                "unit_test_strategy": "",
+            }
+        ],
+        "database_design": [
+            {
+                "schema_name": "", "database_technology": "",
+                "entities": [{"entity_name": "", "attributes": [{"name": "", "type": "", "constraints": [], "description": ""}]}],
+                "indexes": [], "partitioning_strategy": "",
+            }
+        ],
+        "interface_contracts": [
+            {
+                "interface_name": "", "protocol": "REST", "contract_reference": "",
+                "authentication": "", "versioning_strategy": "", "error_handling": "",
+            }
+        ],
+        "detailed_sequence_flows": [
+            {
+                "diagram_id": "", "diagram_type": "sequence", "notation_standard": "UML",
+                "title": "", "description": "", "participants": ["", ""],
+                "steps": [
+                    {
+                        "step_number": 1, "from_participant": "", "to_participant": "",
+                        "message": "", "is_async": False, "is_return": False, "notes": "",
+                    }
+                ],
+            }
+        ],
+        "exception_handling_strategy": "",
     },
     "quality_attributes": [
         {"characteristic": "", "sub_characteristic": "", "description": "", "metric": "", "target": "", "measurement_method": ""}

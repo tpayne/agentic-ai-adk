@@ -300,3 +300,51 @@ def test_real_world_design_doc_handles_every_observed_field_divergence():
     assert "Quarterly architectural reviews." in body_text
     assert "Policy Framework" in body_text
     assert "Feedback Mechanisms" in body_text
+
+
+def test_low_level_design_sequence_flow_renders_a_real_uml_diagram():
+    # DESIGN_TEMPLATE originally hinted only low_level_design.components'
+    # name/description/responsibilities/configuration_parameters -- never
+    # "sequence_flows", the field _render_diagram_descriptor ->
+    # generate_uml_diagram needs to draw a real UML sequence diagram
+    # instead of a "[Sequence not yet generated]" placeholder note.
+    # Confirmed directly: with no template shape hint at all, a real
+    # generated design document had zero sequence_flows/class_design
+    # anywhere, so no low-level UML diagram ever had a chance to render,
+    # even though this renderer fully supports it given the right shape.
+    data = {
+        "document_metadata": {
+            "document_id": "DOC-1", "document_type": "LLD", "system_name": "Checkout",
+            "title": "Checkout Design", "version": "1.0", "status": "draft",
+        },
+        "low_level_design": {
+            "components": [{
+                "component_name": "Checkout Service",
+                "description": "Handles checkout.",
+                "responsibilities": ["Validate cart"],
+                "sequence_flows": [{
+                    "diagram_id": "SEQ-1", "diagram_type": "sequence", "notation_standard": "UML",
+                    "title": "Checkout Sequence", "description": "Checkout flow.",
+                    "participants": ["Client", "Checkout Service", "Payment Gateway"],
+                    "steps": [
+                        {"step_number": 1, "from_participant": "Client", "to_participant": "Checkout Service",
+                         "message": "submitOrder()"},
+                        {"step_number": 2, "from_participant": "Checkout Service", "to_participant": "Payment Gateway",
+                         "message": "charge()"},
+                    ],
+                }],
+            }],
+        },
+    }
+    with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+    result = create_standard_doc_from_file("Checkout", schema_type="design")
+    assert result.startswith("SUCCESS:")
+
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Design.docx"))
+    body_text = "\n".join(p.text for p in doc.paragraphs)
+
+    assert len(doc.inline_shapes) >= 1
+    assert "Checkout Sequence" in body_text
+    assert "not yet generated" not in body_text

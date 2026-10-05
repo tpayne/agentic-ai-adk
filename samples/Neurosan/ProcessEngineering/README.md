@@ -289,6 +289,29 @@ fixture — and locked in by
 `tests/test_design_docgen.py::test_real_world_design_doc_handles_every_observed_field_divergence`,
 which exercises every field divergence described here in one real-world-shaped document.
 
+A follow-up, independent file-by-file comparison of every doc-generation Python module here
+against its ADK original (prompted by the same investigation) confirmed the renderer/diagram-
+agent code itself has no further undiscovered logic divergence — `uml_diagrams.py` and
+`step_diagrams.py` in particular are essentially byte-identical ports. The real remaining gap was
+the *same root cause* found above, just not yet fully applied: `DESIGN_TEMPLATE` only hinted
+`low_level_design.components`' `component_name`/`description`/`responsibilities`/
+`configuration_parameters` — never `sequence_flows`, `class_design`, `interface_contracts`,
+`detailed_sequence_flows`, `database_design`, or `exception_handling_strategy`, nor
+`high_level_design`'s `data_flow_overview`/`technology_stack`/`deployment_topology`, nor
+`system_context`'s `actors`/`external_systems`/`context_diagram`, nor `architecture_description`'s
+`viewpoints`/`views`. Concretely, this meant **zero low-level UML diagrams could ever render**:
+`_render_diagram_descriptor`/`generate_uml_diagram` only draws a real sequence/class diagram when
+given `participants`+`steps` (or `classes`) — confirmed directly, a real generated document had
+no such data anywhere, because the template never hinted at the shape, so the "10.1 Runtime
+Processing and Sequence Flows" subsection had nothing to draw from even though the renderer fully
+supports it. `PROCESS_TEMPLATE` had the analogous gap for `introduction`/`version`/
+`tools_summary`/`appendix`. Fixed by enriching both templates with concrete, schema-matching
+examples for every field their own renderers are ready to consume. Verified end-to-end: a
+`low_level_design.components[].sequence_flows` entry shaped per the new template hint now produces
+a real embedded UML sequence diagram image, not a "[Sequence not yet generated]" placeholder note
+— confirmed via `len(doc.inline_shapes)` and locked in by
+`tests/test_design_docgen.py::test_low_level_design_sequence_flow_renders_a_real_uml_diagram`.
+
 ### The design-document pipeline's architecture simulation
 
 `design.hocon`/`design_update.hocon`'s Simulation_Agent (and the standalone

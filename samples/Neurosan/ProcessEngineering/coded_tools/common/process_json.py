@@ -64,6 +64,8 @@ def detect_schema_type_from_disk() -> str:
 # nothing), not just mis-labeled or placeholder'd like the others.
 PROCESS_TEMPLATE: Dict[str, Any] = {
     "process_name": "",
+    "version": "1.0",
+    "introduction": "",
     "purpose": "",
     "scope": "",
     "process_owner": "",
@@ -72,6 +74,7 @@ PROCESS_TEMPLATE: Dict[str, Any] = {
     "process_steps": [],
     "process_goals": [],
     "system_requirements": [{"name": "", "details": ""}],
+    "tools_summary": [{"category": "", "tools": []}],
     "metrics": [{"name": "", "description": "", "measurement_frequency": "", "target": ""}],
     "critical_success_factors": [{"name": "", "description": ""}],
     "critical_failure_factors": [{"name": "", "description": ""}],
@@ -85,6 +88,7 @@ PROCESS_TEMPLATE: Dict[str, Any] = {
     "continuous_improvement": [{"review_frequency": "", "improvement_inputs": []}],
     "reporting_and_analytics": [{"metric": "", "description": ""}],
     "requirements_register": [],
+    "appendix": {},
 }
 
 
