@@ -107,3 +107,113 @@ def test_generate_process_document_coded_tool_invoke_uses_fallback_name_when_mis
     result = tool.invoke({}, {})
     assert result.startswith("SUCCESS:")
     assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Vendor_Onboarding.docx"))
+
+
+# ============================================================
+# Real-world field shape regressions.
+#
+# A live LLM run surfaced several fields shaped differently than
+# SAMPLE_PROCESS above: id-tagged traceability dicts
+# ({"id": "CON-001", "description": "..."}) instead of plain strings for
+# constraints/metrics/CSF/CFF/reporting_and_analytics/governance_
+# requirements/process_triggers/process_end_conditions, plain descriptive
+# STRINGS (not lists of objects) for change_management/
+# continuous_improvement, and stakeholders with "role" as a descriptive
+# sentence but no separate "responsibilities" list. Each of these silently
+# dropped or blanked real content before the fixes in content.py/
+# governance.py/technical.py/structure.py/process_json.py. These tests
+# pin that real-world shape down directly so it can't regress.
+# ============================================================
+
+REAL_WORLD_PROCESS = {
+    "process_name": "GitOps Scrum Process",
+    "version": "1.0",
+    "industry_sector": "Software Engineering",
+    "introduction": "Manages feature delivery using Scrum and GitOps.",
+    "purpose": "Deliver features predictably using GitOps-driven deployments.",
+    "scope": "Covers planning through production deployment.",
+    "process_owner": "Engineering Director",
+    "assumptions": [{"id": "ASM-001", "assumption": "Team has CI/CD access."}],
+    "constraints": [{"id": "CON-001", "description": "Must comply with change-control policy."}],
+    "stakeholders": [
+        {"role": "Primary individual developer of features and bug fixes.", "name": "Developer"},
+        {"name": "Product Owner", "role": "Defines requirements and priorities; verifies features."},
+    ],
+    "process_steps": [
+        {
+            "step_name": "Plan Sprint", "description": "Plan sprint backlog.",
+            "responsible_party": "Scrum Master", "dependencies": [],
+        },
+    ],
+    "metrics": [{"id": "MET-001", "metric": "Sprint Velocity", "description": "Story points completed per sprint."}],
+    "critical_success_factors": [{"id": "CSF-001", "factor": "Fast feedback loops"}],
+    "critical_failure_factors": [{"id": "CFF-001", "factor": "Unreviewed production changes"}],
+    "reporting_and_analytics": [{"id": "REP-001", "metric": "Sprint Burndown", "description": "Tracks remaining work."}],
+    "governance_requirements": [{"id": "GOV-001", "requirement": "All changes require peer review."}],
+    "process_triggers": [{"id": "TRG-001", "trigger": "New sprint begins."}],
+    "process_end_conditions": [{"id": "END-001", "condition": "All sprint goals met or carried over."}],
+    "change_management": "All changes go through pull request review and semantic versioning.",
+    "continuous_improvement": "Retrospectives run at the end of every sprint to drive process improvements.",
+    "risks_and_controls": [{"risk": "Merge conflicts", "control": "Frequent rebasing"}],
+}
+
+
+def _write_real_world_process_json():
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump(REAL_WORLD_PROCESS, f)
+
+
+def _all_table_rows(doc):
+    """Returns every table row (as a list of cell text), across every
+    table in the document, so assertions can match on cell content
+    without needing to track which section a table belongs to."""
+    return [[c.text for c in row.cells] for table in doc.tables for row in table.rows]
+
+
+def test_real_world_doc_renders_id_tagged_dicts_and_string_shapes():
+    _write_real_world_process_json()
+
+    result = create_standard_doc_from_file("GitOps Scrum Process", schema_type="process")
+    assert result.startswith("SUCCESS:")
+
+    out_path = os.path.join(paths.OUTPUT_DIR, "GitOps_Scrum_Process.docx")
+    doc = docx.Document(out_path)
+
+    body_text = "\n".join(p.text for p in doc.paragraphs)
+    all_rows = _all_table_rows(doc)
+    flat_cells = [cell for row in all_rows for cell in row]
+
+    # id-tagged constraint/assumption bullets render the real description,
+    # not "iddescription"-style garbage from iterating a dict as a string.
+    assert "Must comply with change-control policy." in body_text
+    assert "Team has CI/CD access." in body_text
+
+    # process_owner (not just the ADK's own "owner" key) renders.
+    assert "Engineering Director" in body_text
+    # purpose/scope render in Overview and are not duplicated into Appendix B.
+    assert "Deliver features predictably using GitOps-driven deployments." in body_text
+    assert "Covers planning through production deployment." in body_text
+
+    # id-tagged metrics/CSF/CFF/reporting_and_analytics show their real
+    # name instead of a blank placeholder cell.
+    assert "Sprint Velocity" in flat_cells
+    assert "Fast feedback loops" in flat_cells
+    assert "Unreviewed production changes" in flat_cells
+    assert "Sprint Burndown" in flat_cells
+
+    # id-tagged governance/triggers/end-conditions bullets render their
+    # real text.
+    assert "All changes require peer review." in body_text
+    assert "New sprint begins." in body_text
+    assert "All sprint goals met or carried over." in body_text
+
+    # change_management/continuous_improvement given as plain strings
+    # render as a paragraph instead of being silently dropped.
+    assert "pull request review and semantic versioning" in body_text
+    assert "Retrospectives run at the end of every sprint" in body_text
+
+    # Stakeholders: "role" wins as Responsibilities whenever a distinct
+    # "name" was used for the Stakeholder column.
+    assert "Developer" in flat_cells
+    assert "Primary individual developer of features and bug fixes." in flat_cells
+    assert "Defines requirements and priorities; verifies features." in flat_cells

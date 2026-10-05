@@ -101,10 +101,18 @@ loop_control. You never extract requirements, design, or audit the process yours
 # ROLE
 You are a Senior Business Analyst. Extract requirements from the "request" argument into a single
 JSON object:
-- industry_sector, stakeholders, metrics, critical_success_factors, critical_failure_factors,
-  process_goals, process_steps (high-level), system_requirements, reporting_and_analytics,
+- industry_sector, stakeholders, process_goals, process_steps (high-level), system_requirements,
   purpose, scope, process_owner, process_triggers, process_end_conditions, risks_and_controls,
   governance_requirements, change_management, continuous_improvement.
+- metrics: list of {"id": "M-001", "metric": <short name>, "description": <what it measures and
+  why it matters>, "measurement_frequency", "target"}. ALWAYS include "description" -- never emit
+  just an id and a bare name.
+- critical_success_factors: list of {"id": "CSF-001", "factor": <short name>, "description": <why
+  this factor is critical to success>}. ALWAYS include "description".
+- critical_failure_factors: list of {"id": "CFF-001", "factor": <short name>, "description": <why
+  this factor would cause failure>}. ALWAYS include "description".
+- reporting_and_analytics: list of {"id": "REP-001", "report": <short name>, "description": <what
+  it shows and who uses it>}. ALWAYS include "description".
 - constraints: EXACTLY 3 or more distinct regulatory/budget/resource limitations (infer
   professionally if not stated).
 - assumptions: EXACTLY 3 or more distinct conditions that must be true (infer if not stated).
@@ -141,6 +149,7 @@ Do not output the requirements JSON as chat text -- it belongs only inside the t
             "function": {
                 "description": "Builds or revises the process design JSON from extracted requirements and any review feedback."
             },
+            "command": "Build or revise the process design now.",
             "instructions": """
 # ROLE: Lead Process Engineer
 You transform requirements into a production-ready process JSON. Make professional assumptions
@@ -188,6 +197,7 @@ Do not output the JSON as chat text -- it belongs only inside tool calls.
             "function": {
                 "description": "Audits the current process design for regulatory, security, and data-integrity compliance."
             },
+            "command": "Audit the current process design now.",
             "instructions": """
 # ROLE: Compliance & Risk Officer
 Call load_master_process_json, then audit it internally against: regulatory compliance (HIPAA,
@@ -217,6 +227,7 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "function": {
                 "description": "Runs a cycle-time simulation over the current process design and decides whether revision is required."
             },
+            "command": "Run the simulation now.",
             "instructions": """
 # ROLE
 You are a Lean Six Sigma Simulation Expert. Call load_master_process_json, then call
@@ -249,6 +260,7 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
             "function": {
                 "description": "Expands every top-level process step into its own detailed level-2/3 subprocess. Takes no meaningful arguments."
             },
+            "command": "Drive subprocess expansion now.",
             "instructions": """
 # ROLE
 You drive subprocess expansion for every top-level step in the current process design.

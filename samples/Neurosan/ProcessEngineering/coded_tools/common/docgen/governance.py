@@ -10,6 +10,7 @@ import logging
 from coded_tools.common.docgen.structure import (
     _add_header,
     _add_bullet,
+    _item_text,
     apply_iso_table_formatting,
 )
 from coded_tools.common.docgen.content import _render_generic_value
@@ -35,7 +36,7 @@ def _add_governance_requirements_section(
     doc.add_paragraph(f"The following governance requirements apply to this {subject_noun}:")
 
     for item in items:
-        _add_bullet(doc, item)
+        _add_bullet(doc, _item_text(item, "requirement"))
     return True
 
 
@@ -80,7 +81,7 @@ def _add_process_triggers_section(doc, items):
     doc.add_paragraph("The following triggers initiate this process:")
 
     for item in items:
-        _add_bullet(doc, item)
+        _add_bullet(doc, _item_text(item, "trigger"))
 
 
 # ============================================================
@@ -98,7 +99,7 @@ def _add_process_end_conditions_section(doc, items):
     doc.add_paragraph("The following conditions indicate completion of the process:")
 
     for item in items:
-        _add_bullet(doc, item)
+        _add_bullet(doc, _item_text(item, "condition"))
 
 
 # ============================================================
@@ -106,8 +107,25 @@ def _add_process_end_conditions_section(doc, items):
 # ============================================================
 
 def _add_change_management_section(doc, items):
-    """16.0 Change Management — ISO formatted."""
+    """16.0 Change Management — ISO formatted.
+
+    `items` is normally a list of {"change_request_process",
+    "versioning_rules"} objects (the ADK original's own
+    process_schema.json shape, restored in this port's own PROCESS_TEMPLATE
+    -- see coded_tools/common/process_json.py's comment on why it wasn't,
+    for a while). A plain, non-empty STRING is also accepted and rendered
+    as a single descriptive paragraph: this port's own template briefly
+    hinted at that shape instead, by mistake, so a real value shaped that
+    way is still real content, not a malformed input to discard -- the
+    previous version of this function iterated a string's CHARACTERS
+    looking for dicts, found none, and silently rendered nothing at all.
+    """
     doc.add_heading("16.0 Change Management", level=1)
+
+    if isinstance(items, str) and items.strip():
+        doc.add_paragraph("The following change management practices apply to this process:")
+        doc.add_paragraph(items.strip())
+        return
 
     if not items:
         doc.add_paragraph("There are no change management items to document.")
@@ -124,6 +142,8 @@ def _add_change_management_section(doc, items):
                 _add_bullet(doc, f"Change Request Process: {crp}")
             if vr:
                 _add_bullet(doc, f"Versioning Rules: {vr}")
+        elif cm:
+            _add_bullet(doc, _item_text(cm))
 
 
 # ============================================================
@@ -134,8 +154,20 @@ def _add_continuous_improvement_section(
     doc, items, heading="17.0 Continuous Improvement", subject_noun="process",
 ):
     """Continuous Improvement — ISO formatted. Returns True (always
-    renders at least a heading + a sentence)."""
+    renders at least a heading + a sentence).
+
+    `items` is normally a list of {"review_frequency",
+    "improvement_inputs"} objects (see _add_change_management_section's
+    docstring for why a plain, non-empty STRING is also accepted and
+    rendered as a single descriptive paragraph instead of silently
+    producing nothing).
+    """
     doc.add_heading(heading, level=1)
+
+    if isinstance(items, str) and items.strip():
+        doc.add_paragraph(f"The following continuous improvement practices apply to this {subject_noun}:")
+        doc.add_paragraph(items.strip())
+        return True
 
     if not items:
         doc.add_paragraph("There are no continuous improvement items to document.")
@@ -145,6 +177,8 @@ def _add_continuous_improvement_section(
 
     for ci in items:
         if not isinstance(ci, dict):
+            if ci:
+                _add_bullet(doc, _item_text(ci))
             continue
 
         freq = ci.get("review_frequency")
@@ -156,7 +190,7 @@ def _add_continuous_improvement_section(
         if inputs:
             _add_header(doc, "Improvement Inputs:")
             for inp in inputs:
-                _add_bullet(doc, inp)
+                _add_bullet(doc, _item_text(inp))
     return True
 
 
@@ -305,7 +339,10 @@ def _add_critical_success_factors_section(doc, factors):
 
     for factor in factors:
         row = table.add_row().cells
-        row[0].text = str(factor.get("name", ""))
+        # "factor" (bare, holding the factor's actual name) is this port's
+        # own agents' real fallback convention -- confirmed against real
+        # generated output -- distinct from the ADK original's own "name".
+        row[0].text = str(factor.get("name") or factor.get("factor") or "")
         row[1].text = str(factor.get("description", ""))
 
     apply_iso_table_formatting(table, doc)
@@ -327,7 +364,7 @@ def _add_critical_failure_factors_section(doc, factors):
 
     for factor in factors:
         row = table.add_row().cells
-        row[0].text = str(factor.get("name", ""))
+        row[0].text = str(factor.get("name") or factor.get("factor") or "")
         row[1].text = str(factor.get("description", ""))
 
     apply_iso_table_formatting(table, doc)
@@ -361,7 +398,14 @@ def _add_reporting_and_analytics(doc, items):
         if not isinstance(entry, dict):
             continue
 
-        name = entry.get("name") or entry.get("title") or "Report"
+        # "metric" is the ADK original's OWN process_schema.json template
+        # shape for this field ({"metric": ..., "description": ...}) --
+        # its own renderer (this function, ported near-verbatim) never
+        # actually checked for it, only "name"/"title", so even a
+        # perfectly template-conforming ADK run rendered a blank "Report"
+        # placeholder here. A genuine pre-existing bug in the ADK
+        # original, confirmed directly against its own template file.
+        name = entry.get("name") or entry.get("title") or entry.get("metric") or entry.get("report") or "Report"
         desc = entry.get("description", "")
 
         row = table.add_row().cells

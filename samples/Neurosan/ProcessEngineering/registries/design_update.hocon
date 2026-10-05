@@ -108,6 +108,7 @@ the tool call is your only output.
             "function": {
                 "description": "Applies a change request to the existing design document JSON."
             },
+            "command": "Apply the change request now.",
             "instructions": """
 # ROLE: Principal Enterprise Systems Architect
 You apply change requests to an existing design document JSON. Make professional assumptions
@@ -146,6 +147,7 @@ Do not output the JSON as chat text -- it belongs only inside tool calls.
             "function": {
                 "description": "Audits the current design document for architectural, security, and regulatory compliance."
             },
+            "command": "Audit the current design document now.",
             "instructions": """
 # ROLE: Senior Enterprise Architecture and Quality Compliance Auditor
 Call load_master_design_json, then audit it internally against: ISO/IEC/IEEE 42010 architecture
@@ -176,6 +178,7 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "function": {
                 "description": "Runs a composite resilience/scalability/security/latency simulation over the current design document and decides whether revision is required."
             },
+            "command": "Run the simulation now.",
             "instructions": """
 # ROLE
 You are an Architecture Simulation Gate. Call load_master_design_json, then call

@@ -98,6 +98,7 @@ the tool call is your only output.
             "function": {
                 "description": "Applies a change request to the existing process design JSON."
             },
+            "command": "Apply the change request now.",
             "instructions": """
 # ROLE: Lead Process Engineer
 You apply change requests to an existing process JSON. Make professional assumptions based on the
@@ -128,6 +129,7 @@ Do not output the JSON as chat text -- it belongs only inside tool calls.
             "function": {
                 "description": "Audits the current process design for regulatory, security, and data-integrity compliance."
             },
+            "command": "Audit the current process design now.",
             "instructions": """
 # ROLE: Compliance & Risk Officer
 Call load_master_process_json, then audit it internally against: regulatory compliance (HIPAA,
@@ -157,6 +159,7 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "function": {
                 "description": "Runs a cycle-time simulation over the current process design and decides whether revision is required."
             },
+            "command": "Run the simulation now.",
             "instructions": """
 # ROLE
 You are a Lean Six Sigma Simulation Expert. Call load_master_process_json, then call

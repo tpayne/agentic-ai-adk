@@ -74,6 +74,29 @@ replaces it with:
 Every pipeline network's front-man encodes the same shape: *reset state → generate → review(s) →
 loop_control → continue-or-stop*.
 
+### A real bug found (and fixed) in this port, caught only once a live LLM exercised it
+
+Every structural check used throughout this port (`ns validate`, and "reaches the no-LLM-key
+wall") has a blind spot: neither one ever actually resolves a `CodedTool` class or invokes a
+sub-agent, because that only happens once a real model decides to call a tool — which needs a
+working LLM key, which this environment never had until this was exercised against one for real.
+That's exactly when a genuine, systemic bug surfaced: when a front-man calls an internal LLM
+sub-agent as a tool, neuro-san's `BranchActivation.build()` constructs that sub-agent's triggering
+`HumanMessage` from (1) one sentence per declared `"function.parameters.properties"` entry, filled
+from the caller's tool-call arguments, and (2) an optional static `"command"` field on the agent's
+own HOCON entry. Every "reads its own state from disk/mailbox, no arguments needed" stage agent in
+this port (`Design_Agent`, `Compliance_Agent`, `Simulation_Agent`, `CloudArch_Reviewer_Agent`,
+`Subprocess_Driver_Agent`, and their `_update`/`Design_Doc_*` counterparts — 14 agents across 5
+network files) declared neither, so the HumanMessage submitted to start their turn was a literal
+empty string. Gemini's SDK rejects an all-empty message list outright with `ValueError: contents
+are required.` (confirmed via a live run); other providers may tolerate a system-prompt-only turn
+with no human content, which is presumably why this had no chance to surface earlier. Fixed by
+adding a short `"command"` field (e.g. `"Review the current architecture now."`) to every affected
+agent — confirmed end-to-end against neuro-san's own `ArgumentAssigner`/`BranchActivation` code
+path, not just "the YAML parses." `tests/test_hocon_agent_messages.py` guards against this
+regressing: it loads every network the same way `ns chat`/`ns run` do and replicates neuro-san's
+own assignments-string construction for every internal sub-agent.
+
 ### The document-generation stage
 
 Both `process.hocon` and `design.hocon`/`design_update.hocon` end their pipeline with two more
@@ -87,6 +110,72 @@ dependency, living under `coded_tools/common/docgen/`. A single shared `generate
 and dispatches to the right renderer — `_build_process_document` or `_build_design_document` —
 so the process and design pipelines reuse the exact same diagram-inference and document-assembly
 machinery rather than two parallel copies of it.
+
+### A real bug found (and fixed) during doc-generation testing: sparse generated documents
+
+The first real end-to-end run against a live LLM (a GitOps/Scrum process JSON) produced a
+generated `.docx` that was missing or blanking content the real `process_data.json` clearly had.
+Tracked down field-by-field against the real JSON, this turned out to be several distinct bugs,
+some inherited from the ADK original and some new regressions in this port:
+
+- **This port's own regression — complete content loss.** This port's `PROCESS_TEMPLATE`
+  (`coded_tools/common/process_json.py`) gave `change_management`/`continuous_improvement` as bare
+  empty **strings** (`""`), diverging from both the ADK original's own `process_schema.json`
+  template *and* this port's own verbatim-ported renderers (which expect a **list** of objects). A
+  real, well-formed `change_management` sentence was silently dropped entirely — the renderer's
+  `for cm in items` iterated the string's characters, found none were dicts, and rendered nothing.
+  Fixed by restoring the ADK's own template shape for every field (metrics/CSF/CFF/
+  reporting_and_analytics/system_requirements/stakeholders/change_management/
+  continuous_improvement all now give the LLM a concrete one-item example object instead of a bare
+  `[]`/`""`), and by making `_add_change_management_section`/`_add_continuous_improvement_section`
+  additionally tolerate a plain non-empty string (rendered as a descriptive paragraph) so a
+  real value shaped that way is never discarded outright, regardless of which shape a given
+  generation lands on.
+- **Two genuine pre-existing bugs in the ADK original**, confirmed directly against its own
+  `process_schema.json`/`doc_content.py`/`doc_governance.py` — not something this port introduced:
+  `doc_content.py`'s overview section checks for an `"owner"` key, but the template's actual field
+  is `"process_owner"`; and `doc_governance.py`'s reporting-and-analytics table checks `"name"`/
+  `"title"`, but the template's own shape uses `"metric"`. Both fields rendered blank even on a
+  perfectly template-conforming ADK run. Fixed in this port's `content.py`/`governance.py` by
+  checking both the original and the correct key (worth porting back upstream).
+- **Defensive hardening against whichever shape a model actually produces.** Even with the
+  template fixed, a model will sometimes reasonably improvise its own internally-consistent
+  `{"id": "CON-001", "description": "..."}` traceability-style shape for a list field instead of
+  a plain string — confirmed directly against real generated output. Passing a bare dict straight
+  to `doc.add_paragraph()`/`_add_bullet()` doesn't raise; python-docx silently iterates the dict's
+  *keys* as characters, producing garbage like `"iddescription"`. `structure.py`'s new
+  `_item_text(item, *content_keys)` helper tries each likely content key, falls back to joining
+  every non-`"id"` value, and is now used by every bullet/name-cell renderer that touches a
+  user-authored list field (constraints, assumptions, governance requirements, process triggers,
+  process end conditions, metrics, CSF/CFF, stakeholders' Responsibilities column), so a document
+  renders real content regardless of which shape a given generation happens to land on.
+- **`consumed_keys` in `generation.py`** was missing `"purpose"`/`"scope"`/`"process_owner"`/
+  `"owner"` even though all four ARE rendered in section 1.0 Overview, so they also duplicated,
+  verbatim, into Appendix B's "leftover data" catch-all. Fixed by adding them to the set.
+
+All of the above were verified against the user's own real `process_data.json` (not a synthetic
+fixture), and locked in by `tests/test_docgen.py::test_real_world_doc_renders_id_tagged_dicts_and_string_shapes`,
+which uses the exact real-world field shapes described here (id-tagged dicts, plain-string
+change_management/continuous_improvement, role-only stakeholders).
+
+A follow-up live run then surfaced one more instance of the same underlying class of bug: sections
+5.0-8.0 (Metrics, Critical Success Factors, Critical Failure Factors, Reporting and Analytics) all
+rendered with a blank Description column. The real data wasn't malformed this time -- each item
+genuinely had only `{"id", "<name>"}` and no `"description"` at all, because `Analysis_Agent`'s
+instructions (`registries/process.hocon`) named these four fields in a bare, shapeless bullet list,
+unlike `constraints`/`assumptions`/`requirements_register`, which each get an explicit per-item
+shape and an "ALWAYS include description" directive. A live model reasonably produced the
+minimal shape nothing more specific was asked for. Fixed two ways: `Analysis_Agent`'s instructions
+now give each of these four fields the same explicit `{"id", "<name>", "description", ...}` shape
+and an "ALWAYS include description" directive the other fields already had; and
+`validate_process_json` (`coded_tools/common/process_json.py`) now hard-rejects any
+metrics/CSF/CFF/reporting_and_analytics entry missing a name or a description, the same way it
+already hard-rejects a process_step missing a `step_name`/`responsible_party` -- so this can't
+silently regress into prose-only guidance again, and `Design_Agent`'s existing
+validate-fix-revalidate loop forces a correction before persisting rather than a human discovering
+a blank column after the fact. Covered by
+`tests/test_process_json.py::test_validate_rejects_metrics_csf_cff_reporting_entries_missing_a_description`
+and its accepts-counterpart.
 
 ### The design-document pipeline's architecture simulation
 
@@ -144,6 +233,26 @@ uv run ns chat process_architect   # top-level front-man, routes across all othe
 # ... or any other network under registries/ -- see Status above for the full list
 ```
 
+**A `neuro-san-studio` gap worth knowing, not a bug in this project:** `ns chat`'s default direct
+(in-process) connection mode sets `PYTHONPATH` as an environment variable
+(`ProjectEnvironment.apply()`), but setting `os.environ["PYTHONPATH"]` from inside an
+already-running process has no effect on that process's own `sys.path` -- Python only reads
+`PYTHONPATH` at interpreter *startup*. `ns run` doesn't hit this (it spawns the real server as a
+child process, which correctly inherits `PYTHONPATH` at its own startup), but a plain `ns chat`
+does, and the failure only surfaces the moment an agent actually calls a `CodedTool` (import
+resolution genuinely breaks, with an error like `Could not find class "...CodedTool" ... under
+AGENT_TOOL_PATH "coded_tools"`) -- not at session-open time, so it looks like the network loaded
+fine right up until that point. Export `PYTHONPATH` in your shell yourself first, so the
+interpreter inherits it correctly at startup:
+
+```bash
+export PYTHONPATH="$(pwd)"
+uv run ns chat cloudarch
+```
+
+`cli.py` (below) isn't affected -- it's a plain script, so Python puts its own directory (this
+project's root) on `sys.path[0]` automatically before any of its own code runs.
+
 Run the test suite with:
 
 ```bash
@@ -177,6 +286,57 @@ ADK original on purpose: rather than reimplementing its bespoke Flask REST API (
 auth/rate-limiting), `-d` launches neuro-san's own server + nsflow UI (`ns run`) — see
 [Deliberate simplifications](#deliberate-simplifications-vs-the-adk-original) for why that layer
 isn't ported. `--http`/`-p`/`--port` only apply with `-d`, matching the ADK original.
+
+Every run writes neuro-san's own "thinking" trace -- this project's equivalent of the ADK
+original's `output/logs/pipeline_*.log` -- to `output/logs/agent_thinking.txt` (one combined
+stream) and `output/logs/agent_thinking/` (one file per agent origin in a multi-agent turn,
+easier to follow than the combined stream once more than one sub-agent is involved):
+
+```bash
+tail -f output/logs/agent_thinking.txt
+```
+
+A fresh session (startup, or the `clear` control line) clears the previous trace first, so it
+never mixes two unrelated conversations together. This is neuro-san's own always-on record,
+independent of the logging level described below.
+
+`cli.py`'s own logging mirrors the ADK original's `agent.py` setup exactly: standard Python
+`logging`, a `LOGLEVEL` env var (same name, same five values -- DEBUG/INFO/WARNING/ERROR/
+CRITICAL, default `WARNING`), writing to `output/logs/cli.log`. **Off by default** -- this
+project's own tool/sub-agent trace logs at DEBUG, and a per-turn token-accounting summary at INFO,
+so neither appears anywhere unless you ask for it:
+
+```bash
+LOGLEVEL=DEBUG uv run python cli.py
+tail -f output/logs/cli.log
+```
+
+```
+2026-10-05 15:50:27 DEBUG ProcessArchitect.CLI.Trace: cloudarch.CloudArch_Pipeline [AGENT]: Calling reset_loop_state now.
+2026-10-05 15:50:28 DEBUG ProcessArchitect.CLI.Trace: cloudarch.reset_loop_state [AGENT_TOOL_RESULT] (result from reset_loop_state): <structure: status>
+2026-10-05 15:50:41 INFO ProcessArchitect.CLI.Trace: token accounting: {"gemini-3-flash": {"total_tokens": 2280}}
+```
+
+A WARNING+ copy of anything logged (including neuro-san/langchain's own internal warnings, e.g. a
+timed-out agent) always prints to the terminal too, regardless of `LOGLEVEL` -- written to
+**stderr** specifically, so it never corrupts output piped from stdout (e.g. `cli.py -i "..." |
+pbcopy` capturing just the final answer). Confirmed directly: before this was wired up, that same
+warning printed completely unformatted (no timestamp, no logger name) because nothing had
+attached a handler to it at all, making it look like it had been echoed into the next `[user]: `
+prompt rather than what it actually was -- a log line with nowhere configured to go.
+
+### A real timeout worth knowing about: `max_execution_seconds`
+
+neuro-san gives every agent a 300-second (5-minute) execution budget by default
+(`RunContextRunnable.run_it`), independently at every level of a call chain -- `process_architect`
+has its own 300s budget wrapping whichever pipeline it routes to, and that pipeline's own
+front-man has a SEPARATE 300s budget of its own. `process`/`process_update`'s full sequence
+(analysis → design → compliance → simulation, looped up to 2×, then `Subprocess_Driver_Agent`
+making one further LLM call per top-level step) can genuinely exceed 5 minutes for a real
+request -- confirmed directly: both `Process_Architect_Orchestrator` and the nested
+`Process_Pipeline` timed out independently on the same request. Fixed by setting
+`"max_execution_seconds": 3600` in `config/llm_config.hocon`, which every network already
+`include`s, so the higher budget applies everywhere in one place.
 
 ### Docker
 

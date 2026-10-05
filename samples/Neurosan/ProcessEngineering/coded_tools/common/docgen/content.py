@@ -17,6 +17,7 @@ import logging
 from coded_tools.common.docgen.structure import (
     _add_header,
     _add_bullet,
+    _item_text,
     apply_iso_table_formatting,
     add_iso_page_break,
 )
@@ -53,14 +54,14 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
             doc.add_heading(f"1.{subsection} Assumptions", level=2)
             subsection += 1
             for item in assumptions:
-                doc.add_paragraph(item, style="List Bullet")
+                doc.add_paragraph(_item_text(item, "description", "assumption"), style="List Bullet")
 
         constraints = data.get("constraints")
         if isinstance(constraints, list) and constraints:
             doc.add_heading(f"1.{subsection} Constraints", level=2)
             subsection += 1
             for item in constraints:
-                doc.add_paragraph(item, style="List Bullet")
+                doc.add_paragraph(_item_text(item, "description", "constraint"), style="List Bullet")
 
         ordered = [
             ("purpose", "Purpose"),
@@ -75,12 +76,20 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
                 subsection += 1
                 doc.add_paragraph(str(value))
 
-        for key in ["out_of_scope", "business_unit", "owner"]:
-            if key in data:
+        # "owner" is the ADK original's own check here (ported verbatim),
+        # but process_schema.json's actual field for this is
+        # "process_owner" -- a genuine pre-existing mismatch in the ADK
+        # app itself, confirmed directly against its own template, that
+        # means Process Owner never rendered there either. "owner" is
+        # kept alongside it (not replaced) in case some caller's data
+        # really does use that bare key.
+        for key in ["process_owner", "out_of_scope", "business_unit", "owner"]:
+            value = data.get(key)
+            if value:
                 p = doc.add_paragraph()
                 r = p.add_run(f"{key.replace('_', ' ').title()}: ")
                 r.bold = True
-                p.add_run(str(data.get(key)))
+                p.add_run(str(value))
 
     except Exception:
         traceback.print_exc()
@@ -195,6 +204,17 @@ def _add_stakeholders_section(
                 or "Stakeholder"
             )
             responsibilities = s.get("responsibilities", [])
+            # Real generated data has no separate "responsibilities" list --
+            # "role" is a one-line descriptive sentence doing double duty,
+            # consumed above as the name fallback only when no distinct
+            # name-ish field exists. Whenever a distinct name field DID win
+            # (e.g. "name": "Developer"), "role" is otherwise dropped
+            # entirely, so fall back to it here instead of leaving the
+            # Responsibilities column blank.
+            if not responsibilities:
+                role = s.get("role")
+                if role and role != name:
+                    responsibilities = role
 
             row = table.add_row().cells
             row[0].text = str(name)

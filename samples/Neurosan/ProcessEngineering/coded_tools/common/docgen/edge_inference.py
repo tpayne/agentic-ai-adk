@@ -18,8 +18,15 @@ import textwrap
 from typing import List, Tuple, Any, Dict
 
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-import networkx as nx
+# Runs inside asyncio.to_thread (every CodedTool.invoke does), i.e. a
+# background thread -- matplotlib's default interactive GUI backend requires
+# the main thread and warns the moment pyplot is used from anywhere else.
+# This module only ever calls plt.savefig(), never plt.show(), so the
+# non-interactive "Agg" backend is strictly correct, not a workaround. Must
+# be set before pyplot is imported (backend is selected at import time).
+mpl.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import networkx as nx  # noqa: E402
 
 from coded_tools.common import paths
 from coded_tools.common.filenames import safe_filename_component

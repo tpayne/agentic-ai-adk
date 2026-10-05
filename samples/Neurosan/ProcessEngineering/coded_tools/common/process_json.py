@@ -35,28 +35,55 @@ def detect_schema_type_from_disk() -> str:
         return "design"
     return "process"
 
+# Field shapes mostly match the ADK original's own process_schema.json
+# template verbatim -- a bare `[]`/`""` with no structural hint, as this
+# dict originally had for every list/object field, left Design_Agent with
+# nothing but this port's own loosely-worded prose instructions to infer a
+# shape from. Confirmed directly against a real generated document: the
+# model reasonably improvised its own internally-consistent
+# {"id": ..., "<noun>": ...} convention (matching the id-tagged
+# requirements_register pattern used elsewhere in this port) for metrics/
+# critical_success_factors/critical_failure_factors/reporting_and_analytics/
+# governance_requirements/process_triggers/process_end_conditions/
+# constraints -- which doesn't match what doc_generation's renderers (see
+# coded_tools/common/docgen/) actually look for, so real content (e.g. a
+# metric's actual name) silently fell back to a placeholder instead of
+# appearing in the document. One-item example lists restore the ADK's own
+# shape hint so a fresh generation naturally lands on the keys the renderers
+# expect; those renderers were separately hardened to also tolerate the
+# id-tagged variant, so documents already generated under the old bare-`[]`
+# template improve too, without needing to regenerate.
+#
+# change_management/continuous_improvement specifically were bare `""`
+# (plain strings) here, diverging from BOTH the ADK's own template AND
+# this port's own doc_generation renderers (ported verbatim from the ADK,
+# expecting a LIST of objects) -- the single most severe instance of this
+# bug: a real, well-formed change_management sentence was being dropped
+# from the generated document entirely (the renderer's `for cm in items`
+# iterated the string's characters, found none were dicts, and rendered
+# nothing), not just mis-labeled or placeholder'd like the others.
 PROCESS_TEMPLATE: Dict[str, Any] = {
     "process_name": "",
     "purpose": "",
     "scope": "",
     "process_owner": "",
     "industry_sector": "",
-    "stakeholders": [],
+    "stakeholders": [{"stakeholder_name": "", "role": "", "responsibilities": []}],
     "process_steps": [],
     "process_goals": [],
-    "system_requirements": [],
-    "metrics": [],
-    "critical_success_factors": [],
-    "critical_failure_factors": [],
+    "system_requirements": [{"name": "", "details": ""}],
+    "metrics": [{"name": "", "description": "", "measurement_frequency": "", "target": ""}],
+    "critical_success_factors": [{"name": "", "description": ""}],
+    "critical_failure_factors": [{"name": "", "description": ""}],
     "constraints": [],
     "assumptions": [],
     "process_triggers": [],
     "process_end_conditions": [],
-    "risks_and_controls": [],
+    "risks_and_controls": [{"risk": "", "control": ""}],
     "governance_requirements": [],
-    "change_management": "",
-    "continuous_improvement": "",
-    "reporting_and_analytics": [],
+    "change_management": [{"change_request_process": "", "versioning_rules": ""}],
+    "continuous_improvement": [{"review_frequency": "", "improvement_inputs": []}],
+    "reporting_and_analytics": [{"metric": "", "description": ""}],
     "requirements_register": [],
 }
 
@@ -126,6 +153,32 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
                         "location": f"process_steps[{i}].dependencies",
                         "issue": f"Dependency '{dep}' does not match any step_name in this document",
                     })
+
+    # Design_Agent's own instructions ask for a "description" on every metrics/
+    # critical_success_factors/critical_failure_factors/reporting_and_analytics
+    # entry, but a prose instruction alone was not enough to stop a live model
+    # from emitting bare {"id", "<name>"} objects with no description -- the
+    # generated document's Metrics/CSF/CFF/Reporting tables (sections 5-8)
+    # rendered with a blank Description column as a result. This is now a
+    # hard validation gate (like step_name/responsible_party above), not just
+    # a prose request, so Design_Agent is forced to fix it before persisting.
+    for field, name_key in (
+        ("metrics", "metric"),
+        ("critical_success_factors", "factor"),
+        ("critical_failure_factors", "factor"),
+        ("reporting_and_analytics", "report"),
+    ):
+        items = json_content.get(field)
+        if not isinstance(items, list):
+            continue
+        for i, item in enumerate(items):
+            loc = f"{field}[{i}]"
+            if not isinstance(item, dict):
+                continue
+            if not item.get(name_key) and not item.get("name"):
+                issues.append({"location": loc, "issue": f"'{name_key}' (or 'name') is required"})
+            if not item.get("description"):
+                issues.append({"location": f"{loc}.description", "issue": "description is required"})
 
     return {"valid": len(issues) == 0, "issues": issues}
 

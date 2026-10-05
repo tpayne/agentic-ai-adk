@@ -96,6 +96,39 @@ def _add_bullet(doc, text, indent=False):
     p.add_run(f"• {text}")
 
 
+def _item_text(item, *content_keys: str) -> str:
+    """
+    Returns a displayable string for one entry of a list field the source
+    JSON might represent as a plain string (the shape several renderers
+    here were written against, matching the ADK original's own
+    process_schema.json template for fields like constraints/
+    governance_requirements/process_triggers) OR as an
+    {"id": ..., "<content_key>": ...} traceability-style object -- the
+    shape this port's own agents fall back to improvising when a field's
+    template hint doesn't pin one down precisely, confirmed directly
+    against real generated output (e.g. constraints as
+    {"id": "CON-001", "description": "..."}).
+
+    Passing a bare dict straight to doc.add_paragraph()/_add_bullet()
+    doesn't raise -- python-docx silently iterates a dict's KEYS as if it
+    were a string of characters, producing garbage like "iddescription".
+    This is the fix: try each of `content_keys`, in priority order, for
+    the dict's actual content; fall back to every non-"id" value joined
+    together if none match, so content is never silently dropped even
+    when the content key doesn't match any of the ones a caller guessed.
+    """
+    if isinstance(item, dict):
+        for key in content_keys:
+            value = item.get(key)
+            if value:
+                return str(value)
+        remaining = [str(v) for k, v in item.items() if k != "id" and v not in (None, "", [], {})]
+        if remaining:
+            return "; ".join(remaining)
+        return ""
+    return str(item)
+
+
 def _set_cell_bullets(cell, value, empty_text: str = "—") -> None:
     """
     Fills a table cell with bulleted content. A list value becomes one

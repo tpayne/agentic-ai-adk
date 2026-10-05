@@ -240,6 +240,13 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
         "process_triggers", "reporting_and_analytics", "risks_and_controls",
         "stakeholders", "success_metrics", "system_requirements",
         "tools_summary", "version",
+        # "purpose"/"scope" ARE rendered (in _add_overview_section's own
+        # "ordered" loop) but were missing here, so they rendered correctly
+        # in 1.0 Overview and then ALSO reappeared, duplicated, in Appendix
+        # B's leftover-data catch-all below. "process_owner"/"owner"
+        # likewise (see _add_overview_section's own fix for why both keys
+        # are checked).
+        "purpose", "scope", "process_owner", "owner",
     }
 
     # ---- COVER PAGE ----

@@ -117,3 +117,95 @@ def test_handle_logical_line_clear_replaces_the_session(monkeypatch):
     should_stop = asyncio.run(cli.handle_logical_line("clear", holder, "process_architect"))
     assert should_stop is False
     assert holder[0] is replacement
+
+
+def test_handle_logical_line_interactive_mode_does_not_echo_input(capsys):
+    """Default echo_input=False (interactive mode) must not print the line
+    back -- the terminal already echoed what was typed; doing it again is
+    the exact duplicate-input bug this guards against."""
+    holder = [_StubSession()]
+    asyncio.run(cli.handle_logical_line("hello", holder, "process_architect"))
+    captured = capsys.readouterr()
+    assert "[user" not in captured.out
+
+
+def test_handle_logical_line_file_mode_echoes_input(capsys):
+    """echo_input=True (process_file's own call) must print the line back
+    -- there's no terminal echo for lines read from a file."""
+    holder = [_StubSession()]
+    asyncio.run(cli.handle_logical_line("hello", holder, "process_architect", echo_input=True))
+    captured = capsys.readouterr()
+    assert "[user-file]: hello" in captured.out
+
+
+class TestLiveTraceMessageProcessor:
+    """cli.LiveTraceMessageProcessor logs through the standard `logging`
+    module at DEBUG (cli._trace_logger), not a bespoke print mechanism --
+    silent unless LOGLEVEL=DEBUG is set, same as every other logger in
+    this project."""
+
+    def test_skips_empty_progress_heartbeat(self, caplog):
+        proc = cli.LiveTraceMessageProcessor()
+        with caplog.at_level("DEBUG", logger="ProcessArchitect.CLI.Trace"):
+            proc.process_message({"text": "", "origin": []}, cli.ChatMessageType.AGENT_PROGRESS)
+        assert caplog.records == []
+
+    def test_logs_agent_text_message_at_debug(self, caplog):
+        proc = cli.LiveTraceMessageProcessor()
+        with caplog.at_level("DEBUG", logger="ProcessArchitect.CLI.Trace"):
+            proc.process_message(
+                {"text": "Calling reset_loop_state now.", "origin": [{"tool": "cloudarch"}, {"tool": "CloudArch_Pipeline"}]},
+                cli.ChatMessageType.AGENT,
+            )
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "DEBUG"
+        message = caplog.records[0].getMessage()
+        assert "cloudarch.CloudArch_Pipeline" in message
+        assert "Calling reset_loop_state now." in message
+
+    def test_logs_structure_preview_and_tool_result_origin(self, caplog):
+        proc = cli.LiveTraceMessageProcessor()
+        with caplog.at_level("DEBUG", logger="ProcessArchitect.CLI.Trace"):
+            proc.process_message(
+                {
+                    "structure": {"status": "OK"},
+                    "origin": [{"tool": "cloudarch"}, {"tool": "reset_loop_state"}],
+                    "tool_result_origin": [{"tool": "cloudarch"}, {"tool": "reset_loop_state"}],
+                },
+                cli.ChatMessageType.AGENT_TOOL_RESULT,
+            )
+        message = caplog.records[0].getMessage()
+        assert "<structure: status>" in message
+        assert "result from" in message
+
+    def test_silent_when_debug_not_enabled(self, caplog):
+        """Default level is WARNING (see the LOGLEVEL setup in cli.py) --
+        with DEBUG not enabled, process_message must not even format a
+        record, let alone emit one."""
+        proc = cli.LiveTraceMessageProcessor()
+        with caplog.at_level("WARNING", logger="ProcessArchitect.CLI.Trace"):
+            proc.process_message({"text": "hello", "origin": []}, cli.ChatMessageType.AGENT)
+        assert caplog.records == []
+
+
+def test_send_logs_token_accounting_at_info(caplog):
+    """ChatSession.send must surface token_accounting (previously silently
+    discarded) via the standard logger at INFO, not swallow it."""
+    session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
+    session.sly_data = None
+    session.chat_context = None
+
+    class _StubInputProcessor:
+        def process_once(self, state):
+            return {
+                "last_chat_response": "done",
+                "sly_data": {},
+                "chat_context": {},
+                "token_accounting": {"gemini-3-flash": {"total_tokens": 42}},
+            }
+
+    session.input_processor = _StubInputProcessor()
+    with caplog.at_level("INFO", logger="ProcessArchitect.CLI.Trace"):
+        result = session.send("hi")
+    assert result == "done"
+    assert any("total_tokens" in r.getMessage() for r in caplog.records)

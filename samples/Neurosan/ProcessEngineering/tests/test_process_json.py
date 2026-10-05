@@ -56,3 +56,37 @@ def test_persist_then_load_round_trips():
 def test_persist_rejects_an_invalid_document():
     result = persist_final_json({"process_name": "X"})
     assert result.startswith("ERROR:")
+
+
+def test_validate_rejects_metrics_csf_cff_reporting_entries_missing_a_description():
+    # A real live run produced bare {"id", "metric"} objects with no
+    # "description" for these four fields, leaving sections 5-8 of the
+    # generated document with a blank Description column. This is now a
+    # hard validation gate so Design_Agent can't persist that shape.
+    doc = {
+        "process_name": "X",
+        "process_steps": [{"step_name": "A", "responsible_party": "Ops", "dependencies": []}],
+        "metrics": [{"id": "M-001", "metric": "Deployment Frequency"}],
+        "critical_success_factors": [{"id": "CSF-001", "factor": "Automation"}],
+        "critical_failure_factors": [{"id": "CFF-001", "factor": "Manual changes"}],
+        "reporting_and_analytics": [{"id": "REP-001", "report": "Dashboard"}],
+    }
+    result = validate_process_json(doc)
+    assert not result["valid"]
+    for field in ("metrics", "critical_success_factors", "critical_failure_factors", "reporting_and_analytics"):
+        assert any(
+            issue["location"] == f"{field}[0].description" for issue in result["issues"]
+        ), f"expected a missing-description issue for {field}"
+
+
+def test_validate_accepts_metrics_csf_cff_reporting_entries_with_a_description():
+    doc = {
+        "process_name": "X",
+        "process_steps": [{"step_name": "A", "responsible_party": "Ops", "dependencies": []}],
+        "metrics": [{"id": "M-001", "metric": "Deployment Frequency", "description": "How often we ship."}],
+        "critical_success_factors": [{"id": "CSF-001", "factor": "Automation", "description": "Reduces errors."}],
+        "critical_failure_factors": [{"id": "CFF-001", "factor": "Manual changes", "description": "Causes drift."}],
+        "reporting_and_analytics": [{"id": "REP-001", "report": "Dashboard", "description": "Shows status."}],
+    }
+    result = validate_process_json(doc)
+    assert result == {"valid": True, "issues": []}

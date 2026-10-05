@@ -242,6 +242,7 @@ commentary, no XML, no markdown, no explanation.
             "function": {
                 "description": "Audits the most recently saved cloud architecture diagram and records approval or revision feedback."
             },
+            "command": "Review the current architecture now.",
 
             "instructions": """
 # ROLE: Principal Cloud Security & Architecture Reviewer

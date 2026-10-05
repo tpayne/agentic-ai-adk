@@ -8,9 +8,22 @@ test-isolation reason documented on paths.output_path.
 import os
 import logging
 import textwrap
-import matplotlib.pyplot as plt
-import networkx as nx
 from typing import Dict, List, Tuple, Any
+
+import matplotlib
+# This CodedTool runs inside asyncio.to_thread (every CodedTool.invoke does --
+# see coded_tools/design/simulation_tool.py and friends), i.e. a background
+# thread, never the main thread. matplotlib's default backend is an
+# interactive GUI one wherever a display is available (e.g. macOS's own
+# "MacOSX" backend), which requires main-thread execution and warns ("Starting
+# a Matplotlib GUI outside of the main thread will likely fail.") the moment
+# pyplot is used from anywhere else -- confirmed directly. This module never
+# calls plt.show(), only fig.savefig(), so the non-interactive "Agg" backend
+# is strictly correct here, not a workaround. Must be set before pyplot is
+# ever imported (its backend is selected at import time).
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import networkx as nx  # noqa: E402
 
 from coded_tools.common import paths
 from coded_tools.common.filenames import safe_filename_component

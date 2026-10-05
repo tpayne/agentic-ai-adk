@@ -57,7 +57,11 @@ def _add_metrics_section(doc: docx.Document, metrics) -> None:
             if not isinstance(m, dict):
                 continue
 
-            name = m.get("name") or m.get("metric_name") or f"Metric {idx}"
+            # "metric" (bare, holding the metric's actual name) is this
+            # port's own agents' real fallback convention -- confirmed
+            # against real generated output -- distinct from "metric_name"
+            # above, which was the ADK original's own guess at a synonym.
+            name = m.get("name") or m.get("metric_name") or m.get("metric") or f"Metric {idx}"
             description = m.get("description", "")
             measurement = m.get("measurement") or m.get("measurement_frequency") or ""
             target = m.get("target", "")
