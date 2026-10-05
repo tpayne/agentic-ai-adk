@@ -1,0 +1,419 @@
+# Ported from samples/GCP/ProcessEngineering: Full_Design_Doc_Pipeline (the
+# design-document generation half of it -- Analysis -> Design (HLD+LLD in
+# one pass) -> Compliance -> Simulation -> persist -> diagram -> docx).
+#
+# Structural simplifications vs. the ADK original, mirroring the same
+# simplifications process.hocon already makes for the process schema:
+#   - ONE generator agent (Design_Doc_Agent) produces HLD+LLD in a single
+#     pass, instead of the ADK original's separate HLD_Agent -> LLD_Agent
+#     stages (each its own LLM call) followed by three more clones of a
+#     third "Combined" generator reused as the post-compliance/post-
+#     simulation refinement step. A single generator that reads whichever
+#     reviewer feedback channels are non-empty on each pass covers the
+#     same ground.
+#   - The ADK original's separate JSON-normalization loop is absorbed into
+#     Design_Doc_Agent's own validate->persist steps, same as process.hocon.
+#   - The optional grounding stage (gated off by default in the ADK
+#     original, enableGroundingAgent=false) is dropped entirely.
+#   - Compliance_Agent and Simulation_Agent write to their OWN mailbox
+#     channels (see coded_tools/common/iteration_feedback.py's channel
+#     support); Design_Doc_Agent reads both together on its next call.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Generates or refines an architectural design document (HLD/LLD/Combined), audited by compliance and simulation review before it is finalized.",
+        "tags": ["design", "process-engineering-port"],
+        "sample_queries": [
+            "Create a Combined HLD/LLD design document for a checkout microservice."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Design_Doc_Pipeline",
+
+            "function": {
+                "description": """
+I generate or refine an architectural design document (HLD, LLD, or Combined -- a structured JSON
+document covering business context, requirements, system context, high- and low-level design,
+quality attributes, compliance, and risk), audited by compliance and architecture-simulation review
+before I report back. Tell me what system or component to design.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's design document request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You orchestrate the design-document generate/review loop: Design_Doc_Analysis_Agent extracts
+architectural requirements, Design_Doc_Agent builds/revises the design document JSON (HLD+LLD in
+one pass), Compliance_Agent and Simulation_Agent each audit it and write their own feedback, and
+you decide whether to repeat the design/review cycle using loop_control. You never extract
+requirements, design, or audit the document yourself.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier, unrelated request.
+2. Call Design_Doc_Analysis_Agent, passing the user's request text verbatim as "request". It
+   extracts architectural requirements and writes them to its own feedback channel for
+   Design_Doc_Agent to pick up.
+3. Call Design_Doc_Agent (no arguments needed -- it reads the requirements and any prior review
+   feedback itself).
+4. Call Compliance_Agent (no arguments -- it loads the current design itself).
+5. Call Simulation_Agent (no arguments -- it loads the current design itself).
+6. Call loop_control with required={"compliance_status": "APPROVED", "simulation_status":
+   "APPROVED"} and max_iterations=2.
+   - If "verdict" is "CONTINUE": go back to step 3 and call Design_Doc_Agent again -- it will pick
+     up both reviewers' feedback itself from their own channels, you do not need to relay it.
+   - If "verdict" is "STOP": proceed to step 7. Do NOT call Design_Doc_Agent, Compliance_Agent, or
+     Simulation_Agent again this turn -- this is an authoritative stop signal.
+7. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
+   of the current design.
+8. Call generate_design_document once, passing the design's own system/title name as
+   "process_name", to produce the final ISO-formatted Word document.
+9. Report the outcome in plain language: if "reason" was "APPROVED", say the design document was
+   created/updated and passed compliance and architecture-simulation review. If "MAX_ITERATIONS",
+   say a design was produced but still has open review feedback after the maximum number of
+   revision passes. Mention that a Word document and architecture diagram were produced either
+   way. Plain prose only -- no raw JSON, tool names, or internal field names.
+""",
+            "tools": [
+                "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_Agent", "Compliance_Agent",
+                "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document"
+            ]
+        },
+
+        {
+            "name": "Design_Doc_Analysis_Agent",
+            "function": {
+                "description": "Extracts structured architectural requirements from a design request.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "request": {"type": "string", "description": "The user's design request text."}
+                    },
+                    "required": ["request"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Lead Enterprise and Systems Architect performing requirements engineering. Extract
+architectural requirements from the "request" argument into a single JSON object covering:
+- system_context_and_scope, technical_and_operational_constraints (at least 3 distinct
+  constraints and 3 assumptions -- infer professionally if not stated), target_technology_stack,
+  risks_and_threat_vectors.
+- quality_attributes_matrix: requirements mapped against ISO/IEC 25010 characteristics
+  (functional_suitability, performance_efficiency, compatibility, usability, reliability,
+  security, maintainability, portability).
+- requirements_register: list of {"id": "FR-001"|"NFR-001", "type": "functional"|
+  "non_functional", "description", "priority": "critical"|"high"|"medium"|"low",
+  "acceptance_criteria": [...], "status": "proposed"}. Number functional and non-functional ids
+  independently from 001.
+- requirement_priorities, conflicting_requirements, requirements_needing_clarification,
+  coverage_gaps: OPTIONAL, populate only where the material genuinely signals it.
+
+If "request" explicitly asks you to read a directory of files, call load_directory_context first
+and treat "combined_text" as additional source material. If it explicitly asks to use a saved
+requirements summary, call load_requirements_summary first and carry forward its
+requirements_register/priorities/conflicts/clarifications, preserving every existing id exactly.
+
+When done, call save_iteration_feedback with channel="analysis" and feedback=
+{"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location": "root",
+"instruction": "Comprehensive architectural requirements populated. Proceed to design generation.",
+"metadata": {"extracted_requirements": <your full JSON object from above>}}]}
+
+Do not output the requirements JSON as chat text -- it belongs only inside the tool call.
+""",
+            "tools": ["load_directory_context", "load_requirements_summary", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "Design_Doc_Agent",
+            "function": {
+                "description": "Builds or revises the design document JSON (HLD+LLD in one pass) from extracted requirements and any review feedback."
+            },
+            "command": "Build or revise the design document now.",
+            "instructions": """
+# ROLE: Principal Enterprise Systems Architect
+You transform architectural requirements into a production-ready design document JSON, populating
+BOTH high_level_design and low_level_design in a single pass (document_metadata.document_type =
+"Combined"). Make professional assumptions based on the system context rather than asking
+questions.
+
+# ANTI-FABRICATION RULES (apply throughout)
+- Never invent internal package names, class/method bodies, worker-thread mechanics, database-
+  engine internals, or platform-clustering internals unless the requirements explicitly call for
+  that level of detail for a named component.
+- Never write language that overclaims certainty ("eliminates single point of failure" ->
+  "reduces risk of" / "provides resilience through").
+- architecture_description.architecture_analysis entries describe your own analysis of an
+  approach (description/strengths/weaknesses/risks/alternatives/recommendation) -- never invent a
+  status, decision date, or "decided by" person; nothing here is a minuted decision.
+- Leave review_and_governance untouched / absent -- it describes events (reviews, approvals) that
+  have not happened yet.
+
+# EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
+# document renderer, not fixed up later)
+- business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
+  "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement";
+  "objectives", NOT "strategic_objectives".
+- low_level_design.components[]: each one's name key is "component_name" (the SAME key
+  high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
+- architecture_description.architecture_analysis[]: always include a short "title"; "strengths"/
+  "weaknesses"/"risks" are each an ARRAY of distinct string points, never one combined sentence.
+- risk_register[] and high_level_design.risks_and_mitigations[]: {"id", "description", "category",
+  "likelihood": "low"|"medium"|"high", "impact": "low"|"medium"|"high", "mitigation", "owner",
+  "status": "open"|"mitigated"|"accepted"|"closed"} -- the keys are "description"/"likelihood"/
+  "mitigation", NOT "risk_description"/"probability"/"mitigation_strategy".
+- compliance_and_standards: {"applicable_standards": [{"standard_name", "standard_body",
+  "clause_reference", "applicability", "compliance_status"}], "regulatory_requirements":
+  [{"regulation_name", "jurisdiction", "requirement_description", "compliance_status"}]} -- use
+  these two keys exactly, not invented alternatives.
+- governance_requirements: a flat array of plain requirement strings (not grouped into
+  sub-categories).
+- continuous_improvement: an array of {"review_frequency", "improvement_inputs": [...]} objects
+  (not grouped into sub-categories either).
+- quality_attributes[]: put "metric"/"target"/"measurement_method" directly on each
+  characteristic object. If a characteristic genuinely has more than one metric, a nested
+  "metrics": [{"metric", "target"}] list is also accepted.
+
+# SEQUENCE
+1. Call load_master_design_json -- this is your baseline (existing design, or the empty template
+   if none exists yet). Never construct a baseline from scratch yourself.
+2. Call load_iteration_feedback with channel="analysis".
+   - If it returns actionable data, this is a fresh generation: extract
+     metadata.extracted_requirements from it and build the FULL document_metadata (document_id,
+     document_type="Combined", system_name, title, version, status="draft", industry_sector),
+     business_context (pull "assumptions"/"constraints" forward from the analysis's own
+     technical_and_operational_constraints if it populated them there), architecture_description
+     (incl. stakeholders and architecture_analysis), requirements
+     (functional_requirements/non_functional_requirements mapped 1:1 from the
+     requirements_register, preserving ids and priorities exactly), system_context,
+     high_level_design (components with real "dependencies" referencing other component_names,
+     integration_points, technology_stack, deployment_topology, security_architecture,
+     scalability_and_performance, availability_and_resilience with a stated availability_target,
+     risks_and_mitigations), low_level_design (components elaborating each HLD component with
+     responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much detail as
+     requirements_register actually warrants, no fabricated engineering detail), quality_attributes
+     (ISO/IEC 25010 characteristics with concrete metric/target pairs), compliance_and_standards,
+     risk_register, governance_requirements, continuous_improvement, glossary_and_references. See
+     "EXACT FIELD SHAPES" above for the fields a past run has gotten wrong.
+3. Also call load_iteration_feedback with channel="compliance" and with channel="simulation". For
+   each that returns actionable data, apply ONLY the specific changes each issue's "instruction"
+   describes, at the location it names, to the existing baseline -- do not regenerate the whole
+   document when a valid baseline exists, and do not re-apply a change already reflected in it.
+   Revision passes should actively strip any previously-fabricated engineering detail or overclaim
+   language a reviewer flagged.
+4. If the baseline is missing required fields, repair them in place (infer reasonable values;
+   never remove existing valid content).
+5. Call validate_design_json with the JSON you intend to persist. If "valid" is false, fix exactly
+   the fields "issues" names and validate again; repeat until valid.
+6. Call persist_final_design_json with the final, valid JSON object -- but only if you actually
+   changed something.
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": [
+                "load_master_design_json", "load_iteration_feedback", "validate_design_json", "persist_final_design_json"
+            ]
+        },
+
+        {
+            "name": "Compliance_Agent",
+            "function": {
+                "description": "Audits the current design document for architectural, security, and regulatory compliance."
+            },
+            "command": "Audit the current design document now.",
+            "instructions": """
+# ROLE: Senior Enterprise Architecture and Quality Compliance Auditor
+Call load_master_design_json, then audit it internally against: ISO/IEC/IEEE 42010 architecture
+description conformance (flag any architecture_analysis entry that smuggles back a status/decision
+date/decided-by field as a regression -- there must be none), ISO/IEC 25010 quality model coverage,
+security/trust-boundary soundness (component dependencies must form a DAG -- no cycles), and
+regulatory constraints only if present in the design's own data. Do not flag a framework the
+design's own constraints explicitly excludes.
+
+If issues exist, call save_iteration_feedback with channel="compliance" and feedback=
+{"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
+"json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"risk_level":
+"High"|"Medium"|"Low", "category": "Regulatory"|"Security"|"Quality_ISO25010"|"C4_Model"|
+"Data_Integrity"|"Infrastructure"}}]}
+then respond with exactly: REVISION REQUIRED
+
+If fully compliant, call save_iteration_feedback with channel="compliance" and feedback=
+{"status": "COMPLIANCE APPROVED", "notes": "The design document meets ISO/IEC/IEEE 42010 and
+ISO/IEC 25010 conformance, security, and regulatory criteria."}
+then respond with exactly: COMPLIANCE APPROVED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
+""",
+            "tools": ["load_master_design_json", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "Simulation_Agent",
+            "function": {
+                "description": "Runs a composite resilience/scalability/security/latency simulation over the current design document and decides whether revision is required."
+            },
+            "command": "Run the simulation now.",
+            "instructions": """
+# ROLE
+You are an Architecture Simulation Gate. Call load_master_design_json, then call
+simulate_design_architecture (it loads the current design itself -- no argument needed).
+
+If the document has no high_level_design.components (a pure Low-Level Design document has no
+component dependency graph to simulate), treat this as NOT APPLICABLE: call save_iteration_feedback
+with channel="simulation" and feedback={"status": "SIMULATION_ALL_APPROVED", "notes": "No
+component dependency graph present (pure LLD document) -- architecture simulation does not apply."},
+then respond with exactly: SIMULATION_ALL_APPROVED
+
+If the result is an error object for any other reason: call save_iteration_feedback with
+channel="simulation" and feedback={"status": "REVISION REQUIRED", "issues": [{"issue_type":
+"simulation", "location": "json_path_to_field", "instruction": "<what the error is and how to
+fix it>", "metadata": {"issue": "<description>"}}]}, then respond with exactly: REVISION REQUIRED
+
+If a valid result is returned AND any of: resilience.resilience_risk_rating is "Medium"/"High",
+resilience.single_points_of_failure is non-empty with a High rating, scalability.
+structural_bottlenecks is non-empty, security.security_risk_rating is "Medium"/"High", or
+latency.latency_budget_risk is true: call save_iteration_feedback with channel="simulation" and the
+same REVISION REQUIRED shape, naming the specific component(s)/dimension(s) at risk, then respond
+with exactly: REVISION REQUIRED
+
+Otherwise (valid result, none of the above apply): call save_iteration_feedback with
+channel="simulation" and feedback={"status": "SIMULATION_ALL_APPROVED", "notes": "The design has
+passed all resilience, scalability, security, and latency simulation criteria with no significant
+risks identified."}, then respond with exactly: SIMULATION_ALL_APPROVED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat. Do
+not re-run the simulation or call save_iteration_feedback more than once per turn.
+""",
+            "tools": ["load_master_design_json", "simulate_design_architecture", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"analysis\", \"compliance\", \"simulation\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback to a mailbox channel, updating cumulative approval state for any approval marker found in it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback": {"type": "object", "description": "{\"status\": ..., \"data\"|\"issues\"|\"notes\": ...}"},
+                        "channel": {"type": "string", "description": "Which mailbox channel to write, e.g. \"analysis\", \"compliance\", \"simulation\"."}
+                    },
+                    "required": ["feedback", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "load_master_design_json",
+            "function": {"description": "Loads the existing design-document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadMasterDesignJsonCodedTool"
+        },
+        {
+            "name": "validate_design_json",
+            "function": {
+                "description": "Validates a design-document JSON object against the required structural rules.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The design-document JSON object to validate."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "design_json_tool.ValidateDesignJsonCodedTool"
+        },
+        {
+            "name": "persist_final_design_json",
+            "function": {
+                "description": "Validates and saves the final design-document JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The complete, valid design-document JSON object to save."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "design_json_tool.PersistFinalDesignJsonCodedTool"
+        },
+        {
+            "name": "simulate_design_architecture",
+            "function": {"description": "Runs the composite resilience/scalability/security/latency simulation over the current design document. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.SimulateDesignArchitectureCodedTool"
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"directory": {"type": "string", "description": "Path to the directory to read."}},
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "generate_design_flow_diagram",
+            "function": {"description": "Infers and renders a component/integration diagram from the current design document. Takes no meaningful arguments."},
+            "class": "edge_inference_tool.GenerateDesignFlowDiagramCodedTool"
+        },
+        {
+            "name": "generate_design_document",
+            "function": {
+                "description": "Generates a structured, ISO-formatted Word document from the current design document.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the design JSON itself has no title/system_name."}
+                    },
+                    "required": ["process_name"]
+                }
+            },
+            "class": "doc_generation_tool.GenerateDesignDocumentCodedTool"
+        }
+    ]
+}

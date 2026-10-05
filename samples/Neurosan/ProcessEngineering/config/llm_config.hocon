@@ -1,0 +1,16 @@
+{
+    "llm_config": {
+        "model_name": "gemini-3-flash"
+    },
+
+    # neuro-san's own default (RunContextRunnable.run_it) is 300 seconds per
+    # agent -- too short for this project's generate/review pipelines
+    # (process/process_update/design/design_update: analysis -> design ->
+    # compliance -> simulation, looped up to 2x, plus process's
+    # Subprocess_Driver_Agent making one further LLM call per top-level
+    # step) and for process_architect, whose own budget wraps the entire
+    # call chain into whichever pipeline it routes to. Every network
+    # includes this file, so raising it here covers all of them in one
+    # place rather than repeating a per-network override.
+    "max_execution_seconds": 3600
+}

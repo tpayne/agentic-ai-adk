@@ -51,7 +51,18 @@ jobs:
             tag: adkprocesseng:latest
             test_cmd: |
               echo "No runtime test available for Process Engineering sample."
-              
+
+          - name: neurosan_process
+            context: samples/Neurosan/ProcessEngineering
+            tag: neurosanprocesseng:latest
+            test_cmd: |
+              # No LLM key in CI, so a real agent conversation can't run here
+              # (same constraint as process_adk above) -- this at least
+              # confirms the image's own dependency/import graph resolves.
+              # The real functional gate for this sample is the
+              # neurosan_processengineering_tests job below.
+              docker run --rm "$IMAGE_TAG" uv run python -c "import cli; print('cli imports OK')"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -90,4 +101,29 @@ jobs:
           else
             echo "No running containers to stop."
           fi
+
+  # The neuro-san ProcessEngineering port's pytest suite exercises every
+  # CodedTool directly (JSON persistence/validation, the loop-control/
+  # feedback-mailbox state machine, docgen rendering, HOCON structural
+  # validation for all sixteen networks) with no LLM call and no API key
+  # -- unlike the Docker-image matrix above, this is a real functional
+  # gate, not a build-only smoke test, so it runs as its own job rather
+  # than inside a container built with --no-dev (which excludes pytest).
+  neurosan_processengineering_tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/Neurosan/ProcessEngineering
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install dependencies (including dev/test)
+        run: uv sync --locked
+
+      - name: Run pytest suite
+        run: uv run pytest tests/ -q
 

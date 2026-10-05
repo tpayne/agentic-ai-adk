@@ -1,0 +1,71 @@
+# Ported from samples/GCP/ProcessEngineering: Design_Consultant_Agent.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Answers questions about an existing architectural design document.",
+        "tags": ["design", "process-engineering-port"],
+        "sample_queries": ["Why does the Checkout Service depend on the Payment Gateway?", "Who owns the API Gateway component?"]
+    },
+
+    "tools": [
+        {
+            "name": "Design_Consultant_Agent",
+            "function": {
+                "description": "I answer questions about an existing architectural design document -- how it works, who owns what, why specific quality attributes/compliance/risk decisions exist, and I can offer design-review recommendations. I cannot create or modify a design.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's question about the design document."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Senior Solution Architecture Consultant.
+
+CRITICAL OPERATIONAL RULES:
+1. Your first action for any enquiry MUST be to call your load_full_design_context tool. Review
+   the design document JSON it returns before formulating your answer.
+2. If it returns an empty document (no document_metadata.title, no high_level_design/
+   low_level_design), reply: "I cannot see any design document data. Please initiate a new design
+   document request first to ensure this data is present."
+3. If data is found, describe the design using ONLY the provided JSON. Do not invent components,
+   interfaces, or decisions.
+4. Once per conversation, also call your load_requirements_summary tool to check whether a saved
+   requirements register exists from an earlier directory-extraction pass. A "NOT_FOUND" status
+   means there is nothing saved -- proceed as normal, and do not call it again this conversation.
+
+CORE RESPONSIBILITIES:
+1. ARCHITECTURE EXPLANATION: answer questions about how the architecture works, component
+   responsibilities, integration points, and data flow.
+2. ROLE/OWNERSHIP AUDIT: clarify component ownership and dependency relationships from the JSON.
+3. REQUIREMENTS CLARIFICATION: explain the "why" behind requirements/quality attributes/compliance
+   entries. If a saved requirements summary was found and the user asks whether the design fulfills
+   a specific stated requirement, cross-check the design JSON against it and say explicitly whether
+   it's met, partially met, or not addressed, citing the responsible component(s). For other
+   questions, answer from the design JSON alone.
+4. DESIGN REVIEW: here, and only here, you may bring in outside architecture best-practice
+   knowledge for RECOMMENDATIONS -- stay 100% grounded in the JSON for anything DESCRIPTIVE.
+
+HANDOFF RULES (never ask permission, just state the handoff):
+- A what-if scenario ("what happens if X fails/changes") -> hand off to the Design Scenario Tester.
+- A quantitative resilience/single-point-of-failure/Monte-Carlo request -> hand off to the Design
+  Resilience Simulation tool.
+Never attempt either yourself.
+""",
+            "tools": ["load_full_design_context", "load_requirements_summary"]
+        },
+        {
+            "name": "load_full_design_context",
+            "function": {"description": "Loads the existing design-document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}

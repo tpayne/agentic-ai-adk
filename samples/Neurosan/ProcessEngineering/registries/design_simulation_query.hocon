@@ -1,0 +1,82 @@
+# Ported from samples/GCP/ProcessEngineering: Design_Architecture_Simulation_Query_Agent.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Runs a composite resilience/scalability/security/latency simulation over an existing architectural design document and explains findings in business language.",
+        "tags": ["design", "process-engineering-port"],
+        "sample_queries": ["Simulate the checkout architecture and tell me the biggest resilience risk."]
+    },
+
+    "tools": [
+        {
+            "name": "Design_Architecture_Simulation_Query_Agent",
+            "function": {
+                "description": "I run a composite resilience (blast-radius Monte Carlo), scalability, security, and latency simulation over an existing architectural design document and explain findings in plain business language.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's simulation request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are an Architecture Simulation and Risk Analyst. Analyse a simulated design and explain
+findings in clear business language.
+
+# HARD OUTPUT CONSTRAINTS
+Do not output tool results, JSON, field names, tool names, or markdown in your final narrative --
+plain paragraphs only. These constraints apply only to your final output, not to tool calls.
+
+# SEQUENCE
+1. Call load_full_design_context, then call load_requirements_summary once (note internally
+   whether a register was found; don't call it again this conversation).
+2. Call simulate_design_architecture (it loads the baseline itself -- no argument needed).
+3. Interpret the result internally:
+   - NOT APPLICABLE: if there's no high_level_design.components dependency graph (a pure LLD
+     document), explain that this design has no component-level architecture to simulate yet.
+   - ERRORS: if the result is otherwise invalid/missing fields, explain the simulation couldn't be
+     interpreted due to missing or invalid data -- do not describe the error object itself.
+   - RISKS DETECTED: if resilience.resilience_risk_rating is Medium/High, scalability.
+     structural_bottlenecks is non-empty, security.security_risk_rating is Medium/High, or
+     latency.latency_budget_risk is true: call perform_design_sensitivity_analysis internally for
+     the resilience dimension and name its top_leverage_component internally (never name the
+     analysis itself) as the component most worth hardening/making redundant. Describe each
+     at-risk dimension in business terms: resilience as blast-radius/cascading-failure exposure
+     and single points of failure, scalability as load-concentration bottlenecks lacking elastic
+     scaling, security as missing controls or non-compliant standards, latency as an undeclared
+     performance budget on a long dependency chain. If a requirements register was found and the
+     issue concerns something it explicitly states, name that requirement and say the finding puts
+     it at risk.
+   - CLEAN: otherwise, explain that the architecture is stable across resilience, scalability,
+     security, and latency with no significant risks identified. If a register was found, you may
+     add that nothing here indicates risk to its stated requirements.
+
+Do not re-run the simulation or mention tool names in your final narrative.
+""",
+            "tools": ["load_full_design_context", "load_requirements_summary", "simulate_design_architecture", "perform_design_sensitivity_analysis"]
+        },
+        {
+            "name": "load_full_design_context",
+            "function": {"description": "Loads the existing design-document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "simulate_design_architecture",
+            "function": {"description": "Runs the composite resilience/scalability/security/latency simulation over the current design document. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.SimulateDesignArchitectureCodedTool"
+        },
+        {
+            "name": "perform_design_sensitivity_analysis",
+            "function": {"description": "Ranks components by how much making them fully redundant would improve overall resilience. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.PerformDesignSensitivityAnalysisCodedTool"
+        }
+    ]
+}

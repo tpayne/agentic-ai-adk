@@ -1,0 +1,16 @@
+# Keeps local dev/runtime artifacts out of the build context -- Dockerfile's
+# `COPY . .` would otherwise bloat the image with (and potentially bake in
+# stale/local-only) .venv/, generated output/, caches, and test files.
+.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+output/
+logs/
+.env
+.git/
+.gitignore
+*.pyc
+.pytest_cache
+tests/
+README.md

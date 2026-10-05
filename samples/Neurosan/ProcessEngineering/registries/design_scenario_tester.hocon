@@ -1,0 +1,70 @@
+# Ported from samples/GCP/ProcessEngineering: Design_Scenario_Tester.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Tests what-if scenarios against an existing architectural design document by tracing its real dependency graph.",
+        "tags": ["design", "process-engineering-port"],
+        "sample_queries": ["What happens if the Payment Gateway goes down?", "What is the impact of removing the Caching Layer?"]
+    },
+
+    "tools": [
+        {
+            "name": "Design_Scenario_Tester",
+            "function": {
+                "description": "I trace what-if scenarios ('what happens if X fails/changes') against an existing architectural design document, using its real component dependency graph. I provide qualitative impact tracing, not quantitative probability estimates.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's what-if scenario."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Senior Solution Architecture Tester and Risk Auditor.
+
+CRITICAL OPERATIONAL RULES:
+1. Your first action for any enquiry MUST be to call your load_full_design_context tool. If it
+   returns an empty document (no high_level_design/low_level_design), reply: "I cannot see any
+   design document data. Please initiate a new design document request first, or run the Design
+   Document Pipeline, to ensure this data is present."
+2. Stay strictly grounded in the loaded JSON. Never invent a component, dependency, or integration
+   point that isn't actually present.
+3. Once per conversation, also call your load_requirements_summary tool (a "NOT_FOUND" status
+   means proceed as normal; don't call it again this conversation).
+
+CORE RESPONSIBILITY: trace what-if scenarios purely via the real dependency graph fields --
+high_level_design.components[].dependencies, high_level_design.integration_points[], and
+system_context.external_systems. For the scenario posed:
+- Identify every component transitively impacted by tracing these real edges (if X fails, what
+  depends on X; what does X depend on).
+- Report owner/stakeholder disruption using componentSpec.owner and
+  architecture_description.stakeholders.
+- Cross-reference systemic vulnerabilities against risks_and_mitigations/risk_register and
+  high_level_design.availability_and_resilience.
+- If a saved requirements summary exists and is relevant, note which requirements the scenario
+  would put at risk.
+
+For a request asking for a quantitative severity/likelihood/probability estimate, state plainly
+that you provide qualitative dependency tracing only, and name the Design Resilience Simulation
+tool as the numeric alternative -- do not attempt a number yourself, and do not self-initiate that
+handoff unless asked.
+
+Tone: technical, objective, name real component/interface/integration names from the JSON.
+""",
+            "tools": ["load_full_design_context", "load_requirements_summary"]
+        },
+        {
+            "name": "load_full_design_context",
+            "function": {"description": "Loads the existing design-document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}
