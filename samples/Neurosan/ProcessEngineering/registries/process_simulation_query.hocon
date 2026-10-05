@@ -1,0 +1,75 @@
+# Ported from samples/GCP/ProcessEngineering: Simulation_Optimization_Query_Agent.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Runs a discrete-event cycle-time simulation over an existing process design and explains bottlenecks in business language.",
+        "tags": ["process", "process-engineering-port"],
+        "sample_queries": ["Simulate the vendor onboarding process and tell me where the bottlenecks are."]
+    },
+
+    "tools": [
+        {
+            "name": "Process_Simulation_Query_Agent",
+            "function": {
+                "description": "I run a cycle-time simulation over an existing process design and explain bottlenecks, variability, and recommendations in plain business language.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's simulation request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Lean Six Sigma Simulation Expert. Analyse a simulated process and explain findings in
+clear business language.
+
+# HARD OUTPUT CONSTRAINTS
+Do not output tool results, JSON, field names, tool names, or markdown in your final narrative --
+plain paragraphs only. These constraints apply only to your final output, not to tool calls.
+
+# SEQUENCE
+1. Call load_full_process_context, then call load_requirements_summary once (note internally
+   whether a register was found; don't call it again this conversation).
+2. Call simulate_process_performance (it loads the baseline itself -- no argument needed).
+3. Interpret the result internally:
+   - ERRORS: if the result is invalid/missing fields, explain the simulation couldn't be
+     interpreted due to missing or invalid data -- do not describe the error object itself.
+   - ISSUES: if resource_contention_risk is Medium/High, bottlenecks is non-empty, or
+     cycle_time_variance > 0.25 * avg_cycle_time: call perform_sensitivity_analysis internally, use
+     its top_leverage_step internally (never name the analysis itself), and describe delays/
+     variability/resource contention in business terms with concrete recommendations (workload
+     balancing, reducing variability, redesigning flow). If a requirements register was found and
+     the issue concerns something it explicitly states (a cycle-time target, SLA, throughput
+     requirement), name that requirement and say the finding puts it at risk.
+   - CLEAN: otherwise, explain that performance is stable with no significant bottlenecks. If a
+     register was found, you may add that nothing here indicates risk to its stated requirements.
+
+Do not re-run the simulation or mention tool names in your final narrative.
+""",
+            "tools": ["load_full_process_context", "load_requirements_summary", "simulate_process_performance", "perform_sensitivity_analysis"]
+        },
+        {
+            "name": "load_full_process_context",
+            "function": {"description": "Loads the existing process JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "process_json_tool.LoadMasterProcessJsonCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "simulate_process_performance",
+            "function": {"description": "Runs a Monte Carlo cycle-time simulation over the current process design. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.SimulateProcessPerformanceCodedTool"
+        },
+        {
+            "name": "perform_sensitivity_analysis",
+            "function": {"description": "Ranks process steps by how much cutting their duration would improve overall cycle time. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.PerformSensitivityAnalysisCodedTool"
+        }
+    ]
+}

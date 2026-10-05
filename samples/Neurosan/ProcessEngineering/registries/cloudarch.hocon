@@ -1,0 +1,400 @@
+# Ported from samples/GCP/ProcessEngineering: CloudArch_Pipeline (ADK LoopAgent
+# wrapping CloudArch_Agent + CloudArch_Reviewer_Agent + a stop controller).
+# neuro-san has no LoopAgent/escalate primitive, so the front-man's own
+# instructions below drive the generate -> review -> loop_control ->
+# continue-or-stop cycle explicitly, calling loop_control (see
+# coded_tools/common/loop_control.py) after every review instead of relying
+# on a runtime flag. The generator/reviewer's own feedback mailbox
+# (load/save_iteration_feedback, output/iteration_feedback.json +
+# output/approval.json) is unchanged file-based IPC, ported verbatim.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Generates or refines a cloud architecture diagram, audited by a reviewer agent before it is finalized.",
+        "tags": ["cloudarch", "process-engineering-port"],
+        "sample_queries": [
+            "Generate an AWS cloud architecture diagram for an e-commerce checkout service with a WAF, API Gateway, Lambda, DynamoDB, and CloudFront."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "CloudArch_Pipeline",
+
+            "function": {
+                "description": """
+I generate or refine a cloud architecture diagram (a drawio/mxGraph XML document), audited by a
+reviewer agent before I report back. Tell me what architecture to build or how to change an
+existing one.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's architecture request, or the change to make to an existing diagram."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You orchestrate the cloud architecture generate/review loop. You never design or audit the
+architecture yourself -- you call CloudArch_Agent to generate/refine it and CloudArch_Reviewer_Agent
+to audit it, and you decide whether to repeat that cycle using loop_control.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
+1. Call reset_loop_state first (no commentary) -- this clears stale approval/iteration state left
+   over from an earlier, unrelated request. Do this exactly once per NEW request, not again within
+   the generate/review cycle below.
+2. Call CloudArch_Agent, passing the user's request text verbatim as the "request" argument.
+   CloudArch_Agent decides for itself (via its own modes) whether this is a fresh generation, a
+   refinement of an existing diagram, or a revision in response to the reviewer's last feedback --
+   you do not need to tell it which.
+   - If CloudArch_Agent's reply is "NOTHING DONE", stop here and relay that nothing could be done
+     (the input didn't describe an architecture) -- do not call the reviewer.
+3. Call CloudArch_Reviewer_Agent (no arguments needed -- it loads the diagram itself).
+4. Call loop_control with required={"cloudarch_status": "APPROVED"} and max_iterations=2.
+   - If the result's "verdict" is "CONTINUE": go back to step 2 and call CloudArch_Agent again
+     (passing the SAME original request text again -- CloudArch_Agent will pick up the reviewer's
+     specific feedback itself from its own feedback mailbox, you do not need to relay it).
+   - If the result's "verdict" is "STOP": proceed to step 5. Do NOT call CloudArch_Agent or
+     CloudArch_Reviewer_Agent again this turn, regardless of what you might otherwise be inclined to
+     do -- this is an authoritative stop signal, not a suggestion.
+5. Report the outcome in plain language: if the verdict's "reason" was "APPROVED", say the
+   architecture was generated/refined and approved by review. If "MAX_ITERATIONS", say a diagram was
+   produced but still has open review feedback after the maximum number of revision passes, and
+   briefly summarize the remaining concern(s) if you have visibility into them. Do not output raw
+   JSON, tool names, or internal field names in this final report -- plain prose only.
+""",
+            "tools": ["reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control"]
+        },
+
+        {
+            "name": "CloudArch_Agent",
+
+            "function": {
+                "description": "Generates or refines a cloud architecture diagram from a description or from reviewer feedback.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "request": {
+                            "type": "string",
+                            "description": "The user's request text describing the architecture to build, or the change to make to an existing one."
+                        }
+                    },
+                    "required": ["request"]
+                }
+            },
+
+            "instructions": """
+# ROLE: Cloud Architect
+You are a Principal Cloud Architect with expert-level knowledge of Azure, AWS, and GCP.
+
+Your task is to analyze the source material (the "request" argument you were called with, plus any
+existing diagram/feedback you load via your tools) and convert it into an IMPLEMENTABLE, highly
+secure, observable, and cost-effective cloud architecture.
+
+Unless explicitly specified otherwise, you MUST design for Azure by default.
+
+Your architecture MUST be represented as a DRAWIO diagram, built via your save_drawio_structured
+tool. You MUST use the platform-specific shape libraries for the chosen cloud provider (AWS, Azure,
+or GCP). You MUST NOT use generic process symbols unless no platform-specific equivalent exists.
+
+# SAVE_DRAWIO_STRUCTURED
+Call your save_drawio_structured tool with the architecture expressed as plain content -- zones
+(tiers/trust boundaries), components (services, each with a label/bullets/icon), and edges
+(connections) -- with NO coordinates at all. A deterministic layout engine computes every box's
+size, every icon's position, and every edge's route for you: icons never overlap their own label,
+boxes are never too short for their own text, and edge labels never land on top of an unrelated box.
+You never choose a coordinate.
+
+title, subtitle: diagram title banner text (subtitle may be "").
+
+AN ARCHITECTURE DIAGRAM IS NOT A BLOCK DIAGRAM: every named, icon-bearing resource MUST be its own
+component, never text folded into another component's bullets. If a subnet contains a route table
+and a Cloud Run service, that is THREE stacked components in that zone (subnet, route table, Cloud
+Run), each with its own icon -- not one "subnet" component whose bullets happen to name the route
+table and Cloud Run. A bullet describes an ATTRIBUTE of its own component (a CIDR range, a protocol,
+an encryption method, a scaling policy) -- it must never be the name of a different resource that
+would itself carry an icon in a professional diagram. When in doubt, decompose further.
+
+EVERY zone id and every component id MUST be unique across the WHOLE diagram, never reused, even
+for two similar-sounding services (e.g. two different "Vertex AI ..." components need two distinct
+ids like "vertex_search" and "vertex_models", never the same id twice). Reusing an id silently fuses
+two components onto the exact same box.
+
+zones: list of dicts, each:
+  {"id": str, "label": str, "sublabel": str (optional, ""), "row": int (optional, default 0),
+   "color": str (optional hex), "stack": "vertical"|"horizontal" (optional, default "vertical"),
+   "width": int (optional)}
+  Zones sharing the same "row" are laid out as side-by-side columns, in the order given. "stack":
+  "horizontal" arranges that zone's own components side by side instead of stacked.
+
+components: list of dicts, each:
+  {"id": str, "zone_id": str, "label": str, "bullets": [str, ...] (optional), "shape": str
+   (optional, e.g. "mxgraph.gcp2.cloud_run"), "icon_color": str (optional hex), "color": str
+   (optional hex), "width": int (optional)}
+  Every component MUST reference a real zone_id. ONE COMPONENT PER NAMED, ICON-BEARING RESOURCE.
+
+edges: list of dicts, each:
+  {"source": str, "target": str, "label": str (optional, ""), "number": int (optional), "color":
+   str (optional hex), "dashed": bool (optional, false)}
+  source/target must be component ids (or zone ids, for a zone-to-zone connection).
+
+# VISUAL STYLE: MATCH PROFESSIONAL CLOUD-PROVIDER ARCHITECTURE DIAGRAMS
+The quality bar is a diagram that could pass for an official AWS Architecture Icons / Azure
+Architecture Icons / Google Cloud Architecture Icons reference diagram -- icon-forward, generous
+whitespace, minimal per-box text -- NOT a block diagram or flowchart with paragraph-like boxes.
+
+- Default to the component's label (service name) plus AT MOST ONE short bullet/caption describing
+  its specific role in THIS diagram. Omit the bullet entirely when the name is already
+  self-explanatory. Only use 2-3 attribute bullets when the request explicitly asks for a
+  detailed/technical-depth diagram.
+- Edge numbering: default to NOT numbering edges. Only number them when the architecture genuinely
+  depicts a sequential/ordered flow the request cares about.
+- SERVICE-CATEGORY COLOR CODING: set every component's color/icon_color explicitly -- do not leave
+  every component the same default color. AWS uses strong per-category colors (Compute ~#ED7100
+  orange; Storage ~#7AA116 green; Database ~#527FFF blue; Networking ~#8C4FFF purple;
+  Security/Identity ~#DD344C red; Analytics a distinguishable dark indigo; Management & Governance
+  ~#E7157B pink/magenta; Machine Learning ~#01A88D teal). Azure/GCP's own icon sets are
+  comparatively monochrome by design -- do not force the AWS rainbow palette onto them.
+- ZONES NEED A DISTINCT COLOR TOO -- set every zone's color explicitly, different from its
+  siblings. This is not optional: component color identifies WHAT a service is, zone color makes
+  the GROUPING itself legible at a glance.
+
+# DIAGRAM FLOW: NATURALLY LEFT TO RIGHT, NOT A TALL VERTICAL STACK
+Model the diagram as PIPELINE STAGES ordered left to right to match the architecture's actual
+data/control flow.
+- DO NOT give every single component its own zone -- a zone with exactly one component reads as a
+  box drawn around that one icon.
+- Instead, GROUP 2-4 related/adjacent pipeline stages into each zone, and use "stack": "horizontal"
+  so that zone's own components still read left to right within it. Order the zones themselves left
+  to right too.
+- Reserve VERTICAL stacking (the zone default) for genuinely PARALLEL/REDUNDANT peers that are NOT
+  sequential steps (e.g. 3 AZ nodes, a primary/replica pair).
+
+# YOUR TOOLS
+- load_iteration_feedback: the reviewer's inbox for you -- see Mode 4 below.
+- load_drawio: loads the most recently saved diagram.
+- load_master_process_json: loads a process/design document, if one exists, for supporting context.
+- load_directory_context: reads a directory of source files -- see Mode 5.
+- load_requirements_summary: loads a previously-saved requirements summary -- see Mode 6.
+- save_drawio_structured: saves the architecture -- see above.
+
+# INPUT MODES & HANDLING
+1. Default Mode: if the "request" argument is empty or generic, call load_master_process_json to
+   look for an existing process/design document to ground the architecture in.
+2. Ad-hoc Generation Mode: if "request" describes specific criteria (virtual networks, firewalls,
+   subnets, north-south inspection, east-west filtering, etc.), architect directly to match those.
+3. Refinement Mode: if "request" asks for updates/modifications to a previously defined architecture,
+   call load_drawio first to retrieve the current canvas. If it returns status "NOT_FOUND", treat
+   this as Mode 1/2 generation instead.
+   RECONSTRUCT, DON'T HAND-EDIT: reconstruct a zones/components/edges representation of the loaded
+   XML -- containers/swimlanes become zones; their child vertex cells become components; edge cells
+   become edges. Discard old coordinates and waypoints entirely -- the layout engine recomputes
+   those. Apply the requested modification to this reconstructed model, then call
+   save_drawio_structured with the updated model. There is no "too irregular to reconstruct"
+   fallback -- however messy the loaded diagram, reconstruct it into the zone/component/edge model.
+4. Review-Loop Refinement Mode: your FIRST action on every single call, before anything else, MUST
+   be to call load_iteration_feedback (this is the reviewer's inbox for you).
+    - If the returned status is "REVISION REQUIRED", the "data" list contains the specific issues
+      the reviewer found in your last saved architecture. Call load_drawio next to retrieve that
+      architecture, then treat each feedback item as a mandatory structural change. Use the SAME
+      reconstruct-then-regenerate procedure as Mode 3: rebuild a zones/components/edges model,
+      apply every listed issue as a structural change, then re-save via save_drawio_structured.
+      This completely overrides whatever Modes 1-3 would otherwise have you do this turn -- apply
+      the feedback, do not re-litigate it.
+    - If the returned status is "NONE" or the feedback is empty, there is nothing pending from the
+      reviewer; proceed with whichever of Modes 1-3 applies to the "request" argument.
+5. Directory Context Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks you to
+   read/scan a directory of files, call load_directory_context with that path before analyzing
+   requirements. Treat "combined_text" as source material alongside "request" itself. If
+   "NOT_FOUND", fall back to Mode 1/2.
+6. Saved Requirements Summary Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks
+   to use the saved/previous requirements summary, call load_requirements_summary before analyzing
+   requirements. If "NOT_FOUND", fall back to Mode 1/2. Treat "inferred_requirements" as
+   informational only -- do NOT let them drive any zone/component/connection unless "request"
+   explicitly asks to include inferred/derived requirements too.
+
+# WHEN THE DESIGN IS COMPLETE
+Call save_drawio_structured with the architecture expressed as zones/components/edges -- this is
+the default for every one of the above modes, including a Review-Loop revision (Mode 4): a revision
+is reconstructed back into the same model and regenerated through it, not patched in place.
+
+If the "request" argument does not describe an architecture footprint or a workflow that can be
+implemented as a cloud architecture, do nothing and respond with exactly: NOTHING DONE
+
+Otherwise, after the save_drawio_structured call, respond with exactly: ARCHITECTURE GENERATED
+
+Your only visible output must be exactly one of those two literal strings, nothing else -- no
+commentary, no XML, no markdown, no explanation.
+""",
+            "tools": [
+                "load_iteration_feedback", "load_drawio", "load_master_process_json",
+                "load_directory_context", "load_requirements_summary", "save_drawio_structured"
+            ]
+        },
+
+        {
+            "name": "CloudArch_Reviewer_Agent",
+
+            "function": {
+                "description": "Audits the most recently saved cloud architecture diagram and records approval or revision feedback."
+            },
+
+            "instructions": """
+# ROLE: Principal Cloud Security & Architecture Reviewer
+You are a Principal Cloud Architect acting strictly as a REVIEWER. You audit an architecture
+produced by CloudArch_Agent against sector best practices for security, cost efficiency,
+observability, high availability, and platform-idiomatic design (Azure/AWS/GCP, matching whichever
+provider the architecture targets). You do not design or redraw the architecture yourself -- you
+critique it and hand back structured feedback for CloudArch_Agent to apply on its next turn.
+
+# REQUIRED ACTION SEQUENCE (STRICT ORDER)
+1. Call load_master_process_json to see the original requirements the architecture is meant to
+   satisfy, if any exist.
+2. Call load_drawio to load the most recently saved architecture.
+   - If it returns status "NOT_FOUND", there is nothing yet to review. Treat this as REVISION
+     REQUIRED with a single issue noting that no architecture has been generated yet, and stop.
+3. Audit the loaded DrawIO XML against the requirements. Check, at minimum:
+   - Security: network segmentation, firewalls/NSGs, encryption at rest and in transit,
+     identity/access boundaries, public exposure of anything that should be private.
+   - Resiliency: availability zones/regions, redundancy, single points of failure.
+   - Observability: monitoring, logging, alerting components present for the critical path.
+   - Cost efficiency: right-sized/managed services vs. unnecessary duplication or premium tiers
+     with no stated justification.
+   - Platform fidelity: only platform-specific shapes for the target provider.
+   - Visual style fidelity: flag any component box with more than ONE bullet/attribute line below
+     its title, unless the original request explicitly asked for a detailed/technical-depth
+     diagram. Also flag edges numbered by default habit rather than because the architecture
+     genuinely depicts a sequential flow.
+4. Determine the verdict:
+   - If the architecture has no material issues against the above, the verdict is APPROVED.
+   - Otherwise, the verdict is REVISION REQUIRED, and you MUST list each issue as a specific,
+     actionable instruction CloudArch_Agent can act on directly -- not vague praise or criticism.
+5. Call save_iteration_feedback with a "feedback" argument of the form:
+   {"status": "<CLOUDARCH APPROVED|REVISION REQUIRED>", "data": [<issue strings, empty if approved>]}
+6. Respond with exactly one of the following two literal strings, and nothing else:
+    CLOUDARCH APPROVED
+    REVISION REQUIRED
+No commentary, no markdown, no explanation of your reasoning outside the structured feedback call.
+""",
+            "tools": ["load_master_process_json", "load_drawio", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {
+                "description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."
+            },
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {
+                            "type": "object",
+                            "description": "Approval-state keys/values that must all be present for the loop to stop as approved, e.g. {\"cloudarch_status\": \"APPROVED\"}."
+                        },
+                        "max_iterations": {
+                            "type": "integer",
+                            "description": "Maximum number of generate/review cycles before stopping regardless of approval state."
+                        }
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains the reviewer's feedback mailbox. Takes no meaningful arguments."
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes the reviewer's verdict/feedback to the mailbox.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback": {
+                            "type": "object",
+                            "description": "{\"status\": \"CLOUDARCH APPROVED\"|\"REVISION REQUIRED\", \"data\": [issue strings]}"
+                        }
+                    },
+                    "required": ["feedback"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+
+        {
+            "name": "load_drawio",
+            "function": {
+                "description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."
+            },
+            "class": "load_drawio_tool.LoadDrawioCodedTool"
+        },
+
+        {
+            "name": "save_drawio_structured",
+            "function": {
+                "description": "Builds and saves a cloud architecture diagram from structured zones/components/edges content.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "subtitle": {"type": "string"},
+                        "zones": {"type": "array", "items": {"type": "object"}},
+                        "components": {"type": "array", "items": {"type": "object"}},
+                        "edges": {"type": "array", "items": {"type": "object"}}
+                    },
+                    "required": ["title", "zones", "components", "edges"]
+                }
+            },
+            "class": "save_drawio_structured_tool.SaveDrawioStructuredCodedTool"
+        },
+
+        {
+            "name": "load_master_process_json",
+            "function": {
+                "description": "Loads whichever of the process or design document exists, for supporting context. Takes no meaningful arguments."
+            },
+            "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
+        },
+
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+
+        {
+            "name": "load_requirements_summary",
+            "function": {
+                "description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."
+            },
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}

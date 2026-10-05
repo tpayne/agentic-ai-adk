@@ -1,0 +1,14 @@
+# neuro-san-studio runtime artifacts not already covered by the repo root
+# .gitignore (__pycache__/, .venv/, .pytest_cache/, output/, .env, *.log, etc.).
+
+# `ns run`'s server + nsflow UI logs (server.log, nsflow.log, thinking_dir/ --
+# per-turn agent "thinking" trace files, not just *.log files, so the whole
+# directory needs covering, not only the log-suffixed files already matched
+# by the root .gitignore's `*.log` pattern).
+logs/
+
+# Project-local .env for LLM provider API keys -- redundant with the repo
+# root's `.env` entry, restated here since this is the directory an
+# operator following this project's own README would actually create one
+# in, and credentials must never land in git regardless of belt-or-braces.
+.env

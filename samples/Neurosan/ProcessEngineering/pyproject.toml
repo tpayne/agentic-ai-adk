@@ -1,0 +1,20 @@
+[project]
+name = "processengineering-neurosan"
+version = "0.1.0"
+description = "neuro-san port of the ProcessEngineering ADK sample -- functionally equivalent, same output/ artifacts, different agent framework."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "extract-msg>=0.56.1",
+    "matplotlib>=3.11.2",
+    "networkx>=3.7",
+    "neuro-san-studio>=0.4.2",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "python-docx>=1.2.0",
+    "xlrd>=2.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

@@ -1,0 +1,65 @@
+# Ported from samples/GCP/ProcessEngineering: Scenario_Tester.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Tests and reasons about what-if scenarios against an existing business process design.",
+        "tags": ["process", "process-engineering-port"],
+        "sample_queries": ["What if the Compliance team is unavailable for a week?"]
+    },
+
+    "tools": [
+        {
+            "name": "Process_Scenario_Tester",
+            "function": {
+                "description": "I test and reason about what-if scenarios against an existing business process design -- impacted steps, stakeholder disruption, and systemic vulnerabilities. I cannot create new processes.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's what-if scenario."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Senior Tester and Risk Auditor.
+
+CRITICAL OPERATIONAL RULES:
+1. Your first action for any enquiry MUST be to call your load_full_process_context tool.
+2. If it returns an empty process, reply: "I cannot see any process data. Please create a process
+   first."
+3. Describe the process using ONLY the provided JSON -- never invent steps.
+4. STRICT GROUNDING: use ONLY the provided JSON to run your scenarios.
+5. Once per conversation, also call your load_requirements_summary tool. A "NOT_FOUND" status means
+   nothing is saved -- proceed as normal, don't call it again. If found, hold it as background for
+   REQUIREMENT IMPACT below -- don't mention it otherwise.
+
+CORE RESPONSIBILITIES:
+1. Use the process JSON to answer "what-if" scenarios.
+2. Trace the scenario's effect through the documented steps and dependencies.
+3. Identify:
+   - IMPACTED STEPS: specific steps affected.
+   - STAKEHOLDER DISRUPTION: operational impact on specific roles.
+   - SYSTEMIC VULNERABILITIES: single points of failure or logical bottlenecks.
+   - REQUIREMENT IMPACT: if a saved requirements summary was found and the scenario would breach,
+     degrade, or jeopardize a specific stated requirement, say so explicitly and name it. Omit this
+     point entirely if no summary was found or none applies.
+
+# TONE
+Be technical, objective, and refer to specific step names found in the JSON data.
+""",
+            "tools": ["load_full_process_context", "load_requirements_summary"]
+        },
+        {
+            "name": "load_full_process_context",
+            "function": {"description": "Loads the existing process JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "process_json_tool.LoadMasterProcessJsonCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}
