@@ -14,6 +14,31 @@ from typing import Any, Dict, List, Optional
 from coded_tools.common.paths import output_path
 from coded_tools.common.process_json import DESIGN_JSON_FILENAME
 
+# Field shapes match design_document_schema.json's own $defs verbatim -- an
+# empty `{}`/`[]` with no structural hint, as this dict originally had for
+# every nested field, left Design_Doc_Agent with nothing but loosely-worded
+# prose instructions to infer a shape from. Confirmed directly against a
+# real generated document: the model invented divergent, inconsistent
+# shapes field-by-field -- "context_statement" instead of business_context's
+# own "purpose", "strategic_objectives" instead of "objectives",
+# "hld_component_name" instead of low_level_design.components[]'s own
+# "component_name", "risk_description"/"probability"/"mitigation_strategy"
+# instead of risk_register's own "description"/"likelihood"/"mitigation",
+# three entirely different non-schema keys for compliance_and_standards
+# ("standards_alignment"/"regulatory_frameworks"/"compliance_requirements"),
+# a DICT-of-categories instead of governance_requirements'/
+# continuous_improvement's own flat-list shapes, and a bare STRING instead
+# of an ARRAY for architecture_analysis's strengths/weaknesses/risks. None
+# of that was silently harmless -- compliance_and_standards' entire section
+# rendered nothing at all, and high_level_design's own rich content
+# (security/scalability/availability/risks) had no bespoke renderer
+# checking for it in the first place. One-item example shapes restore the
+# schema's own key names and types so a fresh generation naturally lands on
+# what doc_design_sections.py's renderers actually expect; those renderers
+# were separately hardened (see coded_tools/common/docgen/) to also
+# tolerate the divergent shapes already observed, so a document generated
+# under the old empty-`{}` template improves too, without needing to
+# regenerate.
 DESIGN_TEMPLATE: Dict[str, Any] = {
     "document_metadata": {
         "document_id": "",
@@ -23,18 +48,82 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
         "version": "1.0",
         "status": "draft",
     },
-    "business_context": {},
-    "architecture_description": {},
-    "requirements": {},
+    "business_context": {
+        "purpose": "",
+        "scope": "",
+        "objectives": [],
+        "business_drivers": [],
+        "assumptions": [],
+        "constraints": [],
+    },
+    "architecture_description": {
+        "stakeholders": [{"stakeholder_name": "", "role": "", "concerns": [], "responsibilities": []}],
+        "concerns": [],
+        "architecture_analysis": [
+            {
+                "title": "",
+                "description": "",
+                "strengths": [],
+                "weaknesses": [],
+                "risks": [],
+                "alternatives": [],
+                "recommendation": "",
+            }
+        ],
+    },
+    "requirements": {
+        "functional_requirements": [
+            {"id": "", "description": "", "priority": "", "source": "", "acceptance_criteria": [], "status": ""}
+        ],
+        "non_functional_requirements": [
+            {
+                "id": "", "characteristic": "", "sub_characteristic": "", "description": "",
+                "metric": "", "target": "", "measurement_method": "", "priority": "",
+            }
+        ],
+    },
     "system_context": {},
-    "high_level_design": {},
-    "low_level_design": {},
-    "quality_attributes": [],
-    "compliance_and_standards": {},
-    "risk_register": [],
+    "high_level_design": {
+        "solution_overview": "",
+        "architecture_style": "",
+        "components": [{"component_name": "", "description": "", "dependencies": [], "type": ""}],
+        "integration_points": [{"source": "", "target": "", "integration_pattern": "", "protocol": "", "description": ""}],
+        "security_architecture": {
+            "authentication_mechanism": "", "authorization_model": "",
+            "data_protection_measures": [], "threat_model_reference": "",
+        },
+        "scalability_and_performance": {"expected_load": "", "scaling_strategy": "", "performance_targets": []},
+        "availability_and_resilience": {
+            "availability_target": "", "redundancy_strategy": "",
+            "disaster_recovery_plan": "", "backup_strategy": "", "rto": "", "rpo": "",
+        },
+        "risks_and_mitigations": [
+            {"id": "", "description": "", "category": "", "likelihood": "", "impact": "", "mitigation": "", "owner": "", "status": ""}
+        ],
+    },
+    "low_level_design": {
+        "components": [{"component_name": "", "description": "", "responsibilities": [], "configuration_parameters": []}],
+    },
+    "quality_attributes": [
+        {"characteristic": "", "sub_characteristic": "", "description": "", "metric": "", "target": "", "measurement_method": ""}
+    ],
+    "compliance_and_standards": {
+        "applicable_standards": [
+            {"standard_name": "", "standard_body": "", "clause_reference": "", "applicability": "", "compliance_status": ""}
+        ],
+        "regulatory_requirements": [
+            {"regulation_name": "", "jurisdiction": "", "requirement_description": "", "compliance_status": ""}
+        ],
+    },
+    "risk_register": [
+        {"id": "", "description": "", "category": "", "likelihood": "", "impact": "", "mitigation": "", "owner": "", "status": ""}
+    ],
     "governance_requirements": [],
-    "continuous_improvement": [],
-    "glossary_and_references": {},
+    "continuous_improvement": [{"review_frequency": "", "improvement_inputs": []}],
+    "glossary_and_references": {
+        "glossary": [{"term": "", "definition": ""}],
+        "references": [{"title": "", "source": "", "url": "", "version": ""}],
+    },
     "appendix": {},
 }
 

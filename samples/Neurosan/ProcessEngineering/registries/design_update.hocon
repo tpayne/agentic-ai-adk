@@ -120,6 +120,20 @@ based on the system context rather than asking questions.
 - Never write language that overclaims certainty.
 - Never add a status, decision date, or "decided by" person to an architecture_analysis entry.
 
+# EXACT FIELD SHAPES (use these literal key names when adding a new entry -- a synonym is
+# silently dropped by the document renderer, not fixed up later)
+- business_context: the purpose key is "purpose" (not "context_statement"); objectives is
+  "objectives" (not "strategic_objectives").
+- low_level_design.components[]: the name key is "component_name" (not "hld_component_name").
+- architecture_description.architecture_analysis[]: always include "title"; "strengths"/
+  "weaknesses"/"risks" are each an ARRAY of strings, never one combined sentence.
+- risk_register[] / high_level_design.risks_and_mitigations[]: keys are "description"/
+  "likelihood"/"mitigation"/"owner"/"status" (not "risk_description"/"probability"/
+  "mitigation_strategy").
+- compliance_and_standards: use "applicable_standards"/"regulatory_requirements" exactly.
+- governance_requirements: a flat array of strings. continuous_improvement: an array of
+  {"review_frequency", "improvement_inputs"} objects. Neither is grouped into sub-categories.
+
 # SEQUENCE
 1. Call load_master_design_json -- this is your baseline (the existing design; since this is an
    UPDATE, it should already exist).

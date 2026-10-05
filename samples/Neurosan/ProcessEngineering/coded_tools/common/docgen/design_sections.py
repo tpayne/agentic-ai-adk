@@ -253,7 +253,17 @@ def _add_quality_attributes_section(
 ) -> bool:
     """Quality Attributes -- ISO/IEC 25010. One table: Category (the
     characteristic, plus sub-characteristic where given), Description,
-    Measure Method, Metric, Target."""
+    Measure Method, Metric, Target.
+
+    The schema puts one flat metric/target pair directly on each
+    characteristic object. A live model instead nested a "metrics" list
+    of {metric, target} pairs under each characteristic (reasonable --
+    a characteristic plausibly has more than one metric) -- confirmed
+    directly against a real generated document, where every row's
+    Metric/Target column was blank because the flat keys were never
+    present. One table row is now emitted per metric when "metrics" is a
+    non-empty list (repeating the characteristic/description/measure
+    method), falling back to the flat shape otherwise."""
     try:
         items = [q for q in (quality_attributes or []) if isinstance(q, dict)]
         if not items:
@@ -278,14 +288,28 @@ def _add_quality_attributes_section(
         _set_header_row(table, headers)
 
         for q in items:
-            row = table.add_row().cells
             characteristic = str(q.get("characteristic") or "").replace("_", " ").title()
             sub = q.get("sub_characteristic")
-            row[0].text = f"{characteristic} ({sub})" if characteristic and sub else (characteristic or str(sub or ""))
-            _set_cell_bullets(row[1], q.get("description"))
-            _set_cell_bullets(row[2], q.get("measurement_method"))
-            row[3].text = str(q.get("metric") or "")
-            row[4].text = str(q.get("target") or "")
+            category_text = (
+                f"{characteristic} ({sub})" if characteristic and sub else (characteristic or str(sub or ""))
+            )
+
+            metrics = [m for m in (q.get("metrics") or []) if isinstance(m, dict)]
+            if metrics:
+                for m in metrics:
+                    row = table.add_row().cells
+                    row[0].text = category_text
+                    _set_cell_bullets(row[1], q.get("description"))
+                    _set_cell_bullets(row[2], m.get("measurement_method") or q.get("measurement_method"))
+                    row[3].text = str(m.get("metric") or "")
+                    row[4].text = str(m.get("target") or "")
+            else:
+                row = table.add_row().cells
+                row[0].text = category_text
+                _set_cell_bullets(row[1], q.get("description"))
+                _set_cell_bullets(row[2], q.get("measurement_method"))
+                row[3].text = str(q.get("metric") or "")
+                row[4].text = str(q.get("target") or "")
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
@@ -306,13 +330,33 @@ def _add_compliance_and_standards_section(
     """Compliance and Standards. Two subsections: Applicable Standards
     (Standard, Body, Clause Reference, Applicability, Compliance Status)
     and Regulatory Requirements (Regulation, Jurisdiction, Requirement,
-    Compliance Status)."""
+    Compliance Status).
+
+    "applicable_standards"/"regulatory_requirements" are the schema's own
+    top-level keys. A live model instead produced three different,
+    non-schema keys here -- "standards_alignment" (standard/description),
+    "regulatory_frameworks" (name/description), and
+    "compliance_requirements" (id/description) -- confirmed directly
+    against a real generated document, where NEITHER expected key was
+    present, so this whole section silently rendered nothing at all (not
+    even a placeholder) despite real compliance content being present.
+    Falling back to these synonyms, with their own differently-named
+    fields, recovers that content. Any genuinely unrecognized
+    sub-key still safely falls through to Appendix B via
+    _build_design_document's consumed_keys."""
     try:
         if not isinstance(compliance_and_standards, dict) or not compliance_and_standards:
             return False
 
-        applicable_standards = compliance_and_standards.get("applicable_standards")
-        regulatory_requirements = compliance_and_standards.get("regulatory_requirements")
+        applicable_standards = (
+            compliance_and_standards.get("applicable_standards")
+            or compliance_and_standards.get("standards_alignment")
+        )
+        regulatory_requirements = (
+            compliance_and_standards.get("regulatory_requirements")
+            or compliance_and_standards.get("regulatory_frameworks")
+            or compliance_and_standards.get("compliance_requirements")
+        )
 
         if not applicable_standards and not regulatory_requirements:
             return False
@@ -339,14 +383,14 @@ def _add_compliance_and_standards_section(
 
             items = sorted(
                 (s for s in applicable_standards if isinstance(s, dict)),
-                key=lambda s: str(s.get("standard_name") or "").lower(),
+                key=lambda s: str(s.get("standard_name") or s.get("standard") or "").lower(),
             )
             for s in items:
                 row = table.add_row().cells
-                row[0].text = str(s.get("standard_name", ""))
+                row[0].text = str(s.get("standard_name") or s.get("standard") or "")
                 row[1].text = str(s.get("standard_body", ""))
                 row[2].text = str(s.get("clause_reference", ""))
-                _set_cell_bullets(row[3], s.get("applicability"))
+                _set_cell_bullets(row[3], s.get("applicability") or s.get("description"))
                 row[4].text = str(s.get("compliance_status", "")).replace("_", " ").title()
             apply_iso_table_formatting(table, doc)
             doc.add_paragraph()
@@ -362,13 +406,13 @@ def _add_compliance_and_standards_section(
 
             items = sorted(
                 (r for r in regulatory_requirements if isinstance(r, dict)),
-                key=lambda r: str(r.get("regulation_name") or "").lower(),
+                key=lambda r: str(r.get("regulation_name") or r.get("name") or r.get("id") or "").lower(),
             )
             for r in items:
                 row = table.add_row().cells
-                row[0].text = str(r.get("regulation_name", ""))
+                row[0].text = str(r.get("regulation_name") or r.get("name") or r.get("id") or "")
                 row[1].text = str(r.get("jurisdiction", ""))
-                _set_cell_bullets(row[2], r.get("requirement_description"))
+                _set_cell_bullets(row[2], r.get("requirement_description") or r.get("description"))
                 row[3].text = str(r.get("compliance_status", "")).replace("_", " ").title()
             apply_iso_table_formatting(table, doc)
             doc.add_paragraph()
@@ -388,7 +432,17 @@ def _add_risk_register_section(
     doc: docx.Document, risk_register, heading: str = "9.0 Risk Register",
 ) -> bool:
     """Risk Register. One table: ID, Category, Likelihood, Impact,
-    Description, Mitigation. Ordered by id."""
+    Description, Mitigation, Owner, Status. Ordered by id.
+
+    "description"/"likelihood"/"mitigation" are the $defs.risk schema's own
+    key names. A live model instead used "risk_description"/"probability"/
+    "mitigation_strategy" throughout -- confirmed directly against a real
+    generated document, where every row's Description/Likelihood/
+    Mitigation cell was blank or a bare "—" despite the real content being
+    present under those synonym keys. "owner"/"status" are also real
+    schema fields that previously had no column at all, silently dropping
+    real content (e.g. "Security Team" / "open") that had nowhere to go
+    once risk_register's whole key was marked consumed."""
     try:
         items = [r for r in (risk_register or []) if isinstance(r, dict)]
         if not items:
@@ -402,7 +456,7 @@ def _add_risk_register_section(
 
         items = sorted(items, key=lambda r: _natural_sort_key(r.get("id")))
 
-        headers = ["ID", "Category", "Likelihood", "Impact", "Description", "Mitigation"]
+        headers = ["ID", "Category", "Likelihood", "Impact", "Description", "Mitigation", "Owner", "Status"]
         table = doc.add_table(rows=1, cols=len(headers))
         _set_header_row(table, headers)
 
@@ -410,10 +464,12 @@ def _add_risk_register_section(
             row = table.add_row().cells
             row[0].text = str(r.get("id", ""))
             row[1].text = str(r.get("category", ""))
-            row[2].text = str(r.get("likelihood", "")).title()
+            row[2].text = str(r.get("likelihood") or r.get("probability") or "").title()
             row[3].text = str(r.get("impact", "")).title()
-            _set_cell_bullets(row[4], r.get("description"))
-            _set_cell_bullets(row[5], r.get("mitigation"))
+            _set_cell_bullets(row[4], r.get("description") or r.get("risk_description"))
+            _set_cell_bullets(row[5], r.get("mitigation") or r.get("mitigation_strategy"))
+            row[6].text = str(r.get("owner", ""))
+            row[7].text = str(r.get("status", "")).replace("_", " ").title()
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
@@ -439,8 +495,22 @@ def _bullet_at(doc: docx.Document, text: str, indent_inches: float) -> None:
 
 def _add_bulleted_group(doc: docx.Document, label: str, values, indent_inches: float) -> None:
     """A bold 'Label:' line followed by one bullet per item. No-op if
-    `values` is empty."""
-    values = [v for v in (values or []) if isinstance(v, str) and v.strip()]
+    `values` is empty.
+
+    architecture_analysis's own schema says strengths/weaknesses/risks are
+    each an ARRAY of strings, but a live model sometimes collapses one
+    into a single descriptive sentence instead. Iterating a bare string
+    directly (the old `for v in (values or [])` did exactly this) doesn't
+    raise -- Python iterates a string's individual CHARACTERS, each of
+    which passes `isinstance(v, str) and v.strip()`, so real prose like
+    "High availability..." rendered as dozens of one-character bullets
+    ("H", "i", "g", "h", ...). Confirmed directly against a real generated
+    document. Treating a plain string as a single-item list fixes it
+    without discarding the content."""
+    if isinstance(values, str):
+        values = [values] if values.strip() else []
+    else:
+        values = [v for v in (values or []) if isinstance(v, str) and v.strip()]
     if not values:
         return
     p = doc.add_paragraph()
@@ -528,7 +598,19 @@ def _add_architecture_analysis(doc: docx.Document, architecture_analysis, level:
 # ============================================================
 
 def _component_name(component: dict) -> str:
-    return str(component.get("component_name") or component.get("name") or "Component")
+    # "component_name" is the schema's own key (required on every
+    # low_level_design.components[] entry). "hld_component_name" is a
+    # live model's own invented key -- confirmed directly against a real
+    # generated document, where every single LLD component used it
+    # instead, leaving every LLD component heading/cell a bare
+    # "Component" fallback since neither "component_name" nor "name" ever
+    # matched.
+    return str(
+        component.get("component_name")
+        or component.get("hld_component_name")
+        or component.get("name")
+        or "Component"
+    )
 
 
 def _add_low_level_design_section(

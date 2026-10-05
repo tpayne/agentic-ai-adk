@@ -26,7 +26,18 @@ def _add_governance_requirements_section(
     doc, items, heading="12.0 Governance Requirements", subject_noun="process",
 ):
     """Governance Requirements — ISO formatted. Returns True (always
-    renders at least a heading + a sentence)."""
+    renders at least a heading + a sentence).
+
+    The schema's own shape is a flat list of strings. A live design-doc
+    run instead produced a DICT grouping requirements by category (e.g.
+    {"policy_framework": [...], "data_governance": [...],
+    "compliance_monitoring": [...]}) -- a reasonable way to organize real
+    governance content, but `for item in items` over a dict iterates its
+    KEYS, not its values. Confirmed directly against a real generated
+    document: the bullets rendered were the literal category names
+    ("policy_framework", "data_governance", ...), and every actual
+    requirement sentence underneath them was invisible. Each category is
+    now rendered as its own labeled group of bullets instead."""
     doc.add_heading(heading, level=1)
 
     if not items:
@@ -34,6 +45,17 @@ def _add_governance_requirements_section(
         return True
 
     doc.add_paragraph(f"The following governance requirements apply to this {subject_noun}:")
+
+    if isinstance(items, dict):
+        for category, value in items.items():
+            label = str(category).replace("_", " ").title()
+            p = doc.add_paragraph()
+            p.add_run(f"{label}:").bold = True
+            values = value if isinstance(value, list) else [value]
+            for v in values:
+                if v not in (None, "", [], {}):
+                    _add_bullet(doc, _item_text(v, "requirement", "description"))
+        return True
 
     for item in items:
         _add_bullet(doc, _item_text(item, "requirement"))
@@ -160,7 +182,15 @@ def _add_continuous_improvement_section(
     "improvement_inputs"} objects (see _add_change_management_section's
     docstring for why a plain, non-empty STRING is also accepted and
     rendered as a single descriptive paragraph instead of silently
-    producing nothing).
+    producing nothing). A design-doc run also produced a DICT grouping
+    practices by category (e.g. {"feedback_mechanisms": [...],
+    "monitoring_and_logging": [...], "optimization_path": [...]}) --
+    `for ci in items` over a dict iterates its KEYS, not its values, so
+    the bullets rendered were the bare category names with every real
+    practice underneath them invisible, confirmed directly against a
+    real generated document. Each category is now rendered as its own
+    labeled group of bullets instead, same pattern as
+    _add_governance_requirements_section's own dict handling.
     """
     doc.add_heading(heading, level=1)
 
@@ -174,6 +204,17 @@ def _add_continuous_improvement_section(
         return True
 
     doc.add_paragraph(f"The following continuous improvement practices apply to this {subject_noun}:")
+
+    if isinstance(items, dict):
+        for category, value in items.items():
+            label = str(category).replace("_", " ").title()
+            p = doc.add_paragraph()
+            p.add_run(f"{label}:").bold = True
+            values = value if isinstance(value, list) else [value]
+            for v in values:
+                if v not in (None, "", [], {}):
+                    _add_bullet(doc, _item_text(v))
+        return True
 
     for ci in items:
         if not isinstance(ci, dict):

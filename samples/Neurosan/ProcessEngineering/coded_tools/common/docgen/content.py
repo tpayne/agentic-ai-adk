@@ -112,7 +112,12 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
         metadata = data.get("document_metadata") or {}
         business_context = data.get("business_context") or {}
 
-        purpose = business_context.get("purpose")
+        # "purpose" is the schema's own key. A live model instead used
+        # "context_statement" for what is, in substance, exactly the same
+        # content -- confirmed directly against a real generated document,
+        # where a real, well-written purpose sentence was discarded in
+        # favor of the generic placeholder below.
+        purpose = business_context.get("purpose") or business_context.get("context_statement")
         if purpose:
             doc.add_paragraph(str(purpose))
         else:
@@ -135,6 +140,15 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
             doc.add_heading(f"1.{subsection} Scope", level=2)
             subsection += 1
             doc.add_paragraph(str(scope))
+
+        # "objectives" is the schema's own key; a live model instead used
+        # "strategic_objectives" for the same content -- confirmed
+        # directly against a real generated document, where an entire
+        # populated objectives list was silently dropped (no subsection
+        # rendered at all) because the exact key never matched.
+        if not business_context.get("objectives") and business_context.get("strategic_objectives"):
+            business_context = dict(business_context)
+            business_context["objectives"] = business_context["strategic_objectives"]
 
         for key, label in [
             ("objectives", "Objectives"),

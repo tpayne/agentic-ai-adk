@@ -158,6 +158,31 @@ questions.
 - Leave review_and_governance untouched / absent -- it describes events (reviews, approvals) that
   have not happened yet.
 
+# EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
+# document renderer, not fixed up later)
+- business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
+  "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement";
+  "objectives", NOT "strategic_objectives".
+- low_level_design.components[]: each one's name key is "component_name" (the SAME key
+  high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
+- architecture_description.architecture_analysis[]: always include a short "title"; "strengths"/
+  "weaknesses"/"risks" are each an ARRAY of distinct string points, never one combined sentence.
+- risk_register[] and high_level_design.risks_and_mitigations[]: {"id", "description", "category",
+  "likelihood": "low"|"medium"|"high", "impact": "low"|"medium"|"high", "mitigation", "owner",
+  "status": "open"|"mitigated"|"accepted"|"closed"} -- the keys are "description"/"likelihood"/
+  "mitigation", NOT "risk_description"/"probability"/"mitigation_strategy".
+- compliance_and_standards: {"applicable_standards": [{"standard_name", "standard_body",
+  "clause_reference", "applicability", "compliance_status"}], "regulatory_requirements":
+  [{"regulation_name", "jurisdiction", "requirement_description", "compliance_status"}]} -- use
+  these two keys exactly, not invented alternatives.
+- governance_requirements: a flat array of plain requirement strings (not grouped into
+  sub-categories).
+- continuous_improvement: an array of {"review_frequency", "improvement_inputs": [...]} objects
+  (not grouped into sub-categories either).
+- quality_attributes[]: put "metric"/"target"/"measurement_method" directly on each
+  characteristic object. If a characteristic genuinely has more than one metric, a nested
+  "metrics": [{"metric", "target"}] list is also accepted.
+
 # SEQUENCE
 1. Call load_master_design_json -- this is your baseline (existing design, or the empty template
    if none exists yet). Never construct a baseline from scratch yourself.
@@ -165,8 +190,10 @@ questions.
    - If it returns actionable data, this is a fresh generation: extract
      metadata.extracted_requirements from it and build the FULL document_metadata (document_id,
      document_type="Combined", system_name, title, version, status="draft", industry_sector),
-     business_context, architecture_description (incl. stakeholders and architecture_analysis),
-     requirements (functional_requirements/non_functional_requirements mapped 1:1 from the
+     business_context (pull "assumptions"/"constraints" forward from the analysis's own
+     technical_and_operational_constraints if it populated them there), architecture_description
+     (incl. stakeholders and architecture_analysis), requirements
+     (functional_requirements/non_functional_requirements mapped 1:1 from the
      requirements_register, preserving ids and priorities exactly), system_context,
      high_level_design (components with real "dependencies" referencing other component_names,
      integration_points, technology_stack, deployment_topology, security_architecture,
@@ -175,7 +202,8 @@ questions.
      responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much detail as
      requirements_register actually warrants, no fabricated engineering detail), quality_attributes
      (ISO/IEC 25010 characteristics with concrete metric/target pairs), compliance_and_standards,
-     risk_register, governance_requirements, continuous_improvement, glossary_and_references.
+     risk_register, governance_requirements, continuous_improvement, glossary_and_references. See
+     "EXACT FIELD SHAPES" above for the fields a past run has gotten wrong.
 3. Also call load_iteration_feedback with channel="compliance" and with channel="simulation". For
    each that returns actionable data, apply ONLY the specific changes each issue's "instruction"
    describes, at the location it names, to the existing baseline -- do not regenerate the whole

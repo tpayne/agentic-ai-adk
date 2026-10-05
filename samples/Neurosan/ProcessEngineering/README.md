@@ -214,6 +214,81 @@ cosmetic) by reverting it and watching
 `tests/test_pipeline_integration.py::test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run`
 fail with the exact stale-data leak described above, then re-applying it.
 
+### A real bug found (and fixed): the design document was "totally screwed"
+
+A live run against a real AWS RDS/Aurora architecture request produced a generated design
+`.docx` the user described as "totally screwed." Unlike the process-document sparsity found
+earlier, this was a *different* document type (`design`/`design_update`, not `process`), with its
+own separate renderer module (`coded_tools/common/docgen/design_sections.py`) and its own,
+separately-empty `DESIGN_TEMPLATE` (`coded_tools/common/design_json.py`) — the same root cause
+(an empty `{}`/`[]` template with no shape hint, confirmed previously for `PROCESS_TEMPLATE`) had
+simply never been fixed here, because it's a structurally different template serving a
+structurally different schema. Field-by-field comparison against the real `design_data.json`
+found eight distinct, confirmed issues, several considerably more severe than anything found in
+the process-document pass:
+
+- **Character-by-character bullet explosion (the most visually severe).** `architecture_analysis`'s
+  own schema says `strengths`/`weaknesses`/`risks` are each an ARRAY of strings; the model
+  collapsed each into a single descriptive sentence instead. `_add_bulleted_group`
+  (`design_sections.py`) iterated that bare string directly — Python iterates a string's
+  *characters*, each of which passes an `isinstance(v, str) and v.strip()` filter, so a real
+  sentence like "High availability, automated patching, ..." rendered as dozens of one-character
+  bullets ("H", "i", "g", "h", ...). Fixed by treating a plain string as a single-item list.
+- **`compliance_and_standards` rendered nothing at all.** The schema's own keys are
+  `applicable_standards`/`regulatory_requirements`; the model produced three entirely different,
+  non-schema keys (`standards_alignment`, `regulatory_frameworks`, `compliance_requirements`).
+  Since neither expected key was ever present, `_add_compliance_and_standards_section` returned
+  `False` immediately — the *entire* section silently disappeared, not even a placeholder,
+  despite real compliance content (a named internal policy, a named AWS Well-Architected
+  alignment) being present in the source JSON. Fixed by recognizing the synonym keys (and their
+  own differently-named sub-fields) as a fallback.
+- **`high_level_design`'s own rich content was write-only.** `_build_design_document` added
+  `high_level_design` to `consumed_keys` (to keep it out of the Appendix B catch-all) but never
+  actually rendered any of its own content anywhere in the document body — `security_architecture`,
+  `scalability_and_performance`, `availability_and_resilience`, `risks_and_mitigations`, and
+  `integration_points` were all completely and silently absent, despite being fully populated with
+  real, substantial prose in the source JSON (e.g. four paragraphs of real security architecture
+  detail). This was the single largest volume of lost content. Fixed by adding a new "5.1
+  Architecture Detail" subsection that renders each of these through `_render_generic_value` (the
+  same generic fallback the rest of this "foundation-level" document module already uses for
+  fields with no bespoke renderer).
+- **Dict-of-categories silently rendered as its own key names.** `governance_requirements`'s and
+  `continuous_improvement`'s own schemas are flat lists; the model instead grouped each into a
+  DICT by category (e.g. `{"policy_framework": [...], "data_governance": [...]}`) — a reasonable
+  way to organize real content, but `for item in a_dict` iterates its *keys*, not its values, so
+  the bullets rendered were the literal category names ("policy_framework", "data_governance", …)
+  with every real requirement sentence underneath them invisible. Fixed by rendering each category
+  as its own labeled group of bullets when a dict is given.
+- **Three separate, unrelated key-name mismatches**, each silently dropping real content with no
+  visible trace: `business_context.purpose`/`.objectives` (model used `context_statement`/
+  `strategic_objectives`); `low_level_design.components[]`'s name key (model used
+  `hld_component_name` instead of the schema's own `component_name`, shared with
+  `high_level_design.components[]`); and `risk_register[]`'s `description`/`likelihood`/
+  `mitigation` (model used `risk_description`/`probability`/`mitigation_strategy`). All three
+  fixed via fallback keys in the relevant renderer.
+- **`risk_register`'s real `owner`/`status` fields had no column at all** to go to, dropping real
+  content ("Security Team" / "open") even once the key-name mismatch above was fixed. Added Owner
+  and Status columns.
+- **`quality_attributes`' nested `metrics` list was never descended into.** The schema puts one
+  flat `metric`/`target` pair directly on each characteristic; the model nested a nontrivial list
+  of `{metric, target}` pairs under each characteristic instead (reasonable — a characteristic can
+  plausibly have more than one metric). The table emitted one blank-Metric/Target row per
+  characteristic rather than per metric. Fixed by emitting one row per nested metric when present.
+- **`DESIGN_TEMPLATE` was the same empty-`{}`/`[]`-per-field shape `PROCESS_TEMPLATE` had before
+  its own earlier fix** — the common root cause behind nearly every issue above. Enriched with a
+  concrete one-item example for every nested field, matching the ADK original's own
+  `design_document_schema.json` exactly, mirroring the `PROCESS_TEMPLATE` fix. `Design_Doc_Agent`'s
+  own instructions (`registries/design.hocon`, `registries/design_update.hocon`) also gained an
+  explicit "EXACT FIELD SHAPES" block naming every field this pass found a live model getting
+  wrong, by its correct schema key.
+
+All of the above were verified against the user's own real design JSON (the AWS RDS/Aurora
+architecture that triggered this investigation) — regenerating that exact document after the fix
+and confirming every previously-broken section now renders real content, not a synthetic
+fixture — and locked in by
+`tests/test_design_docgen.py::test_real_world_design_doc_handles_every_observed_field_divergence`,
+which exercises every field divergence described here in one real-world-shaped document.
+
 ### The design-document pipeline's architecture simulation
 
 `design.hocon`/`design_update.hocon`'s Simulation_Agent (and the standalone
