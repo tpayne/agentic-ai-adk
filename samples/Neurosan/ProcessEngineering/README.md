@@ -1,340 +1,206 @@
-# ProcessEngineering (neuro-san port)
+# Business Process Architect (neuro-san)
 
-A port of [`samples/GCP/ProcessEngineering`](../../GCP/ProcessEngineering)'s **functionality** to
-[Cognizant's neuro-san](https://github.com/cognizant-ai-lab/neuro-san) multi-agent framework. This
-is a functional port, not a code port: the ADK original is built on Google's Agent Development Kit
-(Python `LlmAgent`/`LoopAgent`/`SequentialAgent` classes); this project is built on neuro-san's
-declarative HOCON agent networks + Python `CodedTool`s. No ADK code is reused — every agent's
-*instructions* and every tool's *logic* were ported deliberately, verified independently, and
-re-expressed in neuro-san's own idioms.
+A multi-agent suite, built on [Cognizant's neuro-san](https://github.com/cognizant-ai-lab/neuro-san)
+framework, that automates the lifecycle of business process engineering from initial requirements
+through to generating professional process documentation and validated workflows. It also supports
+an equivalent lifecycle for architectural design documentation (High-Level Design, Low-Level
+Design, or Combined), covering the same create/query/what-if/simulate/update pattern.
+
+Give it a raw prompt and it will design, test, and document a full end-to-end process — or a full
+architectural design document — based on that request: automated process engineering and automated
+solution/architecture documentation, going from rough requirements through to tested, ISO-formatted
+documentation. A handy tool for consultants and architects alike.
+
+This project is built on neuro-san's declarative HOCON agent networks and Python `CodedTool`s, so
+any LLM provider neuro-san supports can be used (Gemini, Anthropic, OpenAI, Bedrock, Azure OpenAI,
+...) — set the model in `config/llm_config.hocon`.
+
+---
 
 ## Status
 
-**The port is complete.** All sixteen of the ADK original's agent networks are ported, wired, and
-verified (structurally and functionally — see [Verification](#verification) below; a real LLM API
-key is needed to exercise an actual conversation, which hasn't been done in this environment):
+**Complete.** All sixteen agent networks below are wired and verified end-to-end (structurally and
+functionally — see [Verification](#verification)):
 
-| Network | ADK original | What it does |
+| Network | Front-man agent | What it does |
 |---|---|---|
 | `requirements_summary` | `Requirements_Summary_Agent` | Reads a directory of source files, extracts a structured, traceable requirements register, saves it for later reuse. |
 | `requirements_consultant` | `Requirements_Consultant_Agent` | Answers questions about a previously-saved requirements summary. |
-| `cloudarch` | `CloudArch_Pipeline` (`CloudArch_Agent` + `CloudArch_Reviewer_Agent`) | Generates/refines a cloud architecture diagram (drawio/mxGraph XML) via a deterministic layout engine, audited by a reviewer agent in a generate→review→revise loop. |
+| `cloudarch` | `CloudArch_Pipeline` | Generates/refines a cloud architecture diagram (drawio/mxGraph XML) via a deterministic layout engine, audited by a reviewer agent in a generate→review→revise loop. |
 | `cloudarch_consultant` | `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram. |
 | `cloudarch_simulation_query` | `CloudArch_Simulation_Query_Agent` | Runs a resilience/scalability/latency simulation over an existing diagram and explains findings in business language. |
-| `process` | `Full_Design_Pipeline` | Generates/refines a business process design JSON via analysis → design → compliance review → simulation review (looping until approved or a revision limit is hit), expands every top-level step into its own detailed subprocess, renders a flow diagram, and produces a final ISO-formatted Word document. |
-| `process_update` | `Update_Design_Pipeline` | The same generate/review loop, applied as a delta against an existing process design in response to a change request, instead of a fresh generation. |
-| `process_consultant` | `Consultant_Agent` | Answers questions about an existing business process design. |
-| `process_scenario_tester` | `Scenario_Tester` | Tests what-if scenarios against an existing process design. |
-| `process_simulation_query` | `Simulation_Optimization_Query_Agent` | Runs a cycle-time simulation over an existing process design and explains bottlenecks in business language. |
-| `design` | `Full_Design_Doc_Pipeline` | Generates/refines an architectural design document (HLD/LLD/Combined JSON) via analysis → design (HLD+LLD in one pass) → compliance review → architecture-simulation review, then renders a flow diagram and a final ISO-formatted Word document. |
-| `design_update` | `Update_Design_Doc_Pipeline` | The same generate/review loop, applied as a delta against an existing design document in response to a change request. |
-| `design_consultant` | `Design_Consultant_Agent` | Answers questions about an existing architectural design document, with license to bring in outside best-practice recommendations for design review. |
+| `process` | `Process_Pipeline` | Generates/refines a business process design via analysis → design → compliance review → simulation review (looping until approved or a revision limit is hit), expands every top-level step into its own detailed subprocess, renders a flow diagram, and produces a final ISO-formatted Word document. |
+| `process_update` | `Process_Update_Pipeline` | The same generate/review loop, applied as a delta against an existing process in response to a change request. |
+| `process_consultant` | `Process_Consultant_Agent` | Answers questions about an existing business process. |
+| `process_scenario_tester` | `Process_Scenario_Tester` | Tests what-if scenarios against an existing process. |
+| `process_simulation_query` | `Process_Simulation_Query_Agent` | Runs a cycle-time simulation over an existing process and explains bottlenecks in business language. |
+| `design` | `Design_Doc_Pipeline` | Generates/refines an architectural design document (HLD/LLD/Combined) via analysis → design (HLD+LLD in one pass) → compliance review → architecture-simulation review, then renders a flow diagram and a final ISO-formatted Word document. |
+| `design_update` | `Design_Doc_Update_Pipeline` | The same generate/review loop, applied as a delta against an existing design document in response to a change request. |
+| `design_consultant` | `Design_Consultant_Agent` | Answers questions about an existing design document, with license to bring in outside best-practice recommendations. |
 | `design_scenario_tester` | `Design_Scenario_Tester` | Tests what-if scenarios against an existing design document by tracing its real component dependency graph. |
 | `design_simulation_query` | `Design_Architecture_Simulation_Query_Agent` | Runs a composite resilience (blast-radius Monte Carlo)/scalability/security/latency simulation over an existing design document and explains findings in business language. |
-| `process_architect` | `Process_Architect_Orchestrator` (`root_agent`) | Top-level front-man routing a request to whichever of the fifteen networks above fits it, via neuro-san's same-server external-agent references. |
+| `process_architect` | `Process_Architect_Orchestrator` | Top-level front-man routing a request to whichever network above fits it. |
 
-### A real bug found (and fixed) during this port
+---
 
-Porting `cloudarch_simulation_query`'s functionality surfaced a genuine, pre-existing bug in the
-**ADK original**, not something introduced here. `parse_drawio_graph` only recognized a diagram
-vertex via a shape token on the cell's *own* style. `build_structured_drawio_xml` (the now-default
-diagram-generation path, copied verbatim into this port) puts that shape token on a separate child
-icon cell instead — the labeled parent cell that edges actually reference as source/target carries
-no shape token itself. The ADK original's own test fixture for this function predates that
-layout-engine change (made earlier in the same session that produced this port) and never exercised
-the combination, so every edge from a structured-engine-generated diagram has been silently
-matching no real vertex — not a crash, a silently wrong, all-isolated-nodes graph presented as a
-valid simulation result. Fixed here in `coded_tools/cloudarch/drawio_graph.py` (recognizes a vertex
-via its own style OR a child cell's, when that child's parent is itself a vertex); worth porting
-the same fix back to the ADK original's `utils.py`.
+## Known issues
 
-## Why neuro-san needed a different design for the generate/review loop
+- **Diagram layouts**: generated diagrams may occasionally be clipped or laid out sub-optimally,
+  especially with very long step/component names. You can usually improve this by shortening the
+  offending name in the JSON and regenerating.
+- **Agent "chattiness"**: LLMs may occasionally disregard instructions and surface tool-call/JSON
+  commentary in chat. In most cases this can be safely ignored.
+- **Per-session artifact isolation is not implemented.** `ns run` serves multiple concurrent chat
+  sessions, but this project's own state (`process_data.json`/`design_data.json`,
+  `cloudarch_drawio.xml`, `approval.json`, every feedback mailbox) lives in one project-wide
+  `output/` directory, not scoped per session — two people driving the same network at once will
+  read and overwrite each other's artifacts. Safe for one requester at a time.
+- **No built-in auth/rate-limiting.** `ns run`'s own server has neither; put an authenticating
+  reverse proxy / rate limiter in front of it before exposing it beyond localhost.
+- If a free-tier LLM key is used, you may hit resource limits generating large artifacts.
+- This project is for demo purposes; NO WARRANTY OR GUARANTEE OF FUNCTIONALITY IS PROVIDED.
 
-The ADK original's self-auditing pipelines are an ADK `LoopAgent` wrapping a generator + reviewer +
-a stop-controller agent, with the stop controller setting `tool_context.actions.escalate = True` to
-end the loop early on approval. **neuro-san has no equivalent runtime primitive.** This port
-replaces it with:
+---
 
-- `coded_tools/common/iteration_feedback.py` — the generate/review feedback mailbox
-  (`output/iteration_feedback*.json`) and cumulative approval state (`output/approval.json`).
-  Ported near-verbatim from the ADK original's `save_iteration_feedback`/`load_iteration_feedback`
-  — this was always just file I/O, nothing ADK-specific about it. **Extended with per-channel
-  mailboxes** (`iteration_feedback_<channel>.json`) so multiple reviewers in the same pass (e.g.
-  `process`'s Compliance_Agent *and* Simulation_Agent) don't overwrite each other's feedback before
-  the generator reads it — the ADK original avoided this with a dedicated "refinement clone" agent
-  immediately after each reviewer; here, the generator just reads every reviewer's channel together.
-- `coded_tools/common/loop_control.py` — the one piece that *was* ADK-specific. A front-man agent's
-  own instructions call this after every review and are told, explicitly, that its `"STOP"` verdict
-  is authoritative ("you MUST NOT call the generator again"), replacing the runtime `escalate` flag
-  with an instructed convention. Checked in the same order as the ADK original (approval before
-  max-iterations — a genuine approval on the last allowed iteration must not be reported as
-  "iteration budget exhausted") and unit-verified in isolation before being trusted in a real
-  network.
+## Notes
 
-Every pipeline network's front-man encodes the same shape: *reset state → generate → review(s) →
-loop_control → continue-or-stop*.
+- If you are generating a new process from scratch, remove `output/process_data.json` (and related
+  artifacts) first — stale state is read as the baseline for a fresh generation otherwise. The same
+  applies to `output/design_data.json` for design documents. If you are querying, testing, or
+  updating an *existing* process/design, leave `output/` alone — it's the input those operations read.
+- If the top-level front-man (`process_architect`) picks the wrong network for a question (e.g. it
+  treats a design-document question as a process question), naming the network explicitly steers it
+  correctly — either talk to that network directly (`ns chat design_consultant`, `--agent
+  design_consultant` with `cli.py`), or say "using the Design Consultant..." when talking to the
+  front-man.
 
-### A real bug found (and fixed) in this port, caught only once a live LLM exercised it
+---
 
-Every structural check used throughout this port (`ns validate`, and "reaches the no-LLM-key
-wall") has a blind spot: neither one ever actually resolves a `CodedTool` class or invokes a
-sub-agent, because that only happens once a real model decides to call a tool — which needs a
-working LLM key, which this environment never had until this was exercised against one for real.
-That's exactly when a genuine, systemic bug surfaced: when a front-man calls an internal LLM
-sub-agent as a tool, neuro-san's `BranchActivation.build()` constructs that sub-agent's triggering
-`HumanMessage` from (1) one sentence per declared `"function.parameters.properties"` entry, filled
-from the caller's tool-call arguments, and (2) an optional static `"command"` field on the agent's
-own HOCON entry. Every "reads its own state from disk/mailbox, no arguments needed" stage agent in
-this port (`Design_Agent`, `Compliance_Agent`, `Simulation_Agent`, `CloudArch_Reviewer_Agent`,
-`Subprocess_Driver_Agent`, and their `_update`/`Design_Doc_*` counterparts — 14 agents across 5
-network files) declared neither, so the HumanMessage submitted to start their turn was a literal
-empty string. Gemini's SDK rejects an all-empty message list outright with `ValueError: contents
-are required.` (confirmed via a live run); other providers may tolerate a system-prompt-only turn
-with no human content, which is presumably why this had no chance to surface earlier. Fixed by
-adding a short `"command"` field (e.g. `"Review the current architecture now."`) to every affected
-agent — confirmed end-to-end against neuro-san's own `ArgumentAssigner`/`BranchActivation` code
-path, not just "the YAML parses." `tests/test_hocon_agent_messages.py` guards against this
-regressing: it loads every network the same way `ns chat`/`ns run` do and replicates neuro-san's
-own assignments-string construction for every internal sub-agent.
+## Features
 
-### The document-generation stage
+- **Autonomous multi-agent pipeline**: a "Process Architect" workflow that transforms raw
+  requirements into final artifacts without manual intervention — an analysis agent converts
+  natural-language intent into a machine-readable requirements specification.
+- **Self-auditing compliance gate**: a compliance agent acts as an automated release manager,
+  triggering revisions if regulatory or security gaps are found and preventing progression until
+  resolved.
+- **Self-auditing simulation gate**: a simulation agent runs Monte Carlo-style simulations to
+  identify bottlenecks and suggests optimizations or reports unresolved issues.
+- **Automated high-fidelity artifacts**: process diagrams (level 1 and 2) embedded in the process
+  document, and a professional Word document describing the business process, aligned to
+  ITIL/ISO-style conventions.
+- **Autonomous design document pipeline**: a parallel "Solution Architect" workflow
+  (`design`/`design_update`) that transforms raw architecture requirements into a High-Level Design
+  (HLD), Low-Level Design (LLD), or Combined design document, following the same
+  requirements → design → review → document flow as the process pipeline.
+- **Self-auditing design review loop**: a design-side review/compliance loop iterates over the
+  HLD/LLD/Combined content, checking it against the design schema and standards references (TOGAF
+  ADM, C4 Model, ISO/IEC/IEEE 42010) until it is structurally and content-complete.
+- **Self-auditing design simulation gate**: a design-side simulation agent runs the same
+  four-dimension simulation described below as an internal gate inside the design pipeline,
+  triggering revisions if resilience, scalability, security, or latency issues are found.
+- **Cloud architecture diagramming** (`cloudarch`): a dedicated reviewer/generator loop produces
+  and iteratively refines a cloud/UML-style architecture diagram from a design document's
+  components, dependencies, and integration points, and applies natural-language refinements to an
+  existing diagram (e.g. "add a WAF in front of the load balancer") — the generator loads the
+  current diagram before modifying it, rather than only ever starting from scratch. Every
+  generation/refinement is expressed as plain zones/components/edges content with no coordinates; a
+  deterministic layout engine computes every box's size/position and every edge's route, so icons
+  never overlap their own label and edges route as clean axis-aligned lines — the same engine
+  enforces the diagram's visual conventions (icon-forward borderless components, left-to-right
+  pipeline flow grouped into zones of 2-4 related services, AWS/Azure/GCP service-category color
+  coding) so every diagram reads like a professional cloud-provider reference diagram.
+- **Cloud architecture consultant & simulation**: a consultant agent answers questions about an
+  existing cloud architecture diagram (purpose, components, connections) grounded strictly in the
+  diagram's own XML, while a simulation-query agent runs a structural resilience (blast-radius Monte
+  Carlo), scalability (fan-in bottleneck), and latency (dependency chain depth) simulation directly
+  against the diagram — not the source design document, since the diagram is often more granular
+  (WAF/KMS/IAM/CDN-level detail an abstract component list wouldn't enumerate).
+- **Real LLD sequence diagrams**: a Low-Level Design component's `sequence_flows` entries carry
+  their own inline participants and ordered steps, rendered as an actual UML-style sequence diagram
+  (lifelines, sync/async calls, returns) and embedded in the generated document.
+- **Four-dimension design simulation**: a composite simulation over an existing design document,
+  covering:
+  - **Resilience** — a Monte Carlo blast-radius/cascading-failure model built from component
+    dependencies, integration points, declared availability targets, and the risk register,
+    identifying single points of failure and an overall resilience risk rating.
+  - **Scalability** — structural bottleneck detection (components many others depend on with no
+    declared elastic/auto-scaling technology), plus any scalability-tagged risks.
+  - **Security** — a control-coverage checklist, compliance-standard status tally, security-tagged
+    risks, and an externally-exposed-without-full-controls check.
+  - **Latency** — declared performance/latency targets cross-checked against the deepest
+    dependency chain, flagging undeclared latency budgets on long request paths.
+- **Design consultant & scenario testing**: a consultant agent answers general questions about an
+  existing design document (ownership, component responsibilities, requirements clarification),
+  while a scenario-tester reasons through "what-if" scenarios (e.g. "what if the payments region
+  goes down?") by tracing impact through the dependency/integration-point graph.
+- **File-based requirements extraction (opt-in)**: any process or design-document
+  creation/refinement request can source its requirements from a directory of files instead of (or
+  alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a
+  process for onboarding new vendors."* Text is extracted and combined from every
+  `.txt`/`.md`/`.docx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx` file directly inside the given directory
+  using pure-Python extractors (no system binaries required). Strictly opt-in — absent that
+  explicit phrasing, no agent reads a directory on its own.
+- **Standalone requirements summarization & consultation**: `requirements_summary` can read a
+  directory of files on its own — without running a full creation pipeline — synthesize a
+  structured requirements summary, report it in plain language, and save it to
+  `output/requirements_summary.json` for later reuse. `requirements_consultant` then lets you ask
+  follow-up questions about that saved summary at any time, and any later process/design/diagram
+  creation request can reuse it instead of re-reading the original documents by saying so
+  explicitly (e.g. *"create a process using the saved requirements summary"*).
+- **Requirements-quality analysis**: both the standalone summarizer and the pipeline's own analysis
+  agents flag requirements that conflict with each other, requirements too vague to act on,
+  relative priority (critical/high/medium/low), important requirements *not* stated in the source
+  material but reasonably inferable (always clearly labeled as inferred, and never used by a
+  generation pipeline unless the request explicitly asks to include them), and entire standard
+  categories (security, disaster recovery, data privacy, etc.) the source material never addresses.
+- **Requirement traceability register**: every atomic requirement gets a stable id
+  (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which
+  source file it came from, and one or more concrete acceptance criteria — mapped directly into the
+  design schema's functional/non-functional requirements and traceability matrix for
+  ISO/IEC/IEEE 29148-style traceability.
+- **Requirements-aware consultation & simulation**: every consultant, scenario-tester, and
+  simulation-query agent also checks once per conversation for a saved requirements summary
+  alongside the process/design/diagram it's actually answering about. If a summary exists and the
+  question is specifically about requirement fulfillment or coverage (e.g. *"does this diagram
+  satisfy the encryption-at-rest requirement?"*), the agent cross-checks the stated requirement
+  against the actual data and says plainly whether it's met, partially met, at risk, or not
+  addressed. For any other question it stays silent on the subject.
 
-Both `process.hocon` and `design.hocon`/`design_update.hocon` end their pipeline with two more
-CodedTool-only steps: `generate_*_flow_diagram` (a diagram inferred from the design's own
-steps/dependencies or components/integration-points, pure `networkx`/`matplotlib`) and
-`generate_*_document` (the final ISO-formatted `.docx`, pure `python-docx`). Both schema paths are
-ported near-verbatim from the ADK original's `edge_inference_agent.py` and `doc_generation_agent.py`
-+ its `helpers/doc_*.py`/`doc_design_sections.py` modules — all pure Python with zero ADK
-dependency, living under `coded_tools/common/docgen/`. A single shared `generate_clean_diagram()`/
-`create_standard_doc_from_file()` pair auto-detects (or is told explicitly) which schema is active
-and dispatches to the right renderer — `_build_process_document` or `_build_design_document` —
-so the process and design pipelines reuse the exact same diagram-inference and document-assembly
-machinery rather than two parallel copies of it.
+---
 
-### A real bug found (and fixed) during doc-generation testing: sparse generated documents
+### Autonomous Execution Flow
 
-The first real end-to-end run against a live LLM (a GitOps/Scrum process JSON) produced a
-generated `.docx` that was missing or blanking content the real `process_data.json` clearly had.
-Tracked down field-by-field against the real JSON, this turned out to be several distinct bugs,
-some inherited from the ADK original and some new regressions in this port:
+1. **Requirement extraction**: `Analysis_Agent` converts user intent into a machine-readable
+   requirements specification.
+2. **Iterative refinement**: `Design_Agent` and `Compliance_Agent`/`Simulation_Agent` loop,
+   refining the process until operational and regulatory criteria are satisfied.
+3. **Schema stabilization**: the finalized design is validated and saved to `output/process_data.json`.
+4. **Artifact engineering**: diagrams are rendered and the final specification (Word document) is
+   generated from that state.
 
-- **This port's own regression — complete content loss.** This port's `PROCESS_TEMPLATE`
-  (`coded_tools/common/process_json.py`) gave `change_management`/`continuous_improvement` as bare
-  empty **strings** (`""`), diverging from both the ADK original's own `process_schema.json`
-  template *and* this port's own verbatim-ported renderers (which expect a **list** of objects). A
-  real, well-formed `change_management` sentence was silently dropped entirely — the renderer's
-  `for cm in items` iterated the string's characters, found none were dicts, and rendered nothing.
-  Fixed by restoring the ADK's own template shape for every field (metrics/CSF/CFF/
-  reporting_and_analytics/system_requirements/stakeholders/change_management/
-  continuous_improvement all now give the LLM a concrete one-item example object instead of a bare
-  `[]`/`""`), and by making `_add_change_management_section`/`_add_continuous_improvement_section`
-  additionally tolerate a plain non-empty string (rendered as a descriptive paragraph) so a
-  real value shaped that way is never discarded outright, regardless of which shape a given
-  generation lands on.
-- **Two genuine pre-existing bugs in the ADK original**, confirmed directly against its own
-  `process_schema.json`/`doc_content.py`/`doc_governance.py` — not something this port introduced:
-  `doc_content.py`'s overview section checks for an `"owner"` key, but the template's actual field
-  is `"process_owner"`; and `doc_governance.py`'s reporting-and-analytics table checks `"name"`/
-  `"title"`, but the template's own shape uses `"metric"`. Both fields rendered blank even on a
-  perfectly template-conforming ADK run. Fixed in this port's `content.py`/`governance.py` by
-  checking both the original and the correct key (worth porting back upstream).
-- **Defensive hardening against whichever shape a model actually produces.** Even with the
-  template fixed, a model will sometimes reasonably improvise its own internally-consistent
-  `{"id": "CON-001", "description": "..."}` traceability-style shape for a list field instead of
-  a plain string — confirmed directly against real generated output. Passing a bare dict straight
-  to `doc.add_paragraph()`/`_add_bullet()` doesn't raise; python-docx silently iterates the dict's
-  *keys* as characters, producing garbage like `"iddescription"`. `structure.py`'s new
-  `_item_text(item, *content_keys)` helper tries each likely content key, falls back to joining
-  every non-`"id"` value, and is now used by every bullet/name-cell renderer that touches a
-  user-authored list field (constraints, assumptions, governance requirements, process triggers,
-  process end conditions, metrics, CSF/CFF, stakeholders' Responsibilities column), so a document
-  renders real content regardless of which shape a given generation happens to land on.
-- **`consumed_keys` in `generation.py`** was missing `"purpose"`/`"scope"`/`"process_owner"`/
-  `"owner"` even though all four ARE rendered in section 1.0 Overview, so they also duplicated,
-  verbatim, into Appendix B's "leftover data" catch-all. Fixed by adding them to the set.
+### Autonomous Design Document Execution Flow
 
-All of the above were verified against the user's own real `process_data.json` (not a synthetic
-fixture), and locked in by `tests/test_docgen.py::test_real_world_doc_renders_id_tagged_dicts_and_string_shapes`,
-which uses the exact real-world field shapes described here (id-tagged dicts, plain-string
-change_management/continuous_improvement, role-only stakeholders).
+1. **Requirement extraction**: `Design_Doc_Analysis_Agent` converts user intent (target
+   architecture, constraints, quality attributes) into a machine-readable requirements
+   specification, and determines whether an HLD, LLD, or Combined document is being requested.
+2. **Iterative refinement**: `Design_Doc_Agent` and review agents loop over the HLD/LLD/Combined
+   content — components, dependencies, integration points, risk register, security architecture,
+   scalability/performance targets — until the document is structurally complete.
+3. **Schema stabilization**: the finalized design is validated and saved to `output/design_data.json`.
+4. **Artifact engineering**: the final design specification (Word document) and flow diagram are
+   rendered from that state.
 
-A follow-up live run then surfaced one more instance of the same underlying class of bug: sections
-5.0-8.0 (Metrics, Critical Success Factors, Critical Failure Factors, Reporting and Analytics) all
-rendered with a blank Description column. The real data wasn't malformed this time -- each item
-genuinely had only `{"id", "<name>"}` and no `"description"` at all, because `Analysis_Agent`'s
-instructions (`registries/process.hocon`) named these four fields in a bare, shapeless bullet list,
-unlike `constraints`/`assumptions`/`requirements_register`, which each get an explicit per-item
-shape and an "ALWAYS include description" directive. A live model reasonably produced the
-minimal shape nothing more specific was asked for. Fixed two ways: `Analysis_Agent`'s instructions
-now give each of these four fields the same explicit `{"id", "<name>", "description", ...}` shape
-and an "ALWAYS include description" directive the other fields already had; and
-`validate_process_json` (`coded_tools/common/process_json.py`) now hard-rejects any
-metrics/CSF/CFF/reporting_and_analytics entry missing a name or a description, the same way it
-already hard-rejects a process_step missing a `step_name`/`responsible_party` -- so this can't
-silently regress into prose-only guidance again, and `Design_Agent`'s existing
-validate-fix-revalidate loop forces a correction before persisting rather than a human discovering
-a blank column after the fact. Covered by
-`tests/test_process_json.py::test_validate_rejects_metrics_csf_cff_reporting_entries_missing_a_description`
-and its accepts-counterpart.
+Once a design document exists on disk, it can be queried (`design_consultant`), tested against
+what-if scenarios (`design_scenario_tester`), simulated across resilience/scalability/security/
+latency (`design_simulation_query`), or updated and re-documented (`design_update`) — mirroring the
+equivalent process-side capabilities above. Cloud architecture diagramming (`cloudarch`) is a
+separate, standalone network with the same query/simulate/update parity: queried
+(`cloudarch_consultant`), simulated (`cloudarch_simulation_query`), or modified via natural language
+(`cloudarch` itself) — generate one from a design document's components whenever you want one,
+rather than it happening automatically as part of the design pipeline.
 
-A live run also logged two matplotlib `UserWarning`s that, while not fatal, pointed to real,
-fixable issues rather than noise: `step_diagrams.py`'s subprocess diagram used `fontweight="medium"`
-for ordinary nodes, a valid matplotlib keyword the bundled DejaVu Sans font can't actually render
-(it only ships Regular/400 and Bold/700 faces), so matplotlib silently substituted 400 and warned
-("Failed to find font weight") on every such node; fixed by asking for `"normal"` instead, the
-weight that's actually available. Separately, the same module's swimlane diagrams draw each lane's
-label well to the left of the plotted nodes (`ax.text(xmin - 5.0, ...)`), which for a long
-`responsible_party` name sits far enough outside the Axes' data range that `fig.tight_layout()`'s
-margin heuristic can't reconcile it with `fig.suptitle()`'s own padding, warning ("Tight layout not
-applied") on real multi-lane diagrams with long-enough lane names. Fixed by dropping
-`fig.tight_layout()` in favor of `bbox_inches="tight"` at `savefig()` time — matching
-`edge_inference.py`'s own diagram save already — which crops to the actual rendered content,
-including the out-of-axes lane labels, instead of pre-computing subplot margins for it. Both
-confirmed fixed (not just quieter) by re-running the triggering input with
-`warnings.simplefilter("error")`, and locked in by
-`tests/test_docgen.py::test_step_diagram_with_long_lane_names_does_not_warn` and
-`test_flow_diagram_non_start_end_node_label_does_not_warn`.
-
-### A real bug found (and fixed): `reset_loop_state` left stale reviewer feedback behind
-
-An external review of this port against the ADK original surfaced a genuine gap:
-`ResetLoopStateCodedTool` (`coded_tools/cloudarch/reset_loop_state_tool.py`, shared by all four
-generate/review pipelines) cleared `approval.json` and `stop_counter.json` at the start of a new
-request, but never the per-channel feedback mailboxes (`iteration_feedback_<channel>.json` for
-`analysis`/`update`/`compliance`/`simulation`, plus cloudarch's unchanneled default). A loop that
-stops at `MAX_ITERATIONS` immediately after `Compliance_Agent`/`Simulation_Agent` write fresh
-feedback is never drained — the loop's own front-man instructions say not to call the generator
-again once a stop verdict comes back, so nothing ever reads and clears that last round's mailbox.
-The next, completely unrelated request against the same network would then have its own
-`Design_Agent` read and apply that stale, unrelated reviewer feedback the moment it checked the
-same channel. Fixed by adding `reset_feedback_channels()` (`coded_tools/common/
-iteration_feedback.py`), clearing every known channel's mailbox file, and calling it from
-`ResetLoopStateCodedTool` alongside the existing two resets. Confirmed the fix matters (not just
-cosmetic) by reverting it and watching
-`tests/test_pipeline_integration.py::test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run`
-fail with the exact stale-data leak described above, then re-applying it.
-
-### A real bug found (and fixed): the design document was "totally screwed"
-
-A live run against a real AWS RDS/Aurora architecture request produced a generated design
-`.docx` the user described as "totally screwed." Unlike the process-document sparsity found
-earlier, this was a *different* document type (`design`/`design_update`, not `process`), with its
-own separate renderer module (`coded_tools/common/docgen/design_sections.py`) and its own,
-separately-empty `DESIGN_TEMPLATE` (`coded_tools/common/design_json.py`) — the same root cause
-(an empty `{}`/`[]` template with no shape hint, confirmed previously for `PROCESS_TEMPLATE`) had
-simply never been fixed here, because it's a structurally different template serving a
-structurally different schema. Field-by-field comparison against the real `design_data.json`
-found eight distinct, confirmed issues, several considerably more severe than anything found in
-the process-document pass:
-
-- **Character-by-character bullet explosion (the most visually severe).** `architecture_analysis`'s
-  own schema says `strengths`/`weaknesses`/`risks` are each an ARRAY of strings; the model
-  collapsed each into a single descriptive sentence instead. `_add_bulleted_group`
-  (`design_sections.py`) iterated that bare string directly — Python iterates a string's
-  *characters*, each of which passes an `isinstance(v, str) and v.strip()` filter, so a real
-  sentence like "High availability, automated patching, ..." rendered as dozens of one-character
-  bullets ("H", "i", "g", "h", ...). Fixed by treating a plain string as a single-item list.
-- **`compliance_and_standards` rendered nothing at all.** The schema's own keys are
-  `applicable_standards`/`regulatory_requirements`; the model produced three entirely different,
-  non-schema keys (`standards_alignment`, `regulatory_frameworks`, `compliance_requirements`).
-  Since neither expected key was ever present, `_add_compliance_and_standards_section` returned
-  `False` immediately — the *entire* section silently disappeared, not even a placeholder,
-  despite real compliance content (a named internal policy, a named AWS Well-Architected
-  alignment) being present in the source JSON. Fixed by recognizing the synonym keys (and their
-  own differently-named sub-fields) as a fallback.
-- **`high_level_design`'s own rich content was write-only.** `_build_design_document` added
-  `high_level_design` to `consumed_keys` (to keep it out of the Appendix B catch-all) but never
-  actually rendered any of its own content anywhere in the document body — `security_architecture`,
-  `scalability_and_performance`, `availability_and_resilience`, `risks_and_mitigations`, and
-  `integration_points` were all completely and silently absent, despite being fully populated with
-  real, substantial prose in the source JSON (e.g. four paragraphs of real security architecture
-  detail). This was the single largest volume of lost content. Fixed by adding a new "5.1
-  Architecture Detail" subsection that renders each of these through `_render_generic_value` (the
-  same generic fallback the rest of this "foundation-level" document module already uses for
-  fields with no bespoke renderer).
-- **Dict-of-categories silently rendered as its own key names.** `governance_requirements`'s and
-  `continuous_improvement`'s own schemas are flat lists; the model instead grouped each into a
-  DICT by category (e.g. `{"policy_framework": [...], "data_governance": [...]}`) — a reasonable
-  way to organize real content, but `for item in a_dict` iterates its *keys*, not its values, so
-  the bullets rendered were the literal category names ("policy_framework", "data_governance", …)
-  with every real requirement sentence underneath them invisible. Fixed by rendering each category
-  as its own labeled group of bullets when a dict is given.
-- **Three separate, unrelated key-name mismatches**, each silently dropping real content with no
-  visible trace: `business_context.purpose`/`.objectives` (model used `context_statement`/
-  `strategic_objectives`); `low_level_design.components[]`'s name key (model used
-  `hld_component_name` instead of the schema's own `component_name`, shared with
-  `high_level_design.components[]`); and `risk_register[]`'s `description`/`likelihood`/
-  `mitigation` (model used `risk_description`/`probability`/`mitigation_strategy`). All three
-  fixed via fallback keys in the relevant renderer.
-- **`risk_register`'s real `owner`/`status` fields had no column at all** to go to, dropping real
-  content ("Security Team" / "open") even once the key-name mismatch above was fixed. Added Owner
-  and Status columns.
-- **`quality_attributes`' nested `metrics` list was never descended into.** The schema puts one
-  flat `metric`/`target` pair directly on each characteristic; the model nested a nontrivial list
-  of `{metric, target}` pairs under each characteristic instead (reasonable — a characteristic can
-  plausibly have more than one metric). The table emitted one blank-Metric/Target row per
-  characteristic rather than per metric. Fixed by emitting one row per nested metric when present.
-- **`DESIGN_TEMPLATE` was the same empty-`{}`/`[]`-per-field shape `PROCESS_TEMPLATE` had before
-  its own earlier fix** — the common root cause behind nearly every issue above. Enriched with a
-  concrete one-item example for every nested field, matching the ADK original's own
-  `design_document_schema.json` exactly, mirroring the `PROCESS_TEMPLATE` fix. `Design_Doc_Agent`'s
-  own instructions (`registries/design.hocon`, `registries/design_update.hocon`) also gained an
-  explicit "EXACT FIELD SHAPES" block naming every field this pass found a live model getting
-  wrong, by its correct schema key.
-
-All of the above were verified against the user's own real design JSON (the AWS RDS/Aurora
-architecture that triggered this investigation) — regenerating that exact document after the fix
-and confirming every previously-broken section now renders real content, not a synthetic
-fixture — and locked in by
-`tests/test_design_docgen.py::test_real_world_design_doc_handles_every_observed_field_divergence`,
-which exercises every field divergence described here in one real-world-shaped document.
-
-A follow-up, independent file-by-file comparison of every doc-generation Python module here
-against its ADK original (prompted by the same investigation) confirmed the renderer/diagram-
-agent code itself has no further undiscovered logic divergence — `uml_diagrams.py` and
-`step_diagrams.py` in particular are essentially byte-identical ports. The real remaining gap was
-the *same root cause* found above, just not yet fully applied: `DESIGN_TEMPLATE` only hinted
-`low_level_design.components`' `component_name`/`description`/`responsibilities`/
-`configuration_parameters` — never `sequence_flows`, `class_design`, `interface_contracts`,
-`detailed_sequence_flows`, `database_design`, or `exception_handling_strategy`, nor
-`high_level_design`'s `data_flow_overview`/`technology_stack`/`deployment_topology`, nor
-`system_context`'s `actors`/`external_systems`/`context_diagram`, nor `architecture_description`'s
-`viewpoints`/`views`. Concretely, this meant **zero low-level UML diagrams could ever render**:
-`_render_diagram_descriptor`/`generate_uml_diagram` only draws a real sequence/class diagram when
-given `participants`+`steps` (or `classes`) — confirmed directly, a real generated document had
-no such data anywhere, because the template never hinted at the shape, so the "10.1 Runtime
-Processing and Sequence Flows" subsection had nothing to draw from even though the renderer fully
-supports it. `PROCESS_TEMPLATE` had the analogous gap for `introduction`/`version`/
-`tools_summary`/`appendix`. Fixed by enriching both templates with concrete, schema-matching
-examples for every field their own renderers are ready to consume. Verified end-to-end: a
-`low_level_design.components[].sequence_flows` entry shaped per the new template hint now produces
-a real embedded UML sequence diagram image, not a "[Sequence not yet generated]" placeholder note
-— confirmed via `len(doc.inline_shapes)` and locked in by
-`tests/test_design_docgen.py::test_low_level_design_sequence_flow_renders_a_real_uml_diagram`.
-
-### The design-document pipeline's architecture simulation
-
-`design.hocon`/`design_update.hocon`'s Simulation_Agent (and the standalone
-`design_simulation_query` network) runs a different kind of simulation than `process`'s Monte Carlo
-cycle-time one, because the design schema has no numeric duration field to simulate. Instead,
-`coded_tools/design/simulation.py` (ported near-verbatim from the ADK original's
-`design_simulation_agent.py`) models a blast-radius/cascading-failure Monte Carlo over the design's
-real `high_level_design.components[].dependencies`/`integration_points[]` graph, combined with
-structural scalability (fan-in bottleneck detection), security (control-coverage + real
-`compliance_status` enum checks), and latency (dependency-chain depth vs. declared performance
-targets) analyses — nothing here fabricates a number the schema doesn't actually have a field for.
-
-### A neuro-san quirk worth knowing: declare `"parameters"` on every externally-referenced front-man
-
-Wiring `process_architect` (the top-level front-man that reaches every other network via
-`"/network_name"` external-agent references) surfaced a quirk, not a bug: a front-man whose
-`"function"` has no explicit `"parameters"` block still works, but neuro-san synthesizes a default
-single `"inquiry"` string parameter for it and logs a warning on every call. Harmless, but silent
-and avoidable — every front-man meant to be called this way (all sixteen in this project) now
-declares its own explicit `"parameters"` block instead of relying on the synthesized default, which
-also gives each one control over exactly what its caller passes. Separately, an explicit *empty*
-`"parameters": {"type": "object", "properties": {}}` is flatly **rejected** (not just warned about)
-for a truly argument-less `CodedTool` — omit `"parameters"` entirely for those instead.
+---
 
 ## Setup
 
@@ -343,7 +209,7 @@ uv sync
 ```
 
 Set an LLM provider API key (see `config/llm_config.hocon` for the configured model;
-`GOOGLE_API_KEY`/`ANTHROPIC_API_KEY`/`OPENAI_API_KEY` etc. — see neuro-san's own
+`GOOGLE_API_KEY`/`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/etc. — see neuro-san's own
 [`docs/api_key.md`](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/api_key.md)):
 
 ```bash
@@ -368,25 +234,14 @@ uv run ns chat process_architect   # top-level front-man, routes across all othe
 # ... or any other network under registries/ -- see Status above for the full list
 ```
 
-**A `neuro-san-studio` gap worth knowing, not a bug in this project:** `ns chat`'s default direct
-(in-process) connection mode sets `PYTHONPATH` as an environment variable
-(`ProjectEnvironment.apply()`), but setting `os.environ["PYTHONPATH"]` from inside an
-already-running process has no effect on that process's own `sys.path` -- Python only reads
-`PYTHONPATH` at interpreter *startup*. `ns run` doesn't hit this (it spawns the real server as a
-child process, which correctly inherits `PYTHONPATH` at its own startup), but a plain `ns chat`
-does, and the failure only surfaces the moment an agent actually calls a `CodedTool` (import
-resolution genuinely breaks, with an error like `Could not find class "...CodedTool" ... under
-AGENT_TOOL_PATH "coded_tools"`) -- not at session-open time, so it looks like the network loaded
-fine right up until that point. Export `PYTHONPATH` in your shell yourself first, so the
-interpreter inherits it correctly at startup:
+`ns chat`'s default direct (in-process) connection mode needs `PYTHONPATH` set in your shell
+*before* it starts (Python only reads that variable at interpreter startup) — `ns run` doesn't need
+this, since it spawns the server as a child process:
 
 ```bash
 export PYTHONPATH="$(pwd)"
 uv run ns chat cloudarch
 ```
-
-`cli.py` (below) isn't affected -- it's a plain script, so Python puts its own directory (this
-project's root) on `sys.path[0]` automatically before any of its own code runs.
 
 Run the test suite with:
 
@@ -399,96 +254,234 @@ an API key — useful while editing.
 
 ### CLI (`cli.py`)
 
-Reinstates the ADK original's CLI surface (`process_agents/common/agent.py`) against this port,
-talking to `process_architect` (the top-level front-man) by default:
+A standalone CLI, talking to `process_architect` (the top-level front-man) by default:
 
 ```bash
 uv run python cli.py                        # interactive chat REPL (default)
 uv run python cli.py -i "design a vendor onboarding process"   # one prompt, print, exit
 uv run python cli.py -f instructions.txt    # submit each line of a file as a turn, in order
-uv run python cli.py -d                     # see below
+uv run python cli.py -d                     # detached: launch ns run's own server + UI instead
 uv run python cli.py --agent cloudarch      # talk to a different network directly
 ```
 
-Same control lines as the ADK original work inside interactive/`-f` mode: `exit`/`quit`/`stop`,
-`clear` (reset the session), a leading `#` (comment, echoed but not sent), `sleep <seconds>`/
-`wait <seconds>`, a leading `$ ...` (run a raw shell command instead of sending the line to the
-agent), and a trailing `\` to continue one logical line across multiple physical lines.
+Control lines work inside interactive/`-f` mode: `exit`/`quit`/`stop`, `clear` (reset the session),
+a leading `#` (comment, echoed but not sent), `sleep <seconds>`/`wait <seconds>`, a leading `$ ...`
+(run a raw shell command instead of sending the line to the agent), and a trailing `\` to continue
+one logical line across multiple physical lines.
 
-`-i`/`-f`/interactive mode talk to neuro-san directly via a **DIRECT, in-process session** (no
-server needs to be running). `-d`/`--detached` is the one flag that behaves differently from the
-ADK original on purpose: rather than reimplementing its bespoke Flask REST API (with its own
-auth/rate-limiting), `-d` launches neuro-san's own server + nsflow UI (`ns run`) — see
-[Deliberate simplifications](#deliberate-simplifications-vs-the-adk-original) for why that layer
-isn't ported. `--http`/`-p`/`--port` only apply with `-d`, matching the ADK original.
-
-Every run writes neuro-san's own "thinking" trace -- this project's equivalent of the ADK
-original's `output/logs/pipeline_*.log` -- to `output/logs/agent_thinking.txt` (one combined
-stream) and `output/logs/agent_thinking/` (one file per agent origin in a multi-agent turn,
-easier to follow than the combined stream once more than one sub-agent is involved):
+Every run writes neuro-san's own "thinking" trace to `output/logs/agent_thinking.txt` (one combined
+stream) and `output/logs/agent_thinking/` (one file per agent origin in a multi-agent turn):
 
 ```bash
 tail -f output/logs/agent_thinking.txt
 ```
 
-A fresh session (startup, or the `clear` control line) clears the previous trace first, so it
-never mixes two unrelated conversations together. This is neuro-san's own always-on record,
-independent of the logging level described below.
-
-`cli.py`'s own logging mirrors the ADK original's `agent.py` setup exactly: standard Python
-`logging`, a `LOGLEVEL` env var (same name, same five values -- DEBUG/INFO/WARNING/ERROR/
-CRITICAL, default `WARNING`), writing to `output/logs/cli.log`. **Off by default** -- this
-project's own tool/sub-agent trace logs at DEBUG, and a per-turn token-accounting summary at INFO,
-so neither appears anywhere unless you ask for it:
+`cli.py`'s own diagnostic logging is standard Python `logging`, controlled by a `LOGLEVEL` env var
+(DEBUG/INFO/WARNING/ERROR/CRITICAL, default `WARNING`), written to `output/logs/cli.log`. **Off by
+default** — nothing appears unless you ask for it:
 
 ```bash
 LOGLEVEL=DEBUG uv run python cli.py
 tail -f output/logs/cli.log
 ```
 
-```
-2026-10-05 15:50:27 DEBUG ProcessArchitect.CLI.Trace: cloudarch.CloudArch_Pipeline [AGENT]: Calling reset_loop_state now.
-2026-10-05 15:50:28 DEBUG ProcessArchitect.CLI.Trace: cloudarch.reset_loop_state [AGENT_TOOL_RESULT] (result from reset_loop_state): <structure: status>
-2026-10-05 15:50:41 INFO ProcessArchitect.CLI.Trace: token accounting: {"gemini-3-flash": {"total_tokens": 2280}}
-```
-
-A WARNING+ copy of anything logged (including neuro-san/langchain's own internal warnings, e.g. a
-timed-out agent) always prints to the terminal too, regardless of `LOGLEVEL` -- written to
-**stderr** specifically, so it never corrupts output piped from stdout (e.g. `cli.py -i "..." |
-pbcopy` capturing just the final answer). Confirmed directly: before this was wired up, that same
-warning printed completely unformatted (no timestamp, no logger name) because nothing had
-attached a handler to it at all, making it look like it had been echoed into the next `[user]: `
-prompt rather than what it actually was -- a log line with nowhere configured to go.
-
-### A real timeout worth knowing about: `max_execution_seconds`
-
-neuro-san gives every agent a 300-second (5-minute) execution budget by default
-(`RunContextRunnable.run_it`), independently at every level of a call chain -- `process_architect`
-has its own 300s budget wrapping whichever pipeline it routes to, and that pipeline's own
-front-man has a SEPARATE 300s budget of its own. `process`/`process_update`'s full sequence
-(analysis → design → compliance → simulation, looped up to 2×, then `Subprocess_Driver_Agent`
-making one further LLM call per top-level step) can genuinely exceed 5 minutes for a real
-request -- confirmed directly: both `Process_Architect_Orchestrator` and the nested
-`Process_Pipeline` timed out independently on the same request. Fixed by setting
-`"max_execution_seconds": 3600` in `config/llm_config.hocon`, which every network already
-`include`s, so the higher budget applies everywhere in one place.
+A WARNING+ copy of anything logged always prints to the terminal too (on **stderr** specifically,
+so it never corrupts output piped from stdout, e.g. `cli.py -i "..." | pbcopy`).
 
 ### Docker
 
-Ported from the ADK original's `Dockerfile`, re-expressed for this project's own tooling (`uv` +
-`pyproject.toml`/`uv.lock`, not `pip`/`requirements.txt`) and serving model (`ns run`'s own HTTP
-server, not a hand-rolled entrypoint):
+Build:
 
 ```bash
 docker build -t processengineering-neurosan .
-docker run --rm -p 8080:8080 -e GOOGLE_API_KEY=... processengineering-neurosan
 ```
 
-Builds and starts cleanly with no LLM key set too (confirmed: every one of this project's networks
-loads into the running server with zero errors) — you'll only hit the familiar "no LLM API key"
-wall once you actually chat with it. Pass whichever provider key you're using via `-e` at `docker
-run` time (`GOOGLE_API_KEY`/`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/etc.) — never bake one into the
-image.
+Run, persisting generated artifacts to a local `output/` directory and passing your LLM key:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -v "$(pwd)/output:/app/output" \
+  -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+  processengineering-neurosan
+```
+
+Notes:
+- Ensure your host `output/` folder is writable by the container's (non-root) user.
+- The image's default command runs `ns run --server-only` — the neuro-san HTTP/chat API on
+  `:8080`, without the nsflow UI. To get the nsflow UI too, override the command and publish
+  `:4173` as well:
+  ```bash
+  docker run --rm -p 8080:8080 -p 4173:4173 \
+    -v "$(pwd)/output:/app/output" \
+    -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+    processengineering-neurosan \
+    uv run ns run
+  ```
+- Pass whichever provider key you're using via `-e` (`GOOGLE_API_KEY`/`ANTHROPIC_API_KEY`/
+  `OPENAI_API_KEY`/etc.) — never bake one into the image.
+- The container builds and starts cleanly with no LLM key set too; you'll only hit the "no LLM API
+  key configured" wall once you actually chat with it.
+
+---
+
+## Sample Prompts
+
+The following are sample prompts you can use to:
+- Create new processes
+- Update existing processes
+- Investigate existing processes
+- Review "what-if" scenarios on existing processes
+- Run simulations on process flows to detect issues, bottlenecks, or optimization opportunities
+
+### Creating Processes
+- "Create an Enterprise Architecture and Business Enterprise Architecture SDLC process to track EA decisions, outcomes, and progress, with escalation flows."
+- "Design a detailed business process for handling inventory stock-outs in a retail environment."
+- "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
+- "Please create me a data governance and management process strategy for managing corporate data that will be used in AI strategies."
+- "Please create me an SDLC process for developing products at the Enterprise/Program-level using the latest Agile SAFe framework, including program-level management, release train management, big room planning, and dependency handling between groups."
+- "Act as a Pharma COO and Architect to design an end-to-end Level 0 Value Chain for a drug development company, covering the lifecycle from Discovery and Pre-Clinical testing through Clinical Development, Regulatory approval, Manufacturing, and Commercial market access."
+- "Read the files in ./vendor-docs and create a process for onboarding new vendors." *(file-based requirements extraction — see Features above)*
+- "Use the saved requirements summary to create a process for onboarding new vendors." *(reuses a requirements summary saved earlier — see below — instead of re-reading the original documents)*
+
+### Reviewing or Querying Existing Processes
+- "Tell me what happens when a security audit is triggered?"
+- "What roles are needed for a sprint planning session?"
+- "Who is responsible for the escalation process being closed?"
+- "Describe the overall process flow."
+
+### Running What-If Scenarios on Existing Processes
+- "What would happen if a security audit failed?"
+- "What would be the impact on a delivery if releases did not happen on time?"
+
+### Applying Updates to Existing Processes & Regenerating the Documentation
+- "Update the process to add security reviews at key stages."
+- "Add a code review process to the development steps."
+
+### Running Simulations
+- "Dry-run the process and identify any issues."
+
+---
+
+## Sample Prompts — Design Documents
+
+Sample prompts for the design-document (HLD/LLD/Combined architecture) side:
+
+### Creating Design Documents
+- "Create a High-Level Design document for a ServiceNow-based Configuration Management and Discovery platform covering AWS and on-premises MID Server clusters, ECC Queue, and Identification & Reconciliation Engine, including component dependencies, integration points, availability targets, and a risk register."
+- "Design a Combined HLD/LLD document for a payments microservices platform on AWS, including component-level interfaces, technology stack, security architecture (authN/authZ, data protection, compliance standards), and scalability/performance targets."
+- "Create a Low-Level Design document detailing the internal components, sequence flows, and interfaces of the notification service described in our existing HLD."
+- "Scan the documents in ./architecture-notes and design a system for our new order management platform." *(file-based requirements extraction)*
+- "Design a Combined HLD/LLD using the saved requirements summary, including any inferred requirements." *(reuses a saved requirements summary and opts in to its inferred/derived requirements)*
+
+### Reviewing or Querying Existing Design Documents
+- "Which components does the Identification & Reconciliation Engine depend on?"
+- "What is the declared availability target for this architecture?"
+- "Describe the overall system context and its external systems."
+
+### Running What-If Scenarios on Existing Design Documents
+- "What if the AWS MID Server cluster region goes down — what else is affected?"
+- "If the PAM/secrets vault integration is compromised, which components and stakeholders are impacted?"
+
+### Running Design Architecture Simulations
+- "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
+- "Can you check this architecture for single points of failure and scalability bottlenecks?"
+
+### Applying Updates to Existing Design Documents & Regenerating the Documentation
+- "Update the design to add a secondary AWS region for the MID Server cluster for resilience."
+- "Add an explicit auto-scaling strategy for the Identification & Reconciliation Engine."
+
+### Generating or Regenerating Cloud Architecture Diagrams
+- "Generate a cloud architecture diagram for the current design document."
+- "Regenerate the architecture diagram to reflect the updated component list."
+
+### Modifying Cloud Architecture Diagrams via Natural Language
+- "Add a WAF in front of the load balancer in the architecture diagram."
+- "Update the cloud diagram to include a Redis cache between the API and the database."
+
+### Reviewing or Querying Existing Cloud Architecture Diagrams
+- "What does this cloud architecture diagram show?"
+- "Review the current diagram for best-practice gaps — is there anything missing for security or observability?"
+
+### Running Cloud Architecture Diagram Simulations
+- "Simulate a failure in this cloud architecture diagram — what are the single points of failure?"
+- "Will the architecture in the diagram scale under load?"
+
+---
+
+## Sample Prompts — Standalone Requirements Extraction & Review
+
+These prompts use `requirements_summary` and `requirements_consultant` directly, without running
+any process/design/architecture creation pipeline. Useful when you want to extract and review
+requirements from a pile of documents before deciding what to build from them.
+
+### Reading & Summarizing Files
+- "Read the files in ./vendor-docs and summarize the requirements."
+- "Scan ./architecture-notes and extract the requirements into a requirements summary file for later use."
+
+Each run reports a plain-language narrative in chat (goals, requirements, constraints, and any
+flagged conflicts/priorities/clarifications/inferred requirements/coverage gaps) and saves a
+structured, traceable requirements register to `output/requirements_summary.json`.
+
+### Reviewing a Saved Requirements Summary
+- "What's in the saved requirements summary?"
+- "Review the requirements summary for conflicts."
+- "What's the priority of the requirements we extracted?"
+- "What areas aren't covered at all by the source material?"
+
+### Reusing a Saved Requirements Summary in a Creation Request
+- "Create a process using the saved requirements summary."
+- "Design a system using the saved requirements summary, including any inferred requirements."
+  *(the "including any inferred requirements" phrasing is required to opt in — otherwise
+  inferred/derived requirements are never used to drive scope, by design.)*
+
+---
+
+## Document Theming
+
+Generated Word documents apply a built-in "Corporate Standard" theme (Segoe UI headings, Calibri
+body, blue accent colors, a "Confidential" footer) unconditionally — there is currently no
+configuration toggle to select a different theme or fall back to plain styling. See
+[NeuroSAN implementation notes](#neurosan-implementation-notes) below.
+
+---
+
+### ISO Compliance Mapping
+
+The following table outlines the alignment of the generated process JSON with international ISO standards.
+
+| ISO Standard | Description | Compliance Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO 9001:2015** | Quality Management Systems (QMS) | **High** | Integrated PDCA cycle via `metrics`, `continuous_improvement`, and `risks_and_controls`. |
+| **ISO 15378:2017** | QMS for Medicinal Products & GxP | **High** | Explicit inclusion of `governance_requirements` (GMP, GLP, GCP) and rigorous `change_management`. |
+| **ISO 31000:2018** | Risk Management Guidelines | **Medium-High** | Detailed `risks_and_controls` and `critical_failure_factors` mapping to risk identification. |
+| **ISO 13485:2016** | Medical Devices Quality Management | **Medium** | Alignment of design-control phases and `system_requirements`. |
+| **ISO 14001:2015** | Environmental Management | **Low** | Core structure exists, but requires specific environmental impact and waste metrics. |
+| **ISO/IEC 27001** | Information Security Management | **Low** | Requires further detail on digital access controls and data encryption protocols. |
+
+**Primary compliance pillars:**
+1. **Quality (ISO 9001):** defining `process_owner` and success criteria for every stage ensures accountability and measurable performance.
+2. **Risk (ISO 31000):** every identified risk is paired with a specific control mechanism, creating a resilient operational framework.
+
+### Design Document Standards Alignment
+
+| Standard | Description | Alignment Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO/IEC/IEEE 42010:2022** | Systems and Software Engineering — Architecture Description | **High** | `system_context`, `high_level_design`, and `low_level_design` map directly to architecture viewpoints and views; `quality_attributes[]` records architecturally significant requirements. |
+| **ISO/IEC/IEEE 29148:2018** | Systems and Software Engineering — Requirements Engineering | **High** | `requirements.functional_requirements`/`requirements.non_functional_requirements` (stable `FR-*`/`NFR-*` ids, priority, source, acceptance criteria, status) populated directly from the analysis-stage requirements register. |
+| **TOGAF ADM** | The Open Group Architecture Framework — Architecture Development Method | **Medium-High** | `system_context.external_systems`, `high_level_design.components`, and `risk_register`/`risks_and_mitigations` align to Business/Data/Application/Technology architecture phases and governance gates. |
+| **ISO/IEC 25010:2011** | Systems and Software Quality Requirements and Evaluation (SQuaRE) | **Medium-High** | `quality_attributes[]` (characteristic enum including `performance_efficiency`, `security`, etc., each with a metric/target) map to SQuaRE quality characteristics. |
+| **C4 Model** | Context, Containers, Components, Code | **Medium** | `system_context` → Context; `high_level_design.components` → Containers/Components; `low_level_design` → Code-level detail. |
+| **arc42** | Pragmatic Architecture Documentation Template | **Medium** | `availability_and_resilience`, `scalability_and_performance`, and `security_architecture` map to arc42's cross-cutting concepts and quality-scenario sections. |
+
+**Design-side simulation & analysis coverage** — the design simulation agent provides quantitative
+evidence against several of the standards above with no additional schema fields needed:
+1. **Resilience/Availability:** a Monte Carlo blast-radius simulation over component dependencies, integration points, availability targets, and the risk register produces single-point-of-failure and cascading-failure evidence.
+2. **Scalability:** fan-in bottleneck analysis against the scaling strategy and declared elastic technologies.
+3. **Security/Compliance:** a control-coverage checklist plus a compliance-status tally.
+4. **Latency:** declared performance targets cross-checked against the deepest dependency chain.
+
+---
 
 ## Project layout
 
@@ -497,106 +490,75 @@ registries/<name>.hocon       One file per agent network. manifest.hocon registe
 coded_tools/common/            Shared, framework-agnostic logic (paths, mailbox, loop control,
                                process/drawio JSON persistence, directory-file extraction).
 coded_tools/common/docgen/     ISO-formatted Word document + flow/UML diagram generation, for both
-                               the process and design schemas -- see "The document-generation
-                               stage" above.
+                               the process and design schemas.
 coded_tools/<network>/        Thin CodedTool wrappers neuro-san resolves per-network (its "class"
                                field is always relative to coded_tools/<network_name>/) -- mostly
                                one-line re-exports of the shared logic in coded_tools/common/.
 output/                       Generated artifacts (process_data.json, cloudarch_drawio.xml,
                                requirements_summary.json, approval.json, *.docx, *_flow.png, ...)
-                               -- gitignored, same filenames/shapes as the ADK original so the two
-                               samples describe the same artifacts even though no code is shared.
-cli.py                        ADK-compatible CLI entry point -- see "CLI (cli.py)" above.
+                               -- gitignored.
+cli.py                        Standalone CLI entry point -- see "CLI (cli.py)" above.
 Dockerfile                    Container image -- see "Docker" above.
 ```
 
-## Deliberate simplifications vs. the ADK original
+---
 
-Ported for *functional* parity, not line-for-line fidelity. Noted here rather than silently:
+## NeuroSAN implementation notes
 
-- **Custom Flask web-service layer (auth, rate-limiting) is not ported.** neuro-san's own `ns run`
-  server + nsflow UI is the serving layer instead; it has no API-key guard or rate limiting of its
-  own, so a deployment reachable beyond localhost needs an authenticating reverse proxy / rate
-  limiter in front of it — the ADK original's own Flask hardening doesn't carry over, it isn't
-  replaced by something equivalent.
-  **Per-session artifact isolation is not ported either, and is a real gap, not just a missing
-  nice-to-have**: `ns run` happily serves multiple concurrent chat sessions, but this port's own
-  state — `process_data.json`/`design_data.json`, `cloudarch_drawio.xml`, `approval.json`,
-  `stop_counter.json`, every `iteration_feedback_<channel>.json` mailbox — all live in one
-  project-wide `output/` directory (`coded_tools/common/paths.py`), not scoped per session. Two
-  concurrent sessions driving the same network (e.g. two people both running `process` at once)
-  read and overwrite each other's artifacts and review feedback. Only
-  `output/requirements_summary.json` has a per-session preference layer on top of the shared file
-  (via neuro-san's `sly_data`, the analogue of the ADK original's `tool_context.state` — see
-  `coded_tools/requirements_summary/`); nothing else does. Safe as currently built for one
-  requester at a time; extending the same `sly_data`-preferred-over-shared-file pattern to the rest
-  of this state would be the real fix, not yet done here.
-- **`cloudarch`'s freehand-XML path (`save_drawio`) is not ported.** The structured, deterministic
-  layout engine (`save_drawio_structured`) is the default and only path here — the ADK original
-  only ever fell back to freehand XML on explicit user request, which this port doesn't yet expose.
-- **`process`'s JSON validation is a minimal structural check** (required fields present, every
-  step has a `step_name`/`responsible_party`, dependencies reference real steps), not the full
-  `process_schema.json` JSON-Schema document the ADK original validates against.
-- **Pure-logging ADK tools with no state effect** (`log_cloudarch_metadata`,
-  `log_cloudarch_reviewer_metadata`, `log_design_metadata`) are dropped entirely — confirmed
-  side-effect-free in the original before cutting them, to keep each network's tool list to what
-  actually matters.
-- **`output/requirements_summary.json` session-scoping uses neuro-san's `sly_data`** in place of
-  the ADK original's `tool_context.state` — same idea (a session's own save is preferred over
-  whatever a different concurrent session most recently overwrote the shared file with), different
-  mechanism's name.
-- **The ADK original's separate JSON-normalization loop** (a dedicated `JSON_Normalizer_Agent` +
-  `JSON_Review_Agent` sub-loop, run after compliance/simulation approve) **is absorbed into
-  `Design_Agent`'s own validate→persist steps** here, rather than ported as a fourth separate
-  reviewer agent — `Design_Agent` already repairs and validates before every `persist_final_json`
-  call, which is the same structural-completeness guarantee under a different label.
-- **The subprocess generator and writer are merged into one agent.** The ADK original hands a
-  generated subprocess flow between two agents via ADK session state (a generator, then a separate
-  writer that persists it). Here, `Subprocess_Generator_Agent`'s own tool-call arguments already
-  carry the validated data directly — there's no session-state hand-off to replicate, so
-  `save_subprocess_flow` does the writer's persistence+path-safety job in the same step.
-- **`design`'s HLD and LLD generation are one agent, one pass.** The ADK original runs a separate
-  `Design_Doc_HLD_Agent` then `Design_Doc_LLD_Agent` (each its own LLM call), then reuses a third
-  "Combined" generator cloned three more times as the post-compliance/post-simulation/post-
-  grounding refinement step. Here, one `Design_Doc_Agent` populates `high_level_design` and
-  `low_level_design` together and is the only generator the review loop ever calls again — same
-  simplification `process.hocon` already makes for its own single `Design_Agent`.
-- **The design pipeline's optional grounding stage (OpenAPI-spec cross-check) is dropped
-  entirely.** It defaults OFF in the ADK original (`enableGroundingAgent=false`) and is a straight
-  clone of the process pipeline's own grounding agent/instructions there (no design-specific
-  logic) — dropping it removes an always-disabled path rather than any real design-side behavior.
-- **The design pipeline's separate JSON-normalization loop is absorbed into `Design_Doc_Agent`'s
-  own validate→persist steps**, the same simplification `process.hocon` makes for its own
-  `Design_Agent`.
-- **`review_and_governance` (review history/change log/approval workflow) is never populated.**
-  The ADK original's own instruction files already tell the generating agent to leave it empty on
-  creation, since it describes events (reviews, approvals) that haven't happened yet; this port
-  simply never renders a section for it either, rather than rendering an always-empty one.
+This section covers implementation details and deliberate differences worth knowing about if
+you're comparing this to a similar system built on a different agent framework, or extending it
+further.
+
+**Why the generate/review loop looks the way it does.** neuro-san has no built-in "run until
+approved, then stop" loop primitive. Every pipeline's front-man instead follows the same explicit
+convention: *reset state → generate → review(s) → `loop_control` → continue-or-stop*.
+`coded_tools/common/iteration_feedback.py` is the generate/review feedback mailbox
+(`output/iteration_feedback*.json`, with a per-channel variant so multiple reviewers in the same
+pass don't overwrite each other) and cumulative approval state (`output/approval.json`).
+`coded_tools/common/loop_control.py` returns an authoritative `"STOP"`/`"CONTINUE"` verdict that a
+front-man's own instructions are told to treat as final — checked in the order that matters
+(approval before max-iterations, so a genuine approval on the last allowed iteration reports as
+approved, not exhausted).
+
+**`max_execution_seconds`.** neuro-san gives every agent a 300-second execution budget by default,
+independently at every level of a call chain — a top-level front-man has its own budget, and
+whichever pipeline it routes to has a *separate* 300s budget of its own. A full process generation
+(analysis → design → compliance → simulation, looped, plus one subprocess-expansion call per
+top-level step) can genuinely exceed 5 minutes. `config/llm_config.hocon` sets
+`"max_execution_seconds": 3600`, which every network inherits.
+
+**Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
+reference implementation):
+- No custom web-service auth/rate-limiting layer — `ns run`'s own server is the serving layer
+  instead (see [Known issues](#known-issues) above for what that means for exposure beyond
+  localhost).
+- Per-session artifact isolation is not implemented (see Known issues above) — only
+  `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over
+  the shared on-disk file; nothing else does yet.
+- `cloudarch`'s diagram generation always uses the structured, deterministic layout engine; there's
+  no free-hand/hand-written-XML path.
+- Document theming always applies the single built-in "Corporate Standard" theme — there's no
+  configuration toggle to pick a different theme or disable it.
+- The design pipeline's optional grounding stage (spec cross-check against an OpenAPI document) is
+  not implemented — it would default off regardless.
+- `review_and_governance` (review history/change log/approval workflow) is never populated — it
+  describes events that haven't happened yet at generation time, so no section is rendered for it.
+
+---
 
 ## Verification
 
-Every piece above was checked at the Python level (not just "the YAML parses") before being
-trusted in a network:
-
-- `uv run pytest` — a real test suite (`tests/`), not just ad-hoc scripts: directory extraction,
-  drawio save/load round-trips, all three Monte Carlo simulations (process cycle-time, cloudarch
-  resilience/scalability/latency, and design-document resilience/scalability/security/latency
-  blast-radius) against known inputs, the per-channel feedback mailbox (proving two reviewers
-  writing in the same pass don't clobber each other), full pipeline integration tests calling the
-  real `CodedTool` classes in the front-man's own sequence, end-to-end document-generation tests
-  (a real `.docx` built and its headings inspected, for both schemas), HOCON structural validation
-  for every ported network, and critically, `loop_control` unit-tested against the exact ordering
-  the ADK original's docstring calls out as load-bearing: approval checked *before*
-  max-iterations, so a genuine approval on the final allowed iteration reports as approved, not
-  exhausted.
+- `uv run pytest` — directory extraction, drawio save/load round-trips, all three Monte Carlo
+  simulations (process cycle-time, cloudarch resilience/scalability/latency, design-document
+  resilience/scalability/security/latency blast-radius), the per-channel feedback mailbox, full
+  pipeline integration tests calling the real `CodedTool` classes in the front-man's own sequence,
+  end-to-end document-generation tests for both schemas, HOCON structural validation for every
+  network, and `loop_control` unit-tested against the exact ordering that matters (approval checked
+  *before* max-iterations).
 - `uv run ns chat <network> --one-shot` against every network — confirms the full network (every
-  agent, every `CodedTool`'s `"class"` resolution) loads and resolves correctly end-to-end; each
-  one correctly reaches (and only fails at) the "no LLM API key configured" step, since no live
-  credentials are available in the environment this was built in.
+  agent, every `CodedTool`'s `"class"` resolution) loads and resolves correctly end-to-end.
 - `uv run python cli.py -i "..."` against `process_architect` — confirms the CLI's direct neuro-san
   session wiring independently of the `ns chat`/`ns validate` tooling above.
 - **CI** (`.github/workflows/testbuild.yml`): a dedicated `neurosan_processengineering_tests` job
-  runs this sample's full `pytest` suite on every push/PR touching `samples/**` — not just a
-  Docker build, an actual functional gate, since none of it needs an LLM key. The
-  `build_and_test` matrix separately builds and smoke-tests this sample's own Docker image
-  (`neurosan_process` entry), alongside the other samples'.
+  runs the full `pytest` suite on every push/PR touching `samples/**`. The `build_and_test` matrix
+  separately builds and smoke-tests this project's Docker image (`neurosan_process` entry).
