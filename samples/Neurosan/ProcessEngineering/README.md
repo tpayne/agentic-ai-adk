@@ -177,6 +177,43 @@ a blank column after the fact. Covered by
 `tests/test_process_json.py::test_validate_rejects_metrics_csf_cff_reporting_entries_missing_a_description`
 and its accepts-counterpart.
 
+A live run also logged two matplotlib `UserWarning`s that, while not fatal, pointed to real,
+fixable issues rather than noise: `step_diagrams.py`'s subprocess diagram used `fontweight="medium"`
+for ordinary nodes, a valid matplotlib keyword the bundled DejaVu Sans font can't actually render
+(it only ships Regular/400 and Bold/700 faces), so matplotlib silently substituted 400 and warned
+("Failed to find font weight") on every such node; fixed by asking for `"normal"` instead, the
+weight that's actually available. Separately, the same module's swimlane diagrams draw each lane's
+label well to the left of the plotted nodes (`ax.text(xmin - 5.0, ...)`), which for a long
+`responsible_party` name sits far enough outside the Axes' data range that `fig.tight_layout()`'s
+margin heuristic can't reconcile it with `fig.suptitle()`'s own padding, warning ("Tight layout not
+applied") on real multi-lane diagrams with long-enough lane names. Fixed by dropping
+`fig.tight_layout()` in favor of `bbox_inches="tight"` at `savefig()` time — matching
+`edge_inference.py`'s own diagram save already — which crops to the actual rendered content,
+including the out-of-axes lane labels, instead of pre-computing subplot margins for it. Both
+confirmed fixed (not just quieter) by re-running the triggering input with
+`warnings.simplefilter("error")`, and locked in by
+`tests/test_docgen.py::test_step_diagram_with_long_lane_names_does_not_warn` and
+`test_flow_diagram_non_start_end_node_label_does_not_warn`.
+
+### A real bug found (and fixed): `reset_loop_state` left stale reviewer feedback behind
+
+An external review of this port against the ADK original surfaced a genuine gap:
+`ResetLoopStateCodedTool` (`coded_tools/cloudarch/reset_loop_state_tool.py`, shared by all four
+generate/review pipelines) cleared `approval.json` and `stop_counter.json` at the start of a new
+request, but never the per-channel feedback mailboxes (`iteration_feedback_<channel>.json` for
+`analysis`/`update`/`compliance`/`simulation`, plus cloudarch's unchanneled default). A loop that
+stops at `MAX_ITERATIONS` immediately after `Compliance_Agent`/`Simulation_Agent` write fresh
+feedback is never drained — the loop's own front-man instructions say not to call the generator
+again once a stop verdict comes back, so nothing ever reads and clears that last round's mailbox.
+The next, completely unrelated request against the same network would then have its own
+`Design_Agent` read and apply that stale, unrelated reviewer feedback the moment it checked the
+same channel. Fixed by adding `reset_feedback_channels()` (`coded_tools/common/
+iteration_feedback.py`), clearing every known channel's mailbox file, and calling it from
+`ResetLoopStateCodedTool` alongside the existing two resets. Confirmed the fix matters (not just
+cosmetic) by reverting it and watching
+`tests/test_pipeline_integration.py::test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run`
+fail with the exact stale-data leak described above, then re-applying it.
+
 ### The design-document pipeline's architecture simulation
 
 `design.hocon`/`design_update.hocon`'s Simulation_Agent (and the standalone
@@ -379,9 +416,23 @@ Dockerfile                    Container image -- see "Docker" above.
 
 Ported for *functional* parity, not line-for-line fidelity. Noted here rather than silently:
 
-- **Custom Flask web-service layer (auth, rate-limiting, per-session isolation) is not ported.**
-  neuro-san's own `ns run` server + nsflow UI already serves multiple concurrent sessions; that
-  hardening was specific to the ADK sample's bespoke Flask mode.
+- **Custom Flask web-service layer (auth, rate-limiting) is not ported.** neuro-san's own `ns run`
+  server + nsflow UI is the serving layer instead; it has no API-key guard or rate limiting of its
+  own, so a deployment reachable beyond localhost needs an authenticating reverse proxy / rate
+  limiter in front of it — the ADK original's own Flask hardening doesn't carry over, it isn't
+  replaced by something equivalent.
+  **Per-session artifact isolation is not ported either, and is a real gap, not just a missing
+  nice-to-have**: `ns run` happily serves multiple concurrent chat sessions, but this port's own
+  state — `process_data.json`/`design_data.json`, `cloudarch_drawio.xml`, `approval.json`,
+  `stop_counter.json`, every `iteration_feedback_<channel>.json` mailbox — all live in one
+  project-wide `output/` directory (`coded_tools/common/paths.py`), not scoped per session. Two
+  concurrent sessions driving the same network (e.g. two people both running `process` at once)
+  read and overwrite each other's artifacts and review feedback. Only
+  `output/requirements_summary.json` has a per-session preference layer on top of the shared file
+  (via neuro-san's `sly_data`, the analogue of the ADK original's `tool_context.state` — see
+  `coded_tools/requirements_summary/`); nothing else does. Safe as currently built for one
+  requester at a time; extending the same `sly_data`-preferred-over-shared-file pattern to the rest
+  of this state would be the real fix, not yet done here.
 - **`cloudarch`'s freehand-XML path (`save_drawio`) is not ported.** The structured, deterministic
   layout engine (`save_drawio_structured`) is the default and only path here — the ADK original
   only ever fell back to freehand XML on explicit user request, which this port doesn't yet expose.
@@ -446,3 +497,8 @@ trusted in a network:
   credentials are available in the environment this was built in.
 - `uv run python cli.py -i "..."` against `process_architect` — confirms the CLI's direct neuro-san
   session wiring independently of the `ns chat`/`ns validate` tooling above.
+- **CI** (`.github/workflows/testbuild.yml`): a dedicated `neurosan_processengineering_tests` job
+  runs this sample's full `pytest` suite on every push/PR touching `samples/**` — not just a
+  Docker build, an actual functional gate, since none of it needs an LLM key. The
+  `build_and_test` matrix separately builds and smoke-tests this sample's own Docker image
+  (`neurosan_process` entry), alongside the other samples'.

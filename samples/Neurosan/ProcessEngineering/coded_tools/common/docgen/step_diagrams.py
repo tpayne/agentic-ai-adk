@@ -242,8 +242,17 @@ def generate_step_diagram_for_step(step_name: str, subprocess_json: dict) -> str
             )
 
         fig.suptitle(step_name, fontsize=14)
-        fig.tight_layout()
-        fig.savefig(out_path, dpi=150)
+        # Swimlane labels are drawn via ax.text(xmin - 5.0, ...), which can
+        # sit arbitrarily far left of the Axes' own data range for a long
+        # responsible_party name -- fig.tight_layout()'s subplot-margin
+        # heuristic can't reconcile that with fig.suptitle()'s own padding,
+        # and warns ("Tight layout not applied") on every real multi-lane
+        # diagram with long-enough lane names, confirmed directly. Dropping
+        # it in favor of bbox_inches="tight" at save time (matching
+        # edge_inference.py's own diagram save) crops to the actual
+        # rendered content -- including the out-of-axes lane labels --
+        # instead of trying to pre-compute subplot margins for it.
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
 
         logger.debug(f"Step diagram generated at {out_path}")

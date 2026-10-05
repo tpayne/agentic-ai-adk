@@ -37,6 +37,17 @@ APPROVED_STATUSES = {
     "CLOUDARCH APPROVED",
 }
 
+# Every channel any network's instructions actually save/load (see the
+# "channel=" HOCON references in registries/*.hocon) -- "" is the
+# unchanneled default cloudarch uses. A loop that stops at MAX_ITERATIONS
+# right after a reviewer writes fresh feedback (but before the generator's
+# next call would have drained it -- the generator is never called again
+# once the loop decides to stop) leaves that channel's mailbox undrained.
+# reset_approval_state() alone doesn't clear these, so a later, UNRELATED
+# request against the same network can load and apply that stale feedback
+# the moment its own Design_Agent reads the same channel.
+KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation")
+
 
 def _feedback_filename(channel: str = "") -> str:
     # Channel support: CloudArch has exactly one reviewer, so the single
@@ -138,6 +149,20 @@ def reset_approval_state() -> None:
     starts (see loop_control.py's reset_iteration_counter sibling)."""
     for filename in (APPROVAL_FILENAME,):
         path = output_path(filename)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+
+def reset_feedback_channels() -> None:
+    """Clears every known feedback mailbox (see KNOWN_CHANNELS) left over
+    from an earlier, unrelated pipeline run -- same timing as
+    reset_approval_state's sibling above (call once, as the very first
+    action, at the start of a NEW generate-or-refine request)."""
+    for channel in KNOWN_CHANNELS:
+        path = output_path(_feedback_filename(channel))
         try:
             if os.path.exists(path):
                 os.remove(path)

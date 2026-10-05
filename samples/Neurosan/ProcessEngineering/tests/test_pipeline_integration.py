@@ -10,6 +10,9 @@ from coded_tools.cloudarch.save_drawio_structured_tool import SaveDrawioStructur
 from coded_tools.cloudarch.save_iteration_feedback_tool import (
     SaveIterationFeedbackCodedTool as CloudArchSaveFeedback,
 )
+from coded_tools.process.load_iteration_feedback_tool import (
+    LoadIterationFeedbackCodedTool as ProcessLoadFeedback,
+)
 from coded_tools.process.loop_control_tool import LoopControlCodedTool as ProcessLoopControl
 from coded_tools.process.process_json_tool import (
     LoadMasterProcessJsonCodedTool,
@@ -89,3 +92,25 @@ def test_process_pipeline_continues_if_only_one_reviewer_has_approved():
         {"required": {"compliance_status": "APPROVED", "simulation_status": "APPROVED"}, "max_iterations": 2}, {}
     )
     assert verdict["verdict"] == "CONTINUE"
+
+
+def test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run():
+    # Reproduces a real gap: a run that stops at MAX_ITERATIONS right after
+    # a reviewer writes fresh feedback never has that feedback drained --
+    # the generator is never called again once the loop decides to stop.
+    # Simulate that leftover state here, then confirm reset_loop_state (the
+    # very first thing a NEW, unrelated request calls) clears it, so the
+    # next generator call can't load and apply someone else's stale review.
+    ProcessSaveFeedback().invoke(
+        {"channel": "compliance", "feedback": {"status": "REVISION REQUIRED", "data": ["stale, unrelated issue"]}}, {}
+    )
+    ProcessSaveFeedback().invoke(
+        {"channel": "simulation", "feedback": {"status": "REVISION REQUIRED", "data": ["stale, unrelated issue"]}}, {}
+    )
+
+    ProcessReset().invoke({}, {})
+
+    load_feedback = ProcessLoadFeedback()
+    for channel in ("compliance", "simulation"):
+        result = load_feedback.invoke({"channel": channel}, {})
+        assert result.get("data") in (None, []), f"channel {channel!r} still has stale data: {result}"

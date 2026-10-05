@@ -570,7 +570,13 @@ def generate_clean_diagram() -> str:
             elif node in end_nodes:
                 fill_color, line_color, text_weight = "#FF0000", "#8B0000", "bold"
             else:
-                fill_color, line_color, text_weight = "#D5E8F7", "#2980B9", "medium"
+                # "medium" (weight 500) is a valid matplotlib keyword, but the
+                # bundled DejaVu Sans font only ships Regular (400)/Bold (700)
+                # faces, so it can never actually render -- matplotlib falls
+                # back to 400 on every single non-start/end node, logging a
+                # "Failed to find font weight" warning each time. "normal"
+                # asks for the weight that's actually available.
+                fill_color, line_color, text_weight = "#D5E8F7", "#2980B9", "normal"
 
             ax.plot(x, y, marker='o', markersize=62,
                     markeredgecolor=line_color, markerfacecolor=fill_color,
