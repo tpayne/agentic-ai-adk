@@ -132,6 +132,9 @@ ZONE_SKIP_STEP = 6            # stagger step within a zone's own side margin,
                                # in the same zone (see _route_edge)
 ZONE_SKIP_CLAMP_VERTICAL = COMPONENT_H_MARGIN / 2 - 4
 ZONE_SKIP_CLAMP_HORIZONTAL = ZONE_INNER_MARGIN / 2 - 4
+SAFE_X_SEARCH_STEP = 6        # step size when _safe_x_for_vertical_span has
+                               # to search away from its preferred x -- see
+                               # that function's own docstring
 
 
 def _line_count(component: Dict[str, Any]) -> int:
@@ -434,13 +437,43 @@ def _layout_zones_and_components(
     return zone_boxes, component_boxes, canvas_width, canvas_height
 
 
-def _channel_key(src: _Box, tgt: _Box) -> Tuple[str, Any]:
+def _same_row_zones_adjacent(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> bool:
+    """
+    Whether src's and tgt's own zones are immediate neighbors within their
+    shared row -- True trivially if they're the same zone. Shared by
+    _route_edge (to pick a routing strategy) and _channel_key (so edges
+    that end up sharing the SAME physical channel because they're routed
+    the same way -- see _route_edge -- also share a stagger channel, and
+    don't coincidentally land on top of each other instead).
+    """
+    if src.zone_id == tgt.zone_id:
+        return True
+    row_zones = sorted(
+        (b for b in all_boxes.values() if b.zone_id is None and b.row == src.row),
+        key=lambda z: z.x,
+    )
+    src_zone = next((z for z in row_zones if z.id == src.zone_id), None)
+    tgt_zone = next((z for z in row_zones if z.id == tgt.zone_id), None)
+    if src_zone is None or tgt_zone is None:
+        return True
+    left_z, right_z = (src_zone, tgt_zone) if src_zone.x < tgt_zone.x else (tgt_zone, src_zone)
+    return row_zones.index(right_z) - row_zones.index(left_z) == 1
+
+
+def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[str, Any]:
     """
     Identifies which shared routing channel an edge falls into. Two edges
     with the same key will draw through the exact same reserved space (the
     same gap, the same inter-row band, or -- worst case -- the exact same
     straight line between two boxes) unless given different stagger slots,
     so this is the grouping _stagger_offset's slot-per-channel counter uses.
+
+    Keys for the row-gap channel ("v") must match _route_edge's own choice
+    of which row-gap it actually routes through -- confirmed directly
+    against a real generated diagram that a same-row edge between
+    non-adjacent zones and a cross-row edge landing in that SAME physical
+    gap, but computing DIFFERENT channel keys, got no stagger coordination
+    at all and rendered as overlapping lines.
     """
     # zone_id is None for zone-level boxes (a zone-to-zone edge), so the
     # None-vs-None case is excluded -- two DIFFERENT zones in the same row
@@ -458,8 +491,12 @@ def _channel_key(src: _Box, tgt: _Box) -> Tuple[str, Any]:
         # each other rather than overlapping by coincidence.
         return ("zone_skip", src.zone_id)
     if src.row == tgt.row:
-        return ("h", frozenset({src.zone_id, tgt.zone_id}))
-    return ("v", min(src.row, tgt.row))
+        if _same_row_zones_adjacent(src, tgt, all_boxes):
+            return ("h", frozenset({src.zone_id, tgt.zone_id}))
+        # Routed via this row's own below-row channel, same as a cross-row
+        # edge leaving this row -- see _route_edge.
+        return ("v", src.row)
+    return ("v", max(src.row, tgt.row) - 1)
 
 
 def _stagger_offset(slot: int, step: float, clamp: Optional[float] = None) -> float:
@@ -477,22 +514,88 @@ def _stagger_offset(slot: int, step: float, clamp: Optional[float] = None) -> fl
     return magnitude if slot % 2 == 1 else -magnitude
 
 
+def _safe_x_for_vertical_span(
+    preferred_x: float,
+    y_lo: float,
+    y_hi: float,
+    exclude_ids: Tuple[str, str],
+    all_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    An x-coordinate, as close to `preferred_x` as possible, that no
+    component (other than `exclude_ids`, the edge's own source and target)
+    occupies anywhere across the vertical span [y_lo, y_hi].
+
+    _route_edge's same-row-different-zone and different-row branches both
+    route a long vertical leg through a single x -- previously always
+    src.cx/tgt.cx, or the raw midpoint between two facing box edges, on the
+    assumption that coordinate is automatically clear. Confirmed directly
+    against a real generated diagram that it often isn't: (a) a component
+    with siblings stacked between it and the direction of travel (e.g. the
+    first of several stacked components routing down to a later row) shares
+    its own x with those siblings, and (b) a same-row edge between two
+    zones that are NOT actually adjacent (another zone sits between them)
+    had its naive midpoint land inside that intervening zone. Both render
+    as a line cutting straight through an unrelated box.
+
+    Searches outward in fixed steps rather than solving analytically, since
+    the obstacle can be an arbitrary mix of same-zone siblings and
+    unrelated zones' own components -- when `preferred_x` is already clear
+    (the common case), this returns it immediately, so every previously
+    correct route is unchanged.
+    """
+    def blocked(x: float) -> bool:
+        for box_id, box in all_boxes.items():
+            if box_id in exclude_ids or box.zone_id is None:
+                continue  # zone containers aren't obstacles, only components
+            if box.x <= x <= box.right and box.y < y_hi and box.bottom > y_lo:
+                return True
+        return False
+
+    if not blocked(preferred_x):
+        return preferred_x
+    for step in range(1, 300):
+        for candidate in (preferred_x - step * SAFE_X_SEARCH_STEP, preferred_x + step * SAFE_X_SEARCH_STEP):
+            if not blocked(candidate):
+                return candidate
+    return preferred_x  # exhausted the search -- fall back rather than loop forever
+
+
 def _route_edge(
     edge: Dict[str, Any],
     src: _Box,
     tgt: _Box,
     channel_slot: int,
     row_bottoms: Dict[int, float],
-) -> List[Tuple[float, float]]:
+    all_boxes: Dict[str, "_Box"],
+) -> Tuple[List[Tuple[float, float]], str, str]:
     """
-    Returns a list of intermediate waypoints (possibly empty) for this edge,
-    chosen so the route -- and therefore its default-midpoint label -- never
-    passes through a box: adjacent same-zone edges use the fixed gap between
+    Returns (waypoints, exit_side, entry_side) for this edge, chosen so the
+    route -- and therefore its default-midpoint label -- never passes
+    through a box: adjacent same-zone edges use the fixed gap between
     neighboring stacked components; non-adjacent same-zone edges use the
-    zone's own side margin; different-zone-same-row edges use the fixed
-    horizontal gap between columns; cross-row edges drop through the fixed
-    horizontal channel between rows. All of these are reserved space no box
-    is ever placed in, by construction.
+    zone's own side margin; different-zone-same-row and different-row edges
+    route through a shared x/y channel that is VERIFIED clear (see
+    _safe_x_for_vertical_span) rather than assumed clear, since real
+    diagrams showed both of those previously cutting straight through a
+    box: a same-row edge between two zones that are not actually adjacent
+    (another zone sits between them) landed its naive midpoint inside that
+    intervening zone, and a cross-row edge from a component with siblings
+    stacked between it and the direction of travel (or skipping an entire
+    intervening row's own zone) shared its exit/entry x with those boxes.
+
+    exit_side/entry_side ("left"/"right"/"top"/"bottom") are each branch's
+    OWN, explicit, known-by-construction choice -- NOT inferred after the
+    fact from a waypoint's raw position relative to the box center (the
+    previous approach, via _connection_side). That inference breaks for
+    the two channel-routed branches below once _safe_x_for_vertical_span
+    has to search far from a box's own center to dodge an obstacle: the
+    found x can end up far enough from the box's cx that a comparison of
+    |dx| vs |dy| flips to "left"/"right" even though the edge is
+    conceptually a vertical, top/bottom-flowing one -- confirmed directly
+    against a real generated diagram rendering as a diagonal line jumping
+    from a box's LEFT-center straight to a point far below and to the
+    right of it, instead of a clean right-angle drop from its bottom edge.
 
     row_bottoms maps a row number to the bottom edge of the TALLEST zone in
     that row (not any single component's, and not even just its own zone's --
@@ -503,6 +606,11 @@ def _route_edge(
     share its _channel_key -- the caller assigns these per-channel, not
     globally, so two edges sharing a channel always get visibly different
     offsets regardless of how many unrelated edges exist elsewhere.
+
+    all_boxes is every zone's and every component's own box, keyed by id --
+    needed to verify a candidate route coordinate is actually clear of every
+    OTHER component, not just the ones src/tgt's own zone or row would
+    suggest.
     """
     # zone_id is None for zone-level boxes themselves (a zone-to-zone
     # edge), so the None-vs-None check below must be excluded explicitly --
@@ -510,22 +618,29 @@ def _route_edge(
     # "the same zone" and fall into logic keyed off a component's own
     # margin, which doesn't apply to a zone box at all.
     if src.zone_id is not None and src.zone_id == tgt.zone_id and src.row == tgt.row:
+        if src.stack == "horizontal":
+            exit_side, entry_side = ("right", "left") if tgt.order > src.order else ("left", "right")
+        else:
+            exit_side, entry_side = ("bottom", "top") if tgt.order > src.order else ("top", "bottom")
+
         if abs(src.order - tgt.order) == 1:
             if channel_slot == 0:
                 # The common case: a single edge between immediate
                 # neighbors draws a plain straight line through the
                 # reserved inter-component gap, no waypoint needed.
-                return []
+                return [], exit_side, entry_side
             # A 2nd+ edge between the identical pair (e.g. a reply edge)
             # would otherwise draw on the exact same line -- nudge it
             # perpendicular to whichever axis the two boxes are actually
-            # separated along.
+            # separated along. The nudge is perpendicular to the PRIMARY
+            # separation axis, so it never changes which side the edge
+            # conceptually leaves/enters from.
             mid_x = (src.cx + tgt.cx) / 2
             mid_y = (src.cy + tgt.cy) / 2
             offset = _stagger_offset(channel_slot, SAME_PAIR_OFFSET)
             if abs(tgt.cy - src.cy) >= abs(tgt.cx - src.cx):
-                return [(mid_x + offset, mid_y)]
-            return [(mid_x, mid_y + offset)]
+                return [(mid_x + offset, mid_y)], exit_side, entry_side
+            return [(mid_x, mid_y + offset)], exit_side, entry_side
 
         # Non-adjacent components in the same zone: a bare straight line
         # between them would cut straight through every sibling box
@@ -537,71 +652,110 @@ def _route_edge(
         if src.stack == "horizontal":
             offset = _stagger_offset(channel_slot, ZONE_SKIP_STEP, clamp=ZONE_SKIP_CLAMP_HORIZONTAL)
             margin_y = src.y - ZONE_INNER_MARGIN / 2 + offset
-            return [(src.cx, margin_y), (tgt.cx, margin_y)]
+            return [(src.cx, margin_y), (tgt.cx, margin_y)], "top", "top"
         offset = _stagger_offset(channel_slot, ZONE_SKIP_STEP, clamp=ZONE_SKIP_CLAMP_VERTICAL)
         margin_x = src.x - COMPONENT_H_MARGIN / 2 + offset
-        return [(margin_x, src.cy), (margin_x, tgt.cy)]
+        return [(margin_x, src.cy), (margin_x, tgt.cy)], "left", "left"
 
     if src.row == tgt.row:
-        # Different zones, same row: route through the fixed horizontal gap
-        # between the two zone columns -- the x midway between whichever
-        # pair of edges actually face each other.
-        if src.right <= tgt.x:
-            base_gap_x = (src.right + tgt.x) / 2
-        elif tgt.right <= src.x:
-            base_gap_x = (tgt.right + src.x) / 2
-        else:
-            base_gap_x = (src.cx + tgt.cx) / 2
-        gap_x = base_gap_x + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
-        if src.cy == tgt.cy:
-            # Already vertically aligned -- a single waypoint at the shared y
-            # is already a clean right-angle path (exit -> waypoint is
-            # horizontal, waypoint -> entry is horizontal, no vertical
-            # segment needed at all).
-            return [(gap_x, src.cy)]
-        # NOT vertically aligned (the common case -- src/tgt are rarely at the
-        # exact same stack position within their own, independently-stacked
-        # zones). A SINGLE waypoint at the midpoint of the two centers was the
-        # previous approach here, but that produces two DIAGONAL segments
-        # (confirmed against a real generated diagram: exit and entry points
-        # are each pinned to their own box's own cy, which does not equal the
-        # midpoint y, so neither segment ends up horizontal OR vertical) --
-        # exactly what renders as an edge that looks disconnected from its
-        # box once the box has no visible border to anchor the eye to. Two
-        # waypoints at the SAME gap_x instead give three axis-aligned
-        # segments: exit (src's own cy) -> horizontal -> (gap_x, src.cy) ->
-        # vertical -> (gap_x, tgt.cy) -> horizontal -> entry (tgt's own cy).
-        return [(gap_x, src.cy), (gap_x, tgt.cy)]
+        if _same_row_zones_adjacent(src, tgt, all_boxes):
+            # Different zones, same row, immediate neighbors: route through
+            # the horizontal gap between the two zone columns -- the x
+            # midway between whichever pair of edges actually face each
+            # other. Verified (and corrected if needed) against every
+            # component in the row rather than trusted outright, since a
+            # sibling edge's stagger can still push this x into a shorter
+            # row-mate zone's interior.
+            if src.right <= tgt.x:
+                base_gap_x = (src.right + tgt.x) / 2
+                exit_side, entry_side = "right", "left"
+            elif tgt.right <= src.x:
+                base_gap_x = (tgt.right + src.x) / 2
+                exit_side, entry_side = "left", "right"
+            else:
+                base_gap_x = (src.cx + tgt.cx) / 2
+                exit_side, entry_side = ("right", "left") if tgt.cx >= src.cx else ("left", "right")
+            naive_gap_x = base_gap_x + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
+            row_zones = [b for b in all_boxes.values() if b.zone_id is None and b.row == src.row]
+            row_y_lo = min((z.y for z in row_zones), default=src.y)
+            row_y_hi = max((z.bottom for z in row_zones), default=src.bottom)
+            gap_x = _safe_x_for_vertical_span(naive_gap_x, row_y_lo, row_y_hi, (src.id, tgt.id), all_boxes)
+            if src.cy == tgt.cy:
+                # Already vertically aligned -- a single waypoint at the
+                # shared y is already a clean right-angle path (exit ->
+                # waypoint is horizontal, waypoint -> entry is horizontal,
+                # no vertical segment needed at all).
+                return [(gap_x, src.cy)], exit_side, entry_side
+            # NOT vertically aligned (the common case -- src/tgt are rarely
+            # at the exact same stack position within their own,
+            # independently-stacked zones). A SINGLE waypoint at the
+            # midpoint of the two centers was the previous approach here,
+            # but that produces two DIAGONAL segments (confirmed against a
+            # real generated diagram: exit and entry points are each
+            # pinned to their own box's own cy, which does not equal the
+            # midpoint y, so neither segment ends up horizontal OR
+            # vertical). Two waypoints at the SAME gap_x instead give three
+            # axis-aligned segments: exit (src's own cy) -> horizontal ->
+            # (gap_x, src.cy) -> vertical -> (gap_x, tgt.cy) -> horizontal
+            # -> entry (tgt's own cy).
+            return [(gap_x, src.cy), (gap_x, tgt.cy)], exit_side, entry_side
 
-    # Different rows: drop into the horizontal channel between rows, travel
-    # across it, then drop into the target. The channel sits below the
-    # TALLEST zone in the upper row, regardless of which component/zone
-    # within that row the edge actually starts from.
-    upper_row = min(src.row, tgt.row)
-    channel_y = row_bottoms[upper_row] + ROW_GAP / 2 + _stagger_offset(
+        # Same row, but NOT immediate neighbors -- at least one other zone
+        # sits between src's and tgt's own zones. A "safe" gap_x found by
+        # search still needs a horizontal leg connecting it to src/tgt at
+        # their own cy, and that leg would cut straight through the
+        # intervening zone's content at that height. Confirmed directly
+        # against a real generated diagram: a "same row" edge between two
+        # non-adjacent zones rendered as a line slicing through whatever
+        # component happened to occupy the zone physically between them.
+        # Routed instead through this row's own below-row channel, exactly
+        # like the cross-row case below -- reserved, clear space across
+        # the FULL row width, so no interior zone is ever in the way. Both
+        # ends connect from their own BOTTOM edge (dropping into, then
+        # rising back out of, that below-row channel).
+        channel_y = row_bottoms[src.row] + ROW_GAP / 2 + _stagger_offset(
+            channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+        )
+        exit_x = _safe_x_for_vertical_span(
+            src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
+        )
+        entry_x = _safe_x_for_vertical_span(
+            tgt.cx, min(tgt.cy, channel_y), max(tgt.cy, channel_y), (src.id, tgt.id), all_boxes
+        )
+        return [(exit_x, channel_y), (entry_x, channel_y)], "bottom", "bottom"
+
+    # Different rows: drop into the horizontal channel immediately ABOVE
+    # whichever of src/tgt is in the lower (higher row-number) row, travel
+    # across it, then drop into the target. Anchoring to the row right
+    # before the lower one (rather than the row right after the upper one)
+    # means this is still a single reserved, always-clear channel even
+    # when the edge SKIPS an entire intervening row -- e.g. row 0 straight
+    # to row 2 -- where the two would otherwise differ.
+    #
+    # The two vertical legs (src down/up to the channel, and the channel
+    # down/up into tgt) are NOT guaranteed clear at src.cx/tgt.cx, though:
+    # a component with siblings stacked between it and the direction of
+    # travel shares its own x with them, and a leg spanning a SKIPPED
+    # row's own zone can land inside whatever that zone's own components
+    # occupy at that x. Both confirmed directly against a real generated
+    # diagram. Each leg's x is therefore verified (and nudged aside if
+    # needed) against every component its own vertical span actually
+    # passes, same as the same-row branch above -- the horizontal segment
+    # at channel_y itself needs no such check, since that gap is reserved
+    # and clear at every x, by construction, regardless of row count.
+    going_down = src.row < tgt.row
+    exit_side, entry_side = ("bottom", "top") if going_down else ("top", "bottom")
+    lower_row = max(src.row, tgt.row)
+    channel_y = row_bottoms[lower_row - 1] + ROW_GAP / 2 + _stagger_offset(
         channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
     )
-    return [(src.cx, channel_y), (tgt.cx, channel_y)]
-
-
-def _connection_side(box: _Box, towards_x: float, towards_y: float) -> str:
-    """
-    Which side of `box` an edge should attach to -- "right"/"left"/"top"/
-    "bottom" -- given the direction it actually travels (its first/last
-    waypoint, or the other endpoint's center if the edge has no waypoints
-    at all).
-
-    Without pinning an explicit side (and, see _slot_fraction, an explicit
-    point ALONG that side), an edge cell that only specifies source/target
-    gets a "floating" connection point drawio computes on its own at
-    render time -- observed to render the arrow ending short of the box,
-    in open space, rather than visibly touching it.
-    """
-    dx = towards_x - box.cx
-    dy = towards_y - box.cy
-    if abs(dx) >= abs(dy):
-        return "right" if dx >= 0 else "left"
-    return "bottom" if dy >= 0 else "top"
+    exit_x = _safe_x_for_vertical_span(
+        src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
+    )
+    entry_x = _safe_x_for_vertical_span(
+        tgt.cx, min(tgt.cy, channel_y), max(tgt.cy, channel_y), (src.id, tgt.id), all_boxes
+    )
+    return [(exit_x, channel_y), (entry_x, channel_y)], exit_side, entry_side
 
 
 def _slot_fraction(slot_index: int, slot_count: int) -> float:
@@ -660,13 +814,11 @@ def _assign_connection_slots(
         if src is None or tgt is None:
             raw.append(None)
             continue
-        waypoints = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms)
-        first_wp = waypoints[0] if waypoints else (tgt.cx, tgt.cy)
-        last_wp = waypoints[-1] if waypoints else (src.cx, src.cy)
+        waypoints, exit_side, entry_side = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms, all_boxes)
         raw.append({
             "waypoints": waypoints,
-            "exit_side": _connection_side(src, *first_wp),
-            "entry_side": _connection_side(tgt, *last_wp),
+            "exit_side": exit_side,
+            "entry_side": entry_side,
         })
 
     # Group every edge-endpoint touching a given (box, side) together, so
@@ -704,10 +856,96 @@ def _assign_connection_slots(
             else:
                 entry_frac[idx] = point
 
-    return [
-        {**r, "exit_frac": exit_frac[i], "entry_frac": entry_frac[i]} if r is not None else None
-        for i, r in enumerate(raw)
-    ]
+    result: List[Optional[Dict[str, Any]]] = []
+    for i, r in enumerate(raw):
+        if r is None:
+            result.append(None)
+            continue
+        src = all_boxes[edges[i]["source"]]
+        tgt = all_boxes[edges[i]["target"]]
+        exit_pt = (src.x + exit_frac[i][0] * src.w, src.y + exit_frac[i][1] * src.h)
+        entry_pt = (tgt.x + entry_frac[i][0] * tgt.w, tgt.y + entry_frac[i][1] * tgt.h)
+        waypoints = _reconcile_connection_points(
+            r["waypoints"], r["exit_side"], r["entry_side"], exit_pt, entry_pt
+        )
+        result.append({**r, "waypoints": waypoints, "exit_frac": exit_frac[i], "entry_frac": entry_frac[i]})
+    return result
+
+
+def _reconcile_connection_points(
+    waypoints: List[Tuple[float, float]],
+    exit_side: str,
+    entry_side: str,
+    exit_point: Tuple[float, float],
+    entry_point: Tuple[float, float],
+) -> List[Tuple[float, float]]:
+    """
+    Rebuilds `waypoints` so the path actually starts at `exit_point` and
+    ends at `entry_point` -- the REAL, slot-assigned connection pixels
+    (see the slot-spreading loop just above) -- with every segment axis-
+    aligned, inserting a jog at either end if needed.
+
+    _route_edge computes its own waypoints using each box's CENTER as an
+    assumed connection point; `_slot_fraction`'s later spreading can move
+    the ACTUAL connection point elsewhere along that side whenever more
+    than one edge shares a box+side, with nothing reconciling the two.
+    Confirmed directly against a real generated diagram: a box with two
+    outgoing edges on the same side (correctly spread apart, each at its
+    own point along that edge, by the Bug #2 fix) had EVERY edge touching
+    it render as a diagonal line cutting in from an angle, because each
+    edge's own route was still built assuming it started from the box's
+    center.
+    """
+    def _jog(side: str, point: Tuple[float, float], anchor: Tuple[float, float]) -> Optional[Tuple[float, float]]:
+        # "top"/"bottom" pin the box's Y (point.y); the connection point's
+        # X is the only coordinate slot-spreading can have moved, so no
+        # jog is needed if anchor already shares that X. When it doesn't,
+        # the jog must sit at (anchor.x, point.y) -- NOT (point.x,
+        # anchor.y) -- so the segment from `point` is a short HORIZONTAL
+        # hop along the box's own edge to the anchor's (already verified
+        # safe, see _safe_x_for_vertical_span) x, before the EXISTING,
+        # pre-verified segment from the jog to `anchor` takes over. The
+        # reverse choice would instead draw a brand new, unverified
+        # VERTICAL segment straight down from the box edge at the
+        # connection point's own x -- confirmed directly against a real
+        # generated diagram to cut straight through boxes nothing had
+        # ever checked that specific x against.
+        px, py = point
+        ax, ay = anchor
+        if side in ("top", "bottom"):
+            return None if ax == px else (ax, py)
+        return None if ay == py else (px, ay)
+
+    path = list(waypoints)
+    if path:
+        exit_jog = _jog(exit_side, exit_point, path[0])
+        if exit_jog is not None:
+            path.insert(0, exit_jog)
+        entry_jog = _jog(entry_side, entry_point, path[-1])
+        if entry_jog is not None:
+            path.append(entry_jog)
+        return path
+
+    # No internal waypoints at all -- the route was a bare straight line
+    # directly between the two boxes' own (assumed-center) connection
+    # points (e.g. immediate same-zone neighbors). If the ACTUAL
+    # connection points no longer share the coordinate that made that
+    # line axis-aligned, route through the midpoint between the two box
+    # edges instead -- the same shape already used for a 2nd+ edge
+    # between an identical pair, and safe for the same reason: this is a
+    # short hop between immediate neighbors, through the reserved gap
+    # between them, which nothing is ever placed in.
+    ex, ey = exit_point
+    enx, eny = entry_point
+    if exit_side in ("top", "bottom"):
+        if ex == enx:
+            return []
+        mid_y = (ey + eny) / 2
+        return [(ex, mid_y), (enx, mid_y)]
+    if ey == eny:
+        return []
+    mid_x = (ex + enx) / 2
+    return [(mid_x, ey), (mid_x, eny)]
 
 
 def _resolve_label_collisions(
@@ -987,7 +1225,7 @@ def build_structured_drawio_xml(
         if src is None or tgt is None:
             channel_slots.append(0)
             continue
-        key = _channel_key(src, tgt)
+        key = _channel_key(src, tgt, all_boxes)
         slot = channel_slot_counts.get(key, 0)
         channel_slot_counts[key] = slot + 1
         channel_slots.append(slot)

@@ -551,47 +551,65 @@ by default and fails to import a package this project doesn't install, even thou
 goes through the Gemini Developer API (`GOOGLE_API_KEY`). Confirmed directly (construction raises
 without the prefix) and locked in by `tests/test_pipeline_middleware.py`.
 
-**Cloud architecture diagrams rendering with messy, overlapping arrows and labels.** A real
-generated diagram showed labels clustering/overlapping at zone boundaries, edge lines visibly
-coinciding where several arrows left or entered the same box, and unrelated edges' labels landing
-on top of each other. This surfaced in two rounds: an initial fix addressed one real cause but was
-shown, against a second, more complex real diagram, to still leave two more real causes
-unaddressed — all three are now fixed, confirmed directly against reconstructions of both real
-diagrams (not just reasoned about), with regression tests for each:
+**Cloud architecture diagrams rendering with messy, overlapping, or box-crossing arrows and
+labels.** Three real generated diagrams, each shown directly, surfaced seven distinct real causes
+across three rounds — the first two rounds fixed cosmetic crowding (labels/lines landing too close
+together); the third round, against a more complex real diagram, found `_route_edge` could still
+route a line straight **through** an unrelated box, not just crowd one. All seven are fixed,
+confirmed directly against reconstructions of all three real diagrams (not just reasoned about),
+with regression tests for each. This is the single layout engine behind both diagram *creation* and
+*updates* — `CloudArch_Pipeline` calls the same `save_drawio_structured` → `build_structured_drawio_xml`
+path regardless of which one a user asked for, so every fix below applies to both:
 
-1. **Labels landing on zone boundaries.** `cloudarch_layout_engine.py`'s `_route_edge` deliberately
-   routes bent edges through the reserved gaps *between* zones/rows (so a line never cuts through a
-   box) — but nothing ever told drawio where to put the LABEL on that bent path, so it fell back to
-   drawio's own default: the midpoint by raw arc length of the whole polyline. For an uneven
-   multi-segment path (a short leg, then a long leg, then another short leg — exactly what a
-   cross-zone/cross-row edge produces), that arc-length midpoint can land barely past the first
-   corner, i.e. right in the same reserved gap the route was built to pass through — which is, by
-   construction, also where a zone's own border line sits. Fixed by `_label_position_fraction`,
-   which instead places the label at the midpoint of the path's LONGEST straight segment — the one
-   point on any bent route guaranteed to be furthest from every corner.
-2. **Multiple edges sharing one box's connection point.** Every edge used to get a connection point
-   fixed at the dead-center of whichever side it approached a box from (`_connection_point`), with no
-   awareness of how many OTHER edges also connected to that same box on that same side. A box with
-   two or more outgoing/incoming edges on one side (e.g. an API Gateway fanning out to two Fargate
-   clusters) had every one of those edges start/end at the IDENTICAL pixel, so their line segments
-   visibly coincided. Fixed by `_assign_connection_slots`, which groups edges by `(box, side)` and
-   spreads them evenly across that side (`_slot_fraction`) instead of pinning them all to the center.
+1. **Labels landing on zone boundaries.** `_route_edge` deliberately routes bent edges through the
+   reserved gaps *between* zones/rows (so a line never cuts through a box) — but nothing ever told
+   drawio where to put the LABEL on that bent path, so it fell back to drawio's own default: the
+   midpoint by raw arc length of the whole polyline. For an uneven multi-segment path (a short leg,
+   then a long leg, then another short leg), that arc-length midpoint can land barely past the first
+   corner, i.e. right where a zone's own border line sits. Fixed by `_label_position_fraction`,
+   which instead places the label at the midpoint of the path's LONGEST straight segment.
+2. **Multiple edges sharing one box's connection point.** Every edge got a connection point fixed at
+   the dead-center of whichever side it approached a box from, with no awareness of how many OTHER
+   edges also connected to that same box on that same side — e.g. an API Gateway fanning out to two
+   Fargate clusters had both edges start at the IDENTICAL pixel. Fixed by `_assign_connection_slots`,
+   which groups edges by `(box, side)` and spreads them evenly across that side.
 3. **Unrelated edges' labels landing close together by coincidence.** `_label_position_fraction`
-   only keeps a label off corners on its OWN edge's path — it has no visibility into where every
-   OTHER edge's label lands, so two entirely unrelated edges (different source AND target) could
-   still compute to nearly the same point (confirmed directly: two real labels only 5px apart).
-   Fixed by `_resolve_label_collisions`, a pairwise pass over every edge's computed label position
-   that nudges any pair closer than a threshold apart by the minimum needed to clear it, expressed in
-   the final XML as a standard mxGraph label `offset` (a pixel nudge layered on top of the `x`
-   fraction from fix #1, not a replacement for it).
+   only keeps a label off corners on its OWN edge's path — two entirely unrelated edges (different
+   source AND target) could still compute to nearly the same point (confirmed: two real labels only
+   5px apart). Fixed by `_resolve_label_collisions`, a pairwise pass that nudges any pair closer than
+   a threshold apart by the minimum needed to clear it, via a standard mxGraph label `offset`.
+4. **Same-row edges between non-adjacent zones cutting through the zone between them.** The
+   same-row routing picked an x midway between src's and tgt's own box edges, assuming their zones
+   are immediate neighbors — when another zone sits between them (e.g. an ingest source routing
+   straight to a component two zones over), that midpoint lands inside the intervening zone, and the
+   line visibly sliced through whatever component was there.
+5. **Cross-row edges from a component with siblings in the way cutting through them.** Routing
+   straight down from a component's own x to reach a later row ignored any OTHER components stacked
+   between it and that row within its own zone — the first of several stacked components routing to
+   a later row cut straight through its own siblings below it.
+6. **Cross-row edges skipping an entire intervening row cutting through that row's own zone.** An
+   edge from row 0 to row 2 only ever computed a channel between row 0 and row 1, then dropped
+   straight down through the whole of row 1 to reach row 2 — if row 1 held a single zone stretched to
+   the row's full width (a common shape for a "spans everything" tier), there was no x left that
+   wasn't inside it.
+   Fixes 4-6 are all fixed by `_safe_x_for_vertical_span`, which verifies (and searches outward from)
+   a candidate route coordinate against every real component it would actually pass, instead of
+   assuming a coordinate derived from box/row geometry is automatically clear.
+7. **Two edges landing in the same physical gap via different routing branches getting no stagger
+   coordination.** `_channel_key` groups edges sharing a channel so they fan out instead of
+   overlapping, but its grouping for the row-gap channel didn't match which edges actually ended up
+   routed through it once fixes 4-6 started sending MORE edges through that same gap — a same-row
+   detour and an adjacent-row edge could land in the identical gap under different channel keys and
+   render as overlapping lines with no coordination between them. Fixed by making `_channel_key`'s
+   row-gap key match `_route_edge`'s own choice of which gap it actually uses.
 
 This file (`coded_tools/cloudarch/cloudarch_layout_engine.py`) is a byte-identical copy of the ADK
-original's `cloudarch_layout_agent.py` (confirmed via `diff`/md5 before fixing, so this genuinely
-wasn't a missed port of an existing upstream fix — all three bugs were equally present, and unfixed,
-in both); all three fixes were applied to both to keep them in sync, along with this port's own
+original's `cloudarch_layout_agent.py` (confirmed via `diff`/md5 before each round of fixes, so this
+genuinely wasn't a missed port of an existing upstream fix — every bug was equally present, and
+unfixed, in both); every fix was applied to both to keep them in sync, along with this port's own
 previously-nonexistent dedicated test coverage for this module (`tests/test_cloudarch_layout_engine.py`,
 ported from the ADK original's `tests/test_cloudarch_layout_agent.py`, which this port had never
-carried over, plus new tests for all three fixes above).
+carried over, plus new tests for all seven fixes above).
 
 **Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
 reference implementation):

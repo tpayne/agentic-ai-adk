@@ -1,6 +1,7 @@
 {
     "llm_config": {
-        "model_name": "gemini-3-flash"
+        # "model_name": "gemini-3-flash"
+        "model_name": "gpt-6-luna"
     },
 
     # neuro-san's own default (RunContextRunnable.run_it) is 300 seconds per

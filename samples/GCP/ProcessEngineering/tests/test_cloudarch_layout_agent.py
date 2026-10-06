@@ -10,6 +10,25 @@ def _boxes_overlap(a, b):
     return not (a.right <= b.x or b.right <= a.x or a.bottom <= b.y or b.bottom <= a.y)
 
 
+def _segment_crosses_box(p1, p2, box, pad=0.01):
+    """Whether the axis-aligned segment p1->p2 (this router never produces
+    diagonal segments) passes through `box`'s interior."""
+    x1, y1 = p1
+    x2, y2 = p2
+    bx, by, bw, bh = box.x - pad, box.y - pad, box.w + 2 * pad, box.h + 2 * pad
+    if x1 == x2:
+        if not (bx < x1 < bx + bw):
+            return False
+        ylo, yhi = sorted((y1, y2))
+        return not (yhi <= by or ylo >= by + bh)
+    if y1 == y2:
+        if not (by < y1 < by + bh):
+            return False
+        xlo, xhi = sorted((x1, x2))
+        return not (xhi <= bx or xlo >= bx + bw)
+    return False
+
+
 class ComponentHeightTests(unittest.TestCase):
     def test_height_scales_with_bullet_count(self):
         no_bullets = layout._component_height({"label": "X"})
@@ -176,8 +195,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms
+            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms, all_boxes
         )
         self.assertEqual(waypoints, [])
 
@@ -191,8 +211,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "top", "target": "far"}, comp_boxes["top"], comp_boxes["far"], 0, row_bottoms
+            {"source": "top", "target": "far"}, comp_boxes["top"], comp_boxes["far"], 0, row_bottoms, all_boxes
         )
         self.assertEqual(len(waypoints), 2)
         margin_x = waypoints[0][0]
@@ -214,8 +235,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "bottom", "target": "far"}, comp_boxes["bottom"], comp_boxes["far"], 0, row_bottoms
+            {"source": "bottom", "target": "far"}, comp_boxes["bottom"], comp_boxes["far"], 0, row_bottoms, all_boxes
         )
         self.assertEqual(waypoints, [])
 
@@ -223,8 +245,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "top", "target": "other"}, comp_boxes["top"], comp_boxes["other"], 0, row_bottoms
+            {"source": "top", "target": "other"}, comp_boxes["top"], comp_boxes["other"], 0, row_bottoms, all_boxes
         )
         self.assertEqual(len(waypoints), 1)
         wx, _wy = waypoints[0]
@@ -246,9 +269,10 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         src, tgt = comp_boxes["bottom"], comp_boxes["other"]
         self.assertNotEqual(src.cy, tgt.cy)  # precondition: genuinely offset
-        waypoints = layout._route_edge({"source": "bottom", "target": "other"}, src, tgt, 0, row_bottoms)
+        waypoints = layout._route_edge({"source": "bottom", "target": "other"}, src, tgt, 0, row_bottoms, all_boxes)
         self.assertEqual(len(waypoints), 2)
         full_path = [(src.cx, src.cy)] + waypoints + [(tgt.cx, tgt.cy)]
         for (x1, y1), (x2, y2) in zip(full_path, full_path[1:]):
@@ -263,8 +287,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "top", "target": "gov_item"}, comp_boxes["top"], comp_boxes["gov_item"], 0, row_bottoms
+            {"source": "top", "target": "gov_item"}, comp_boxes["top"], comp_boxes["gov_item"], 0, row_bottoms, all_boxes
         )
         self.assertEqual(len(waypoints), 2)
         channel_y = waypoints[0][1]
@@ -283,11 +308,12 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         first = layout._route_edge(
-            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms
+            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms, all_boxes
         )
         second = layout._route_edge(
-            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 1, row_bottoms
+            {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 1, row_bottoms, all_boxes
         )
         self.assertEqual(first, [])
         self.assertEqual(len(second), 1)
@@ -296,20 +322,21 @@ class EdgeRoutingTests(unittest.TestCase):
     def test_channel_key_groups_edges_that_would_otherwise_collide(self):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
         # Same pair, both directions -> same channel.
         self.assertEqual(
-            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"]),
-            layout._channel_key(comp_boxes["bottom"], comp_boxes["top"]),
+            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"], all_boxes),
+            layout._channel_key(comp_boxes["bottom"], comp_boxes["top"], all_boxes),
         )
         # Same zone-pair gap, different component pairs -> same channel.
         self.assertEqual(
-            layout._channel_key(comp_boxes["top"], comp_boxes["other"]),
-            layout._channel_key(comp_boxes["bottom"], comp_boxes["other"]),
+            layout._channel_key(comp_boxes["top"], comp_boxes["other"], all_boxes),
+            layout._channel_key(comp_boxes["bottom"], comp_boxes["other"], all_boxes),
         )
         # A same-zone pair must not collide with an inter-zone channel key.
         self.assertNotEqual(
-            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"]),
-            layout._channel_key(comp_boxes["top"], comp_boxes["other"]),
+            layout._channel_key(comp_boxes["top"], comp_boxes["bottom"], all_boxes),
+            layout._channel_key(comp_boxes["top"], comp_boxes["other"], all_boxes),
         )
 
     def test_stagger_offset_alternates_and_grows_outward(self):
@@ -330,11 +357,12 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         edge_a = layout._route_edge(
-            {"source": "top", "target": "other"}, comp_boxes["top"], comp_boxes["other"], 0, row_bottoms
+            {"source": "top", "target": "other"}, comp_boxes["top"], comp_boxes["other"], 0, row_bottoms, all_boxes
         )
         edge_b = layout._route_edge(
-            {"source": "bottom", "target": "other"}, comp_boxes["bottom"], comp_boxes["other"], 1, row_bottoms
+            {"source": "bottom", "target": "other"}, comp_boxes["bottom"], comp_boxes["other"], 1, row_bottoms, all_boxes
         )
         self.assertNotEqual(edge_a[0][1], edge_b[0][1])
 
@@ -342,8 +370,9 @@ class EdgeRoutingTests(unittest.TestCase):
         zones, components = self._sample()
         zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
         row_bottoms = self._row_bottoms(zone_boxes)
+        all_boxes = {**comp_boxes, **zone_boxes}
         waypoints = layout._route_edge(
-            {"source": "top", "target": "gov_item"}, comp_boxes["top"], comp_boxes["gov_item"], 0, row_bottoms
+            {"source": "top", "target": "gov_item"}, comp_boxes["top"], comp_boxes["gov_item"], 0, row_bottoms, all_boxes
         )
         for wx, wy in waypoints:
             for cid, box in comp_boxes.items():
@@ -353,6 +382,102 @@ class EdgeRoutingTests(unittest.TestCase):
                     box.x < wx < box.right and box.y < wy < box.bottom,
                     f"waypoint ({wx},{wy}) lands inside unrelated component {cid}",
                 )
+
+
+class SafeRoutingTests(unittest.TestCase):
+    """Coverage for _safe_x_for_vertical_span and the _route_edge branches
+    it fixed. A same-row edge between non-adjacent zones, a cross-row edge
+    skipping an entire intervening row, and a cross-row edge from a
+    component with siblings stacked between it and the direction of
+    travel all previously cut straight through an unrelated box; two
+    edges that end up sharing the same physical channel via different
+    _route_edge branches previously had no stagger coordination between
+    them. All confirmed directly against a real generated diagram."""
+
+    def _sample(self):
+        zones = [
+            {"id": "left", "label": "Left", "row": 0},
+            {"id": "middle", "label": "Middle", "row": 0},
+            {"id": "right", "label": "Right", "row": 0},
+            {"id": "wide", "label": "Wide", "row": 1},
+            {"id": "bottom", "label": "Bottom", "row": 2, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "l1", "zone_id": "left", "label": "L1"},
+            {"id": "m1", "zone_id": "middle", "label": "M1"},
+            {"id": "r1", "zone_id": "right", "label": "R1"},
+            # "wide" is the sole zone in its row, same as the real diagram's
+            # zone that triggered this bug -- its components stretch to
+            # nearly the FULL row width, so a straight vertical line
+            # through this row at almost ANY x lands inside one of them.
+            {"id": "w1", "zone_id": "wide", "label": "W1"},
+            {"id": "w2", "zone_id": "wide", "label": "W2"},
+            {"id": "w3", "zone_id": "wide", "label": "W3"},
+            {"id": "b1", "zone_id": "bottom", "label": "B1"},
+        ]
+        return zones, components
+
+    def _route(self, source, target):
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = {zb.row: zb.bottom for zb in zone_boxes.values()}
+        all_boxes = {**comp_boxes, **zone_boxes}
+        src, tgt = comp_boxes[source], comp_boxes[target]
+        waypoints = layout._route_edge({"source": source, "target": target}, src, tgt, 0, row_bottoms, all_boxes)
+        full_path = [(src.cx, src.cy), *waypoints, (tgt.cx, tgt.cy)]
+        return full_path, comp_boxes
+
+    def test_safe_x_returns_preferred_x_when_already_clear(self):
+        self.assertEqual(layout._safe_x_for_vertical_span(100.0, 0.0, 50.0, ("a", "b"), {}), 100.0)
+
+    def test_safe_x_searches_away_from_a_blocking_component(self):
+        boxes = {"blocker": layout._Box("blocker", 90.0, 0.0, 20.0, 50.0, zone_id="z")}
+        safe_x = layout._safe_x_for_vertical_span(100.0, 0.0, 50.0, ("a", "b"), boxes)
+        self.assertFalse(90.0 <= safe_x <= 110.0)
+
+    def test_safe_x_ignores_excluded_ids_and_zone_containers(self):
+        boxes = {
+            "src": layout._Box("src", 90.0, 0.0, 20.0, 50.0, zone_id="z"),
+            "zone": layout._Box("zone", 90.0, 0.0, 20.0, 50.0, zone_id=None),
+        }
+        self.assertEqual(
+            layout._safe_x_for_vertical_span(100.0, 0.0, 50.0, ("src", "tgt"), boxes), 100.0
+        )
+
+    def test_same_row_non_adjacent_zones_do_not_cut_through_the_zone_between_them(self):
+        full_path, comp_boxes = self._route("l1", "r1")
+        middle = comp_boxes["m1"]
+        for p1, p2 in zip(full_path, full_path[1:]):
+            self.assertFalse(_segment_crosses_box(p1, p2, middle))
+
+    def test_cross_row_edge_skipping_an_entire_row_does_not_cut_through_it(self):
+        full_path, comp_boxes = self._route("l1", "b1")
+        for wide_id in ("w1", "w2", "w3"):
+            box = comp_boxes[wide_id]
+            for p1, p2 in zip(full_path, full_path[1:]):
+                self.assertFalse(_segment_crosses_box(p1, p2, box))
+
+    def test_cross_row_edge_from_a_component_with_siblings_below_it_does_not_cut_through_them(self):
+        # w1 is the FIRST (topmost) of three stacked components in "wide"
+        # -- routing it down to row 2 must not cut through w2/w3 below it.
+        full_path, comp_boxes = self._route("w1", "b1")
+        for sibling_id in ("w2", "w3"):
+            box = comp_boxes[sibling_id]
+            for p1, p2 in zip(full_path, full_path[1:]):
+                self.assertFalse(_segment_crosses_box(p1, p2, box))
+
+    def test_channel_key_unifies_same_row_detour_and_cross_row_edges_sharing_the_same_gap(self):
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        # l1->r1 (same-row, non-adjacent -> routed via row 0's below-row
+        # channel) and l1->w1 (cross-row, adjacent rows -> ALSO routed via
+        # row 0's below-row channel) must land in the SAME stagger channel,
+        # so they get coordinated (not coincidentally identical) offsets.
+        self.assertEqual(
+            layout._channel_key(comp_boxes["l1"], comp_boxes["r1"], all_boxes),
+            layout._channel_key(comp_boxes["l1"], comp_boxes["w1"], all_boxes),
+        )
 
 
 class LabelPositionTests(unittest.TestCase):
