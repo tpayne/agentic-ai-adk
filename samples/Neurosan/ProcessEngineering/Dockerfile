@@ -14,7 +14,7 @@
 # this port's diagram generation is pure matplotlib/networkx layout, never
 # shells out to a `dot`/`neato` binary the way the ADK original's diagram
 # tooling could.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # Installs the `uv` binary itself by copying it out of Astral's own
 # published image, rather than `pip install uv` -- the standard way to get

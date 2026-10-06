@@ -2,7 +2,7 @@
 name = "processengineering-neurosan"
 version = "0.1.0"
 description = "neuro-san port of the ProcessEngineering ADK sample -- functionally equivalent, same output/ artifacts, different agent framework."
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "extract-msg>=0.56.1",
     "matplotlib>=3.11.2",
