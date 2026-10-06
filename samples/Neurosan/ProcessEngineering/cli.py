@@ -477,6 +477,11 @@ async def run_cli() -> None:
         return
 
     display_text(
+        f"Process Architect Orchestrator (local mode, agent={args.agent})\n",
+        kind="info",
+    )
+
+    """ display_text(
         f"To see the thinking involved with the agent:\n\n"
         f"    tail -f {_THINKING_FILE}\n\n"
         f"or see any one of the per-agent files under {_THINKING_DIR}/ for this project's own "
@@ -485,8 +490,8 @@ async def run_cli() -> None:
         f"neuro-san/langchain's own warnings) goes to {_APP_LOG_FILE} at whatever level the "
         f"LOGLEVEL env var sets (default WARNING -- quiet). Set LOGLEVEL=DEBUG before running for "
         f"full tracing; a WARNING+ copy always prints to this terminal regardless.",
-        kind="info",
-    )
+        kind="debug",
+    ) """
 
     if args.file:
         await process_file(args.file, args.agent)
