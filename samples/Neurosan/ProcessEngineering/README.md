@@ -94,7 +94,8 @@ functionally — see [Verification](#verification)):
   identify bottlenecks and suggests optimizations or reports unresolved issues.
 - **Automated high-fidelity artifacts**: process diagrams (level 1 and 2) embedded in the process
   document, and a professional Word document describing the business process, aligned to
-  ITIL/ISO-style conventions.
+  ITIL/ISO-style conventions. The document-generation step renders and embeds the current level-1
+  flow diagram itself; persisted subprocesses are rendered as level-2 diagrams and embedded too.
 - **Autonomous design document pipeline**: a parallel "Solution Architect" workflow
   (`design`/`design_update`) that transforms raw architecture requirements into a High-Level Design
   (HLD), Low-Level Design (LLD), or Combined design document, following the same

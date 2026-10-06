@@ -255,19 +255,17 @@ def _add_step_diagram_if_available(
     step_name: str,
     subprocess_json: dict,
 ) -> None:
-    """Generate and embed a subprocess diagram for the given step, if
-    possible."""
-    try:
-        diagram_path = generate_step_diagram_for_step(step_name, subprocess_json)
-        if not diagram_path:
-            return
-        if not os.path.exists(diagram_path):
-            return
+    """Generate and embed a subprocess diagram for the given step."""
+    diagram_path = generate_step_diagram_for_step(step_name, subprocess_json)
+    if not diagram_path:
+        raise RuntimeError(f"Could not generate subprocess diagram for step {step_name!r}")
+    if not os.path.isfile(diagram_path):
+        raise RuntimeError(
+            f"Subprocess diagram generation reported success but image is missing: {diagram_path}"
+        )
 
-        doc.add_picture(diagram_path, width=Inches(5.5))
-        doc.add_paragraph()  # spacer
-    except Exception:
-        traceback.print_exc()
+    doc.add_picture(diagram_path, width=Inches(5.5))
+    doc.add_paragraph()  # spacer
 
 
 def _add_process_steps_section(doc: docx.Document, steps) -> None:

@@ -14,6 +14,7 @@ from docx.shared import Inches, Pt
 from coded_tools.common.docgen.structure import apply_iso_table_formatting
 from coded_tools.common import paths
 from coded_tools.common.filenames import safe_filename_component
+from coded_tools.common.docgen.edge_inference import generate_clean_diagram
 
 logger = logging.getLogger("ProcessArchitect.DocTechnical")
 
@@ -196,31 +197,32 @@ def _add_system_requirements(doc: docx.Document, system_requirements) -> None:
 def _add_flowchart_section(
     doc: docx.Document, process_name: str, heading: str = "10.0 Process Flow Diagram",
     caption: str = "The following diagram provides a high-level visualization of the process flow.",
+    generate_diagram: bool = False,
 ) -> bool:
+    """Generate the current flow diagram and embed it in the document.
+
+    When ``generate_diagram`` is true, document generation does not rely on
+    the model having called the separate diagram tool first; doing that
+    could leave a successful DOCX with no image or a stale diagram.
     """
-    Flow Diagram section — ISO formatted. Returns True if a
-    heading/diagram was actually added, False if this was a silent no-op
-    (diagram file not found yet) -- callers use this to decide whether to
-    insert a page break after calling this function.
-    """
-    try:
-        diag_file = paths.output_path(f"{safe_filename_component(process_name.lower())}_flow.png")
-        fallback = paths.output_path("process_flow.png")
+    if generate_diagram:
+        result = generate_clean_diagram()
+        if not result.startswith("Diagram successfully generated at "):
+            raise RuntimeError(f"Could not generate process flow diagram: {result}")
 
-        if not os.path.exists(diag_file):
-            if not os.path.exists(fallback):
-                return False
-            diag_file = fallback
-
-        doc.add_heading(heading, level=1)
-        doc.add_paragraph(caption)
-        doc.add_picture(diag_file, width=Inches(5.5))
-        doc.add_paragraph()
-        return True
-
-    except Exception:
-        traceback.print_exc()
+    diag_file = paths.output_path(f"{safe_filename_component(process_name.lower())}_flow.png")
+    if not os.path.exists(diag_file):
+        diag_file = paths.output_path("process_flow.png")
+    if not os.path.isfile(diag_file):
+        if generate_diagram:
+            raise RuntimeError(f"Flow diagram generation reported success but image is missing: {diag_file}")
         return False
+
+    doc.add_heading(heading, level=1)
+    doc.add_paragraph(caption)
+    doc.add_picture(diag_file, width=Inches(5.5))
+    doc.add_paragraph()
+    return True
 
 
 # ============================================================
