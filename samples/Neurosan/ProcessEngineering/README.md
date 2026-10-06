@@ -13,7 +13,10 @@ documentation. A handy tool for consultants and architects alike.
 
 This project is built on neuro-san's declarative HOCON agent networks and Python `CodedTool`s, so
 any LLM provider neuro-san supports can be used (Gemini, Anthropic, OpenAI, Bedrock, Azure OpenAI,
-...) — set the model in `config/llm_config.hocon`. The shared config sets OpenAI
+...) — set the model in `config/llm_config.hocon`. The pipeline summarization middleware has its
+own OpenAI model setting in that file (LangChain constructs it separately from neuro-san's
+`llm_config`); when changing providers, update that middleware model and provide its matching API
+key as well. The shared config sets OpenAI
 `use_responses_api` to `true`, allowing reasoning models such as `gpt-6-luna` to retain reasoning
 while making the function/tool calls these networks require. For Azure OpenAI deployments where
 Responses API is unavailable, set it to `false` in the shared config.
@@ -547,12 +550,11 @@ history crosses a threshold, keeping only the most recent few for continuity.
 (triggers at 150,000 tokens, keeps the last 8 messages), referenced via `${pipeline_middleware}`
 on each of the five pipeline front-men (`process`, `process_update`, `design`, `design_update`,
 `cloudarch`) — the rest (consultants, scenario-testers, simulation-queries) don't run a
-comparable multi-step self-loop, so they don't need it. One detail worth knowing if you touch this:
-the middleware's `"model"` string needs an explicit `google_genai:` provider prefix — LangChain's
-`init_chat_model()` otherwise infers a bare `"gemini-..."` name as `model_provider="google_vertexai"`
-by default and fails to import a package this project doesn't install, even though the actual model
-goes through the Gemini Developer API (`GOOGLE_API_KEY`). Confirmed directly (construction raises
-without the prefix) and locked in by `tests/test_pipeline_middleware.py`.
+comparable multi-step self-loop, so they don't need it. The middleware constructs its own LangChain
+model and does not inherit the network's `llm_config`; its configured `"model"` therefore needs to
+match an available provider/API key. It currently uses `openai:gpt-6-luna`, so `OPENAI_API_KEY`
+works without requiring `GOOGLE_API_KEY`. This is covered by
+`tests/test_pipeline_middleware.py`.
 
 **Cloud architecture diagrams rendering with messy, overlapping arrows and labels.** A real
 generated diagram showed labels clustering/overlapping at zone boundaries, edge lines visibly

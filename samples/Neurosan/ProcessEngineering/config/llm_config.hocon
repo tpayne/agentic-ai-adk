@@ -39,14 +39,11 @@
         {
             "class": "neuro_san.middleware.neuro_san_summarization_middleware.NeuroSanSummarizationMiddleware",
             "args": {
-                # "google_genai:" prefix required -- LangChain's init_chat_model()
-                # infers a bare "gemini-..." name as model_provider="google_vertexai"
-                # by default (confirmed directly: without this prefix, middleware
-                # construction fails trying to import langchain-google-vertexai,
-                # a package this project doesn't install, since llm_config.hocon's
-                # own "gemini-3-flash" model actually goes through the Gemini
-                # Developer API / GOOGLE_API_KEY, i.e. "google_genai").
-                "model": "google_genai:gemini-3-flash",
+                # The middleware creates its own LangChain model; it does not
+                # inherit llm_config.model_name. Keep its provider aligned with
+                # the OpenAI model used by the agent networks so running with
+                # OPENAI_API_KEY does not unexpectedly require GOOGLE_API_KEY.
+                "model": "openai:gpt-6-luna",
                 "trigger": [["tokens", 150000]],
                 "keep": ["messages", 8],
                 "keep_summary_in_context": true,
