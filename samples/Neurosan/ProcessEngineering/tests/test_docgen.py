@@ -72,6 +72,8 @@ def test_generate_clean_diagram_falls_back_when_no_process_json_exists():
 def test_create_standard_doc_from_file_builds_a_real_docx_with_expected_sections():
     _write_sample_process_json()
 
+    # Document generation itself must create/embed the image; the pipeline's
+    # separate diagram-tool call is not a prerequisite.
     result = create_standard_doc_from_file("Vendor Onboarding", schema_type="process")
 
     assert result.startswith("SUCCESS:")
@@ -79,6 +81,7 @@ def test_create_standard_doc_from_file_builds_a_real_docx_with_expected_sections
     assert os.path.exists(out_path)
 
     doc = docx.Document(out_path)
+    assert len(doc.inline_shapes) == 1
     heading_texts = [
         p.text for p in doc.paragraphs
         if p.style is not None and p.style.name == "Heading 1"
@@ -90,6 +93,30 @@ def test_create_standard_doc_from_file_builds_a_real_docx_with_expected_sections
     assert "13.0 Risks and Controls" in heading_texts
     assert any(h.startswith("Appendix A") for h in heading_texts)
     assert any(h.startswith("Appendix C: Glossary") for h in heading_texts)
+
+
+def test_process_document_generates_and_embeds_subprocess_diagrams():
+    _write_sample_process_json()
+    subprocess_dir = os.path.join(paths.OUTPUT_DIR, "subprocesses")
+    os.makedirs(subprocess_dir, exist_ok=True)
+    with open(os.path.join(subprocess_dir, "KYC_Check.json"), "w", encoding="utf-8") as f:
+        json.dump({
+            "step_name": "KYC Check",
+            "subprocess_flow": [
+                {"substep_name": "Collect Documents", "responsible_party": "Vendor"},
+                {"substep_name": "Verify Identity", "responsible_party": "Compliance"},
+                {"substep_name": "Record Outcome", "responsible_party": "Compliance"},
+            ],
+        }, f)
+
+    result = create_standard_doc_from_file("Vendor Onboarding", schema_type="process")
+
+    assert result.startswith("SUCCESS:")
+    out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Onboarding.docx")
+    doc = docx.Document(out_path)
+    assert len(doc.inline_shapes) == 2
+    assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
+    assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "step_diagrams", "KYC_Check.png"))
 
 
 def test_generate_process_flow_diagram_coded_tool_invoke():

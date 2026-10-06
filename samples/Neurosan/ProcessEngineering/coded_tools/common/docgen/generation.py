@@ -311,7 +311,7 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
         _add_system_requirements(doc, system_requirements)
         add_iso_page_break(doc)
 
-    _add_flowchart_section(doc, name)
+    _add_flowchart_section(doc, name, generate_diagram=True)
     add_iso_page_break(doc)
 
     # Simulation results
