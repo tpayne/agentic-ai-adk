@@ -64,7 +64,9 @@ and Simulation_Agent each audit the result, and you decide whether to repeat usi
             "tools": [
                 "reset_loop_state", "Design_Doc_Update_Analyst", "Design_Doc_Agent", "Compliance_Agent",
                 "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document"
-            ]
+            ],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
         },
 
         {

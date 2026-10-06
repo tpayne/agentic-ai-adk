@@ -82,7 +82,13 @@ loop_control. You never extract requirements, design, or audit the process yours
             "tools": [
                 "reset_loop_state", "Analysis_Agent", "Design_Agent", "Compliance_Agent", "Simulation_Agent",
                 "loop_control", "Subprocess_Driver_Agent", "generate_process_flow_diagram", "generate_process_document"
-            ]
+            ],
+            # Summarizes this agent's own growing tool-call history once it
+            # crosses config/llm_config.hocon's token threshold -- see that
+            # file's own comment on "pipeline_middleware" for why this is
+            # safe here (nothing re-reads old history; every stage re-reads
+            # its real state from disk instead).
+            "middleware": ${pipeline_middleware}
         },
 
         {

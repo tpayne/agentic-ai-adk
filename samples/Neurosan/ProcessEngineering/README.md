@@ -499,7 +499,12 @@ output/                       Generated artifacts (process_data.json, cloudarch_
                                -- gitignored.
 cli.py                        Standalone CLI entry point -- see "CLI (cli.py)" above.
 Dockerfile                    Container image -- see "Docker" above.
+codeDoc/                      Structure diagrams (class inventory/hierarchy, network composition,
+                               rendered class/sequence PNGs) -- see codeDoc/README.md.
 ```
+
+See [`codeDoc/README.md`](codeDoc/README.md) for class and network-composition diagrams (Mermaid +
+rendered PNGs) if you're navigating this codebase for the first time or extending it.
 
 ---
 
@@ -527,6 +532,25 @@ whichever pipeline it routes to has a *separate* 300s budget of its own. A full 
 top-level step) can genuinely exceed 5 minutes. `config/llm_config.hocon` sets
 `"max_execution_seconds": 3600`, which every network inherits.
 
+**Conversation-history summarization.** A pipeline front-man calls several of its own tools in
+sequence within one turn (reset → generate → review(s) → `loop_control`, repeated up to the
+pipeline's own iteration cap), and each call+result pair is appended to that agent's own chat
+history. Since every stage re-reads its real state from disk (`load_master_process_json`,
+`load_iteration_feedback`, etc.) rather than from that accumulated history, it's safe to let
+neuro-san's built-in summarization middleware condense older messages once a front-man's own
+history crosses a threshold, keeping only the most recent few for continuity.
+`config/llm_config.hocon`'s `"pipeline_middleware"` configures
+`neuro_san.middleware.neuro_san_summarization_middleware.NeuroSanSummarizationMiddleware`
+(triggers at 150,000 tokens, keeps the last 8 messages), referenced via `${pipeline_middleware}`
+on each of the five pipeline front-men (`process`, `process_update`, `design`, `design_update`,
+`cloudarch`) — the rest (consultants, scenario-testers, simulation-queries) don't run a
+comparable multi-step self-loop, so they don't need it. One detail worth knowing if you touch this:
+the middleware's `"model"` string needs an explicit `google_genai:` provider prefix — LangChain's
+`init_chat_model()` otherwise infers a bare `"gemini-..."` name as `model_provider="google_vertexai"`
+by default and fails to import a package this project doesn't install, even though the actual model
+goes through the Gemini Developer API (`GOOGLE_API_KEY`). Confirmed directly (construction raises
+without the prefix) and locked in by `tests/test_pipeline_middleware.py`.
+
 **Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
 reference implementation):
 - No custom web-service auth/rate-limiting layer — `ns run`'s own server is the serving layer
@@ -539,6 +563,11 @@ reference implementation):
   no free-hand/hand-written-XML path.
 - Document theming always applies the single built-in "Corporate Standard" theme — there's no
   configuration toggle to pick a different theme or disable it.
+- **No prompt/context caching** (distinct from the summarization middleware above). Confirmed via
+  direct inspection of neuro-san's Gemini LLM policy and middleware package: there's no equivalent
+  to server-side cached-content reuse across turns — every call sends its full prompt. Only a
+  generic LangChain response-cache passthrough exists, and only for the Bedrock provider, unused
+  by this project's own `gemini-3-flash` configuration.
 - The design pipeline's optional grounding stage (spec cross-check against an OpenAPI document) is
   not implemented — it would default off regardless.
 - `review_and_governance` (review history/change log/approval workflow) is never populated — it

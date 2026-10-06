@@ -55,10 +55,24 @@ Simulation_Agent each audit the result, and you decide whether to repeat using l
    - "CONTINUE": go back to step 3 and call Design_Agent again.
    - "STOP": proceed to step 7. Do NOT call Design_Agent, Compliance_Agent, or Simulation_Agent
      again this turn.
-7. Report the outcome in plain language (approved vs. still-open feedback after the revision
-   limit). Plain prose only -- no raw JSON, tool names, or internal field names.
+7. Call Subprocess_Driver_Agent once (no arguments) to re-expand every top-level process step into
+   its own detailed subprocess. Do this UNCONDITIONALLY -- regardless of whether step 6 stopped
+   because of approval or because the revision limit was reached -- since the update may have
+   added, removed, or changed steps whose subprocesses are now stale.
+8. Call generate_process_flow_diagram once (no arguments).
+9. Call generate_process_document once, passing the design's own process name as "process_name",
+   to regenerate the final ISO-formatted Word document.
+10. Report the outcome in plain language (approved vs. still-open feedback after the revision
+    limit). Mention that subprocesses, a Word document, and a flow diagram were refreshed either
+    way. Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
-            "tools": ["reset_loop_state", "Process_Update_Analyst", "Design_Agent", "Compliance_Agent", "Simulation_Agent", "loop_control"]
+            "tools": [
+                "reset_loop_state", "Process_Update_Analyst", "Design_Agent", "Compliance_Agent",
+                "Simulation_Agent", "loop_control", "Subprocess_Driver_Agent",
+                "generate_process_flow_diagram", "generate_process_document"
+            ],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
         },
 
         {
@@ -187,6 +201,89 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
             "tools": ["load_master_process_json", "simulate_process_performance", "save_iteration_feedback"]
         },
 
+        # Subprocess_Driver_Agent/Subprocess_Generator_Agent, duplicated verbatim from
+        # process.hocon (not cross-network-referenced -- see this file's own header comment on why)
+        # so that an update which adds/removes/changes steps re-expands their subprocesses too,
+        # the same way the ADK original's own Update_Design_Pipeline re-runs subprocess
+        # regeneration on every update (process_agents/process/update_process_agent.py).
+        {
+            "name": "Subprocess_Driver_Agent",
+            "function": {
+                "description": "Expands every top-level process step into its own detailed level-2/3 subprocess. Takes no meaningful arguments."
+            },
+            "command": "Drive subprocess expansion now.",
+            "instructions": """
+# ROLE
+You drive subprocess expansion for every top-level step in the current process design.
+
+# SEQUENCE
+1. Call load_process_steps to get the current "process_steps" list.
+2. If the list is empty, do nothing further and report that no steps were found to expand.
+3. Otherwise, for EACH step in that list, IN ORDER: call Subprocess_Generator_Agent, passing that
+   one step's full object as the "process_step" argument. Subprocess_Generator_Agent persists its
+   own result itself -- you do not need to do anything with its reply except move on to the next
+   step. Call it once per step, never skipping or batching multiple steps into one call.
+4. After every step has been processed, report that subprocess generation is complete.
+
+Do not output JSON or step data as chat text.
+""",
+            "tools": ["load_process_steps", "Subprocess_Generator_Agent"]
+        },
+
+        {
+            "name": "Subprocess_Generator_Agent",
+            "function": {
+                "description": "Expands a single top-level process step into a detailed level-2/3 subprocess of 3-10 ordered sub-steps.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "process_step": {
+                            "type": "object",
+                            "description": "The single top-level process step to expand (step_name, description, responsible_party, inputs, outputs, success_criteria, etc.)."
+                        }
+                    },
+                    "required": ["process_step"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are an expert process engineer. Given a single top-level process step (the "process_step"
+argument -- step_name, description, responsible_party, outputs, inputs, success_criteria, etc.),
+expand it into a detailed level-2/3 subprocess.
+
+# RULES
+Break the step into 3-10 ordered sub-steps a delivery team could actually implement. For EACH
+sub-step, provide (infer a reasonable value if the input doesn't state one -- never leave a field
+out):
+- substep_name: concise but descriptive (avoid vague names like "Execution" -- use "Validate Code
+  Quality" instead). Keep tight if the parent step_name is already long.
+- description: a professional, multi-sentence paragraph explaining the action.
+- responsible_party: a role aligned with stakeholders identified in the parent process.
+- inputs / outputs: lists of artifacts or information. Every output must be either an input to a
+  later sub-step or match a top-level output from the parent step.
+- estimated_duration: a human-friendly string (e.g. "2-4 hours", "1 day").
+- dependencies: names of prior sub-steps that must complete first.
+- success_criteria: list of conditions for completion.
+- purpose: why this sub-step exists.
+- scope: boundaries/limits of this sub-step.
+- process_owner: accountable role.
+- triggers: events/conditions that initiate it.
+- end_conditions: conditions defining completion.
+- step_risks_and_controls: list of {"risk", "control"} objects.
+- governance_requirements: list of oversight/audit/compliance requirements.
+- change_management: list of {"change_request_process", "versioning_rules"} objects.
+- continuous_improvement: list of {"review_frequency", "improvement_inputs": [...]} objects.
+
+# COMPLETION
+Call save_subprocess_flow with step_name=<the parent step's step_name> and subprocess_flow=
+{"step_name": <the parent step's step_name>, "subprocess_flow": [<your list of sub-step objects
+above>]}.
+
+Do not output the subprocess JSON as chat text -- it belongs only inside the tool call.
+""",
+            "tools": ["save_subprocess_flow"]
+        },
+
         {
             "name": "reset_loop_state",
             "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
@@ -274,6 +371,45 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
             "name": "simulate_process_performance",
             "function": {"description": "Runs a Monte Carlo cycle-time simulation over the current process design. Takes no meaningful arguments -- it loads the baseline itself."},
             "class": "simulation_tool.SimulateProcessPerformanceCodedTool"
+        },
+        {
+            "name": "load_process_steps",
+            "function": {"description": "Loads the current process design's top-level process_steps list. Takes no meaningful arguments."},
+            "class": "subprocess_tool.LoadProcessStepsCodedTool"
+        },
+        {
+            "name": "save_subprocess_flow",
+            "function": {
+                "description": "Persists a generated subprocess flow for one top-level process step.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "step_name": {"type": "string", "description": "The parent process step's step_name."},
+                        "subprocess_flow": {"type": "object", "description": "{\"step_name\": ..., \"subprocess_flow\": [<sub-step objects>]}"}
+                    },
+                    "required": ["step_name", "subprocess_flow"]
+                }
+            },
+            "class": "subprocess_tool.SaveSubprocessFlowCodedTool"
+        },
+        {
+            "name": "generate_process_flow_diagram",
+            "function": {"description": "Infers and renders a swimlane flow diagram from the current process design. Takes no meaningful arguments."},
+            "class": "edge_inference_tool.GenerateProcessFlowDiagramCodedTool"
+        },
+        {
+            "name": "generate_process_document",
+            "function": {
+                "description": "Generates a structured, ISO-formatted Word document from the current process design.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the design JSON itself has no process_name."}
+                    },
+                    "required": ["process_name"]
+                }
+            },
+            "class": "doc_generation_tool.GenerateProcessDocumentCodedTool"
         }
     ]
 }

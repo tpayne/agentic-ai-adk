@@ -67,7 +67,9 @@ to audit it, and you decide whether to repeat that cycle using loop_control.
    briefly summarize the remaining concern(s) if you have visibility into them. Do not output raw
    JSON, tool names, or internal field names in this final report -- plain prose only.
 """,
-            "tools": ["reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control"]
+            "tools": ["reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control"],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
         },
 
         {

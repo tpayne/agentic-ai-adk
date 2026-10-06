@@ -13,4 +13,40 @@
     # includes this file, so raising it here covers all of them in one
     # place rather than repeating a per-network override.
     "max_execution_seconds": 3600
+
+    # A pipeline front-man (process/process_update/design/design_update/
+    # cloudarch) calls several of its own tools in sequence within ONE
+    # turn -- reset_loop_state, then generator/reviewer agents, then
+    # loop_control, repeated up to the pipeline's own max_iterations --
+    # and each call+result pair is appended to THAT AGENT's own chat
+    # history. Nothing here reads prior turns back out of that history
+    # (every stage re-reads its real state from disk instead -- see
+    # README.md's "neuro-san implementation notes"), so it's safe to let
+    # neuro-san's own summarization middleware condense older messages
+    # once a front-man's own history crosses this threshold, keeping only
+    # the most recent few for continuity -- the direct equivalent of the
+    # ADK original's events_compaction_config (same token-threshold-based
+    # trigger, same "safe because nothing re-reads old history" reasoning
+    # -- see the ADK sample's own agent.py for that original comment).
+    # Defined once here, referenced via ${pipeline_middleware} on each of
+    # the five pipeline front-men below.
+    "pipeline_middleware": [
+        {
+            "class": "neuro_san.middleware.neuro_san_summarization_middleware.NeuroSanSummarizationMiddleware",
+            "args": {
+                # "google_genai:" prefix required -- LangChain's init_chat_model()
+                # infers a bare "gemini-..." name as model_provider="google_vertexai"
+                # by default (confirmed directly: without this prefix, middleware
+                # construction fails trying to import langchain-google-vertexai,
+                # a package this project doesn't install, since llm_config.hocon's
+                # own "gemini-3-flash" model actually goes through the Gemini
+                # Developer API / GOOGLE_API_KEY, i.e. "google_genai").
+                "model": "google_genai:gemini-3-flash",
+                "trigger": [["tokens", 150000]],
+                "keep": ["messages", 8],
+                "keep_summary_in_context": true,
+                "chat_history": true,
+            }
+        }
+    ]
 }

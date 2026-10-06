@@ -86,7 +86,9 @@ requirements, design, or audit the document yourself.
             "tools": [
                 "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_Agent", "Compliance_Agent",
                 "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document"
-            ]
+            ],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
         },
 
         {
