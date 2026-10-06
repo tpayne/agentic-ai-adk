@@ -13,7 +13,10 @@ documentation. A handy tool for consultants and architects alike.
 
 This project is built on neuro-san's declarative HOCON agent networks and Python `CodedTool`s, so
 any LLM provider neuro-san supports can be used (Gemini, Anthropic, OpenAI, Bedrock, Azure OpenAI,
-...) — set the model in `config/llm_config.hocon`.
+...) — set the model in `config/llm_config.hocon`. The shared config sets OpenAI
+`use_responses_api` to `true`, allowing reasoning models such as `gpt-6-luna` to retain reasoning
+while making the function/tool calls these networks require. For Azure OpenAI deployments where
+Responses API is unavailable, set it to `false` in the shared config.
 
 ---
 

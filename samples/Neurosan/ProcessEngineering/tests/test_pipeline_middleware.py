@@ -37,6 +37,8 @@ _PIPELINE_NETWORKS = [
     "registries/cloudarch.hocon",
 ]
 
+_TOOL_USING_NETWORKS = _PIPELINE_NETWORKS + ["registries/process_architect.hocon"]
+
 
 @pytest.fixture(autouse=True)
 def _dummy_api_key(monkeypatch):
@@ -68,3 +70,11 @@ def test_pipeline_middleware_args_actually_construct(network_path):
     # Must not raise -- confirms the "model" string resolves to a real,
     # installed provider (not just that the HOCON key exists).
     NeuroSanSummarizationMiddleware(**args)
+
+
+@pytest.mark.parametrize("network_path", _TOOL_USING_NETWORKS)
+def test_openai_reasoning_models_use_responses_api_for_tool_calls(network_path):
+    network = AgentNetworkRestorer().restore(file_reference=network_path)
+    llm_config = network.get_config()["llm_config"]
+
+    assert llm_config["use_responses_api"] is True

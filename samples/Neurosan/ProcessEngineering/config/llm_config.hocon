@@ -1,6 +1,11 @@
 {
     "llm_config": {
-        "model_name": "gemini-3-flash"
+        "model_name": "gemini-3-flash",
+        # OpenAI reasoning models such as gpt-6-luna reject function tools on
+        # Chat Completions while reasoning is enabled. Use Responses API so
+        # those models retain reasoning and can still call this project's tools.
+        # Other providers ignore this OpenAI-specific option.
+        "use_responses_api": true
     },
 
     # neuro-san's own default (RunContextRunnable.run_it) is 300 seconds per
