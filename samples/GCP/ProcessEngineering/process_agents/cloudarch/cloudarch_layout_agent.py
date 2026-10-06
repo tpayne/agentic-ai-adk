@@ -584,29 +584,190 @@ def _route_edge(
     return [(src.cx, channel_y), (tgt.cx, channel_y)]
 
 
-def _connection_point(box: _Box, towards_x: float, towards_y: float) -> Tuple[float, float]:
+def _connection_side(box: _Box, towards_x: float, towards_y: float) -> str:
     """
-    Returns a fixed (fractional X, fractional Y) connection point on `box`'s
-    own boundary -- 0.0/1.0 on each axis, e.g. (0.5, 0.0) for top-center,
-    (1.0, 0.5) for right-center -- facing whichever side the edge actually
-    travels towards (its first/last waypoint, or the other endpoint's center
-    if the edge has no waypoints at all).
+    Which side of `box` an edge should attach to -- "right"/"left"/"top"/
+    "bottom" -- given the direction it actually travels (its first/last
+    waypoint, or the other endpoint's center if the edge has no waypoints
+    at all).
 
-    Without this, an edge cell that only specifies source/target (no exitX/
-    exitY/entryX/entryY) gets a "floating" connection point that drawio
-    computes on its own at render time -- and that computed point does not
-    reliably match the direction _route_edge's own waypoints actually
-    approach from, which has been observed to render as the arrow ending
-    short of the box, in open space, rather than visibly touching it
-    (especially on a long cross-row edge, or now that components render
-    with no visible border to anchor the eye to where the box "is"). Pinning
-    an explicit, correct point removes the guesswork entirely.
+    Without pinning an explicit side (and, see _slot_fraction, an explicit
+    point ALONG that side), an edge cell that only specifies source/target
+    gets a "floating" connection point drawio computes on its own at
+    render time -- observed to render the arrow ending short of the box,
+    in open space, rather than visibly touching it.
     """
     dx = towards_x - box.cx
     dy = towards_y - box.cy
     if abs(dx) >= abs(dy):
-        return (1.0, 0.5) if dx >= 0 else (0.0, 0.5)
-    return (0.5, 1.0) if dy >= 0 else (0.5, 0.0)
+        return "right" if dx >= 0 else "left"
+    return "bottom" if dy >= 0 else "top"
+
+
+def _slot_fraction(slot_index: int, slot_count: int) -> float:
+    """
+    Evenly spaced fractional position along one side of a box for this
+    edge, among `slot_count` edges total sharing that same box+side.
+    Stays inside [0.2, 0.8] so no connection point sits right at a
+    corner; slot_count <= 1 is the common case (one edge on this side)
+    and stays dead-center, matching the old fixed-0.5 behavior exactly.
+    """
+    if slot_count <= 1:
+        return 0.5
+    lo, hi = 0.2, 0.8
+    return lo + (hi - lo) * slot_index / (slot_count - 1)
+
+
+def _connection_point_for_side(side: str, fraction: float) -> Tuple[float, float]:
+    """Converts a side + along-side fraction into the (fractional X,
+    fractional Y) box-boundary point drawio's exitX/exitY/entryX/entryY
+    expect."""
+    if side == "right":
+        return (1.0, fraction)
+    if side == "left":
+        return (0.0, fraction)
+    if side == "bottom":
+        return (fraction, 1.0)
+    return (fraction, 0.0)  # "top"
+
+
+def _assign_connection_slots(
+    edges: List[Dict[str, Any]],
+    all_boxes: Dict[str, "_Box"],
+    row_bottoms: Dict[int, float],
+    channel_slots: List[int],
+) -> List[Optional[Dict[str, Any]]]:
+    """
+    Pre-computes, for every edge, its waypoints AND which exact fractional
+    point on its source/target box it connects to -- spreading multiple
+    edges that share the same box+side across that side instead of every
+    one of them pinning to the identical center point.
+
+    Without this, two or more edges leaving/entering the same box toward
+    the same general direction (e.g. one API Gateway fanning out to two
+    availability-zone clusters) all got the IDENTICAL connection point --
+    confirmed directly against a real generated diagram: their line
+    segments visibly coincide near the shared box, and their labels (both
+    anchored near that shared segment) read as doubled, overlapping text.
+
+    Returns a list (parallel to `edges`) of {"waypoints", "exit_frac",
+    "entry_frac"} dicts, or None for a dangling edge reference.
+    """
+    raw: List[Optional[Dict[str, Any]]] = []
+    for i, edge in enumerate(edges):
+        src = all_boxes.get(edge["source"])
+        tgt = all_boxes.get(edge["target"])
+        if src is None or tgt is None:
+            raw.append(None)
+            continue
+        waypoints = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms)
+        first_wp = waypoints[0] if waypoints else (tgt.cx, tgt.cy)
+        last_wp = waypoints[-1] if waypoints else (src.cx, src.cy)
+        raw.append({
+            "waypoints": waypoints,
+            "exit_side": _connection_side(src, *first_wp),
+            "entry_side": _connection_side(tgt, *last_wp),
+        })
+
+    # Group every edge-endpoint touching a given (box, side) together, so
+    # slots can be assigned per side rather than per individual edge.
+    groups: Dict[Tuple[str, str], List[Tuple[int, str]]] = {}
+    for i, edge in enumerate(edges):
+        r = raw[i]
+        if r is None:
+            continue
+        groups.setdefault((edge["source"], r["exit_side"]), []).append((i, "exit"))
+        groups.setdefault((edge["target"], r["entry_side"]), []).append((i, "entry"))
+
+    exit_frac: List[Optional[Tuple[float, float]]] = [None] * len(edges)
+    entry_frac: List[Optional[Tuple[float, float]]] = [None] * len(edges)
+
+    for (box_id, side), items in groups.items():
+        vertical_side = side in ("left", "right")
+
+        def _sort_key(item: Tuple[int, str]) -> float:
+            idx, role = item
+            other_id = edges[idx]["target"] if role == "exit" else edges[idx]["source"]
+            other_box = all_boxes[other_id]
+            # Sort by the OTHER endpoint's perpendicular coordinate, so
+            # slots are assigned in a spatially sensible order (the edge
+            # going to the topmost target gets the topmost slot, etc.)
+            # instead of arbitrary edge-list order, which would cross
+            # lines unnecessarily.
+            return other_box.cy if vertical_side else other_box.cx
+
+        ordered = sorted(items, key=_sort_key)
+        for slot, (idx, role) in enumerate(ordered):
+            point = _connection_point_for_side(side, _slot_fraction(slot, len(ordered)))
+            if role == "exit":
+                exit_frac[idx] = point
+            else:
+                entry_frac[idx] = point
+
+    return [
+        {**r, "exit_frac": exit_frac[i], "entry_frac": entry_frac[i]} if r is not None else None
+        for i, r in enumerate(raw)
+    ]
+
+
+def _resolve_label_collisions(
+    label_points: List[Optional[Tuple[float, float]]],
+    threshold: float = 40.0,
+) -> List[Optional[Tuple[float, float]]]:
+    """
+    Nudges labels that land within `threshold` px of another label apart
+    so they end up EXACTLY `threshold` px apart, alternating perpendicular
+    to the line between the colliding pair.
+
+    _label_position_fraction only keeps a label off corners/bends on its
+    OWN edge's path -- it has no visibility into where every OTHER edge's
+    label lands, so two entirely unrelated edges (different source AND
+    target) can still coincidentally compute to nearly the same point, as
+    confirmed directly against a real generated diagram (two labels 5px
+    apart). A single O(n^2) pass over the handful of labels a real diagram
+    has is a deliberate, cheap choice over an iterative constraint solver
+    -- this is a cosmetic nudge away from a near-coincidence, not a
+    general label-layout optimizer, so one pass resolving each label at
+    most once is enough to fix the real collisions observed without
+    risking the nudges themselves cascading into new ones.
+
+    The nudge distance is derived from `threshold` itself (via
+    `sqrt(threshold**2 - dist**2)`) rather than a fixed pixel amount --
+    a fixed nudge only guarantees the two points end up `nudge` px apart
+    in the worst case (two points starting at the exact same spot, where
+    no direction is defined to add to), which can still be well under
+    `threshold` and therefore still read as a collision after "fixing" it.
+    """
+    adjusted = list(label_points)
+    already_nudged = [False] * len(adjusted)
+
+    for i in range(len(adjusted)):
+        for j in range(i + 1, len(adjusted)):
+            if already_nudged[i] or already_nudged[j]:
+                continue
+            pi, pj = adjusted[i], adjusted[j]
+            if pi is None or pj is None:
+                continue
+            dx, dy = pj[0] - pi[0], pj[1] - pi[1]
+            dist = math.hypot(dx, dy)
+            if dist >= threshold:
+                continue
+            # Perpendicular unit vector to the line between the two
+            # points (falls back to a horizontal nudge for two points
+            # that coincide exactly, where no direction is defined).
+            if dist > 0:
+                perp_x, perp_y = -dy / dist, dx / dist
+            else:
+                perp_x, perp_y = 1.0, 0.0
+            # Total perpendicular separation needed so the final distance
+            # (hypotenuse of the original gap and this added perpendicular
+            # push) comes out to exactly `threshold`.
+            nudge = math.sqrt(max(threshold * threshold - dist * dist, 0.0))
+            adjusted[i] = (pi[0] - perp_x * nudge / 2, pi[1] - perp_y * nudge / 2)
+            adjusted[j] = (pj[0] + perp_x * nudge / 2, pj[1] + perp_y * nudge / 2)
+            already_nudged[i] = already_nudged[j] = True
+
+    return adjusted
 
 
 def _label_position_fraction(path: List[Tuple[float, float]]) -> float:
@@ -638,6 +799,31 @@ def _label_position_fraction(path: List[Tuple[float, float]]) -> float:
 
     fraction_0_to_1 = midpoint_arc_position / total
     return 2 * fraction_0_to_1 - 1
+
+
+def _point_at_fraction(path: List[Tuple[float, float]], fraction: float) -> Tuple[float, float]:
+    """
+    The inverse of _label_position_fraction: the absolute (x, y) point
+    along `path` that a given mxGraph label fraction (-1.0 source .. 1.0
+    target) actually lands on. Used to recover real pixel positions for
+    every edge's label so collisions BETWEEN edges can be detected -- see
+    _resolve_label_collisions.
+    """
+    seg_lengths = [math.dist(path[i], path[i + 1]) for i in range(len(path) - 1)]
+    total = sum(seg_lengths)
+    if total <= 0:
+        return path[0]
+
+    target_arc = (fraction + 1) / 2 * total
+    covered = 0.0
+    for i, seg_len in enumerate(seg_lengths):
+        if covered + seg_len >= target_arc or i == len(seg_lengths) - 1:
+            t = (target_arc - covered) / seg_len if seg_len > 0 else 0.0
+            x0, y0 = path[i]
+            x1, y1 = path[i + 1]
+            return (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+        covered += seg_len
+    return path[-1]
 
 
 def build_structured_drawio_xml(
@@ -806,35 +992,52 @@ def build_structured_drawio_xml(
         channel_slot_counts[key] = slot + 1
         channel_slots.append(slot)
 
+    # Pin exact connection points instead of letting drawio float them, and
+    # spread multiple edges sharing a box+side across that side -- see
+    # _assign_connection_slots's own docstring for why.
+    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots)
+
+    # Compute every edge's absolute label point UP FRONT, across all edges,
+    # so collisions BETWEEN unrelated edges (not just within one edge's own
+    # bent path) can be detected and nudged apart -- see
+    # _resolve_label_collisions's own docstring for why this has to be a
+    # separate pass rather than resolved edge-by-edge.
+    label_fractions: List[Optional[float]] = [None] * len(edges)
+    raw_label_points: List[Optional[Tuple[float, float]]] = [None] * len(edges)
     for i, edge in enumerate(edges):
+        plan = edge_plans[i]
         src = all_boxes.get(edge["source"])
         tgt = all_boxes.get(edge["target"])
-        if src is None or tgt is None:
+        if plan is None or src is None or tgt is None:
+            continue
+        exit_x, exit_y = plan["exit_frac"]
+        entry_x, entry_y = plan["entry_frac"]
+        exit_pt = (src.x + exit_x * src.w, src.y + exit_y * src.h)
+        entry_pt = (tgt.x + entry_x * tgt.w, tgt.y + entry_y * tgt.h)
+        path = [exit_pt, *plan["waypoints"], entry_pt]
+        fraction = _label_position_fraction(path)
+        label_fractions[i] = fraction
+        raw_label_points[i] = _point_at_fraction(path, fraction)
+
+    resolved_label_points = _resolve_label_collisions(raw_label_points)
+
+    for i, edge in enumerate(edges):
+        plan = edge_plans[i]
+        src = all_boxes.get(edge["source"])
+        tgt = all_boxes.get(edge["target"])
+        if plan is None or src is None or tgt is None:
             continue  # dangling reference -- skip rather than emit a broken edge
 
-        waypoints = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms)
+        waypoints = plan["waypoints"]
         label = edge.get("label", "")
         if edge.get("number") is not None and label:
             label = f"{edge['number']}. {label}"
         color = edge.get("color", "#5f6368")
         dashed = "dashed=1;" if edge.get("dashed") else ""
 
-        # Pin exact connection points instead of letting drawio float them --
-        # see _connection_point's own docstring for why.
-        first_wp = waypoints[0] if waypoints else (tgt.cx, tgt.cy)
-        last_wp = waypoints[-1] if waypoints else (src.cx, src.cy)
-        exit_x, exit_y = _connection_point(src, *first_wp)
-        entry_x, entry_y = _connection_point(tgt, *last_wp)
-
-        # Full absolute path (connection points, not centers) for
-        # _label_position_fraction -- drawio's own default label position
-        # (the arc-length midpoint of this same path) is what the comment
-        # on _label_position_fraction confirms lands on top of a corner,
-        # which for this router's waypoints usually means on top of a zone
-        # boundary, on a real bent edge.
-        exit_pt = (src.x + exit_x * src.w, src.y + exit_y * src.h)
-        entry_pt = (tgt.x + entry_x * tgt.w, tgt.y + entry_y * tgt.h)
-        label_fraction = _label_position_fraction([exit_pt, *waypoints, entry_pt])
+        exit_x, exit_y = plan["exit_frac"]
+        entry_x, entry_y = plan["entry_frac"]
+        label_fraction = label_fractions[i]
 
         edge_cell = ET.SubElement(root, "mxCell", {
             "id": f"edge_{i}_{edge['source']}_{edge['target']}",
@@ -861,6 +1064,19 @@ def build_structured_drawio_xml(
         geom = ET.SubElement(edge_cell, "mxGeometry", {
             "relative": "1", "as": "geometry", "x": f"{label_fraction:.4f}",
         })
+        raw_point = raw_label_points[i]
+        resolved_point = resolved_label_points[i]
+        if raw_point is not None and resolved_point is not None:
+            offset_x = resolved_point[0] - raw_point[0]
+            offset_y = resolved_point[1] - raw_point[1]
+            if abs(offset_x) > 0.5 or abs(offset_y) > 0.5:
+                # A pixel-delta nudge FROM the on-path point already set by
+                # the "x" fraction above -- the standard mxGraph mechanism
+                # for separating a label from its anchor without moving the
+                # anchor itself. See _resolve_label_collisions.
+                ET.SubElement(geom, "mxPoint", {
+                    "x": f"{offset_x:.1f}", "y": f"{offset_y:.1f}", "as": "offset",
+                })
         if waypoints:
             points_el = ET.SubElement(geom, "Array", {"as": "points"})
             for wx, wy in waypoints:

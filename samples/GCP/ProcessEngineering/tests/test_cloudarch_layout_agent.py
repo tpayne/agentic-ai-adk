@@ -1,3 +1,4 @@
+import math
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -432,6 +433,136 @@ class LabelPositionTests(unittest.TestCase):
         self.assertIsNotNone(geom.get("x"))
         self.assertGreaterEqual(float(geom.get("x")), -1.0)
         self.assertLessEqual(float(geom.get("x")), 1.0)
+
+
+class ConnectionSlotSpreadingTests(unittest.TestCase):
+    """Coverage for _assign_connection_slots -- see its own docstring and
+    _connection_side's for the real bug it fixes: _connection_point (now
+    removed) gave every edge touching the same box+side the IDENTICAL
+    fixed-center connection point, so two or more edges fanning out of one
+    box (e.g. an API Gateway calling two Fargate clusters) rendered with
+    their line segments visibly coinciding near that shared box -- confirmed
+    directly against a real generated diagram ("api_gw" had two edges both
+    exiting at the exact same pixel point)."""
+
+    def _sample(self):
+        zones = [{"id": "z1", "label": "Z1", "row": 0}, {"id": "z2", "label": "Z2", "row": 0}]
+        components = [
+            {"id": "hub", "zone_id": "z1", "label": "Hub"},
+            {"id": "spoke_a", "zone_id": "z2", "label": "A"},
+            {"id": "spoke_b", "zone_id": "z2", "label": "B"},
+        ]
+        return zones, components
+
+    def test_single_edge_on_a_side_still_gets_dead_center(self):
+        # slot_count <= 1 must match the old fixed-0.5 behavior exactly --
+        # no regression for the overwhelmingly common case of one edge per
+        # box+side.
+        self.assertAlmostEqual(layout._slot_fraction(0, 1), 0.5)
+
+    def test_two_edges_sharing_a_box_and_side_get_different_connection_points(self):
+        zones, components = self._sample()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = {zb.row: zb.bottom for zb in zone_boxes.values()}
+        all_boxes = {**comp_boxes, **zone_boxes}
+        edges = [
+            {"source": "hub", "target": "spoke_a"},
+            {"source": "hub", "target": "spoke_b"},
+        ]
+        plans = layout._assign_connection_slots(edges, all_boxes, row_bottoms, [0, 0])
+        self.assertNotEqual(plans[0]["exit_frac"], plans[1]["exit_frac"])
+
+    def test_slot_fractions_stay_off_the_corners(self):
+        for slot in range(4):
+            fraction = layout._slot_fraction(slot, 4)
+            self.assertGreaterEqual(fraction, 0.2)
+            self.assertLessEqual(fraction, 0.8)
+
+    def test_build_structured_drawio_xml_gives_fanout_edges_distinct_exit_points(self):
+        # End-to-end regression test: a real generated diagram showed one
+        # box's two outgoing edges rendering from the identical exit point.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "hub", "target": "spoke_a", "label": "To A"},
+                {"source": "hub", "target": "spoke_b", "label": "To B"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edge_cells = [c for c in root.findall(".//mxCell") if c.get("edge") == "1"]
+
+        def exit_point(cell):
+            style = cell.get("style", "")
+            parts = dict(p.split("=", 1) for p in style.split(";") if "=" in p)
+            return (parts["exitX"], parts["exitY"])
+
+        self.assertNotEqual(exit_point(edge_cells[0]), exit_point(edge_cells[1]))
+
+
+class LabelCollisionResolutionTests(unittest.TestCase):
+    """Coverage for _resolve_label_collisions -- see its own docstring for
+    the real bug it fixes: _label_position_fraction only keeps a label off
+    corners/bends on its OWN edge's path, with no visibility into where
+    every OTHER edge's label lands, so two entirely unrelated edges can
+    still coincidentally compute to nearly the same point -- confirmed
+    directly against a real generated diagram (two unrelated edges' labels
+    only 5px apart)."""
+
+    def test_far_apart_labels_are_left_untouched(self):
+        points = [(0.0, 0.0), (500.0, 500.0)]
+        self.assertEqual(layout._resolve_label_collisions(points), points)
+
+    def test_coincident_labels_end_up_at_least_threshold_apart(self):
+        points = [(100.0, 100.0), (100.0, 100.0)]
+        resolved = layout._resolve_label_collisions(points, threshold=40.0)
+        self.assertAlmostEqual(math.dist(resolved[0], resolved[1]), 40.0)
+
+    def test_nearly_coincident_labels_end_up_at_least_threshold_apart(self):
+        # Regression test for the real confirmed bug: two labels 5px apart.
+        points = [(100.0, 100.0), (105.0, 100.0)]
+        resolved = layout._resolve_label_collisions(points, threshold=40.0)
+        self.assertAlmostEqual(math.dist(resolved[0], resolved[1]), 40.0)
+
+    def test_none_entries_are_skipped_without_raising(self):
+        points = [(0.0, 0.0), None, (0.0, 0.0)]
+        resolved = layout._resolve_label_collisions(points, threshold=40.0)
+        self.assertIsNone(resolved[1])
+        self.assertAlmostEqual(math.dist(resolved[0], resolved[2]), 40.0)
+
+    def test_build_structured_drawio_xml_nudges_colliding_edge_labels_apart(self):
+        # End-to-end wiring test: force two unrelated edges' raw label
+        # points to coincide exactly (the collision-resolution LOGIC
+        # itself is already covered above; this confirms
+        # build_structured_drawio_xml actually threads its result into a
+        # real mxPoint offset on the emitted XML, same as the real
+        # generated diagram that originally surfaced this bug).
+        original = layout._point_at_fraction
+        layout._point_at_fraction = staticmethod(lambda path, fraction: (100.0, 100.0))
+        try:
+            zones = [{"id": "z1", "label": "Z1", "row": 0}]
+            components = [
+                {"id": "a", "zone_id": "z1", "label": "A"},
+                {"id": "b", "zone_id": "z1", "label": "B"},
+                {"id": "c", "zone_id": "z1", "label": "C"},
+                {"id": "d", "zone_id": "z1", "label": "D"},
+            ]
+            xml_str = layout.build_structured_drawio_xml(
+                title="T", subtitle="", zones=zones, components=components,
+                edges=[
+                    {"source": "a", "target": "b", "label": "Edge 1"},
+                    {"source": "c", "target": "d", "label": "Edge 2"},
+                ],
+            )
+        finally:
+            layout._point_at_fraction = original
+
+        root = ET.fromstring(xml_str)
+        edge_cells = [c for c in root.findall(".//mxCell") if c.get("edge") == "1"]
+        offsets = [c.find("./mxGeometry/mxPoint[@as='offset']") for c in edge_cells]
+        self.assertTrue(all(offset is not None for offset in offsets))
+        resolved = [(float(o.get("x")) + 100.0, float(o.get("y")) + 100.0) for o in offsets]
+        self.assertAlmostEqual(math.dist(resolved[0], resolved[1]), 40.0)
 
 
 class BuildXmlTests(unittest.TestCase):

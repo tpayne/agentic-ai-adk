@@ -551,25 +551,47 @@ by default and fails to import a package this project doesn't install, even thou
 goes through the Gemini Developer API (`GOOGLE_API_KEY`). Confirmed directly (construction raises
 without the prefix) and locked in by `tests/test_pipeline_middleware.py`.
 
-**Cloud architecture diagram edge labels clustering/overlapping at zone boundaries.** A real
-generated diagram showed labels (e.g. two separate "Encrypt" edges, a "Telemetry" edge) clustering
-and overlapping right at a subnet border, rather than sitting cleanly on their own edge. Root cause,
-confirmed directly: `cloudarch_layout_engine.py`'s `_route_edge` deliberately routes bent edges
-through the reserved gaps *between* zones/rows (so a line never cuts through a box) — but nothing
-ever told drawio where to put the LABEL on that bent path, so it fell back to drawio's own default:
-the midpoint by raw arc length of the whole polyline. For an uneven multi-segment path (a short leg,
-then a long leg, then another short leg — exactly what a cross-zone/cross-row edge produces), that
-arc-length midpoint can land barely past the first corner, i.e. right in the same reserved gap the
-route was built to pass through — which is, by construction, also where a zone's own border line
-sits. Fixed by `_label_position_fraction`, which instead places the label at the midpoint of the
-path's LONGEST straight segment — the one point on any bent route guaranteed to be furthest from
-every corner. This file (`coded_tools/cloudarch/cloudarch_layout_engine.py`) is a byte-identical
-copy of the ADK original's `cloudarch_layout_agent.py` (confirmed via `diff`/md5 before fixing, so
-this genuinely wasn't a missed port of an existing upstream fix — the bug was equally present, and
-unfixed, in both); the fix was applied to both to keep them in sync, along with this port's own
+**Cloud architecture diagrams rendering with messy, overlapping arrows and labels.** A real
+generated diagram showed labels clustering/overlapping at zone boundaries, edge lines visibly
+coinciding where several arrows left or entered the same box, and unrelated edges' labels landing
+on top of each other. This surfaced in two rounds: an initial fix addressed one real cause but was
+shown, against a second, more complex real diagram, to still leave two more real causes
+unaddressed — all three are now fixed, confirmed directly against reconstructions of both real
+diagrams (not just reasoned about), with regression tests for each:
+
+1. **Labels landing on zone boundaries.** `cloudarch_layout_engine.py`'s `_route_edge` deliberately
+   routes bent edges through the reserved gaps *between* zones/rows (so a line never cuts through a
+   box) — but nothing ever told drawio where to put the LABEL on that bent path, so it fell back to
+   drawio's own default: the midpoint by raw arc length of the whole polyline. For an uneven
+   multi-segment path (a short leg, then a long leg, then another short leg — exactly what a
+   cross-zone/cross-row edge produces), that arc-length midpoint can land barely past the first
+   corner, i.e. right in the same reserved gap the route was built to pass through — which is, by
+   construction, also where a zone's own border line sits. Fixed by `_label_position_fraction`,
+   which instead places the label at the midpoint of the path's LONGEST straight segment — the one
+   point on any bent route guaranteed to be furthest from every corner.
+2. **Multiple edges sharing one box's connection point.** Every edge used to get a connection point
+   fixed at the dead-center of whichever side it approached a box from (`_connection_point`), with no
+   awareness of how many OTHER edges also connected to that same box on that same side. A box with
+   two or more outgoing/incoming edges on one side (e.g. an API Gateway fanning out to two Fargate
+   clusters) had every one of those edges start/end at the IDENTICAL pixel, so their line segments
+   visibly coincided. Fixed by `_assign_connection_slots`, which groups edges by `(box, side)` and
+   spreads them evenly across that side (`_slot_fraction`) instead of pinning them all to the center.
+3. **Unrelated edges' labels landing close together by coincidence.** `_label_position_fraction`
+   only keeps a label off corners on its OWN edge's path — it has no visibility into where every
+   OTHER edge's label lands, so two entirely unrelated edges (different source AND target) could
+   still compute to nearly the same point (confirmed directly: two real labels only 5px apart).
+   Fixed by `_resolve_label_collisions`, a pairwise pass over every edge's computed label position
+   that nudges any pair closer than a threshold apart by the minimum needed to clear it, expressed in
+   the final XML as a standard mxGraph label `offset` (a pixel nudge layered on top of the `x`
+   fraction from fix #1, not a replacement for it).
+
+This file (`coded_tools/cloudarch/cloudarch_layout_engine.py`) is a byte-identical copy of the ADK
+original's `cloudarch_layout_agent.py` (confirmed via `diff`/md5 before fixing, so this genuinely
+wasn't a missed port of an existing upstream fix — all three bugs were equally present, and unfixed,
+in both); all three fixes were applied to both to keep them in sync, along with this port's own
 previously-nonexistent dedicated test coverage for this module (`tests/test_cloudarch_layout_engine.py`,
 ported from the ADK original's `tests/test_cloudarch_layout_agent.py`, which this port had never
-carried over).
+carried over, plus new tests for all three fixes above).
 
 **Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
 reference implementation):
