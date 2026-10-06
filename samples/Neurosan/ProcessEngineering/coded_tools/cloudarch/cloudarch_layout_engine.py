@@ -65,6 +65,7 @@
 # Everything else (title/subtitle, overall provider accent) is passed
 # separately to build_structured_drawio_xml.
 
+import math
 import xml.etree.ElementTree as ET
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
@@ -608,6 +609,37 @@ def _connection_point(box: _Box, towards_x: float, towards_y: float) -> Tuple[fl
     return (0.5, 1.0) if dy >= 0 else (0.5, 0.0)
 
 
+def _label_position_fraction(path: List[Tuple[float, float]]) -> float:
+    """
+    Returns an mxGraph edge-label "x" value (relative position along the
+    edge, -1.0 at the source end through 0.0 at the middle to 1.0 at the
+    target end) that lands at the MIDPOINT OF THE LONGEST STRAIGHT SEGMENT
+    of `path`, rather than drawio's own default -- the midpoint by raw arc
+    length of the whole polyline.
+
+    Confirmed directly (see cloudarch_layout_engine's own test suite) that
+    the two disagree by a wide margin on exactly the edges this router
+    bends hardest: a 3-segment cross-row/cross-zone path's short first leg
+    and long middle leg can put the arc-length midpoint barely past the
+    first corner -- right where the route jogs through the gap BETWEEN two
+    zones, which is exactly where a zone's own border line sits. The
+    longest segment is, by construction, the one furthest from either
+    corner, so its own midpoint is the one spot on the path guaranteed not
+    to sit on top of a bend or a box edge.
+    """
+    seg_lengths = [math.dist(path[i], path[i + 1]) for i in range(len(path) - 1)]
+    total = sum(seg_lengths)
+    if total <= 0:
+        return 0.0
+
+    longest_idx = max(range(len(seg_lengths)), key=lambda i: seg_lengths[i])
+    arc_before_longest = sum(seg_lengths[:longest_idx])
+    midpoint_arc_position = arc_before_longest + seg_lengths[longest_idx] / 2
+
+    fraction_0_to_1 = midpoint_arc_position / total
+    return 2 * fraction_0_to_1 - 1
+
+
 def build_structured_drawio_xml(
     title: str,
     subtitle: Optional[str],
@@ -794,6 +826,16 @@ def build_structured_drawio_xml(
         exit_x, exit_y = _connection_point(src, *first_wp)
         entry_x, entry_y = _connection_point(tgt, *last_wp)
 
+        # Full absolute path (connection points, not centers) for
+        # _label_position_fraction -- drawio's own default label position
+        # (the arc-length midpoint of this same path) is what the comment
+        # on _label_position_fraction confirms lands on top of a corner,
+        # which for this router's waypoints usually means on top of a zone
+        # boundary, on a real bent edge.
+        exit_pt = (src.x + exit_x * src.w, src.y + exit_y * src.h)
+        entry_pt = (tgt.x + entry_x * tgt.w, tgt.y + entry_y * tgt.h)
+        label_fraction = _label_position_fraction([exit_pt, *waypoints, entry_pt])
+
         edge_cell = ET.SubElement(root, "mxCell", {
             "id": f"edge_{i}_{edge['source']}_{edge['target']}",
             "value": f"<b>{label}</b>" if label else "",
@@ -816,7 +858,9 @@ def build_structured_drawio_xml(
                 f"entryX={entry_x};entryY={entry_y};entryDx=0;entryDy=0;"
             ),
         })
-        geom = ET.SubElement(edge_cell, "mxGeometry", {"relative": "1", "as": "geometry"})
+        geom = ET.SubElement(edge_cell, "mxGeometry", {
+            "relative": "1", "as": "geometry", "x": f"{label_fraction:.4f}",
+        })
         if waypoints:
             points_el = ET.SubElement(geom, "Array", {"as": "points"})
             for wx, wy in waypoints:

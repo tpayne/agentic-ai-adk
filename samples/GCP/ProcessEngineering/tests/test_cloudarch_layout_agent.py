@@ -354,6 +354,86 @@ class EdgeRoutingTests(unittest.TestCase):
                 )
 
 
+class LabelPositionTests(unittest.TestCase):
+    """Coverage for _label_position_fraction -- see its own docstring for
+    the real bug it fixes: drawio's default edge-label position (the
+    arc-length midpoint of the whole polyline) lands on a bend point --
+    usually a zone boundary, for this router's own waypoints -- on an
+    uneven multi-segment path. Confirmed directly against a real generated
+    diagram, where labels like "Encrypt"/"Telemetry" clustered and
+    overlapped right at a subnet border."""
+
+    def test_straight_two_point_path_is_the_exact_middle(self):
+        path = [(0.0, 0.0), (100.0, 0.0)]
+        self.assertAlmostEqual(layout._label_position_fraction(path), 0.0)
+
+    def test_single_bend_with_unequal_legs_favors_the_longer_leg(self):
+        # A short leg (10) then a long leg (100): the arc-length midpoint
+        # (55 units in) falls on the long leg, same as the longest-segment
+        # midpoint here -- so this case alone wouldn't distinguish the two
+        # approaches. The point is the NEXT test, where it does.
+        path = [(0.0, 0.0), (10.0, 0.0), (10.0, 100.0)]
+        fraction = layout._label_position_fraction(path)
+        # Longest segment is index 1 (length 100, out of 110 total),
+        # spanning arc positions [10, 110]; its midpoint is at arc position
+        # 60, i.e. fraction (60/110)*2-1.
+        expected = (60 / 110) * 2 - 1
+        self.assertAlmostEqual(fraction, expected)
+
+    def test_three_segment_path_prefers_longest_segment_over_arc_midpoint(self):
+        # This is the real shape _route_edge produces for a cross-row/
+        # cross-zone edge: short-long-short. The arc-length midpoint (at
+        # 50% of total length) can land well inside the FIRST or THIRD leg
+        # if the middle leg is long enough relative to the others --
+        # confirmed directly against a real generated diagram's geometry.
+        # Segments: 80 (up), 200 (across), 80 (down) -- total 360, arc-mid
+        # at 180, which is 100 units into the middle segment (80..280).
+        path = [(0.0, 80.0), (0.0, 0.0), (200.0, 0.0), (200.0, 80.0)]
+        fraction = layout._label_position_fraction(path)
+        # Longest segment is index 1 (length 200, out of 360 total),
+        # spanning arc positions [80, 280]; its midpoint is at arc position
+        # 180 -- same as the arc-length midpoint in THIS particular case
+        # (by construction, to keep the assertion simple), but computed via
+        # the longest-segment rule, not "50% of total length" -- the next
+        # test is the one where the two rules actually diverge.
+        expected = (180 / 360) * 2 - 1
+        self.assertAlmostEqual(fraction, expected)
+
+    def test_uneven_three_segment_path_diverges_from_arc_length_midpoint(self):
+        # Segments: 90 (long-ish), 50 (medium), 20 (short) -- total 160.
+        # Arc-length midpoint sits at 80 -- exactly at the boundary between
+        # segment 0 (range [0,90]) and segment 1 -- i.e. near the FIRST
+        # segment's own end/corner, not its middle, while the
+        # longest-segment rule correctly centers on segment 0 (mid=45).
+        path = [(0.0, 0.0), (90.0, 0.0), (90.0, 50.0), (90.0, 70.0)]
+        fraction = layout._label_position_fraction(path)
+        arc_length_mid_fraction = 0.0  # what the OLD (pre-fix) behavior effectively used
+        longest_seg_mid_fraction = (45 / 160) * 2 - 1
+        self.assertAlmostEqual(fraction, longest_seg_mid_fraction)
+        self.assertNotAlmostEqual(fraction, arc_length_mid_fraction, delta=0.05)
+
+    def test_build_structured_drawio_xml_sets_a_label_position_on_every_edge(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[
+                {"id": "z1", "label": "Z1", "row": 0},
+                {"id": "z2", "label": "Z2", "row": 1, "stack": "horizontal"},
+            ],
+            components=[
+                {"id": "a", "zone_id": "z1", "label": "A", "bullets": ["x"]},
+                {"id": "b", "zone_id": "z2", "label": "B", "bullets": ["x"]},
+            ],
+            edges=[{"source": "a", "target": "b", "label": "Cross-row"}],
+        )
+        root = ET.fromstring(xml_str)
+        edge_cells = [c for c in root.findall(".//mxCell") if c.get("edge") == "1"]
+        self.assertEqual(len(edge_cells), 1)
+        geom = edge_cells[0].find("./mxGeometry")
+        self.assertIsNotNone(geom.get("x"))
+        self.assertGreaterEqual(float(geom.get("x")), -1.0)
+        self.assertLessEqual(float(geom.get("x")), 1.0)
+
+
 class BuildXmlTests(unittest.TestCase):
     def test_produces_valid_parseable_xml_with_expected_cells(self):
         xml_str = layout.build_structured_drawio_xml(

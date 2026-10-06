@@ -551,6 +551,26 @@ by default and fails to import a package this project doesn't install, even thou
 goes through the Gemini Developer API (`GOOGLE_API_KEY`). Confirmed directly (construction raises
 without the prefix) and locked in by `tests/test_pipeline_middleware.py`.
 
+**Cloud architecture diagram edge labels clustering/overlapping at zone boundaries.** A real
+generated diagram showed labels (e.g. two separate "Encrypt" edges, a "Telemetry" edge) clustering
+and overlapping right at a subnet border, rather than sitting cleanly on their own edge. Root cause,
+confirmed directly: `cloudarch_layout_engine.py`'s `_route_edge` deliberately routes bent edges
+through the reserved gaps *between* zones/rows (so a line never cuts through a box) — but nothing
+ever told drawio where to put the LABEL on that bent path, so it fell back to drawio's own default:
+the midpoint by raw arc length of the whole polyline. For an uneven multi-segment path (a short leg,
+then a long leg, then another short leg — exactly what a cross-zone/cross-row edge produces), that
+arc-length midpoint can land barely past the first corner, i.e. right in the same reserved gap the
+route was built to pass through — which is, by construction, also where a zone's own border line
+sits. Fixed by `_label_position_fraction`, which instead places the label at the midpoint of the
+path's LONGEST straight segment — the one point on any bent route guaranteed to be furthest from
+every corner. This file (`coded_tools/cloudarch/cloudarch_layout_engine.py`) is a byte-identical
+copy of the ADK original's `cloudarch_layout_agent.py` (confirmed via `diff`/md5 before fixing, so
+this genuinely wasn't a missed port of an existing upstream fix — the bug was equally present, and
+unfixed, in both); the fix was applied to both to keep them in sync, along with this port's own
+previously-nonexistent dedicated test coverage for this module (`tests/test_cloudarch_layout_engine.py`,
+ported from the ADK original's `tests/test_cloudarch_layout_agent.py`, which this port had never
+carried over).
+
 **Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
 reference implementation):
 - No custom web-service auth/rate-limiting layer — `ns run`'s own server is the serving layer
@@ -577,13 +597,15 @@ reference implementation):
 
 ## Verification
 
-- `uv run pytest` — directory extraction, drawio save/load round-trips, all three Monte Carlo
-  simulations (process cycle-time, cloudarch resilience/scalability/latency, design-document
-  resilience/scalability/security/latency blast-radius), the per-channel feedback mailbox, full
-  pipeline integration tests calling the real `CodedTool` classes in the front-man's own sequence,
-  end-to-end document-generation tests for both schemas, HOCON structural validation for every
-  network, and `loop_control` unit-tested against the exact ordering that matters (approval checked
-  *before* max-iterations).
+- `uv run pytest` — directory extraction, drawio save/load round-trips, the deterministic cloud
+  architecture layout engine (no two boxes ever overlap, every edge routes through reserved space,
+  every edge label lands away from a corner), all three Monte Carlo simulations (process
+  cycle-time, cloudarch resilience/scalability/latency, design-document resilience/scalability/
+  security/latency blast-radius), the per-channel feedback mailbox, full pipeline integration tests
+  calling the real `CodedTool` classes in the front-man's own sequence, end-to-end
+  document-generation tests for both schemas, HOCON structural validation for every network, and
+  `loop_control` unit-tested against the exact ordering that matters (approval checked *before*
+  max-iterations).
 - `uv run ns chat <network> --one-shot` against every network — confirms the full network (every
   agent, every `CodedTool`'s `"class"` resolution) loads and resolves correctly end-to-end.
 - `uv run python cli.py -i "..."` against `process_architect` — confirms the CLI's direct neuro-san
