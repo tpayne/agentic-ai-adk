@@ -61,8 +61,10 @@ functionally — see [Verification](#verification)):
   `cloudarch_drawio.xml`, `approval.json`, every feedback mailbox) lives in one project-wide
   `output/` directory, not scoped per session — two people driving the same network at once will
   read and overwrite each other's artifacts. Safe for one requester at a time.
-- **No built-in auth/rate-limiting.** `ns run`'s own server has neither; put an authenticating
-  reverse proxy / rate limiter in front of it before exposing it beyond localhost.
+- **No built-in auth/rate-limiting on `ns run`.** `ns run`'s own server has neither; put an
+  authenticating reverse proxy / rate limiter in front of it before exposing it beyond localhost.
+  `cli.py -d --flask` (see Running below) is the alternative that DOES have both built in, if
+  that's what you need instead of `ns run`'s own UI.
 - If a free-tier LLM key is used, you may hit resource limits generating large artifacts.
 - This project is for demo purposes; NO WARRANTY OR GUARANTEE OF FUNCTIONALITY IS PROVIDED.
 
@@ -268,8 +270,34 @@ uv run python cli.py                        # interactive chat REPL (default)
 uv run python cli.py -i "design a vendor onboarding process"   # one prompt, print, exit
 uv run python cli.py -f instructions.txt    # submit each line of a file as a turn, in order
 uv run python cli.py -d                     # detached: launch ns run's own server + UI instead
+uv run python cli.py -d --flask             # detached: run this project's own Flask REST API instead
 uv run python cli.py --agent cloudarch      # talk to a different network directly
 ```
+
+`-d --flask` runs a Flask REST API with the *exact same* contract as the ADK original's own `-d`
+mode (`POST /chat`, `POST /chat/stream`, `DELETE /chat/<session_id>`, `GET /status`; the same
+`Authorization: Bearer <key>` / `X-API-Key` auth, rate limiting, and loopback-only-unless-
+authenticated startup refusal) — see
+[`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) for a
+browser client that talks to either backend interchangeably. `POST /chat/stream` streams
+`text/event-stream` progress/delta/done events as the agent network actually works, instead of one
+blocking JSON body sent only once the whole turn is done — see the ADK original's own README for
+the full event shape (identical here); built on neuro-san's own `streaming_chat()` generator, which
+`ChatSession.send_streaming` consumes incrementally instead of draining it fully like `send()`
+does.
+
+```bash
+uv run python cli.py -d --flask --http -p 8081   # plain HTTP on :8081, no self-signed cert warning
+WEBAPIKEY=change-me uv run python cli.py -d --flask   # require an API key before exposing beyond localhost
+```
+
+Configured entirely via environment variables (this project has no properties-file config layer —
+put these in this project's own `.env` file, same as `LOGLEVEL` below, so they persist across
+runs): `WEBAPIKEY`, `WEBRATELIMITPERMINUTE` (default 30/min), `HOST` (default `127.0.0.1`),
+`SSLCERTFILE`/`SSLKEYFILE`, `ALLOWINSECUREWEBSERVICE`, `FLASK_SECRET_KEY`. Plain `-d`
+(no `--flask`) is unchanged and still the default — `--flask` is an alternative, not a replacement,
+for when you specifically want REST-API parity with the ADK original rather than `ns run`'s own
+server/UI.
 
 Control lines work inside interactive/`-f` mode: `exit`/`quit`/`stop`, `clear` (reset the session),
 a leading `#` (comment, echoed but not sent), `sleep <seconds>`/`wait <seconds>`, a leading `$ ...`
@@ -619,9 +647,9 @@ carried over, plus new tests for all seven fixes above).
 
 **Deliberate simplifications** (functional parity, not line-for-line fidelity with any particular
 reference implementation):
-- No custom web-service auth/rate-limiting layer — `ns run`'s own server is the serving layer
-  instead (see [Known issues](#known-issues) above for what that means for exposure beyond
-  localhost).
+- Plain `-d`/`--detached` still defaults to `ns run`'s own server/UI, which has no built-in auth/
+  rate-limiting (see [Known issues](#known-issues) above) — `-d --flask` is the opt-in alternative
+  that has both, matching the ADK original's own `-d` mode exactly (see Running below).
 - Per-session artifact isolation is not implemented (see Known issues above) — only
   `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over
   the shared on-disk file; nothing else does yet.

@@ -8,6 +8,8 @@ import secrets
 import threading
 import time
 import hmac
+import json
+import queue
 from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
@@ -267,6 +269,7 @@ root_agent = ProcessLlmAgent(
 # ---------------------------------------------------------
 from google.adk.runners import Runner
 from google.adk.agents import RunConfig
+from google.adk.agents.run_config import StreamingMode
 from google.adk.apps import App
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -320,6 +323,22 @@ root_app = App(
 # than silently truncating output, so it's diagnosable rather than mysterious.
 RUN_CONFIG = RunConfig(
     max_llm_calls=int(getProperty("maxLlmCallsPerInvocation", default=200))
+)
+
+# A SEPARATE RunConfig, used only by POST /chat/stream (see build_web_app),
+# with streaming_mode=StreamingMode.SSE -- this makes the Runner yield
+# genuine partial/typewriter-effect Events (event.partial=True) as the model
+# generates them, in addition to the aggregated final one, rather than only
+# ever emitting one complete Event per turn like RUN_CONFIG's default
+# StreamingMode.NONE does. Deliberately NOT applied to RUN_CONFIG itself:
+# every other call site (interactive REPL, -i/-f modes, POST /chat) only
+# ever reads event.is_final_response(), which stays False for partial
+# events regardless -- but keeping this scoped to the one route that
+# actually consumes partial events keeps those call sites' behavior
+# byte-for-byte unchanged rather than relying on that not mattering.
+STREAMING_RUN_CONFIG = RunConfig(
+    max_llm_calls=int(getProperty("maxLlmCallsPerInvocation", default=200)),
+    streaming_mode=StreamingMode.SSE,
 )
 
 
@@ -525,6 +544,95 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str):
     return web_session_id, (final_response or "")
 
 
+async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_queue: "queue.Queue") -> None:
+    """
+    Runs one query through _web_runner with STREAMING_RUN_CONFIG, pushing
+    an incremental update dict into event_queue after every meaningful
+    Event instead of collecting only the final one like _run_chat_turn
+    does. A None sentinel is always pushed last (even after an error) so
+    the (synchronous) reading side -- see build_web_app's /chat/stream --
+    knows when to stop.
+
+    Runs inside its own thread's event loop rather than the Flask
+    request's own, since Flask/WSGI route functions must stay plain
+    synchronous generators -- see /chat/stream's own docstring for the
+    full bridging picture.
+
+    Pushed dicts are shaped like one of:
+      {"status": "progress", "origin": "<agent>", "text": "<short note>"}
+      {"status": "delta", "text": "<answer text SO FAR -- always the full
+                                     current state, not a fragment, so a
+                                     client can just replace what it
+                                     shows with this>"}
+      {"status": "done", "response": "<final answer>"}
+      {"status": "error", "error": "..."}
+    """
+    content = types.Content(role="user", parts=[types.Part(text=query)])
+    answer_so_far = ""
+    last_progress_author: Optional[str] = None
+    try:
+        async for event in _web_runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+            run_config=STREAMING_RUN_CONFIG,
+        ):
+            if event.partial and event.content and event.content.parts:
+                # Genuine typewriter-effect chunk (see StreamingMode.SSE's
+                # own docstring) -- skip function-call parts, which are
+                # internal tool-call-argument streaming, not user-facing
+                # text.
+                chunk = "".join(
+                    part.text or "" for part in event.content.parts if not part.function_call
+                )
+                if chunk:
+                    answer_so_far += chunk
+                    event_queue.put({"status": "delta", "text": answer_so_far})
+                continue
+
+            function_calls = event.get_function_calls()
+            if function_calls:
+                names = ", ".join(fc.name for fc in function_calls if fc.name)
+                event_queue.put({
+                    "status": "progress",
+                    "origin": event.author or "agent network",
+                    "text": f"Calling {names}" if names else "Calling a tool...",
+                })
+                last_progress_author = event.author
+                continue
+
+            if event.is_final_response() and event.content and event.content.parts:
+                final_text = "".join(part.text or "" for part in event.content.parts if part.text)
+                if final_text:
+                    answer_so_far = final_text
+                    event_queue.put({"status": "delta", "text": answer_so_far})
+                continue
+
+            # Any other event (e.g. a hand-off to a different sub-agent)
+            # is still worth a lightweight note so the UI shows SOMETHING
+            # changed, rather than going quiet between deltas -- but only
+            # when the active agent actually changes, not on every one of
+            # these, to avoid flooding the client with near-duplicates.
+            if event.author and event.author != last_progress_author:
+                last_progress_author = event.author
+                # text deliberately does NOT repeat event.author -- the
+                # client already prefixes progress notes with "origin",
+                # so including it here too would read as "X: X is
+                # responding...".
+                event_queue.put({
+                    "status": "progress",
+                    "origin": event.author,
+                    "text": "responding...",
+                })
+
+        event_queue.put({"status": "done", "response": answer_so_far})
+    except Exception:
+        logger.exception("Web chat stream error")
+        event_queue.put({"status": "error", "error": "An internal error has occurred."})
+    finally:
+        event_queue.put(None)
+
+
 def build_web_app(https: bool = True):
     """
     Build (but do not run) the Flask REST app for -d/--detached mode.
@@ -533,6 +641,13 @@ def build_web_app(https: bool = True):
       POST   /chat            {"query": "...", "session_id": "..." (optional)}
                                -> {"status": "ok", "session_id": "...",
                                    "query": "...", "response": "..."}
+      POST   /chat/stream      Same request body; response is
+                               text/event-stream instead -- a live
+                               sequence of `data: {...}\n\n` events
+                               shaped like _stream_chat_turn's own
+                               docstring describes, ending with a
+                               {"status": "done", "response": "..."}
+                               event. See that function for why/how.
       DELETE /chat/<session_id>  Drops server-side state for that session.
       GET    /status           Liveness probe.
 
@@ -545,8 +660,14 @@ def build_web_app(https: bool = True):
     "Authorization: Bearer <key>" or "X-API-Key" header, and is capped at
     webRateLimitPerMinute requests/minute per source IP -- see the AUTH +
     RATE LIMITING block above for why.
+
+    CORS is enabled permissively (reflecting whatever Origin the browser
+    sends, no credentials) -- see _add_cors_headers below for why this
+    doesn't widen this service's actual exposure. This is what lets
+    samples/WebClient/ProcessEngineering (a static page with no backend
+    of its own) call this API directly from a browser.
     """
-    from flask import Flask, request, jsonify, make_response
+    from flask import Flask, request, jsonify, make_response, Response
 
     web_app = Flask("ProcessArchitectWebService")
     web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -568,8 +689,31 @@ def build_web_app(https: bool = True):
         # (if slow) way to brute-force a shared secret over the network.
         return isinstance(candidate, str) and hmac.compare_digest(candidate, api_key)
 
+    @web_app.after_request
+    def _add_cors_headers(response):
+        # Reflects whatever Origin the browser sends (no credentials
+        # involved) rather than a fixed allowlist -- this is a local
+        # sample tool, not a multi-tenant production service, and the web
+        # client (samples/WebClient/ProcessEngineering) authenticates each
+        # turn via an explicit session_id in the request body rather than
+        # a cross-origin cookie, so this doesn't widen the actual exposure
+        # beyond what webApiKey/rate-limiting already gate. Lets that same
+        # static client talk to this backend AND the neuro-san port's own
+        # --flask REST API (which mirrors this contract exactly) from a
+        # single page regardless of which origin it's served from.
+        origin = request.headers.get("Origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        return response
+
     @web_app.before_request
     def _enforce_web_controls():
+        if request.method == "OPTIONS":
+            return ("", 204)  # CORS preflight -- no auth, no rate limit
+
         if request.path == "/status":
             return None  # liveness probe stays open: no auth, no rate limit
 
@@ -613,6 +757,69 @@ def build_web_app(https: bool = True):
             "query": query,
             "response": response_text,
         }))
+        resp.set_cookie(
+            WEB_SESSION_COOKIE,
+            web_session_id,
+            httponly=True,
+            samesite="Lax",
+            secure=https,
+        )
+        return resp
+
+    @web_app.route("/chat/stream", methods=["POST"])
+    def chat_stream():
+        """
+        Streaming counterpart to POST /chat: same request body, same
+        session resolution/cookie, but the response is
+        text/event-stream -- a live sequence of
+        `data: {...}\n\n` progress/delta/done events (see
+        _stream_chat_turn's own docstring for their exact shape) instead
+        of one blocking JSON body sent only once the whole turn is done.
+        POST /chat is unchanged and still the right choice for any
+        caller that just wants the final text (scripts, curl,
+        server-to-server callers).
+
+        Flask/WSGI route functions must stay plain synchronous
+        generators, but _web_runner.run_async is an async generator --
+        bridged here by running _stream_chat_turn to completion inside
+        ITS OWN asyncio event loop on a background thread, which pushes
+        each incremental update into a thread-safe queue.Queue; this
+        (synchronous) generator just blocks on that queue and yields
+        SSE-formatted lines as items arrive. Session resolution itself
+        happens synchronously, up front, in this request's own thread
+        (not the background one) -- exactly like POST /chat already
+        does via asyncio.run(...) -- so the session cookie can be set on
+        the response before the streaming body starts.
+        """
+        payload = request.get_json(silent=True) or {}
+        query = payload.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return jsonify({
+                "status": "error",
+                "error": "Field 'query' is required and must be a non-empty string.",
+            }), 400
+
+        session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        web_session_id, user_id, adk_session_id = asyncio.run(_get_or_create_web_session(session_id))
+
+        def generate():
+            event_queue: "queue.Queue" = queue.Queue()
+            thread = threading.Thread(
+                target=lambda: asyncio.run(
+                    _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue)
+                ),
+                daemon=True,
+            )
+            thread.start()
+            while True:
+                item = event_queue.get()
+                if item is None:
+                    break
+                yield f"data: {json.dumps({**item, 'session_id': web_session_id})}\n\n"
+
+        resp = Response(generate(), mimetype="text/event-stream")
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["X-Accel-Buffering"] = "no"  # disable proxy buffering if ever fronted by nginx
         resp.set_cookie(
             WEB_SESSION_COOKIE,
             web_session_id,
