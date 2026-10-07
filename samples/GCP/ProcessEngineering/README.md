@@ -835,6 +835,7 @@ The service exposes:
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/chat` | Send a query, get the agent's response. |
+| `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
 | `GET` | `/status` | Liveness probe. |
 
@@ -896,6 +897,40 @@ curl -sk -X DELETE https://localhost:8443/chat/<session_id>
 (`-k` above skips certificate verification, appropriate only when testing
 against the ad-hoc self-signed certificate -- drop it once you're using a
 real certificate.)
+
+### Streaming
+
+`POST /chat/stream` takes the exact same request body as `POST /chat`, but instead of blocking
+until the whole turn is done and returning one JSON body, it responds with `Content-Type:
+text/event-stream` -- a live sequence of `data: {...}\n\n` events as the agent network actually
+works, ending with a `"status": "done"` event carrying the same `response` text `/chat` would have
+returned:
+
+```
+data: {"status": "progress", "origin": "CloudArch_Pipeline", "text": "responding...", "session_id": "..."}
+
+data: {"status": "delta", "text": "Here's a **3-step onboarding", "session_id": "..."}
+
+data: {"status": "delta", "text": "Here's a **3-step onboarding process**:\n\n1. Collect vendor docs", "session_id": "..."}
+
+data: {"status": "done", "response": "Here's a **3-step onboarding process**:\n\n1. Collect vendor docs\n2. ...", "session_id": "..."}
+```
+
+- `"progress"` events report which sub-agent is currently active, or which tool it's calling --
+  useful for showing the user something is actually happening during a long multi-agent turn
+  instead of total silence.
+- `"delta"` events carry the answer text **so far** -- always the full current state, not a
+  fragment to append -- so a client can just replace whatever it's showing with the latest `text`.
+  Genuine typewriter-effect partial chunks come through here when the underlying model streams
+  tokens (via `StreamingMode.SSE`, a separate `RunConfig` used only for this route -- `POST /chat`
+  and every other call site are unaffected).
+  `"error"` events can appear mid-stream if the turn itself fails after the response has already
+  started (HTTP headers, and the 200 status, are already sent by that point, so an error can't
+  become an HTTP 5xx -- it has to be communicated in-band like this instead).
+- The session cookie is set on the very first byte of the response, same as `/chat`, so it's
+  available even though the body itself streams.
+- `POST /chat` is unchanged and remains the right choice for a script, `curl`, or any
+  server-to-server caller that only wants the final text.
 
 ### Browser client
 

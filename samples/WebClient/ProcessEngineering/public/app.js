@@ -66,6 +66,8 @@
     composerForm: document.getElementById("composerForm"),
     messageInput: document.getElementById("messageInput"),
     sendBtn: document.getElementById("sendBtn"),
+    toolbarBtns: Array.from(document.querySelectorAll(".toolbar-btn[data-command]")),
+    saveChatBtn: document.getElementById("saveChatBtn"),
 
     toast: null,
   };
@@ -102,6 +104,11 @@
     theme: null, // null = follow system preference
     ...loadState(),
   };
+
+  // Finalized (non-streaming-partial) turns, for "Save chat" -- runtime
+  // only, like the visible transcript itself (neither survives a reload,
+  // see loadState/saveState above -- only connection settings do).
+  state.transcript = [];
 
   // ---------------------------------------------------------------
   // Theme
@@ -250,6 +257,7 @@
     el.chatContainer.innerHTML = "";
     el.chatContainer.appendChild(el.emptyState);
     el.emptyState.style.display = "";
+    state.transcript = [];
     toast("Started a new chat.");
   }
 
@@ -266,7 +274,20 @@
   }
 
   function renderInline(text) {
-    let out = escapeHtml(text);
+    // Pull out backslash-escaped literals FIRST (e.g. a user typed a
+    // literal "*" in the composer, which richTextToMarkdown below escapes
+    // as "\*" so it round-trips as a literal character instead of being
+    // misread as bold/italic syntax here) -- placeholders survive
+    // escapeHtml and the markdown regexes below unaffected (neither
+    // control characters nor digits match any of them), then get
+    // restored as literal (HTML-escaped) text at the very end.
+    const escapes = [];
+    const withPlaceholders = text.replace(/\\([*_`\\])/g, (_m, ch) => {
+      escapes.push(ch);
+      return `\u0000${escapes.length - 1}\u0000`;
+    });
+
+    let out = escapeHtml(withPlaceholders);
     // Links: [text](url) -- escaped url's quotes already neutralized by escapeHtml above.
     out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     // Inline code.
@@ -274,6 +295,8 @@
     // Bold then italic (order matters so **x** isn't eaten by the italic rule first).
     out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+    out = out.replace(/\u0000(\d+)\u0000/g, (_m, i) => escapeHtml(escapes[Number(i)]));
     return out;
   }
 
@@ -350,7 +373,16 @@
         continue;
       }
 
-      // Paragraph: gather consecutive non-blank, non-special lines.
+      // Paragraph: gather consecutive non-blank, non-special lines. A
+      // line ending in two or more trailing spaces is the standard
+      // markdown "hard break" marker (this is what the composer's own
+      // richTextToMarkdown emits for a user's Shift+Enter) -- rendered
+      // as an actual <br>, not collapsed into the flowing paragraph text
+      // the way an ordinary soft-wrapped line is. Each line is run
+      // through renderInline SEPARATELY (not after joining the raw
+      // markdown first) so formatting that closes before a break and
+      // reopens after it -- exactly what richTextToMarkdown produces --
+      // renders correctly either way.
       const paraLines = [line];
       i += 1;
       while (
@@ -364,7 +396,12 @@
         paraLines.push(lines[i]);
         i += 1;
       }
-      html.push(`<p>${renderInline(paraLines.join(" "))}</p>`);
+      let paragraph = renderInline(paraLines[0].replace(/ {2,}$/, ""));
+      for (let j = 1; j < paraLines.length; j += 1) {
+        const joiner = / {2,}$/.test(paraLines[j - 1]) ? "<br>" : " ";
+        paragraph += joiner + renderInline(paraLines[j].replace(/ {2,}$/, ""));
+      }
+      html.push(`<p>${paragraph}</p>`);
     }
 
     flushList();
@@ -382,7 +419,16 @@
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
+  // For "Save chat" -- records the FINAL text of a turn (never a partial
+  // streaming delta) so the exported transcript reads the same whether a
+  // turn streamed live or came back in one shot via the non-streaming
+  // fallback.
+  function recordTranscript(role, text) {
+    state.transcript.push({ role, text, timestamp: new Date() });
+  }
+
   function addMessage(role, text, { isMarkdown = false } = {}) {
+    recordTranscript(role, text);
     el.emptyState.style.display = "none";
 
     const row = document.createElement("div");
@@ -427,18 +473,91 @@
     return row;
   }
 
-  function addTypingIndicator() {
+  // A message row that starts as a typing indicator and is updated in
+  // place as a streamed turn progresses -- see streamChat/sendMessage.
+  // Kept deliberately separate from addMessage (which is one-shot: full
+  // text, rendered once) since a streaming turn needs to mutate the
+  // SAME bubble repeatedly as progress/delta events arrive.
+  function createLiveAgentMessage() {
     el.emptyState.style.display = "none";
+
     const row = document.createElement("div");
     row.className = "message-row agent";
-    row.innerHTML = `
-      <div class="avatar">PA</div>
-      <div class="message-col">
-        <div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>
-      </div>`;
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = "PA";
+    row.appendChild(avatar);
+
+    const col = document.createElement("div");
+    col.className = "message-col";
+
+    const progressNote = document.createElement("div");
+    progressNote.className = "progress-note";
+    progressNote.hidden = true;
+    col.appendChild(progressNote);
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    col.appendChild(bubble);
+
+    row.appendChild(col);
     el.chatContainer.appendChild(row);
     scrollToBottom();
-    return row;
+
+    let metaAdded = false;
+
+    return {
+      row,
+
+      setProgress(origin, text) {
+        progressNote.hidden = false;
+        progressNote.textContent = origin ? `${origin} — ${text}` : text;
+        scrollToBottom();
+      },
+
+      // Plain text, deliberately NOT markdown-rendered -- a delta is an
+      // in-progress fragment (e.g. an unclosed ```code block```), and
+      // parsing that as markdown mid-stream renders broken HTML far
+      // more often than it renders anything useful. finalize() below
+      // applies the real rendering once, to the complete text.
+      setText(text) {
+        progressNote.hidden = true;
+        bubble.textContent = text;
+        scrollToBottom();
+      },
+
+      finalize(text) {
+        recordTranscript("agent", text);
+        progressNote.remove();
+        bubble.innerHTML = renderMarkdownLite(text);
+        if (!metaAdded) {
+          metaAdded = true;
+          const meta = document.createElement("div");
+          meta.className = "message-meta";
+          const time = document.createElement("span");
+          time.textContent = formatTime(new Date());
+          meta.appendChild(time);
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = "copy-btn";
+          copyBtn.textContent = "Copy";
+          copyBtn.addEventListener("click", () => copyText(text));
+          meta.appendChild(copyBtn);
+          col.appendChild(meta);
+        }
+        scrollToBottom();
+      },
+
+      showError(message) {
+        progressNote.remove();
+        row.classList.add("error");
+        const hasText = bubble.textContent && bubble.textContent.trim().length > 0;
+        bubble.textContent = hasText ? `${bubble.textContent}\n\n⚠ ${message}` : message;
+        scrollToBottom();
+      },
+    };
   }
 
   async function copyText(text) {
@@ -508,6 +627,49 @@
     throw lastError || new Error("Request failed after retrying.");
   }
 
+  // Async generator over POST /chat/stream's text/event-stream body: one
+  // parsed JSON object per `data: {...}\n\n` frame. Deliberately NOT the
+  // browser's native EventSource -- EventSource is GET-only and can't
+  // send custom headers, so there's no way to attach Authorization/
+  // X-API-Key to it when an API key is configured. fetch() + manually
+  // reading response.body's ReadableStream works the same way EventSource
+  // would from the caller's point of view (just `for await` the events)
+  // without that limitation.
+  async function* streamChat(baseUrl, query) {
+    const response = await fetch(`${baseUrl}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ query, session_id: state.sessionId || undefined }),
+    });
+
+    if (!response.ok || !response.body) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Request failed (${response.status}).`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      let separatorIndex;
+      while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"));
+        if (!dataLine) continue;
+        try {
+          yield JSON.parse(dataLine.slice(5).trim());
+        } catch {
+          // Malformed frame -- skip it rather than abort the whole turn
+          // over one bad chunk.
+        }
+      }
+    }
+  }
+
   async function sendMessage(text) {
     const baseUrl = currentBaseUrl();
     if (!baseUrl) {
@@ -515,55 +677,348 @@
       return;
     }
 
-    addMessage("user", text);
-    const typingRow = addTypingIndicator();
+    addMessage("user", text, { isMarkdown: true });
     el.sendBtn.disabled = true;
-    el.messageInput.disabled = true;
+    el.messageInput.contentEditable = "false";
+
+    const live = createLiveAgentMessage();
+    let gotAnyEvent = false;
+    let sawDone = false;
 
     try {
-      const data = await postChat(baseUrl, text);
-      typingRow.remove();
-      if (data.status === "ok") {
-        setSessionId(data.session_id);
-        addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
-      } else {
-        addMessage("error", data.error || "The backend returned an error.");
+      for await (const event of streamChat(baseUrl, text)) {
+        gotAnyEvent = true;
+        if (event.session_id) setSessionId(event.session_id);
+
+        if (event.status === "progress") {
+          live.setProgress(event.origin, event.text || "");
+        } else if (event.status === "delta") {
+          live.setText(event.text || "");
+        } else if (event.status === "done") {
+          sawDone = true;
+          live.finalize(event.response || "(empty response)");
+        } else if (event.status === "error") {
+          live.showError(event.error || "The backend returned an error.");
+        }
+      }
+      if (!sawDone) {
+        // The stream closed without ever sending "done" -- leaves no
+        // indication anything went wrong otherwise (no exception is
+        // thrown just because the body ended), so the live bubble would
+        // otherwise be stuck showing a half-finished answer forever.
+        live.showError("The connection ended unexpectedly.");
       }
     } catch (err) {
-      typingRow.remove();
-      addMessage("error", `Couldn't reach the backend: ${err.message || err}`);
+      if (!gotAnyEvent) {
+        // Nothing arrived at all -- likely an older backend without
+        // /chat/stream, or a network hiccup before the stream even
+        // started. Fall back to the non-streaming endpoint (which has
+        // its own retry/backoff) instead of leaving the user looking at
+        // a dead typing indicator.
+        live.row.remove();
+        try {
+          const data = await postChat(baseUrl, text);
+          if (data.status === "ok") {
+            setSessionId(data.session_id);
+            addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
+          } else {
+            addMessage("error", data.error || "The backend returned an error.");
+          }
+        } catch (fallbackErr) {
+          addMessage("error", `Couldn't reach the backend: ${fallbackErr.message || fallbackErr}`);
+        }
+      } else {
+        // Died mid-stream after already showing partial text -- don't
+        // silently retry (could duplicate a billable LLM call); show
+        // what arrived plus an inline error instead.
+        live.showError(`Connection lost: ${err.message || err}`);
+      }
     } finally {
       el.sendBtn.disabled = false;
-      el.messageInput.disabled = false;
+      el.messageInput.contentEditable = "true";
       el.messageInput.focus();
     }
   }
 
   // ---------------------------------------------------------------
-  // Composer
+  // Composer -- a contenteditable div (not a <textarea>) so bold/italic/
+  // bullet formatting actually has somewhere to live while typing.
+  // Auto-expands by itself via CSS (min-height/max-height/overflow-y on
+  // .composer-input) -- unlike a <textarea>, a block-level contenteditable
+  // naturally grows with its own content, so there's no scrollHeight
+  // bookkeeping needed here the way a <textarea> would require.
   // ---------------------------------------------------------------
-  function autoGrow() {
-    el.messageInput.style.height = "auto";
-    el.messageInput.style.height = `${Math.min(el.messageInput.scrollHeight, 160)}px`;
+  function updateEmptyState() {
+    const isEmpty = el.messageInput.textContent.trim() === "" && !el.messageInput.querySelector("img");
+    el.messageInput.classList.toggle("is-empty", isEmpty);
   }
 
-  el.messageInput.addEventListener("input", autoGrow);
+  function updateToolbarActiveStates() {
+    el.toolbarBtns.forEach((btn) => {
+      try {
+        btn.classList.toggle("active", document.queryCommandState(btn.dataset.command));
+      } catch {
+        // queryCommandState can throw for a command the browser doesn't
+        // recognize -- leave that button's active state alone rather
+        // than letting one bad command break the others.
+      }
+    });
+  }
+
+  el.toolbarBtns.forEach((btn) => {
+    // Without this, clicking a toolbar button first steals focus (and
+    // therefore the text selection execCommand needs to act on) away
+    // from the composer before the click handler below even runs.
+    btn.addEventListener("mousedown", (event) => event.preventDefault());
+    btn.addEventListener("click", () => {
+      document.execCommand(btn.dataset.command, false, null);
+      el.messageInput.focus();
+      updateEmptyState();
+      updateToolbarActiveStates();
+    });
+  });
+
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement === el.messageInput) updateToolbarActiveStates();
+  });
+
+  el.messageInput.addEventListener("input", updateEmptyState);
 
   el.messageInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
+      // Inside an active bullet/numbered list, let Enter behave
+      // natively (new list item, or exit the list on an empty one) --
+      // only intercept it for "send" OUTSIDE a list. Without this check
+      // there'd be no way to add a second bullet without the first
+      // Enter immediately sending the message.
+      if (document.queryCommandState("insertUnorderedList") || document.queryCommandState("insertOrderedList")) {
+        return;
+      }
       event.preventDefault();
       el.composerForm.requestSubmit();
+      return;
+    }
+    if (event.key === "Enter" && event.shiftKey) {
+      // Force a soft line break (<br>) rather than whatever block-
+      // splitting behavior (a new <div>/<p>) some browsers default to
+      // for a bare Enter in a contenteditable -- keeps the editor's own
+      // DOM shape predictable for richTextToMarkdown below regardless of
+      // browser.
+      event.preventDefault();
+      document.execCommand("insertLineBreak");
+      return;
+    }
+    const meta = event.ctrlKey || event.metaKey;
+    if (meta && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      document.execCommand("bold");
+      updateToolbarActiveStates();
+    } else if (meta && event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      document.execCommand("italic");
+      updateToolbarActiveStates();
     }
   });
 
+  // Converts the composer's rich-text DOM into a markdown-equivalent
+  // string -- sent to the backend as `query` AND re-rendered for the
+  // user's own message bubble via the same renderMarkdownLite used for
+  // agent replies, so "what you typed" and "what's displayed" are driven
+  // by one formatting pipeline rather than two.
+  function richTextToMarkdown(root) {
+    function escapeLiteral(text) {
+      // So a literal "*"/"_"/"`"/"\" the user actually typed (not
+      // produced via the bold/italic toolbar) round-trips as that exact
+      // character through renderMarkdownLite instead of being misread
+      // as formatting syntax -- see renderInline's matching unescape step.
+      return text.replace(/([*_`\\])/g, "\\$1");
+    }
+
+    // Flattened first into {text, bold, italic} / {break: true} tokens,
+    // THEN merged and wrapped -- NOT wrapped per DOM text node directly.
+    // Confirmed directly or wrapping per text node breaks the moment the
+    // browser's own contenteditable output splits one visually-uniform
+    // bold/italic span across multiple text nodes/elements (observed: a
+    // bold toggle immediately before a line break left a stray single-
+    // space <strong> nested inside an <em>; wrapping that AS ITS OWN
+    // "**...**" produced "*emphasis**\n**rest*" -- invalid, unparseable
+    // markdown at the boundary where two unrelated "**" pairs collide).
+    const tokens = [];
+
+    function pushText(text, marks) {
+      if (!text) return;
+      // execCommand("insertLineBreak") inserts a literal "\n" CHARACTER
+      // into the text node in some browsers (confirmed directly) rather
+      // than an actual <br> element -- split on it into its own break
+      // token, same as a real <br> gets below, instead of silently
+      // embedding a raw newline inside a bold/italic run (which would
+      // otherwise desync from renderInline's own italic regex, which
+      // deliberately stops at a newline and would leave the run's
+      // closing "*" dangling on the wrong side of it).
+      const parts = text.split("\n");
+      parts.forEach((part, i) => {
+        if (part) tokens.push({ text: escapeLiteral(part), bold: !!marks.bold, italic: !!marks.italic });
+        // hard: true -- a genuine user-typed line break (Shift+Enter),
+        // rendered as a visible <br> on round-trip. Distinct from the
+        // structural (list-item/paragraph) breaks below, which are
+        // already their own separate lines by construction and don't
+        // need the hard-break marker to render correctly.
+        if (i < parts.length - 1) tokens.push({ brk: true, hard: true });
+      });
+    }
+
+    function walk(node, marks) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        pushText(node.textContent, marks);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br") {
+        tokens.push({ brk: true, hard: true });
+        return;
+      }
+      if (tag === "li") {
+        tokens.push({ text: "- ", bold: false, italic: false });
+        Array.from(node.childNodes).forEach((c) => walk(c, marks));
+        tokens.push({ brk: true });
+        return;
+      }
+      if (tag === "ul" || tag === "ol") {
+        tokens.push({ brk: true });
+        Array.from(node.childNodes).forEach((c) => walk(c, marks));
+        return;
+      }
+
+      const nextMarks = { ...marks };
+      if (tag === "b" || tag === "strong") nextMarks.bold = true;
+      if (tag === "i" || tag === "em") nextMarks.italic = true;
+
+      Array.from(node.childNodes).forEach((c) => walk(c, nextMarks));
+
+      // Some browsers wrap each line of a contenteditable in its own
+      // <div>/<p> on Enter (rather than using a plain text node + <br>)
+      // -- treated as a hard break, same as the explicit Shift+Enter
+      // handling in the keydown listener above produces.
+      if (tag === "div" || tag === "p") tokens.push({ brk: true, hard: true });
+    }
+
+    Array.from(root.childNodes).forEach((c) => walk(c, {}));
+
+    // Merge adjacent text tokens that share the EXACT same bold/italic
+    // state into one run before wrapping, so a visually-uniform span
+    // that happened to arrive as several DOM text nodes still gets wrapped
+    // in exactly one "**...**"/"*...*" pair, not one per fragment.
+    const merged = [];
+    for (const token of tokens) {
+      const last = merged[merged.length - 1];
+      if (!token.brk && last && !last.brk && last.bold === token.bold && last.italic === token.italic) {
+        last.text += token.text;
+      } else {
+        merged.push({ ...token });
+      }
+    }
+
+    const raw = merged
+      .map((token) => {
+        // Two trailing spaces before the newline is the standard
+        // markdown "hard break" marker -- renderMarkdownLite's own
+        // paragraph-joining step (see its own comment) renders a line
+        // ending this way as an actual <br> instead of collapsing it
+        // into the flowing paragraph text the way an ordinary soft-
+        // wrapped line is. Without this, a user's own Shift+Enter would
+        // round-trip as an invisible space instead of a line break.
+        // Structural breaks (list items, paragraphs) skip the marker --
+        // they're already their own line by construction, and the extra
+        // trailing spaces would otherwise show up as literal characters
+        // at the end of e.g. a list item's own text.
+        if (token.brk) return token.hard ? "  \n" : "\n";
+        if (token.bold && token.italic) return `***${token.text}***`;
+        if (token.bold) return `**${token.text}**`;
+        if (token.italic) return `*${token.text}*`;
+        return token.text;
+      })
+      .join("");
+
+    // A div-per-line structure can otherwise leave a ragged trail of
+    // blank lines between paragraphs -- collapse 3+ consecutive newlines
+    // down to one blank line (2 newlines), matching normal markdown
+    // paragraph spacing.
+    return raw.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   el.composerForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const text = el.messageInput.value.trim();
-    if (!text) return;
-    el.messageInput.value = "";
-    autoGrow();
-    sendMessage(text);
+    const markdown = richTextToMarkdown(el.messageInput);
+    if (!markdown) return;
+    el.messageInput.innerHTML = "";
+    updateEmptyState();
+    sendMessage(markdown);
   });
+
+  // ---------------------------------------------------------------
+  // Save chat
+  // ---------------------------------------------------------------
+  function buildTranscriptMarkdown() {
+    const lines = [
+      "# Process Architect — Chat Transcript",
+      "",
+      `_Exported ${new Date().toLocaleString()}_`,
+      "",
+    ];
+    const roleLabel = { user: "You", agent: "Process Architect", error: "Error" };
+    for (const entry of state.transcript) {
+      lines.push(`### ${roleLabel[entry.role] || entry.role} — ${formatTime(entry.timestamp)}`, "", entry.text, "");
+    }
+    return lines.join("\n");
+  }
+
+  async function saveChat() {
+    if (state.transcript.length === 0) {
+      toast("Nothing to save yet.");
+      return;
+    }
+
+    const markdown = buildTranscriptMarkdown();
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const filename = `process-architect-chat-${stamp}.md`;
+
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(markdown);
+        await writable.close();
+        toast("Chat saved.");
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return; // user cancelled the dialog
+        // Fall through to the download fallback below (e.g. a security
+        // policy blocked the picker) rather than leaving the user with
+        // no way to save at all.
+      }
+    }
+
+    // Fallback for browsers without the File System Access API (Firefox,
+    // Safari as of this writing) -- triggers a normal browser download
+    // rather than a true "Save As" dialog, but gets the file saved either way.
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast("Chat downloaded.");
+  }
+
+  el.saveChatBtn.addEventListener("click", saveChat);
 
   // ---------------------------------------------------------------
   // Init

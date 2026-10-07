@@ -621,6 +621,18 @@ button, input, textarea {
   padding: 0 2px;
 }
 
+.progress-note {
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--text-faint);
+  padding: 0 2px;
+  animation: rise 0.15s ease;
+}
+
+.message-row.error .bubble {
+  white-space: pre-wrap;
+}
+
 .message-row.user .message-meta { flex-direction: row-reverse; }
 
 .copy-btn {
@@ -692,14 +704,75 @@ button, input, textarea {
   border: none;
   outline: none;
   background: none;
-  resize: none;
   font-size: 14.5px;
   line-height: 1.5;
-  max-height: 160px;
+  min-height: 1.5em;
+  max-height: 220px;
+  overflow-y: auto;
   padding: 6px 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-.composer-input::placeholder { color: var(--text-faint); }
+/* contenteditable has no native placeholder attribute -- :empty alone is
+   unreliable across browsers once a user types then deletes everything
+   (some leave a stray <br> behind), so app.js toggles this class
+   explicitly from its own input handler instead of relying on :empty. */
+.composer-input.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.composer-input b, .composer-input strong { font-weight: 700; }
+.composer-input i, .composer-input em { font-style: italic; }
+.composer-input ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.composer-input[contenteditable="false"] {
+  opacity: 0.55;
+}
+
+.composer-toolbar {
+  max-width: 760px;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.toolbar-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.toolbar-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 .send-btn {
   width: 36px;

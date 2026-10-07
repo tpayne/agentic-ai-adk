@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import threading
@@ -350,6 +351,122 @@ class WebServiceRequestControlsTest(unittest.TestCase):
                     self.assertIn("query", response.get_json()["error"])
 
         run_chat_turn.assert_not_awaited()
+
+
+class WebServiceChatStreamTest(unittest.TestCase):
+    """Covers the POST /chat/stream endpoint (streaming counterpart to
+    POST /chat) without running a live ADK/model turn or a real
+    _web_runner.run_async -- _stream_chat_turn itself is stubbed out, same
+    as _run_chat_turn is for WebServiceRequestControlsTest's /chat tests,
+    since the thread+queue bridge in chat_stream's own generate() is what
+    these tests actually exercise."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {
+            "webApiKey": self.API_KEY,
+            "webRateLimitPerMinute": 100,
+        }
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    @staticmethod
+    def _parse_sse(body):
+        return [
+            json.loads(line[len("data: "):])
+            for line in body.strip().split("\n\n")
+            if line.startswith("data: ")
+        ]
+
+    def test_stream_requires_a_configured_api_key(self):
+        response = self.client.post("/chat/stream", json={"query": "hello"})
+        self.assertEqual(response.status_code, 401)
+
+    def test_stream_requires_a_nonempty_query(self):
+        response = self.client.post(
+            "/chat/stream", json={}, headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["status"], "error")
+
+    def test_stream_emits_sse_events_ending_in_done_and_sets_the_cookie(self):
+        get_session = AsyncMock(
+            return_value=("web-session-123", "user-1", "adk-session-1")
+        )
+
+        async def fake_stream_chat_turn(user_id, session_id, query, event_queue):
+            self.assertEqual(user_id, "user-1")
+            self.assertEqual(session_id, "adk-session-1")
+            self.assertEqual(query, "hello")
+            event_queue.put({"status": "progress", "origin": "root_agent", "text": "Calling foo"})
+            event_queue.put({"status": "delta", "text": "partial"})
+            event_queue.put({"status": "delta", "text": "final text"})
+            event_queue.put({"status": "done", "response": "final text"})
+            event_queue.put(None)
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_stream_chat_turn", fake_stream_chat_turn
+        ):
+            response = self.client.post(
+                "/chat/stream", json={"query": "hello"}, headers=self._authorized_headers()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content_type.startswith("text/event-stream"))
+        self.assertIn(self.agent.WEB_SESSION_COOKIE, response.headers.get("Set-Cookie", ""))
+
+        events = self._parse_sse(response.get_data(as_text=True))
+        self.assertEqual([e["status"] for e in events], ["progress", "delta", "delta", "done"])
+        self.assertEqual(events[-1]["response"], "final text")
+        self.assertTrue(all(e["session_id"] == "web-session-123" for e in events))
+
+    def test_stream_surfaces_an_in_band_error_event_without_a_500(self):
+        get_session = AsyncMock(
+            return_value=("web-session-err", "user-1", "adk-session-1")
+        )
+
+        async def failing_stream_chat_turn(user_id, session_id, query, event_queue):
+            event_queue.put({"status": "progress", "origin": "root_agent", "text": "starting"})
+            event_queue.put({"status": "error", "error": "An internal error has occurred."})
+            event_queue.put(None)
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_stream_chat_turn", failing_stream_chat_turn
+        ):
+            response = self.client.post(
+                "/chat/stream", json={"query": "hello"}, headers=self._authorized_headers()
+            )
+
+        # Headers (and the 200) are already sent by the time an error can
+        # happen mid-turn -- it must arrive as an in-band SSE event, not
+        # an HTTP 500.
+        self.assertEqual(response.status_code, 200)
+        events = self._parse_sse(response.get_data(as_text=True))
+        self.assertEqual(events[0]["status"], "progress")
+        self.assertEqual(events[-1]["status"], "error")
 
 
 if __name__ == "__main__":

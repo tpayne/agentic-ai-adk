@@ -318,6 +318,89 @@ class ChatSession:
 
         return state.get("last_chat_response") or ""
 
+    def send_streaming(self, text: str):
+        """
+        Generator version of send(): yields an incremental update dict
+        after EVERY message produced in the agent network's response
+        stream for this turn, instead of blocking until the whole turn
+        completes and returning only the final text. Threads
+        self.sly_data/self.chat_context forward exactly like send() does
+        (reusing self.input_processor's own formulate_chat_request/reset,
+        not reimplementing them), so a session can freely mix streaming
+        and non-streaming turns.
+
+        self.session.streaming_chat() (neuro-san's own primitive --
+        StreamingInputProcessor.process_once uses the exact same call
+        internally, see its own source) is already a real generator
+        yielding messages as the agent network produces them, not
+        something synthesized here -- process_once just drains it fully
+        before returning anything. This method is the minimal possible
+        duplication of process_once's loop body needed to yield instead
+        of drain, reusing every other piece of it as-is.
+
+        Yields dicts shaped like one of:
+          {"status": "progress", "origin": "<agent>", "text": "<short note>"}
+          {"status": "delta", "text": "<compiled answer SO FAR -- always
+                                         the full current text, not a
+                                         fragment to append, so a client
+                                         can just replace what it shows
+                                         with this>"}
+          {"status": "done", "response": "<final compiled answer>"}
+        `session_id` is NOT included here -- the caller (the web
+        service's /chat/stream route) adds it, since this method has no
+        notion of a "web session" at all.
+        """
+        processor = self.input_processor.get_message_processor()
+        chat_filter = {"chat_filter_type": "MAXIMAL"}
+        chat_request = self.input_processor.formulate_chat_request(
+            text, self.sly_data, self.chat_context or {}, chat_filter
+        )
+        self.input_processor.reset()
+
+        last_compiled_answer = None
+        for chat_response in self.session.streaming_chat(chat_request):
+            response = chat_response.get("response") or {}
+            processor.process_message(response)
+
+            compiled_answer = processor.get_compiled_answer()
+            if compiled_answer and compiled_answer != last_compiled_answer:
+                last_compiled_answer = compiled_answer
+                yield {"status": "delta", "text": compiled_answer}
+                continue
+
+            # Not an answer-text update -- surface it as a lightweight
+            # progress note instead, same heartbeat filter
+            # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
+            # message with empty text and no structure is the server's own
+            # keepalive frame, not real progress).
+            text_field = response.get("text")
+            structure = response.get("structure")
+            if not text_field and not isinstance(structure, dict):
+                continue
+            preview = (text_field or "").strip().replace("\n", " ")
+            if not preview and isinstance(structure, dict):
+                preview = f"<structure: {', '.join(structure.keys())}>"
+            if not preview:
+                continue
+            if len(preview) > 160:
+                preview = preview[:159] + "…"
+            origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+            yield {"status": "progress", "origin": origin_str, "text": preview}
+
+        self.chat_context = processor.get_chat_context()
+        returned_sly_data = processor.get_sly_data()
+        if returned_sly_data is not None:
+            if self.sly_data is not None:
+                self.sly_data.update(returned_sly_data)
+            else:
+                self.sly_data = returned_sly_data.copy()
+
+        token_accounting = processor.get_token_accounting()
+        if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
+            _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
+
+        yield {"status": "done", "response": last_compiled_answer or ""}
+
 
 async def handle_logical_line(
     line: str, session_holder: List[ChatSession], agent_name: str, echo_input: bool = False,
@@ -518,6 +601,13 @@ def build_web_app(agent_name: str, https: bool = True):
       POST   /chat            {"query": "...", "session_id": "..." (optional)}
                                -> {"status": "ok", "session_id": "...",
                                    "query": "...", "response": "..."}
+      POST   /chat/stream      Same request body; response is
+                               text/event-stream instead -- a live
+                               sequence of `data: {...}\n\n` events
+                               shaped like ChatSession.send_streaming's
+                               own docstring describes, ending with a
+                               {"status": "done", "response": "..."}
+                               event. See that method for why/how.
       DELETE /chat/<session_id>  Drops server-side state for that session.
       GET    /status           Liveness probe.
 
@@ -540,7 +630,7 @@ def build_web_app(agent_name: str, https: bool = True):
     cross-origin cookie, so this doesn't widen the actual exposure beyond
     what WEBAPIKEY/rate-limiting already gate.
     """
-    from flask import Flask, request, jsonify, make_response
+    from flask import Flask, request, jsonify, make_response, Response
 
     web_app = Flask("ProcessArchitectWebServiceNS")
     web_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -620,6 +710,55 @@ def build_web_app(agent_name: str, https: bool = True):
             "query": query,
             "response": response_text or "",
         }))
+        resp.set_cookie(
+            WEB_SESSION_COOKIE,
+            web_session_id,
+            httponly=True,
+            samesite="Lax",
+            secure=https,
+        )
+        return resp
+
+    @web_app.route("/chat/stream", methods=["POST"])
+    def chat_stream():
+        """
+        Streaming counterpart to POST /chat: same request body, same
+        session resolution/cookie, but the response is
+        text/event-stream -- a live sequence of progress/delta/done
+        events (see ChatSession.send_streaming's own docstring for their
+        exact shape) instead of one blocking JSON body sent only once
+        the whole turn is done. Added so a UI can show the agent network
+        actually working turn-by-turn rather than a long silent wait;
+        POST /chat is unchanged and still the right choice for any
+        caller that just wants the final text (scripts, curl, server-to-
+        server callers).
+        """
+        payload = request.get_json(silent=True) or {}
+        query = payload.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return jsonify({
+                "status": "error",
+                "error": "Field 'query' is required and must be a non-empty string.",
+            }), 400
+
+        session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        # Resolved up front (not inside the generator below) so the
+        # session id is known -- and its cookie set -- before the
+        # streaming response even starts, exactly like POST /chat.
+        web_session_id, session = _get_or_create_web_session(session_id, agent_name)
+
+        def generate():
+            try:
+                for update in session.send_streaming(query.strip()):
+                    yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+            except Exception:
+                _web_logger.exception("Web chat stream error")
+                error_event = {"status": "error", "session_id": web_session_id, "error": "An internal error has occurred."}
+                yield f"data: {json.dumps(error_event)}\n\n"
+
+        resp = Response(generate(), mimetype="text/event-stream")
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["X-Accel-Buffering"] = "no"  # disable proxy buffering if ever fronted by nginx
         resp.set_cookie(
             WEB_SESSION_COOKIE,
             web_session_id,

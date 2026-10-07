@@ -275,11 +275,16 @@ uv run python cli.py --agent cloudarch      # talk to a different network direct
 ```
 
 `-d --flask` runs a Flask REST API with the *exact same* contract as the ADK original's own `-d`
-mode (`POST /chat`, `DELETE /chat/<session_id>`, `GET /status`; the same
+mode (`POST /chat`, `POST /chat/stream`, `DELETE /chat/<session_id>`, `GET /status`; the same
 `Authorization: Bearer <key>` / `X-API-Key` auth, rate limiting, and loopback-only-unless-
 authenticated startup refusal) — see
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) for a
-browser client that talks to either backend interchangeably:
+browser client that talks to either backend interchangeably. `POST /chat/stream` streams
+`text/event-stream` progress/delta/done events as the agent network actually works, instead of one
+blocking JSON body sent only once the whole turn is done — see the ADK original's own README for
+the full event shape (identical here); built on neuro-san's own `streaming_chat()` generator, which
+`ChatSession.send_streaming` consumes incrementally instead of draining it fully like `send()`
+does.
 
 ```bash
 uv run python cli.py -d --flask --http -p 8081   # plain HTTP on :8081, no self-signed cert warning

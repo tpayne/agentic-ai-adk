@@ -209,3 +209,198 @@ def test_send_logs_token_accounting_at_info(caplog):
         result = session.send("hi")
     assert result == "done"
     assert any("total_tokens" in r.getMessage() for r in caplog.records)
+
+
+class _StubStreamingProcessor:
+    """Stands in for StreamingInputProcessor.get_message_processor()'s
+    return value -- a BasicMessageProcessor -- tracking just enough state
+    (the latest "answer"-type message's text) for send_streaming's own
+    compiled-answer-changed check to exercise realistically."""
+
+    def __init__(self):
+        self._answer = None
+        self.messages = []
+
+    def process_message(self, response):
+        self.messages.append(response)
+        if response.get("type") == "answer":
+            self._answer = response.get("text")
+
+    def get_compiled_answer(self):
+        return self._answer
+
+    def get_chat_context(self):
+        return {"ctx": 1}
+
+    def get_sly_data(self):
+        return {"sly": 1}
+
+    def get_token_accounting(self):
+        return {}
+
+
+class _StubStreamingInputProcessor:
+    def __init__(self):
+        self.processor = _StubStreamingProcessor()
+        self.reset_called = False
+
+    def get_message_processor(self):
+        return self.processor
+
+    def formulate_chat_request(self, text, sly_data, chat_context, chat_filter):
+        return {"user_message": {"text": text}}
+
+    def reset(self):
+        self.reset_called = True
+
+
+class _StubStreamingSession:
+    """Stands in for neuro-san's DirectAgentSession -- streaming_chat()
+    yields messages exactly like the real one, including a progress
+    heartbeat (empty text, no structure) that send_streaming must skip,
+    same as LiveTraceMessageProcessor already does for the debug trace."""
+
+    def streaming_chat(self, chat_request):
+        yield {"response": {"type": "progress", "origin": [{"tool": "cloudarch"}], "text": "Calling Reviewer..."}}
+        yield {"response": {"type": "progress", "origin": [], "text": ""}}  # heartbeat -- must be skipped
+        yield {"response": {"type": "answer", "origin": [{"tool": "cloudarch"}], "text": "Partial answer"}}
+        yield {"response": {"type": "answer", "origin": [{"tool": "cloudarch"}], "text": "Final answer"}}
+
+
+def _make_streaming_session():
+    session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
+    session.sly_data = None
+    session.chat_context = None
+    session.session = _StubStreamingSession()
+    session.input_processor = _StubStreamingInputProcessor()
+    return session
+
+
+class TestChatSessionSendStreaming:
+    """ChatSession.send_streaming -- the generator POST /chat/stream (see
+    TestChatStreamRoute) is built on."""
+
+    def test_yields_progress_then_deltas_then_done(self):
+        session = _make_streaming_session()
+        events = list(session.send_streaming("hello"))
+        assert events == [
+            {"status": "progress", "origin": "cloudarch", "text": "Calling Reviewer..."},
+            {"status": "delta", "text": "Partial answer"},
+            {"status": "delta", "text": "Final answer"},
+            {"status": "done", "response": "Final answer"},
+        ]
+
+    def test_threads_chat_context_and_sly_data_forward_like_send(self):
+        session = _make_streaming_session()
+        list(session.send_streaming("hello"))
+        assert session.chat_context == {"ctx": 1}
+        assert session.sly_data == {"sly": 1}
+        assert session.input_processor.reset_called is True
+
+    def test_skips_empty_progress_heartbeat(self):
+        session = _make_streaming_session()
+        events = list(session.send_streaming("hello"))
+        # Only ONE progress event -- the heartbeat (empty text, no
+        # structure, type "progress") must not produce a second one.
+        progress_events = [e for e in events if e["status"] == "progress"]
+        assert len(progress_events) == 1
+
+    def test_no_duplicate_delta_for_an_unchanged_compiled_answer(self):
+        class _RepeatingSession:
+            def streaming_chat(self, chat_request):
+                yield {"response": {"type": "answer", "origin": [], "text": "Same answer"}}
+                yield {"response": {"type": "answer", "origin": [], "text": "Same answer"}}
+
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session.chat_context = None
+        session.session = _RepeatingSession()
+        session.input_processor = _StubStreamingInputProcessor()
+
+        events = list(session.send_streaming("hello"))
+        delta_events = [e for e in events if e["status"] == "delta"]
+        assert len(delta_events) == 1  # the second, identical message is not re-emitted
+
+
+class TestChatStreamRoute:
+    """POST /chat/stream -- the Flask route wrapping ChatSession.send_streaming."""
+
+    def _build_client(self, monkeypatch, send_streaming_events):
+        class _StubChatSession:
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+
+            def send_streaming(self, text):
+                yield from send_streaming_events
+
+        monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def _parse_sse_events(self, body: str):
+        import json
+
+        return [
+            json.loads(line[len("data: "):])
+            for line in body.strip().split("\n\n")
+            if line.startswith("data: ")
+        ]
+
+    def test_stream_emits_sse_events_ending_in_done(self, monkeypatch):
+        client = self._build_client(monkeypatch, [
+            {"status": "progress", "origin": "cloudarch", "text": "working..."},
+            {"status": "delta", "text": "partial"},
+            {"status": "delta", "text": "final text"},
+            {"status": "done", "response": "final text"},
+        ])
+        resp = client.post("/chat/stream", json={"query": "hello"})
+        assert resp.status_code == 200
+        assert resp.content_type.startswith("text/event-stream")
+
+        events = self._parse_sse_events(resp.get_data(as_text=True))
+        assert [e["status"] for e in events] == ["progress", "delta", "delta", "done"]
+        assert events[-1]["response"] == "final text"
+        # Every event carries the same session_id, added by the route
+        # itself (send_streaming's own events don't include one).
+        session_ids = {e["session_id"] for e in events}
+        assert len(session_ids) == 1
+
+    def test_stream_requires_a_nonempty_query(self, monkeypatch):
+        client = self._build_client(monkeypatch, [])
+        resp = client.post("/chat/stream", json={})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+
+    def test_stream_sets_the_session_cookie(self, monkeypatch):
+        client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
+        resp = client.post("/chat/stream", json={"query": "hello"})
+        assert cli.WEB_SESSION_COOKIE in resp.headers.get("Set-Cookie", "")
+
+    def test_stream_surfaces_an_in_band_error_event_without_crashing(self, monkeypatch):
+        class _ExplodingChatSession:
+            def __init__(self, agent_name, isolated=False):
+                pass
+
+            def send_streaming(self, text):
+                yield {"status": "progress", "origin": "x", "text": "starting"}
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(cli, "ChatSession", _ExplodingChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+        app = cli.build_web_app("process_architect", https=False)
+        client = app.test_client()
+
+        resp = client.post("/chat/stream", json={"query": "hello"})
+        assert resp.status_code == 200  # headers already sent -- error must be in-band, not an HTTP 500
+        events = self._parse_sse_events(resp.get_data(as_text=True))
+        assert events[0]["status"] == "progress"
+        assert events[-1]["status"] == "error"
+
+    def test_stream_requires_auth_when_configured(self, monkeypatch):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
+        resp = client.post("/chat/stream", json={"query": "hello"})
+        assert resp.status_code == 401
