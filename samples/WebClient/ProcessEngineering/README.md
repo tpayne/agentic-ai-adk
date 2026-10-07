@@ -116,6 +116,42 @@ still completes, just without the live updates. If the connection instead drops 
 query could trigger a second, duplicate, possibly-billable model call — instead the partial text
 stays on screen with an inline error appended.
 
+## Agent Network tab
+
+The **Agent Network** tab (next to **Chat**, with a live badge showing how many agents have been
+invoked so far) builds a call graph of the session as it happens, entirely from the `origin` field
+on each `progress` SSE event — no backend change was needed for this, since that field was already
+part of the streaming contract (see **Streaming** above).
+
+- **Solid arrows ("Calls into")** come from neuro-san's own dotted origin paths (e.g.
+  `process_architect.cloudarch.CloudArch_Pipeline.CloudArch_Reviewer_Agent`), which already encode
+  the full caller hierarchy for that network — split on `.` and rendered as a tree.
+- **Dashed arrows ("Handed off to")** connect whichever node was active immediately before to the
+  next one whenever control moves somewhere NOT already covered by a hierarchy edge. This is what
+  makes the graph useful for the ADK backend too, whose `origin` is just a flat agent name with no
+  nesting info of its own (see `_stream_chat_turn`'s own docstring) — the dashed edges are the only
+  signal available there, and they still work the same way for neuro-san whenever control actually
+  jumps across branches (e.g. one pipeline handing off to an unrelated one) rather than just going
+  one level deeper into the same one.
+- The node currently streaming pulses; its ring stops once that turn's `done`/`error` arrives.
+  A node's size and the small count badge both grow with how many times it's been invoked.
+
+**Click any node** to open a detail panel: the node's full path, which backend/session it belongs
+to, total invocation count, and a reverse-chronological list of every recorded invocation — each
+with its timestamp, the progress text seen at that moment, and the user query that triggered it.
+This is the "debugging a chat session" view: if an agent did something unexpected, click it and see
+exactly when, how many times, and in response to what.
+
+**Zoom and pan** for larger graphs: the **+**/**−** buttons and the reset-view button in the
+bottom-right corner, the mouse wheel, and click-and-drag all work. The view auto-fits the whole
+graph by default and keeps re-fitting as new nodes stream in — the moment you manually zoom or
+drag, that stops (your view is left alone) until you hit reset, which snaps back to auto-fitting
+everything again.
+
+The graph (and its detail data) is scoped to the current session — **+ New chat** clears it along
+with the transcript, and switching Base URL/API key without starting a new chat does not retroactively
+relabel anything already recorded.
+
 ## Why CORS just works
 
 This is a page served from one origin (`file://`, or whatever host serves `public/`) calling a

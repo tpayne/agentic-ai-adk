@@ -69,6 +69,26 @@
     toolbarBtns: Array.from(document.querySelectorAll(".toolbar-btn[data-command]")),
     saveChatBtn: document.getElementById("saveChatBtn"),
 
+    tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
+    chatTabPanel: document.getElementById("chatTabPanel"),
+    networkTabPanel: document.getElementById("networkTabPanel"),
+    networkTabBadge: document.getElementById("networkTabBadge"),
+    networkCount: document.getElementById("networkCount"),
+    networkCanvasWrap: document.getElementById("networkCanvasWrap"),
+    networkEmpty: document.getElementById("networkEmpty"),
+    networkSvg: document.getElementById("networkSvg"),
+    networkZoomInBtn: document.getElementById("networkZoomInBtn"),
+    networkZoomOutBtn: document.getElementById("networkZoomOutBtn"),
+    networkResetViewBtn: document.getElementById("networkResetViewBtn"),
+
+    nodeDetail: document.getElementById("nodeDetail"),
+    nodeDetailTitle: document.getElementById("nodeDetailTitle"),
+    nodeDetailPath: document.getElementById("nodeDetailPath"),
+    nodeDetailContext: document.getElementById("nodeDetailContext"),
+    nodeDetailStats: document.getElementById("nodeDetailStats"),
+    nodeDetailList: document.getElementById("nodeDetailList"),
+    nodeDetailCloseBtn: document.getElementById("nodeDetailCloseBtn"),
+
     toast: null,
   };
 
@@ -109,6 +129,26 @@
   // only, like the visible transcript itself (neither survives a reload,
   // see loadState/saveState above -- only connection settings do).
   state.transcript = [];
+
+  // The Agent Network tab's data -- built ENTIRELY from "progress" SSE
+  // events (see streamChat/sendMessage), since those are the only events
+  // that carry an "origin". Runtime only, same as the transcript above.
+  //   nodes: id -> { id, label, depth, count, invocations: [...] }
+  //   edges: "from|to|type" -> { from, to, type, count }
+  // A node's own id is its FULL dotted path up to and including itself
+  // (e.g. "cloudarch.CloudArch_Pipeline"), not just its last segment --
+  // two different branches can otherwise have same-named leaves.
+  state.network = {
+    nodes: new Map(),
+    edges: new Map(),
+    lastLeaf: null,
+    activeLeaf: null,
+    selectedNode: null,
+    turnIndex: 0,
+    currentQuery: "",
+    view: { x: 0, y: 0, scale: 1 },
+    autoFit: true,
+  };
 
   // ---------------------------------------------------------------
   // Theme
@@ -258,6 +298,7 @@
     el.chatContainer.appendChild(el.emptyState);
     el.emptyState.style.display = "";
     state.transcript = [];
+    resetNetwork();
     toast("Started a new chat.");
   }
 
@@ -407,6 +448,498 @@
     flushList();
     return html.join("") || escapeHtml(text);
   }
+
+  // ---------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------
+  function switchTab(name) {
+    el.tabBtns.forEach((btn) => {
+      const isActive = btn.dataset.tab === name;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", String(isActive));
+    });
+    el.chatTabPanel.hidden = name !== "chat";
+    el.networkTabPanel.hidden = name !== "network";
+    if (name === "network") {
+      // The SVG's viewBox is sized from el.networkCanvasWrap's own
+      // clientWidth/clientHeight (see computeNetworkLayout) -- while the
+      // panel was hidden that was 0, so the layout has to be redone now
+      // that the panel actually has real dimensions to measure.
+      renderNetwork();
+    } else {
+      closeNodeDetail();
+    }
+  }
+
+  el.tabBtns.forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
+
+  // ---------------------------------------------------------------
+  // Agent Network -- built entirely from "progress" SSE events (the only
+  // ones carrying an "origin"; see streamChat/sendMessage below), tracking
+  // which agents/pipelines/tools have been invoked in this session and
+  // how they relate to each other, live as the conversation moves on.
+  // ---------------------------------------------------------------
+  function resetNetwork() {
+    state.network = {
+      nodes: new Map(),
+      edges: new Map(),
+      lastLeaf: null,
+      activeLeaf: null,
+      selectedNode: null,
+      turnIndex: 0,
+      currentQuery: "",
+      view: { x: 0, y: 0, scale: 1 },
+      autoFit: true,
+    };
+    closeNodeDetail();
+    renderNetwork();
+  }
+
+  // Called once per sendMessage, before the turn's events start arriving,
+  // so every invocation recorded during this turn can be traced back to
+  // the query that triggered it (shown in the node detail drawer).
+  function beginNetworkTurn(query) {
+    state.network.turnIndex += 1;
+    state.network.currentQuery = query;
+  }
+
+  function recordInvocation(origin, text) {
+    if (!origin) return;
+    const path = origin.split(".").map((s) => s.trim()).filter(Boolean);
+    if (path.length === 0) return;
+
+    const net = state.network;
+    let id = "";
+    for (let depth = 0; depth < path.length; depth += 1) {
+      const parentId = id;
+      id = id ? `${id}.${path[depth]}` : path[depth];
+      if (!net.nodes.has(id)) {
+        net.nodes.set(id, { id, label: path[depth], depth, count: 0, invocations: [] });
+      }
+      if (depth > 0) {
+        const edgeKey = `${parentId}|${id}|hierarchy`;
+        const edge = net.edges.get(edgeKey) || { from: parentId, to: id, type: "hierarchy", count: 0 };
+        edge.count += 1;
+        net.edges.set(edgeKey, edge);
+      }
+    }
+
+    const leaf = id;
+    const leafNode = net.nodes.get(leaf);
+    leafNode.count += 1;
+    leafNode.invocations.push({
+      text: text || "",
+      timestamp: new Date(),
+      turnIndex: net.turnIndex,
+      query: net.currentQuery,
+    });
+
+    // A "flow"/handoff edge from whichever node was last active to this
+    // one -- the only signal available for a backend whose origin has no
+    // dotted hierarchy at all (ADK's is a single flat agent name; see
+    // _stream_chat_turn's own docstring), and still useful alongside the
+    // hierarchy edges above for neuro-san's multi-segment origins, since
+    // it captures control actually MOVING to a sibling/unrelated branch,
+    // not just nesting. Skipped when the direct parent in THIS path is
+    // already the last-active node, so a plain step deeper into the same
+    // branch doesn't draw a redundant second edge on top of the
+    // hierarchy one that already connects them.
+    const directParent = path.length > 1 ? id.slice(0, id.length - path[path.length - 1].length - 1) : null;
+    if (net.lastLeaf && net.lastLeaf !== leaf && net.lastLeaf !== directParent) {
+      const edgeKey = `${net.lastLeaf}|${leaf}|flow`;
+      const edge = net.edges.get(edgeKey) || { from: net.lastLeaf, to: leaf, type: "flow", count: 0 };
+      edge.count += 1;
+      net.edges.set(edgeKey, edge);
+    }
+    net.lastLeaf = leaf;
+    net.activeLeaf = leaf;
+  }
+
+  // Called when a turn ends (done/error/connection lost) so the pulsing
+  // "currently active" highlight reflects a turn actually in progress,
+  // not whichever node happened to go last.
+  function endNetworkTurn() {
+    state.network.activeLeaf = null;
+    renderNetwork();
+  }
+
+  function computeNetworkLayout() {
+    const nodes = Array.from(state.network.nodes.values());
+    if (nodes.length === 0) return { nodes: [], width: 0, height: 0 };
+
+    const byDepth = new Map();
+    nodes.forEach((n) => {
+      if (!byDepth.has(n.depth)) byDepth.set(n.depth, []);
+      byDepth.get(n.depth).push(n);
+    });
+
+    const levelHeight = 110;
+    // This project's own agent names run long (CloudArch_Reviewer_Agent,
+    // Requirements_Summary_Agent, ...) -- wide enough spacing that
+    // truncateLabel's own (also widened) limit doesn't still have to
+    // chop most of them down to a couple of words.
+    const nodeSpacing = 190;
+    const marginX = 80;
+    const marginY = 50;
+
+    const maxCols = Math.max(...Array.from(byDepth.values()).map((arr) => arr.length));
+    // The NATURAL size of the graph's own content -- not padded up to
+    // fill the canvas wrap the way an earlier version of this did. Zoom/
+    // pan (see applyNetworkTransform) handles fitting/filling the canvas
+    // now, so this only needs to be big enough that a 1-2 node graph
+    // doesn't collapse to a single point.
+    const width = Math.max(360, marginX * 2 + Math.max(0, maxCols - 1) * nodeSpacing);
+    const depths = Array.from(byDepth.keys()).sort((a, b) => a - b);
+    const height = Math.max(240, marginY * 2 + Math.max(0, depths.length - 1) * levelHeight);
+
+    const positioned = [];
+    depths.forEach((depth) => {
+      const rowNodes = byDepth.get(depth); // stable: Map iteration = insertion = first-seen order
+      const rowWidth = Math.max(0, rowNodes.length - 1) * nodeSpacing;
+      const startX = (width - rowWidth) / 2;
+      const y = depths.length === 1 ? height / 2 : marginY + depth * levelHeight;
+      rowNodes.forEach((n, i) => {
+        const radius = Math.min(26, 15 + Math.log2(n.count + 1) * 4);
+        positioned.push({ ...n, x: startX + i * nodeSpacing, y, radius });
+      });
+    });
+
+    return { nodes: positioned, width, height };
+  }
+
+  function truncateLabel(label, max = 24) {
+    return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+  }
+
+  function edgeEndpoint(from, to, radius) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: from.x + (dx / dist) * radius, y: from.y + (dy / dist) * radius };
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  function renderNetwork() {
+    const nodeCount = state.network.nodes.size;
+    el.networkTabBadge.hidden = nodeCount === 0;
+    el.networkTabBadge.textContent = String(nodeCount);
+    el.networkCount.textContent = nodeCount === 0
+      ? "No agents invoked yet"
+      : `${nodeCount} agent${nodeCount === 1 ? "" : "s"} invoked`;
+
+    if (nodeCount === 0) {
+      el.networkEmpty.style.display = "";
+      el.networkSvg.setAttribute("hidden", "");
+      el.networkSvg.innerHTML = ""; // defense-in-depth: no stale graph content even if hiding it fails
+      return;
+    }
+    el.networkEmpty.style.display = "none";
+    // The "hidden" IDL property doesn't reliably reflect onto a
+    // namespaced SVG element in every engine the way it does for plain
+    // HTML elements (confirmed directly: el.networkSvg.hidden = false
+    // left the content attribute in place) -- toggle the attribute
+    // itself instead, which has no such ambiguity.
+    el.networkSvg.removeAttribute("hidden");
+
+    const { nodes, width, height } = computeNetworkLayout();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+
+    // The SVG's own viewBox is pinned 1:1 to the canvas wrap's actual
+    // pixel size -- NOT the graph content's size -- so the zoom/pan
+    // transform below (applied to #networkViewport, not the viewBox
+    // itself) can work in plain screen-pixel-equivalent units instead of
+    // juggling two different coordinate systems.
+    const wrapWidth = el.networkCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.networkCanvasWrap.clientHeight || 400;
+    el.networkSvg.setAttribute("viewBox", `0 0 ${wrapWidth} ${wrapHeight}`);
+    el.networkSvg.innerHTML = "";
+
+    const defs = document.createElementNS(SVG_NS, "defs");
+    defs.innerHTML = `
+      <marker id="netArrowHierarchy" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 Z" class="net-arrow-hierarchy"></path>
+      </marker>
+      <marker id="netArrowFlow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 Z" class="net-arrow-flow"></path>
+      </marker>
+    `;
+    el.networkSvg.appendChild(defs);
+
+    const viewport = document.createElementNS(SVG_NS, "g");
+    viewport.setAttribute("id", "networkViewport");
+
+    const edgeGroup = document.createElementNS(SVG_NS, "g");
+    for (const edge of state.network.edges.values()) {
+      const from = byId.get(edge.from);
+      const to = byId.get(edge.to);
+      if (!from || !to) continue;
+      const start = edgeEndpoint(from, to, from.radius);
+      const end = edgeEndpoint(to, from, to.radius + 6);
+      const line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", String(start.x));
+      line.setAttribute("y1", String(start.y));
+      line.setAttribute("x2", String(end.x));
+      line.setAttribute("y2", String(end.y));
+      line.setAttribute("class", `net-edge net-edge-${edge.type}`);
+      line.setAttribute("marker-end", edge.type === "hierarchy" ? "url(#netArrowHierarchy)" : "url(#netArrowFlow)");
+      edgeGroup.appendChild(line);
+    }
+    viewport.appendChild(edgeGroup);
+
+    const nodeGroup = document.createElementNS(SVG_NS, "g");
+    for (const node of nodes) {
+      const isActive = node.id === state.network.activeLeaf;
+      const isSelected = node.id === state.network.selectedNode;
+      const classes = ["net-node"];
+      if (isActive) classes.push("net-node-active");
+      if (isSelected) classes.push("net-node-selected");
+
+      const g = document.createElementNS(SVG_NS, "g");
+      g.setAttribute("class", classes.join(" "));
+      g.setAttribute("transform", `translate(${node.x}, ${node.y})`);
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("aria-label", `${node.label}, invoked ${node.count} time${node.count === 1 ? "" : "s"}`);
+      g.addEventListener("click", () => showNodeDetail(node.id));
+      g.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showNodeDetail(node.id);
+        }
+      });
+
+      if (isActive) {
+        const pulse = document.createElementNS(SVG_NS, "circle");
+        pulse.setAttribute("r", String(node.radius));
+        pulse.setAttribute("class", "net-node-pulse");
+        g.appendChild(pulse);
+      }
+
+      const circle = document.createElementNS(SVG_NS, "circle");
+      circle.setAttribute("r", String(node.radius));
+      circle.setAttribute("class", "net-node-circle");
+      g.appendChild(circle);
+
+      const title = document.createElementNS(SVG_NS, "title");
+      title.textContent = `${node.id}\nInvoked ${node.count} time${node.count === 1 ? "" : "s"} — click for details`;
+      g.appendChild(title);
+
+      if (node.count > 1) {
+        const countLabel = document.createElementNS(SVG_NS, "text");
+        countLabel.setAttribute("class", "net-node-count");
+        countLabel.setAttribute("text-anchor", "middle");
+        countLabel.setAttribute("dy", "3.5");
+        countLabel.textContent = String(node.count);
+        g.appendChild(countLabel);
+      }
+
+      const label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("class", "net-node-label");
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("dy", String(node.radius + 16));
+      label.textContent = truncateLabel(node.label);
+      g.appendChild(label);
+
+      nodeGroup.appendChild(g);
+    }
+    viewport.appendChild(nodeGroup);
+    el.networkSvg.appendChild(viewport);
+
+    if (state.network.autoFit) {
+      computeFitView(width, height, wrapWidth, wrapHeight);
+    }
+    applyNetworkTransform();
+  }
+
+  // ---------------------------------------------------------------
+  // Zoom / pan -- the +/-/reset controls and drag-to-pan/wheel-zoom this
+  // section implements all just adjust state.network.view (x, y, scale)
+  // and re-apply it as a transform on #networkViewport; the graph's own
+  // node positions (computeNetworkLayout) never change. autoFit stays
+  // true (recomputing a "fit everything" view on every render, so newly
+  // streamed-in nodes never end up off-screen) until the user manually
+  // zooms or pans, at which point their view is left alone until they
+  // click Reset.
+  // ---------------------------------------------------------------
+  const ZOOM_STEP = 1.3;
+  const MIN_SCALE = 0.2;
+  const MAX_SCALE = 3;
+
+  function computeFitView(contentWidth, contentHeight, wrapWidth, wrapHeight) {
+    const padding = 32;
+    const scale = Math.min(
+      1.15, // don't blow a 1-2 node graph up past a sensible size just because the canvas is big
+      Math.max(MIN_SCALE, Math.min(
+        (wrapWidth - padding * 2) / contentWidth,
+        (wrapHeight - padding * 2) / contentHeight,
+      )),
+    );
+    state.network.view = {
+      scale,
+      x: (wrapWidth - contentWidth * scale) / 2,
+      y: (wrapHeight - contentHeight * scale) / 2,
+    };
+  }
+
+  function applyNetworkTransform() {
+    const viewport = document.getElementById("networkViewport");
+    if (!viewport) return;
+    const { x, y, scale } = state.network.view;
+    viewport.setAttribute("transform", `translate(${x}, ${y}) scale(${scale})`);
+  }
+
+  function zoomBy(factor) {
+    if (state.network.nodes.size === 0) return;
+    const wrapWidth = el.networkCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.networkCanvasWrap.clientHeight || 400;
+    const view = state.network.view;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor));
+    // Zoom around the canvas's own center, not the content's origin --
+    // keeps whatever's currently in the middle of the view in the middle
+    // after zooming, instead of the view drifting toward a corner.
+    const cx = wrapWidth / 2;
+    const cy = wrapHeight / 2;
+    const contentCx = (cx - view.x) / view.scale;
+    const contentCy = (cy - view.y) / view.scale;
+    state.network.view = {
+      scale: newScale,
+      x: cx - contentCx * newScale,
+      y: cy - contentCy * newScale,
+    };
+    state.network.autoFit = false;
+    applyNetworkTransform();
+  }
+
+  function resetNetworkView() {
+    state.network.autoFit = true;
+    renderNetwork();
+  }
+
+  el.networkZoomInBtn.addEventListener("click", () => zoomBy(ZOOM_STEP));
+  el.networkZoomOutBtn.addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
+  el.networkResetViewBtn.addEventListener("click", resetNetworkView);
+
+  el.networkCanvasWrap.addEventListener("wheel", (event) => {
+    if (state.network.nodes.size === 0) return;
+    event.preventDefault();
+    zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+
+  let panPointerId = null;
+  let panStart = null;
+
+  el.networkSvg.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".net-node")) return; // let node clicks through, not a pan start
+    if (state.network.nodes.size === 0) return;
+    panPointerId = event.pointerId;
+    panStart = { clientX: event.clientX, clientY: event.clientY, viewX: state.network.view.x, viewY: state.network.view.y };
+    el.networkSvg.setPointerCapture(event.pointerId);
+    el.networkSvg.classList.add("panning");
+  });
+  el.networkSvg.addEventListener("pointermove", (event) => {
+    if (panPointerId !== event.pointerId || !panStart) return;
+    state.network.view = {
+      ...state.network.view,
+      x: panStart.viewX + (event.clientX - panStart.clientX),
+      y: panStart.viewY + (event.clientY - panStart.clientY),
+    };
+    state.network.autoFit = false;
+    applyNetworkTransform();
+  });
+  function endPan(event) {
+    if (panPointerId !== event.pointerId) return;
+    panPointerId = null;
+    panStart = null;
+    el.networkSvg.classList.remove("panning");
+  }
+  el.networkSvg.addEventListener("pointerup", endPan);
+  el.networkSvg.addEventListener("pointercancel", endPan);
+
+  // ---------------------------------------------------------------
+  // Node detail drawer -- "what did this agent/pipeline/tool actually do
+  // in this session" for debugging a chat: every recorded invocation
+  // (timestamp, the progress note seen, which turn, and the user query
+  // that triggered it), not just the aggregate count shown on the node.
+  // ---------------------------------------------------------------
+  function showNodeDetail(nodeId) {
+    const node = state.network.nodes.get(nodeId);
+    if (!node) return;
+
+    state.network.selectedNode = nodeId;
+    renderNetwork(); // picks up the .net-node-selected ring on the clicked node
+
+    el.nodeDetailTitle.textContent = node.label;
+    el.nodeDetailPath.textContent = node.id;
+
+    const baseUrl = currentBaseUrl() || "(not set)";
+    el.nodeDetailContext.innerHTML = "";
+    const sessionLine = document.createElement("div");
+    sessionLine.innerHTML = `Session <code>${escapeHtml(state.sessionId || "none")}</code>`;
+    const backendLine = document.createElement("div");
+    backendLine.innerHTML = `Backend <code>${escapeHtml(baseUrl)}</code>`;
+    el.nodeDetailContext.append(sessionLine, backendLine);
+
+    const firstTurn = node.invocations[0]?.turnIndex;
+    const lastInvocation = node.invocations[node.invocations.length - 1];
+    el.nodeDetailStats.innerHTML = "";
+    const stats = [
+      ["Invocations", String(node.count)],
+      ["First turn", firstTurn ? `#${firstTurn}` : "—"],
+      ["Last seen", lastInvocation ? formatTime(lastInvocation.timestamp) : "—"],
+    ];
+    for (const [label, value] of stats) {
+      const stat = document.createElement("div");
+      stat.className = "node-detail-stat";
+      stat.innerHTML = `<span class="node-detail-stat-value">${escapeHtml(value)}</span><span class="node-detail-stat-label">${escapeHtml(label)}</span>`;
+      el.nodeDetailStats.appendChild(stat);
+    }
+
+    el.nodeDetailList.innerHTML = "";
+    if (node.invocations.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "node-detail-empty";
+      empty.textContent = "No recorded activity for this node yet.";
+      el.nodeDetailList.appendChild(empty);
+    } else {
+      // Most recent first -- what you'd want when debugging "what just happened".
+      for (const invocation of [...node.invocations].reverse()) {
+        const entry = document.createElement("div");
+        entry.className = "node-detail-entry";
+
+        const meta = document.createElement("div");
+        meta.className = "node-detail-entry-meta";
+        meta.innerHTML = `<span>Turn #${invocation.turnIndex}</span><span>${formatTime(invocation.timestamp)}</span>`;
+        entry.appendChild(meta);
+
+        const text = document.createElement("div");
+        text.className = "node-detail-entry-text";
+        text.textContent = invocation.text || "(no progress text)";
+        entry.appendChild(text);
+
+        if (invocation.query) {
+          const query = document.createElement("div");
+          query.className = "node-detail-entry-query";
+          query.innerHTML = `<b>Query:</b> ${escapeHtml(invocation.query)}`;
+          entry.appendChild(query);
+        }
+
+        el.nodeDetailList.appendChild(entry);
+      }
+    }
+
+    el.nodeDetail.classList.add("open");
+  }
+
+  function closeNodeDetail() {
+    el.nodeDetail.classList.remove("open");
+    if (state.network.selectedNode) {
+      state.network.selectedNode = null;
+      renderNetwork();
+    }
+  }
+
+  el.nodeDetailCloseBtn.addEventListener("click", closeNodeDetail);
 
   // ---------------------------------------------------------------
   // Chat transcript rendering
@@ -678,6 +1211,7 @@
     }
 
     addMessage("user", text, { isMarkdown: true });
+    beginNetworkTurn(text);
     el.sendBtn.disabled = true;
     el.messageInput.contentEditable = "false";
 
@@ -692,6 +1226,8 @@
 
         if (event.status === "progress") {
           live.setProgress(event.origin, event.text || "");
+          recordInvocation(event.origin, event.text);
+          renderNetwork();
         } else if (event.status === "delta") {
           live.setText(event.text || "");
         } else if (event.status === "done") {
@@ -734,6 +1270,7 @@
         live.showError(`Connection lost: ${err.message || err}`);
       }
     } finally {
+      endNetworkTurn();
       el.sendBtn.disabled = false;
       el.messageInput.contentEditable = "true";
       el.messageInput.focus();
@@ -1039,6 +1576,7 @@
     }
 
     setStatus("unknown", "Not connected");
+    renderNetwork();
     el.messageInput.focus();
   }
 

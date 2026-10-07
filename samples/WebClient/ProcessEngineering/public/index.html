@@ -88,55 +88,122 @@
       </span>
     </header>
 
-    <div class="chat-scroll" id="chatScroll">
-      <div class="chat-container" id="chatContainer">
-        <div class="empty-state" id="emptyState">
-          <div class="empty-state-mark">PA</div>
-          <h2>Start a conversation</h2>
-          <p>
-            Set a backend Base URL in the sidebar, click <strong>Connect</strong>,
-            then ask about a process, cloud architecture, or design document.
-          </p>
+    <nav class="tabbar" id="tabbar" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="chat" role="tab" aria-selected="true">Chat</button>
+      <button type="button" class="tab-btn" data-tab="network" role="tab" aria-selected="false">
+        Agent Network
+        <span class="tab-badge" id="networkTabBadge" hidden>0</span>
+      </button>
+    </nav>
+
+    <div class="tab-panel" id="chatTabPanel" role="tabpanel">
+      <div class="chat-scroll" id="chatScroll">
+        <div class="chat-container" id="chatContainer">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-state-mark">PA</div>
+            <h2>Start a conversation</h2>
+            <p>
+              Set a backend Base URL in the sidebar, click <strong>Connect</strong>,
+              then ask about a process, cloud architecture, or design document.
+            </p>
+          </div>
         </div>
       </div>
+
+      <form class="composer" id="composerForm">
+        <div class="composer-toolbar" id="composerToolbar">
+          <button type="button" class="toolbar-btn" data-command="bold" title="Bold (Ctrl+B)" aria-label="Bold"><b>B</b></button>
+          <button type="button" class="toolbar-btn" data-command="italic" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button>
+          <button type="button" class="toolbar-btn" data-command="insertUnorderedList" title="Bullet list" aria-label="Bullet list">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <circle cx="3" cy="5" r="1" fill="currentColor" stroke="none"></circle>
+              <line x1="7" y1="5" x2="17" y2="5"></line>
+              <circle cx="3" cy="10" r="1" fill="currentColor" stroke="none"></circle>
+              <line x1="7" y1="10" x2="17" y2="10"></line>
+              <circle cx="3" cy="15" r="1" fill="currentColor" stroke="none"></circle>
+              <line x1="7" y1="15" x2="17" y2="15"></line>
+            </svg>
+          </button>
+          <span class="toolbar-spacer"></span>
+          <button type="button" class="toolbar-btn" id="saveChatBtn" title="Save chat" aria-label="Save chat">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path>
+              <path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="composer-inner">
+          <div id="messageInput" class="composer-input is-empty" contenteditable="true" role="textbox"
+               aria-multiline="true" aria-label="Message input" data-placeholder="Message Process Architect&hellip;"></div>
+          <button type="submit" id="sendBtn" class="send-btn" title="Send" aria-label="Send message">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
+        </div>
+        <p class="composer-hint">Enter to send &middot; Shift+Enter for a new line</p>
+      </form>
     </div>
 
-    <form class="composer" id="composerForm">
-      <div class="composer-toolbar" id="composerToolbar">
-        <button type="button" class="toolbar-btn" data-command="bold" title="Bold (Ctrl+B)" aria-label="Bold"><b>B</b></button>
-        <button type="button" class="toolbar-btn" data-command="italic" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button>
-        <button type="button" class="toolbar-btn" data-command="insertUnorderedList" title="Bullet list" aria-label="Bullet list">
-          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-            <circle cx="3" cy="5" r="1" fill="currentColor" stroke="none"></circle>
-            <line x1="7" y1="5" x2="17" y2="5"></line>
-            <circle cx="3" cy="10" r="1" fill="currentColor" stroke="none"></circle>
-            <line x1="7" y1="10" x2="17" y2="10"></line>
-            <circle cx="3" cy="15" r="1" fill="currentColor" stroke="none"></circle>
-            <line x1="7" y1="15" x2="17" y2="15"></line>
-          </svg>
-        </button>
-        <span class="toolbar-spacer"></span>
-        <button type="button" class="toolbar-btn" id="saveChatBtn" title="Save chat" aria-label="Save chat">
-          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path>
-            <path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
-          </svg>
-        </button>
+    <div class="tab-panel network-panel" id="networkTabPanel" role="tabpanel" hidden>
+      <div class="network-toolbar">
+        <div class="network-legend">
+          <span class="legend-item"><span class="legend-swatch legend-hierarchy"></span>Calls into</span>
+          <span class="legend-item"><span class="legend-swatch legend-flow"></span>Handed off to</span>
+          <span class="legend-item legend-hint">Click a node for details</span>
+        </div>
+        <span class="network-count" id="networkCount">No agents invoked yet</span>
       </div>
-      <div class="composer-inner">
-        <div id="messageInput" class="composer-input is-empty" contenteditable="true" role="textbox"
-             aria-multiline="true" aria-label="Message input" data-placeholder="Message Process Architect&hellip;"></div>
-        <button type="submit" id="sendBtn" class="send-btn" title="Send" aria-label="Send message">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="19" x2="12" y2="5"></line>
-            <polyline points="5 12 12 5 19 12"></polyline>
-          </svg>
-        </button>
+      <div class="network-canvas-wrap" id="networkCanvasWrap">
+        <div class="empty-state" id="networkEmpty">
+          <div class="empty-state-mark">PA</div>
+          <h2>No agents invoked yet</h2>
+          <p>
+            Send a message on the Chat tab — the agents and pipelines that handle it will appear
+            here live as the conversation moves on.
+          </p>
+        </div>
+        <svg id="networkSvg" class="network-svg" hidden xmlns="http://www.w3.org/2000/svg"></svg>
+
+        <div class="network-zoom-controls" id="networkZoomControls">
+          <button type="button" class="zoom-btn" id="networkZoomInBtn" title="Zoom in" aria-label="Zoom in">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="8" y1="2" x2="8" y2="14"></line>
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="networkZoomOutBtn" title="Zoom out" aria-label="Zoom out">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="networkResetViewBtn" title="Reset view" aria-label="Reset view">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 5V2h3"></path>
+              <path d="M14 5V2h-3"></path>
+              <path d="M2 11v3h3"></path>
+              <path d="M14 11v3h-3"></path>
+            </svg>
+          </button>
+        </div>
+
+        <aside class="node-detail" id="nodeDetail">
+          <div class="node-detail-header">
+            <div>
+              <h3 id="nodeDetailTitle">&mdash;</h3>
+              <code class="node-detail-path" id="nodeDetailPath"></code>
+            </div>
+            <button type="button" class="icon-btn" id="nodeDetailCloseBtn" title="Close" aria-label="Close details">&times;</button>
+          </div>
+          <div class="node-detail-context" id="nodeDetailContext"></div>
+          <div class="node-detail-stats" id="nodeDetailStats"></div>
+          <div class="node-detail-list" id="nodeDetailList"></div>
+        </aside>
       </div>
-      <p class="composer-hint">Enter to send &middot; Shift+Enter for a new line</p>
-    </form>
+    </div>
   </main>
 </div>
 
