@@ -545,6 +545,12 @@ def build_web_app(https: bool = True):
     "Authorization: Bearer <key>" or "X-API-Key" header, and is capped at
     webRateLimitPerMinute requests/minute per source IP -- see the AUTH +
     RATE LIMITING block above for why.
+
+    CORS is enabled permissively (reflecting whatever Origin the browser
+    sends, no credentials) -- see _add_cors_headers below for why this
+    doesn't widen this service's actual exposure. This is what lets
+    samples/WebClient/ProcessEngineering (a static page with no backend
+    of its own) call this API directly from a browser.
     """
     from flask import Flask, request, jsonify, make_response
 
@@ -568,8 +574,31 @@ def build_web_app(https: bool = True):
         # (if slow) way to brute-force a shared secret over the network.
         return isinstance(candidate, str) and hmac.compare_digest(candidate, api_key)
 
+    @web_app.after_request
+    def _add_cors_headers(response):
+        # Reflects whatever Origin the browser sends (no credentials
+        # involved) rather than a fixed allowlist -- this is a local
+        # sample tool, not a multi-tenant production service, and the web
+        # client (samples/WebClient/ProcessEngineering) authenticates each
+        # turn via an explicit session_id in the request body rather than
+        # a cross-origin cookie, so this doesn't widen the actual exposure
+        # beyond what webApiKey/rate-limiting already gate. Lets that same
+        # static client talk to this backend AND the neuro-san port's own
+        # --flask REST API (which mirrors this contract exactly) from a
+        # single page regardless of which origin it's served from.
+        origin = request.headers.get("Origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        return response
+
     @web_app.before_request
     def _enforce_web_controls():
+        if request.method == "OPTIONS":
+            return ("", 204)  # CORS preflight -- no auth, no rate limit
+
         if request.path == "/status":
             return None  # liveness probe stays open: no auth, no rate limit
 

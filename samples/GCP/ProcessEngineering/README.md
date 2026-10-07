@@ -897,6 +897,19 @@ curl -sk -X DELETE https://localhost:8443/chat/<session_id>
 against the ad-hoc self-signed certificate -- drop it once you're using a
 real certificate.)
 
+### Browser client
+
+[`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) is a small
+static chat UI (no build step, no server of its own) for this REST API. It also works unmodified
+against the neuro-san port's own `cli.py -d --flask`, which exposes an identical contract -- point
+it at whichever backend's Base URL you're running.
+
+The service responds to cross-origin requests (reflecting the caller's `Origin` header on every
+response, including the `OPTIONS` preflight) so that static page can call it directly from a
+browser without a proxy in front. This doesn't widen the service's actual exposure: the web client
+authenticates each turn via an explicit `session_id` in the request body rather than a cross-origin
+cookie, and every route is still gated by `webApiKey`/`webRateLimitPerMinute` exactly as above.
+
 ## Docker Usage
 
 Build:
