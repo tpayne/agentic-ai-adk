@@ -25,6 +25,9 @@ POST   /chat                    {"query": "...", "session_id": "..." (optional)}
                                  -> {"status": "ok", "session_id": "...", "query": "...", "response": "..."}
 POST   /chat/stream              same body; text/event-stream of progress/delta/done events instead
 DELETE /chat/<session_id>       -> {"status": "ok", "session_id": "...", "cleared": true|false}
+GET    /artifacts/<name>        "process" or "design" -> {"status": "ok", "name": "...",
+                                 "data": {...the parsed output/<name>_data.json...}}, or 404 if
+                                 that pipeline hasn't produced one yet
 ```
 
 Same request/response shapes, same `Authorization: Bearer <key>` / `X-API-Key` auth header
@@ -151,6 +154,37 @@ everything again.
 The graph (and its detail data) is scoped to the current session — **+ New chat** clears it along
 with the transcript, and switching Base URL/API key without starting a new chat does not retroactively
 relabel anything already recorded.
+
+## Process / Design tab
+
+The **Process / Design** tab is a read-only, hierarchical viewer for whichever pipeline's current
+output the connected backend has on disk — `output/process_data.json` or `output/design_data.json`
+— fetched via the new `GET /artifacts/<name>` endpoint above. Unlike the Chat and Agent Network
+tabs (built entirely from data already flowing over the streaming contract), this one needed a new
+backend route, since the web client is a static page with no filesystem access of its own: both
+backends serve it identically, deliberately as a raw file read rather than reusing each project's
+own `load_master_process_json`/`load_master_design_json` helpers, which silently fall back to a
+blank template when the file is missing — this tab needs a real 404 to tell "genuinely not
+generated yet" apart from "here's an empty template".
+
+- The **Process**/**Design** toggle picks which artifact to load; the icon-only refresh button
+  (top-right of the toolbar, next to the toggle) re-fetches the currently selected one on demand —
+  this tab never auto-refreshes on its own, since the underlying file only changes when a pipeline
+  run finishes, not on any predictable schedule the client could poll against.
+- The tree starts at the root, top-left, with children expanding down and to the right as you open
+  them — click the small arrow to expand or collapse a node; this state is tracked per JSON path
+  (e.g. `$.process_steps[2].substeps[0]`) and preserved across re-renders within the same load.
+- **Click a row** (not just its arrow) to open a detail panel showing that node's own direct
+  properties — for an object, its immediate fields with each one's type and a short preview; for an
+  array, its items the same way; for a primitive, the full value. It deliberately does NOT dump
+  everything nested below the clicked node — that's what expanding (or clicking into) a child row
+  is for.
+- Switching the artifact, or hitting refresh, clears any open detail panel and resets the tree back
+  to just the root expanded, since an expand/selection state built against one artifact's shape has
+  no guaranteed correspondence to the other's (or to a re-run pipeline's updated shape).
+- Built the same way as the Agent Network graph: DOM nodes via `document.createElement`/
+  `.textContent`, never `innerHTML` string concatenation, since the JSON being rendered is arbitrary
+  backend output and could contain HTML-like strings.
 
 ## Why CORS just works
 

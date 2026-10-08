@@ -94,6 +94,7 @@
         Agent Network
         <span class="tab-badge" id="networkTabBadge" hidden>0</span>
       </button>
+      <button type="button" class="tab-btn" data-tab="artifacts" role="tab" aria-selected="false">Process / Design</button>
     </nav>
 
     <div class="tab-panel" id="chatTabPanel" role="tabpanel">
@@ -201,6 +202,46 @@
           <div class="node-detail-context" id="nodeDetailContext"></div>
           <div class="node-detail-stats" id="nodeDetailStats"></div>
           <div class="node-detail-list" id="nodeDetailList"></div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="tab-panel artifacts-panel" id="artifactsTabPanel" role="tabpanel" hidden>
+      <div class="artifacts-toolbar">
+        <div class="preset-row artifacts-toggle">
+          <button type="button" class="preset-btn active" data-artifact="process">Process</button>
+          <button type="button" class="preset-btn" data-artifact="design">Design</button>
+        </div>
+        <button type="button" class="icon-btn" id="artifactRefreshBtn" title="Refresh" aria-label="Refresh">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"></path>
+            <path d="M13.5 2.3v3.3h-3.3"></path>
+          </svg>
+        </button>
+        <span class="artifacts-status" id="artifactsStatus">Not loaded</span>
+      </div>
+      <div class="artifacts-canvas-wrap" id="artifactsCanvasWrap">
+        <div class="empty-state" id="artifactsEmpty">
+          <div class="empty-state-mark">PA</div>
+          <h2>No data loaded</h2>
+          <p>
+            Pick <strong>Process</strong> or <strong>Design</strong> above, then click the
+            refresh icon to load that pipeline's current <code>output/*_data.json</code>
+            from the connected backend.
+          </p>
+        </div>
+        <div class="tree-root" id="artifactTree" hidden></div>
+
+        <aside class="node-detail" id="artifactDetail">
+          <div class="node-detail-header">
+            <div>
+              <h3 id="artifactDetailTitle">&mdash;</h3>
+              <code class="node-detail-path" id="artifactDetailPath"></code>
+            </div>
+            <button type="button" class="icon-btn" id="artifactDetailCloseBtn" title="Close" aria-label="Close details">&times;</button>
+          </div>
+          <div class="node-detail-context" id="artifactDetailContext"></div>
+          <div class="node-detail-list" id="artifactDetailList"></div>
         </aside>
       </div>
     </div>

@@ -44,7 +44,12 @@
     sidebarOpenBtn: document.getElementById("sidebarOpenBtn"),
     sidebarCloseBtn: document.getElementById("sidebarCloseBtn"),
 
-    presetBtns: Array.from(document.querySelectorAll(".preset-btn")),
+    // Scoped to the sidebar -- the Process/Design tab's artifact toggle
+    // (below) reuses the same ".preset-btn" class purely for its visual
+    // style, via a different selector (".artifacts-toggle .preset-btn"),
+    // and must NOT be picked up here or setPreset's own active-state
+    // bookkeeping would stomp on it (and vice versa).
+    presetBtns: Array.from(document.querySelectorAll("#sidebar .preset-btn")),
     baseUrlInput: document.getElementById("baseUrlInput"),
     apiKeyInput: document.getElementById("apiKeyInput"),
     toggleKeyVisibility: document.getElementById("toggleKeyVisibility"),
@@ -88,6 +93,19 @@
     nodeDetailStats: document.getElementById("nodeDetailStats"),
     nodeDetailList: document.getElementById("nodeDetailList"),
     nodeDetailCloseBtn: document.getElementById("nodeDetailCloseBtn"),
+
+    artifactsTabPanel: document.getElementById("artifactsTabPanel"),
+    artifactToggleBtns: Array.from(document.querySelectorAll(".artifacts-toggle .preset-btn")),
+    artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
+    artifactsStatus: document.getElementById("artifactsStatus"),
+    artifactsEmpty: document.getElementById("artifactsEmpty"),
+    artifactTree: document.getElementById("artifactTree"),
+    artifactDetail: document.getElementById("artifactDetail"),
+    artifactDetailTitle: document.getElementById("artifactDetailTitle"),
+    artifactDetailPath: document.getElementById("artifactDetailPath"),
+    artifactDetailContext: document.getElementById("artifactDetailContext"),
+    artifactDetailList: document.getElementById("artifactDetailList"),
+    artifactDetailCloseBtn: document.getElementById("artifactDetailCloseBtn"),
 
     toast: null,
   };
@@ -148,6 +166,23 @@
     currentQuery: "",
     view: { x: 0, y: 0, scale: 1 },
     autoFit: true,
+  };
+
+  // The Process/Design tab's data -- a hierarchical view of whichever
+  // artifact (output/process_data.json or output/design_data.json) the
+  // connected backend's GET /artifacts/<name> currently serves. Runtime
+  // only, same as network/transcript above -- re-fetched fresh each time
+  // the tab is opened or the artifact changes, not persisted across reloads.
+  //   expandedPaths: Set of JSON-path strings ("$", "$.steps[2]", ...)
+  //     currently expanded in the tree, so re-rendering after a toggle (or
+  //     after a fresh load) preserves what the user had open.
+  state.dataExplorer = {
+    artifact: "process",
+    raw: null,
+    expandedPaths: new Set(["$"]),
+    selectedPath: null,
+    loading: false,
+    error: null,
   };
 
   // ---------------------------------------------------------------
@@ -460,14 +495,24 @@
     });
     el.chatTabPanel.hidden = name !== "chat";
     el.networkTabPanel.hidden = name !== "network";
+    el.artifactsTabPanel.hidden = name !== "artifacts";
+
+    if (name !== "network") closeNodeDetail();
+    if (name !== "artifacts") closeArtifactDetail();
+
     if (name === "network") {
       // The SVG's viewBox is sized from el.networkCanvasWrap's own
       // clientWidth/clientHeight (see computeNetworkLayout) -- while the
       // panel was hidden that was 0, so the layout has to be redone now
       // that the panel actually has real dimensions to measure.
       renderNetwork();
-    } else {
-      closeNodeDetail();
+    } else if (name === "artifacts") {
+      // First time this tab is opened (nothing loaded, no error on
+      // record yet) -- auto-load the currently selected artifact, same
+      // as the Agent Network tab doesn't need an explicit "load" step.
+      if (state.dataExplorer.raw === null && !state.dataExplorer.loading && !state.dataExplorer.error) {
+        loadArtifact(state.dataExplorer.artifact);
+      }
     }
   }
 
@@ -940,6 +985,272 @@
   }
 
   el.nodeDetailCloseBtn.addEventListener("click", closeNodeDetail);
+
+  // ---------------------------------------------------------------
+  // Data explorer -- hierarchical viewer for the Process/Design tab's
+  // GET /artifacts/<name> ("process" or "design"), a read-only snapshot of
+  // this project's own output/process_data.json / output/design_data.json
+  // on whichever backend is connected. Rendered as an expandable tree
+  // (root top-left, children expanding down-and-right) built via
+  // document.createElement/.textContent -- NOT innerHTML string
+  // concatenation -- since the JSON content being displayed is arbitrary
+  // backend output and could contain HTML-like strings.
+  // ---------------------------------------------------------------
+  function isExpandable(value) {
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== null && typeof value === "object" && Object.keys(value).length > 0;
+  }
+
+  function describeType(value) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) return "array";
+    return typeof value;
+  }
+
+  // Short, single-line preview for a tree row or a detail-panel field --
+  // NOT a recursive dump of a container's contents (that's what expanding
+  // the row itself, or clicking into a child, is for).
+  function valuePreview(value, max) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) return `Array (${value.length} item${value.length === 1 ? "" : "s"})`;
+    if (typeof value === "object") {
+      const n = Object.keys(value).length;
+      return `Object (${n} field${n === 1 ? "" : "s"})`;
+    }
+    if (typeof value === "string") {
+      const truncated = value.length > max ? `${value.slice(0, max - 1)}…` : value;
+      return JSON.stringify(truncated);
+    }
+    return String(value);
+  }
+
+  async function loadArtifact(name) {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      toast("Set a Base URL and click Connect first.");
+      return;
+    }
+    state.dataExplorer.loading = true;
+    state.dataExplorer.error = null;
+    // A fresh load starts over -- an expand/selection state (and an open
+    // detail panel) built against a PREVIOUS artifact's shape (e.g.
+    // switching from Process to Design, or re-running the pipeline) has no
+    // guaranteed correspondence to the new data's paths. Cleared up front,
+    // not just on success below, so a load that ends in an error doesn't
+    // leave the drawer open showing the stale, now-unrelated artifact's
+    // node.
+    state.dataExplorer.expandedPaths = new Set(["$"]);
+    state.dataExplorer.selectedPath = null;
+    closeArtifactDetail();
+    renderArtifactsPanel();
+    try {
+      const res = await fetch(`${baseUrl}/artifacts/${name}`, {
+        method: "GET",
+        headers: { ...authHeaders() },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error || `Request failed (${res.status}).`);
+      }
+      state.dataExplorer.raw = body.data;
+    } catch (err) {
+      state.dataExplorer.raw = null;
+      state.dataExplorer.error = (err && err.message) || String(err);
+    } finally {
+      state.dataExplorer.loading = false;
+      renderArtifactsPanel();
+    }
+  }
+
+  function renderArtifactsPanel() {
+    const { loading, error, raw, artifact } = state.dataExplorer;
+
+    if (loading) {
+      el.artifactsStatus.textContent = "Loading…";
+    } else if (error) {
+      el.artifactsStatus.textContent = "Error";
+    } else if (raw !== null) {
+      const count = Array.isArray(raw) ? raw.length : (raw && typeof raw === "object" ? Object.keys(raw).length : 0);
+      const noun = Array.isArray(raw) ? "item" : "field";
+      el.artifactsStatus.textContent = `Loaded ${count} top-level ${noun}${count === 1 ? "" : "s"}`;
+    } else {
+      el.artifactsStatus.textContent = "Not loaded";
+    }
+
+    const hasData = raw !== null && !loading && !error;
+    el.artifactTree.hidden = !hasData;
+    el.artifactsEmpty.style.display = hasData ? "none" : "";
+
+    if (!hasData) {
+      const heading = el.artifactsEmpty.querySelector("h2");
+      const body = el.artifactsEmpty.querySelector("p");
+      if (loading) {
+        heading.textContent = "Loading…";
+        body.textContent = `Fetching the ${artifact} pipeline's current output from the connected backend…`;
+      } else if (error) {
+        heading.textContent = "Couldn't load this artifact";
+        body.textContent = error;
+      } else {
+        heading.textContent = "No data loaded";
+        body.textContent = "Pick Process or Design above, then click the refresh icon to load " +
+          "that pipeline's current output/*_data.json from the connected backend.";
+      }
+      return;
+    }
+
+    renderArtifactTree();
+  }
+
+  function renderArtifactTree() {
+    el.artifactTree.innerHTML = "";
+    const { raw, artifact } = state.dataExplorer;
+    if (raw === null) return;
+    const rootLabel = artifact === "design" ? "design" : "process";
+    buildTreeRow(rootLabel, raw, "$", 0, el.artifactTree);
+  }
+
+  function toggleTreePath(path) {
+    const expanded = state.dataExplorer.expandedPaths;
+    if (expanded.has(path)) {
+      expanded.delete(path);
+    } else {
+      expanded.add(path);
+    }
+    renderArtifactTree();
+  }
+
+  function buildTreeRow(key, value, path, depth, container) {
+    const row = document.createElement("div");
+    row.className = "tree-row";
+    row.style.paddingLeft = `${depth * 18 + 8}px`;
+    if (path === state.dataExplorer.selectedPath) row.classList.add("selected");
+
+    const expandable = isExpandable(value);
+    const expanded = expandable && state.dataExplorer.expandedPaths.has(path);
+
+    const toggle = document.createElement("span");
+    toggle.className = "tree-toggle" + (expandable ? "" : " tree-toggle-empty") + (expanded ? " expanded" : "");
+    if (expandable) {
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleTreePath(path);
+      });
+    }
+    row.appendChild(toggle);
+
+    const keySpan = document.createElement("span");
+    keySpan.className = "tree-key";
+    keySpan.textContent = key;
+    row.appendChild(keySpan);
+
+    const sep = document.createElement("span");
+    sep.className = "tree-sep";
+    sep.textContent = ":";
+    row.appendChild(sep);
+
+    const valueSpan = document.createElement("span");
+    valueSpan.className = "tree-value";
+    valueSpan.textContent = valuePreview(value, 70);
+    row.appendChild(valueSpan);
+
+    row.addEventListener("click", () => showArtifactDetail(path, key, value));
+    container.appendChild(row);
+
+    if (expanded) {
+      const children = document.createElement("div");
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => {
+          buildTreeRow(`[${index}]`, item, `${path}[${index}]`, depth + 1, children);
+        });
+      } else {
+        Object.keys(value).forEach((childKey) => {
+          buildTreeRow(childKey, value[childKey], `${path}.${childKey}`, depth + 1, children);
+        });
+      }
+      container.appendChild(children);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Data explorer -- node detail panel. Shows the clicked node's OWN
+  // direct properties (its immediate fields/items with their type and a
+  // short preview), not a recursive dump of everything below it -- that's
+  // what expanding/clicking into a child row is for.
+  // ---------------------------------------------------------------
+  function appendArtifactDetailRow(label, valueText) {
+    const row = document.createElement("div");
+    row.className = "node-detail-entry";
+
+    const meta = document.createElement("div");
+    meta.className = "node-detail-entry-meta";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = label;
+    meta.appendChild(labelSpan);
+    row.appendChild(meta);
+
+    const text = document.createElement("div");
+    text.className = "node-detail-entry-text";
+    text.textContent = valueText;
+    row.appendChild(text);
+
+    el.artifactDetailList.appendChild(row);
+  }
+
+  function showArtifactDetail(path, key, value) {
+    state.dataExplorer.selectedPath = path;
+    renderArtifactTree(); // picks up the .selected highlight on the clicked row
+
+    el.artifactDetailTitle.textContent = key;
+    el.artifactDetailPath.textContent = path;
+
+    el.artifactDetailContext.innerHTML = "";
+    const typeLine = document.createElement("div");
+    typeLine.textContent = `Type: ${describeType(value)}`;
+    el.artifactDetailContext.appendChild(typeLine);
+
+    el.artifactDetailList.innerHTML = "";
+
+    if (value === null || typeof value !== "object") {
+      appendArtifactDetailRow("Value", value === null ? "null" : String(value));
+    } else if (Array.isArray(value)) {
+      if (value.length === 0) {
+        appendArtifactDetailRow("", "(empty array)");
+      } else {
+        value.forEach((item, index) => appendArtifactDetailRow(`[${index}]`, valuePreview(item, 90)));
+      }
+    } else {
+      const keys = Object.keys(value);
+      if (keys.length === 0) {
+        appendArtifactDetailRow("", "(empty object)");
+      } else {
+        keys.forEach((childKey) => appendArtifactDetailRow(childKey, valuePreview(value[childKey], 90)));
+      }
+    }
+
+    el.artifactDetail.classList.add("open");
+  }
+
+  function closeArtifactDetail() {
+    el.artifactDetail.classList.remove("open");
+    if (state.dataExplorer.selectedPath) {
+      state.dataExplorer.selectedPath = null;
+      renderArtifactTree();
+    }
+  }
+
+  el.artifactDetailCloseBtn.addEventListener("click", closeArtifactDetail);
+
+  el.artifactToggleBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.artifact;
+      if (name === state.dataExplorer.artifact) return; // already the active one
+      state.dataExplorer.artifact = name;
+      el.artifactToggleBtns.forEach((b) => b.classList.toggle("active", b.dataset.artifact === name));
+      loadArtifact(name);
+    });
+  });
+
+  el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // ---------------------------------------------------------------
   // Chat transcript rendering

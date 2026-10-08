@@ -833,6 +833,131 @@ button, input, textarea {
   font-weight: 650;
 }
 
+/* ---------- Data explorer (Process / Design tab) ---------- */
+
+.artifacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Overrides .preset-row/.preset-btn's sidebar sizing (flex:1 across a
+   full-width row) -- here the toggle sits inline in a toolbar alongside
+   the refresh button and status text, so each button should size to its
+   own label instead of splitting the row's whole width. */
+.artifacts-toggle {
+  flex: 0 0 auto;
+}
+
+.artifacts-toggle .preset-btn {
+  flex: 0 0 auto;
+  padding: 7px 16px;
+}
+
+.artifacts-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artifacts-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.artifacts-panel .empty-state {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  max-width: 460px;
+}
+
+/* The tree itself -- one row per JSON key/index. Expand state is tracked
+   in app.js by JSON path and re-rendered recursively; this stylesheet only
+   draws each row's own toggle arrow and indentation, which app.js applies
+   per row via an inline padding-left scaled by depth (down-and-right from
+   the top-left root, per the tab's design brief). */
+.tree-root {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 22px 24px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.tree-root[hidden] { display: none; }
+
+.tree-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.tree-row:hover { background: var(--accent-soft); }
+
+.tree-row.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.tree-toggle::before {
+  content: "\25B6";
+  font-size: 9px;
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+
+.tree-toggle.expanded::before {
+  transform: rotate(90deg);
+}
+
+.tree-toggle.tree-toggle-empty::before {
+  content: "";
+}
+
+.tree-key {
+  color: var(--text);
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.tree-sep {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.tree-value {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-scroll {
   flex: 1;
   overflow-y: auto;

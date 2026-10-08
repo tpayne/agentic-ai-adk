@@ -649,6 +649,10 @@ def build_web_app(https: bool = True):
                                {"status": "done", "response": "..."}
                                event. See that function for why/how.
       DELETE /chat/<session_id>  Drops server-side state for that session.
+      GET    /artifacts/<name>  "process" or "design" -> {"status": "ok",
+                               "name": "...", "data": {...the parsed
+                               output/<name>_data.json...}}, or 404 if
+                               that pipeline hasn't produced one yet.
       GET    /status           Liveness probe.
 
     Sessions are tracked both by an explicit "session_id" JSON field (for
@@ -847,6 +851,55 @@ def build_web_app(https: bool = True):
                 )
             )
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
+
+    @web_app.route("/artifacts/<name>", methods=["GET"])
+    def artifact(name):
+        """
+        Read-only access to this project's own output/process_data.json or
+        output/design_data.json, for the web client's "Process / Design"
+        tab -- a hierarchical viewer of whichever pipeline's current
+        artifact, not something a chat turn's response text would
+        otherwise expose. Both backends serve this the same way (the
+        neuro-san port's build_web_app has an identical route) and both
+        keep these files at an identical path, so the client's fetch
+        logic doesn't need to know which backend it's talking to.
+
+        Deliberately a raw file read, NOT the existing
+        load_master_process_json/load_master_design_json helpers in
+        .utils -- those silently fall back to a blank template when the
+        file is missing (useful for a pipeline about to populate one, not
+        for a debugging viewer that needs to tell "genuinely not generated
+        yet" apart from "here's an empty template"), so this reports a
+        real 404 instead.
+        """
+        from .utils_agent import PROJECT_ROOT
+
+        filenames = {"process": "process_data.json", "design": "design_data.json"}
+        filename = filenames.get(name)
+        if filename is None:
+            return jsonify({
+                "status": "error",
+                "error": f"Unknown artifact '{name}' -- use 'process' or 'design'.",
+            }), 400
+
+        path = os.path.join(PROJECT_ROOT, "output", filename)
+        if not os.path.exists(path):
+            return jsonify({
+                "status": "error",
+                "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+            }), 404
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            logger.exception("Failed to read/parse %s", filename)
+            return jsonify({
+                "status": "error",
+                "error": f"Could not read {filename} -- see server logs.",
+            }), 500
+
+        return jsonify({"status": "ok", "name": name, "data": data})
 
     @web_app.route("/status", methods=["GET"])
     def status():

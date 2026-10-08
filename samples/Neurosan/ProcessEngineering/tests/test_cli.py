@@ -404,3 +404,60 @@ class TestChatStreamRoute:
         client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
         resp = client.post("/chat/stream", json={"query": "hello"})
         assert resp.status_code == 401
+
+
+class TestArtifactRoute:
+    """GET /artifacts/<name> -- read-only access to output/process_data.json
+    /output/design_data.json for the web client's "Process / Design" tab.
+    _PROJECT_ROOT is monkeypatched to an isolated tmp_path for every test
+    here so these don't depend on (or disturb) this checkout's own real
+    output/ directory, whose contents vary run to run."""
+
+    def _build_client(self, monkeypatch, tmp_path, files=None):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        for name, content in (files or {}).items():
+            (output_dir / name).write_text(content, encoding="utf-8")
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_returns_parsed_json_when_the_file_exists(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": '{"foo": "bar"}'})
+        resp = client.get("/artifacts/process")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "name": "process", "data": {"foo": "bar"}}
+
+    def test_design_artifact_name_maps_to_design_data_json(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"design_data.json": '{"doc": true}'})
+        resp = client.get("/artifacts/design")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"doc": True}
+
+    def test_404_when_the_file_has_not_been_generated_yet(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/process")
+        assert resp.status_code == 404
+        assert resp.get_json()["status"] == "error"
+
+    def test_400_for_an_unrecognized_artifact_name(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/bogus")
+        assert resp.status_code == 400
+
+    def test_500_for_unparseable_json_on_disk(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": "{not valid json"})
+        resp = client.get("/artifacts/process")
+        assert resp.status_code == 500
+
+    def test_requires_auth_when_configured(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": "{}"})
+        resp = client.get("/artifacts/process")
+        assert resp.status_code == 401
+
+    def test_status_probe_still_bypasses_auth(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/status")
+        assert resp.status_code == 200

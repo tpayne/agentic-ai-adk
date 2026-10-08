@@ -2,6 +2,7 @@ import importlib
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -467,6 +468,90 @@ class WebServiceChatStreamTest(unittest.TestCase):
         events = self._parse_sse(response.get_data(as_text=True))
         self.assertEqual(events[0]["status"], "progress")
         self.assertEqual(events[-1]["status"], "error")
+
+
+class WebServiceArtifactRouteTest(unittest.TestCase):
+    """GET /artifacts/<name> -- read-only access to output/process_data.json
+    /output/design_data.json for the web client's "Process / Design" tab.
+    utils_agent.PROJECT_ROOT is patched to an isolated tmp dir for every
+    test here so these don't depend on (or disturb) this checkout's own
+    real output/ directory, whose contents vary run to run."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+        cls.utils_agent = importlib.import_module("process_agents.common.utils_agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.output_dir = os.path.join(self.tmp_dir.name, "output")
+        os.makedirs(self.output_dir)
+        self.project_root_patch = patch.object(self.utils_agent, "PROJECT_ROOT", self.tmp_dir.name)
+        self.project_root_patch.start()
+        self.addCleanup(self.project_root_patch.stop)
+
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    def _write(self, filename, content):
+        with open(os.path.join(self.output_dir, filename), "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_returns_parsed_json_when_the_file_exists(self):
+        self._write("process_data.json", '{"foo": "bar"}')
+        response = self.client.get("/artifacts/process", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(), {"status": "ok", "name": "process", "data": {"foo": "bar"}}
+        )
+
+    def test_design_artifact_name_maps_to_design_data_json(self):
+        self._write("design_data.json", '{"doc": true}')
+        response = self.client.get("/artifacts/design", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"], {"doc": True})
+
+    def test_404_when_the_file_has_not_been_generated_yet(self):
+        response = self.client.get("/artifacts/process", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["status"], "error")
+
+    def test_400_for_an_unrecognized_artifact_name(self):
+        response = self.client.get("/artifacts/bogus", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 400)
+
+    def test_500_for_unparseable_json_on_disk(self):
+        self._write("process_data.json", "{not valid json")
+        response = self.client.get("/artifacts/process", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 500)
+
+    def test_requires_a_configured_api_key(self):
+        self._write("process_data.json", "{}")
+        response = self.client.get("/artifacts/process")
+        self.assertEqual(response.status_code, 401)
 
 
 if __name__ == "__main__":

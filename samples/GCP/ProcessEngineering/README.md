@@ -837,6 +837,7 @@ The service exposes:
 | `POST` | `/chat` | Send a query, get the agent's response. |
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
+| `GET` | `/artifacts/<name>` | `name` is `process` or `design` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
 | `GET` | `/status` | Liveness probe. |
 
 `POST /chat` takes a JSON body with a `query` field, and an optional
@@ -932,12 +933,31 @@ data: {"status": "done", "response": "Here's a **3-step onboarding process**:\n\
 - `POST /chat` is unchanged and remains the right choice for a script, `curl`, or any
   server-to-server caller that only wants the final text.
 
+### Process/Design artifacts
+
+`GET /artifacts/<name>` (`name` is `process` or `design`) returns this project's own current
+`output/process_data.json` or `output/design_data.json`, parsed:
+
+```json
+{"status": "ok", "name": "process", "data": { "...": "..." }}
+```
+
+404 if that pipeline hasn't produced one yet (`{"status": "error", "error": "No process_data.json
+found yet -- run the process pipeline at least once, then try again."}`), 400 for an unrecognized
+`name`. This is deliberately a raw file read, not the existing `load_master_process_json`/
+`load_master_design_json` helpers in `.utils` -- those silently fall back to a blank template when
+the file is missing (fine for a pipeline about to populate one, wrong for a debugging/inspection
+endpoint that needs to tell "genuinely not generated yet" apart from "here's an empty template").
+Subject to the same auth/rate-limiting as every other route except `/status`. The web client's
+**Process / Design** tab (below) is what actually consumes this.
+
 ### Browser client
 
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) is a small
-static chat UI (no build step, no server of its own) for this REST API. It also works unmodified
-against the neuro-san port's own `cli.py -d --flask`, which exposes an identical contract -- point
-it at whichever backend's Base URL you're running.
+static chat UI (no build step, no server of its own) for this REST API, including a **Process /
+Design** tab that hierarchically browses whichever artifact `GET /artifacts/<name>` above returns.
+It also works unmodified against the neuro-san port's own `cli.py -d --flask`, which exposes an
+identical contract -- point it at whichever backend's Base URL you're running.
 
 The service responds to cross-origin requests (reflecting the caller's `Origin` header on every
 response, including the `OPTIONS` preflight) so that static page can call it directly from a
