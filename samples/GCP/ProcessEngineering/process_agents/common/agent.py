@@ -1270,4 +1270,16 @@ async def run_cli():
 # ---------------------------------------------------------
 if __name__ == "__main__":
     logger.debug("Pipeline initialized and ready for execution.")
-    asyncio.run(run_cli())
+    try:
+        asyncio.run(run_cli())
+    except KeyboardInterrupt:
+        # Ctrl+C in ANY mode -- interactive chat, -f/-i, or -d's blocking
+        # Flask dev server loop. asyncio.run()'s own Runner cancels the
+        # in-flight task on SIGINT and re-raises that as KeyboardInterrupt
+        # once run_until_complete unwinds (see cpython's asyncio/
+        # runners.py) -- left uncaught, that surfaces as a raw
+        # CancelledError-then-KeyboardInterrupt traceback instead of a
+        # clean exit (the neuro-san port's cli.py has the identical
+        # asyncio.run(run_cli()) shape and the identical fix).
+        display_text("\n- Interrupted -- shutting down.")
+        sys.exit(0)

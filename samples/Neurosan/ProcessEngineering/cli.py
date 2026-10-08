@@ -55,6 +55,7 @@ import logging
 import os
 import secrets
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -890,6 +891,20 @@ def run_web_service(agent_name: str, port: Optional[int], use_https: bool) -> No
                 )
                 sys.exit(1)
 
+    # SIGTERM (a `kill <pid>`, a container orchestrator's stop signal, etc.)
+    # has no handler by default -- Python's default disposition for it is
+    # immediate termination with no exception raised, so without this the
+    # server would just vanish mid-request with no log line and no message
+    # on the terminal. SIGINT (Ctrl+C) is deliberately NOT handled here --
+    # it's already turned into a clean KeyboardInterrupt by the interpreter,
+    # which the __main__ block at the bottom of this file catches.
+    def _handle_sigterm(signum, frame):  # noqa: ARG001 -- signal handler signature
+        _web_logger.warning("Received SIGTERM -- shutting down.")
+        display_text("\nReceived SIGTERM -- shutting down.")
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
     scheme = "https" if use_https else "http"
     display_text(f"Starting Process Architect REST API on {scheme}://{host}:{listen_port} (POST /chat)...")
     web_app.run(host=host, port=listen_port, ssl_context=ssl_context, threaded=True, debug=False)
@@ -1007,4 +1022,19 @@ async def run_cli() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(run_cli())
+    try:
+        asyncio.run(run_cli())
+    except KeyboardInterrupt:
+        # Ctrl+C in ANY mode -- interactive chat, -f/-i, or -d/--flask's
+        # blocking Flask dev server loop. asyncio.run()'s own Runner
+        # cancels the in-flight task on SIGINT and re-raises that as
+        # KeyboardInterrupt once run_until_complete unwinds (see cpython's
+        # asyncio/runners.py) -- left uncaught, that surfaces as a raw
+        # CancelledError-then-KeyboardInterrupt traceback instead of a
+        # clean exit, and a second Ctrl+C while that traceback is still
+        # unwinding has also been observed to leave `uv run`'s own process
+        # supervision confused (ESRCH trying to signal an already-exited
+        # child). Exiting cleanly on the first Ctrl+C avoids needing a
+        # second one at all.
+        display_text("\nInterrupted -- shutting down.")
+        sys.exit(0)
