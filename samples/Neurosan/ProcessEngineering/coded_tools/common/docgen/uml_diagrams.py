@@ -377,9 +377,29 @@ def generate_uml_diagram(
         title = diagram_descriptor.get("title") or "Diagram"
         out_path = _out_path(diagram_descriptor)
 
-        if diagram_descriptor.get("participants") and diagram_descriptor.get("steps"):
+        participants = diagram_descriptor.get("participants")
+        steps = diagram_descriptor.get("steps")
+        if isinstance(steps, list) and steps and not participants and all(
+            isinstance(step, str) for step in steps
+        ):
+            # Earlier design-agent outputs represented sequence flows as
+            # plain prose. Preserve those steps as ordered self-messages on
+            # the owning component rather than dropping the UML image.
+            participant = str(context.get("component_name") or system_name or "Process")
+            participants = [participant]
+            steps = [
+                {
+                    "step_number": index,
+                    "from_participant": participant,
+                    "to_participant": participant,
+                    "message": step,
+                }
+                for index, step in enumerate(steps, start=1)
+            ]
+
+        if participants and steps:
             result = _draw_sequence_diagram(
-                out_path, title, diagram_descriptor["participants"], diagram_descriptor["steps"]
+                out_path, title, participants, steps
             )
             if result:
                 return result

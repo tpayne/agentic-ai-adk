@@ -74,6 +74,33 @@ def test_validate_accepts_a_well_formed_hld_document():
     assert result == {"valid": True, "issues": []}
 
 
+def test_validate_requires_acceptance_criteria_for_each_requirement():
+    doc = {
+        "document_metadata": {
+            "document_id": "D-1", "document_type": "HLD", "system_name": "X",
+            "title": "X Design", "version": "1.0", "status": "draft",
+        },
+        "high_level_design": {},
+        "requirements": {
+            "functional_requirements": [
+                {"id": "FR-001", "description": "Create a backup."},
+            ],
+            "non_functional_requirements": [
+                {"id": "NFR-001", "description": "Backups are encrypted.",
+                 "acceptance_criteria": ["A restore-point audit confirms encryption."]},
+            ],
+        },
+    }
+
+    result = validate_design_json(doc)
+
+    assert not result["valid"]
+    assert any(
+        issue["location"] == "requirements.functional_requirements[0].acceptance_criteria"
+        for issue in result["issues"]
+    )
+
+
 def test_persist_then_load_round_trips():
     doc = {
         "document_metadata": {

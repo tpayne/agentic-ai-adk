@@ -4,6 +4,7 @@ coverage. The isolated_output_dir autouse fixture (conftest.py) means every
 assertion here reads/writes only a throwaway tmp_path.
 """
 
+import copy
 import json
 import os
 
@@ -71,9 +72,9 @@ SAMPLE_DESIGN = {
 }
 
 
-def _write_sample_design_json():
+def _write_sample_design_json(design=None):
     with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
-        json.dump(SAMPLE_DESIGN, f)
+        json.dump(SAMPLE_DESIGN if design is None else design, f)
 
 
 def test_generate_clean_diagram_produces_a_png_for_a_design_document():
@@ -95,6 +96,8 @@ def test_create_standard_doc_from_file_builds_a_real_design_docx_with_expected_s
     assert os.path.exists(out_path)
 
     doc = docx.Document(out_path)
+    assert len(doc.inline_shapes) == 1
+    assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "checkout_combined_design_flow.png"))
     heading_texts = [
         p.text for p in doc.paragraphs
         if p.style is not None and p.style.name == "Heading 1"
@@ -106,6 +109,48 @@ def test_create_standard_doc_from_file_builds_a_real_design_docx_with_expected_s
     assert "5.0 Architecture Description" in heading_texts
     assert any(h.endswith("Low-Level Design") for h in heading_texts)
     assert any(h.endswith("Glossary and References") for h in heading_texts)
+
+
+def test_design_document_renders_existing_prose_sequence_flows_as_images():
+    design = copy.deepcopy(SAMPLE_DESIGN)
+    design["low_level_design"]["components"][0]["sequence_flows"] = [
+        {
+            "title": "Backup Execution",
+            "diagram_id": "backup-execution",
+            "diagram_type": "sequence",
+            "steps": [
+                "The backup service starts a scheduled job.",
+                "The job stores an encrypted recovery point.",
+            ],
+        },
+    ]
+    _write_sample_design_json(design)
+
+    result = create_standard_doc_from_file("Checkout", schema_type="design")
+
+    assert result.startswith("SUCCESS:")
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
+    assert len(doc.inline_shapes) == 2
+    assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "uml_diagrams", "backup-execution.png"))
+
+
+def test_design_document_preserves_context_roles_and_stakeholder_concerns():
+    design = copy.deepcopy(SAMPLE_DESIGN)
+    design["system_context"]["actors"] = [{"name": "Cloud Admin", "role": "Manages platform accounts."}]
+    design["architecture_description"]["stakeholders"] = [
+        {"name": "Security Team", "role": "Owns governance.", "concerns": ["Tenant isolation"]},
+    ]
+    _write_sample_design_json(design)
+
+    result = create_standard_doc_from_file("Checkout", schema_type="design")
+
+    assert result.startswith("SUCCESS:")
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
+    cells = [cell.text for table in doc.tables for row in table.rows for cell in row.cells]
+    assert "Manages platform accounts." in cells
+    stakeholder_details = next(cell for cell in cells if "Concerns:" in cell)
+    assert "Owns governance." in stakeholder_details
+    assert "Concerns: Tenant isolation" in stakeholder_details
 
 
 def test_generate_design_flow_diagram_coded_tool_invoke():
