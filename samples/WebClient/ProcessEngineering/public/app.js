@@ -1352,10 +1352,66 @@
 
     let metaAdded = false;
 
+    // Every "progress" SSE event seen during this turn, in order -- kept
+    // around (not just the latest one, which is all progressNote itself
+    // shows live) so the turn's full thinking/tool-call trace can still be
+    // inspected after the fact, collapsed behind the "Thinking" disclosure
+    // built in replaceProgressNoteWithThinking below.
+    const thinkingSteps = [];
+
+    // Swaps the live progressNote for a collapsed <details> listing every
+    // recorded step -- or just drops it if there's nothing to show (e.g.
+    // a backend with no progress events at all, or an error before the
+    // first one arrived). Built via document.createElement/.textContent,
+    // not innerHTML, since origin/text come from the backend's SSE stream
+    // and could in principle contain HTML-like text.
+    function replaceProgressNoteWithThinking() {
+      if (thinkingSteps.length === 0) {
+        progressNote.remove();
+        return;
+      }
+
+      const details = document.createElement("details");
+      details.className = "thinking";
+
+      const summary = document.createElement("summary");
+      summary.className = "thinking-summary";
+      const toggle = document.createElement("span");
+      toggle.className = "thinking-toggle";
+      summary.appendChild(toggle);
+      const label = document.createElement("span");
+      label.className = "thinking-label";
+      label.textContent = `Thinking (${thinkingSteps.length} step${thinkingSteps.length === 1 ? "" : "s"})`;
+      summary.appendChild(label);
+      details.appendChild(summary);
+
+      const list = document.createElement("ol");
+      list.className = "thinking-steps";
+      thinkingSteps.forEach((step) => {
+        const item = document.createElement("li");
+        item.className = "thinking-step";
+        if (step.origin) {
+          const originSpan = document.createElement("span");
+          originSpan.className = "thinking-step-origin";
+          originSpan.textContent = step.origin;
+          item.appendChild(originSpan);
+        }
+        const textSpan = document.createElement("span");
+        textSpan.className = "thinking-step-text";
+        textSpan.textContent = step.text || "";
+        item.appendChild(textSpan);
+        list.appendChild(item);
+      });
+      details.appendChild(list);
+
+      progressNote.replaceWith(details);
+    }
+
     return {
       row,
 
       setProgress(origin, text) {
+        thinkingSteps.push({ origin, text });
         progressNote.hidden = false;
         progressNote.textContent = origin ? `${origin} — ${text}` : text;
         scrollToBottom();
@@ -1374,7 +1430,7 @@
 
       finalize(text) {
         recordTranscript("agent", text);
-        progressNote.remove();
+        replaceProgressNoteWithThinking();
         bubble.innerHTML = renderMarkdownLite(text);
         if (!metaAdded) {
           metaAdded = true;
@@ -1395,7 +1451,7 @@
       },
 
       showError(message) {
-        progressNote.remove();
+        replaceProgressNoteWithThinking();
         row.classList.add("error");
         const hasText = bubble.textContent && bubble.textContent.trim().length > 0;
         bubble.textContent = hasText ? `${bubble.textContent}\n\n⚠ ${message}` : message;

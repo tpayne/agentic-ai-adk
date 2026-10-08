@@ -103,7 +103,12 @@ expose (see each backend's own README) — and the UI updates live as `progress`
 events arrive:
 
 - **`progress`** events ("CloudArch_Pipeline — Calling Reviewer...") show up as a small italic
-  note above the reply, so a long multi-agent turn doesn't look like it's hung.
+  note above the reply, so a long multi-agent turn doesn't look like it's hung. Once the turn
+  finishes, that note is replaced by a small collapsed **"Thinking (N steps)"** disclosure in the
+  same spot — click it to expand the full list of every `progress` event seen during that turn
+  (which agent/tool, and what it reported), so the trace that led to the response stays inspectable
+  after the fact instead of vanishing the moment the reply lands. Collapsed by default to keep the
+  transcript uncluttered; dropped entirely for a turn that had no progress events at all.
 - **`delta`** events update the reply's text as it's produced. While streaming, this is rendered
   as **plain text**, deliberately not run through the markdown-lite renderer — a delta is an
   in-progress fragment (e.g. an unclosed &#96;&#96;&#96;code block&#96;&#96;&#96;), and parsing
