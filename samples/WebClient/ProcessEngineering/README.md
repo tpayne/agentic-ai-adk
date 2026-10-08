@@ -116,6 +116,17 @@ events arrive:
 - **`done`** finalizes the reply: the complete text is rendered through the real markdown-lite
   renderer exactly once, and the copy button/timestamp are added.
 
+While a turn is streaming, the composer's **Send** button is replaced by a red **Stop** button.
+Clicking it calls `POST /chat/<session_id>/stop` on the connected backend — a **real** cancellation
+of the backend's in-flight model call (see each backend's own README for the mechanics), not just
+the client giving up on the connection, which on its own would NOT stop the actual turn (or its real
+token cost) from running to completion regardless. The cancelled turn's own response arrives as one
+final **`stopped`** event over the same connection, carrying whatever partial text/token usage had
+accrued up to that point — rendered in the transcript with a muted dashed border and a small
+"Stopped" badge instead of the usual timestamp, distinct from both a normal reply and an error (the
+user asked for this, it isn't a failure). Any partial usage from a stopped turn is still recorded on
+the **Token Usage** tab like any other turn.
+
 If `/chat/stream` isn't reachable at all (an older backend without it, a network hiccup before the
 stream even starts), the client transparently falls back to the non-streaming `POST /chat` — the
 same retry-with-backoff request the very first version of this client always used — so the turn
@@ -190,6 +201,60 @@ generated yet" apart from "here's an empty template".
 - Built the same way as the Agent Network graph: DOM nodes via `document.createElement`/
   `.textContent`, never `innerHTML` string concatenation, since the JSON being rendered is arbitrary
   backend output and could contain HTML-like strings.
+
+## Token Usage tab
+
+The **Token Usage** tab charts token usage per turn as the conversation moves on, and estimates
+what it cost. Every `/chat`/`/chat/stream` response from either backend now carries a `"usage"`
+field:
+
+```json
+{"prompt_tokens": 1234, "completion_tokens": 567, "total_tokens": 1801, "model": "gemini-3.8-flash"}
+```
+
+(or `null` for a turn that made no LLM calls) -- see each backend's own README for exactly how it's
+computed there; the two arrive at the same shape very differently (ADK accumulates real
+`usage_metadata` off the event stream itself; neuro-san surfaces its own built-in, already-aggregated
+token accounting), but the client doesn't need to know which one it's talking to.
+
+- **One bar per turn**, height = that turn's own `total_tokens` -- NOT a running cumulative total,
+  so the chart genuinely rises and falls turn to turn, with a thin dashed trend line connecting each
+  bar's peak. A bar is colored **green** (light), **amber** (moderate), or **red** (heavy) by fixed
+  thresholds on that turn's token count (2,000 / 8,000 by default -- see `USAGE_THRESHOLDS` in
+  `app.js` if your own usage patterns call for different cutoffs). Fixed, not relative to the
+  session's own range, so "red" means roughly the same thing from one conversation to the next
+  rather than always being whatever the single biggest turn so far happened to be.
+- **Narrow, tightly-packed, left-justified bars** -- a fixed per-bar width/gap, not stretched to fill
+  the canvas, so the chart reads as a graph rather than a handful of wide step-diagram blocks. The
+  content starts at the left edge and simply grows wider as more turns arrive (same philosophy as the
+  Agent Network graph's own "natural size" layout) -- it does not re-flow or shrink existing bars to
+  keep fitting the visible width.
+- **Zoom and pan**, identical to the Agent Network tab: the **+**/**−**/reset-view buttons in the
+  bottom-right corner, the mouse wheel, and click-and-drag all work. The view auto-fits (anchored to
+  the left, not centered) by default and keeps re-fitting as new turns stream in; manually zooming or
+  dragging stops that until Reset is clicked.
+- **Click a bar** for that turn's exact breakdown (prompt/completion/total tokens, estimated cost,
+  reported model, the query that triggered it) in the same detail-panel pattern as the Agent Network
+  and Process/Design tabs.
+- **Model**, shown read-only above the chart, is never picked manually -- it's whatever the connected
+  backend itself reports: `GET /status`'s `model` field for the ADK original's one static model, or a
+  turn's own `usage.model` for neuro-san (which can genuinely invoke different models turn to turn,
+  since its own token accounting reports the real model(s) actually used). The backend's own config is
+  the source of truth for which model ran, so there's nothing to select.
+- **Estimated cost** (per turn, in its detail panel, and summed for the whole session in the stats
+  bar) is computed client-side from a small built-in reference table of current public per-1M-token
+  rates (`MODEL_PRICING` in `app.js`, covering the models this project's own `properties`/`config`
+  files are actually set up to use -- Gemini 3.x Flash, Gemini 2.5 Flash/Pro, Claude Sonnet
+  5/Opus 4.8/Haiku 4.5, GPT-4o, Bedrock Claude Sonnet 4.5 -- checked against each provider's own
+  pricing page as of 2026-10), looked up by the auto-detected model above. An exact match isn't
+  required -- a reported model string that's a more specific/versioned variant of a table entry (e.g.
+  a backend reporting `gemini-3.8-flash-002`) still resolves via a prefix match (`findPricingByModelName`
+  in `app.js`) rather than silently showing nothing. Only shows `—` (with a tooltip naming the
+  unmatched model) when nothing in the table is even a prefix match, rather than guessing a
+  possibly-wrong price. Clearly an *estimate* either way: pricing pages change, promotional rates
+  expire, and the table may not match a negotiated/enterprise rate.
+- The chart (and the detected model) is scoped to the current session -- **+ New chat** clears the
+  turn history the same way it clears the Agent Network graph.
 
 ## Why CORS just works
 

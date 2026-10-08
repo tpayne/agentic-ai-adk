@@ -836,9 +836,10 @@ The service exposes:
 |---|---|---|
 | `POST` | `/chat` | Send a query, get the agent's response. |
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
+| `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
 | `GET` | `/artifacts/<name>` | `name` is `process` or `design` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
-| `GET` | `/status` | Liveness probe. |
+| `GET` | `/status` | Liveness probe -- also reports the configured model, `{"status": "live", "model": "..."}`. |
 
 `POST /chat` takes a JSON body with a `query` field, and an optional
 `session_id` to continue an existing conversation:
@@ -851,17 +852,30 @@ The service exposes:
 ```
 
 It replies with the `session_id` (create a new one if you didn't supply one,
-or if the one you supplied is unknown), the original `query`, and the agent's
-`response`:
+or if the one you supplied is unknown), the original `query`, the agent's
+`response`, and a `usage` field reporting how many tokens that turn spent:
 
 ```json
 {
   "status": "ok",
   "session_id": "2c5689ca-095a-465d-971e-06b18e200ea9",
   "query": "create an End-to-End AI Governance process ...",
-  "response": "Successfully generated a professional ISO-formatted Word document: output/End-to-End_AI_Governance_Process.docx"
+  "response": "Successfully generated a professional ISO-formatted Word document: output/End-to-End_AI_Governance_Process.docx",
+  "usage": {"prompt_tokens": 18420, "completion_tokens": 3190, "total_tokens": 21610, "model": "gemini-3.8-flash"}
 }
 ```
+
+`usage` is accumulated from each non-partial `Event`'s own `usage_metadata` across the whole turn (a
+multi-agent turn makes several separate model calls, one per sub-agent/tool-using step). Restricted
+to non-partial events deliberately -- ADK's own `Runner` only ever persists non-partial events into
+session history ("We should append non-partial events only" -- see `Runner._should_append_event` in
+the installed `google-adk` package), so there is exactly one non-partial event per real model call,
+with no risk of a single streamed call's chunks being counted more than once; see
+`_accumulate_event_usage`'s own docstring for the full reasoning. `model` is this deployment's single
+statically-configured `MODEL` property (also reported standalone by `GET /status`, below). `usage` is
+`null` if, for whatever reason, no model call reported any usage metadata at all. The web client's
+**Token Usage**
+tab (see its own README) is what actually consumes this.
 
 The response also sets a `process_architect_session` cookie carrying the same
 `session_id`, so browser-based or cookie-aware clients (e.g. a follow-up chat
@@ -914,7 +928,7 @@ data: {"status": "delta", "text": "Here's a **3-step onboarding", "session_id": 
 
 data: {"status": "delta", "text": "Here's a **3-step onboarding process**:\n\n1. Collect vendor docs", "session_id": "..."}
 
-data: {"status": "done", "response": "Here's a **3-step onboarding process**:\n\n1. Collect vendor docs\n2. ...", "session_id": "..."}
+data: {"status": "done", "response": "Here's a **3-step onboarding process**:\n\n1. Collect vendor docs\n2. ...", "session_id": "...", "usage": {"prompt_tokens": 1840, "completion_tokens": 210, "total_tokens": 2050, "model": "gemini-3.8-flash"}}
 ```
 
 - `"progress"` events report which sub-agent is currently active, or which tool it's calling --
@@ -928,10 +942,33 @@ data: {"status": "done", "response": "Here's a **3-step onboarding process**:\n\
   `"error"` events can appear mid-stream if the turn itself fails after the response has already
   started (HTTP headers, and the 200 status, are already sent by that point, so an error can't
   become an HTTP 5xx -- it has to be communicated in-band like this instead).
+- `"done"` also carries `usage` -- same shape, same accumulation, as `/chat`'s own (see above).
 - The session cookie is set on the very first byte of the response, same as `/chat`, so it's
   available even though the body itself streams.
 - `POST /chat` is unchanged and remains the right choice for a script, `curl`, or any
   server-to-server caller that only wants the final text.
+
+### Stopping a turn
+
+`POST /chat/<session_id>/stop` cancels that session's currently in-flight `/chat/stream` turn:
+
+```json
+{"status": "ok", "session_id": "...", "stopped": true}
+```
+
+(`"stopped": false` if nothing was actually running -- not an error, just nothing to do.) This is a
+**real** cancellation of the running asyncio `Task` driving that turn's model calls, not merely the
+client giving up on the HTTP connection -- a client that just stops reading the stream does NOT, by
+itself, stop the background thread's actual model call (and its real token cost) from running to
+completion regardless. The cancelled turn's own `/chat/stream` response receives one final
+`{"status": "stopped", "response": "<partial answer so far>", "usage": {...}}` event over the
+**same, still-open** connection before it closes, reporting whatever text/tokens had accrued up to
+the moment of cancellation. See `_accumulate_event_usage`/`_active_stream_tasks`/`chat_stop` in
+`agent.py` for the mechanics -- in short, the Flask route that used to just `asyncio.run(...)` the
+turn's coroutine now creates it as a trackable `Task` on an explicitly-managed event loop, registers
+`(loop, task)` for that session, and `chat_stop` reaches in via
+`loop.call_soon_threadsafe(task.cancel)`. The web client's Stop button (shown in place of Send while
+a turn is streaming) is what actually calls this in practice.
 
 ### Process/Design artifacts
 

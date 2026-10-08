@@ -242,6 +242,35 @@ def run_shell_command(cmdline: str) -> None:
         display_text(f"[Shell]: Error executing command: {e}", kind="error")
 
 
+def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Maps neuro-san's own token_accounting dict (see
+    TokenAccountingMessageProcessor/LangChainTokenCounter in the installed
+    neuro_san package -- "models" is a {provider_class: {model_name:
+    {total_tokens, prompt_tokens, completion_tokens, ...}}} nested dict)
+    onto the {prompt_tokens, completion_tokens, total_tokens, model} shape
+    the web client's Token Usage tab expects -- the exact same keys the ADK
+    original's own usage field uses, so the client doesn't need to know
+    which backend it's talking to.
+
+    Unlike the ADK original (one single statically-configured model,
+    applied uniformly), neuro-san can genuinely invoke more than one
+    distinct model within a single turn, so "model" here is every distinct
+    model name actually seen this turn, joined with " + " -- real,
+    per-turn data, not a static guess. None if neuro-san reported no
+    accounting at all (e.g. a turn that made no LLM calls).
+    """
+    if not token_accounting:
+        return None
+    models = token_accounting.get("models") or {}
+    model_names = sorted({name for providers in models.values() for name in providers.keys()})
+    return {
+        "prompt_tokens": token_accounting.get("prompt_tokens", 0),
+        "completion_tokens": token_accounting.get("completion_tokens", 0),
+        "total_tokens": token_accounting.get("total_tokens", 0),
+        "model": " + ".join(model_names) if model_names else None,
+    }
+
+
 class ChatSession:
     """One underlying neuro-san direct session against an agent network,
     plus the request/response state (chat_context, sly_data) that must be
@@ -299,6 +328,10 @@ class ChatSession:
         self.input_processor.get_message_processor().add_processor(LiveTraceMessageProcessor())
         self.sly_data = None
         self.chat_context = None
+        # Set by send()/send_streaming() below, for the web service's
+        # Token Usage tab -- see _extract_usage's own docstring for the
+        # mapping from neuro-san's own token_accounting shape.
+        self.last_usage: Optional[Dict[str, Any]] = None
 
     def send(self, text: str) -> str:
         state = {
@@ -316,6 +349,7 @@ class ChatSession:
         token_accounting = state.get("token_accounting")
         if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
             _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
+        self.last_usage = _extract_usage(token_accounting)
 
         return state.get("last_chat_response") or ""
 
@@ -346,10 +380,25 @@ class ChatSession:
                                          fragment to append, so a client
                                          can just replace what it shows
                                          with this>"}
-          {"status": "done", "response": "<final compiled answer>"}
+          {"status": "done", "response": "<final compiled answer>",
+           "usage": {"prompt_tokens": N, "completion_tokens": N,
+                      "total_tokens": N, "model": "..."} or None}
+          {"status": "stopped", "response": "<partial answer so far>"}
         `session_id` is NOT included here -- the caller (the web
         service's /chat/stream route) adds it, since this method has no
         notion of a "web session" at all.
+
+        A "stopped" event means POST /chat/<session_id>/stop (see
+        build_web_app's own chat_stop route) reached into
+        self.session.invocation_context.get_asyncio_executor() and
+        cancelled this turn's in-flight tasks there -- NOT merely that the
+        client gave up reading the stream (which alone would not stop the
+        real model call, or its real token cost, from running to
+        completion in the background). neuro-san's own
+        DirectAgentSession.streaming_chat() explicitly documents this as
+        the intended way to interrupt it (see its own "interrupted by
+        caller-side 'close' method" comment in the installed neuro_san
+        package).
         """
         processor = self.input_processor.get_message_processor()
         chat_filter = {"chat_filter_type": "MAXIMAL"}
@@ -359,34 +408,38 @@ class ChatSession:
         self.input_processor.reset()
 
         last_compiled_answer = None
-        for chat_response in self.session.streaming_chat(chat_request):
-            response = chat_response.get("response") or {}
-            processor.process_message(response)
+        try:
+            for chat_response in self.session.streaming_chat(chat_request):
+                response = chat_response.get("response") or {}
+                processor.process_message(response)
 
-            compiled_answer = processor.get_compiled_answer()
-            if compiled_answer and compiled_answer != last_compiled_answer:
-                last_compiled_answer = compiled_answer
-                yield {"status": "delta", "text": compiled_answer}
-                continue
+                compiled_answer = processor.get_compiled_answer()
+                if compiled_answer and compiled_answer != last_compiled_answer:
+                    last_compiled_answer = compiled_answer
+                    yield {"status": "delta", "text": compiled_answer}
+                    continue
 
-            # Not an answer-text update -- surface it as a lightweight
-            # progress note instead, same heartbeat filter
-            # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
-            # message with empty text and no structure is the server's own
-            # keepalive frame, not real progress).
-            text_field = response.get("text")
-            structure = response.get("structure")
-            if not text_field and not isinstance(structure, dict):
-                continue
-            preview = (text_field or "").strip().replace("\n", " ")
-            if not preview and isinstance(structure, dict):
-                preview = f"<structure: {', '.join(structure.keys())}>"
-            if not preview:
-                continue
-            if len(preview) > 160:
-                preview = preview[:159] + "…"
-            origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
-            yield {"status": "progress", "origin": origin_str, "text": preview}
+                # Not an answer-text update -- surface it as a lightweight
+                # progress note instead, same heartbeat filter
+                # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
+                # message with empty text and no structure is the server's own
+                # keepalive frame, not real progress).
+                text_field = response.get("text")
+                structure = response.get("structure")
+                if not text_field and not isinstance(structure, dict):
+                    continue
+                preview = (text_field or "").strip().replace("\n", " ")
+                if not preview and isinstance(structure, dict):
+                    preview = f"<structure: {', '.join(structure.keys())}>"
+                if not preview:
+                    continue
+                if len(preview) > 160:
+                    preview = preview[:159] + "…"
+                origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                yield {"status": "progress", "origin": origin_str, "text": preview}
+        except asyncio.CancelledError:
+            yield {"status": "stopped", "response": last_compiled_answer or ""}
+            return
 
         self.chat_context = processor.get_chat_context()
         returned_sly_data = processor.get_sly_data()
@@ -399,8 +452,9 @@ class ChatSession:
         token_accounting = processor.get_token_accounting()
         if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
             _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
+        self.last_usage = _extract_usage(token_accounting)
 
-        yield {"status": "done", "response": last_compiled_answer or ""}
+        yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
 
 
 async def handle_logical_line(
@@ -601,20 +655,31 @@ def build_web_app(agent_name: str, https: bool = True):
     Exposes the SAME routes/shapes as the ADK original's build_web_app:
       POST   /chat            {"query": "...", "session_id": "..." (optional)}
                                -> {"status": "ok", "session_id": "...",
-                                   "query": "...", "response": "..."}
+                                   "query": "...", "response": "...",
+                                   "usage": {"prompt_tokens": N,
+                                   "completion_tokens": N, "total_tokens": N,
+                                   "model": "..."} or null}
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
                                shaped like ChatSession.send_streaming's
                                own docstring describes, ending with a
-                               {"status": "done", "response": "..."}
+                               {"status": "done", "response": "...",
+                               "usage": {...same shape as /chat's above}}
                                event. See that method for why/how.
+      POST   /chat/<session_id>/stop  Cancels that session's in-flight
+                               /chat/stream turn, if any -> {"status": "ok",
+                               "session_id": "...", "stopped": true|false}.
       DELETE /chat/<session_id>  Drops server-side state for that session.
       GET    /artifacts/<name>  "process" or "design" -> {"status": "ok",
                                "name": "...", "data": {...the parsed
                                output/<name>_data.json...}}, or 404 if
                                that pipeline hasn't produced one yet.
-      GET    /status           Liveness probe.
+      GET    /status           Liveness probe. Unlike the ADK original,
+                               does NOT report a model name -- neuro-san
+                               can genuinely invoke different models per
+                               turn (see "usage.model" above), so there is
+                               no single static answer to report here.
 
     Sessions are tracked both by an explicit "session_id" JSON field (for
     plain REST/CLI clients) and by a cookie (for browser-based clients) --
@@ -714,6 +779,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "session_id": web_session_id,
             "query": query,
             "response": response_text or "",
+            "usage": session.last_usage,
         }))
         resp.set_cookie(
             WEB_SESSION_COOKIE,
@@ -772,6 +838,46 @@ def build_web_app(agent_name: str, https: bool = True):
             secure=https,
         )
         return resp
+
+    @web_app.route("/chat/<session_id>/stop", methods=["POST"])
+    def chat_stop(session_id):
+        """
+        Cancels session_id's CURRENTLY IN-FLIGHT /chat/stream turn, if any
+        -- for a user who started a long multi-agent turn and realized
+        partway through that the instructions were wrong, so the rest of
+        it is just burning tokens for nothing. Reaches directly into the
+        underlying DirectAgentSession's own AsyncioExecutor and cancels
+        its currently-submitted tasks -- a REAL cancellation of whatever
+        model call is actually in flight, not merely the client giving up
+        on the connection (which alone would not stop the real token cost
+        from continuing to accrue in the background). See
+        ChatSession.send_streaming's own docstring for the "stopped" event
+        this produces on the SSE side.
+
+        Always 200 -- "nothing was running" and "it was running and is
+        now cancelled" are both unexceptional outcomes, not errors, for a
+        caller that just wants "make sure nothing is still running".
+        """
+        with _web_sessions_lock:
+            session = _web_sessions.get(session_id)
+        if session is None:
+            return jsonify({"status": "ok", "session_id": session_id, "stopped": False})
+
+        invocation_context = getattr(session.session, "invocation_context", None)
+        if invocation_context is None:
+            # No turn has ever started on this session (or the session was
+            # already closed) -- nothing in flight to cancel.
+            return jsonify({"status": "ok", "session_id": session_id, "stopped": False})
+
+        try:
+            invocation_context.get_asyncio_executor().cancel_current_tasks(timeout=5.0)
+            stopped = True
+        except RuntimeError:
+            # "Loop must be running to cancel remaining tasks" -- the
+            # executor's own loop isn't active right now, which just means
+            # there was nothing in flight to stop (e.g. between turns).
+            stopped = False
+        return jsonify({"status": "ok", "session_id": session_id, "stopped": stopped})
 
     @web_app.route("/chat/<session_id>", methods=["DELETE"])
     def chat_reset(session_id):

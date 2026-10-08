@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import json
 import os
@@ -6,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, call, patch
 
 
@@ -277,7 +279,8 @@ class WebServiceRequestControlsTest(unittest.TestCase):
         self.assertEqual(invalid.get_json()["error"], "Unauthorized")
 
     def test_valid_api_key_in_supported_headers_reaches_chat_handler(self):
-        run_chat_turn = AsyncMock(return_value=("session-123", "stub response"))
+        stub_usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "model": "stub-model"}
+        run_chat_turn = AsyncMock(return_value=("session-123", "stub response", stub_usage))
         bearer_scheme = "Bearer"
         with patch.object(self.agent, "_run_chat_turn", run_chat_turn):
             for headers in (
@@ -299,6 +302,7 @@ class WebServiceRequestControlsTest(unittest.TestCase):
                             "session_id": "session-123",
                             "query": "hello",
                             "response": "stub response",
+                            "usage": stub_usage,
                         },
                     )
 
@@ -314,7 +318,7 @@ class WebServiceRequestControlsTest(unittest.TestCase):
         for _ in range(3):
             response = self.client.get("/status")
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.get_json(), {"status": "live"})
+            self.assertEqual(response.get_json(), {"status": "live", "model": self.agent.MODEL})
 
         first_protected_request = self.client.delete(
             "/chat/unknown-session", headers=self._authorized_headers()
@@ -470,6 +474,131 @@ class WebServiceChatStreamTest(unittest.TestCase):
         self.assertEqual(events[-1]["status"], "error")
 
 
+class WebServiceChatStopTest(unittest.TestCase):
+    """POST /chat/<session_id>/stop -- cancels an in-flight /chat/stream
+    turn's REAL asyncio Task (see _active_stream_tasks in agent.py), not
+    merely something the client can walk away from. Exercises actual
+    concurrency (a real background thread running the streamed turn,
+    stopped by a genuinely concurrent request) rather than mocking the
+    cancellation mechanics away, since that race is the entire point of
+    this feature."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+        with self.agent._active_stream_tasks_lock:
+            self.agent._active_stream_tasks.clear()
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    @staticmethod
+    def _parse_sse(body):
+        return [
+            json.loads(line[len("data: "):])
+            for line in body.strip().split("\n\n")
+            if line.startswith("data: ")
+        ]
+
+    def test_stop_when_nothing_is_in_flight_is_a_no_op(self):
+        response = self.client.post(
+            "/chat/some-unknown-session/stop", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {"status": "ok", "session_id": "some-unknown-session", "stopped": False},
+        )
+
+    def test_stop_cancels_a_real_in_flight_turn(self):
+        get_session = AsyncMock(
+            return_value=("web-session-stop", "user-1", "adk-session-1")
+        )
+        started = threading.Event()
+        cancelled = threading.Event()
+
+        async def fake_stream_chat_turn(user_id, session_id, query, event_queue):
+            event_queue.put({"status": "progress", "origin": "root_agent", "text": "starting"})
+            started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                cancelled.set()
+                event_queue.put({"status": "stopped", "response": "partial"})
+                raise
+            finally:
+                event_queue.put(None)
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_stream_chat_turn", fake_stream_chat_turn
+        ):
+            result = {}
+
+            def run_stream():
+                response = self.client.post(
+                    "/chat/stream", json={"query": "hello"}, headers=self._authorized_headers()
+                )
+                result["events"] = self._parse_sse(response.get_data(as_text=True))
+
+            stream_thread = threading.Thread(target=run_stream)
+            stream_thread.start()
+
+            self.assertTrue(started.wait(timeout=5), "the turn never started")
+            # The background thread registers itself in _active_stream_tasks
+            # right before it starts running -- give it a moment to land.
+            for _ in range(50):
+                with self.agent._active_stream_tasks_lock:
+                    if "web-session-stop" in self.agent._active_stream_tasks:
+                        break
+                time.sleep(0.05)
+
+            stop_response = self.client.post(
+                "/chat/web-session-stop/stop", headers=self._authorized_headers()
+            )
+            self.assertEqual(stop_response.status_code, 200)
+            self.assertEqual(
+                stop_response.get_json(),
+                {"status": "ok", "session_id": "web-session-stop", "stopped": True},
+            )
+
+            stream_thread.join(timeout=5)
+
+        self.assertTrue(cancelled.is_set(), "the Task was never actually cancelled")
+        self.assertEqual(
+            [e["status"] for e in result["events"]], ["progress", "stopped"]
+        )
+        self.assertEqual(result["events"][-1]["response"], "partial")
+        # Cleaned up on its own -- no leftover entry for a turn that's over.
+        with self.agent._active_stream_tasks_lock:
+            self.assertNotIn("web-session-stop", self.agent._active_stream_tasks)
+
+    def test_stop_requires_a_configured_api_key(self):
+        response = self.client.post("/chat/some-session/stop")
+        self.assertEqual(response.status_code, 401)
+
+
 class WebServiceArtifactRouteTest(unittest.TestCase):
     """GET /artifacts/<name> -- read-only access to output/process_data.json
     /output/design_data.json for the web client's "Process / Design" tab.
@@ -552,6 +681,67 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self._write("process_data.json", "{}")
         response = self.client.get("/artifacts/process")
         self.assertEqual(response.status_code, 401)
+
+
+class UsageAccumulationTest(unittest.TestCase):
+    """_accumulate_event_usage -- the Token Usage tab's per-turn token
+    accounting. Callers (_run_chat_turn/_stream_chat_turn) only invoke this
+    for NON-PARTIAL events -- ADK's own Runner only ever persists
+    non-partial events into session history (see Runner._should_append_event
+    in the installed google-adk package), so there is exactly one
+    non-partial event per real model call and no risk of counting one
+    streamed call's usage more than once; this function itself does no
+    dedup of its own, it just adds whatever usage_metadata is present."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    @staticmethod
+    def _event(prompt, candidates, total):
+        usage = None
+        if prompt is not None:
+            usage = SimpleNamespace(
+                prompt_token_count=prompt,
+                candidates_token_count=candidates,
+                total_token_count=total,
+            )
+        return SimpleNamespace(usage_metadata=usage)
+
+    def test_events_with_no_usage_metadata_are_skipped(self):
+        totals = self.agent._new_usage_totals()
+        self.agent._accumulate_event_usage(self._event(None, None, None), totals)
+        self.assertEqual(totals, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+
+    def test_adds_one_events_usage_into_totals(self):
+        totals = self.agent._new_usage_totals()
+        self.agent._accumulate_event_usage(self._event(10, 5, 15), totals)
+        self.assertEqual(
+            totals, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        )
+
+    def test_a_second_distinct_call_adds_to_the_running_total(self):
+        totals = self.agent._new_usage_totals()
+        # Two separate non-partial events -- e.g. one per sub-agent/tool-
+        # using step in a multi-agent turn -- each contribute their own
+        # usage; the running total is their sum.
+        self.agent._accumulate_event_usage(self._event(10, 5, 15), totals)
+        self.agent._accumulate_event_usage(self._event(20, 8, 28), totals)
+        self.assertEqual(
+            totals, {"prompt_tokens": 30, "completion_tokens": 13, "total_tokens": 43}
+        )
+
+    def test_events_without_usage_interleaved_are_simply_skipped(self):
+        totals = self.agent._new_usage_totals()
+        self.agent._accumulate_event_usage(self._event(10, 5, 15), totals)
+        self.agent._accumulate_event_usage(self._event(None, None, None), totals)
+        self.agent._accumulate_event_usage(self._event(10, 5, 15), totals)
+        # Two REAL (non-partial, by the caller's own contract) events with
+        # usage, plus one with none -- both real ones count.
+        self.assertEqual(
+            totals, {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
+        )
 
 
 if __name__ == "__main__":

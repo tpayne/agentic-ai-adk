@@ -95,6 +95,7 @@
         <span class="tab-badge" id="networkTabBadge" hidden>0</span>
       </button>
       <button type="button" class="tab-btn" data-tab="artifacts" role="tab" aria-selected="false">Process / Design</button>
+      <button type="button" class="tab-btn" data-tab="usage" role="tab" aria-selected="false">Token Usage</button>
     </nav>
 
     <div class="tab-panel" id="chatTabPanel" role="tabpanel">
@@ -142,6 +143,11 @@
                  stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="19" x2="12" y2="5"></line>
               <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
+          <button type="button" id="stopBtn" class="send-btn stop-btn" title="Stop generating" aria-label="Stop generating" hidden>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
             </svg>
           </button>
         </div>
@@ -242,6 +248,93 @@
           </div>
           <div class="node-detail-context" id="artifactDetailContext"></div>
           <div class="node-detail-list" id="artifactDetailList"></div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="tab-panel usage-panel" id="usageTabPanel" role="tabpanel" hidden>
+      <div class="usage-toolbar">
+        <div class="usage-model-field">
+          <span class="field-label">Model</span>
+          <span class="usage-model-value" id="usageModelValue">&mdash;</span>
+        </div>
+        <div class="usage-legend">
+          <span class="legend-item"><span class="legend-swatch usage-swatch-green"></span>Light</span>
+          <span class="legend-item"><span class="legend-swatch usage-swatch-amber"></span>Moderate</span>
+          <span class="legend-item"><span class="legend-swatch usage-swatch-red"></span>Heavy</span>
+          <span class="legend-item legend-hint">Click a bar for details</span>
+        </div>
+        <button type="button" class="icon-btn" id="usageResetBtn" title="Clear usage history" aria-label="Clear usage history">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 4h10"></path>
+            <path d="M6.5 4V2.5h3V4"></path>
+            <path d="M4.5 4l.6 9a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-9"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="usage-stats" id="usageStats">
+        <div class="usage-stat">
+          <span class="usage-stat-value" id="usageStatTurns">0</span>
+          <span class="usage-stat-label">Turns</span>
+        </div>
+        <div class="usage-stat">
+          <span class="usage-stat-value" id="usageStatTotalTokens">0</span>
+          <span class="usage-stat-label">Total tokens</span>
+        </div>
+        <div class="usage-stat">
+          <span class="usage-stat-value" id="usageStatLastTokens">&mdash;</span>
+          <span class="usage-stat-label">Last turn</span>
+        </div>
+        <div class="usage-stat">
+          <span class="usage-stat-value" id="usageStatCost">&mdash;</span>
+          <span class="usage-stat-label">Estimated session cost</span>
+        </div>
+      </div>
+
+      <div class="usage-canvas-wrap" id="usageCanvasWrap">
+        <div class="empty-state" id="usageEmpty">
+          <div class="empty-state-mark">PA</div>
+          <h2>No turns yet</h2>
+          <p>
+            Send a message on the Chat tab — token usage per turn will appear here live as the
+            conversation moves on, colored by how much each turn burned.
+          </p>
+        </div>
+        <svg id="usageSvg" class="usage-svg" hidden xmlns="http://www.w3.org/2000/svg"></svg>
+
+        <div class="network-zoom-controls" id="usageZoomControls">
+          <button type="button" class="zoom-btn" id="usageZoomInBtn" title="Zoom in" aria-label="Zoom in">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="8" y1="2" x2="8" y2="14"></line>
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="usageZoomOutBtn" title="Zoom out" aria-label="Zoom out">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="usageResetViewBtn" title="Reset view" aria-label="Reset view">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 5V2h3"></path>
+              <path d="M14 5V2h-3"></path>
+              <path d="M2 11v3h3"></path>
+              <path d="M14 11v3h-3"></path>
+            </svg>
+          </button>
+        </div>
+
+        <aside class="node-detail" id="usageDetail">
+          <div class="node-detail-header">
+            <div>
+              <h3 id="usageDetailTitle">&mdash;</h3>
+              <code class="node-detail-path" id="usageDetailPath"></code>
+            </div>
+            <button type="button" class="icon-btn" id="usageDetailCloseBtn" title="Close" aria-label="Close details">&times;</button>
+          </div>
+          <div class="node-detail-context" id="usageDetailContext"></div>
+          <div class="node-detail-list" id="usageDetailList"></div>
         </aside>
       </div>
     </div>

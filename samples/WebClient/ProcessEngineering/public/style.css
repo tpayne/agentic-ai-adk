@@ -958,6 +958,127 @@ button, input, textarea {
   white-space: nowrap;
 }
 
+/* ---------- Token Usage tab ---------- */
+
+.usage-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.usage-model-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.usage-model-value {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.usage-legend {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  padding-bottom: 7px;
+}
+
+.usage-swatch-green { background: var(--success); }
+.usage-swatch-amber { background: var(--warning); }
+.usage-swatch-red { background: var(--danger); }
+
+.usage-stats {
+  display: flex;
+  gap: 28px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.usage-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.usage-stat-value {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-stat-label {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.usage-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.usage-panel .empty-state {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+}
+
+.usage-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.usage-svg[hidden] { display: none; }
+
+.usage-svg { cursor: grab; }
+.usage-svg.panning { cursor: grabbing; }
+/* .usage-bar's own cursor:pointer (below) already covers bars
+   specifically, overriding this grab/grabbing cursor for the pannable
+   background. */
+
+.usage-bar { cursor: pointer; }
+.usage-bar-fill { transition: opacity 0.12s ease; }
+.usage-bar:hover .usage-bar-fill { opacity: 0.8; }
+.usage-bar.usage-bar-selected .usage-bar-fill {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.usage-bar-green .usage-bar-fill { fill: var(--success); }
+.usage-bar-amber .usage-bar-fill { fill: var(--warning); }
+.usage-bar-red .usage-bar-fill { fill: var(--danger); }
+
+.usage-trend-line {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 3;
+}
+
+.usage-axis-label {
+  font-size: 10px;
+  fill: var(--text-faint);
+}
+
+.usage-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
@@ -1085,6 +1206,19 @@ button, input, textarea {
   color: var(--danger);
   border: 1px solid var(--danger-soft);
   border-bottom-left-radius: 4px;
+}
+
+.message-row.stopped .bubble {
+  border: 1px dashed var(--border-strong);
+  border-bottom-left-radius: 4px;
+}
+
+.stopped-badge {
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .bubble p { margin: 0 0 8px; }
@@ -1380,6 +1514,24 @@ button, input, textarea {
 .send-btn:hover { background: var(--accent-strong); }
 .send-btn:active { transform: translateY(1px); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.stop-btn {
+  background: var(--danger);
+}
+
+.stop-btn:hover { background: var(--danger); opacity: 0.85; }
+
+/* Needed despite the browser's own default `[hidden] { display: none }` UA
+   rule -- that rule and ".send-btn"'s own `display: flex` above have EQUAL
+   specificity, and this stylesheet loads after the UA one, so without a
+   rule here that's specifically HIGHER specificity (class + attribute),
+   ours would keep winning and a "hidden" send/stop button would stay
+   visible. Same fix already applied to .network-svg[hidden] elsewhere in
+   this file -- confirmed directly: the Stop button stayed on screen
+   alongside Send after a turn finished until this rule was added. */
+.send-btn[hidden] {
+  display: none;
+}
 
 .composer-hint {
   max-width: 760px;

@@ -10,7 +10,7 @@ import time
 import hmac
 import json
 import queue
-from typing import Optional
+from typing import Dict, Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import pkgutil
@@ -440,6 +440,18 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
 # shared Runner/session_service can multiplex many concurrent chats.
 _web_sessions: dict = {}
 _web_sessions_lock = threading.Lock()
+
+# Tracks the currently in-flight /chat/stream task per web session, so
+# POST /chat/<session_id>/stop (see chat_stop below) can actually cancel
+# it instead of merely abandoning the client-side connection -- the
+# client giving up on reading the stream does NOT, by itself, stop the
+# background thread's real model call (and its real token cost) from
+# continuing to completion. Entries are added right before a turn's
+# asyncio Task starts running and removed in its own "finally" (success,
+# error, or cancellation alike) -- see chat_stream's generate().
+_active_stream_tasks: dict = {}
+_active_stream_tasks_lock = threading.Lock()
+
 _web_runner = None
 _web_session_service = None
 # Guards the lazy-init of _web_runner/_web_session_service below: Flask's
@@ -526,22 +538,53 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
     return web_session_id, user_id, session_id
 
 
+def _accumulate_event_usage(event, totals: Dict[str, int]) -> None:
+    """Adds one Event's usage_metadata into `totals`, for the Token Usage
+    tab's per-turn chart. Callers must only call this for NON-PARTIAL
+    events (see the loop below) -- ADK's own Runner only ever persists
+    non-partial events into session history ("We should append non-partial
+    events only" -- see Runner._should_append_event in the installed
+    google-adk package's runners.py), which means there is exactly one
+    non-partial event per real model call, carrying that call's usage
+    (ADK's streaming machinery re-stamps usage_metadata forward onto each
+    call's own final event once it becomes known -- see
+    google.adk.utils.streaming_utils). Calling this for every event
+    including partial chunks would instead risk counting one streamed
+    call's usage once per chunk; restricting to non-partial events sidesteps
+    that without needing any dedup heuristic of our own.
+    """
+    usage = event.usage_metadata
+    if usage is None:
+        return
+    totals["prompt_tokens"] += usage.prompt_token_count or 0
+    totals["completion_tokens"] += usage.candidates_token_count or 0
+    totals["total_tokens"] += usage.total_token_count or 0
+
+
+def _new_usage_totals() -> Dict[str, int]:
+    return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+
 async def _run_chat_turn(existing_session_id: Optional[str], query: str):
     """Resolve/create the web session, then run one query through it."""
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
 
     content = types.Content(role="user", parts=[types.Part(text=query)])
     final_response = None
+    usage_totals = _new_usage_totals()
     async for event in _web_runner.run_async(
         user_id=user_id,
         session_id=session_id,
         new_message=content,
         run_config=RUN_CONFIG,
     ):
+        if not event.partial:
+            _accumulate_event_usage(event, usage_totals)
         if event.is_final_response() and event.content and event.content.parts:
             final_response = event.content.parts[0].text
 
-    return web_session_id, (final_response or "")
+    usage = {**usage_totals, "model": MODEL}
+    return web_session_id, (final_response or ""), usage
 
 
 async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_queue: "queue.Queue") -> None:
@@ -564,12 +607,21 @@ async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_que
                                      current state, not a fragment, so a
                                      client can just replace what it
                                      shows with this>"}
-      {"status": "done", "response": "<final answer>"}
+      {"status": "done", "response": "<final answer>", "usage": {"prompt_tokens": N,
+                                     "completion_tokens": N, "total_tokens": N, "model": "..."}}
+      {"status": "stopped", "response": "<partial answer so far>", "usage": {...same shape}}
       {"status": "error", "error": "..."}
+
+    A "stopped" event means POST /chat/<session_id>/stop (see build_web_app)
+    cancelled this turn's asyncio Task mid-flight -- NOT merely that the
+    client gave up reading the stream (which alone would not stop the
+    actual model call, or its real token cost, from running to completion
+    in the background thread).
     """
     content = types.Content(role="user", parts=[types.Part(text=query)])
     answer_so_far = ""
     last_progress_author: Optional[str] = None
+    usage_totals = _new_usage_totals()
     try:
         async for event in _web_runner.run_async(
             user_id=user_id,
@@ -577,6 +629,9 @@ async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_que
             new_message=content,
             run_config=STREAMING_RUN_CONFIG,
         ):
+            if not event.partial:
+                _accumulate_event_usage(event, usage_totals)
+
             if event.partial and event.content and event.content.parts:
                 # Genuine typewriter-effect chunk (see StreamingMode.SSE's
                 # own docstring) -- skip function-call parts, which are
@@ -625,7 +680,23 @@ async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_que
                     "text": "responding...",
                 })
 
-        event_queue.put({"status": "done", "response": answer_so_far})
+        event_queue.put({
+            "status": "done",
+            "response": answer_so_far,
+            "usage": {**usage_totals, "model": MODEL},
+        })
+    except asyncio.CancelledError:
+        # POST /chat/<session_id>/stop cancelled us -- report whatever
+        # partial answer/usage had accrued so far, then re-raise so the
+        # Task is properly marked cancelled (the "finally" below still
+        # runs either way, sending the None sentinel the reading side
+        # needs regardless of how this turn ended).
+        event_queue.put({
+            "status": "stopped",
+            "response": answer_so_far,
+            "usage": {**usage_totals, "model": MODEL},
+        })
+        raise
     except Exception:
         logger.exception("Web chat stream error")
         event_queue.put({"status": "error", "error": "An internal error has occurred."})
@@ -640,20 +711,29 @@ def build_web_app(https: bool = True):
     Exposes:
       POST   /chat            {"query": "...", "session_id": "..." (optional)}
                                -> {"status": "ok", "session_id": "...",
-                                   "query": "...", "response": "..."}
+                                   "query": "...", "response": "...",
+                                   "usage": {"prompt_tokens": N,
+                                   "completion_tokens": N, "total_tokens": N,
+                                   "model": "..."}}
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
                                shaped like _stream_chat_turn's own
                                docstring describes, ending with a
-                               {"status": "done", "response": "..."}
+                               {"status": "done", "response": "...",
+                               "usage": {...same shape as /chat's above}}
                                event. See that function for why/how.
+      POST   /chat/<session_id>/stop  Cancels that session's in-flight
+                               /chat/stream turn, if any -> {"status": "ok",
+                               "session_id": "...", "stopped": true|false}.
       DELETE /chat/<session_id>  Drops server-side state for that session.
       GET    /artifacts/<name>  "process" or "design" -> {"status": "ok",
                                "name": "...", "data": {...the parsed
                                output/<name>_data.json...}}, or 404 if
                                that pipeline hasn't produced one yet.
-      GET    /status           Liveness probe.
+      GET    /status           Liveness probe -- also reports the
+                               currently configured model as {"status":
+                               "live", "model": "..."}.
 
     Sessions are tracked both by an explicit "session_id" JSON field (for
     plain REST/CLI clients) and by a cookie (for browser-based clients) --
@@ -745,7 +825,7 @@ def build_web_app(https: bool = True):
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
         try:
-            web_session_id, response_text = asyncio.run(
+            web_session_id, response_text, usage = asyncio.run(
                 _run_chat_turn(session_id, query.strip())
             )
         except Exception:
@@ -759,6 +839,7 @@ def build_web_app(https: bool = True):
             "status": "ok",
             "session_id": web_session_id,
             "query": query,
+            "usage": usage,
             "response": response_text,
         }))
         resp.set_cookie(
@@ -808,12 +889,36 @@ def build_web_app(https: bool = True):
 
         def generate():
             event_queue: "queue.Queue" = queue.Queue()
-            thread = threading.Thread(
-                target=lambda: asyncio.run(
+
+            def run():
+                # A bare asyncio.run(...) (as this used before) gives no
+                # handle to cancel the coroutine once it's running --
+                # creating the loop/Task explicitly here instead, and
+                # registering them in _active_stream_tasks, is what lets
+                # POST /chat/<session_id>/stop actually reach in and cancel
+                # this specific turn from a different request's thread.
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                task = loop.create_task(
                     _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue)
-                ),
-                daemon=True,
-            )
+                )
+                with _active_stream_tasks_lock:
+                    _active_stream_tasks[web_session_id] = (loop, task)
+                try:
+                    loop.run_until_complete(task)
+                except asyncio.CancelledError:
+                    pass  # _stream_chat_turn's own "stopped" event already queued
+                finally:
+                    with _active_stream_tasks_lock:
+                        # Only remove OUR OWN entry -- guards against a race
+                        # where a brand new turn for the same session has
+                        # already registered its own (loop, task) pair by
+                        # the time this cleanup runs.
+                        if _active_stream_tasks.get(web_session_id) == (loop, task):
+                            _active_stream_tasks.pop(web_session_id, None)
+                    loop.close()
+
+            thread = threading.Thread(target=run, daemon=True)
             thread.start()
             while True:
                 item = event_queue.get()
@@ -832,6 +937,30 @@ def build_web_app(https: bool = True):
             secure=https,
         )
         return resp
+
+    @web_app.route("/chat/<session_id>/stop", methods=["POST"])
+    def chat_stop(session_id):
+        """
+        Cancels session_id's CURRENTLY IN-FLIGHT /chat/stream turn, if any
+        -- for a user who started a long multi-agent turn and realized
+        partway through that the instructions were wrong, so the rest of
+        it is just burning tokens for nothing. This is a REAL cancellation
+        of the running asyncio Task (see _active_stream_tasks / generate()
+        above), not merely the client giving up on the connection -- the
+        latter, alone, would leave the background thread's actual model
+        call (and its real token cost) running to completion regardless.
+
+        Always 200 -- "nothing was running" and "it was running and is now
+        cancelled" are both unexceptional outcomes, not errors, for a
+        caller that just wants "make sure nothing is still running".
+        """
+        with _active_stream_tasks_lock:
+            entry = _active_stream_tasks.get(session_id)
+        if entry is None:
+            return jsonify({"status": "ok", "session_id": session_id, "stopped": False})
+        loop, task = entry
+        loop.call_soon_threadsafe(task.cancel)
+        return jsonify({"status": "ok", "session_id": session_id, "stopped": True})
 
     @web_app.route("/chat/<session_id>", methods=["DELETE"])
     def chat_reset(session_id):
@@ -903,7 +1032,7 @@ def build_web_app(https: bool = True):
 
     @web_app.route("/status", methods=["GET"])
     def status():
-        return jsonify({"status": "live"})
+        return jsonify({"status": "live", "model": MODEL})
 
     return web_app
 

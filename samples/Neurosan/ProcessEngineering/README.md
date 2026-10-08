@@ -275,7 +275,8 @@ uv run python cli.py --agent cloudarch      # talk to a different network direct
 ```
 
 `-d --flask` runs a Flask REST API with the *exact same* contract as the ADK original's own `-d`
-mode (`POST /chat`, `POST /chat/stream`, `DELETE /chat/<session_id>`, `GET /artifacts/<name>`,
+mode (`POST /chat`, `POST /chat/stream`, `POST /chat/<session_id>/stop`,
+`DELETE /chat/<session_id>`, `GET /artifacts/<name>`,
 `GET /status`; the same `Authorization: Bearer <key>` / `X-API-Key` auth, rate limiting, and
 loopback-only-unless-authenticated startup refusal) — see
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) for a
@@ -290,6 +291,31 @@ produced one yet) -- a raw file read, not the `load_master_process_json`/`load_m
 `CodedTool` helpers under `coded_tools/common/`, which silently fall back to a blank template when
 the file is missing; see the ADK original's own README for the full response shape (identical
 here). This is what the web client's **Process / Design** tab consumes.
+
+Both `/chat` and `/chat/stream`'s `"done"` event also carry a `usage` field --
+`{"prompt_tokens": N, "completion_tokens": N, "total_tokens": N, "model": "..."}`, or `null` for a
+turn that made no LLM calls -- same shape the ADK original reports, so the web client's **Token
+Usage** tab doesn't need to know which backend it's talking to. Unlike the ADK original's single
+static `MODEL` property, this project's own `token_accounting` (neuro-san's own built-in, already-
+aggregated per-request token/cost accounting -- see `_extract_usage` in `cli.py`, and
+`LangChainTokenCounter`/`TokenAccountingMessageProcessor` in the installed `neuro_san` package for
+where it actually comes from) reports the REAL model(s) genuinely invoked that turn, so `model` here
+can differ turn to turn if different pipelines/agents in this network are configured against
+different models. `GET /status` does NOT report a model name the way the ADK original's does, for
+the same reason -- there is no single static answer to give.
+
+`POST /chat/<session_id>/stop` cancels that session's currently in-flight turn --
+`{"status": "ok", "session_id": "...", "stopped": true|false}` (`false` if nothing was actually
+running). A **real** cancellation, not merely the client giving up on the connection: it reaches
+directly into the underlying `DirectAgentSession`'s own `AsyncioExecutor`
+(`session.session.invocation_context.get_asyncio_executor().cancel_current_tasks()`) and cancels
+whatever's genuinely in flight there -- neuro-san's own `streaming_chat()` explicitly documents this
+as the intended way to interrupt it (see its own "interrupted by caller-side 'close' method" comment
+in the installed `neuro_san` package). The cancelled turn's own `/chat/stream` response receives one
+final `{"status": "stopped", "response": "<partial answer so far>"}` event over the **same,
+still-open** connection before it closes. See `chat_stop`/`ChatSession.send_streaming` in `cli.py`.
+The web client's Stop button (shown in place of Send while a turn is streaming) is what actually
+calls this in practice.
 
 ```bash
 uv run python cli.py -d --flask --http -p 8081   # plain HTTP on :8081, no self-signed cert warning

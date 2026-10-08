@@ -35,6 +35,87 @@
   };
 
   // ---------------------------------------------------------------
+  // Token Usage tab -- pricing reference table, USD per 1,000,000 tokens,
+  // used ONLY to estimate cost from whatever model the connected backend
+  // itself reports (via GET /status for the ADK original's one static
+  // model, or per-turn via usage.model for neuro-san) -- there is no
+  // manual model picker; the backend's own config is the source of truth
+  // for which model is actually running, so this is purely a lookup, not
+  // a user-facing selection. Sourced from each provider's own public
+  // pricing page (checked 2026-10; see the web client README's "Token
+  // Usage tab" section for links) -- NOT fabricated. Promotional/
+  // introductory rates (e.g. Gemini 3.x Flash's discounted rate through
+  // end of 2026) are the CURRENT real price, not a forecast of what a
+  // turn will cost after a price change takes effect -- revisit this
+  // table if prices move. `aliases` are other raw model-name strings a
+  // backend might report (e.g. ADK's MODEL property can include a
+  // "provider/" prefix) that should resolve to the same entry.
+  // ---------------------------------------------------------------
+  const MODEL_PRICING = [
+    { id: "gemini-3.8-flash", input: 0.75, output: 3.75,
+      aliases: ["gemini-3.7-flash", "gemini-3.6-flash"] },
+    { id: "gemini-3-flash", input: 0.75, output: 3.75 }, // est., same tier as 3.6-3.8
+    { id: "gemini-2.5-flash", input: 0.30, output: 2.50 },
+    { id: "gemini-2.5-pro", input: 1.25, output: 10.00 }, // <=200k ctx
+    { id: "claude-sonnet-5", input: 2.00, output: 10.00,
+      aliases: ["anthropic/claude-sonnet-5"] },
+    { id: "claude-opus-4-8", input: 5.00, output: 25.00 },
+    { id: "claude-haiku-4-5", input: 1.00, output: 5.00 },
+    { id: "gpt-4o", input: 2.50, output: 10.00,
+      aliases: ["openai/gpt-4o"] },
+    { id: "bedrock-claude-sonnet-4-5", input: 3.00, output: 15.00,
+      aliases: ["bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"] },
+  ];
+
+  function findPricingByModelName(modelName) {
+    if (!modelName) return null;
+    const lower = modelName.toLowerCase();
+
+    // Exact match first (id or alias).
+    const exact = MODEL_PRICING.find((p) => p.id.toLowerCase() === lower
+      || (p.aliases || []).some((a) => a.toLowerCase() === lower));
+    if (exact) return exact;
+
+    // Fall back to a prefix match either direction -- a real deployment
+    // can report a more specific/versioned model string than this table
+    // tracks (e.g. "gemini-3.8-flash-002" or "...-preview-09-2026") and
+    // would otherwise silently show no cost estimate at all despite a
+    // close match clearly existing. Longest matching prefix wins, so a
+    // more specific table entry (if one's ever added) beats a shorter,
+    // more generic one.
+    let best = null;
+    let bestLen = 0;
+    MODEL_PRICING.forEach((p) => {
+      [p.id, ...(p.aliases || [])].forEach((key) => {
+        const keyLower = key.toLowerCase();
+        if ((lower.startsWith(keyLower) || keyLower.startsWith(lower)) && keyLower.length > bestLen) {
+          best = p;
+          bestLen = keyLower.length;
+        }
+      });
+    });
+    return best;
+  }
+
+  function currentPricingRates() {
+    const entry = findPricingByModelName(state.usage.autoDetectedModel);
+    return entry ? { input: entry.input, output: entry.output } : null;
+  }
+
+  // Fixed thresholds (total tokens for ONE turn), not relative to the
+  // session's own observed range -- a "red" turn should mean roughly the
+  // same thing from one conversation to the next, not be graded on a
+  // curve against whatever else happened to run in this session. Tune
+  // here if these don't match your own usage patterns.
+  const USAGE_THRESHOLDS = { green: 2000, amber: 8000 };
+
+  function usageLevel(totalTokens) {
+    if (totalTokens <= USAGE_THRESHOLDS.green) return "green";
+    if (totalTokens <= USAGE_THRESHOLDS.amber) return "amber";
+    return "red";
+  }
+
+  // ---------------------------------------------------------------
   // Element lookups
   // ---------------------------------------------------------------
   const el = {
@@ -71,6 +152,7 @@
     composerForm: document.getElementById("composerForm"),
     messageInput: document.getElementById("messageInput"),
     sendBtn: document.getElementById("sendBtn"),
+    stopBtn: document.getElementById("stopBtn"),
     toolbarBtns: Array.from(document.querySelectorAll(".toolbar-btn[data-command]")),
     saveChatBtn: document.getElementById("saveChatBtn"),
 
@@ -106,6 +188,26 @@
     artifactDetailContext: document.getElementById("artifactDetailContext"),
     artifactDetailList: document.getElementById("artifactDetailList"),
     artifactDetailCloseBtn: document.getElementById("artifactDetailCloseBtn"),
+
+    usageTabPanel: document.getElementById("usageTabPanel"),
+    usageModelValue: document.getElementById("usageModelValue"),
+    usageResetBtn: document.getElementById("usageResetBtn"),
+    usageStatTurns: document.getElementById("usageStatTurns"),
+    usageStatTotalTokens: document.getElementById("usageStatTotalTokens"),
+    usageStatLastTokens: document.getElementById("usageStatLastTokens"),
+    usageStatCost: document.getElementById("usageStatCost"),
+    usageCanvasWrap: document.getElementById("usageCanvasWrap"),
+    usageEmpty: document.getElementById("usageEmpty"),
+    usageSvg: document.getElementById("usageSvg"),
+    usageZoomInBtn: document.getElementById("usageZoomInBtn"),
+    usageZoomOutBtn: document.getElementById("usageZoomOutBtn"),
+    usageResetViewBtn: document.getElementById("usageResetViewBtn"),
+    usageDetail: document.getElementById("usageDetail"),
+    usageDetailTitle: document.getElementById("usageDetailTitle"),
+    usageDetailPath: document.getElementById("usageDetailPath"),
+    usageDetailContext: document.getElementById("usageDetailContext"),
+    usageDetailList: document.getElementById("usageDetailList"),
+    usageDetailCloseBtn: document.getElementById("usageDetailCloseBtn"),
 
     toast: null,
   };
@@ -183,6 +285,22 @@
     selectedPath: null,
     loading: false,
     error: null,
+  };
+
+  // The Token Usage tab's data -- one entry per completed turn that
+  // reported a "usage" field (see recordUsageTurn, called from
+  // sendMessage's "done" handling). Runtime only, like transcript/network
+  // above -- cleared by "+ New chat", not persisted across reloads.
+  // autoDetectedModel is whatever model name the connected backend itself
+  // last reported (via GET /status or a turn's own usage.model) -- there
+  // is no manual override; the backend's own config is the source of
+  // truth for which model actually ran.
+  state.usage = {
+    turns: [],
+    selectedTurnIndex: null,
+    autoDetectedModel: null,
+    view: { x: 0, y: 0, scale: 1 },
+    autoFit: true,
   };
 
   // ---------------------------------------------------------------
@@ -293,6 +411,12 @@
       if (res.ok) {
         setStatus("connected", "Connected");
         saveState({ baseUrl, apiKey: el.apiKeyInput.value, preset: state.preset });
+        // The ADK backend reports its one statically-configured model here
+        // (see GET /status's own docstring); neuro-san does not, since it
+        // can genuinely invoke different models per turn -- that case is
+        // instead picked up per-turn from usage.model (see recordUsageTurn).
+        const body = await res.json().catch(() => ({}));
+        if (body && body.model) setDetectedModel(body.model);
       } else {
         setStatus("error", `Unreachable (${res.status})`);
       }
@@ -334,6 +458,7 @@
     el.emptyState.style.display = "";
     state.transcript = [];
     resetNetwork();
+    resetUsage();
     toast("Started a new chat.");
   }
 
@@ -496,9 +621,11 @@
     el.chatTabPanel.hidden = name !== "chat";
     el.networkTabPanel.hidden = name !== "network";
     el.artifactsTabPanel.hidden = name !== "artifacts";
+    el.usageTabPanel.hidden = name !== "usage";
 
     if (name !== "network") closeNodeDetail();
     if (name !== "artifacts") closeArtifactDetail();
+    if (name !== "usage") closeUsageDetail();
 
     if (name === "network") {
       // The SVG's viewBox is sized from el.networkCanvasWrap's own
@@ -513,6 +640,10 @@
       if (state.dataExplorer.raw === null && !state.dataExplorer.loading && !state.dataExplorer.error) {
         loadArtifact(state.dataExplorer.artifact);
       }
+    } else if (name === "usage") {
+      // Same reason as the network tab above -- the SVG was sized 0x0
+      // while this panel was hidden.
+      renderUsageChart();
     }
   }
 
@@ -1253,6 +1384,426 @@
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // ---------------------------------------------------------------
+  // Token Usage tab -- one bar per completed turn that reported a "usage"
+  // field (see recordUsageTurn, called from sendMessage's "done" handling
+  // for both the streaming and non-streaming-fallback paths). Bar height
+  // is that turn's own total_tokens (so the chart genuinely rises and
+  // falls turn to turn, not a monotonic running total), filled a solid
+  // green/amber/red by usageLevel's fixed thresholds above. A thin dashed
+  // trend line connects each bar's peak. Cost is estimated client-side
+  // from the MODEL_PRICING lookup above, keyed off whichever model the
+  // connected backend itself reports (see setDetectedModel) -- there is
+  // no manual model picker, since the backend's own config is the source
+  // of truth for which model actually ran.
+  // ---------------------------------------------------------------
+  function formatTokens(n) {
+    return Number(n || 0).toLocaleString();
+  }
+
+  function formatCost(dollars) {
+    if (dollars === null || dollars === undefined) return "—";
+    if (dollars === 0) return "$0.00";
+    if (dollars < 0.01) return "<$0.01";
+    return `$${dollars.toFixed(dollars < 1 ? 4 : 2)}`;
+  }
+
+  function estimateTurnCost(turn) {
+    const rates = currentPricingRates();
+    if (!rates) return null;
+    return (turn.promptTokens / 1e6) * rates.input + (turn.completionTokens / 1e6) * rates.output;
+  }
+
+  function estimateSessionCost() {
+    const rates = currentPricingRates();
+    if (!rates) return null;
+    return state.usage.turns.reduce((sum, t) => sum + (estimateTurnCost(t) || 0), 0);
+  }
+
+  // Records whatever model name the connected backend itself just
+  // reported (via GET /status for the ADK original's one static model, or
+  // a turn's own usage.model for neuro-san's real per-turn model) and
+  // refreshes anything depending on it -- the displayed model name, the
+  // cost estimate, and an already-open detail panel's cost figure. No
+  // user override: the backend's own config is the source of truth for
+  // which model actually ran, so this is a readout, not a picker.
+  function setDetectedModel(reportedModel) {
+    if (!reportedModel || reportedModel === state.usage.autoDetectedModel) return;
+    state.usage.autoDetectedModel = reportedModel;
+    el.usageModelValue.textContent = findPricingByModelName(reportedModel)
+      ? reportedModel
+      : `${reportedModel} (no pricing data)`;
+    renderUsageStats();
+    refreshOpenUsageDetail();
+  }
+
+  function recordUsageTurn(usage, query) {
+    if (!usage) return; // older backend, or a turn that made no LLM calls
+    state.usage.turns.push({
+      turnIndex: state.usage.turns.length + 1,
+      timestamp: new Date(),
+      promptTokens: usage.prompt_tokens || 0,
+      completionTokens: usage.completion_tokens || 0,
+      totalTokens: usage.total_tokens || 0,
+      reportedModel: usage.model || null,
+      query: query || "",
+    });
+    setDetectedModel(usage.model);
+    renderUsageChart();
+  }
+
+  function renderUsageStats() {
+    const turns = state.usage.turns;
+    el.usageStatTurns.textContent = String(turns.length);
+    const totalTokens = turns.reduce((sum, t) => sum + t.totalTokens, 0);
+    el.usageStatTotalTokens.textContent = formatTokens(totalTokens);
+    const last = turns[turns.length - 1];
+    el.usageStatLastTokens.textContent = last ? formatTokens(last.totalTokens) : "—";
+
+    if (turns.length === 0) {
+      el.usageStatCost.textContent = "—";
+      el.usageStatCost.title = "";
+    } else if (!currentPricingRates()) {
+      // No pricing table entry matches the detected model -- say so
+      // explicitly rather than showing a bare "—" that looks identical
+      // to "nothing happened yet".
+      el.usageStatCost.textContent = "—";
+      el.usageStatCost.title = state.usage.autoDetectedModel
+        ? `No pricing data for "${state.usage.autoDetectedModel}"`
+        : "No model detected yet";
+    } else {
+      el.usageStatCost.textContent = formatCost(estimateSessionCost());
+      el.usageStatCost.title = "";
+    }
+  }
+
+  const USAGE_SVG_NS = "http://www.w3.org/2000/svg";
+
+  // Fixed per-bar footprint (not stretched to fill the canvas width the
+  // way an earlier version of this did) -- bars pack together starting at
+  // the left margin and the content's own width simply grows as more
+  // turns arrive, same philosophy as computeNetworkLayout's "natural
+  // size, let zoom/pan handle fitting" above. Content HEIGHT stays fixed
+  // (this is a left-to-right timeline, not something that grows
+  // vertically) so only width needs to accommodate turn count.
+  const USAGE_BAR_WIDTH = 14;
+  const USAGE_BAR_GAP = 6;
+  const USAGE_PLOT_HEIGHT = 220;
+  const USAGE_MARGIN = { left: 54, right: 16, top: 16, bottom: 8 };
+
+  function computeUsageLayout() {
+    const turns = state.usage.turns;
+    if (turns.length === 0) return { bars: [], width: 0, height: 0, scaleMax: 1 };
+
+    const maxValue = Math.max(...turns.map((t) => t.totalTokens), 1);
+    // Headroom so the tallest bar doesn't touch the very top edge.
+    const scaleMax = maxValue * 1.15;
+
+    const width = USAGE_MARGIN.left + USAGE_MARGIN.right
+      + turns.length * (USAGE_BAR_WIDTH + USAGE_BAR_GAP) - USAGE_BAR_GAP;
+    const height = USAGE_MARGIN.top + USAGE_PLOT_HEIGHT + USAGE_MARGIN.bottom;
+
+    const bars = turns.map((turn, index) => {
+      const x = USAGE_MARGIN.left + index * (USAGE_BAR_WIDTH + USAGE_BAR_GAP);
+      const barHeight = Math.max(2, (turn.totalTokens / scaleMax) * USAGE_PLOT_HEIGHT);
+      const y = USAGE_MARGIN.top + USAGE_PLOT_HEIGHT - barHeight;
+      return { turn, x, y, height: barHeight };
+    });
+
+    return { bars, width, height, scaleMax };
+  }
+
+  function renderUsageChart() {
+    renderUsageStats();
+
+    const turns = state.usage.turns;
+    if (turns.length === 0) {
+      el.usageEmpty.style.display = "";
+      el.usageSvg.setAttribute("hidden", "");
+      el.usageSvg.innerHTML = "";
+      return;
+    }
+    el.usageEmpty.style.display = "none";
+    el.usageSvg.removeAttribute("hidden");
+
+    const { bars, width, height, scaleMax } = computeUsageLayout();
+
+    // The SVG's own viewBox is pinned 1:1 to the canvas wrap's actual
+    // pixel size -- NOT the content's size -- exactly like the Agent
+    // Network tab, so the zoom/pan transform below (applied to
+    // #usageViewport, not the viewBox itself) works in plain screen-
+    // pixel-equivalent units instead of juggling two coordinate systems.
+    const wrapWidth = el.usageCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.usageCanvasWrap.clientHeight || 300;
+    el.usageSvg.setAttribute("viewBox", `0 0 ${wrapWidth} ${wrapHeight}`);
+    el.usageSvg.innerHTML = "";
+
+    const viewport = document.createElementNS(USAGE_SVG_NS, "g");
+    viewport.setAttribute("id", "usageViewport");
+
+    // Gridlines + axis labels at 0/50/100% of scaleMax -- drawn the full
+    // CONTENT width (not just the visible canvas) so they still line up
+    // with the bars once panned/zoomed.
+    [0, 0.5, 1].forEach((frac) => {
+      const y = USAGE_MARGIN.top + USAGE_PLOT_HEIGHT - frac * USAGE_PLOT_HEIGHT;
+      const line = document.createElementNS(USAGE_SVG_NS, "line");
+      line.setAttribute("x1", String(USAGE_MARGIN.left));
+      line.setAttribute("x2", String(Math.max(width - USAGE_MARGIN.right, USAGE_MARGIN.left)));
+      line.setAttribute("y1", String(y));
+      line.setAttribute("y2", String(y));
+      line.setAttribute("class", "usage-gridline");
+      viewport.appendChild(line);
+
+      const label = document.createElementNS(USAGE_SVG_NS, "text");
+      label.setAttribute("x", String(USAGE_MARGIN.left - 8));
+      label.setAttribute("y", String(y + 3));
+      label.setAttribute("text-anchor", "end");
+      label.setAttribute("class", "usage-axis-label");
+      label.textContent = formatTokens(Math.round(frac * scaleMax));
+      viewport.appendChild(label);
+    });
+
+    // Bars, one per turn.
+    const trendPoints = [];
+    bars.forEach(({ turn, x, y, height: barHeight }) => {
+      trendPoints.push(`${x + USAGE_BAR_WIDTH / 2},${y}`);
+
+      const level = usageLevel(turn.totalTokens);
+      const g = document.createElementNS(USAGE_SVG_NS, "g");
+      g.setAttribute("class", `usage-bar usage-bar-${level}${turn.turnIndex === state.usage.selectedTurnIndex ? " usage-bar-selected" : ""}`);
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("aria-label", `Turn ${turn.turnIndex}: ${turn.totalTokens} tokens`);
+      g.addEventListener("click", () => showUsageDetail(turn.turnIndex));
+      g.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showUsageDetail(turn.turnIndex);
+        }
+      });
+
+      const rect = document.createElementNS(USAGE_SVG_NS, "rect");
+      rect.setAttribute("class", "usage-bar-fill");
+      rect.setAttribute("x", String(x));
+      rect.setAttribute("y", String(y));
+      rect.setAttribute("width", String(USAGE_BAR_WIDTH));
+      rect.setAttribute("height", String(barHeight));
+      rect.setAttribute("rx", "2");
+      g.appendChild(rect);
+
+      const title = document.createElementNS(USAGE_SVG_NS, "title");
+      title.textContent = `Turn ${turn.turnIndex}: ${turn.totalTokens.toLocaleString()} tokens — click for details`;
+      g.appendChild(title);
+
+      viewport.appendChild(g);
+    });
+
+    // Trend line connecting each bar's peak.
+    if (trendPoints.length > 1) {
+      const polyline = document.createElementNS(USAGE_SVG_NS, "polyline");
+      polyline.setAttribute("points", trendPoints.join(" "));
+      polyline.setAttribute("class", "usage-trend-line");
+      viewport.appendChild(polyline);
+    }
+
+    el.usageSvg.appendChild(viewport);
+
+    if (state.usage.autoFit) {
+      computeUsageFitView(width, height, wrapWidth, wrapHeight);
+    }
+    applyUsageTransform();
+  }
+
+  // ---------------------------------------------------------------
+  // Zoom / pan -- identical model to the Agent Network tab's (see its own
+  // comment above computeFitView/applyNetworkTransform/zoomBy): adjusts
+  // state.usage.view (x, y, scale) and re-applies it as a transform on
+  // #usageViewport; computeUsageLayout's own bar positions never change.
+  // autoFit stays true (recomputing a "fit everything" view on every
+  // render, so newly streamed-in turns never end up off-screen) until the
+  // user manually zooms or pans, at which point their view is left alone
+  // until they click Reset.
+  // ---------------------------------------------------------------
+  function computeUsageFitView(contentWidth, contentHeight, wrapWidth, wrapHeight) {
+    const padding = 24;
+    const scale = Math.min(
+      1.15, // don't blow a 1-2 turn chart up past a sensible size just because the canvas is big
+      Math.max(MIN_SCALE, Math.min(
+        (wrapWidth - padding * 2) / contentWidth,
+        (wrapHeight - padding * 2) / contentHeight,
+      )),
+    );
+    // Left-justified: anchor the content's own left/top edge inside the
+    // padding rather than centering it, so a short chart (few turns)
+    // starts flush at the left like a timeline, not floating centered.
+    state.usage.view = {
+      scale,
+      x: padding,
+      y: (wrapHeight - contentHeight * scale) / 2,
+    };
+  }
+
+  function applyUsageTransform() {
+    const viewport = document.getElementById("usageViewport");
+    if (!viewport) return;
+    const { x, y, scale } = state.usage.view;
+    viewport.setAttribute("transform", `translate(${x}, ${y}) scale(${scale})`);
+  }
+
+  function zoomUsageBy(factor) {
+    if (state.usage.turns.length === 0) return;
+    const wrapWidth = el.usageCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.usageCanvasWrap.clientHeight || 300;
+    const view = state.usage.view;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor));
+    // Zoom around the canvas's own center, not the content's origin --
+    // keeps whatever's currently in the middle of the view in the middle
+    // after zooming, instead of the view drifting toward a corner.
+    const cx = wrapWidth / 2;
+    const cy = wrapHeight / 2;
+    const contentCx = (cx - view.x) / view.scale;
+    const contentCy = (cy - view.y) / view.scale;
+    state.usage.view = {
+      scale: newScale,
+      x: cx - contentCx * newScale,
+      y: cy - contentCy * newScale,
+    };
+    state.usage.autoFit = false;
+    applyUsageTransform();
+  }
+
+  function resetUsageView() {
+    state.usage.autoFit = true;
+    renderUsageChart();
+  }
+
+  el.usageZoomInBtn.addEventListener("click", () => zoomUsageBy(ZOOM_STEP));
+  el.usageZoomOutBtn.addEventListener("click", () => zoomUsageBy(1 / ZOOM_STEP));
+  el.usageResetViewBtn.addEventListener("click", resetUsageView);
+
+  el.usageCanvasWrap.addEventListener("wheel", (event) => {
+    if (state.usage.turns.length === 0) return;
+    event.preventDefault();
+    zoomUsageBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+
+  let usagePanPointerId = null;
+  let usagePanStart = null;
+
+  el.usageSvg.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".usage-bar")) return; // let bar clicks through, not a pan start
+    if (state.usage.turns.length === 0) return;
+    usagePanPointerId = event.pointerId;
+    usagePanStart = { clientX: event.clientX, clientY: event.clientY, viewX: state.usage.view.x, viewY: state.usage.view.y };
+    el.usageSvg.setPointerCapture(event.pointerId);
+    el.usageSvg.classList.add("panning");
+  });
+  el.usageSvg.addEventListener("pointermove", (event) => {
+    if (usagePanPointerId !== event.pointerId || !usagePanStart) return;
+    state.usage.view = {
+      ...state.usage.view,
+      x: usagePanStart.viewX + (event.clientX - usagePanStart.clientX),
+      y: usagePanStart.viewY + (event.clientY - usagePanStart.clientY),
+    };
+    state.usage.autoFit = false;
+    applyUsageTransform();
+  });
+  function endUsagePan(event) {
+    if (usagePanPointerId !== event.pointerId) return;
+    usagePanPointerId = null;
+    usagePanStart = null;
+    el.usageSvg.classList.remove("panning");
+  }
+  el.usageSvg.addEventListener("pointerup", endUsagePan);
+  el.usageSvg.addEventListener("pointercancel", endUsagePan);
+
+  function appendUsageDetailRow(label, valueText) {
+    const row = document.createElement("div");
+    row.className = "node-detail-entry";
+    const meta = document.createElement("div");
+    meta.className = "node-detail-entry-meta";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = label;
+    meta.appendChild(labelSpan);
+    row.appendChild(meta);
+    const text = document.createElement("div");
+    text.className = "node-detail-entry-text";
+    text.textContent = valueText;
+    row.appendChild(text);
+    el.usageDetailList.appendChild(row);
+  }
+
+  // Fills in the detail panel's content for one turn -- separated from
+  // showUsageDetail below (which also flips selection state and
+  // re-renders the chart) so a pricing/rate change can refresh an
+  // ALREADY-OPEN panel's "Estimated cost" line without touching
+  // selection or risking a render loop through renderUsageChart.
+  function renderUsageDetailContent(turn) {
+    el.usageDetailTitle.textContent = `Turn ${turn.turnIndex}`;
+    el.usageDetailPath.textContent = formatTime(turn.timestamp);
+
+    el.usageDetailContext.innerHTML = "";
+    const modelLine = document.createElement("div");
+    modelLine.textContent = `Model: ${turn.reportedModel || "(not reported)"}`;
+    el.usageDetailContext.appendChild(modelLine);
+    const levelLine = document.createElement("div");
+    levelLine.textContent = `Burn level: ${usageLevel(turn.totalTokens)}`;
+    el.usageDetailContext.appendChild(levelLine);
+
+    el.usageDetailList.innerHTML = "";
+    appendUsageDetailRow("Prompt tokens", formatTokens(turn.promptTokens));
+    appendUsageDetailRow("Completion tokens", formatTokens(turn.completionTokens));
+    appendUsageDetailRow("Total tokens", formatTokens(turn.totalTokens));
+    appendUsageDetailRow("Estimated cost", formatCost(estimateTurnCost(turn)));
+    if (turn.query) {
+      appendUsageDetailRow("Query", turn.query);
+    }
+  }
+
+  function showUsageDetail(turnIndex) {
+    const turn = state.usage.turns.find((t) => t.turnIndex === turnIndex);
+    if (!turn) return;
+
+    state.usage.selectedTurnIndex = turnIndex;
+    renderUsageChart(); // picks up the .usage-bar-selected outline
+    renderUsageDetailContent(turn);
+    el.usageDetail.classList.add("open");
+  }
+
+  // Re-renders the OPEN detail panel's cost figure after a pricing/rate
+  // change -- without this, switching models or editing a custom rate
+  // while a turn's detail panel is open would leave it showing a stale
+  // cost computed under the previous rate.
+  function refreshOpenUsageDetail() {
+    if (state.usage.selectedTurnIndex === null) return;
+    const turn = state.usage.turns.find((t) => t.turnIndex === state.usage.selectedTurnIndex);
+    if (turn) renderUsageDetailContent(turn);
+  }
+
+  function closeUsageDetail() {
+    el.usageDetail.classList.remove("open");
+    if (state.usage.selectedTurnIndex !== null) {
+      state.usage.selectedTurnIndex = null;
+      renderUsageChart();
+    }
+  }
+
+  el.usageDetailCloseBtn.addEventListener("click", closeUsageDetail);
+
+  function resetUsage() {
+    state.usage.turns = [];
+    state.usage.selectedTurnIndex = null;
+    state.usage.view = { x: 0, y: 0, scale: 1 };
+    state.usage.autoFit = true;
+    closeUsageDetail();
+    renderUsageChart();
+  }
+
+  el.usageResetBtn.addEventListener("click", () => {
+    resetUsage();
+    toast("Token usage history cleared.");
+  });
+
+  // ---------------------------------------------------------------
   // Chat transcript rendering
   // ---------------------------------------------------------------
   function scrollToBottom() {
@@ -1457,6 +2008,37 @@
         bubble.textContent = hasText ? `${bubble.textContent}\n\n⚠ ${message}` : message;
         scrollToBottom();
       },
+
+      // User-initiated stop (see stopCurrentTurn) -- NOT an error, so
+      // deliberately not styled like one: whatever partial answer had
+      // streamed in by the time the backend's cancellation took effect
+      // is kept and rendered normally, just with a small "Stopped" badge
+      // instead of the usual timestamp/copy row.
+      showStopped(text) {
+        recordTranscript("agent", text || "(stopped before generating a response)");
+        replaceProgressNoteWithThinking();
+        row.classList.add("stopped");
+        bubble.innerHTML = text ? renderMarkdownLite(text) : "";
+        if (!text) {
+          const empty = document.createElement("p");
+          empty.textContent = "(Stopped before generating a response.)";
+          bubble.appendChild(empty);
+        }
+        if (!metaAdded) {
+          metaAdded = true;
+          const meta = document.createElement("div");
+          meta.className = "message-meta";
+          const badge = document.createElement("span");
+          badge.className = "stopped-badge";
+          badge.textContent = "Stopped";
+          meta.appendChild(badge);
+          const time = document.createElement("span");
+          time.textContent = formatTime(new Date());
+          meta.appendChild(time);
+          col.appendChild(meta);
+        }
+        scrollToBottom();
+      },
     };
   }
 
@@ -1580,6 +2162,9 @@
     addMessage("user", text, { isMarkdown: true });
     beginNetworkTurn(text);
     el.sendBtn.disabled = true;
+    el.sendBtn.hidden = true;
+    el.stopBtn.hidden = false;
+    el.stopBtn.disabled = false;
     el.messageInput.contentEditable = "false";
 
     const live = createLiveAgentMessage();
@@ -1600,6 +2185,11 @@
         } else if (event.status === "done") {
           sawDone = true;
           live.finalize(event.response || "(empty response)");
+          recordUsageTurn(event.usage, text);
+        } else if (event.status === "stopped") {
+          sawDone = true;
+          live.showStopped(event.response || "");
+          recordUsageTurn(event.usage, text);
         } else if (event.status === "error") {
           live.showError(event.error || "The backend returned an error.");
         }
@@ -1624,6 +2214,7 @@
           if (data.status === "ok") {
             setSessionId(data.session_id);
             addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
+            recordUsageTurn(data.usage, text);
           } else {
             addMessage("error", data.error || "The backend returned an error.");
           }
@@ -1639,10 +2230,37 @@
     } finally {
       endNetworkTurn();
       el.sendBtn.disabled = false;
+      el.sendBtn.hidden = false;
+      el.stopBtn.hidden = true;
       el.messageInput.contentEditable = "true";
       el.messageInput.focus();
     }
   }
+
+  // Best-effort: asks the backend to cancel session_id's currently
+  // in-flight turn (see POST /chat/<session_id>/stop on both backends).
+  // Deliberately does NOT abort the client's own fetch()/EventSource read
+  // of the stream -- the backend's cancellation produces a proper
+  // {"status": "stopped", ...} SSE event back over this SAME still-open
+  // connection (see sendMessage's own handling of it above), which is a
+  // cleaner outcome than the client unilaterally cutting the connection
+  // and risking a race against that event actually arriving.
+  async function stopCurrentTurn() {
+    el.stopBtn.disabled = true; // avoid a duplicate POST on a double-click
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl || !state.sessionId) return;
+    try {
+      await fetch(`${baseUrl}/chat/${encodeURIComponent(state.sessionId)}/stop`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+      });
+    } catch {
+      // Best-effort -- if this fails the turn just runs to completion
+      // normally, same as if Stop had never been clicked.
+    }
+  }
+
+  el.stopBtn.addEventListener("click", stopCurrentTurn);
 
   // ---------------------------------------------------------------
   // Composer -- a contenteditable div (not a <textarea>) so bold/italic/
@@ -1944,6 +2562,7 @@
 
     setStatus("unknown", "Not connected");
     renderNetwork();
+    renderUsageChart();
     el.messageInput.focus();
   }
 

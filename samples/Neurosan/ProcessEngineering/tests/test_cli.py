@@ -8,6 +8,7 @@ it in a unit test.
 """
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -188,6 +189,49 @@ class TestLiveTraceMessageProcessor:
         assert caplog.records == []
 
 
+class TestExtractUsage:
+    """_extract_usage -- maps neuro-san's own token_accounting shape onto
+    the {prompt_tokens, completion_tokens, total_tokens, model} shape the
+    web client's Token Usage tab expects (same keys the ADK original's own
+    usage field uses)."""
+
+    def test_none_or_empty_accounting_maps_to_none(self):
+        assert cli._extract_usage(None) is None
+        assert cli._extract_usage({}) is None
+
+    def test_maps_scalar_fields_and_single_model_name(self):
+        accounting = {
+            "total_tokens": 150,
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "models": {"GoogleGenAI": {"gemini-3-flash": {"total_tokens": 150}}},
+        }
+        assert cli._extract_usage(accounting) == {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150,
+            "model": "gemini-3-flash",
+        }
+
+    def test_joins_multiple_distinct_model_names(self):
+        accounting = {
+            "total_tokens": 300,
+            "prompt_tokens": 200,
+            "completion_tokens": 100,
+            "models": {
+                "GoogleGenAI": {"gemini-3-flash": {"total_tokens": 150}},
+                "OpenAI": {"gpt-4o": {"total_tokens": 150}},
+            },
+        }
+        assert cli._extract_usage(accounting)["model"] == "gemini-3-flash + gpt-4o"
+
+    def test_missing_models_key_maps_to_none_model(self):
+        accounting = {"total_tokens": 10, "prompt_tokens": 7, "completion_tokens": 3}
+        usage = cli._extract_usage(accounting)
+        assert usage["model"] is None
+        assert usage["total_tokens"] == 10
+
+
 def test_send_logs_token_accounting_at_info(caplog):
     """ChatSession.send must surface token_accounting (previously silently
     discarded) via the standard logger at INFO, not swallow it."""
@@ -201,7 +245,12 @@ def test_send_logs_token_accounting_at_info(caplog):
                 "last_chat_response": "done",
                 "sly_data": {},
                 "chat_context": {},
-                "token_accounting": {"gemini-3-flash": {"total_tokens": 42}},
+                "token_accounting": {
+                    "total_tokens": 42,
+                    "prompt_tokens": 30,
+                    "completion_tokens": 12,
+                    "models": {"GoogleGenAI": {"gemini-3-flash": {"total_tokens": 42}}},
+                },
             }
 
     session.input_processor = _StubInputProcessor()
@@ -209,6 +258,14 @@ def test_send_logs_token_accounting_at_info(caplog):
         result = session.send("hi")
     assert result == "done"
     assert any("total_tokens" in r.getMessage() for r in caplog.records)
+    # The Token Usage tab's /chat route reads session.last_usage after
+    # send() returns -- confirm send() actually populates it, not just logs.
+    assert session.last_usage == {
+        "prompt_tokens": 30,
+        "completion_tokens": 12,
+        "total_tokens": 42,
+        "model": "gemini-3-flash",
+    }
 
 
 class _StubStreamingProcessor:
@@ -287,7 +344,10 @@ class TestChatSessionSendStreaming:
             {"status": "progress", "origin": "cloudarch", "text": "Calling Reviewer..."},
             {"status": "delta", "text": "Partial answer"},
             {"status": "delta", "text": "Final answer"},
-            {"status": "done", "response": "Final answer"},
+            # _StubStreamingProcessor.get_token_accounting() returns {} --
+            # "no accounting at all" -- so _extract_usage maps that to None
+            # (see TestExtractUsage below for the real-shape mapping).
+            {"status": "done", "response": "Final answer", "usage": None},
         ]
 
     def test_threads_chat_context_and_sly_data_forward_like_send(self):
@@ -403,6 +463,75 @@ class TestChatStreamRoute:
         monkeypatch.setenv("WEBAPIKEY", "secret")
         client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
         resp = client.post("/chat/stream", json={"query": "hello"})
+        assert resp.status_code == 401
+
+
+class TestChatStopRoute:
+    """POST /chat/<session_id>/stop -- cancels an in-flight turn by
+    reaching into the underlying DirectAgentSession's own AsyncioExecutor
+    (self.session.invocation_context.get_asyncio_executor().
+    cancel_current_tasks()). Stubs out the session/invocation_context/
+    executor chain (same stubbing style as the rest of this file) to test
+    chat_stop's OWN logic in isolation -- neuro-san's own
+    cancel_current_tasks is that library's code, not this project's, and
+    is out of scope here."""
+
+    def _build_client(self, monkeypatch, known_session=None):
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            if known_session is not None:
+                cli._web_sessions["known-session"] = known_session
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_stop_when_session_is_unknown(self, monkeypatch):
+        client = self._build_client(monkeypatch)
+        resp = client.post("/chat/unknown-session/stop")
+        assert resp.status_code == 200
+        assert resp.get_json() == {
+            "status": "ok", "session_id": "unknown-session", "stopped": False
+        }
+
+    def test_stop_when_no_turn_has_ever_started(self, monkeypatch):
+        session = SimpleNamespace(session=SimpleNamespace(invocation_context=None))
+        client = self._build_client(monkeypatch, known_session=session)
+        resp = client.post("/chat/known-session/stop")
+        assert resp.status_code == 200
+        assert resp.get_json()["stopped"] is False
+
+    def test_stop_cancels_via_the_asyncio_executor(self, monkeypatch):
+        calls = []
+
+        class _Executor:
+            def cancel_current_tasks(self, timeout):
+                calls.append(timeout)
+
+        invocation_context = SimpleNamespace(get_asyncio_executor=lambda: _Executor())
+        session = SimpleNamespace(session=SimpleNamespace(invocation_context=invocation_context))
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.post("/chat/known-session/stop")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "known-session", "stopped": True}
+        assert calls == [5.0]
+
+    def test_stop_treats_a_not_running_loop_as_nothing_to_stop(self, monkeypatch):
+        class _Executor:
+            def cancel_current_tasks(self, timeout):
+                raise RuntimeError("Loop must be running to cancel remaining tasks")
+
+        invocation_context = SimpleNamespace(get_asyncio_executor=lambda: _Executor())
+        session = SimpleNamespace(session=SimpleNamespace(invocation_context=invocation_context))
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.post("/chat/known-session/stop")
+        assert resp.status_code == 200
+        assert resp.get_json()["stopped"] is False
+
+    def test_stop_requires_auth_when_configured(self, monkeypatch):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch)
+        resp = client.post("/chat/known-session/stop")
         assert resp.status_code == 401
 
 
