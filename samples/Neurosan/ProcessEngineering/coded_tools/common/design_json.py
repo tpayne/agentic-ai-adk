@@ -86,6 +86,7 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             {
                 "id": "", "characteristic": "", "sub_characteristic": "", "description": "",
                 "metric": "", "target": "", "measurement_method": "", "priority": "",
+                "acceptance_criteria": [],
             }
         ],
     },
@@ -284,6 +285,24 @@ def validate_design_json(json_content: Any) -> Dict[str, Any]:
             "location": "low_level_design",
             "issue": f"low_level_design is required when document_type is '{document_type}'",
         })
+
+    requirements = json_content.get("requirements")
+    if isinstance(requirements, dict):
+        for requirement_type in ("functional_requirements", "non_functional_requirements"):
+            items = requirements.get(requirement_type)
+            if not isinstance(items, list):
+                continue
+            for index, item in enumerate(items):
+                if not isinstance(item, dict):
+                    continue
+                criteria = item.get("acceptance_criteria")
+                if not isinstance(criteria, list) or not any(
+                    isinstance(criterion, str) and criterion.strip() for criterion in criteria
+                ):
+                    issues.append({
+                        "location": f"requirements.{requirement_type}[{index}].acceptance_criteria",
+                        "issue": "At least one concrete, verifiable acceptance criterion is required",
+                    })
 
     return {"valid": len(issues) == 0, "issues": issues}
 

@@ -225,10 +225,18 @@ def _add_stakeholders_section(
             # (e.g. "name": "Developer"), "role" is otherwise dropped
             # entirely, so fall back to it here instead of leaving the
             # Responsibilities column blank.
-            if not responsibilities:
-                role = s.get("role")
-                if role and role != name:
-                    responsibilities = role
+            details = []
+            if responsibilities:
+                details.extend(responsibilities if isinstance(responsibilities, list) else [responsibilities])
+            role = s.get("role")
+            if role and role != name:
+                details.append(role)
+            concerns = s.get("concerns")
+            if concerns:
+                concern_items = concerns if isinstance(concerns, list) else [concerns]
+                details.append("Concerns: " + "; ".join(map(str, concern_items)))
+            if details:
+                responsibilities = details
 
             row = table.add_row().cells
             row[0].text = str(name)

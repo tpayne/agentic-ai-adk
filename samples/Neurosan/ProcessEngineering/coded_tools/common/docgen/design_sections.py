@@ -195,7 +195,7 @@ def _add_system_context_section(
                 row = table.add_row().cells
                 row[0].text = str(a.get("name", ""))
                 row[1].text = str(a.get("type", "")).replace("_", " ").title()
-                row[2].text = str(a.get("description", ""))
+                row[2].text = str(a.get("description") or a.get("role") or "")
             apply_iso_table_formatting(table, doc)
             doc.add_paragraph()
 
