@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from coded_tools.cloudarch import finops
 from coded_tools.cloudarch.drawio_graph import parse_drawio_graph
+from coded_tools.cloudarch import pricing
 
 # node_ec2's value embeds real <b>/<br/>/<font> tags (escaped as XML
 # entities in the source, as a real drawio file would have them, and
@@ -95,6 +96,304 @@ def test_size_multiplier_small_discounts_cost():
 
 def test_size_multiplier_no_keyword_is_baseline():
     assert finops._size_multiplier("ec2 web server") == 1.0
+
+
+def test_find_sku_and_region_for_each_provider():
+    assert pricing._find_sku_and_region("aws4", "m5.xlarge in us-east-1") == (
+        "m5.xlarge",
+        "us-east-1",
+    )
+    assert pricing._find_sku_and_region("azure", "Standard_D2s_v3 in East US") == (
+        "Standard_D2s_v3",
+        "eastus",
+    )
+    assert pricing._find_sku_and_region("gcp2", "n2-standard-4 in us-central1") == (
+        "n2-standard-4",
+        "us-central1",
+    )
+
+
+def test_azure_price_catalog_returns_hourly_vm_rate():
+    with patch.object(
+        pricing,
+        "_get_json",
+        return_value={
+            "Items": [
+                {
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                    "retailPrice": 0.12,
+                    "effectiveStartDate": "2026-01-01T00:00:00Z",
+                    "meterName": "D2s v3",
+                },
+                {
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                    "retailPrice": 0.01,
+                    "effectiveStartDate": "2026-06-01T00:00:00Z",
+                    "meterName": "D2s v3 Spot",
+                },
+                {
+                    "type": "DevTestConsumption",
+                    "unitOfMeasure": "1 Hour",
+                    "retailPrice": 0.02,
+                    "effectiveStartDate": "2026-06-01T00:00:00Z",
+                    "meterName": "D2s v3",
+                },
+            ]
+        },
+    ) as get_json:
+        assert pricing._azure_hourly_price("Standard_D2s_v3", "eastus", windows=False) == 0.12
+
+    request_url = get_json.call_args.args[0]
+    assert "prices.azure.com/api/retail/prices" in request_url
+    assert "armSkuName" in request_url
+    assert "eastus" in request_url
+
+
+def test_aws_price_list_parses_on_demand_hourly_price():
+    from botocore.session import get_session
+
+    price_list = {
+        "terms": {
+            "OnDemand": {
+                "term": {
+                    "priceDimensions": {
+                        "dimension": {
+                            "unit": "Hrs",
+                            "pricePerUnit": {"USD": "0.192"},
+                        }
+                    }
+                }
+            }
+        }
+    }
+    with patch("botocore.session.get_session") as make_session:
+        client = make_session.return_value.create_client.return_value
+        client.get_products.return_value = {"PriceList": [json.dumps(price_list)]}
+        assert pricing._aws_hourly_price("m5.xlarge", "us-east-1", False) == 0.192
+
+    make_session.return_value.create_client.assert_called_once_with("pricing", region_name="us-east-1")
+    assert client.get_products.call_args.kwargs["Filters"][0]["Value"] == "us-east-1"
+
+
+def test_google_catalog_combines_cpu_and_memory_rates_for_vm_shape():
+    def pricing_info(price, unit_description):
+        return [{
+            "effectiveTime": "2025-01-01T00:00:00Z",
+            "pricingExpression": {
+                "usageUnit": "h",
+                "usageUnitDescription": unit_description,
+                "tieredRates": [{
+                    "startUsageAmount": 0,
+                    "unitPrice": {"currencyCode": "USD", "units": 0, "nanos": int(price * 1e9)},
+                }],
+            },
+        }]
+
+    with patch.object(
+        pricing,
+        "_get_json",
+        return_value={
+            "skus": [
+                {
+                    "description": "N2 Instance Core running in Iowa",
+                    "serviceRegions": ["us-central1"],
+                    "pricingInfo": pricing_info(0.03, "hour"),
+                },
+                {
+                    "description": "N2 Instance Ram running in Iowa",
+                    "serviceRegions": ["us-central1"],
+                    "pricingInfo": pricing_info(0.004, "gibibyte hour"),
+                },
+            ]
+        },
+    ):
+        hourly = pricing._google_compute_hourly_price("n2-standard-4", "us-central1", "test-key")
+
+    assert hourly == 0.184
+
+
+def test_live_compute_price_uses_monthly_provider_rate_and_reuses_cache():
+    cache = {}
+    with patch.object(pricing, "_aws_hourly_price", return_value=0.2) as get_price:
+        first = pricing.lookup_compute_price("aws4", "m5.xlarge in us-east-1", cache)
+        second = pricing.lookup_compute_price("aws4", "web server m5.xlarge us-east-1", cache)
+
+    assert first == second
+    assert first["monthly_cost_usd"] == 146.0
+    assert first["source"] == "AWS Price List API (On-Demand)"
+    get_price.assert_called_once_with("m5.xlarge", "us-east-1", False)
+
+
+def test_unavailable_provider_catalog_returns_to_heuristic_estimate():
+    with patch.object(pricing, "_aws_hourly_price", side_effect=TimeoutError):
+        assert pricing.lookup_compute_price("aws4", "m5.xlarge us-east-1") is None
+
+
+def test_full_estimate_uses_provider_rate_without_double_applying_size():
+    live_price = {
+        "monthly_cost_usd": 219.0,
+        "hourly_rate_usd": 0.3,
+        "sku": "m5.xlarge",
+        "region": "us-east-1",
+        "source": "AWS Price List API (On-Demand)",
+        "assumption": "On-demand, 730 operating hours per month",
+    }
+    with patch.object(finops, "lookup_compute_price", return_value=live_price):
+        result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+
+    compute = next(c for c in result["cost_estimate"]["components"] if c["id"] == "node_ec2")
+    assert compute["monthly_cost_usd"] == 219.0
+    assert compute["size_multiplier"] == 2.0
+    assert compute["pricing_basis"] == "provider_catalog"
+    assert result["cost_estimate"]["provider_priced_component_count"] == 1
+    assert result["cost_estimate"]["heuristic_component_count"] == 3
+    assert result["cost_estimate"]["pricing_sources"] == ["AWS Price List API (On-Demand)"]
+
+
+def test_missing_google_billing_key_keeps_catalog_lookup_optional():
+    with patch.dict("os.environ", {}, clear=True):
+        assert pricing.lookup_compute_price("gcp2", "n2-standard-4 us-central1") is None
+
+
+def test_google_catalog_lookup_uses_api_key_when_configured():
+    with (
+        patch.dict("os.environ", {"GOOGLE_CLOUD_BILLING_API_KEY": "test-key"}),
+        patch.object(pricing, "_google_compute_hourly_price", return_value=0.1) as get_price,
+    ):
+        result = pricing.lookup_compute_price("gcp2", "n2-standard-4 us-central1")
+
+    assert result["monthly_cost_usd"] == 73.0
+    assert result["source"] == "Google Cloud Billing Catalog API"
+    get_price.assert_called_once_with("n2-standard-4", "us-central1", "test-key")
+
+
+def test_explicit_usage_parser_accepts_multiple_monthly_meters():
+    assert pricing._explicit_usages(
+        "sku: gateway-plan; usage: 730 hours/month; usage: 1,000,000 requests/month"
+    ) == [(730.0, "hours"), (1000000.0, "requests")]
+
+
+def test_catalog_price_sums_all_explicit_non_compute_meters():
+    records = [
+        {"sku": "gateway-plan", "unit": "Hrs", "rate": "0.05", "source": "AWS Price List API"},
+        {"sku": "gateway-plan", "unit": "Requests", "rate": "0.000001", "source": "AWS Price List API"},
+    ]
+    with patch.object(pricing, "_aws_catalog_records", return_value=records):
+        result = pricing.lookup_catalog_resource_price(
+            "aws4",
+            "api_gateway",
+            "service code: AmazonApiGateway\nsku: gateway-plan\n"
+            "usage: 730 hours/month\nusage: 1,000,000 requests/month",
+        )
+
+    assert result["monthly_cost_usd"] == 37.5
+    assert result["source"] == "AWS Price List API"
+    assert len(result["usage_meters"]) == 2
+
+
+def test_catalog_price_matches_storage_capacity_month_units():
+    record = {
+        "sku": "Standard_LRS",
+        "unit": "1 GB/Month",
+        "rate": 0.02,
+        "region": "eastus",
+        "source": "Azure Retail Prices API",
+    }
+    with patch.object(pricing, "_azure_catalog_records", return_value=[record]):
+        result = pricing.lookup_catalog_resource_price(
+            "azure",
+            "storage_account",
+            "service: Storage\nsku: Standard_LRS\nregion: eastus\nusage: 500 GB/month",
+        )
+
+    assert result["monthly_cost_usd"] == 10.0
+    assert result["usage_meters"][0]["catalog_unit"] == "1 GB/Month"
+
+
+def test_google_catalog_prices_a_resource_with_explicit_usage():
+    record = {
+        "sku": "catalog-sku-id",
+        "unit": "gibibyte month",
+        "rate": 0.02,
+        "region": "us-central1",
+        "source": "Google Cloud Billing Catalog API",
+    }
+    with (
+        patch.dict("os.environ", {"GOOGLE_CLOUD_BILLING_API_KEY": "test-key"}),
+        patch.object(pricing, "_google_catalog_records", return_value=[record]),
+    ):
+        result = pricing.lookup_catalog_resource_price(
+            "gcp2",
+            "cloud_storage",
+            "service id: storage-service-id\nsku: catalog-sku-id\n"
+            "region: us-central1\nusage: 500 GiB/month",
+        )
+
+    assert result["monthly_cost_usd"] == 10.0
+    assert result["source"] == "Google Cloud Billing Catalog API"
+
+
+def test_catalog_price_falls_back_when_meter_is_ambiguous_or_missing():
+    records = [
+        {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000001},
+        {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000002},
+    ]
+    with patch.object(pricing, "_aws_catalog_records", return_value=records):
+        ambiguous = pricing.lookup_catalog_resource_price(
+            "aws4",
+            "api_gateway",
+            "service code: AmazonApiGateway\nsku: gateway-plan\nusage: 1000 requests/month",
+        )
+        incomplete = pricing.lookup_catalog_resource_price(
+            "aws4",
+            "api_gateway",
+            "service code: AmazonApiGateway\nsku: gateway-plan\n"
+            "usage: 1000 requests/month\nusage: 100 hours/month",
+        )
+
+    assert ambiguous is None
+    assert incomplete is None
+
+
+def test_google_generic_catalog_refuses_differential_tiers():
+    sku = {
+        "pricingInfo": [{
+            "effectiveTime": "2025-01-01T00:00:00Z",
+            "pricingExpression": {
+                "usageUnit": "GiBy",
+                "usageUnitDescription": "gibibyte month",
+                "tieredRates": [
+                    {"startUsageAmount": 0, "unitPrice": {"currencyCode": "USD", "units": 0}},
+                    {"startUsageAmount": 10, "unitPrice": {"currencyCode": "USD", "units": 0.02}},
+                ],
+            },
+        }],
+    }
+    assert pricing._google_unit_price(sku) is None
+
+
+def test_full_estimate_can_catalog_price_a_non_compute_component():
+    catalog_price = {
+        "monthly_cost_usd": 10.0,
+        "sku": "Standard_LRS",
+        "region": "eastus",
+        "source": "Azure Retail Prices API",
+        "usage_meters": [{"usage_quantity": 500, "usage_unit": "GB"}],
+        "assumption": "Explicitly stated monthly usage: 500 GB",
+    }
+    with patch.object(
+        finops,
+        "lookup_catalog_resource_price",
+        side_effect=lambda _, slug, __, ___: catalog_price if slug == "s3" else None,
+    ):
+        result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+
+    storage = next(c for c in result["cost_estimate"]["components"] if c["id"] == "node_s3")
+    assert storage["monthly_cost_usd"] == 10.0
+    assert storage["pricing_basis"] == "provider_catalog"
+    assert storage["pricing_usage_meters"][0]["usage_quantity"] == 500
 
 
 def test_no_diagram_available():

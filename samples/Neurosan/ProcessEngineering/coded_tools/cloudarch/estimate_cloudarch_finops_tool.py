@@ -7,10 +7,12 @@ from coded_tools.cloudarch.finops import estimate_cloudarch_finops
 
 
 class EstimateCloudarchFinopsCodedTool(CodedTool):
-    """Estimates a rough monthly cost per component (and an architecture-
-    wide total) for the current cloud architecture diagram, and generates
-    pattern-based cost-optimization recommendations. Loads the diagram
-    itself if no xml_content is passed."""
+    """Estimates monthly costs and recommendations for the current diagram.
+
+    Uses public provider catalog rates when a resource has an explicit SKU
+    and monthly usage description, retaining heuristic estimates otherwise.
+    Loads the diagram itself if no xml_content is passed.
+    """
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return estimate_cloudarch_finops(args.get("xml_content"))

@@ -7,9 +7,11 @@ pure Python, nothing neuro-san-specific. Same reasoning as that module's own
 docstring: there is no dedicated cost/instance-size schema anywhere in this
 project, so sizing signals are recovered from each vertex's shape_slug
 (service family) plus whatever free text the generating agent wrote into
-that component's bullets. Costs are deliberately coarse, order-of-magnitude
-estimates for a typical/default-sized deployment of each category -- useful
-for relative comparison and conversation-starting, not a quote.
+that component's bullets. When components specify a supported SKU and their
+monthly billable usage, this uses public provider catalog rates for those
+meters. Explicitly sized compute can also use a catalog rate with the existing
+730-hour assumption. Other components retain the original coarse category
+estimates. Neither is a quote.
 """
 
 import json
@@ -17,6 +19,10 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from coded_tools.cloudarch.drawio_graph import parse_drawio_graph
+from coded_tools.cloudarch.pricing import (
+    lookup_catalog_resource_price,
+    lookup_compute_price,
+)
 from coded_tools.common.drawio_persistence import load_drawio_xml
 from coded_tools.common.master_json import load_master_json
 from coded_tools.common.paths import output_path
@@ -238,12 +244,13 @@ def _persist_results(results: Dict[str, Any]) -> None:
 
 
 def estimate_cloudarch_finops(xml_content: Any = None) -> str:
-    """Estimates a rough monthly cost per component (and an architecture-
-    wide total) from the current cloud architecture diagram's own shape/
-    label/bullet text, and generates pattern-based cost-optimization
-    recommendations. The argument is optional: the normal path is to call
-    this with no argument at all, since the tool loads the current diagram
-    itself via load_drawio_xml if none is passed."""
+    """Estimates monthly component costs and optimization opportunities.
+
+    Resources with explicit SKU and monthly usage details use public provider
+    catalog prices when a matching rate is available. Compute with an
+    explicit VM SKU and region can also use the legacy 730-hour rate lookup.
+    Otherwise, the existing category heuristic remains in effect.
+    """
     try:
         if not xml_content:
             loaded = load_drawio_xml()
@@ -271,6 +278,7 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
 
         components: List[Dict[str, Any]] = []
         full_text_parts: List[str] = []
+        pricing_cache: Dict[Tuple[str, ...], Optional[Dict[str, Any]]] = {}
         for v in vertices:
             label, bullets = _split_label_and_bullets(v.get("value", ""))
             haystack = f"{(v.get('shape_slug') or '').lower()} {label.lower()} {' '.join(bullets).lower()}"
@@ -278,6 +286,23 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
 
             category, base_cost, confidence = _classify_component(v.get("shape_slug", ""), haystack)
             multiplier = _size_multiplier(haystack)
+            live_price = lookup_catalog_resource_price(
+                v.get("shape_provider", ""),
+                v.get("shape_slug", ""),
+                haystack,
+                pricing_cache,
+            )
+            if live_price is None and category == "compute":
+                live_price = lookup_compute_price(
+                    v.get("shape_provider", ""),
+                    haystack,
+                    pricing_cache,
+                )
+            monthly_cost = (
+                live_price["monthly_cost_usd"]
+                if live_price is not None
+                else round(base_cost * multiplier, 2)
+            )
 
             components.append({
                 "id": v["id"],
@@ -286,7 +311,14 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
                 "category": category,
                 "confidence": confidence,
                 "size_multiplier": multiplier,
-                "monthly_cost_usd": round(base_cost * multiplier, 2),
+                "monthly_cost_usd": monthly_cost,
+                "pricing_basis": "provider_catalog" if live_price is not None else "heuristic",
+                "pricing_source": live_price["source"] if live_price is not None else None,
+                "pricing_sku": live_price["sku"] if live_price is not None else None,
+                "pricing_region": live_price["region"] if live_price is not None else None,
+                "hourly_rate_usd": live_price.get("hourly_rate_usd") if live_price is not None else None,
+                "pricing_usage_meters": live_price.get("usage_meters") if live_price is not None else None,
+                "pricing_assumption": live_price["assumption"] if live_price is not None else None,
                 "haystack": haystack,  # internal only -- stripped before returning below
             })
 
@@ -304,6 +336,8 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
             cost_risk_rating = "Medium"
 
         public_components = [{k: v for k, v in c.items() if k != "haystack"} for c in components]
+        provider_priced_components = [c for c in components if c["pricing_basis"] == "provider_catalog"]
+        pricing_sources = sorted({c["pricing_source"] for c in provider_priced_components})
 
         result = {
             "cost_estimate": {
@@ -311,6 +345,9 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
                 "currency": "USD",
                 "components": public_components,
                 "unclassified_component_count": len(unclassified),
+                "provider_priced_component_count": len(provider_priced_components),
+                "heuristic_component_count": len(components) - len(provider_priced_components),
+                "pricing_sources": pricing_sources,
             },
             "optimization_recommendations": recommendations,
             "cost_risk_rating": cost_risk_rating,
