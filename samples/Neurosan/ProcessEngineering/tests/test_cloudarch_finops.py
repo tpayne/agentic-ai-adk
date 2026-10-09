@@ -394,6 +394,16 @@ def test_full_estimate_can_catalog_price_a_non_compute_component():
     assert storage["monthly_cost_usd"] == 10.0
     assert storage["pricing_basis"] == "provider_catalog"
     assert storage["pricing_usage_meters"][0]["usage_quantity"] == 500
+    assert "1 of 4 component costs are grounded" in result["cost_estimate"]["pricing_method_summary"]
+    assert "Azure Retail Prices API" in result["cost_estimate"]["pricing_method_summary"]
+
+
+def test_estimate_explicitly_reports_heuristic_only_costs():
+    result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+    assert result["cost_estimate"]["pricing_method_summary"] == (
+        "No component costs were grounded in provider pricing catalogs; "
+        "all 4 component costs use heuristic estimates."
+    )
 
 
 def test_no_diagram_available():

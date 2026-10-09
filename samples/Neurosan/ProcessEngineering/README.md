@@ -138,7 +138,9 @@ functionally — see [Verification](#verification)):
   can list separate monthly usage lines for hours and requests. The agent only applies catalog
   pricing when each stated usage meter has a unique matching USD rate, and does not infer traffic,
   storage, retention, or request volumes. Catalog rates are public prices and exclude
-  account-specific discounts; legacy compute pricing without explicit usage assumes one VM running
+  account-specific discounts. The estimate reports which component prices are API-grounded versus
+  heuristic, making clear which amounts come from provider catalog rates rather than general LLM
+  reasoning. Legacy compute pricing without explicit usage assumes one VM running
   730 hours per month. Components without sufficiently detailed, accessible matching catalog data
   retain the existing rough estimate. These estimates are not quotes and should be confirmed with
   the provider's pricing calculator or actual billing data.

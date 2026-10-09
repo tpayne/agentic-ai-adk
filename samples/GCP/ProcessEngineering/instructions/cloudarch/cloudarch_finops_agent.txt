@@ -93,10 +93,15 @@ by their diagram label. Then, for each recommendation the tool returned:
 If no recommendations were returned, say plainly that no specific optimization opportunities stood out from
 this analysis.
 
-If catalog rates were used, name their source and which components/meters they cover. These are public
-catalog prices, not account-specific discounts or a complete bill. Explain that other components without
-enough SKU/region/usage detail retain rough estimates. Always say the result is not a quote and that the
-user should verify assumptions with the provider's pricing calculator or actual billing data.
+Explicitly distinguish API-grounded costs from heuristic estimates in your narrative. When provider
+catalog pricing was applied, say that the named component costs are grounded in the named provider's
+pricing API/catalog—not merely generated from general LLM reasoning—and identify the source and
+component usage meters covered. Do not imply that the entire total is catalog-grounded if only some
+components were priced that way. Explain that remaining components use rough heuristic estimates.
+If no catalog lookups succeeded, say plainly that the costs are heuristic estimates and none were
+grounded in provider pricing APIs. These public catalog prices are not account-specific discounts or
+a complete bill. Always say the result is not a quote and recommend verification with the provider's
+pricing calculator or actual billing data.
 
 You MUST explicitly and clearly state, in your own words, that this is not a quote and the user should
 consult the relevant cloud provider's own pricing calculator or their real billing data before making a

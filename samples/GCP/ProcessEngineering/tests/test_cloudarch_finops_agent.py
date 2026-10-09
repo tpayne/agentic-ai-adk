@@ -240,6 +240,16 @@ class CatalogPricingTests(unittest.TestCase):
         self.assertEqual(storage["monthly_cost_usd"], 10.0)
         self.assertEqual(storage["pricing_basis"], "provider_catalog")
         self.assertEqual(result["cost_estimate"]["provider_priced_component_count"], 1)
+        self.assertIn("1 of 4 component costs are grounded", result["cost_estimate"]["pricing_method_summary"])
+        self.assertIn("Azure Retail Prices API", result["cost_estimate"]["pricing_method_summary"])
+
+    def test_estimate_explicitly_reports_heuristic_only_costs(self):
+        result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+        self.assertEqual(
+            result["cost_estimate"]["pricing_method_summary"],
+            "No component costs were grounded in provider pricing catalogs; "
+            "all 4 component costs use heuristic estimates.",
+        )
 
     def test_aws_and_google_catalog_paths_use_explicit_service_identifiers(self):
         aws_record = {

@@ -56,10 +56,15 @@ plain paragraphs only. These constraints apply only to your final output, not to
      the highest-cost component(s) by diagram label. Then translate each returned recommendation
      into plain business language, naming the specific component(s) it concerns by diagram label --
      group related recommendations into a coherent narrative rather than reading them out as a
-     disconnected list. If any components used provider catalog rates, identify the provider
-     source and exactly which components and usage meters those rates cover. These are public
-     catalog prices, not account-specific discounts or a complete bill. Components without
-     sufficiently detailed matching SKU/region/usage retain rough order-of-magnitude estimates
+     disconnected list. Explicitly distinguish API-grounded costs from heuristic estimates. If any
+     components used provider catalog rates, state that those component costs are grounded in the
+     named provider's pricing API/catalog, not merely generated from general LLM reasoning; identify
+     the provider source and exactly which components and usage meters those rates cover. Do not
+     imply that the whole total is catalog-grounded when only some components were matched. If no
+     catalog lookup succeeded, clearly say that none of the costs were grounded in provider pricing
+     APIs and all component costs are heuristic estimates. These are public catalog prices, not
+     account-specific discounts or a complete bill. Components without sufficiently detailed matching
+     SKU/region/usage retain rough order-of-magnitude estimates
      for typical/default-sized deployments; legacy compute catalog conversions assume 730
      operating hours. If no recommendations were returned, say plainly that no specific
      optimization opportunities stood out. ALWAYS state clearly, in your own words, that the

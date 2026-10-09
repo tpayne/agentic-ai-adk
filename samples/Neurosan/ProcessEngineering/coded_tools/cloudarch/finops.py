@@ -338,6 +338,18 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
         public_components = [{k: v for k, v in c.items() if k != "haystack"} for c in components]
         provider_priced_components = [c for c in components if c["pricing_basis"] == "provider_catalog"]
         pricing_sources = sorted({c["pricing_source"] for c in provider_priced_components})
+        heuristic_component_count = len(components) - len(provider_priced_components)
+        if provider_priced_components:
+            pricing_method_summary = (
+                f"{len(provider_priced_components)} of {len(components)} component costs are grounded "
+                f"in provider pricing catalogs ({', '.join(pricing_sources)}); "
+                f"{heuristic_component_count} use heuristic estimates."
+            )
+        else:
+            pricing_method_summary = (
+                f"No component costs were grounded in provider pricing catalogs; all {len(components)} "
+                "component costs use heuristic estimates."
+            )
 
         result = {
             "cost_estimate": {
@@ -346,8 +358,9 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
                 "components": public_components,
                 "unclassified_component_count": len(unclassified),
                 "provider_priced_component_count": len(provider_priced_components),
-                "heuristic_component_count": len(components) - len(provider_priced_components),
+                "heuristic_component_count": heuristic_component_count,
                 "pricing_sources": pricing_sources,
+                "pricing_method_summary": pricing_method_summary,
             },
             "optimization_recommendations": recommendations,
             "cost_risk_rating": cost_risk_rating,
