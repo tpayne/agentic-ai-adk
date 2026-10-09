@@ -231,26 +231,21 @@ uv run ns check-llm-keys
 uv run ns run
 ```
 
-Starts the neuro-san server (`:8080`) and the nsflow chat UI (`:4173`). Or chat with one network
-directly from the CLI without the UI:
-
-```bash
-uv run ns chat requirements_summary
-uv run ns chat cloudarch
-uv run ns chat process
-uv run ns chat design
-uv run ns chat process_architect   # top-level front-man, routes across all other networks
-# ... or any other network under registries/ -- see Status above for the full list
-```
-
-`ns chat`'s default direct (in-process) connection mode needs `PYTHONPATH` set in your shell
-*before* it starts (Python only reads that variable at interpreter startup) — `ns run` doesn't need
-this, since it spawns the server as a child process:
+Starts the neuro-san server (`:8080`) and the nsflow chat UI (`:4173`); choose any of the
+networks listed in [Status](#status) in the UI. To chat with a network directly from the CLI,
+use its name from that table. Set `PYTHONPATH` in the shell before starting `ns chat` (Python
+reads it at interpreter startup):
 
 ```bash
 export PYTHONPATH="$(pwd)"
-uv run ns chat cloudarch
+uv run ns chat requirements_summary
+uv run ns chat design_consultant
+uv run ns chat process_architect   # top-level front-man, routes across all other networks
 ```
+
+For example, replace `requirements_summary` above with `cloudarch`, `process`,
+`design_simulation_query`, or any other network name in the Status table. The `ns run` UI does
+not need `PYTHONPATH`.
 
 Run the test suite with:
 
