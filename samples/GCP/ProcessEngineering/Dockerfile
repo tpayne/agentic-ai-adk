@@ -19,14 +19,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# /app stands in for the repo root inside the image, with the same directory
+# depth as the real repo (samples/GCP/ProcessEngineering, shared/process_toolkit)
+# so requirements.txt's unmodified "-e ../../../shared/process_toolkit" entry
+# resolves identically to local dev. This isn't just cosmetic: pip tolerates
+# "../../../" clamping at a shallower WORKDIR via plain lexical normalization,
+# but uv (used by the neuro-san port's matching Dockerfile) hard-errors on a
+# relative path that would need to go above its base directory -- matching
+# the real depth avoids relying on that pip-only leniency at all.
+WORKDIR /app/samples/GCP/ProcessEngineering
 
-# The shared package itself, copied to the exact absolute path
-# requirements.txt's "-e ../../../shared/process_toolkit" line already
-# resolves to from /app (../../../ from a one-level-deep WORKDIR clamps at
-# filesystem root) -- no path differences needed between local dev and
-# this image.
-COPY shared/process_toolkit /shared/process_toolkit
+# The shared package itself, copied to the exact path requirements.txt's own
+# "../../../shared/process_toolkit" entry already resolves to from this
+# WORKDIR -- no path differences needed between local dev and this image.
+COPY shared/process_toolkit /app/shared/process_toolkit
 
 # Copy files (paths relative to the repo-root build context)
 COPY samples/GCP/ProcessEngineering/requirements.txt .
@@ -42,11 +48,11 @@ RUN useradd -ms /bin/bash ${account}
 
 # Ensure output directories exist. The runtime CMD below reinstalls
 # requirements.txt (including -e ../../../shared/process_toolkit) as
-# ${account}, not root, so that user needs read access to /shared too.
-RUN mkdir -p /app/output/logs /app/output/subprocesses /app/output/docs \
+# ${account}, not root, so that user needs read access to the shared copy too.
+RUN mkdir -p /app/samples/GCP/ProcessEngineering/output/logs /app/samples/GCP/ProcessEngineering/output/subprocesses /app/samples/GCP/ProcessEngineering/output/docs \
     && chown -R ${account}:${account} /app/ \
-    && chmod -R o+rwx /app/ \
-    && chmod -R o+rx /shared/
+    && chmod -R o+rwx /app/samples/ \
+    && chmod -R o+rx /app/shared/
 
 USER ${account}
 

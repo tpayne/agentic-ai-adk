@@ -2,7 +2,7 @@
 name = "processengineering-adk"
 version = "0.1.0"
 description = "ADK (Google Agent Development Kit) implementation of the ProcessEngineering sample."
-requires-python = ">=3.14,<3.15"
+requires-python = ">=3.12"
 dependencies = [
     "google-adk>=2.9.2,<3.0.0",
     "google-auth>=2.17.3",

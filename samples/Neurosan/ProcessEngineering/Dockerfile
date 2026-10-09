@@ -30,13 +30,22 @@ FROM python:3.14-slim
 # specifically.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-WORKDIR /app
+# /app stands in for the repo root inside the image, with the same directory
+# depth as the real repo (samples/Neurosan/ProcessEngineering, shared/
+# process_toolkit) so pyproject.toml's unmodified "../../../shared/
+# process_toolkit" source entry resolves identically to local dev. This
+# isn't cosmetic: uv hard-errors ("cannot normalize a relative path beyond
+# the base directory") on a "../../../" that would need to go above its
+# WORKDIR's own depth -- unlike pip, it will not silently clamp at the
+# filesystem root, so the depth has to be real, not just deep enough to
+# look right.
+WORKDIR /app/samples/Neurosan/ProcessEngineering
 
 # The shared package itself, copied to the exact path pyproject.toml's own
 # "../../../shared/process_toolkit" source entry already resolves to from
-# /app (../../../ from a one-level-deep WORKDIR clamps at filesystem root)
-# -- no path differences needed between local dev and this image.
-COPY shared/process_toolkit /shared/process_toolkit
+# this WORKDIR -- no path differences needed between local dev and this
+# image.
+COPY shared/process_toolkit /app/shared/process_toolkit
 
 # Dependencies first (cached across builds unless pyproject.toml/uv.lock
 # change), application code second. Paths relative to the repo-root build
@@ -49,17 +58,17 @@ RUN uv sync --locked --no-dev
 
 ARG account=neurosan_process_user
 RUN useradd -ms /bin/bash ${account} \
-    && mkdir -p /app/output \
+    && mkdir -p /app/samples/Neurosan/ProcessEngineering/output \
     && chown -R ${account}:${account} /app \
-    && chmod -R o+rx /shared/
+    && chmod -R o+rx /app/shared/
 
 USER ${account}
 
 # Same two env vars cli.py sets for itself (see cli.py's own module
 # docstring) -- a direct/in-process neuro-san session resolves agent names
 # and CodedTool classes against these, not simply "relative to cwd".
-ENV AGENT_MANIFEST_FILE=/app/registries/manifest.hocon
-ENV AGENT_TOOL_PATH=/app/coded_tools
+ENV AGENT_MANIFEST_FILE=/app/samples/Neurosan/ProcessEngineering/registries/manifest.hocon
+ENV AGENT_TOOL_PATH=/app/samples/Neurosan/ProcessEngineering/coded_tools
 
 # Matches `ns run`'s own defaults (see README.md's "Running" section):
 # 8080 for the neuro-san HTTP/chat API, 4173 for the nsflow UI.
