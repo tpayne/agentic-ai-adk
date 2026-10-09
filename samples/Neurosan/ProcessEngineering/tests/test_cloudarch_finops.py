@@ -601,3 +601,106 @@ def test_diagram_with_no_recognizable_service_icons():
     """
     result = json.loads(finops.estimate_cloudarch_finops(layout_only_xml))
     assert result["error"] == "no_cost_data_available"
+
+
+def test_google_catalog_records_pages_through_all_results():
+    # Regression test for a bug where the page token returned by the API
+    # was never read, so every iteration silently re-fetched page 1 and
+    # results beyond it were never seen.
+    def tiered_price(value):
+        return [{
+            "pricingExpression": {
+                "usageUnit": "GiBy.mo",
+                "tieredRates": [{
+                    "startUsageAmount": 0,
+                    "unitPrice": {"currencyCode": "USD", "units": 0, "nanos": int(value * 1e9)},
+                }],
+            }
+        }]
+
+    page_one = {
+        "skus": [{"skuId": "sku-a", "description": "Resource A", "pricingInfo": tiered_price(0.01)}],
+        "nextPageToken": "page-2",
+    }
+    page_two = {
+        "skus": [{"skuId": "sku-b", "description": "Resource B", "pricingInfo": tiered_price(0.02)}],
+    }
+    with patch.object(pricing, "_get_json", side_effect=[page_one, page_two]) as get_json:
+        records = pricing._google_catalog_records("service-id", None, None, "test-key")
+
+    assert get_json.call_count == 2
+    assert "pageToken=page-2" in get_json.call_args_list[1].args[0]
+    assert {r["sku"] for r in records} == {"sku-a", "sku-b"}
+
+
+def test_aws_catalog_records_narrows_by_sku_field_before_falling_back():
+    # Regression test for a bug where the AWS query was never narrowed by
+    # the known SKU, so a large service's desired instance type could
+    # silently fall outside the page cap and never be found.
+    from unittest.mock import MagicMock
+
+    wanted_product = json.dumps({
+        "product": {"sku": "WANTED", "attributes": {"instanceType": "m5.xlarge", "regionCode": "us-east-1"}},
+        "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+            "unit": "Hrs", "pricePerUnit": {"USD": "0.192"},
+        }}}}},
+    })
+    irrelevant_product = json.dumps({
+        "product": {"sku": "IRRELEVANT", "attributes": {"instanceType": "t3.micro", "regionCode": "us-east-1"}},
+        "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+            "unit": "Hrs", "pricePerUnit": {"USD": "0.01"},
+        }}}}},
+    })
+
+    def get_products(**kwargs):
+        field_values = {f["Field"]: f["Value"] for f in kwargs.get("Filters", [])}
+        if field_values.get("instanceType") == "m5.xlarge":
+            return {"PriceList": [wanted_product]}
+        if any(k in field_values for k in ("instanceType", "volumeType", "storageClass")):
+            return {"PriceList": []}
+        return {"PriceList": [irrelevant_product]}
+
+    client = MagicMock()
+    client.get_products.side_effect = get_products
+    with patch("botocore.session.get_session") as make_session:
+        make_session.return_value.create_client.return_value = client
+        records = pricing._aws_catalog_records("AmazonEC2", "us-east-1", "m5.xlarge")
+
+    assert any(r["sku"] == "WANTED" for r in records)
+    assert not any(r["skuName"] == "t3.micro" for r in records)
+    assert any(
+        f["Field"] == "instanceType" and f["Value"] == "m5.xlarge"
+        for call in client.get_products.call_args_list
+        for f in call.kwargs["Filters"]
+    )
+
+
+def test_aws_catalog_records_falls_back_to_unfiltered_fetch_when_no_sku_field_matches():
+    # If none of the known SKU field names apply to this service, the old
+    # best-effort unfiltered fetch should still run rather than returning
+    # nothing at all.
+    from unittest.mock import MagicMock
+
+    fallback_product = json.dumps({
+        "product": {
+            "sku": "OBSCURE-1",
+            "attributes": {"regionCode": "us-east-1", "instanceType": "custom-sku"},
+        },
+        "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+            "unit": "Hrs", "pricePerUnit": {"USD": "1.5"},
+        }}}}},
+    })
+
+    def get_products(**kwargs):
+        field_values = {f["Field"]: f["Value"] for f in kwargs.get("Filters", [])}
+        if any(k in field_values for k in ("instanceType", "volumeType", "storageClass")):
+            return {"PriceList": []}
+        return {"PriceList": [fallback_product]}
+
+    client = MagicMock()
+    client.get_products.side_effect = get_products
+    with patch("botocore.session.get_session") as make_session:
+        make_session.return_value.create_client.return_value = client
+        records = pricing._aws_catalog_records("SomeObscureService", "us-east-1", "custom-sku")
+
+    assert any(r["sku"] == "OBSCURE-1" for r in records)

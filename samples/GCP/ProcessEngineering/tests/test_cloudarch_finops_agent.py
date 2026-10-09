@@ -1,4 +1,6 @@
+import contextlib
 import json
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -8,6 +10,25 @@ _install_dependency_stubs()
 from process_agents.common import utils  # noqa: E402
 from process_agents.cloudarch import cloudarch_finops_agent as finops  # noqa: E402
 from process_agents.cloudarch import pricing  # noqa: E402
+
+
+@contextlib.contextmanager
+def _real_botocore_session():
+    """_install_dependency_stubs() replaces sys.modules["urllib3"] with a
+    lightweight fake (fine for the ADK-side stubs that merely need
+    urllib3.util.retry.Retry) so the rest of this suite can avoid installing
+    real `requests`/`urllib3`. Real botocore needs the genuine package
+    (specifically `urllib3.exceptions`, which the fake lacks) -- swap the
+    fake out for the duration of a real AWS pricing-client test, then put it
+    back so later tests in this process aren't affected."""
+    stub_names = ("urllib3", "urllib3.util", "urllib3.util.retry")
+    saved = {name: sys.modules.pop(name) for name in stub_names if name in sys.modules}
+    try:
+        yield
+    finally:
+        for name in stub_names:
+            sys.modules.pop(name, None)
+        sys.modules.update(saved)
 
 
 # Mirrors test_cloudarch_simulation_agent.py's own fixture shape/style.
@@ -378,17 +399,31 @@ class CatalogPricingTests(unittest.TestCase):
             result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
 
         estimate = result["cost_estimate"]
-        self.assertEqual(estimate["pricing_fallback_reasons"], [
-            {
-                "components": ["Web Server", "Image Resizer", "Archive Bucket", "Mystery Box"],
-                "reason": "Catalog access was denied.",
-            }
-        ])
-        self.assertIn("Catalog access was denied.", estimate["pricing_method_summary"])
+        fallback_reasons = {
+            item["reason"]: item["components"]
+            for item in estimate["pricing_fallback_reasons"]
+        }
+        # node_ec2 (category "compute") also falls through to the legacy
+        # compute lookup, which fails for its own, more specific reason
+        # (its bullet text has a SKU but no region) -- the other three
+        # components never attempt that path, so they keep the original
+        # generic reason unchanged.
         self.assertEqual(
-            {c["pricing_fallback_reason"] for c in estimate["components"]},
-            {"Catalog access was denied."},
+            fallback_reasons["Catalog access was denied."],
+            ["Image Resizer", "Archive Bucket", "Mystery Box"],
         )
+        self.assertEqual(
+            fallback_reasons[
+                "Catalog access was denied. Legacy compute catalog lookup: "
+                "The legacy compute catalog lookup requires an explicit VM SKU and region."
+            ],
+            ["Web Server"],
+        )
+        self.assertIn("Catalog access was denied.", estimate["pricing_method_summary"])
+        component_reasons = {
+            c["label"]: c["pricing_fallback_reason"] for c in estimate["components"]
+        }
+        self.assertTrue(component_reasons["Web Server"].startswith("Catalog access was denied."))
 
     def test_aws_and_google_catalog_paths_use_explicit_service_identifiers(self):
         aws_record = {
@@ -435,6 +470,174 @@ class CatalogPricingTests(unittest.TestCase):
             }]
         }
         self.assertIsNone(pricing._google_unit_price(item))
+
+    def test_google_unit_price_ignores_a_not_yet_effective_future_price(self):
+        # GCP SKUs can carry more than one pricingInfo entry -- including a
+        # scheduled future price change. Sorting by effectiveTime descending
+        # without filtering to "currently effective" entries would wrongly
+        # surface that future price as if it applied today.
+        item = {
+            "pricingInfo": [
+                {
+                    "effectiveTime": "2099-01-01T00:00:00Z",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.mo",
+                        "tieredRates": [{
+                            "startUsageAmount": 0,
+                            "unitPrice": {"currencyCode": "USD", "units": 0, "nanos": int(0.05 * 1e9)},
+                        }],
+                    },
+                },
+                {
+                    "effectiveTime": "2020-01-01T00:00:00Z",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.mo",
+                        "tieredRates": [{
+                            "startUsageAmount": 0,
+                            "unitPrice": {"currencyCode": "USD", "units": 0, "nanos": int(0.02 * 1e9)},
+                        }],
+                    },
+                },
+            ]
+        }
+        price, _ = pricing._google_unit_price(item)
+        self.assertAlmostEqual(price, 0.02)
+
+    def test_google_records_pages_through_all_results(self):
+        # Regression test for a bug where the page token returned by the
+        # API was never read, so every iteration silently re-fetched page 1
+        # and results beyond it were never seen.
+        def tiered_price(value):
+            return [{
+                "pricingExpression": {
+                    "usageUnit": "GiBy.mo",
+                    "tieredRates": [{
+                        "startUsageAmount": 0,
+                        "unitPrice": {"currencyCode": "USD", "units": 0, "nanos": int(value * 1e9)},
+                    }],
+                }
+            }]
+
+        page_one = {
+            "skus": [{"skuId": "sku-a", "description": "Resource A", "pricingInfo": tiered_price(0.01)}],
+            "nextPageToken": "page-2",
+        }
+        page_two = {
+            "skus": [{"skuId": "sku-b", "description": "Resource B", "pricingInfo": tiered_price(0.02)}],
+        }
+        with patch.object(pricing, "_get_json", side_effect=[page_one, page_two]) as get_json:
+            records = pricing._google_records("service-id", None, None, "test-key")
+
+        self.assertEqual(get_json.call_count, 2)
+        self.assertIn("pageToken=page-2", get_json.call_args_list[1].args[0])
+        self.assertEqual({r["sku"] for r in records}, {"sku-a", "sku-b"})
+
+    def test_aws_records_narrows_by_sku_field_before_falling_back(self):
+        # Regression test for a bug where the AWS query was never narrowed
+        # by the known SKU, so a large service's desired instance type
+        # could silently fall outside the page cap and never be found.
+        wanted_product = json.dumps({
+            "product": {"sku": "WANTED", "attributes": {"instanceType": "m5.xlarge", "regionCode": "us-east-1"}},
+            "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+                "unit": "Hrs", "pricePerUnit": {"USD": "0.192"},
+            }}}}},
+        })
+        irrelevant_product = json.dumps({
+            "product": {"sku": "IRRELEVANT", "attributes": {"instanceType": "t3.micro", "regionCode": "us-east-1"}},
+            "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+                "unit": "Hrs", "pricePerUnit": {"USD": "0.01"},
+            }}}}},
+        })
+
+        def get_products(**kwargs):
+            field_values = {f["Field"]: f["Value"] for f in kwargs.get("Filters", [])}
+            if field_values.get("instanceType") == "m5.xlarge":
+                return {"PriceList": [wanted_product]}
+            if any(k in field_values for k in ("instanceType", "volumeType", "storageClass")):
+                return {"PriceList": []}
+            return {"PriceList": [irrelevant_product]}
+
+        from unittest.mock import MagicMock
+        client = MagicMock()
+        client.get_products.side_effect = get_products
+        with _real_botocore_session(), patch("botocore.session.get_session") as make_session:
+            make_session.return_value.create_client.return_value = client
+            records = pricing._aws_records("AmazonEC2", "us-east-1", "m5.xlarge")
+
+        self.assertTrue(any(r["sku"] == "m5.xlarge" for r in records))
+        self.assertFalse(any(r["skuName"] == "t3.micro" for r in records))
+        self.assertTrue(any(
+            f["Field"] == "instanceType" and f["Value"] == "m5.xlarge"
+            for call in client.get_products.call_args_list
+            for f in call.kwargs["Filters"]
+        ))
+
+    def test_aws_records_falls_back_to_unfiltered_fetch_when_no_sku_field_matches(self):
+        # If none of the known SKU field names apply to this service, the
+        # old best-effort unfiltered fetch should still run rather than
+        # returning nothing at all.
+        fallback_product = json.dumps({
+            "product": {"sku": "OBSCURE-1", "attributes": {"regionCode": "us-east-1"}},
+            "terms": {"OnDemand": {"term": {"priceDimensions": {"dim": {
+                "unit": "Hrs", "pricePerUnit": {"USD": "1.5"},
+            }}}}},
+        })
+
+        def get_products(**kwargs):
+            field_values = {f["Field"]: f["Value"] for f in kwargs.get("Filters", [])}
+            if any(k in field_values for k in ("instanceType", "volumeType", "storageClass")):
+                return {"PriceList": []}
+            return {"PriceList": [fallback_product]}
+
+        from unittest.mock import MagicMock
+        client = MagicMock()
+        client.get_products.side_effect = get_products
+        with _real_botocore_session(), patch("botocore.session.get_session") as make_session:
+            make_session.return_value.create_client.return_value = client
+            records = pricing._aws_records("SomeObscureService", "us-east-1", "custom-sku")
+
+        self.assertTrue(any(r["productSku"] == "OBSCURE-1" for r in records))
+
+    def test_find_sku_and_region_for_each_provider(self):
+        aws_sku, aws_region = pricing._find_sku_and_region("aws4", "Web Server m5.xlarge in us-east-1")
+        self.assertEqual((aws_sku, aws_region), ("m5.xlarge", "us-east-1"))
+
+        azure_sku, azure_region = pricing._find_sku_and_region(
+            "azure", "VM Standard_D2s_v3 in East US"
+        )
+        self.assertEqual(azure_sku, "Standard_D2s_v3")
+        self.assertEqual(azure_region, "eastus")
+
+        gcp_sku, gcp_region = pricing._find_sku_and_region("gcp2", "VM n2-standard-4 in us-central1")
+        self.assertEqual((gcp_sku, gcp_region), ("n2-standard-4", "us-central1"))
+
+    def test_lookup_compute_price_uses_legacy_fallback_for_implicit_vm_sku(self):
+        with patch.object(pricing, "_aws_hourly_price", return_value=0.192) as hourly:
+            result = pricing.lookup_compute_price("aws4", "Web Server m5.xlarge in us-east-1")
+        hourly.assert_called_once_with("m5.xlarge", "us-east-1", False)
+        self.assertEqual(result["monthly_cost_usd"], round(0.192 * 730, 2))
+        self.assertEqual(result["sku"], "m5.xlarge")
+
+    def test_estimate_falls_back_to_legacy_compute_price_for_compute_components(self):
+        legacy_result = {
+            "monthly_cost_usd": 140.16,
+            "hourly_rate_usd": 0.192,
+            "sku": "m5.xlarge",
+            "region": "us-east-1",
+            "source": "AWS Price List API (On-Demand)",
+            "assumption": "One VM; Linux on-demand; 730 operating hours per month",
+        }
+        with (
+            patch.object(finops, "lookup_catalog_resource_price", return_value=None),
+            patch.object(finops, "lookup_compute_price", side_effect=lambda *a, **k: legacy_result),
+        ):
+            result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+        web_server = next(
+            c for c in result["cost_estimate"]["components"] if c["id"] == "node_ec2"
+        )
+        self.assertEqual(web_server["monthly_cost_usd"], 140.16)
+        self.assertEqual(web_server["hourly_rate_usd"], 0.192)
+        self.assertEqual(web_server["pricing_basis"], "provider_catalog")
 
 
 if __name__ == "__main__":

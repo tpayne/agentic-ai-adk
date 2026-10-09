@@ -582,10 +582,12 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │   ├── __init__.py
 │   │   ├── cloudarch_agent.py
 │   │   ├── cloudarch_consultant_agent.py
+│   │   ├── cloudarch_finops_agent.py
 │   │   ├── cloudarch_layout_agent.py
 │   │   ├── cloudarch_pipeline_agent.py
 │   │   ├── cloudarch_reviewer_agent.py
-│   │   └── cloudarch_simulation_agent.py
+│   │   ├── cloudarch_simulation_agent.py
+│   │   └── pricing.py
 │   ├── common
 │   │   ├── __init__.py
 │   │   ├── agent_registry.py
@@ -662,6 +664,7 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
     ├── README.md
     ├── test_agent_wrappers.py
     ├── test_cloudarch_drawio_mcp.py
+    ├── test_cloudarch_finops_agent.py
     ├── test_cloudarch_layout_agent.py
     ├── test_cloudarch_simulation_agent.py
     ├── test_design_simulation_agent.py
@@ -1387,6 +1390,7 @@ children only where the module builds a composite agent.
 | `app.py` | Flask application exposing process generation, status, version, and API endpoints. | Flask application | Root workflow via `build_process_model()` |
 | `cloudarch_agent.py` | Generates cloud-architecture content and metadata. | `CloudArch_Agent` | — |
 | `cloudarch_consultant_agent.py` | Answers questions about an existing cloud architecture diagram. | `CloudArch_Consultant_Agent` | — |
+| `cloudarch_finops_agent.py` | Estimates monthly cost and cost-optimization opportunities directly from the drawio graph, preferring live CSP pricing-calculator lookups and falling back to heuristic estimates when they're unavailable. | `CloudArch_FinOps_Agent` | — |
 | `cloudarch_layout_agent.py` | Deterministic layout engine backing `save_drawio_structured`: computes zone/component sizing, positioning, and edge routing from plain zones/components/edges content with no coordinates. | None (pure layout/XML-generation functions) | — |
 | `cloudarch_pipeline_agent.py` | Repeats cloud-architecture generation, review, and approval; resets stale approval state before each run. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent`, stop controller |
 | `cloudarch_reviewer_agent.py` | Reviews generated cloud architecture and records feedback. | `CloudArch_Reviewer_Agent` | — |
@@ -1431,7 +1435,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 
 | Agent | What it does | Direct sub-agents |
 | :--- | :--- | :--- |
-| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, document, and requirements-summarization workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline`, `Requirements_Summary_Agent`, `Requirements_Consultant_Agent` |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, document, and requirements-summarization workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline`, `Requirements_Summary_Agent`, `Requirements_Consultant_Agent` |
 | `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
 | `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
 | `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
@@ -1480,6 +1484,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 | `CloudArch_Reviewer_Agent` | Reviews generated cloud architecture and supplies iteration feedback. | — |
 | `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram, grounded in its XML. | — |
 | `CloudArch_Simulation_Query_Agent` | Simulates resilience, scalability, and latency directly against an existing cloud architecture diagram. | — |
+| `CloudArch_FinOps_Agent` | Estimates monthly cost and recommends cost-optimization opportunities for an existing cloud architecture diagram, preferring live CSP pricing-calculator lookups over heuristic estimates when available. | — |
 | `Requirements_Summary_Agent` | Reads a directory of files and produces/saves a structured, traceable requirements summary (functional/non-functional/goal/constraint register with ids, source files, and acceptance criteria; conflicts, priorities, clarifications, inferred requirements, and coverage gaps). | — |
 | `Requirements_Consultant_Agent` | Answers questions about the saved requirements summary, grounded strictly in its JSON. | — |
 | `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |

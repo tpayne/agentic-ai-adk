@@ -4,14 +4,17 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPricing")
 _TIMEOUT_SECONDS = 5
 _PAGE_LIMIT = 5
+_MONTHLY_HOURS = 730
+_GOOGLE_COMPUTE_ENGINE_SERVICE_ID = "6F81-5844-456A"
 _AZURE_SERVICE_NAMES = {
     "virtual_machines": "Virtual Machines",
     "storage_accounts": "Storage",
@@ -34,6 +37,99 @@ _AZURE_SERVICE_NAMES = {
     "aks": "Azure Kubernetes Service",
     "app_service": "Azure App Service",
 }
+
+_AZURE_REGIONS = {
+    "eastus": ("eastus", "east us"),
+    "eastus2": ("eastus2", "east us 2"),
+    "westus": ("westus", "west us"),
+    "westus2": ("westus2", "west us 2"),
+    "westus3": ("westus3", "west us 3"),
+    "centralus": ("centralus", "central us"),
+    "northcentralus": ("northcentralus", "north central us"),
+    "southcentralus": ("southcentralus", "south central us"),
+    "westcentralus": ("westcentralus", "west central us"),
+    "westeurope": ("westeurope", "west europe"),
+    "northeurope": ("northeurope", "north europe"),
+    "uksouth": ("uksouth", "uk south"),
+    "southeastasia": ("southeastasia", "southeast asia"),
+    "japaneast": ("japaneast", "japan east"),
+    "australiaeast": ("australiaeast", "australia east"),
+    "canadacentral": ("canadacentral", "canada central"),
+    "brazilsouth": ("brazilsouth", "brazil south"),
+    "koreacentral": ("koreacentral", "korea central"),
+    "southafricanorth": ("southafricanorth", "south africa north"),
+    "uaenorth": ("uaenorth", "uae north"),
+    "swedencentral": ("swedencentral", "sweden central"),
+}
+
+_GCP_MEMORY_GIB_PER_VCPU = {
+    ("e2", "standard"): 4.0,
+    ("e2", "highcpu"): 1.0,
+    ("e2", "highmem"): 8.0,
+    ("n1", "standard"): 3.75,
+    ("n1", "highcpu"): 0.9,
+    ("n1", "highmem"): 6.5,
+    ("n2", "standard"): 4.0,
+    ("n2", "highcpu"): 1.0,
+    ("n2", "highmem"): 8.0,
+    ("n2d", "standard"): 4.0,
+    ("n2d", "highcpu"): 1.0,
+    ("n2d", "highmem"): 8.0,
+    ("c2", "standard"): 4.0,
+    ("c2", "highcpu"): 2.0,
+    ("c2d", "standard"): 4.0,
+    ("c2d", "highcpu"): 2.0,
+    ("c3", "standard"): 4.0,
+    ("c3", "highcpu"): 2.0,
+    ("c3", "highmem"): 8.0,
+    ("t2d", "standard"): 4.0,
+    ("t2d", "highcpu"): 1.0,
+}
+
+
+def _find_sku_and_region(provider: str, haystack: str) -> Tuple[Optional[str], Optional[str]]:
+    """Find a supported explicit VM SKU and region in free component text,
+    for the legacy per-VM compute fallback below (used when no labeled
+    `sku:`/`region:` text is present for a compute component)."""
+    provider = (provider or "").lower()
+    if "aws" in provider:
+        sku_match = re.search(
+            r"\b[a-z][0-9][a-z]?\.(?:nano|micro|small|medium|large|xlarge|[0-9]+xlarge)\b",
+            haystack,
+            re.IGNORECASE,
+        )
+        region_match = re.search(r"\b[a-z]{2}(?:-gov)?-[a-z]+-\d+\b", haystack, re.IGNORECASE)
+        return (
+            sku_match.group(0).lower() if sku_match else None,
+            region_match.group(0).lower() if region_match else None,
+        )
+
+    if "azure" in provider:
+        sku_match = re.search(r"\bStandard_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*\b", haystack, re.IGNORECASE)
+        region = None
+        lowered = haystack.lower().replace("-", " ")
+        for region_code, names in _AZURE_REGIONS.items():
+            if any(re.search(rf"\b{re.escape(name)}\b", lowered) for name in names):
+                region = region_code
+                break
+        return (sku_match.group(0) if sku_match else None, region)
+
+    if "gcp" in provider:
+        sku_match = re.search(
+            r"\b(?:e2|n1|n2d?|c2d?|c3|t2d)-(?:standard|highcpu|highmem)-\d+\b",
+            haystack,
+            re.IGNORECASE,
+        )
+        region_match = re.search(
+            r"\b(?:us|northamerica|southamerica|europe|asia|australia|africa|me)-[a-z]+[0-9]\b",
+            haystack,
+            re.IGNORECASE,
+        )
+        return (
+            sku_match.group(0).lower() if sku_match else None,
+            region_match.group(0).lower() if region_match else None,
+        )
+    return None, None
 
 
 def _get_json(url: str) -> Dict[str, Any]:
@@ -293,44 +389,75 @@ def _aws_service_code(hint: str) -> Optional[str]:
     return ranked[-1][1]
 
 
-def _aws_records(service_code: str, region: Optional[str]) -> List[Dict[str, Any]]:
+_AWS_SKU_FIELDS = ("instanceType", "volumeType", "storageClass")
+
+
+def _aws_records(service_code: str, region: Optional[str], sku: Optional[str] = None) -> List[Dict[str, Any]]:
     from botocore.session import get_session
 
     client = get_session().create_client("pricing", region_name="us-east-1")
-    filters = []
+
+    def _fetch(filters: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        rows, token = [], None
+        for _ in range(_PAGE_LIMIT):
+            args = {"ServiceCode": service_code, "Filters": filters, "MaxResults": 100}
+            if token:
+                args["NextToken"] = token
+            try:
+                response = client.get_products(**args)
+            except Exception:
+                return rows  # this filter field isn't valid for this service
+            for product_text in response.get("PriceList", []):
+                product = json.loads(product_text)
+                attrs = product.get("product", {}).get("attributes", {})
+                description = " ".join(str(value) for value in attrs.values())
+                for term in product.get("terms", {}).get("OnDemand", {}).values():
+                    for dimension in term.get("priceDimensions", {}).values():
+                        amount = dimension.get("pricePerUnit", {}).get("USD")
+                        if amount is None:
+                            continue
+                        rows.append({
+                            "sku": attrs.get("instanceType") or attrs.get("volumeType")
+                            or attrs.get("storageClass") or product.get("product", {}).get("sku"),
+                            "productSku": product.get("product", {}).get("sku"),
+                            "skuName": attrs.get("instanceType") or attrs.get("volumeType")
+                            or attrs.get("storageClass"),
+                            "description": description,
+                            "unit": dimension.get("unit"),
+                            "rate": amount,
+                            "region": attrs.get("regionCode") or attrs.get("location"),
+                            "source": "AWS Price List API (On-Demand)",
+                        })
+            token = response.get("NextToken")
+            if not token:
+                break
+        return rows
+
+    base_filters = []
     if region:
-        filters.append({"Type": "TERM_MATCH", "Field": "regionCode", "Value": region})
-    rows, token = [], None
-    for _ in range(_PAGE_LIMIT):
-        args = {"ServiceCode": service_code, "Filters": filters, "MaxResults": 100}
-        if token:
-            args["NextToken"] = token
-        response = client.get_products(**args)
-        for product_text in response.get("PriceList", []):
-            product = json.loads(product_text)
-            attrs = product.get("product", {}).get("attributes", {})
-            description = " ".join(str(value) for value in attrs.values())
-            for term in product.get("terms", {}).get("OnDemand", {}).values():
-                for dimension in term.get("priceDimensions", {}).values():
-                    amount = dimension.get("pricePerUnit", {}).get("USD")
-                    if amount is None:
-                        continue
-                    rows.append({
-                        "sku": attrs.get("instanceType") or attrs.get("volumeType")
-                        or attrs.get("storageClass") or product.get("product", {}).get("sku"),
-                        "productSku": product.get("product", {}).get("sku"),
-                        "skuName": attrs.get("instanceType") or attrs.get("volumeType")
-                        or attrs.get("storageClass"),
-                        "description": description,
-                        "unit": dimension.get("unit"),
-                        "rate": amount,
-                        "region": attrs.get("regionCode") or attrs.get("location"),
-                        "source": "AWS Price List API (On-Demand)",
-                    })
-        token = response.get("NextToken")
-        if not token:
-            break
-    return rows
+        base_filters.append({"Type": "TERM_MATCH", "Field": "regionCode", "Value": region})
+
+    if not sku:
+        return _fetch(base_filters)
+
+    # A region-only fetch is capped at _PAGE_LIMIT pages, which large
+    # services (EC2, RDS, ...) can blow through long before reaching the one
+    # SKU we actually want -- narrow the query server-side first.
+    matched: List[Dict[str, Any]] = []
+    seen_product_skus: Set[str] = set()
+    for field in _AWS_SKU_FIELDS:
+        for row in _fetch(base_filters + [{"Type": "TERM_MATCH", "Field": field, "Value": sku}]):
+            if row["productSku"] in seen_product_skus:
+                continue
+            seen_product_skus.add(row["productSku"])
+            matched.append(row)
+    if matched:
+        return matched
+
+    # None of the known SKU field names matched for this service; fall back
+    # to the old best-effort behavior and let the caller's own SKU matching
+    # filter whatever came back.
+    return _fetch(base_filters)
 
 
 def _azure_records(sku: Optional[str], region: Optional[str], service: Optional[str]) -> List[Dict[str, Any]]:
@@ -405,8 +532,10 @@ def _google_service_id(hint: str, api_key: str) -> Optional[str]:
 
 def _google_unit_price(item: Dict[str, Any]) -> Optional[Tuple[float, str]]:
     infos = item.get("pricingInfo", [])
-    infos.sort(key=lambda info: info.get("effectiveTime", ""), reverse=True)
-    for info in infos:
+    now = datetime.now(timezone.utc).isoformat()
+    current = [info for info in infos if info.get("effectiveTime", "") <= now] or infos
+    current.sort(key=lambda info: info.get("effectiveTime", ""), reverse=True)
+    for info in current:
         expression = info.get("pricingExpression", {})
         tiers = sorted(
             expression.get("tieredRates", []),
@@ -464,6 +593,9 @@ def _google_records(
                 "region": ", ".join(sorted(regions)) if regions else None,
                 "source": "Google Cloud Billing Catalog API",
             })
+        token = payload.get("nextPageToken")
+        if not token:
+            break
     return rows
 
 
@@ -483,7 +615,7 @@ def lookup_catalog_resource_price(
     )
     service_code = _detail(haystack, "service code")
     service_id = _detail(haystack, "service id")
-    region = _detail(haystack, "region")
+    region = _detail(haystack, "region") or _find_sku_and_region(provider, haystack)[1]
     pricing_region = region or ("us-east-1" if "aws" in provider else "eastus" if "azure" in provider else "us-central1")
     usage_key = "|".join(f"{amount:g}:{unit}" for amount, unit in usages)
     key = (provider, sku or "", pricing_region, service_hint, usage_key)
@@ -503,7 +635,7 @@ def lookup_catalog_resource_price(
             records = _azure_records(sku, pricing_region, service_hint)
         elif "aws" in provider:
             service_code = service_code or _aws_service_code(service_hint)
-            records = _aws_records(service_code, pricing_region) if service_code else []
+            records = _aws_records(service_code, pricing_region, sku) if service_code else []
         elif "gcp" in provider:
             api_key = os.environ.get("GOOGLE_CLOUD_BILLING_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             if not api_key:
@@ -567,3 +699,249 @@ def _catalog_failure_reason(provider: str, exc: Exception) -> str:
     if code:
         return f"{provider} catalog request failed ({code})."
     return f"{provider} catalog request failed ({error_type}); the heuristic estimate was retained."
+
+
+# ============================================================
+# LEGACY PER-VM COMPUTE PRICING FALLBACK
+# ============================================================
+# lookup_catalog_resource_price above only prices a resource when the
+# component text has a labeled `sku:`/`usage:` pair or resolves to one
+# unambiguous catalog SKU. Compute components are commonly described with
+# just an inline instance type/region (e.g. "m5.xlarge, us-east-1") with no
+# labeled fields at all -- this tier recognizes that pattern directly and
+# computes an hourly-rate-based monthly estimate for one VM.
+
+
+def _google_unit_hourly_rate(sku: Dict[str, Any]) -> Optional[float]:
+    pricing_infos = sku.get("pricingInfo", [])
+    if not pricing_infos:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    current = [item for item in pricing_infos if item.get("effectiveTime", "") <= now] or pricing_infos
+    current.sort(key=lambda item: item.get("effectiveTime", ""), reverse=True)
+    for info in current:
+        expression = info.get("pricingExpression", {})
+        unit = " ".join(
+            str(expression.get(field, "")) for field in ("usageUnit", "usageUnitDescription")
+        ).lower()
+        if not any(token in unit for token in ("hour", "hours", " h", "h ")):
+            continue
+        rates = sorted(
+            expression.get("tieredRates", []),
+            key=lambda rate: float(rate.get("startUsageAmount", 0)),
+        )
+        for rate in rates:
+            price = rate.get("unitPrice", {})
+            try:
+                if price.get("currencyCode", "USD") != "USD":
+                    continue
+                return float(price.get("units", 0)) + float(price.get("nanos", 0)) / 1_000_000_000
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _azure_hourly_price(sku: str, region: str, windows: bool) -> Optional[float]:
+    filters = (
+        f"serviceName eq 'Virtual Machines' and armRegionName eq '{region}' "
+        f"and armSkuName eq '{sku}'"
+    )
+    params = urlencode({"api-version": "2023-01-01-preview", "$filter": filters})
+    payload = _get_json(f"https://prices.azure.com/api/retail/prices?{params}")
+    items = payload.get("Items", [])
+
+    def operating_system_matches(item: Dict[str, Any]) -> bool:
+        description = " ".join(
+            str(item.get(field, "")) for field in ("productName", "skuName", "meterName")
+        ).lower()
+        is_windows = "windows" in description
+        return is_windows == windows
+
+    candidates = [
+        item for item in items
+        if item.get("type", "Consumption") == "Consumption"
+        and operating_system_matches(item)
+        and "hour" in str(item.get("unitOfMeasure", "")).lower()
+        and not any(
+            token in " ".join(
+                str(item.get(field, "")) for field in ("skuName", "meterName")
+            ).lower()
+            for token in ("spot", "low priority")
+        )
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item.get("effectiveStartDate", ""), reverse=True)
+    try:
+        price = candidates[0].get("retailPrice")
+        if price is None:
+            price = candidates[0]["unitPrice"]
+        return float(price)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _aws_hourly_price(sku: str, region: str, windows: bool) -> Optional[float]:
+    from botocore.session import get_session
+
+    client = get_session().create_client("pricing", region_name="us-east-1")
+    response = client.get_products(
+        ServiceCode="AmazonEC2",
+        Filters=[
+            {"Type": "TERM_MATCH", "Field": "regionCode", "Value": region},
+            {"Type": "TERM_MATCH", "Field": "instanceType", "Value": sku},
+            {"Type": "TERM_MATCH", "Field": "operatingSystem", "Value": "Windows" if windows else "Linux"},
+            {"Type": "TERM_MATCH", "Field": "tenancy", "Value": "Shared"},
+            {"Type": "TERM_MATCH", "Field": "preInstalledSw", "Value": "NA"},
+            {"Type": "TERM_MATCH", "Field": "capacitystatus", "Value": "Used"},
+            {"Type": "TERM_MATCH", "Field": "productFamily", "Value": "Compute Instance"},
+        ],
+        MaxResults=100,
+    )
+    for product_text in response.get("PriceList", []):
+        product = json.loads(product_text)
+        for term in product.get("terms", {}).get("OnDemand", {}).values():
+            for dimension in term.get("priceDimensions", {}).values():
+                if dimension.get("unit", "").lower() not in {"hrs", "hour", "hours"}:
+                    continue
+                value = dimension.get("pricePerUnit", {}).get("USD")
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    continue
+    return None
+
+
+def _google_compute_hourly_price(sku: str, region: str, api_key: str) -> Optional[float]:
+    machine = re.fullmatch(r"([a-z0-9]+)-(standard|highcpu|highmem)-(\d+)", sku)
+    if not machine:
+        return None
+    family, machine_class, vcpus_text = machine.groups()
+    memory_per_vcpu = _GCP_MEMORY_GIB_PER_VCPU.get((family, machine_class))
+    if memory_per_vcpu is None:
+        return None
+
+    page_token = None
+    core_rate = ram_rate = None
+    for _ in range(10):
+        params = {"key": api_key, "currencyCode": "USD", "pageSize": "5000"}
+        if page_token:
+            params["pageToken"] = page_token
+        url = (
+            f"https://cloudbilling.googleapis.com/v1/services/"
+            f"{_GOOGLE_COMPUTE_ENGINE_SERVICE_ID}/skus?{urlencode(params)}"
+        )
+        payload = _get_json(url)
+        for item in payload.get("skus", []):
+            taxonomy = item.get("geoTaxonomy", {})
+            regions = {
+                str(value).lower()
+                for value in (taxonomy.get("regions") or item.get("serviceRegions", []))
+            }
+            if region not in regions:
+                continue
+            description = str(item.get("description", "")).lower()
+            instance_label = rf"\b{re.escape(family)} (?:predefined )?instance\b"
+            if not re.search(instance_label, description):
+                continue
+            if "instance core" in description:
+                core_rate = _google_unit_hourly_rate(item)
+            elif "instance ram" in description or "instance memory" in description:
+                ram_rate = _google_unit_hourly_rate(item)
+        if core_rate is not None and ram_rate is not None:
+            return core_rate * int(vcpus_text) + ram_rate * int(vcpus_text) * memory_per_vcpu
+        page_token = payload.get("nextPageToken")
+        if not page_token:
+            break
+    return None
+
+
+def lookup_compute_price(
+    shape_provider: str,
+    haystack: str,
+    cache: Optional[Dict[Tuple[str, ...], Optional[Dict[str, Any]]]] = None,
+    diagnostics: Optional[Dict[str, str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return a monthly on-demand catalog estimate for one VM, inferring its
+    SKU/region directly from free text, or None to fall back further."""
+    provider = (shape_provider or "").lower()
+    sku, region = _find_sku_and_region(provider, haystack)
+    if not sku or not region:
+        if diagnostics is not None:
+            diagnostics["reason"] = "The legacy compute catalog lookup requires an explicit VM SKU and region."
+        return None
+    windows = "windows" in haystack.lower()
+    cache_key = (provider, sku, region, windows)
+    if cache is not None and cache_key in cache:
+        cached = cache[cache_key]
+        if cached and "__lookup_failure_reason__" in cached:
+            if diagnostics is not None:
+                diagnostics["reason"] = str(cached["__lookup_failure_reason__"])
+            return None
+        if diagnostics is not None and cached is not None:
+            diagnostics["reason"] = ""
+        return cached
+    try:
+        if "aws" in provider:
+            hourly = _aws_hourly_price(sku, region, windows)
+            source = "AWS Price List API (On-Demand)"
+        elif "azure" in provider:
+            hourly = _azure_hourly_price(sku, region, windows)
+            source = "Azure Retail Prices API"
+        elif "gcp" in provider:
+            api_key = os.environ.get("GOOGLE_CLOUD_BILLING_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            if not api_key:
+                if diagnostics is not None:
+                    diagnostics["reason"] = (
+                        "Google Cloud compute catalog lookup was skipped: set "
+                        "GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY."
+                    )
+                if cache is not None:
+                    cache[cache_key] = {
+                        "__lookup_failure_reason__": (
+                            "Google Cloud compute catalog lookup was skipped: set "
+                            "GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY."
+                        )
+                    }
+                return None
+            hourly = _google_compute_hourly_price(sku, region, api_key)
+            source = "Google Cloud Billing Catalog API"
+        else:
+            if diagnostics is not None:
+                diagnostics["reason"] = f"No compute pricing catalog is configured for provider '{provider or 'unknown'}'."
+            return None
+    except Exception as exc:
+        logger.info(
+            "Live %s price lookup unavailable for %s in %s (%s)",
+            provider, sku, region, type(exc).__name__,
+        )
+        reason = _catalog_failure_reason(provider, exc)
+        if cache is not None:
+            cache[cache_key] = {"__lookup_failure_reason__": reason}
+        if diagnostics is not None:
+            diagnostics["reason"] = reason
+        return None
+
+    if hourly is None or hourly < 0:
+        reason = f"No usable on-demand compute rate was found for {sku} in {region}."
+        if cache is not None:
+            cache[cache_key] = {"__lookup_failure_reason__": reason}
+        if diagnostics is not None:
+            diagnostics["reason"] = reason
+        return None
+    result = {
+        "monthly_cost_usd": round(hourly * _MONTHLY_HOURS, 2),
+        "hourly_rate_usd": round(hourly, 8),
+        "sku": sku,
+        "region": region,
+        "source": source,
+        "assumption": (
+            f"One VM; {'Windows' if windows else 'Linux'} on-demand; "
+            "730 operating hours per month"
+        ),
+    }
+    if cache is not None:
+        cache[cache_key] = result
+    if diagnostics is not None:
+        diagnostics["reason"] = ""
+    return result

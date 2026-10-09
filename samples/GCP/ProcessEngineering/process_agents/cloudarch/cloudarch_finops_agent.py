@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from google.genai import types
 
 from ..common.utils import load_drawio, load_master_process_json, load_requirements_summary, parse_drawio_graph
-from .pricing import lookup_catalog_resource_price
+from .pricing import lookup_catalog_resource_price, lookup_compute_price
 
 logger = logging.getLogger("ProcessArchitect.CloudArchFinOps")
 
@@ -306,6 +306,19 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 pricing_cache,
                 pricing_diagnostic,
             )
+            if live_price is None and category == "compute":
+                compute_diagnostic: Dict[str, str] = {}
+                live_price = lookup_compute_price(
+                    v.get("shape_provider", ""),
+                    haystack,
+                    pricing_cache,
+                    compute_diagnostic,
+                )
+                if live_price is None and compute_diagnostic.get("reason"):
+                    pricing_diagnostic["reason"] = (
+                        f"{pricing_diagnostic.get('reason', '')} "
+                        f"Legacy compute catalog lookup: {compute_diagnostic['reason']}"
+                    ).strip()
 
             components.append({
                 "id": v["id"],
@@ -326,7 +339,8 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 "pricing_source": live_price["source"] if live_price is not None else None,
                 "pricing_sku": live_price["sku"] if live_price is not None else None,
                 "pricing_region": live_price["region"] if live_price is not None else None,
-                "pricing_usage_meters": live_price["usage_meters"] if live_price is not None else None,
+                "hourly_rate_usd": live_price.get("hourly_rate_usd") if live_price is not None else None,
+                "pricing_usage_meters": live_price.get("usage_meters") if live_price is not None else None,
                 "pricing_assumption": live_price["assumption"] if live_price is not None else None,
                 "pricing_fallback_reason": (
                     pricing_diagnostic.get("reason") or None if live_price is None else None

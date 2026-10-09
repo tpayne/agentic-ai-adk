@@ -433,47 +433,72 @@ def _aws_service_code(hint: str) -> Optional[str]:
     return ranked[-1][1]
 
 
+_AWS_SKU_FIELDS = ("instanceType", "volumeType", "storageClass")
+
+
 def _aws_catalog_records(
     service_code: str, region: Optional[str], sku_hint: Optional[str]
 ) -> list[Dict[str, Any]]:
     from botocore.session import get_session
 
     client = get_session().create_client("pricing", region_name="us-east-1")
-    filters = []
+    base_filters = []
     if region:
-        filters.append({"Type": "TERM_MATCH", "Field": "regionCode", "Value": region})
-    records = []
-    token = None
-    for _ in range(_CATALOG_PAGE_LIMIT):
-        arguments: Dict[str, Any] = {
-            "ServiceCode": service_code,
-            "Filters": filters,
-            "MaxResults": 100,
-        }
-        if token:
-            arguments["NextToken"] = token
-        response = client.get_products(**arguments)
-        for product_text in response.get("PriceList", []):
-            product = json.loads(product_text)
-            attributes = product.get("product", {}).get("attributes", {})
-            product_sku = product.get("product", {}).get("sku")
-            description = " ".join(str(value) for value in attributes.values())
-            for term in product.get("terms", {}).get("OnDemand", {}).values():
-                for dimension in term.get("priceDimensions", {}).values():
-                    records.append({
-                        "sku": product_sku,
-                        "skuName": attributes.get("instanceType")
-                        or attributes.get("volumeType")
-                        or attributes.get("storageClass"),
-                        "description": description,
-                        "unit": dimension.get("unit"),
-                        "rate": dimension.get("pricePerUnit", {}).get("USD"),
-                        "region": attributes.get("regionCode") or attributes.get("location"),
-                        "source": "AWS Price List API (On-Demand)",
-                    })
-        token = response.get("NextToken")
-        if not token:
-            break
+        base_filters.append({"Type": "TERM_MATCH", "Field": "regionCode", "Value": region})
+
+    def _fetch(filters: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        rows, token = [], None
+        for _ in range(_CATALOG_PAGE_LIMIT):
+            arguments: Dict[str, Any] = {
+                "ServiceCode": service_code,
+                "Filters": filters,
+                "MaxResults": 100,
+            }
+            if token:
+                arguments["NextToken"] = token
+            try:
+                response = client.get_products(**arguments)
+            except Exception:
+                return rows  # this filter field isn't valid for this service
+            for product_text in response.get("PriceList", []):
+                product = json.loads(product_text)
+                attributes = product.get("product", {}).get("attributes", {})
+                product_sku = product.get("product", {}).get("sku")
+                description = " ".join(str(value) for value in attributes.values())
+                for term in product.get("terms", {}).get("OnDemand", {}).values():
+                    for dimension in term.get("priceDimensions", {}).values():
+                        rows.append({
+                            "sku": product_sku,
+                            "skuName": attributes.get("instanceType")
+                            or attributes.get("volumeType")
+                            or attributes.get("storageClass"),
+                            "description": description,
+                            "unit": dimension.get("unit"),
+                            "rate": dimension.get("pricePerUnit", {}).get("USD"),
+                            "region": attributes.get("regionCode") or attributes.get("location"),
+                            "source": "AWS Price List API (On-Demand)",
+                        })
+            token = response.get("NextToken")
+            if not token:
+                break
+        return rows
+
+    records: list[Dict[str, Any]] = []
+    if sku_hint:
+        # A region-only fetch is capped at _CATALOG_PAGE_LIMIT pages, which
+        # large services (EC2, RDS, ...) can blow through long before
+        # reaching the one SKU we actually want -- narrow server-side first.
+        seen_skus: set = set()
+        for field in _AWS_SKU_FIELDS:
+            for record in _fetch(base_filters + [{"Type": "TERM_MATCH", "Field": field, "Value": sku_hint}]):
+                if record["sku"] in seen_skus:
+                    continue
+                seen_skus.add(record["sku"])
+                records.append(record)
+    if not records:
+        # None of the known SKU field names matched for this service (or no
+        # SKU was given); fall back to the old best-effort unfiltered fetch.
+        records = _fetch(base_filters)
     return [
         record for record in records
         if not sku_hint or _record_matches_sku(record, sku_hint)
@@ -494,10 +519,10 @@ def _azure_catalog_records(
             filters.append(f"armRegionName eq '{escaped_region}'")
         if escaped_service:
             filters.append(f"serviceName eq '{escaped_service}'")
-        params = urlencode({
-            "api-version": "2023-01-01-preview",
-            "$filter": " and ".join(filters),
-        })
+        query: Dict[str, str] = {"api-version": "2023-01-01-preview"}
+        if filters:
+            query["$filter"] = " and ".join(filters)
+        params = urlencode(query)
         url = f"https://prices.azure.com/api/retail/prices?{params}"
         for _ in range(_CATALOG_PAGE_LIMIT):
             payload = _get_json(url)
@@ -598,6 +623,9 @@ def _google_catalog_records(
                 "region": ", ".join(sorted(regions)) if regions else None,
                 "source": "Google Cloud Billing Catalog API",
             })
+        page_token = payload.get("nextPageToken")
+        if not page_token:
+            break
     return [
         record for record in records
         if not sku_hint or _record_matches_sku(record, sku_hint)
