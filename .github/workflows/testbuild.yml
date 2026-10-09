@@ -57,7 +57,10 @@ jobs:
             build_context: .
             tag: adkprocesseng:latest
             test_cmd: |
-              echo "No runtime test available for Process Engineering sample."
+              # No LLM key in CI, so a real agent conversation can't run here
+              # -- this at least confirms the image's own dependency/import
+              # graph resolves (including the shared process_toolkit package).
+              docker run --rm --entrypoint python3 "$IMAGE_TAG" -c "import process_toolkit; import process_agents.common.utils; print('process_toolkit imports OK')"
 
           - name: neurosan_process
             context: samples/Neurosan/ProcessEngineering
