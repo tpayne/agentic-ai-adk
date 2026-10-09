@@ -7,6 +7,7 @@ from test_grounding_agent import _install_dependency_stubs
 _install_dependency_stubs()
 from process_agents.common import utils  # noqa: E402
 from process_agents.cloudarch import cloudarch_finops_agent as finops  # noqa: E402
+from process_agents.cloudarch import pricing  # noqa: E402
 
 
 # Mirrors test_cloudarch_simulation_agent.py's own fixture shape/style.
@@ -175,6 +176,116 @@ class EstimateCloudarchFinopsTests(unittest.TestCase):
         """
         result = json.loads(finops.estimate_cloudarch_finops(layout_only_xml))
         self.assertEqual(result["error"], "no_cost_data_available")
+
+
+class CatalogPricingTests(unittest.TestCase):
+    def test_multiple_usage_meters_are_parsed_and_priced(self):
+        details = (
+            "service code: AmazonApiGateway\nsku: gateway-plan\n"
+            "usage: 730 hours/month\nusage: 1,000,000 requests/month"
+        )
+        self.assertEqual(pricing._usages(details), [(730.0, "hours"), (1000000.0, "requests")])
+        result = pricing._catalog_price([
+            {"sku": "gateway-plan", "unit": "Hrs", "rate": "0.05", "source": "AWS Price List API"},
+            {"sku": "gateway-plan", "unit": "Requests", "rate": "0.000001", "source": "AWS Price List API"},
+        ], details)
+        self.assertEqual(result["monthly_cost_usd"], 37.5)
+        self.assertEqual(len(result["usage_meters"]), 2)
+
+    def test_ambiguous_or_incomplete_meter_falls_back(self):
+        records = [
+            {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000001},
+            {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000002},
+        ]
+        self.assertIsNone(pricing._catalog_price(
+            records, "sku: gateway-plan\nusage: 1000 requests/month"
+        ))
+        self.assertIsNone(pricing._catalog_price(
+            records,
+            "sku: gateway-plan\nusage: 1000 requests/month\nusage: 100 hours/month",
+        ))
+
+    def test_storage_capacity_unit_and_full_noncompute_estimate(self):
+        record = {
+            "sku": "Standard_LRS", "unit": "1 GB/Month", "rate": 0.02,
+            "region": "eastus", "source": "Azure Retail Prices API",
+        }
+        with patch.object(pricing, "_azure_records", return_value=[record]):
+            cost = pricing.lookup_catalog_resource_price(
+                "azure",
+                "s3",
+                "Storage Bucket sku: Standard_LRS region: eastus "
+                "service: Storage usage: 500 GB/month",
+            )
+        self.assertEqual(cost["monthly_cost_usd"], 10.0)
+
+        catalog_cost = {
+            "monthly_cost_usd": 10.0,
+            "sku": "Standard_LRS",
+            "region": "eastus",
+            "source": "Azure Retail Prices API",
+            "usage_meters": [{"usage_quantity": 500, "usage_unit": "GB"}],
+            "assumption": "Explicitly stated monthly usage: 500 GB",
+        }
+        with patch.object(
+            finops,
+            "lookup_catalog_resource_price",
+            side_effect=lambda _, slug, __, ___: catalog_cost if slug == "s3" else None,
+        ):
+            result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+        storage = next(
+            component for component in result["cost_estimate"]["components"]
+            if component["id"] == "node_s3"
+        )
+        self.assertEqual(storage["monthly_cost_usd"], 10.0)
+        self.assertEqual(storage["pricing_basis"], "provider_catalog")
+        self.assertEqual(result["cost_estimate"]["provider_priced_component_count"], 1)
+
+    def test_aws_and_google_catalog_paths_use_explicit_service_identifiers(self):
+        aws_record = {
+            "sku": "gateway-plan",
+            "unit": "Requests",
+            "rate": 0.000001,
+            "source": "AWS Price List API (On-Demand)",
+        }
+        with patch.object(pricing, "_aws_records", return_value=[aws_record]):
+            aws_result = pricing.lookup_catalog_resource_price(
+                "aws4",
+                "api_gateway",
+                "service code: AmazonApiGateway sku: gateway-plan usage: 1,000,000 requests/month",
+            )
+        self.assertEqual(aws_result["monthly_cost_usd"], 1.0)
+
+        google_record = {
+            "sku": "google-storage-sku",
+            "unit": "gibibyte month",
+            "rate": 0.02,
+            "source": "Google Cloud Billing Catalog API",
+        }
+        with (
+            patch.dict("os.environ", {"GOOGLE_CLOUD_BILLING_API_KEY": "test-key"}),
+            patch.object(pricing, "_google_records", return_value=[google_record]),
+        ):
+            google_result = pricing.lookup_catalog_resource_price(
+                "gcp2",
+                "cloud_storage",
+                "service id: storage-service sku: google-storage-sku usage: 500 GiB/month",
+            )
+        self.assertEqual(google_result["monthly_cost_usd"], 10.0)
+
+    def test_google_tiered_price_is_not_treated_as_flat_rate(self):
+        item = {
+            "pricingInfo": [{
+                "pricingExpression": {
+                    "usageUnit": "GiBy",
+                    "tieredRates": [
+                        {"startUsageAmount": 0, "unitPrice": {"currencyCode": "USD", "units": 0}},
+                        {"startUsageAmount": 10, "unitPrice": {"currencyCode": "USD", "units": 0.02}},
+                    ],
+                }
+            }]
+        }
+        self.assertIsNone(pricing._google_unit_price(item))
 
 
 if __name__ == "__main__":

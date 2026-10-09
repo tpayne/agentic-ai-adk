@@ -12,17 +12,9 @@
 # from each vertex's shape_slug (service family) plus whatever free text
 # the generating agent wrote into that component's bullets.
 #
-# Costs are DELIBERATELY coarse -- order-of-magnitude, default/typical-size
-# monthly USD estimates for a representative small-to-medium deployment of
-# each service category, not live/exact pricing. Same spirit as the web
-# client's own MODEL_PRICING reference table (see
-# samples/WebClient/ProcessEngineering/public/app.js): useful for relative
-# comparison and conversation-starting, not a quote. A FinOps agent's real
-# value here is flagging MAGNITUDE and PATTERN (missing autoscaling, no
-# reserved-capacity commitment, oversized instances, orphaned resources) --
-# not invoice-accurate forecasting. The instruction file says this
-# explicitly and tells the agent to recommend the provider's own pricing
-# calculator / real billing data for precision.
+# Catalog prices ground any resource with an explicit SKU and all monthly
+# billable usage meters. Components without exact matching catalog rates
+# retain the existing order-of-magnitude heuristic estimates.
 
 import json
 import logging
@@ -31,6 +23,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from google.genai import types
 
 from ..common.utils import load_drawio, load_master_process_json, load_requirements_summary, parse_drawio_graph
+from .pricing import lookup_catalog_resource_price
 
 logger = logging.getLogger("ProcessArchitect.CloudArchFinOps")
 
@@ -265,19 +258,10 @@ def _persist_cloudarch_finops_results(results: Dict[str, Any]) -> None:
 
 def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
     """
-    Estimates a rough monthly cost per component (and an architecture-wide
-    total) from the current cloud architecture diagram's own shape/label/
-    bullet text, and generates pattern-based cost-optimization
-    recommendations (oversized instances, missing autoscaling, no
-    reserved-capacity commitment, no storage lifecycle policy, orphaned
-    components). The argument is optional: the normal path is to call this
-    with no argument at all, since the tool loads the current diagram
-    itself via load_drawio if none is passed.
-
-    Costs are deliberately coarse, default/typical-size estimates for
-    relative comparison -- NOT a quote. See this module's own top-of-file
-    docstring for why, and the instruction file for how this is framed to
-    the user.
+    Estimates monthly costs and optimization opportunities from diagram
+    components. Provider catalog prices are used for any resource with an
+    explicit SKU and monthly usage meters when every meter has a unique
+    matching rate. Otherwise, the existing category heuristic is retained.
     """
     try:
         if not xml_content:
@@ -306,6 +290,7 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
 
         components: List[Dict[str, Any]] = []
         full_text_parts: List[str] = []
+        pricing_cache: Dict[Tuple[str, ...], Optional[Dict[str, Any]]] = {}
         for v in vertices:
             label, bullets = _split_label_and_bullets(v.get("value", ""))
             haystack = f"{(v.get('shape_slug') or '').lower()} {label.lower()} {' '.join(bullets).lower()}"
@@ -313,6 +298,12 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
 
             category, base_cost, confidence = _classify_component(v.get("shape_slug", ""), haystack)
             multiplier = _size_multiplier(haystack)
+            live_price = lookup_catalog_resource_price(
+                v.get("shape_provider", ""),
+                v.get("shape_slug", ""),
+                haystack,
+                pricing_cache,
+            )
 
             components.append({
                 "id": v["id"],
@@ -321,7 +312,17 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 "category": category,
                 "confidence": confidence,
                 "size_multiplier": multiplier,
-                "monthly_cost_usd": round(base_cost * multiplier, 2),
+                "monthly_cost_usd": (
+                    live_price["monthly_cost_usd"]
+                    if live_price is not None
+                    else round(base_cost * multiplier, 2)
+                ),
+                "pricing_basis": "provider_catalog" if live_price is not None else "heuristic",
+                "pricing_source": live_price["source"] if live_price is not None else None,
+                "pricing_sku": live_price["sku"] if live_price is not None else None,
+                "pricing_region": live_price["region"] if live_price is not None else None,
+                "pricing_usage_meters": live_price["usage_meters"] if live_price is not None else None,
+                "pricing_assumption": live_price["assumption"] if live_price is not None else None,
                 "haystack": haystack,  # internal only -- stripped before returning below
             })
 
@@ -339,6 +340,7 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
             cost_risk_rating = "Medium"
 
         public_components = [{k: v for k, v in c.items() if k != "haystack"} for c in components]
+        provider_priced_components = [c for c in components if c["pricing_basis"] == "provider_catalog"]
 
         result = {
             "cost_estimate": {
@@ -346,6 +348,9 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 "currency": "USD",
                 "components": public_components,
                 "unclassified_component_count": len(unclassified),
+                "provider_priced_component_count": len(provider_priced_components),
+                "heuristic_component_count": len(components) - len(provider_priced_components),
+                "pricing_sources": sorted({c["pricing_source"] for c in provider_priced_components}),
             },
             "optimization_recommendations": recommendations,
             "cost_risk_rating": cost_risk_rating,
@@ -373,7 +378,8 @@ cloudarch_finops_query_agent = ProcessLlmAgent(
     name="CloudArch_FinOps_Agent",
     description=(
         "Estimates the monthly cost of an EXISTING cloud architecture diagram, per component and in "
-        "total, and recommends concrete cost-optimization opportunities (rightsizing, autoscaling, "
+        "total, grounds explicitly detailed resources in public provider catalogs when possible, "
+        "and recommends concrete cost-optimization opportunities (rightsizing, autoscaling, "
         "reserved capacity, storage tiering, orphaned resources), in response to queries."
     ),
     tools=[

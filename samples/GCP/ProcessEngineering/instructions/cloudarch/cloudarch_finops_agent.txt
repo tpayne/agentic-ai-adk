@@ -57,6 +57,17 @@ is unreliable at this size and is not required.
 This single call covers both the per-component/total cost estimate and the optimization recommendations.
 Do not call it more than once.
 
+For any provider-supported resource, catalog pricing can be used when the diagram explicitly supplies
+`sku:` and a monthly `usage:` for every billable meter (one usage line per meter), plus `region:` where
+relevant. Supported public catalogs are Azure Retail Prices (no key), AWS Price List (AWS credentials
+with `pricing:GetProducts`), and Google Cloud Billing Catalog (`GOOGLE_CLOUD_BILLING_API_KEY` or
+`GOOGLE_API_KEY`, with the Cloud Billing API enabled). Example component details:
+`sku: Standard_LRS`, `usage: 500 GB/month`; or separate monthly usage lines for gateway hours and
+requests. Apply catalog costs only when every stated meter maps unambiguously to an exact USD rate.
+Do not infer traffic, storage, retention, request volume, or other usage from the diagram. When
+details are missing, the catalog is inaccessible, or any meter has no unique matching price, retain
+the existing heuristic estimate rather than inventing precision.
+
 -----------------------------------------------------------------------------------------------
 STEP 3 — INTERPRET RESULTS
 -----------------------------------------------------------------------------------------------
@@ -82,10 +93,16 @@ by their diagram label. Then, for each recommendation the tool returned:
 If no recommendations were returned, say plainly that no specific optimization opportunities stood out from
 this analysis.
 
-You MUST explicitly and clearly state, in your own words, that these are rough, order-of-magnitude estimates
-for a typical/default-sized deployment of each service -- not a quote -- and that the user should consult
-the relevant cloud provider's own pricing calculator or their real billing data before making a budget
-decision. Do this every time, not just once per conversation.
+If catalog rates were used, name their source and which components/meters they cover. These are public
+catalog prices, not account-specific discounts or a complete bill. Explain that other components without
+enough SKU/region/usage detail retain rough estimates. Always say the result is not a quote and that the
+user should verify assumptions with the provider's pricing calculator or actual billing data.
+
+You MUST explicitly and clearly state, in your own words, that this is not a quote and the user should
+consult the relevant cloud provider's own pricing calculator or their real billing data before making a
+budget decision. For components that use the heuristic fallback, explain that their costs are rough,
+order-of-magnitude estimates for a typical/default-sized deployment. Do this every time, not just once
+per conversation.
 
 If a meaningful fraction of components could not be confidently classified (reflected in the results, though
 you must not name this literally), say so honestly -- that some components in the diagram could not be
