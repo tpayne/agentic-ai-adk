@@ -614,6 +614,7 @@ def lookup_catalog_resource_price(
     shape_slug: str,
     haystack: str,
     cache: Optional[Dict[Tuple[str, ...], Optional[Dict[str, Any]]]] = None,
+    diagnostics: Optional[Dict[str, str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Use catalog prices for explicit details, or try a default catalog baseline."""
     provider = (shape_provider or "").lower()
@@ -629,8 +630,16 @@ def lookup_catalog_resource_price(
     usage_key = "|".join(f"{quantity:g}:{unit}" for quantity, unit in usages)
     cache_key = (provider, sku_hint or "", pricing_region, windows, service_hint, usage_key)
     if cache is not None and cache_key in cache:
-        return cache[cache_key]
+        cached = cache[cache_key]
+        if cached and "__lookup_failure_reason__" in cached:
+            if diagnostics is not None:
+                diagnostics["reason"] = str(cached["__lookup_failure_reason__"])
+            return None
+        if diagnostics is not None and cached is not None:
+            diagnostics["reason"] = ""
+        return cached
 
+    reason = ""
     try:
         if "azure" in provider:
             service_hint = _explicit_detail(haystack, "service") or _azure_service_hint(shape_slug)
@@ -639,19 +648,28 @@ def lookup_catalog_resource_price(
             explicit_code = _explicit_detail(haystack, "service code")
             service_code = explicit_code or _aws_service_code(service_hint)
             if not service_code:
-                return None
-            records = _aws_catalog_records(service_code, pricing_region, sku_hint)
+                records = []
+                reason = "AWS catalog lookup could not uniquely identify the service; add an explicit service code."
+            else:
+                records = _aws_catalog_records(service_code, pricing_region, sku_hint)
         elif "gcp" in provider:
             api_key = os.environ.get("GOOGLE_CLOUD_BILLING_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             if not api_key:
-                return None
-            explicit_id = _explicit_detail(haystack, "service id")
-            service_id = explicit_id or _google_service_id(service_hint, api_key)
-            if not service_id:
-                return None
-            records = _google_catalog_records(service_id, pricing_region, sku_hint, api_key)
+                records = []
+                reason = "Google Cloud catalog lookup was skipped: set GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY."
+                service_id = None
+            else:
+                explicit_id = _explicit_detail(haystack, "service id")
+                service_id = explicit_id or _google_service_id(service_hint, api_key)
+                records = (
+                    _google_catalog_records(service_id, pricing_region, sku_hint, api_key)
+                    if service_id else []
+                )
+                if not service_id:
+                    reason = "Google Cloud catalog lookup could not uniquely identify the service; add an explicit service id."
         else:
-            return None
+            records = []
+            reason = f"No provider pricing catalog is configured for provider '{provider or 'unknown'}'."
         result = (
             _catalog_unit_price(records, haystack)
             if explicit_details
@@ -659,6 +677,17 @@ def lookup_catalog_resource_price(
         )
         if result is not None and not region:
             result["assumption"] += f" Default region assumed: {pricing_region}."
+        if result is None and not reason:
+            if explicit_details:
+                reason = (
+                    "The provider catalog was queried, but no unique USD rate matched the stated SKU "
+                    "and every monthly usage meter."
+                )
+            else:
+                reason = (
+                    "The provider catalog was queried, but the component name did not resolve to one "
+                    "unambiguous billable SKU and supported catalog unit."
+                )
     except Exception as exc:
         logger.info(
             "Live %s catalog lookup unavailable for SKU %s (%s)",
@@ -667,9 +696,32 @@ def lookup_catalog_resource_price(
             type(exc).__name__,
         )
         result = None
+        reason = _catalog_failure_reason(provider, exc)
     if cache is not None:
-        cache[cache_key] = result
+        cache[cache_key] = result if result is not None else {"__lookup_failure_reason__": reason}
+    if diagnostics is not None:
+        diagnostics["reason"] = reason
     return result
+
+
+def _catalog_failure_reason(provider: str, exc: Exception) -> str:
+    error_type = type(exc).__name__
+    if error_type in {"NoCredentialsError", "PartialCredentialsError"}:
+        return "AWS catalog request failed: AWS credentials are not configured or are incomplete."
+    response = getattr(exc, "response", {})
+    code = str(response.get("Error", {}).get("Code", "")) if isinstance(response, dict) else ""
+    if code.startswith("AccessDenied") or code in {"UnauthorizedOperation", "UnrecognizedClientException"}:
+        return "AWS catalog request was denied; check credentials and pricing:GetProducts/DescribeServices permissions."
+    if error_type == "HTTPError":
+        status = getattr(exc, "code", None)
+        if status in (401, 403):
+            return f"{provider} catalog request was unauthorized (HTTP {status}); check API credentials and access."
+        return f"{provider} catalog request failed with HTTP {status}."
+    if error_type in {"TimeoutError", "URLError", "ConnectionError"}:
+        return f"{provider} catalog request could not complete because of a timeout or network connection failure."
+    if code:
+        return f"{provider} catalog request failed ({code})."
+    return f"{provider} catalog request failed ({error_type}); the heuristic estimate was retained."
 
 
 def _azure_hourly_price(sku: str, region: str, windows: bool) -> Optional[float]:
@@ -865,16 +917,26 @@ def lookup_compute_price(
     shape_provider: str,
     haystack: str,
     cache: Optional[Dict[Tuple[str, ...], Optional[Dict[str, Any]]]] = None,
+    diagnostics: Optional[Dict[str, str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Return a monthly on-demand catalog estimate, or None for fallback."""
     provider = (shape_provider or "").lower()
     sku, region = _find_sku_and_region(provider, haystack)
     if not sku or not region:
+        if diagnostics is not None:
+            diagnostics["reason"] = "The legacy compute catalog lookup requires an explicit VM SKU and region."
         return None
     windows = "windows" in haystack.lower()
     cache_key = (provider, sku, region, windows)
     if cache is not None and cache_key in cache:
-        return cache[cache_key]
+        cached = cache[cache_key]
+        if cached and "__lookup_failure_reason__" in cached:
+            if diagnostics is not None:
+                diagnostics["reason"] = str(cached["__lookup_failure_reason__"])
+            return None
+        if diagnostics is not None and cached is not None:
+            diagnostics["reason"] = ""
+        return cached
     try:
         if "aws" in provider:
             hourly = _aws_hourly_price(sku, region, windows)
@@ -885,10 +947,24 @@ def lookup_compute_price(
         elif "gcp" in provider:
             api_key = os.environ.get("GOOGLE_CLOUD_BILLING_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             if not api_key:
+                if diagnostics is not None:
+                    diagnostics["reason"] = (
+                        "Google Cloud compute catalog lookup was skipped: set "
+                        "GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY."
+                    )
+                if cache is not None:
+                    cache[cache_key] = {
+                        "__lookup_failure_reason__": (
+                            "Google Cloud compute catalog lookup was skipped: set "
+                            "GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY."
+                        )
+                    }
                 return None
             hourly = _google_compute_hourly_price(sku, region, api_key)
             source = "Google Cloud Billing Catalog API"
         else:
+            if diagnostics is not None:
+                diagnostics["reason"] = f"No compute pricing catalog is configured for provider '{provider or 'unknown'}'."
             return None
     except Exception as exc:
         logger.info(
@@ -898,13 +974,19 @@ def lookup_compute_price(
             region,
             type(exc).__name__,
         )
+        reason = _catalog_failure_reason(provider, exc)
         if cache is not None:
-            cache[cache_key] = None
+            cache[cache_key] = {"__lookup_failure_reason__": reason}
+        if diagnostics is not None:
+            diagnostics["reason"] = reason
         return None
 
     if hourly is None or hourly < 0:
+        reason = f"No usable on-demand compute rate was found for {sku} in {region}."
         if cache is not None:
-            cache[cache_key] = None
+            cache[cache_key] = {"__lookup_failure_reason__": reason}
+        if diagnostics is not None:
+            diagnostics["reason"] = reason
         return None
     result = {
         "monthly_cost_usd": round(hourly * _MONTHLY_HOURS, 2),
@@ -919,4 +1001,6 @@ def lookup_compute_price(
     }
     if cache is not None:
         cache[cache_key] = result
+    if diagnostics is not None:
+        diagnostics["reason"] = ""
     return result

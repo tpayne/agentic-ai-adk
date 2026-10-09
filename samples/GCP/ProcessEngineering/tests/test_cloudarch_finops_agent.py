@@ -261,6 +261,43 @@ class CatalogPricingTests(unittest.TestCase):
             "sku: gateway-plan\nusage: 1000 requests/month\nusage: 100 hours/month",
         ))
 
+    def test_catalog_lookup_diagnostics_explain_missing_key_and_unavailable_api(self):
+        google_diagnostic = {}
+        with patch.dict("os.environ", {}, clear=True):
+            result = pricing.lookup_catalog_resource_price(
+                "gcp2", "cloud_storage", "gcp2 cloud storage", diagnostics=google_diagnostic
+            )
+        self.assertIsNone(result)
+        self.assertIn("GOOGLE_CLOUD_BILLING_API_KEY", google_diagnostic["reason"])
+        self.assertIn("skipped", google_diagnostic["reason"])
+
+        aws_diagnostic = {}
+        with (
+            patch.object(pricing, "_aws_records", side_effect=TimeoutError),
+            patch.object(pricing, "_aws_service_code", return_value="AmazonS3"),
+        ):
+            result = pricing.lookup_catalog_resource_price(
+                "aws4", "s3", "aws4 s3", diagnostics=aws_diagnostic
+            )
+        self.assertIsNone(result)
+        self.assertIn("timeout or network", aws_diagnostic["reason"])
+
+    def test_catalog_lookup_diagnostics_explain_ambiguous_rate(self):
+        records = [
+            {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000001},
+            {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000002},
+        ]
+        diagnostic = {}
+        with patch.object(pricing, "_aws_records", return_value=records):
+            result = pricing.lookup_catalog_resource_price(
+                "aws4",
+                "api_gateway",
+                "service code: AmazonApiGateway sku: gateway-plan usage: 1000 requests/month",
+                diagnostics=diagnostic,
+            )
+        self.assertIsNone(result)
+        self.assertIn("no unique USD rate", diagnostic["reason"])
+
     def test_storage_capacity_unit_and_full_noncompute_estimate(self):
         record = {
             "sku": "Standard_LRS", "unit": "1 GB/Month", "rate": 0.02,
@@ -286,7 +323,7 @@ class CatalogPricingTests(unittest.TestCase):
         with patch.object(
             finops,
             "lookup_catalog_resource_price",
-            side_effect=lambda _, slug, __, ___: catalog_cost if slug == "s3" else None,
+            side_effect=lambda _, slug, __, ___, _____: catalog_cost if slug == "s3" else None,
         ):
             result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
         storage = next(
@@ -312,7 +349,7 @@ class CatalogPricingTests(unittest.TestCase):
         with patch.object(
             finops,
             "lookup_catalog_resource_price",
-            side_effect=lambda _, slug, __, ___: baseline_cost if slug == "s3" else None,
+            side_effect=lambda _, slug, __, ___, _____: baseline_cost if slug == "s3" else None,
         ):
             result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
         storage = next(
@@ -327,10 +364,30 @@ class CatalogPricingTests(unittest.TestCase):
 
     def test_estimate_explicitly_reports_heuristic_only_costs(self):
         result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
-        self.assertEqual(
-            result["cost_estimate"]["pricing_method_summary"],
+        self.assertTrue(result["cost_estimate"]["pricing_method_summary"].startswith(
             "No component costs were grounded in provider pricing catalogs; "
-            "all 4 component costs use heuristic estimates.",
+            "all 4 component costs use heuristic estimates."
+        ))
+
+    def test_heuristic_components_expose_catalog_fallback_reasons(self):
+        def unavailable(provider, slug, haystack, cache, diagnostics):
+            diagnostics["reason"] = "Catalog access was denied."
+            return None
+
+        with patch.object(finops, "lookup_catalog_resource_price", side_effect=unavailable):
+            result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+
+        estimate = result["cost_estimate"]
+        self.assertEqual(estimate["pricing_fallback_reasons"], [
+            {
+                "components": ["Web Server", "Image Resizer", "Archive Bucket", "Mystery Box"],
+                "reason": "Catalog access was denied.",
+            }
+        ])
+        self.assertIn("Catalog access was denied.", estimate["pricing_method_summary"])
+        self.assertEqual(
+            {c["pricing_fallback_reason"] for c in estimate["components"]},
+            {"Catalog access was denied."},
         )
 
     def test_aws_and_google_catalog_paths_use_explicit_service_identifiers(self):

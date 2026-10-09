@@ -401,10 +401,12 @@ def test_catalog_price_falls_back_when_meter_is_ambiguous_or_missing():
         {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000002},
     ]
     with patch.object(pricing, "_aws_catalog_records", return_value=records):
+        ambiguous_diagnostic = {}
         ambiguous = pricing.lookup_catalog_resource_price(
             "aws4",
             "api_gateway",
             "service code: AmazonApiGateway\nsku: gateway-plan\nusage: 1000 requests/month",
+            diagnostics=ambiguous_diagnostic,
         )
         incomplete = pricing.lookup_catalog_resource_price(
             "aws4",
@@ -415,6 +417,29 @@ def test_catalog_price_falls_back_when_meter_is_ambiguous_or_missing():
 
     assert ambiguous is None
     assert incomplete is None
+    assert "no unique USD rate" in ambiguous_diagnostic["reason"]
+
+
+def test_catalog_diagnostics_explain_missing_key_and_unavailable_api():
+    google_diagnostic = {}
+    with patch.dict("os.environ", {}, clear=True):
+        result = pricing.lookup_catalog_resource_price(
+            "gcp2", "cloud_storage", "gcp2 cloud storage", diagnostics=google_diagnostic
+        )
+    assert result is None
+    assert "GOOGLE_CLOUD_BILLING_API_KEY" in google_diagnostic["reason"]
+    assert "skipped" in google_diagnostic["reason"]
+
+    aws_diagnostic = {}
+    with patch.object(pricing, "_aws_catalog_records", side_effect=TimeoutError):
+        result = pricing.lookup_catalog_resource_price(
+            "aws4",
+            "s3",
+            "service code: AmazonS3",
+            diagnostics=aws_diagnostic,
+        )
+    assert result is None
+    assert "timeout or network" in aws_diagnostic["reason"]
 
 
 def test_google_generic_catalog_refuses_differential_tiers():
@@ -446,7 +471,7 @@ def test_full_estimate_can_catalog_price_a_non_compute_component():
     with patch.object(
         finops,
         "lookup_catalog_resource_price",
-        side_effect=lambda _, slug, __, ___: catalog_price if slug == "s3" else None,
+        side_effect=lambda _, slug, __, ___, _____: catalog_price if slug == "s3" else None,
     ):
         result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
 
@@ -471,7 +496,7 @@ def test_full_estimate_reports_default_catalog_baseline():
     with patch.object(
         finops,
         "lookup_catalog_resource_price",
-        side_effect=lambda _, slug, __, ___: baseline_cost if slug == "s3" else None,
+        side_effect=lambda _, slug, __, ___, _____: baseline_cost if slug == "s3" else None,
     ):
         result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
 
@@ -483,10 +508,38 @@ def test_full_estimate_reports_default_catalog_baseline():
 
 def test_estimate_explicitly_reports_heuristic_only_costs():
     result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
-    assert result["cost_estimate"]["pricing_method_summary"] == (
+    assert result["cost_estimate"]["pricing_method_summary"].startswith(
         "No component costs were grounded in provider pricing catalogs; "
         "all 4 component costs use heuristic estimates."
     )
+
+
+def test_heuristic_components_expose_catalog_fallback_reasons():
+    def unavailable(provider, slug, haystack, cache, diagnostics):
+        diagnostics["reason"] = "Catalog access was denied."
+        return None
+
+    with patch.object(finops, "lookup_catalog_resource_price", side_effect=unavailable):
+        result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+
+    estimate = result["cost_estimate"]
+    fallback_reasons = {
+        item["reason"]: item["components"]
+        for item in estimate["pricing_fallback_reasons"]
+    }
+    assert fallback_reasons["Catalog access was denied."] == [
+        "Image Resizer", "Archive Bucket", "Mystery Box"
+    ]
+    assert fallback_reasons[
+        "Catalog access was denied. Legacy compute catalog lookup: "
+        "The legacy compute catalog lookup requires an explicit VM SKU and region."
+    ] == ["Web Server"]
+    assert "Catalog access was denied." in estimate["pricing_method_summary"]
+    component_reasons = {
+        component["label"]: component["pricing_fallback_reason"]
+        for component in estimate["components"]
+    }
+    assert component_reasons["Web Server"].startswith("Catalog access was denied.")
 
 
 def test_no_diagram_available():

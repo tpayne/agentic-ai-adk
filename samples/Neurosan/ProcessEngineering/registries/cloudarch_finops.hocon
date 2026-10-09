@@ -63,7 +63,11 @@ plain paragraphs only. These constraints apply only to your final output, not to
      whether the usage was explicitly specified or based on a representative baseline. Do not
      imply that the whole total is catalog-grounded when only some components were matched. If no
      catalog lookup succeeded, clearly say that none of the costs were grounded in provider pricing
-     APIs and all component costs are heuristic estimates. These are public catalog prices, not
+     APIs and all component costs are heuristic estimates. For every heuristic-priced component,
+     explain its reported catalog fallback reason in plain language (for example, missing
+     credentials/API key, denied access, network/API failure, or no unambiguous SKU/rate match).
+     Distinguish a lookup skipped for missing configuration from an attempted lookup that failed.
+     When no lookup succeeded, summarize the specific reasons. These are public catalog prices, not
      account-specific discounts or a complete bill. Baseline usage is not actual observed workload
      consumption. Components without sufficiently detailed matching SKU/region/usage retain rough
      order-of-magnitude estimates

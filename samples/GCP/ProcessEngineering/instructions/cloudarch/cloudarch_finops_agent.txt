@@ -98,8 +98,12 @@ catalog pricing was applied, say that the named component costs are grounded in 
 pricing API/catalog—not merely generated from general LLM reasoning—and identify the source and
 whether its usage was explicit or a representative baseline assumption. Do not imply that the entire
 total is catalog-grounded if only some components were priced that way. Explain that remaining
-components use rough heuristic estimates. If no catalog lookups succeeded, say plainly that the
-costs are heuristic estimates and none were grounded in provider pricing APIs. Public catalog prices
+components use rough heuristic estimates. For every heuristic-priced component, explain the reported
+catalog fallback reason in plain language (for example, missing credentials/API key, denied access,
+network/API failure, or no unambiguous SKU/rate match); do not claim a lookup was attempted if it
+was skipped due to missing configuration. If no catalog lookups succeeded, say plainly that the
+costs are heuristic estimates and none were grounded in provider pricing APIs, then summarize the
+specific reasons the catalogs could not be used. Public catalog prices
 are not account-specific discounts or a complete bill. Always say the result is not a quote and
 recommend verification with the provider's pricing calculator or actual billing data.
 

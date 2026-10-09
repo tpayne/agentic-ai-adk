@@ -298,11 +298,13 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
 
             category, base_cost, confidence = _classify_component(v.get("shape_slug", ""), haystack)
             multiplier = _size_multiplier(haystack)
+            pricing_diagnostic: Dict[str, str] = {}
             live_price = lookup_catalog_resource_price(
                 v.get("shape_provider", ""),
                 v.get("shape_slug", ""),
                 haystack,
                 pricing_cache,
+                pricing_diagnostic,
             )
 
             components.append({
@@ -326,6 +328,9 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 "pricing_region": live_price["region"] if live_price is not None else None,
                 "pricing_usage_meters": live_price["usage_meters"] if live_price is not None else None,
                 "pricing_assumption": live_price["assumption"] if live_price is not None else None,
+                "pricing_fallback_reason": (
+                    pricing_diagnostic.get("reason") or None if live_price is None else None
+                ),
                 "haystack": haystack,  # internal only -- stripped before returning below
             })
 
@@ -348,18 +353,39 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
         ]
         heuristic_component_count = len(components) - len(provider_priced_components)
         pricing_sources = sorted({c["pricing_source"] for c in provider_priced_components})
+        fallback_reasons: Dict[str, List[str]] = {}
+        for component in components:
+            reason = component.get("pricing_fallback_reason")
+            if reason:
+                fallback_reasons.setdefault(reason, []).append(component["label"])
+        pricing_fallback_reasons = [
+            {"components": labels, "reason": reason}
+            for reason, labels in fallback_reasons.items()
+        ]
         if provider_priced_components:
             pricing_method_summary = (
                 f"{len(provider_priced_components)} of {len(components)} component costs are grounded "
                 f"in provider pricing catalogs ({', '.join(pricing_sources)}), using explicit details "
-                "where available and representative baseline usage assumptions otherwise; "
-                f"{heuristic_component_count} use heuristic estimates."
+                "where available and representative baseline usage assumptions otherwise."
             )
+            if heuristic_component_count:
+                pricing_method_summary += (
+                    f" {heuristic_component_count} use heuristic estimates; "
+                    + " ".join(
+                        f"{', '.join(item['components'])}: {item['reason']}"
+                        for item in pricing_fallback_reasons
+                    )
+                )
         else:
             pricing_method_summary = (
                 f"No component costs were grounded in provider pricing catalogs; all {len(components)} "
                 "component costs use heuristic estimates."
             )
+            if pricing_fallback_reasons:
+                pricing_method_summary += " " + " ".join(
+                    f"{', '.join(item['components'])}: {item['reason']}"
+                    for item in pricing_fallback_reasons
+                )
 
         result = {
             "cost_estimate": {
@@ -371,6 +397,7 @@ def estimate_cloudarch_finops(xml_content: Optional[str] = None) -> str:
                 "heuristic_component_count": heuristic_component_count,
                 "pricing_sources": pricing_sources,
                 "pricing_method_summary": pricing_method_summary,
+                "pricing_fallback_reasons": pricing_fallback_reasons,
             },
             "optimization_recommendations": recommendations,
             "cost_risk_rating": cost_risk_rating,
