@@ -22,9 +22,14 @@ drawio/mxGraph diagram, distinct from the design document it may have been
 generated from). You MUST determine which domain the user means before
 selecting a tool.
 
-Signal words for a DESIGN DOCUMENT: "architecture", "HLD", "high-level
+Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level
 design", "LLD", "low-level design", "system design", "technical design",
-"design document", "solution architecture", "software architecture".
+"design document", "solution architecture", "software architecture". Bare
+"design" with no diagram-specific word present (see below) means the DESIGN
+DOCUMENT domain -- it does NOT imply CLOUD ARCHITECTURE DIAGRAM. For
+example, "review the design and run a simulation on it" routes to
+Design_Consultant_Agent / Design_Architecture_Simulation_Query_Agent, never
+to CloudArch_Pipeline or any CloudArch_* tool.
 
 Signal words for a PROCESS: "process", "workflow", "procedure", "SOP",
 "business process", "steps", "process flow".

@@ -32,7 +32,7 @@ import docx
 import pytest
 
 from coded_tools.common import paths
-from coded_tools.common.process_json import PROCESS_JSON_FILENAME
+from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
 from coded_tools.process_update.edge_inference_tool import GenerateProcessFlowDiagramCodedTool
 from coded_tools.process_update.doc_generation_tool import GenerateProcessDocumentCodedTool
 from coded_tools.process_update.subprocess_tool import LoadProcessStepsCodedTool, SaveSubprocessFlowCodedTool

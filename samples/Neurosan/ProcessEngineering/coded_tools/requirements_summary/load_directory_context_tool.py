@@ -9,7 +9,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.common.directory_extractors import load_directory_context
+from process_toolkit.ingestion.extractors import load_directory_context
 
 
 class LoadDirectoryContextCodedTool(CodedTool):

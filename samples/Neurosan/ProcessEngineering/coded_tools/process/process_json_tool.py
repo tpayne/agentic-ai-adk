@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.common.process_json import (
+from process_toolkit.schema.process_json import (
     load_master_process_json,
     load_process_template,
     persist_final_json,

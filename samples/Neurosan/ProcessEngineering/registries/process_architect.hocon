@@ -50,9 +50,13 @@ something that already exists rather than a request to create or change it.
 A "process" (business process: steps, stakeholders, who-does-what) is NOT the same thing as a
 "design document" (an architectural specification: components, interfaces, HLD/LLD), which is NOT
 the same thing as a "cloud architecture diagram" (a drawio/mxGraph visual of cloud resources).
-Signal words: "process"/"workflow"/"steps"/"stakeholders" -> process; "HLD"/"LLD"/"design
+Signal words: "process"/"workflow"/"steps"/"stakeholders" -> process; "design"/"HLD"/"LLD"/"design
 document"/"architecture document"/"components"/"interfaces"/"quality attributes" -> design
 document; "diagram"/"drawio"/cloud provider names (AWS/Azure/GCP) -> cloud architecture diagram.
+Bare "design" with no diagram-specific word present means the design document domain -- it does
+NOT imply a cloud architecture diagram. E.g. "review the design and run a simulation on it, fixing
+any issues found" routes to Design_Consultant_Agent / Design_Architecture_Simulation_Query_Agent,
+never to CloudArch_Pipeline or any CloudArch_* tool.
 
 # ROUTING GUIDE
 - "Create/generate/build a process..." -> Process_Pipeline
