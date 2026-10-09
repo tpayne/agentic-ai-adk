@@ -394,8 +394,16 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
         for ip in integration_points:
             if not isinstance(ip, dict):
                 continue
-            source = ip.get("source")
-            target = ip.get("target")
+            # "source"/"target" are the schema-correct keys (see design.hocon's
+            # "EXACT FIELD SHAPES"), but the design agent has been observed
+            # inventing "source_component"/"target_component" by analogy with
+            # component_name -- accepted here as a fallback so an already-
+            # generated document with the wrong keys still gets a correct
+            # diagram instead of silently dropping the edge, the same
+            # defensive reasoning as the prose-steps fallback in
+            # generate_uml_diagram.
+            source = ip.get("source") or ip.get("source_component")
+            target = ip.get("target") or ip.get("target_component")
             if not (isinstance(source, str) and source.strip() and isinstance(target, str) and target.strip()):
                 continue
             source_label = _normalize_node_label(source)

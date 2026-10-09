@@ -15,6 +15,7 @@ from coded_tools.common.docgen.structure import apply_iso_table_formatting
 from coded_tools.common import paths
 from coded_tools.common.filenames import safe_filename_component
 from coded_tools.common.docgen.edge_inference import generate_clean_diagram
+from coded_tools.common.process_json import detect_schema_type_from_disk
 
 logger = logging.getLogger("ProcessArchitect.DocTechnical")
 
@@ -205,14 +206,34 @@ def _add_flowchart_section(
     the model having called the separate diagram tool first; doing that
     could leave a successful DOCX with no image or a stale diagram.
     """
+    success_prefix = "Diagram successfully generated at "
+    diag_file = None
     if generate_diagram:
         result = generate_clean_diagram()
-        if not result.startswith("Diagram successfully generated at "):
+        if not result.startswith(success_prefix):
             raise RuntimeError(f"Could not generate process flow diagram: {result}")
+        # generate_clean_diagram() derives its OWN output filename from the
+        # loaded JSON's document_metadata.title/system_name (see its own
+        # source) -- NOT from `process_name`, the caller-supplied label
+        # this function would otherwise have to guess from, and the two
+        # commonly differ (e.g. a short caller-given name vs. a design
+        # document's own formal title). Parsing the real path straight out
+        # of the success message -- the one piece of ground truth both
+        # sides actually agree on -- avoids a second, independent guess
+        # that can name an entirely different (and therefore missing) file.
+        diag_file = result[len(success_prefix):].strip()
 
-    diag_file = paths.output_path(f"{safe_filename_component(process_name.lower())}_flow.png")
+    if not diag_file or not os.path.isfile(diag_file):
+        diag_file = paths.output_path(f"{safe_filename_component(process_name.lower())}_flow.png")
     if not os.path.exists(diag_file):
-        diag_file = paths.output_path("process_flow.png")
+        # Matches generate_clean_diagram()'s OWN generic-fallback filename
+        # for whichever schema is actually on disk (its
+        # default_out_filename) -- used when it had no name to derive a
+        # specific filename from (e.g. document_metadata/components missing
+        # or unreadable at that moment). A hardcoded "process_flow.png"
+        # here would never match that fallback for a design document.
+        default_name = "design_flow.png" if detect_schema_type_from_disk() == "design" else "process_flow.png"
+        diag_file = paths.output_path(default_name)
     if not os.path.isfile(diag_file):
         if generate_diagram:
             raise RuntimeError(f"Flow diagram generation reported success but image is missing: {diag_file}")

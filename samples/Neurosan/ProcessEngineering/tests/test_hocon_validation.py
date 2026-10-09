@@ -20,6 +20,7 @@ PORTED_NETWORKS = [
     "registries/process_simulation_query.hocon",
     "registries/cloudarch_consultant.hocon",
     "registries/cloudarch_simulation_query.hocon",
+    "registries/cloudarch_finops.hocon",
     "registries/process_update.hocon",
     "registries/design.hocon",
     "registries/design_update.hocon",

@@ -2,6 +2,7 @@
 google-adk>=2.9.2,<3.0.0  # Or strictly google-adk==2.9.2
 google-auth>=2.17.3
 litellm>=1.55.0
+botocore>=1.43.106  # AWS Price List API client
 
 # Web App
 flask>=3.0.0

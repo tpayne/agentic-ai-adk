@@ -225,10 +225,18 @@ def _add_stakeholders_section(
             # (e.g. "name": "Developer"), "role" is otherwise dropped
             # entirely, so fall back to it here instead of leaving the
             # Responsibilities column blank.
-            if not responsibilities:
-                role = s.get("role")
-                if role and role != name:
-                    responsibilities = role
+            details = []
+            if responsibilities:
+                details.extend(responsibilities if isinstance(responsibilities, list) else [responsibilities])
+            role = s.get("role")
+            if role and role != name:
+                details.append(role)
+            concerns = s.get("concerns")
+            if concerns:
+                concern_items = concerns if isinstance(concerns, list) else [concerns]
+                details.append("Concerns: " + "; ".join(map(str, concern_items)))
+            if details:
+                responsibilities = details
 
             row = table.add_row().cells
             row[0].text = str(name)
@@ -575,7 +583,11 @@ def _render_diagram_descriptor(
     """Renders a diagram descriptor: title heading, description prose, and
     either a REAL generated diagram image or an honest "not yet generated"
     note."""
-    title = d.get("title")
+    # "name" is a real legacy fallback -- earlier design-agent output used
+    # it instead of "title" (see generate_uml_diagram's own matching
+    # fallback in uml_diagrams.py). Without this, such a descriptor got NO
+    # heading at all here, not even a generic one.
+    title = d.get("title") or d.get("name")
     if title:
         doc.add_heading(str(title), level=min(max(level, 1), 6))
 

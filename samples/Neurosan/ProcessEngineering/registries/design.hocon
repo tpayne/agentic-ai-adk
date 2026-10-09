@@ -167,6 +167,23 @@ questions.
   "objectives", NOT "strategic_objectives".
 - low_level_design.components[]: each one's name key is "component_name" (the SAME key
   high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
+- system_context.actors[]: use "name", "type", and "description"; put the actor's role or
+  responsibilities in "description", not a non-rendered "role" field.
+- architecture_description.stakeholders[]: use "name" (or "stakeholder_name"), "role",
+  "responsibilities", and "concerns" as applicable; populate the role and concerns because they
+  are rendered in the responsibilities table.
+- requirements.functional_requirements[] and requirements.non_functional_requirements[]: preserve
+  each source requirement's "acceptance_criteria" as a non-empty list of concrete, verifiable
+  statements. If absent from the baseline, infer criteria that can be checked from the requirement
+  and its metric/target where available; do not leave the field empty.
+- low_level_design.components[].sequence_flows[]: each flow must include "title", "diagram_id",
+  "diagram_type": "sequence", "participants" (a list of participant names), and "steps" (an ordered
+  list of objects with "step_number", "from_participant", "to_participant", and "message".
+  "is_async", "is_return", and "notes" are optional). Never encode steps as plain strings.
+- high_level_design.integration_points[]: each one's two endpoint keys are "source" and "target"
+  (component names matching high_level_design.components[].component_name exactly) -- NOT
+  "source_component"/"target_component". The architecture diagram is built by connecting these, so
+  an entry using the wrong keys is silently dropped from it rather than flagged.
 - architecture_description.architecture_analysis[]: always include a short "title"; "strengths"/
   "weaknesses"/"risks" are each an ARRAY of distinct string points, never one combined sentence.
 - risk_register[] and high_level_design.risks_and_mitigations[]: {"id", "description", "category",
@@ -196,7 +213,8 @@ questions.
      technical_and_operational_constraints if it populated them there), architecture_description
      (incl. stakeholders and architecture_analysis), requirements
      (functional_requirements/non_functional_requirements mapped 1:1 from the
-     requirements_register, preserving ids and priorities exactly), system_context,
+     requirements_register, preserving ids, priorities, and acceptance_criteria exactly),
+     system_context,
      high_level_design (components with real "dependencies" referencing other component_names,
      integration_points, technology_stack, deployment_topology, security_architecture,
      scalability_and_performance, availability_and_resilience with a stated availability_target,
@@ -212,8 +230,9 @@ questions.
    document when a valid baseline exists, and do not re-apply a change already reflected in it.
    Revision passes should actively strip any previously-fabricated engineering detail or overclaim
    language a reviewer flagged.
-4. If the baseline is missing required fields, repair them in place (infer reasonable values;
-   never remove existing valid content).
+4. If the baseline is missing required fields, including acceptance criteria or sequence-flow
+   participant/message structure, repair them in place (infer reasonable values; never remove
+   existing valid content).
 5. Call validate_design_json with the JSON you intend to persist. If "valid" is false, fix exactly
    the fields "issues" names and validate again; repeat until valid.
 6. Call persist_final_design_json with the final, valid JSON object -- but only if you actually

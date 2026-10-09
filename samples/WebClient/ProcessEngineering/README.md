@@ -90,6 +90,20 @@ What you type is converted to the same lightweight markdown the agents' own repl
 `**bold**`/`*italic*`/bullets round-trip through the exact same renderer on both sides of the
 conversation — and that markdown is what's actually sent as the backend's `query`, not raw HTML.
 
+**Command history**: **↑**/**↓** recall previously sent messages, bash-style — press ↑ on an empty
+box (or with the cursor on the first line of a multi-line draft) to step backward through what
+you've sent, ↓ to step forward again. If you'd started typing something new before you began
+recalling, ↓ past the newest history entry restores that unsent draft rather than leaving the box
+empty. Within a multi-line draft, ↑/↓ move the cursor normally until it's actually on the first/last
+line — they don't hijack ordinary cursor movement. History persists for the page session (cleared on
+reload, but **not** by **+ New chat** — a message is still worth recalling even after starting a
+fresh conversation) and only stores the plain text actually sent, not its rich formatting.
+
+**Resizable box**: drag the handle in the box's bottom-right corner to resize it in either
+direction — wider to see more of a long line, taller for more room to work with a longer draft.
+Height still also grows automatically as you type (up to a generous cap), independent of any
+manual resize; it resets to the default size on reload.
+
 **Save chat** exports the full conversation so far (every finalized turn, not just the current one)
 as a `.md` file. In Chromium-based browsers this opens a real **Save As** dialog (the File System
 Access API); in browsers without it (Firefox, Safari as of this writing) it triggers a normal
