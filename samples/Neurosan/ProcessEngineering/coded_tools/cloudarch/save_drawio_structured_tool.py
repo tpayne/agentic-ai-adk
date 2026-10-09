@@ -11,7 +11,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.cloudarch.cloudarch_layout_engine import build_structured_drawio_xml
+from process_toolkit.cloudarch.layout import build_structured_drawio_xml
 from coded_tools.common.drawio_persistence import save_drawio_xml
 
 

@@ -222,24 +222,6 @@ class UtilsPersistenceTests(unittest.TestCase):
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
 
-    def test_save_and_load_iteration_feedback_tracks_approval(self):
-        result = utils.save_iteration_feedback(
-            {"status": "COMPLIANCE APPROVED", "issues": ["fixed"]}
-        )
-        self.assertTrue(result.startswith("SUCCESS:"))
-
-        feedback_path = Path(self.temp_dir.name) / "output" / "iteration_feedback.json"
-        approval_path = Path(self.temp_dir.name) / "output" / "approval.json"
-        saved = json.loads(feedback_path.read_text())
-        approval = json.loads(approval_path.read_text())
-        self.assertEqual(saved, {"status": "COMPLIANCE APPROVED", "data": ["fixed"]})
-        self.assertEqual(approval["compliance_status"], "APPROVED")
-
-        loaded = utils.load_iteration_feedback(reset_data=True)
-        self.assertEqual(loaded["data"], ["fixed"])
-        reset = json.loads(feedback_path.read_text())
-        self.assertEqual(reset["data"], [])
-
     def test_load_master_process_json_uses_template_when_master_missing(self):
         template = Path(self.temp_dir.name) / "template.json"
         template.write_text(json.dumps(valid_process()))

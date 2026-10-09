@@ -214,38 +214,10 @@ def _normalise(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]+')
-
-
-def safe_filename_component(name: str, max_len: int = 150) -> str:
-    """
-    Sanitizes a string for safe use as a single filesystem path component
-    (a generated .docx/.png filename), on POSIX and Windows alike.
-
-    Several generated-document save paths build their filename directly
-    from a free-text document title (process_name, or
-    document_metadata.title/system_name for a design document), previously
-    via nothing more than `name.replace(' ', '_')`. That leaves any other
-    filesystem-reserved character untouched -- most importantly "/", which
-    silently turns into an unintended, nonexistent subdirectory rather
-    than part of the filename (e.g. a real title containing
-    "... SAM/HAM Assets" produced a save path with a "SAM" directory that
-    was never created, raising FileNotFoundError at doc.save() time
-    instead of just being an unusual-looking filename).
-
-    This replaces path separators and the other Windows-reserved filename
-    characters (\\ / : * ? " < > |) with underscores, collapses whitespace
-    to underscores, strips leading/trailing dots and underscores, and caps
-    the length so a very long generated title can't hit filesystem
-    path-length limits either. Falls back to "untitled" for empty/non-
-    string input.
-    """
-    if not isinstance(name, str) or not name.strip():
-        return "untitled"
-    collapsed = re.sub(r"\s+", "_", name.strip())
-    safe = _UNSAFE_FILENAME_CHARS.sub("_", collapsed)
-    safe = safe.strip("._") or "untitled"
-    return safe[:max_len]
+# Moved to process_toolkit.filenames (shared with the neuro-san port) --
+# re-exported here so existing `from .utils import safe_filename_component`
+# call sites keep working unchanged.
+from process_toolkit.filenames import safe_filename_component  # noqa: E402,F401
 
 def getResponseColour(code: str = "responseColourInfo") -> str:
     """Return the best ANSI match for RESPONSE_TEXT."""
@@ -2236,302 +2208,47 @@ def save_drawio(xml_content) -> str:
     """
     return _save_drawio_core(xml_content, run_shape_mapping=True)
 
-def load_drawio() -> dict:
-    """
-    Loads the most recently persisted DrawIO XML from
-    output/cloudarch_drawio.xml, so a reviewer agent can audit the
-    architecture that a prior generation/refinement turn saved via
-    save_drawio. Mirrors load_master_process_json's role for JSON --
-    the read-side counterpart to save_drawio's write-side.
-
-    Returns {"status": "NOT_FOUND", "xml": None} if nothing has been
-    saved yet (e.g. the very first pass of the loop, before the
-    generator's first save_drawio call), so the reviewer can tell an
-    empty workspace apart from a real but trivial diagram.
-    """
-    _log_agent_activity("Loading DrawIO XML from disk...")
-    _safe_sleep_from_property("modelSleep", default=0.25)
-
-    path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
-    if not os.path.exists(path):
-        return {"status": "NOT_FOUND", "xml": None}
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            xml_content = f.read()
-        return {"status": "OK", "xml": xml_content}
-    except Exception as e:
-        logger.error(f"Error loading DrawIO file: {e}")
-        return {"status": "ERROR", "xml": None}
+# Moved to process_toolkit.drawio.persistence (shared with the neuro-san
+# port) -- re-exported here so existing `from .utils import load_drawio`
+# call sites keep working unchanged. Only the read side is shared; the
+# write side (save_drawio/save_drawio_structured above, via
+# _save_drawio_core) stays here -- it has real capabilities (lock-file
+# concurrency guard, freehand-XML shape mapping) the shared module was
+# never designed to need.
+from process_toolkit.drawio.persistence import load_drawio_xml as load_drawio  # noqa: E402,F401
 
 
-def _extract_txt_file(path: str) -> str:
-    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
-        return f.read()
-
-
-def _extract_docx_file(path: str) -> str:
-    import docx
-    doc = docx.Document(path)
-    parts = [p.text for p in doc.paragraphs if p.text.strip()]
-    for table in doc.tables:
-        for row in table.rows:
-            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-            if cells:
-                parts.append(" | ".join(cells))
-    return "\n".join(parts)
-
-
-def _extract_pdf_file(path: str) -> str:
-    # pypdf extracts embedded text only -- a scanned/image-only PDF with no
-    # text layer yields empty strings per page (no OCR is attempted), which
-    # load_directory_context surfaces as "no extractable text" rather than
-    # silently pretending the file contributed content.
-    from pypdf import PdfReader
-    reader = PdfReader(path)
-    pages = [page.extract_text() or "" for page in reader.pages]
-    return "\n\n".join(p for p in pages if p.strip())
-
-
-def _extract_eml_file(path: str) -> str:
-    import email
-    from email import policy
-    with open(path, "rb") as f:
-        msg = email.message_from_binary_file(f, policy=policy.default)
-
-    header_lines = [
-        f"{header}: {msg.get(header)}" for header in ("Subject", "From", "To", "Date")
-        if msg.get(header)
-    ]
-
-    body = ""
-    if msg.is_multipart():
-        # Prefer the first real text/plain body part; a part that also
-        # carries a filename is an attachment, not the message body, even
-        # if its content type happens to be text/plain (e.g. a .txt
-        # attachment) -- skip those.
-        for part in msg.walk():
-            if part.get_content_type() == "text/plain" and not part.get_filename():
-                body = part.get_content()
-                break
-    else:
-        body = msg.get_content()
-
-    return "\n".join(header_lines) + "\n\n" + (body or "")
-
-
-def _extract_msg_file(path: str) -> str:
-    import extract_msg
-    msg = extract_msg.Message(path)
-    try:
-        header_lines = [
-            f"{label}: {value}" for label, value in (
-                ("Subject", msg.subject), ("From", msg.sender),
-                ("To", msg.to), ("Date", msg.date),
-            ) if value
-        ]
-        return "\n".join(header_lines) + "\n\n" + (msg.body or "")
-    finally:
-        msg.close()
-
-
-_EXCEL_MAX_ROWS_PER_SHEET = 200
-
-
-def _extract_excel_file(path: str) -> str:
-    # .xls (legacy binary) needs xlrd, .xlsx (modern XML) needs openpyxl --
-    # pandas picks the right engine automatically from the file extension,
-    # as long as both packages are installed (see requirements.txt).
-    import pandas as pd
-    sheets = pd.read_excel(path, sheet_name=None)
-    parts = []
-    for sheet_name, df in sheets.items():
-        truncated_df = df.head(_EXCEL_MAX_ROWS_PER_SHEET)
-        note = ""
-        if len(df) > _EXCEL_MAX_ROWS_PER_SHEET:
-            note = f"\n... ({len(df) - _EXCEL_MAX_ROWS_PER_SHEET} more rows truncated)"
-        parts.append(f"[Sheet: {sheet_name}]\n{truncated_df.to_string(index=False)}{note}")
-    return "\n\n".join(parts)
-
-
-# Legacy .doc (binary, pre-2007 Word) is deliberately absent -- python-docx
-# only reads the modern .docx XML format. A .doc file is caught below and
-# reported in files_skipped with a specific "re-save as .docx" reason,
-# rather than silently falling through to "unsupported file type".
-_DIRECTORY_CONTEXT_EXTRACTORS = {
-    ".txt": _extract_txt_file,
-    ".md": _extract_txt_file,
-    ".docx": _extract_docx_file,
-    ".pdf": _extract_pdf_file,
-    ".eml": _extract_eml_file,
-    ".msg": _extract_msg_file,
-    ".xls": _extract_excel_file,
-    ".xlsx": _extract_excel_file,
-}
+# Moved to process_toolkit.ingestion.extractors (shared with the neuro-san
+# port) -- re-exported here so existing `from .utils import
+# load_directory_context` call sites keep working unchanged. The shared
+# version takes max_chars as an explicit parameter rather than reading
+# getProperty itself; this wrapper resolves that property and passes it
+# through, preserving the exact prior behavior/default (150000).
+from process_toolkit.ingestion.extractors import (  # noqa: E402,F401
+    load_directory_context as _shared_load_directory_context,
+)
 
 
 def load_directory_context(directory: str) -> dict:
-    """
-    Reads every supported file directly inside `directory` (not recursive --
-    only that directory's own files, not subdirectories) and returns their
-    extracted text, concatenated and labeled by filename, for use as source
-    material in a process/design/architecture requirements-extraction step.
-    This is a purely mechanical text-extraction tool -- turning the
-    returned text into a structured requirements JSON is the calling
-    agent's own job via its instructions, exactly like it already handles
-    direct chat text today.
-
-    Supported: .txt, .md, .docx, .pdf, .eml, .msg, .xls, .xlsx. Unsupported
-    or unreadable files are skipped (not fatal to the rest of the
-    directory) and listed in "files_skipped" with a reason -- e.g. legacy
-    .doc is explicitly unsupported (re-save as .docx), a corrupt file's
-    exception message is included, and a file with no extractable text
-    (e.g. an image-only PDF) is noted rather than silently contributing
-    nothing.
-
-    Returns {"status": "NOT_FOUND", "directory": <resolved path>} if the
-    directory doesn't exist. Otherwise {"status": "OK", "directory": ...,
-    "files_processed": [...], "files_skipped": [{"file":..., "reason":...}],
-    "combined_text": "..."}. combined_text is capped at
-    directoryContextMaxChars (default 150,000 characters, configurable in
-    agentapp.properties) with a truncation note appended if exceeded --
-    consistent with this pipeline's existing prompt-size guardrails
-    (events_compaction_config in common/agent.py, the max_llm_calls circuit
-    breaker) rather than letting a large directory silently blow out the
-    model's context window.
-    """
     _log_agent_activity(f"Loading directory context from {directory}...")
     _safe_sleep_from_property("modelSleep", default=0.25)
-
-    resolved = os.path.abspath(directory)
-    if not os.path.isdir(resolved):
-        return {"status": "NOT_FOUND", "directory": resolved}
-
     max_chars = int(getProperty("directoryContextMaxChars", default=150000))
-
-    try:
-        entries = sorted(os.listdir(resolved))
-    except Exception as e:
-        logger.error(f"Failed to list directory {resolved}: {e}")
-        return {"status": "ERROR", "directory": resolved, "error": str(e)}
-
-    files_processed = []
-    files_skipped = []
-    sections = []
-
-    for name in entries:
-        full_path = os.path.join(resolved, name)
-        if not os.path.isfile(full_path):
-            continue
-
-        ext = os.path.splitext(name)[1].lower()
-        extractor = _DIRECTORY_CONTEXT_EXTRACTORS.get(ext)
-        if extractor is None:
-            reason = (
-                "legacy .doc (unsupported -- re-save as .docx)" if ext == ".doc"
-                else f"unsupported file type '{ext or '(no extension)'}'"
-            )
-            files_skipped.append({"file": name, "reason": reason})
-            continue
-
-        try:
-            text = (extractor(full_path) or "").strip()
-        except Exception as e:
-            files_skipped.append({"file": name, "reason": f"failed to read: {e}"})
-            continue
-
-        if not text:
-            files_skipped.append({"file": name, "reason": "no extractable text"})
-            continue
-
-        files_processed.append(name)
-        sections.append(f"=== {name} ===\n{text}")
-
-    if not files_processed:
-        logger.warning(f"No supported/readable files found in {resolved}.")
-
-    combined_text = "\n\n".join(sections)
-    truncated = len(combined_text) > max_chars
-    if truncated:
-        combined_text = combined_text[:max_chars] + (
-            f"\n\n[... truncated at {max_chars} characters; raise the "
-            "directoryContextMaxChars property to include more ...]"
-        )
-
-    result = {
-        "status": "OK",
-        "directory": resolved,
-        "files_processed": files_processed,
-        "files_skipped": files_skipped,
-        "combined_text": combined_text,
-    }
-    if truncated:
-        result["truncated"] = True
+    result = _shared_load_directory_context(directory, max_chars=max_chars)
+    if result.get("status") == "OK" and not result.get("files_processed"):
+        logger.warning(f"No supported/readable files found in {result.get('directory')}.")
     return result
 
 
-_SHAPE_TOKEN_RE = re.compile(r"shape=mxgraph\.(\w+)\.([\w_]+);")
-
-
-def parse_drawio_graph(xml_content: str) -> dict:
-    """
-    Parses mxGraph XML (as saved by save_drawio) into a plain Python
-    {"vertices": [...], "edges": [...]} structure, for callers that need
-    to reason about the diagram's structure (e.g. cloudarch_simulation_agent)
-    rather than its raw markup.
-
-    Vertices are REAL SERVICE NODES ONLY: a cell counts as a vertex if it
-    has vertex="1" and its style contains a "shape=mxgraph.<provider>.<slug>;"
-    token -- the icon reference every real generated service node carries.
-    Layout/grouping boxes (title banners, VPC/AZ/subnet containers) use a
-    plain rounded-rectangle style with no such token and are deliberately
-    excluded: they aren't independently-failing components, they're page
-    layout. Each vertex: {"id", "value", "shape_provider", "shape_slug"}.
-
-    Edges are cells with edge="1" and both source and target set (an edge
-    dangling from/to nothing carries no structural information). Each edge:
-    {"id", "value", "source", "target"}. Unlike the design-document JSON
-    schema's free-text dependency strings, source/target here are already
-    real cell ids -- no fuzzy name resolution is needed.
-
-    Returns {"vertices": [], "edges": []} on any parse failure, rather than
-    raising, so a caller can treat "nothing simulatable" uniformly whether
-    the cause was missing data or malformed XML.
-    """
-    import xml.etree.ElementTree as ET
-
-    try:
-        root = ET.fromstring(xml_content)
-    except Exception as e:
-        logger.error(f"Failed to parse DrawIO XML in parse_drawio_graph: {e}")
-        return {"vertices": [], "edges": []}
-
-    vertices = []
-    edges = []
-    for cell in root.findall(".//mxCell"):
-        style = cell.get("style") or ""
-        if cell.get("vertex") == "1":
-            match = _SHAPE_TOKEN_RE.search(style)
-            if not match:
-                continue
-            vertices.append({
-                "id": cell.get("id"),
-                "value": (cell.get("value") or "").strip(),
-                "shape_provider": match.group(1),
-                "shape_slug": match.group(2),
-            })
-        elif cell.get("edge") == "1":
-            source, target = cell.get("source"), cell.get("target")
-            if not source or not target:
-                continue
-            edges.append({
-                "id": cell.get("id"),
-                "value": (cell.get("value") or "").strip(),
-                "source": source,
-                "target": target,
-            })
-
-    return {"vertices": vertices, "edges": edges}
+# Moved to process_toolkit.drawio.graph (shared with the neuro-san port) --
+# re-exported here so existing `from .utils import parse_drawio_graph` call
+# sites keep working unchanged. IMPORTANT: this picks up a real bug fix --
+# the previous version here only checked a vertex's OWN style for the
+# shape=mxgraph... icon token, but the structured layout engine (now the
+# default diagram-generation path) puts that token on a CHILD icon cell,
+# not the labeled parent cell edges actually reference as source/target.
+# Every edge in a diagram generated by that engine was silently failing to
+# match any vertex (an all-isolated-nodes graph, not a crash) until this fix.
+from process_toolkit.drawio.graph import parse_drawio_graph  # noqa: E402,F401
 
 
 def save_drawio_structured(
@@ -2609,7 +2326,7 @@ def save_drawio_structured(
       Routing and label placement are computed for you; do not describe
       waypoints yourselves.
     """
-    from ..cloudarch.cloudarch_layout_agent import build_structured_drawio_xml
+    from process_toolkit.cloudarch.layout import build_structured_drawio_xml
 
     try:
         xml_content = build_structured_drawio_xml(
@@ -3004,262 +2721,36 @@ def load_full_process_context(schema_type: Optional[str] = None) -> dict:
                     logger.error(f"Error loading {file_path}: {e}")
     return context
 
-# Tool to load iteration feedback from output/iteration_feedback.json
-def load_iteration_feedback(reset_data: bool = True) -> dict:
-    """
-    Loads feedback, metrics, and compliance violations from iteration_feedback.json.
-    Optionally resets "data" in the file to [] after reading (default True).
-    This is the 'Inbox' for the Design Agent to see what other agents have requested.
-    """
-    _log_agent_activity("Loading iteration feedback from disk...")
-    _safe_sleep_from_property("modelSleep", default=0.25)
+# Moved to process_toolkit.feedback.iteration_feedback (shared with the
+# neuro-san port) -- re-exported here so existing
+# `from .utils import load_iteration_feedback, save_iteration_feedback`
+# call sites keep working unchanged. The shared version additionally
+# supports an optional `channel` parameter (multi-reviewer mailboxes),
+# added on the neuro-san side and backward-compatible with every existing
+# call here (new trailing optional parameter, same defaults otherwise).
+from process_toolkit.feedback.iteration_feedback import (  # noqa: E402,F401
+    load_iteration_feedback,
+    save_iteration_feedback,
+)
+# Moved to process_toolkit.requirements_summary.requirements_summary
+# (shared with the neuro-san port) -- re-exported here so existing
+# `from .utils import save_requirements_summary, load_requirements_summary`
+# call sites keep working unchanged. The shared version takes a generic
+# dict-like `state` parameter instead of Optional[ToolContext] (only
+# .get()/__setitem__ are ever used on it); these thin wrappers pass
+# tool_context.state through.
+from process_toolkit.requirements_summary.requirements_summary import (  # noqa: E402,F401
+    save_requirements_summary as _shared_save_requirements_summary,
+    load_requirements_summary as _shared_load_requirements_summary,
+)
 
-    path = os.path.join(PROJECT_ROOT, "output", "iteration_feedback.json")
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                json_content = f.read().strip()
-                logger.debug(f"Loaded iteration feedback: {str(json_content)[:200]}")
-                feedback = json.loads(json_content)
-        except Exception as e:
-            logger.error(f"Error loading feedback file: {e}")
-            return {"status": "No feedback found", "data": []}
-
-        if reset_data and isinstance(feedback, dict):
-            try:
-                feedback_reset = feedback.copy()
-                feedback_reset["data"] = []
-                # Reset "status" alongside "data", not just "data" alone.
-                # Leaving the previous status (e.g. "REVISION REQUIRED" or
-                # "COMPLIANCE APPROVED") in place after draining "data" to []
-                # creates a stale "ghost" mailbox: the NEXT agent to call this
-                # tool (e.g. the LLD agent reading right after the HLD agent
-                # already consumed the real feedback) sees a non-trivial
-                # status with no actual content behind it -- indistinguishable
-                # from a genuine instruction with empty comments. "NONE" is an
-                # explicit sentinel meaning "nothing new was written for you",
-                # so downstream agents can tell a drained mailbox apart from a
-                # real (if terse) review outcome.
-                feedback_reset["status"] = "NONE"
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(feedback_reset, f, indent=2)
-            except Exception as e:
-                logger.error(f"Error resetting feedback file: {e}")
-
-        return feedback
-
-    return {}
-
-def save_iteration_feedback(feedback_data: Any):
-    """
-    Saves iteration feedback to disk.
-    Corrects the double-nesting issue and extracts status from agent payloads.
-    """
-    _log_agent_activity(f"Persisting iteration feedback of type {type(feedback_data)} to disk...")
-    _safe_sleep_from_property("modelSleep", default=0.25)
-
-    output_dir = os.path.join(PROJECT_ROOT, "output")
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "iteration_feedback.json")
-
-    # Artificial delay to prevent API burst issues in the loop
-    _safe_sleep_from_property("modelSleep", default=0.25)
-
-    # --- 1. Clean and Normalize incoming data ---
-    processed_data = feedback_data
-    if isinstance(feedback_data, str):
-        try:
-            # Basic cleanup for common LLM string issues
-            normalized_str = feedback_data.replace("'", '"')
-            processed_data = json.loads(normalized_str)
-        except Exception:
-            processed_data = feedback_data
-
-    # --- 2. Extract internal status BEFORE restructuring ---
-    inner_status = None
-    if isinstance(processed_data, dict):
-        inner_status = processed_data.get("status")
-
-    # --- 3. Update cumulative approval state ---
-    approval_markers = {
-        "COMPLIANCE APPROVED": ("compliance_status", "APPROVED"),
-        "SIMULATION_ALL_APPROVED": ("simulation_status", "APPROVED"),
-        "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
-        "CLOUDARCH APPROVED": ("cloudarch_status", "APPROVED"),
-        "JSON APPROVED": ("status", "JSON APPROVED"),
-    }
-
-    # Convert feedback to string for scanning approval markers
-    feedback_str = (
-        json.dumps(processed_data)
-        if not isinstance(processed_data, str)
-        else processed_data
-    )
-
-    matched = [key for key in approval_markers if key in feedback_str]
-
-    if matched:
-        approval_path = os.path.join(output_dir, "approval.json")
-        approval_state = {}
-        if os.path.exists(approval_path):
-            try:
-                with open(approval_path, "r", encoding="utf-8") as f:
-                    approval_state = json.load(f)
-            except Exception:
-                pass
-
-        for marker in matched:
-            key, value = approval_markers[marker]
-            approval_state[key] = value
-
-        with open(approval_path, "w", encoding="utf-8") as f:
-            json.dump(approval_state, f, indent=2)
-
-    # --- 4. Determine top-level status ---
-    status = "REVISION REQUIRED"
-    approved_statuses = {
-        "JSON APPROVED",
-        "COMPLIANCE APPROVED",
-        "SIMULATION_ALL_APPROVED",
-        "GROUNDING APPROVED",
-        "CLOUDARCH APPROVED",
-    }
-    if inner_status in approved_statuses:
-        status = inner_status
-
-    # --- 5. Fix Double-Nesting & Remove Status from Data ---
-    if isinstance(processed_data, dict):
-        # If the agent sent {"issues": [...]}, flatten it so 'data' is the list
-        if "issues" in processed_data:
-            processed_data = processed_data["issues"]
-        elif "data" in processed_data:
-            # The agent already sent the documented two-key contract,
-            # {"status": ..., "data": <payload>} (this is exactly what
-            # json_review_agent's "JSON APPROVED" case sends). Unwrap
-            # "data" directly here rather than falling through to the
-            # generic branch below, which would strip "status" and leave
-            # {"data": <payload>} as processed_data -- that dict then gets
-            # wrapped in ANOTHER "data" key at step 6, producing
-            # {"status": ..., "data": {"data": <payload>}}. Confirmed from
-            # the pipeline log: a save_iteration_feedback call with
-            # feedback_data={'status': 'JSON APPROVED', 'data': []}
-            # previously persisted as
-            # {'status': 'JSON APPROVED', 'data': {'data': []}}.
-            processed_data = processed_data["data"]
-        else:
-            # Otherwise, just remove the status key to avoid redundancy
-            processed_data = {k: v for k, v in processed_data.items() if k != "status"}
-
-    # --- 6. Build final payload ---
-    payload = {
-        "status": status,
-        "data": processed_data,
-    }
-
-    # --- 7. Save to disk ---
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            logger.debug(f"Loaded iteration feedback: {str(payload)[:400]}")
-            json.dump(payload, f, indent=2)
-        
-        logger.debug(f"Iteration feedback saved with status '{status}'.")
-        logger.debug(f"--- [DIAGNOSTIC] Utils: Feedback successfully saved to disk ---")
-        return f"SUCCESS: Feedback persisted to {path}"
-
-    except Exception as e:
-        logger.error(f"Error saving feedback: {e}")
-        return f"ERROR: Could not save feedback: {str(e)}"
 
 def save_requirements_summary(summary: dict, tool_context: Optional[ToolContext] = None) -> str:
-    """
-    Persists a structured requirements summary -- built by
-    Requirements_Summary_Agent from load_directory_context's extracted
-    text -- to output/requirements_summary.json, so a LATER
-    process/design/cloudarch creation request can reuse it via
-    load_requirements_summary() instead of re-reading the original
-    directory. Single-slot on disk: this call overwrites any previously
-    saved summary, mirroring save_drawio's "most recent" persistence
-    model rather than keeping a history of every extraction.
-
-    When invoked as a registered tool (tool_context supplied automatically
-    by the ADK runtime, never by the LLM), the summary is ALSO cached in
-    this session's own state. load_requirements_summary() checks that
-    session-local copy before falling back to the shared file -- across
-    the web service's concurrent sessions, this stops one session's
-    own later "what did I just save" turn from reading back whatever a
-    DIFFERENT concurrent session most recently overwrote the shared file
-    with. The shared file itself is left as the deliberate, single
-    cross-process slot the "use the saved requirements summary" override
-    already documents (see cloudarch_agent.txt Mode 6 and equivalents) --
-    only same-session reuse is disambiguated here.
-
-    Deliberately schema-agnostic (not process_schema.json or
-    design_document_schema.json shaped) -- a later creation agent already
-    knows how to turn free-form source material into its own specific
-    schema, the same way it already handles direct chat text today; this
-    is just a reusable, more distilled version of that same source
-    material, not a pre-built document.
-    """
-    _log_agent_activity("Persisting requirements summary to disk...")
-    _safe_sleep_from_property("modelSleep", default=0.25)
-
-    if not isinstance(summary, dict):
-        return "ERROR: summary must be a JSON object."
-
-    output_dir = os.path.join(PROJECT_ROOT, "output")
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "requirements_summary.json")
-
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
-        if tool_context is not None:
-            tool_context.state["requirements_summary"] = summary
-        logger.debug(f"Requirements summary saved to {path}.")
-        return f"SUCCESS: Requirements summary persisted to {path}"
-    except Exception as e:
-        logger.error(f"Error saving requirements summary: {e}")
-        return f"ERROR: Could not save requirements summary: {e}"
+    return _shared_save_requirements_summary(summary, tool_context.state if tool_context is not None else None)
 
 
 def load_requirements_summary(tool_context: Optional[ToolContext] = None) -> dict:
-    """
-    Loads the requirements summary this session itself most recently
-    saved (via this session's own state, see save_requirements_summary),
-    falling back to the shared output/requirements_summary.json file if
-    this session never saved one -- e.g. the user explicitly asked to
-    reuse a summary saved in an earlier, separate run/session. Session
-    state is checked first specifically so that two concurrent web
-    sessions each calling save then load never see each other's summary.
-
-    Returns {"status": "NOT_FOUND"} if nothing has been saved yet (in
-    this session or on disk), so the caller can fall back to its other
-    input modes rather than fabricate content for a summary that was
-    never created.
-    """
-    _log_agent_activity("Loading requirements summary from disk...")
-    _safe_sleep_from_property("modelSleep", default=0.25)
-
-    if tool_context is not None:
-        session_summary = tool_context.state.get("requirements_summary")
-        if isinstance(session_summary, dict):
-            result = dict(session_summary)
-            result.setdefault("status", "OK")
-            return result
-
-    path = os.path.join(PROJECT_ROOT, "output", "requirements_summary.json")
-    if not os.path.exists(path):
-        return {"status": "NOT_FOUND"}
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            summary = json.load(f)
-        if isinstance(summary, dict):
-            summary.setdefault("status", "OK")
-        return summary
-    except Exception as e:
-        logger.error(f"Error loading requirements summary: {e}")
-        return {"status": "ERROR", "error": str(e)}
+    return _shared_load_requirements_summary(tool_context.state if tool_context is not None else None)
 
 
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:

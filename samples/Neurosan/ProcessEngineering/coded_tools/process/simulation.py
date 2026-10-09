@@ -12,7 +12,7 @@ from statistics import mean, pstdev
 from typing import Any, Dict, List
 
 from coded_tools.common.paths import output_path
-from coded_tools.common.process_json import extract_valid_json, load_master_process_json
+from process_toolkit.schema.process_json import extract_valid_json, load_master_process_json
 
 SIM_RESULTS_FILENAME = "simulation_results.json"
 

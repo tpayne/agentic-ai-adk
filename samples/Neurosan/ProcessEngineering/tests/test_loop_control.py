@@ -5,7 +5,8 @@ as load-bearing -- a genuine approval on the final allowed iteration must
 report as approved, not exhausted."""
 
 from coded_tools.common.iteration_feedback import save_iteration_feedback
-from coded_tools.common.loop_control import LoopControlCodedTool, output_path
+from coded_tools.common.loop_control import LoopControlCodedTool
+from process_toolkit.paths import output_path
 
 
 def test_continues_while_unapproved_and_under_max_iterations():

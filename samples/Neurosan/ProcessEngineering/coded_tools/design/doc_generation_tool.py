@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.common.docgen.generation import create_standard_doc_from_file
+from process_toolkit.docgen.generation import create_standard_doc_from_file
 
 
 class GenerateDesignDocumentCodedTool(CodedTool):

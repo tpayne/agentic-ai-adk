@@ -11,9 +11,9 @@ import os
 import docx
 
 from coded_tools.common import paths
-from coded_tools.common.process_json import DESIGN_JSON_FILENAME
-from coded_tools.common.docgen.edge_inference import generate_clean_diagram
-from coded_tools.common.docgen.generation import create_standard_doc_from_file
+from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
+from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_toolkit.docgen.generation import create_standard_doc_from_file
 from coded_tools.design.edge_inference_tool import GenerateDesignFlowDiagramCodedTool
 from coded_tools.design.doc_generation_tool import GenerateDesignDocumentCodedTool
 
@@ -108,7 +108,7 @@ def test_flowchart_section_finds_the_generic_fallback_diagram_name():
     with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
         f.write("{}")
 
-    from coded_tools.common.docgen.technical import _add_flowchart_section
+    from process_toolkit.docgen.technical import _add_flowchart_section
 
     doc = docx.Document()
     # Deliberately a process_name that won't match "design" (the generic
@@ -139,7 +139,7 @@ def test_infer_edges_accepts_source_component_target_component_as_a_fallback():
     specific edge is present isn't practically checkable from the
     rendered PNG the public API produces.
     """
-    from coded_tools.common.docgen.edge_inference import _infer_edges_from_design_json
+    from process_toolkit.docgen.edge_inference import _infer_edges_from_design_json
 
     design = copy.deepcopy(SAMPLE_DESIGN)
     # Deliberately NO dependency link between these two -- the integration_
