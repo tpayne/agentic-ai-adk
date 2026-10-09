@@ -1,7 +1,8 @@
-"""Optional live catalog pricing for explicitly described cloud resources.
+"""Live catalog pricing with explicit inputs and documented baseline assumptions.
 
-Catalog prices are used only when a component states an exact SKU and all
-monthly usage meters to price. Other components retain the FinOps heuristic.
+Catalog prices use a component's exact SKU and monthly usage when provided;
+otherwise the provider catalog is tried using an identified service and
+representative monthly baseline assumptions.
 """
 
 import json
@@ -20,6 +21,28 @@ _MONTHLY_HOURS = 730
 _HTTP_TIMEOUT_SECONDS = 5
 _GOOGLE_COMPUTE_ENGINE_SERVICE_ID = "6F81-5844-456A"
 _CATALOG_PAGE_LIMIT = 5
+_AZURE_SERVICE_NAMES = {
+    "virtual_machines": "Virtual Machines",
+    "storage_accounts": "Storage",
+    "managed_disks": "Storage",
+    "sql_database": "SQL Database",
+    "load_balancer": "Load Balancer",
+    "application_gateway": "Application Gateway",
+    "cdn": "Azure CDN",
+    "functions": "Functions",
+    "api_management": "API Management",
+    "service_bus": "Service Bus",
+    "event_hubs": "Event Hubs",
+    "key_vault": "Key Vault",
+    "monitor": "Azure Monitor",
+    "virtual_network": "Virtual Network",
+    "nat_gateway": "Virtual Network",
+    "firewall": "Azure Firewall",
+    "front_door": "Azure Front Door",
+    "container_apps": "Azure Container Apps",
+    "aks": "Azure Kubernetes Service",
+    "app_service": "Azure App Service",
+}
 
 _AZURE_REGIONS = {
     "eastus": ("eastus", "east us"),
@@ -281,6 +304,84 @@ def _catalog_unit_price(records: list[Dict[str, Any]], haystack: str) -> Optiona
     }
 
 
+def _default_catalog_unit_price(
+    records: list[Dict[str, Any]], haystack: str, shape_slug: str, region: str
+) -> Optional[Dict[str, Any]]:
+    """Choose an unambiguous catalog product and apply a visible baseline usage."""
+    stop_words = {"aws4", "gcp2", "azure", "sku", "usage", "region", "service"}
+    hint_tokens = {
+        token for token in re.findall(r"[a-z0-9]+", f"{shape_slug} {haystack}".lower())
+        if token not in stop_words
+    }
+    grouped: Dict[str, list[Dict[str, Any]]] = {}
+    for record in records:
+        sku = str(record.get("sku") or record.get("productSku") or record.get("skuName") or "")
+        if sku:
+            grouped.setdefault(sku, []).append(record)
+
+    ranked = []
+    for sku, rows in grouped.items():
+        description = " ".join(
+            str(row.get(field) or "")
+            for row in rows
+            for field in ("sku", "productSku", "skuName", "description", "productName", "serviceName")
+        )
+        description_tokens = set(re.findall(r"[a-z0-9]+", description.lower()))
+        overlap = len(hint_tokens & description_tokens) / max(1, len(hint_tokens))
+        score = max(_name_score(shape_slug, description), overlap)
+        if score >= 0.24:
+            ranked.append((score, sku, rows))
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    if not ranked or (len(ranked) > 1 and ranked[-1][0] - ranked[-2][0] < 0.08):
+        return None
+
+    _, sku, rows = ranked[-1]
+    for record in rows:
+        unit = str(record.get("unit") or record.get("unitOfMeasure") or "")
+        normalized = _normalize_unit(unit)
+        if normalized in {"hour", "hours", "h", "hr", "hrs"}:
+            quantity, unit_name = 730.0, "hours"
+        elif normalized in {"request", "requests", "apicall", "apicalls", "call", "calls"}:
+            quantity, unit_name = 1_000_000.0, "requests"
+        elif normalized in {
+            "gib", "gibmonth", "gibmo", "gb", "gbmonth", "gbmo",
+            "mib", "mibmonth", "mibmo", "mb", "mbmonth", "mbmo",
+            "tib", "tibmonth", "tibmo", "tb", "tbmonth", "tbmo",
+        }:
+            quantity, unit_name = 100.0, unit
+        elif normalized in {"month", "mo"}:
+            quantity, unit_name = 1.0, "month"
+        else:
+            continue
+        try:
+            rate = float(record.get("rate"))
+        except (TypeError, ValueError):
+            continue
+        if rate < 0:
+            continue
+        return {
+            "monthly_cost_usd": round(quantity * rate, 2),
+            "unit_rate_usd": rate,
+            "usage_quantity": quantity,
+            "usage_unit": unit_name,
+            "usage_meters": [{
+                "unit_rate_usd": rate,
+                "usage_quantity": quantity,
+                "usage_unit": unit_name,
+                "catalog_unit": unit,
+            }],
+            "sku": sku,
+            "region": record.get("region") or region,
+            "source": record.get("source"),
+            "assumption": (
+                f"Catalog-grounded baseline assumption: {quantity:g} {unit_name} per month; "
+                f"one matching catalog meter only, not a complete bill; region {region}."
+            ),
+            "pricing_basis": "provider_catalog_baseline",
+        }
+    return None
+
+
 def _service_hint(haystack: str, shape_slug: str) -> str:
     explicit = (
         _explicit_detail(haystack, "service code")
@@ -380,15 +481,15 @@ def _aws_catalog_records(
 
 
 def _azure_catalog_records(
-    sku_hint: str, region: Optional[str], service_hint: Optional[str]
+    sku_hint: Optional[str], region: Optional[str], service_hint: Optional[str]
 ) -> list[Dict[str, Any]]:
     records = []
     seen = set()
-    escaped_sku = sku_hint.replace("'", "''")
+    escaped_sku = sku_hint.replace("'", "''") if sku_hint else None
     escaped_region = region.replace("'", "''") if region else None
     escaped_service = service_hint.replace("'", "''") if service_hint else None
-    for sku_field in ("armSkuName", "skuName"):
-        filters = [f"{sku_field} eq '{escaped_sku}'"]
+    for sku_field in (("armSkuName", "skuName") if sku_hint else (None,)):
+        filters = [f"{sku_field} eq '{escaped_sku}'"] if sku_field and escaped_sku else []
         if escaped_region:
             filters.append(f"armRegionName eq '{escaped_region}'")
         if escaped_service:
@@ -503,36 +604,43 @@ def _google_catalog_records(
     ]
 
 
+def _azure_service_hint(shape_slug: str) -> str:
+    slug = re.sub(r"^azure[._-]+", "", (shape_slug or "").lower())
+    return _AZURE_SERVICE_NAMES.get(slug, re.sub(r"[_-]+", " ", slug).title())
+
+
 def lookup_catalog_resource_price(
     shape_provider: str,
     shape_slug: str,
     haystack: str,
     cache: Optional[Dict[Tuple[str, ...], Optional[Dict[str, Any]]]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Price a resource when its SKU and monthly usage meters are explicit."""
+    """Use catalog prices for explicit details, or try a default catalog baseline."""
     provider = (shape_provider or "").lower()
     sku_hint = _explicit_detail(haystack, "sku")
     usages = _explicit_usages(haystack)
-    if not sku_hint or not usages:
-        return None
+    explicit_details = bool(sku_hint and usages)
     region = _explicit_detail(haystack, "region") or _find_sku_and_region(provider, haystack)[1]
+    pricing_region = region or (
+        "us-east-1" if "aws" in provider else "eastus" if "azure" in provider else "us-central1"
+    )
     service_hint = _service_hint(haystack, shape_slug)
     windows = "windows" in haystack.lower()
     usage_key = "|".join(f"{quantity:g}:{unit}" for quantity, unit in usages)
-    cache_key = (provider, sku_hint, region or "", windows, service_hint, usage_key)
+    cache_key = (provider, sku_hint or "", pricing_region, windows, service_hint, usage_key)
     if cache is not None and cache_key in cache:
         return cache[cache_key]
 
     try:
         if "azure" in provider:
-            explicit_service = _explicit_detail(haystack, "service")
-            records = _azure_catalog_records(sku_hint, region, explicit_service)
+            service_hint = _explicit_detail(haystack, "service") or _azure_service_hint(shape_slug)
+            records = _azure_catalog_records(sku_hint, pricing_region, service_hint)
         elif "aws" in provider:
             explicit_code = _explicit_detail(haystack, "service code")
             service_code = explicit_code or _aws_service_code(service_hint)
             if not service_code:
                 return None
-            records = _aws_catalog_records(service_code, region, sku_hint)
+            records = _aws_catalog_records(service_code, pricing_region, sku_hint)
         elif "gcp" in provider:
             api_key = os.environ.get("GOOGLE_CLOUD_BILLING_API_KEY") or os.environ.get("GOOGLE_API_KEY")
             if not api_key:
@@ -541,15 +649,21 @@ def lookup_catalog_resource_price(
             service_id = explicit_id or _google_service_id(service_hint, api_key)
             if not service_id:
                 return None
-            records = _google_catalog_records(service_id, region, sku_hint, api_key)
+            records = _google_catalog_records(service_id, pricing_region, sku_hint, api_key)
         else:
             return None
-        result = _catalog_unit_price(records, haystack)
+        result = (
+            _catalog_unit_price(records, haystack)
+            if explicit_details
+            else _default_catalog_unit_price(records, haystack, shape_slug, pricing_region)
+        )
+        if result is not None and not region:
+            result["assumption"] += f" Default region assumed: {pricing_region}."
     except Exception as exc:
         logger.info(
             "Live %s catalog lookup unavailable for SKU %s (%s)",
             provider,
-            sku_hint,
+            sku_hint or shape_slug,
             type(exc).__name__,
         )
         result = None

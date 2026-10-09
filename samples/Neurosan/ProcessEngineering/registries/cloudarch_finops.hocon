@@ -36,18 +36,17 @@ plain paragraphs only. These constraints apply only to your final output, not to
    Also call load_requirements_summary once (note internally whether a register was found; don't
    call it again this conversation).
 2. Call estimate_cloudarch_finops WITH NO ARGUMENTS -- it loads the current diagram itself. This
-   single call covers both the cost estimate and the optimization recommendations. For any
-   provider-supported resource, it can match explicit `sku:` and monthly `usage:` details (one
-   usage line per billable meter) against provider catalog rates: Azure Retail Prices (public,
-   no key), AWS Price List (AWS credentials with pricing:GetProducts), or Google Cloud Billing
-   Catalog (GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY, with the Cloud Billing API enabled).
-   Include the exact SKU, region when applicable, and every known monthly billable quantity and
-   unit (for example, `sku: Standard_LRS`, `usage: 500 GB/month`, or separate usage lines for
-   gateway hours and requests). Catalog rates are applied only when every stated meter maps
-   unambiguously to an exact USD catalog rate; do not infer traffic, storage, retention, request
-   volume, or other usage from a diagram. If details are missing, a catalog is unavailable, or
-   any stated meter has no unique matching price, retain the existing heuristic estimate without
-   failing the analysis.
+   single call covers both the cost estimate and the optimization recommendations. Attempt provider
+   catalog pricing by default for every component using Azure Retail Prices (public, no key), AWS
+   Price List (AWS credentials with pricing:GetProducts), or Google Cloud Billing Catalog
+   (GOOGLE_CLOUD_BILLING_API_KEY or GOOGLE_API_KEY, with the Cloud Billing API enabled). Prefer
+   explicit `sku:`, monthly `usage:` meters, and `region:` details when present. Otherwise, try to
+   resolve the component's service/SKU from its provider and name, then use a clearly disclosed
+   representative monthly baseline for a uniquely matched catalog unit: 730 hours, 100 GB of
+   capacity/transfer, 1 million requests, or one monthly unit as applicable. Do not present this
+   baseline as actual workload consumption or a complete bill. If the service, SKU, unit, or rate
+   cannot be matched unambiguously, or the catalog is unavailable, keep the existing heuristic
+   estimate as the fallback.
    Do not call the estimate more than once.
 3. Interpret the result internally:
    - ERRORS (including a diagram with no real service nodes to cost): explain the architecture
@@ -56,15 +55,18 @@ plain paragraphs only. These constraints apply only to your final output, not to
      the highest-cost component(s) by diagram label. Then translate each returned recommendation
      into plain business language, naming the specific component(s) it concerns by diagram label --
      group related recommendations into a coherent narrative rather than reading them out as a
-     disconnected list. Explicitly distinguish API-grounded costs from heuristic estimates. If any
+     disconnected list. Use the estimate's pricing-method summary to explicitly distinguish
+     API-grounded costs from heuristic estimates. If any
      components used provider catalog rates, state that those component costs are grounded in the
      named provider's pricing API/catalog, not merely generated from general LLM reasoning; identify
-     the provider source and exactly which components and usage meters those rates cover. Do not
+     the provider source and exactly which components and usage meters those rates cover, and say
+     whether the usage was explicitly specified or based on a representative baseline. Do not
      imply that the whole total is catalog-grounded when only some components were matched. If no
      catalog lookup succeeded, clearly say that none of the costs were grounded in provider pricing
      APIs and all component costs are heuristic estimates. These are public catalog prices, not
-     account-specific discounts or a complete bill. Components without sufficiently detailed matching
-     SKU/region/usage retain rough order-of-magnitude estimates
+     account-specific discounts or a complete bill. Baseline usage is not actual observed workload
+     consumption. Components without sufficiently detailed matching SKU/region/usage retain rough
+     order-of-magnitude estimates
      for typical/default-sized deployments; legacy compute catalog conversions assume 730
      operating hours. If no recommendations were returned, say plainly that no specific
      optimization opportunities stood out. ALWAYS state clearly, in your own words, that the

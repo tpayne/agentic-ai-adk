@@ -293,6 +293,66 @@ def test_catalog_price_sums_all_explicit_non_compute_meters():
     assert len(result["usage_meters"]) == 2
 
 
+def test_default_catalog_lookup_prices_without_explicit_sku_or_usage():
+    record = {
+        "sku": "Amazon S3 Standard",
+        "skuName": "Amazon S3 Standard",
+        "description": "Amazon S3 Standard storage",
+        "unit": "GB-Mo",
+        "rate": 0.023,
+        "region": "us-east-1",
+        "source": "AWS Price List API (On-Demand)",
+    }
+    with (
+        patch.object(pricing, "_aws_service_code", return_value="AmazonS3"),
+        patch.object(pricing, "_aws_catalog_records", return_value=[record]),
+    ):
+        result = pricing.lookup_catalog_resource_price(
+            "aws4", "s3", "aws4 s3 archive bucket"
+        )
+
+    assert result["monthly_cost_usd"] == 2.3
+    assert result["pricing_basis"] == "provider_catalog_baseline"
+    assert "100 GB-Mo per month" in result["assumption"]
+
+
+def test_default_catalog_lookup_supports_azure_and_google():
+    azure_record = {
+        "sku": "Standard_LRS",
+        "skuName": "Standard LRS",
+        "description": "Storage Standard LRS",
+        "unit": "1 GB/Month",
+        "rate": 0.02,
+        "region": "eastus",
+        "source": "Azure Retail Prices API",
+    }
+    with patch.object(pricing, "_azure_catalog_records", return_value=[azure_record]) as azure:
+        azure_result = pricing.lookup_catalog_resource_price(
+            "azure", "storage_accounts", "azure storage accounts archive bucket"
+        )
+    assert azure_result["monthly_cost_usd"] == 2.0
+    assert azure.call_args.args[2] == "Storage"
+
+    google_record = {
+        "sku": "google-storage-sku",
+        "skuName": "Cloud Storage Standard",
+        "description": "Cloud Storage Standard storage",
+        "unit": "GiB-month",
+        "rate": 0.02,
+        "region": "us-central1",
+        "source": "Google Cloud Billing Catalog API",
+    }
+    with (
+        patch.dict("os.environ", {"GOOGLE_CLOUD_BILLING_API_KEY": "test-key"}),
+        patch.object(pricing, "_google_service_id", return_value="storage-service"),
+        patch.object(pricing, "_google_catalog_records", return_value=[google_record]),
+    ):
+        google_result = pricing.lookup_catalog_resource_price(
+            "gcp2", "cloud_storage", "gcp2 cloud storage archive bucket"
+        )
+    assert google_result["monthly_cost_usd"] == 2.0
+
+
 def test_catalog_price_matches_storage_capacity_month_units():
     record = {
         "sku": "Standard_LRS",
@@ -396,6 +456,29 @@ def test_full_estimate_can_catalog_price_a_non_compute_component():
     assert storage["pricing_usage_meters"][0]["usage_quantity"] == 500
     assert "1 of 4 component costs are grounded" in result["cost_estimate"]["pricing_method_summary"]
     assert "Azure Retail Prices API" in result["cost_estimate"]["pricing_method_summary"]
+
+
+def test_full_estimate_reports_default_catalog_baseline():
+    baseline_cost = {
+        "monthly_cost_usd": 2.3,
+        "sku": "Amazon S3 Standard",
+        "region": "us-east-1",
+        "source": "AWS Price List API (On-Demand)",
+        "usage_meters": [{"usage_quantity": 100, "usage_unit": "GB-Mo"}],
+        "assumption": "Catalog-grounded baseline assumption: 100 GB-Mo per month.",
+        "pricing_basis": "provider_catalog_baseline",
+    }
+    with patch.object(
+        finops,
+        "lookup_catalog_resource_price",
+        side_effect=lambda _, slug, __, ___: baseline_cost if slug == "s3" else None,
+    ):
+        result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+
+    storage = next(c for c in result["cost_estimate"]["components"] if c["id"] == "node_s3")
+    assert storage["pricing_basis"] == "provider_catalog_baseline"
+    assert "baseline usage assumptions" in result["cost_estimate"]["pricing_method_summary"]
+    assert result["cost_estimate"]["provider_priced_component_count"] == 1
 
 
 def test_estimate_explicitly_reports_heuristic_only_costs():

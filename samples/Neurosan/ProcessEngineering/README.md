@@ -129,7 +129,8 @@ functionally — see [Verification](#verification)):
 - **Cloud architecture FinOps** (`cloudarch_finops`): estimates per-component and total monthly
   costs, then flags sizing, autoscaling, commitment, storage-tiering, and orphaned-resource
   opportunities. It can ground costs for any supported resource when the diagram specifies an
-  exact `sku:` and monthly `usage:` for each billable meter (and `region:` where relevant). It
+  exact `sku:` and monthly `usage:` for each billable meter (and `region:` where relevant), and
+  attempts catalog matching with representative baseline usage when those details are absent. It
   queries the [Azure Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices) (public),
   [AWS Price List API](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html) (AWS credentials with
   `pricing:GetProducts` required), or [Google Cloud Billing Catalog API](https://docs.cloud.google.com/billing/docs/how-to/get-pricing-information-api) (requires
@@ -138,7 +139,8 @@ functionally — see [Verification](#verification)):
   can list separate monthly usage lines for hours and requests. The agent only applies catalog
   pricing when each stated usage meter has a unique matching USD rate, and does not infer traffic,
   storage, retention, or request volumes. Catalog rates are public prices and exclude
-  account-specific discounts. The estimate reports which component prices are API-grounded versus
+  account-specific discounts. Baseline usage is an assumption, not actual consumption. The estimate
+  reports which component prices are API-grounded versus
   heuristic, making clear which amounts come from provider catalog rates rather than general LLM
   reasoning. Legacy compute pricing without explicit usage assumes one VM running
   730 hours per month. Components without sufficiently detailed, accessible matching catalog data

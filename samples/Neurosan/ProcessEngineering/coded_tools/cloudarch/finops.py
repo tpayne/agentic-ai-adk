@@ -312,7 +312,10 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
                 "confidence": confidence,
                 "size_multiplier": multiplier,
                 "monthly_cost_usd": monthly_cost,
-                "pricing_basis": "provider_catalog" if live_price is not None else "heuristic",
+                "pricing_basis": (
+                    live_price.get("pricing_basis", "provider_catalog")
+                    if live_price is not None else "heuristic"
+                ),
                 "pricing_source": live_price["source"] if live_price is not None else None,
                 "pricing_sku": live_price["sku"] if live_price is not None else None,
                 "pricing_region": live_price["region"] if live_price is not None else None,
@@ -336,13 +339,16 @@ def estimate_cloudarch_finops(xml_content: Any = None) -> str:
             cost_risk_rating = "Medium"
 
         public_components = [{k: v for k, v in c.items() if k != "haystack"} for c in components]
-        provider_priced_components = [c for c in components if c["pricing_basis"] == "provider_catalog"]
+        provider_priced_components = [
+            c for c in components if c["pricing_basis"].startswith("provider_catalog")
+        ]
         pricing_sources = sorted({c["pricing_source"] for c in provider_priced_components})
         heuristic_component_count = len(components) - len(provider_priced_components)
         if provider_priced_components:
             pricing_method_summary = (
                 f"{len(provider_priced_components)} of {len(components)} component costs are grounded "
-                f"in provider pricing catalogs ({', '.join(pricing_sources)}); "
+                f"in provider pricing catalogs ({', '.join(pricing_sources)}), using explicit details "
+                "where available and representative baseline usage assumptions otherwise; "
                 f"{heuristic_component_count} use heuristic estimates."
             )
         else:

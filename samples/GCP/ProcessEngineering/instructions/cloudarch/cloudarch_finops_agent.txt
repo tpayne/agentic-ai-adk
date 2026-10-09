@@ -57,16 +57,16 @@ is unreliable at this size and is not required.
 This single call covers both the per-component/total cost estimate and the optimization recommendations.
 Do not call it more than once.
 
-For any provider-supported resource, catalog pricing can be used when the diagram explicitly supplies
-`sku:` and a monthly `usage:` for every billable meter (one usage line per meter), plus `region:` where
-relevant. Supported public catalogs are Azure Retail Prices (no key), AWS Price List (AWS credentials
-with `pricing:GetProducts`), and Google Cloud Billing Catalog (`GOOGLE_CLOUD_BILLING_API_KEY` or
-`GOOGLE_API_KEY`, with the Cloud Billing API enabled). Example component details:
-`sku: Standard_LRS`, `usage: 500 GB/month`; or separate monthly usage lines for gateway hours and
-requests. Apply catalog costs only when every stated meter maps unambiguously to an exact USD rate.
-Do not infer traffic, storage, retention, request volume, or other usage from the diagram. When
-details are missing, the catalog is inaccessible, or any meter has no unique matching price, retain
-the existing heuristic estimate rather than inventing precision.
+Attempt provider catalog pricing by default for every component. Use any explicit `sku:`, monthly
+`usage:` meter, or `region:` details in the diagram first. When those are missing, try to resolve the
+service and a matching catalog SKU using the provider and component name. For this automatic baseline
+only, use a clearly disclosed representative monthly usage assumption for a uniquely matched catalog
+unit (730 hours, 100 GB of capacity/transfer, 1 million requests, or one monthly unit, as applicable).
+Do not present an assumed baseline as actual workload consumption or a complete bill. If the service,
+SKU, unit, or rate cannot be matched unambiguously, or the catalog is unavailable, use the existing
+heuristic estimate as the fallback. Supported public catalogs are Azure Retail Prices (no key), AWS
+Price List (AWS credentials with `pricing:GetProducts`), and Google Cloud Billing Catalog
+(`GOOGLE_CLOUD_BILLING_API_KEY` or `GOOGLE_API_KEY`, with the Cloud Billing API enabled).
 
 -----------------------------------------------------------------------------------------------
 STEP 3 — INTERPRET RESULTS
@@ -93,15 +93,15 @@ by their diagram label. Then, for each recommendation the tool returned:
 If no recommendations were returned, say plainly that no specific optimization opportunities stood out from
 this analysis.
 
-Explicitly distinguish API-grounded costs from heuristic estimates in your narrative. When provider
+Use the estimate's pricing-method summary and explicitly distinguish API-grounded costs from heuristic estimates in your narrative. When provider
 catalog pricing was applied, say that the named component costs are grounded in the named provider's
 pricing API/catalog—not merely generated from general LLM reasoning—and identify the source and
-component usage meters covered. Do not imply that the entire total is catalog-grounded if only some
-components were priced that way. Explain that remaining components use rough heuristic estimates.
-If no catalog lookups succeeded, say plainly that the costs are heuristic estimates and none were
-grounded in provider pricing APIs. These public catalog prices are not account-specific discounts or
-a complete bill. Always say the result is not a quote and recommend verification with the provider's
-pricing calculator or actual billing data.
+whether its usage was explicit or a representative baseline assumption. Do not imply that the entire
+total is catalog-grounded if only some components were priced that way. Explain that remaining
+components use rough heuristic estimates. If no catalog lookups succeeded, say plainly that the
+costs are heuristic estimates and none were grounded in provider pricing APIs. Public catalog prices
+are not account-specific discounts or a complete bill. Always say the result is not a quote and
+recommend verification with the provider's pricing calculator or actual billing data.
 
 You MUST explicitly and clearly state, in your own words, that this is not a quote and the user should
 consult the relevant cloud provider's own pricing calculator or their real billing data before making a

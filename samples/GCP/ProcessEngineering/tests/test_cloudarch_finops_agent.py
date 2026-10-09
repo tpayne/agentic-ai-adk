@@ -192,6 +192,62 @@ class CatalogPricingTests(unittest.TestCase):
         self.assertEqual(result["monthly_cost_usd"], 37.5)
         self.assertEqual(len(result["usage_meters"]), 2)
 
+    def test_default_catalog_lookup_uses_disclosed_baseline_without_sku_usage(self):
+        record = {
+            "sku": "Amazon S3 Standard",
+            "skuName": "Amazon S3 Standard",
+            "description": "Amazon S3 Standard storage",
+            "unit": "GB-Mo",
+            "rate": 0.023,
+            "region": "us-east-1",
+            "source": "AWS Price List API (On-Demand)",
+        }
+        with (
+            patch.object(pricing, "_aws_service_code", return_value="AmazonS3"),
+            patch.object(pricing, "_aws_records", return_value=[record]),
+        ):
+            result = pricing.lookup_catalog_resource_price("aws4", "s3", "aws4 s3 archive bucket")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["monthly_cost_usd"], 2.3)
+        self.assertEqual(result["pricing_basis"], "provider_catalog_baseline")
+        self.assertIn("100 GB-Mo per month", result["assumption"])
+
+    def test_default_catalog_lookup_supports_azure_and_google(self):
+        azure_record = {
+            "sku": "Standard_LRS",
+            "skuName": "Standard LRS",
+            "description": "Storage Standard LRS",
+            "unit": "1 GB/Month",
+            "rate": 0.02,
+            "region": "eastus",
+            "source": "Azure Retail Prices API",
+        }
+        with patch.object(pricing, "_azure_records", return_value=[azure_record]) as azure:
+            azure_result = pricing.lookup_catalog_resource_price(
+                "azure", "storage_accounts", "azure storage accounts archive bucket"
+            )
+        self.assertEqual(azure_result["monthly_cost_usd"], 2.0)
+        self.assertEqual(azure.call_args.args[2], "Storage")
+
+        google_record = {
+            "sku": "google-storage-sku",
+            "skuName": "Cloud Storage Standard",
+            "description": "Cloud Storage Standard storage",
+            "unit": "GiB-month",
+            "rate": 0.02,
+            "region": "us-central1",
+            "source": "Google Cloud Billing Catalog API",
+        }
+        with (
+            patch.dict("os.environ", {"GOOGLE_CLOUD_BILLING_API_KEY": "test-key"}),
+            patch.object(pricing, "_google_service_id", return_value="storage-service"),
+            patch.object(pricing, "_google_records", return_value=[google_record]),
+        ):
+            google_result = pricing.lookup_catalog_resource_price(
+                "gcp2", "cloud_storage", "gcp2 cloud storage archive bucket"
+            )
+        self.assertEqual(google_result["monthly_cost_usd"], 2.0)
+
     def test_ambiguous_or_incomplete_meter_falls_back(self):
         records = [
             {"sku": "gateway-plan", "unit": "Requests", "rate": 0.000001},
@@ -242,6 +298,32 @@ class CatalogPricingTests(unittest.TestCase):
         self.assertEqual(result["cost_estimate"]["provider_priced_component_count"], 1)
         self.assertIn("1 of 4 component costs are grounded", result["cost_estimate"]["pricing_method_summary"])
         self.assertIn("Azure Retail Prices API", result["cost_estimate"]["pricing_method_summary"])
+
+    def test_default_catalog_basis_is_reported_in_full_estimate(self):
+        baseline_cost = {
+            "monthly_cost_usd": 2.3,
+            "sku": "Amazon S3 Standard",
+            "region": "us-east-1",
+            "source": "AWS Price List API (On-Demand)",
+            "usage_meters": [{"usage_quantity": 100, "usage_unit": "GB-Mo"}],
+            "assumption": "Catalog-grounded baseline assumption: 100 GB-Mo per month.",
+            "pricing_basis": "provider_catalog_baseline",
+        }
+        with patch.object(
+            finops,
+            "lookup_catalog_resource_price",
+            side_effect=lambda _, slug, __, ___: baseline_cost if slug == "s3" else None,
+        ):
+            result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
+        storage = next(
+            component for component in result["cost_estimate"]["components"]
+            if component["id"] == "node_s3"
+        )
+        self.assertEqual(storage["pricing_basis"], "provider_catalog_baseline")
+        self.assertIn("baseline usage assumptions", result["cost_estimate"]["pricing_method_summary"])
+        self.assertEqual(result["cost_estimate"]["provider_priced_component_count"], 1)
+        self.assertIn("1 of 4 component costs are grounded", result["cost_estimate"]["pricing_method_summary"])
+        self.assertIn("AWS Price List API", result["cost_estimate"]["pricing_method_summary"])
 
     def test_estimate_explicitly_reports_heuristic_only_costs(self):
         result = json.loads(finops.estimate_cloudarch_finops(_SAMPLE_XML))
