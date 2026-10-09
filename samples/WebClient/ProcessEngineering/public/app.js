@@ -250,6 +250,13 @@
   // see loadState/saveState above -- only connection settings do).
   state.transcript = [];
 
+  // Sent-message history for the composer's Up/Down recall (see
+  // recallHistory below) -- bash-style, oldest first, newest last. Runtime
+  // only, like the transcript above, and deliberately NOT cleared by "+
+  // New chat" (unlike transcript/network/usage) -- what you typed is still
+  // useful to recall even after starting a fresh chat to try it again.
+  state.commandHistory = [];
+
   // The Agent Network tab's data -- built ENTIRELY from "progress" SSE
   // events (see streamChat/sendMessage), since those are the only events
   // that carry an "origin". Runtime only, same as the transcript above.
@@ -2306,7 +2313,122 @@
 
   el.messageInput.addEventListener("input", updateEmptyState);
 
+  // ---------------------------------------------------------------
+  // Command history recall -- bash-style Up/Down through state.
+  // commandHistory (populated on send, see the submit handler below).
+  // historyIndex === state.commandHistory.length means "not currently
+  // navigating, viewing the live draft"; draftBeforeHistory stashes
+  // whatever was being typed the moment history navigation STARTS, so
+  // pressing Down back past the newest entry restores it -- same as a
+  // real shell.
+  // ---------------------------------------------------------------
+  let historyIndex = 0;
+  let draftBeforeHistory = "";
+
+  // Up/Down should only hijack the caret when it's genuinely at the
+  // top/bottom of a (possibly multi-line) draft -- otherwise pressing Up
+  // to move up one line of a longer message would instead yank in a
+  // whole different history entry. Checked via the caret's own on-screen
+  // position (robust to the composer's DOM shape varying with whatever
+  // bold/italic/list formatting is active) rather than DOM structure.
+  function caretEdgeRect(atStart) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(atStart);
+    const rects = range.getClientRects();
+    const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+    // A collapsed range occasionally reports a degenerate all-zero rect on
+    // the very next keydown right after the selection was just set
+    // programmatically (confirmed directly: immediately after
+    // recallHistory's own setComposerPlainText call, before the browser
+    // has fully caught up) -- treated as "unknown" here so the caller's
+    // own fallback (assume true, i.e. don't block recall) applies instead
+    // of this transient glitch wrongly reporting "not at the edge".
+    if (rect.top === 0 && rect.bottom === 0 && rect.left === 0 && rect.right === 0) return null;
+    return rect;
+  }
+
+  // Compared against the CONTENT's own first/last line rects, not the
+  // (padded) #messageInput container box -- comparing against the
+  // container left a gap no bigger than the box's own top/bottom padding,
+  // which was well within typical sub-pixel/line-height rounding and made
+  // the old threshold flip unpredictably (confirmed directly: Down arrow
+  // silently failed to recall anything because of exactly this).
+  function contentEdgeRect(atStart) {
+    if (el.messageInput.textContent.trim() === "") return null;
+    const range = document.createRange();
+    range.selectNodeContents(el.messageInput);
+    const rects = range.getClientRects();
+    if (rects.length === 0) return null;
+    return atStart ? rects[0] : rects[rects.length - 1];
+  }
+
+  function caretIsOnFirstLine() {
+    const contentRect = contentEdgeRect(true);
+    if (!contentRect) return true; // empty composer
+    const caretRect = caretEdgeRect(true);
+    if (!caretRect) return true;
+    return caretRect.top - contentRect.top < 4;
+  }
+
+  function caretIsOnLastLine() {
+    const contentRect = contentEdgeRect(false);
+    if (!contentRect) return true; // empty composer
+    const caretRect = caretEdgeRect(false);
+    if (!caretRect) return true;
+    return contentRect.bottom - caretRect.bottom < 4;
+  }
+
+  // Replaces the composer's content with plain text (built from real text
+  // nodes/<br>s, not innerHTML, since a recalled entry is untrusted-ish
+  // content the user typed earlier) and places the caret at the end --
+  // ready to edit further or resend immediately, like a shell prompt.
+  // Formatting (bold/italic/lists) from the original turn is NOT
+  // reconstructed -- history stores the same plain markdown string
+  // actually sent, same as everything else that records a turn (e.g.
+  // Save Chat's transcript), not a second, richer representation.
+  function setComposerPlainText(text) {
+    el.messageInput.innerHTML = "";
+    const lines = (text || "").split("\n");
+    lines.forEach((line, i) => {
+      if (line) el.messageInput.appendChild(document.createTextNode(line));
+      if (i < lines.length - 1) el.messageInput.appendChild(document.createElement("br"));
+    });
+    updateEmptyState();
+    el.messageInput.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el.messageInput);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function recallHistory(direction) {
+    if (state.commandHistory.length === 0) return;
+    if (historyIndex === state.commandHistory.length) {
+      draftBeforeHistory = richTextToMarkdown(el.messageInput);
+    }
+    const next = historyIndex + direction;
+    if (next < 0 || next > state.commandHistory.length) return; // nothing further to recall
+    historyIndex = next;
+    setComposerPlainText(
+      historyIndex === state.commandHistory.length ? draftBeforeHistory : state.commandHistory[historyIndex]
+    );
+  }
+
   el.messageInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp" && !event.shiftKey && !event.altKey && !event.metaKey && caretIsOnFirstLine()) {
+      event.preventDefault();
+      recallHistory(-1);
+      return;
+    }
+    if (event.key === "ArrowDown" && !event.shiftKey && !event.altKey && !event.metaKey && caretIsOnLastLine()) {
+      event.preventDefault();
+      recallHistory(1);
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       // Inside an active bullet/numbered list, let Enter behave
       // natively (new list item, or exit the list on an empty one) --
@@ -2474,6 +2596,14 @@
     event.preventDefault();
     const markdown = richTextToMarkdown(el.messageInput);
     if (!markdown) return;
+    // Skip an exact repeat of the immediately-previous entry (bash's own
+    // default ignoredups behavior) so resending the same query doesn't
+    // clutter history with duplicates.
+    if (state.commandHistory[state.commandHistory.length - 1] !== markdown) {
+      state.commandHistory.push(markdown);
+    }
+    historyIndex = state.commandHistory.length;
+    draftBeforeHistory = "";
     el.messageInput.innerHTML = "";
     updateEmptyState();
     sendMessage(markdown);

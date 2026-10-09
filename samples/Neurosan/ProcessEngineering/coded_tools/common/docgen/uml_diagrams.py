@@ -51,10 +51,28 @@ def _output_dir() -> str:
     return os.path.join(paths.OUTPUT_DIR, "uml_diagrams")
 
 
-def _out_path(diagram_descriptor: dict) -> str:
+def _out_path(diagram_descriptor: dict, context: Optional[dict] = None) -> str:
     output_dir = _output_dir()
     os.makedirs(output_dir, exist_ok=True)
-    stem = diagram_descriptor.get("diagram_id") or diagram_descriptor.get("title") or "diagram"
+    # "name" is a real legacy fallback -- earlier design-agent output used
+    # it instead of "title"/"diagram_id" (see generate_uml_diagram's own
+    # prose-steps handling above for the matching case). Falling through to
+    # it here means such a flow gets a real, descriptive filename instead
+    # of the bare literal "diagram".
+    stem = (
+        diagram_descriptor.get("diagram_id")
+        or diagram_descriptor.get("title")
+        or diagram_descriptor.get("name")
+        or "diagram"
+    )
+    # Still-generic stem (none of the above present) -- prefix the owning
+    # component's name, if known, so two such descriptors (e.g. two
+    # different components each with an untitled flow) don't collide on
+    # the exact same "diagram.png" and silently overwrite one another.
+    if stem == "diagram" and isinstance(context, dict):
+        component = context.get("component_name")
+        if isinstance(component, str) and component.strip():
+            stem = f"{component.strip()}-diagram"
     safe = safe_filename_component(str(stem).lower())
     return os.path.join(output_dir, f"{safe}.png")
 
@@ -374,8 +392,12 @@ def generate_uml_diagram(
             return ""
 
         dtype = str(diagram_descriptor.get("diagram_type") or "").strip().lower()
-        title = diagram_descriptor.get("title") or "Diagram"
-        out_path = _out_path(diagram_descriptor)
+        # "name" is the same legacy fallback _out_path falls through to --
+        # an untitled-but-named flow (real generated data uses "name"
+        # instead of "title") should get a real heading in the document,
+        # not the generic "Diagram" every such flow would otherwise share.
+        title = diagram_descriptor.get("title") or diagram_descriptor.get("name") or "Diagram"
+        out_path = _out_path(diagram_descriptor, context)
 
         participants = diagram_descriptor.get("participants")
         steps = diagram_descriptor.get("steps")
@@ -411,10 +433,15 @@ def generate_uml_diagram(
 
         integration_points = context.get("integration_points")
         if integration_points:
+            # "source"/"target" are the schema-correct keys (see design.hocon's
+            # "EXACT FIELD SHAPES"); "source_component"/"target_component" is
+            # accepted as a fallback for the same reason _infer_edges_from_
+            # design_json does -- the design agent has been observed
+            # inventing that synonym by analogy with component_name.
             edges = [
                 {
-                    "source": ip.get("source"),
-                    "target": ip.get("target"),
+                    "source": ip.get("source") or ip.get("source_component"),
+                    "target": ip.get("target") or ip.get("target_component"),
                     "label": ip.get("protocol") or ip.get("integration_pattern"),
                 }
                 for ip in integration_points if isinstance(ip, dict)

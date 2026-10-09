@@ -583,7 +583,11 @@ def _render_diagram_descriptor(
     """Renders a diagram descriptor: title heading, description prose, and
     either a REAL generated diagram image or an honest "not yet generated"
     note."""
-    title = d.get("title")
+    # "name" is a real legacy fallback -- earlier design-agent output used
+    # it instead of "title" (see generate_uml_diagram's own matching
+    # fallback in uml_diagrams.py). Without this, such a descriptor got NO
+    # heading at all here, not even a generic one.
+    title = d.get("title") or d.get("name")
     if title:
         doc.add_heading(str(title), level=min(max(level, 1), 6))
 

@@ -180,6 +180,10 @@ questions.
   "diagram_type": "sequence", "participants" (a list of participant names), and "steps" (an ordered
   list of objects with "step_number", "from_participant", "to_participant", and "message".
   "is_async", "is_return", and "notes" are optional). Never encode steps as plain strings.
+- high_level_design.integration_points[]: each one's two endpoint keys are "source" and "target"
+  (component names matching high_level_design.components[].component_name exactly) -- NOT
+  "source_component"/"target_component". The architecture diagram is built by connecting these, so
+  an entry using the wrong keys is silently dropped from it rather than flagged.
 - architecture_description.architecture_analysis[]: always include a short "title"; "strengths"/
   "weaknesses"/"risks" are each an ARRAY of distinct string points, never one combined sentence.
 - risk_register[] and high_level_design.risks_and_mitigations[]: {"id", "description", "category",
