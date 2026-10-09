@@ -38,9 +38,10 @@ logger = logging.getLogger("ProcessArchitect.UMLDiagram")
 def _out_path(diagram_descriptor: dict, context: Optional[dict] = None, output_dir: Optional[str] = None) -> str:
     output_dir = output_dir or paths.output_dir("uml_diagrams")
     # "name" is a real legacy fallback -- earlier design-agent output used
-    # it instead of "title"/"diagram_id". Falling through to it here means
-    # such a flow gets a real, descriptive filename instead of the bare
-    # literal "diagram".
+    # it instead of "title"/"diagram_id" (see generate_uml_diagram's own
+    # prose-steps handling above for the matching case). Falling through to
+    # it here means such a flow gets a real, descriptive filename instead
+    # of the bare literal "diagram".
     stem = (
         diagram_descriptor.get("diagram_id")
         or diagram_descriptor.get("title")
@@ -456,10 +457,11 @@ def generate_uml_diagram(
 
         integration_points = context.get("integration_points")
         if integration_points:
-            # "source"/"target" are the schema-correct keys; "source_
-            # component"/"target_component" is accepted as a fallback --
-            # the design agent has been observed inventing that synonym
-            # by analogy with component_name.
+            # "source"/"target" are the schema-correct keys (see design.hocon's
+            # "EXACT FIELD SHAPES"); "source_component"/"target_component" is
+            # accepted as a fallback for the same reason _infer_edges_from_
+            # design_json does -- the design agent has been observed
+            # inventing that synonym by analogy with component_name.
             edges = [
                 {
                     "source": ip.get("source") or ip.get("source_component"),
