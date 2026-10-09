@@ -68,6 +68,7 @@ document; "diagram"/"drawio"/cloud provider names (AWS/Azure/GCP) -> cloud archi
 - "Generate/create/refine/update a cloud architecture diagram..." -> CloudArch_Pipeline
 - "What does this diagram show? / does it meet requirement X?" -> CloudArch_Consultant_Agent
 - "Dry-run / simulate / resilience / blast-radius / single point of failure" (diagram) -> CloudArch_Simulation_Query_Agent
+- "What will this cost? / how can we reduce spend? / FinOps / optimize cost" (diagram) -> CloudArch_FinOps_Agent
 - "Read the files in <directory> and summarize the requirements" -> Requirements_Summary_Agent
 - "What's in the saved requirements summary? / were there any conflicts?" -> Requirements_Consultant_Agent
 
@@ -98,6 +99,7 @@ of it unless the user's request genuinely needs you to combine more than one too
                 "/cloudarch",
                 "/cloudarch_consultant",
                 "/cloudarch_simulation_query",
+                "/cloudarch_finops",
                 "/requirements_summary",
                 "/requirements_consultant"
             ]

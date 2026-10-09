@@ -23,6 +23,7 @@
     "process_simulation_query.hocon": true,
     "cloudarch_consultant.hocon": true,
     "cloudarch_simulation_query.hocon": true,
+    "cloudarch_finops.hocon": true,
     "process_update.hocon": true,
     "design.hocon": true,
     "design_update.hocon": true,

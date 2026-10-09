@@ -190,6 +190,25 @@ Examples:
 
 This applies to cloud architecture diagram resilience, scalability, and latency analysis only.
 
+### 3d. CLOUD ARCHITECTURE DIAGRAM COST ESTIMATION / OPTIMIZATION (FINOPS)
+Trigger when the user wants to ESTIMATE, FORECAST, or OPTIMIZE the COST of an EXISTING CLOUD ARCHITECTURE
+DIAGRAM (see the CLOUD ARCHITECTURE DIAGRAM signal words above), or asks about spend, budget, pricing, or
+FinOps for that diagram. This tool estimates cost and recommends cost-optimization opportunities for the
+diagram itself, not the source process/design document it may have been generated from, and does not cover
+resilience/scalability/latency (see 3c for that).
+
+→ Call: CloudArch_FinOps_Agent
+
+Examples:
+- "What will this cloud architecture diagram cost to run?"
+- "Estimate the monthly cost of this diagram."
+- "How can we reduce the cost of this architecture?"
+- "Are there any FinOps/cost-optimization opportunities in this diagram?"
+- "Is this architecture over-provisioned?"
+- "What's our estimated cloud spend for this design?"
+
+This applies to cloud architecture diagram cost estimation and optimization only.
+
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
@@ -401,7 +420,8 @@ If the user includes multiple intents in a single request, apply this priority o
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram → CloudArch_Simulation_Query_Agent)
-5. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
+5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
+6. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
