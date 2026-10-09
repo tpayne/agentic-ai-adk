@@ -25,6 +25,7 @@ jobs:
         include:
           - name: email
             context: samples/GCP/EmailProcessing
+            build_context: samples/GCP/EmailProcessing
             tag: adktemplate:latest
             test_cmd: |
               docker run --rm -d -p 8080:8080 "$IMAGE_TAG"
@@ -34,6 +35,7 @@ jobs:
 
           - name: finance_sample
             context: samples/GCP/FinanceProcessing
+            build_context: samples/GCP/FinanceProcessing
             tag: adksample:latest
             test_cmd: |
               # Ensure sample.txt exists (harmless if already present)
@@ -42,18 +44,27 @@ jobs:
 
           - name: finance_adk
             context: samples/GCP/FinanceADK
+            build_context: samples/GCP/FinanceADK
             tag: adkfinance:latest
             test_cmd: |
               docker run --rm "$IMAGE_TAG"
 
           - name: process_adk
             context: samples/GCP/ProcessEngineering
+            # Build context is the repo root, not this directory: this
+            # sample's requirements.txt depends on shared/process_toolkit,
+            # which lives outside it -- see the Dockerfile's own comments.
+            build_context: .
             tag: adkprocesseng:latest
             test_cmd: |
               echo "No runtime test available for Process Engineering sample."
 
           - name: neurosan_process
             context: samples/Neurosan/ProcessEngineering
+            # Build context is the repo root, not this directory: this
+            # sample's pyproject.toml depends on shared/process_toolkit,
+            # which lives outside it -- see the Dockerfile's own comments.
+            build_context: .
             tag: neurosanprocesseng:latest
             test_cmd: |
               # No LLM key in CI, so a real agent conversation can't run here
@@ -68,11 +79,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build Docker image - ${{ matrix.name }}
-        working-directory: ${{ matrix.context }}
         env:
           IMAGE_TAG: ${{ matrix.tag }}
         run: |
-          docker build . --file Dockerfile --tag "$IMAGE_TAG"
+          docker build "${{ matrix.build_context }}" --file "${{ matrix.context }}/Dockerfile" --tag "$IMAGE_TAG"
 
       - name: Run container/tests - ${{ matrix.name }}
         working-directory: ${{ matrix.context }}

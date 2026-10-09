@@ -1,3 +1,11 @@
+# Build context for this Dockerfile MUST be the repo root (not this
+# directory), because pyproject.toml's `[tool.uv.sources]` depends on
+# shared/process_toolkit (../../../shared/process_toolkit from this
+# sample's own directory), which lives outside it:
+# `docker build --file samples/Neurosan/ProcessEngineering/Dockerfile .`
+# from the repo root. A build invoked with this directory as context
+# cannot see that shared code and `uv sync` will fail.
+#
 # Ported from samples/GCP/ProcessEngineering's Dockerfile. Re-expressed for
 # this project's own tooling (uv + pyproject.toml/uv.lock, not pip +
 # requirements.txt) and serving model (neuro-san's own `ns run` HTTP
@@ -24,18 +32,26 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
+# The shared package itself, copied to the exact path pyproject.toml's own
+# "../../../shared/process_toolkit" source entry already resolves to from
+# /app (../../../ from a one-level-deep WORKDIR clamps at filesystem root)
+# -- no path differences needed between local dev and this image.
+COPY shared/process_toolkit /shared/process_toolkit
+
 # Dependencies first (cached across builds unless pyproject.toml/uv.lock
-# change), application code second.
-COPY pyproject.toml uv.lock ./
+# change), application code second. Paths relative to the repo-root build
+# context.
+COPY samples/Neurosan/ProcessEngineering/pyproject.toml samples/Neurosan/ProcessEngineering/uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 
-COPY . .
+COPY samples/Neurosan/ProcessEngineering/ .
 RUN uv sync --locked --no-dev
 
 ARG account=neurosan_process_user
 RUN useradd -ms /bin/bash ${account} \
     && mkdir -p /app/output \
-    && chown -R ${account}:${account} /app
+    && chown -R ${account}:${account} /app \
+    && chmod -R o+rx /shared/
 
 USER ${account}
 
