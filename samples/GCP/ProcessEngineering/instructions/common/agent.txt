@@ -228,6 +228,12 @@ Trigger when the user asks for conceptual understanding or non-performance revie
 - Review or audit for structure, clarity, or compliance
 - What is the current process about
 - Load the current process and give an overview
+- A diagram/visual of the EXISTING process's steps, approval gates, or stakeholders (NOT a request
+  to create a brand-new process -- the presence of "create"/"generate" does not by itself mean
+  Rule 1a's PROCESS CREATION; a request for a diagram OF something that already exists is a
+  review/explanation request, same as asking how the process works). An explicit disclaimer like
+  "not a cloud implementation" confirms this is the PROCESS domain, not the CLOUD ARCHITECTURE
+  DIAGRAM domain -- do not route to CloudArch_Pipeline/CloudArch_Consultant_Agent in that case.
 
 → Call: Consultant_Agent
 
@@ -238,6 +244,9 @@ Examples:
 - “Compare these two workflows.”
 - “Review this process for compliance.”
 - "Load the current process and give a summary"
+- "Create a diagram of this process showing the main steps, approval gates, and stakeholders --
+  not a cloud implementation, just the process flow."
+- "Show me a diagram of the current process."
 
 This applies to process/workflow explanation only.
 

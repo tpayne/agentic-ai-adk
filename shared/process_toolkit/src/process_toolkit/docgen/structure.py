@@ -11,7 +11,6 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from datetime import datetime
 import re
-import traceback
 import logging
 
 logger = logging.getLogger("ProcessArchitect.DocStructure")
@@ -244,7 +243,7 @@ def apply_iso_table_formatting(table: docx.table.Table, document: docx.Document)
                         run.font.size = font_size
 
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
 
 
 def add_iso_page_break(doc: docx.Document) -> None:
@@ -257,7 +256,7 @@ def add_iso_page_break(doc: docx.Document) -> None:
         p.paragraph_format.space_after = Pt(0)
         doc.add_page_break()
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
 
 
 def _add_version_history_table(
@@ -286,7 +285,7 @@ def _add_version_history_table(
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()  # spacer
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
 
 
 def _enable_auto_update_fields(doc: docx.Document) -> None:
@@ -304,7 +303,7 @@ def _enable_auto_update_fields(doc: docx.Document) -> None:
         update_fields.set(qn("w:val"), "true")
         settings.append(update_fields)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
 
 
 def _add_table_of_contents(doc: docx.Document) -> None:
@@ -332,4 +331,4 @@ def _add_table_of_contents(doc: docx.Document) -> None:
         inner_run.append(t)
         fld_simple.append(inner_run)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")

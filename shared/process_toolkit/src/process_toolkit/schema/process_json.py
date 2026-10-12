@@ -224,6 +224,17 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
             if not item.get("description"):
                 issues.append({"location": f"{loc}.description", "issue": "description is required"})
 
+    # DEBUG, not just persist_final_json's own INFO-level failure log: this
+    # function is also called directly in Design_Agent's own
+    # validate-then-retry loop (see process.hocon's "Call validate_process_json
+    # ... repeat until valid"), so every attempt in that loop needs its own
+    # trace -- otherwise only the FINAL persist (or final failure) is ever
+    # visible, and "why did it take 3 tries" is unanswerable after the fact.
+    if issues:
+        logger.debug("validate_process_json found %d issue(s): %s", len(issues), issues)
+    else:
+        logger.debug("validate_process_json: valid.")
+
     return {"valid": len(issues) == 0, "issues": issues}
 
 

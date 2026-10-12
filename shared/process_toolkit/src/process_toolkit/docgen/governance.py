@@ -4,7 +4,6 @@ process_agents/common/helpers/doc_governance.py.
 """
 
 import docx
-import traceback
 import logging
 
 from process_toolkit.docgen.structure import (
@@ -291,7 +290,7 @@ def _add_appendix_from_json(
         return True
 
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
         return False
 
 
@@ -326,7 +325,7 @@ def _add_additional_data_section(
         return True
 
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
         return False
 
 
@@ -361,7 +360,7 @@ def _add_glossary(doc: docx.Document, heading: str = "Appendix C: Glossary") -> 
         return True
 
     except Exception:
-        traceback.print_exc()
+        logger.exception("Section rendering failed; section was skipped.")
         return False
 
 
