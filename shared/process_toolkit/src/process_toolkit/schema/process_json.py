@@ -46,7 +46,26 @@ PROCESS_TEMPLATE: Dict[str, Any] = {
     "process_owner": "",
     "industry_sector": "",
     "stakeholders": [{"stakeholder_name": "", "role": "", "responsibilities": []}],
-    "process_steps": [],
+    "process_steps": [{
+        "step_name": "",
+        "description": "",
+        "responsible_party": "",
+        "estimated_duration": "",
+        "deliverables": [""],
+        "inputs": [""],
+        "outputs": [""],
+        "dependencies": [""],
+        "success_criteria": [""],
+        "purpose": "",
+        "scope": "",
+        "process_owner": "",
+        "process_triggers": [""],
+        "process_end_conditions": [""],
+        "step_risks_and_controls": [{"risk": "", "control": ""}],
+        "governance_requirements": [""],
+        "change_management": [{"change_request_process": "", "versioning_rules": ""}],
+        "continuous_improvement": [{"review_frequency": "", "improvement_inputs": [""]}],
+    }],
     "process_goals": [],
     "system_requirements": [{"name": "", "details": ""}],
     "tools_summary": [{"category": "", "tools": []}],
@@ -91,6 +110,21 @@ def load_full_process_context() -> Dict[str, Any]:
     return load_master_process_json()
 
 
+# Minimum content lengths (characters) below which a field is a bare
+# placeholder-grade sentence rather than real documentation -- "required"
+# alone wasn't enough: a live run persisted step_name/responsible_party/
+# description=<one short clause> for every step (e.g. "Teams execute
+# iterations synchronized by Scrum of Scrums...", ~115 chars) while every
+# other field in the same document was fully populated, producing a
+# document that reads like a summary, not a process doc. Calibrated well
+# below a real, human-reviewed reference document's own shortest fields
+# (its shortest process_step description was 354 chars; purpose/
+# introduction/scope were all 800+) so this never rejects genuinely
+# complete content, only the bare-clause failure mode actually observed.
+MIN_STEP_DESCRIPTION_CHARS = 150
+MIN_NARRATIVE_FIELD_CHARS = 300
+
+
 def validate_process_json(json_content: Any) -> Dict[str, Any]:
     issues: List[Dict[str, str]] = []
 
@@ -100,6 +134,18 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
     for field in ("process_name", "process_steps"):
         if field not in json_content:
             issues.append({"location": field, "issue": f"Missing required field '{field}'"})
+
+    for field in ("purpose", "introduction", "scope"):
+        value = json_content.get(field)
+        if isinstance(value, str) and 0 < len(value) < MIN_NARRATIVE_FIELD_CHARS:
+            issues.append({
+                "location": field,
+                "issue": (
+                    f"'{field}' is too thin ({len(value)} chars, need {MIN_NARRATIVE_FIELD_CHARS}+) -- "
+                    "write several full sentences covering context, rationale, and impact, not one "
+                    "short clause."
+                ),
+            })
 
     steps = json_content.get("process_steps")
     step_names = set()
@@ -115,6 +161,18 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
                 step_names.add(step["step_name"])
             if not step.get("responsible_party"):
                 issues.append({"location": f"{loc}.responsible_party", "issue": "responsible_party is required"})
+            description = step.get("description")
+            if not description:
+                issues.append({"location": f"{loc}.description", "issue": "description is required"})
+            elif len(description) < MIN_STEP_DESCRIPTION_CHARS:
+                issues.append({
+                    "location": f"{loc}.description",
+                    "issue": (
+                        f"description is too thin ({len(description)} chars, need "
+                        f"{MIN_STEP_DESCRIPTION_CHARS}+) -- explain what happens in this step, how, "
+                        "and what it produces, not just a one-clause summary."
+                    ),
+                })
     elif "process_steps" in json_content:
         issues.append({"location": "process_steps", "issue": "process_steps must be a list"})
 

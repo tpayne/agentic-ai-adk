@@ -508,6 +508,22 @@
     return out;
   }
 
+  // GFM pipe table helpers -- shared by the header/separator/body row
+  // handling in renderMarkdownLite below.
+  function splitTableRow(line) {
+    let cells = line.split("|");
+    // Drop one leading/trailing empty cell from the row's optional outer pipes.
+    if (cells.length && cells[0].trim() === "") cells = cells.slice(1);
+    if (cells.length && cells[cells.length - 1].trim() === "") cells = cells.slice(0, -1);
+    return cells.map((c) => c.trim());
+  }
+
+  function isTableSeparatorRow(line) {
+    if (!/\|/.test(line)) return false;
+    const cells = splitTableRow(line);
+    return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
+  }
+
   function renderMarkdownLite(raw) {
     const text = (raw || "").replace(/\r\n/g, "\n");
     const lines = text.split("\n");
@@ -570,6 +586,36 @@
         }
         listBuffer.items.push(ol[1]);
         i += 1;
+        continue;
+      }
+
+      // GFM pipe table: a row containing "|" immediately followed by a
+      // separator row ("| :--- | ---: |" etc.) marks the start of a
+      // table -- a bare "|" in ordinary prose has no such separator line
+      // after it and falls through to paragraph handling below instead.
+      if (/\|/.test(line) && i + 1 < lines.length && isTableSeparatorRow(lines[i + 1])) {
+        flushList();
+        const headerCells = splitTableRow(line);
+        const aligns = splitTableRow(lines[i + 1]).map((c) => {
+          const left = c.startsWith(":");
+          const right = c.endsWith(":");
+          if (left && right) return "center";
+          if (right) return "right";
+          if (left) return "left";
+          return "";
+        });
+        i += 2;
+        const bodyRows = [];
+        while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim() !== "") {
+          bodyRows.push(splitTableRow(lines[i]));
+          i += 1;
+        }
+        const alignAttr = (idx) => (aligns[idx] ? ` style="text-align:${aligns[idx]}"` : "");
+        const headHtml = headerCells.map((c, idx) => `<th${alignAttr(idx)}>${renderInline(c)}</th>`).join("");
+        const bodyHtml = bodyRows
+          .map((row) => `<tr>${row.map((c, idx) => `<td${alignAttr(idx)}>${renderInline(c)}</td>`).join("")}</tr>`)
+          .join("");
+        html.push(`<table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`);
         continue;
       }
 
