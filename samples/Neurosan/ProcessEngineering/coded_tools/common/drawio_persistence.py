@@ -13,8 +13,8 @@ via process_toolkit.drawio.persistence.
 import os
 import xml.etree.ElementTree as ET
 
-from coded_tools.common.paths import output_path
 from process_toolkit.drawio.persistence import load_drawio_xml  # noqa: F401
+from process_toolkit.paths import output_path
 
 DRAWIO_FILENAME = "cloudarch_drawio.xml"
 

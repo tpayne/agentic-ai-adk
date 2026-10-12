@@ -8,11 +8,14 @@ not an exhaustive schema -- is what's preserved.
 """
 
 import json
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
 
 from process_toolkit import paths
+
+logger = logging.getLogger("ProcessArchitect.ProcessJson")
 
 PROCESS_JSON_FILENAME = "process_data.json"
 # Written by the design pipeline (design_json.py) -- kept here, not there,
@@ -98,9 +101,17 @@ def load_master_process_json() -> Dict[str, Any]:
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            logger.debug("Loaded existing baseline from %s.", path)
+            return data
         except Exception:
-            pass
+            logger.exception(
+                "Existing baseline at %s exists but could not be read -- falling back to the empty "
+                "template. Any un-persisted work in that file is NOT reflected in what gets returned.",
+                path,
+            )
+    else:
+        logger.debug("No baseline at %s -- falling back to the empty template.", path)
     return load_process_template()
 
 
@@ -218,24 +229,32 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
 
 def persist_final_json(json_content: Any) -> str:
     if not json_content or (isinstance(json_content, dict) and len(json_content) == 0):
+        logger.debug("persist_final_json called with no content -- nothing to do.")
         return "INFO: No JSON content provided, so nothing has been done."
 
     if isinstance(json_content, str):
         try:
             json_content = json.loads(json_content)
         except Exception as e:
+            logger.warning("persist_final_json received a string that is not valid JSON: %s", e)
             return f"ERROR: Could not parse JSON content: {e}"
 
     validation = validate_process_json(json_content)
     if not validation["valid"]:
+        # WARNING, not DEBUG: this is the single most useful diagnostic for
+        # "why does the generated document look thin/wrong" -- visible at
+        # the default LOGLEVEL without needing to re-run with DEBUG on.
+        logger.warning("Design_Agent's JSON failed validation, nothing persisted: %s", validation["issues"])
         return f"ERROR: JSON failed validation: {validation['issues']}"
 
     path = paths.output_path(PROCESS_JSON_FILENAME)
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(json_content, f, indent=2, ensure_ascii=False)
+        logger.info("Persisted process JSON to %s (%d process_steps).", path, len(json_content.get("process_steps") or []))
         return f"SUCCESS: The file {path} was saved successfully."
     except Exception as e:
+        logger.exception("Failed to write process JSON to %s.", path)
         return f"ERROR: Could not save process JSON: {e}"
 
 

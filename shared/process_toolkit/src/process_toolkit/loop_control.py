@@ -15,11 +15,14 @@ approved, not exhausted.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, Literal
 
 from process_toolkit import paths
+
+logger = logging.getLogger("ProcessArchitect.LoopControl")
 
 STOP_COUNTER_FILENAME = "stop_counter.json"
 APPROVAL_FILENAME = "approval.json"
@@ -37,6 +40,29 @@ class LoopDecision:
 
 
 def evaluate_loop_stop(
+    *,
+    loop_count: int,
+    max_iterations: int,
+    hard_stop: bool,
+    approval_state: Dict[str, Any],
+    required_approvals: Dict[str, str],
+) -> LoopDecision:
+    decision = _evaluate_loop_stop(
+        loop_count=loop_count, max_iterations=max_iterations, hard_stop=hard_stop,
+        approval_state=approval_state, required_approvals=required_approvals,
+    )
+    # INFO, not DEBUG: this is the single decision governing whether the
+    # pipeline revises again or finalizes -- exactly the kind of thing that
+    # otherwise only surfaces as "why did it stop/keep going" guesswork.
+    logger.info(
+        "Loop decision: %s/%s at iteration %d/%d (approval_state=%s, required=%s).",
+        decision.verdict, decision.reason, decision.iteration, decision.max_iterations,
+        approval_state, required_approvals,
+    )
+    return decision
+
+
+def _evaluate_loop_stop(
     *,
     loop_count: int,
     max_iterations: int,
@@ -69,6 +95,7 @@ def load_counter() -> int:
         with open(path, "r", encoding="utf-8") as f:
             return int(json.load(f).get("count", 0))
     except Exception:
+        logger.warning("Could not read %s -- treating loop_count as 0.", path, exc_info=True)
         return 0
 
 
@@ -77,7 +104,7 @@ def save_counter(count: int) -> None:
         with open(paths.output_path(STOP_COUNTER_FILENAME), "w", encoding="utf-8") as f:
             json.dump({"count": count}, f)
     except Exception:
-        pass
+        logger.warning("Could not persist loop counter (count=%d) -- next call will re-read a stale value.", count, exc_info=True)
 
 
 def reset_counter() -> None:
@@ -87,8 +114,9 @@ def reset_counter() -> None:
     try:
         if os.path.exists(path):
             os.remove(path)
+            logger.debug("Reset loop counter at %s.", path)
     except Exception:
-        pass
+        logger.warning("Could not remove stale loop counter at %s.", path, exc_info=True)
 
 
 def load_approval_state() -> Dict[str, Any]:
@@ -99,4 +127,5 @@ def load_approval_state() -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
+        logger.warning("Could not read %s -- treating approval_state as empty.", path, exc_info=True)
         return {}

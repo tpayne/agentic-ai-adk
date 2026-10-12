@@ -6,12 +6,15 @@ design/low_level_design requirement) rather than a full JSON-Schema document.
 """
 
 import json
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
 
 from process_toolkit import paths
 from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
+
+logger = logging.getLogger("ProcessArchitect.DesignJson")
 
 # One-item example shapes restore real key names/types (rather than a bare
 # `{}`/`[]`) so the generating agent naturally lands on what the docgen
@@ -234,9 +237,17 @@ def load_master_design_json() -> Dict[str, Any]:
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            logger.debug("Loaded existing design baseline from %s.", path)
+            return data
         except Exception:
-            pass
+            logger.exception(
+                "Existing design baseline at %s exists but could not be read -- falling back to the "
+                "empty template. Any un-persisted work in that file is NOT reflected in what gets returned.",
+                path,
+            )
+    else:
+        logger.debug("No design baseline at %s -- falling back to the empty template.", path)
     return load_design_template()
 
 
@@ -309,24 +320,29 @@ def validate_design_json(json_content: Any) -> Dict[str, Any]:
 
 def persist_final_design_json(json_content: Any) -> str:
     if not json_content or (isinstance(json_content, dict) and len(json_content) == 0):
+        logger.debug("persist_final_design_json called with no content -- nothing to do.")
         return "INFO: No JSON content provided, so nothing has been done."
 
     if isinstance(json_content, str):
         try:
             json_content = json.loads(json_content)
         except Exception as e:
+            logger.warning("persist_final_design_json received a string that is not valid JSON: %s", e)
             return f"ERROR: Could not parse JSON content: {e}"
 
     validation = validate_design_json(json_content)
     if not validation["valid"]:
+        logger.warning("Design_Agent's design JSON failed validation, nothing persisted: %s", validation["issues"])
         return f"ERROR: JSON failed validation: {validation['issues']}"
 
     path = paths.output_path(DESIGN_JSON_FILENAME)
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(json_content, f, indent=2, ensure_ascii=False)
+        logger.info("Persisted design JSON to %s.", path)
         return f"SUCCESS: The file {path} was saved successfully."
     except Exception as e:
+        logger.exception("Failed to write design JSON to %s.", path)
         return f"ERROR: Could not save design JSON: {e}"
 
 

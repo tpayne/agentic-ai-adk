@@ -10,10 +10,13 @@ escalate) and its replacement.
 """
 
 import json
+import logging
 import os
 from typing import Any, Dict
 
 from process_toolkit.paths import output_path
+
+logger = logging.getLogger("ProcessArchitect.IterationFeedback")
 
 FEEDBACK_FILENAME = "iteration_feedback.json"
 APPROVAL_FILENAME = "approval.json"
@@ -67,13 +70,20 @@ def load_iteration_feedback(reset_data: bool = True, channel: str = "") -> Dict[
     reset_data=False) so a later, unrelated read never sees stale content."""
     path = output_path(_feedback_filename(channel))
     if not os.path.exists(path):
+        logger.debug("No feedback mailbox at %s (channel=%r) -- nothing to load.", path, channel)
         return {}
 
     try:
         with open(path, "r", encoding="utf-8") as f:
             feedback = json.load(f)
     except Exception:
+        logger.warning("Could not read feedback mailbox %s (channel=%r).", path, channel, exc_info=True)
         return {"status": "No feedback found", "data": []}
+
+    logger.debug(
+        "Loaded feedback from channel=%r: status=%r, reset_data=%s.",
+        channel, feedback.get("status") if isinstance(feedback, dict) else None, reset_data,
+    )
 
     if reset_data and isinstance(feedback, dict):
         try:
@@ -87,7 +97,7 @@ def load_iteration_feedback(reset_data: bool = True, channel: str = "") -> Dict[
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(drained, f, indent=2)
         except Exception:
-            pass
+            logger.warning("Could not drain feedback mailbox %s (channel=%r).", path, channel, exc_info=True)
 
     return feedback
 
@@ -117,12 +127,16 @@ def save_iteration_feedback(feedback_data: Any, channel: str = "") -> str:
                 with open(approval_path, "r", encoding="utf-8") as f:
                     approval_state = json.load(f)
             except Exception:
+                logger.warning("Could not read existing approval state at %s -- starting fresh.", approval_path, exc_info=True)
                 approval_state = {}
         for marker in matched:
             key, value = APPROVAL_MARKERS[marker]
             approval_state[key] = value
         with open(approval_path, "w", encoding="utf-8") as f:
             json.dump(approval_state, f, indent=2)
+        # INFO, not DEBUG: an approval marker is a key pipeline event (a
+        # reviewer signed off) worth seeing without raising LOGLEVEL.
+        logger.info("Channel=%r matched approval marker(s) %s -> approval_state now %s.", channel, matched, approval_state)
 
     status = inner_status if inner_status in APPROVED_STATUSES else "REVISION REQUIRED"
 
@@ -138,8 +152,10 @@ def save_iteration_feedback(feedback_data: Any, channel: str = "") -> str:
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
+        logger.debug("Saved feedback to channel=%r: status=%r.", channel, status)
         return f"SUCCESS: Feedback persisted to {path}"
     except Exception as e:
+        logger.warning("Could not save feedback to %s (channel=%r).", path, channel, exc_info=True)
         return f"ERROR: Could not save feedback: {e}"
 
 
@@ -152,8 +168,9 @@ def reset_approval_state() -> None:
         try:
             if os.path.exists(path):
                 os.remove(path)
+                logger.debug("Reset approval state at %s.", path)
         except Exception:
-            pass
+            logger.warning("Could not remove stale approval state at %s.", path, exc_info=True)
 
 
 def reset_feedback_channels() -> None:

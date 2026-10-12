@@ -343,10 +343,12 @@ out):
 # COMPLETION
 Call save_subprocess_flow with step_name=<the parent step's step_name> and subprocess_flow=
 {"step_name": <the parent step's step_name>, "subprocess_flow": [<your list of sub-step objects
-above>]}. If it returns "status": "ERROR" with an "issues" list, every named sub-step is missing
-substep_name and/or description (both are required -- a missing substep_name is what makes the
-final document render a generic "Sub-step N" heading instead of a real one) -- fix exactly those
-fields and call save_subprocess_flow again; repeat until it returns "status": "OK".
+above>]}. If it returns "status": "ERROR" with an "issues" list, every named sub-step is missing a
+required field (substep_name, description, purpose, scope, process_owner, or responsible_party --
+a missing substep_name is what makes the final document render a generic "Sub-step N" heading
+instead of a real one; a too-short description reads as a one-line summary rather than the
+multi-sentence explanation the document needs) -- fix exactly those fields and call
+save_subprocess_flow again; repeat until it returns "status": "OK".
 
 Do not output the subprocess JSON as chat text -- it belongs only inside the tool call.
 """,

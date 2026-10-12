@@ -33,7 +33,7 @@ import re
 from statistics import mean, pstdev
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from coded_tools.common import paths
+from process_toolkit import paths
 from process_toolkit.schema.design_json import load_master_design_json, extract_valid_json
 
 SIM_RESULTS_FILENAME = "design_simulation_results.json"

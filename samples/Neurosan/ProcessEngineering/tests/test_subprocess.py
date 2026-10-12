@@ -1,6 +1,18 @@
 from coded_tools.process.process_json_tool import PersistFinalJsonCodedTool
 from coded_tools.process.subprocess_tool import LoadProcessStepsCodedTool, SaveSubprocessFlowCodedTool
 
+_COMPLETE_SUBSTEP = {
+    "substep_name": "Collect ID",
+    "description": (
+        "The team collects and verifies the applicant's ID documents against the submitted "
+        "application, checking for expiry and consistency before filing them for the next step."
+    ),
+    "purpose": "Confirm the applicant's identity before proceeding.",
+    "scope": "Document collection and verification.",
+    "process_owner": "Compliance",
+    "responsible_party": "Compliance",
+}
+
 
 def _seed_process():
     doc = {
@@ -34,7 +46,7 @@ def test_save_subprocess_flow_persists_to_a_file_named_after_the_step():
 
     flow = {
         "step_name": "KYC Check",
-        "subprocess_flow": [{"substep_name": "Collect ID", "description": "Collect the applicant's ID documents."}],
+        "subprocess_flow": [_COMPLETE_SUBSTEP],
     }
     result = SaveSubprocessFlowCodedTool().invoke({"step_name": "KYC Check", "subprocess_flow": flow}, {})
 
@@ -51,7 +63,7 @@ def test_save_subprocess_flow_sanitizes_a_path_traversal_attempt():
             "step_name": "../../etc/evil",
             "subprocess_flow": {
                 "step_name": "x",
-                "subprocess_flow": [{"substep_name": "Step 1", "description": "Does a thing."}],
+                "subprocess_flow": [_COMPLETE_SUBSTEP],
             },
         },
         {},
