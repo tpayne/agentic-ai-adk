@@ -538,20 +538,41 @@ def generate_clean_diagram() -> str:
 
         x_spacing, y_spacing = 5.0, -4.0
         nodes = list(G.nodes())
-        lanes = sorted(list(set(lane_map.get(n, default_lane) for n in nodes)))
+
+        # Overall flow sequence (topological order across the whole graph)
+        # drives BOTH axes below -- X directly, and lane (Y) ordering
+        # indirectly. Falls back to the original node order if the graph
+        # has a cycle (topological_sort is undefined then).
+        try:
+            sequence_order = list(nx.topological_sort(G))
+        except nx.NetworkXUnfeasible:
+            sequence_order = nodes
+        x_index = {n: i for i, n in enumerate(sequence_order)}
+
+        # Lane order follows each lane's FIRST appearance in the flow
+        # sequence, not alphabetical. Alphabetical lane ordering has no
+        # relation to process flow, so a step's lane can jump to a
+        # visually distant row even when it directly follows the
+        # previous step -- producing a zigzagging diagram with long
+        # diagonal edges that read as crossed/confusing, even once X
+        # position is correctly sequence-ordered. Any lane never reached
+        # by sequence_order (shouldn't normally happen) is still
+        # included, alphabetically, after the ones that are.
+        lanes = []
+        for n in sequence_order:
+            lane = lane_map.get(n, default_lane)
+            if lane not in lanes:
+                lanes.append(lane)
+        remaining_lanes = sorted(set(lane_map.get(n, default_lane) for n in nodes) - set(lanes))
+        lanes += remaining_lanes
         lane_y_indices = {lane: idx for idx, lane in enumerate(lanes)}
 
-        lane_positions = {lane: [] for lane in lanes}
+        pos = {}
         for n in nodes:
             lane = lane_map.get(n, default_lane)
-            lane_positions[lane].append(n)
-
-        pos = {}
-        for lane, items in lane_positions.items():
             y = lane_y_indices[lane] * y_spacing
-            for i, n in enumerate(items):
-                x = i * x_spacing
-                pos[n] = (x, y)
+            x = x_index.get(n, 0) * x_spacing
+            pos[n] = (x, y)
 
         fig, ax = plt.subplots(figsize=(18, 10))
 
