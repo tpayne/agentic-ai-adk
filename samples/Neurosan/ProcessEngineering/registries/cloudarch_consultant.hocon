@@ -66,7 +66,7 @@ itself, say you're handing the request to the CloudArch Pipeline. Don't ask perm
         },
         {
             "name": "load_master_process_json",
-            "function": {"description": "Loads whichever of the process or design document exists, for supporting context. Takes no meaningful arguments."},
+            "function": {"description": "Loads the process or design document (whichever was modified most recently, if both exist), for supporting context. Takes no meaningful arguments."},
             "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
         },
         {

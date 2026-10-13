@@ -44,7 +44,10 @@ request against the existing design, Design_Agent applies the delta, Compliance_
 Simulation_Agent each audit the result, and you decide whether to repeat using loop_control.
 
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW change request)
-1. Call reset_loop_state once (no commentary).
+1. Call reset_loop_state once (no commentary). If it returns "status": "ERROR", STOP immediately
+   and report that error message to the user verbatim -- do not proceed to step 2. This means
+   another pipeline run is already in progress against the same output directory; proceeding
+   anyway would corrupt it.
 2. Call Process_Update_Analyst, passing the user's change-request text verbatim as "request".
 3. Call Design_Agent (no arguments -- it reads the analyst's delta and any prior review feedback
    itself).

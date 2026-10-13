@@ -22,6 +22,7 @@ from coded_tools.process.reset_loop_state_tool import ResetLoopStateCodedTool as
 from coded_tools.process.save_iteration_feedback_tool import (
     SaveIterationFeedbackCodedTool as ProcessSaveFeedback,
 )
+from process_toolkit.run_lock import GRACE_SECONDS
 
 
 def test_cloudarch_pipeline_approves_on_first_pass():
@@ -130,3 +131,26 @@ def test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run():
     for channel in ("compliance", "simulation"):
         result = load_feedback.invoke({"channel": channel}, {})
         assert result.get("data") in (None, []), f"channel {channel!r} still has stale data: {result}"
+
+
+def test_reset_loop_state_refuses_to_run_while_another_pipeline_is_still_in_flight(tmp_path):
+    # Reproduces the concurrency risk directly: a run's own reset_loop_state
+    # call must not clear another, still-active run's approval/feedback
+    # state out from under it -- it should refuse instead.
+    import json
+    import time
+
+    with open(tmp_path / "pipeline.lock", "w", encoding="utf-8") as f:
+        json.dump({"label": "a design pipeline", "started_at": time.time() - (GRACE_SECONDS + 1), "pid": 1}, f)
+    ProcessSaveFeedback().invoke(
+        {"channel": "compliance", "feedback": {"status": "REVISION REQUIRED", "data": ["in-flight run's own feedback"]}}, {}
+    )
+
+    result = ProcessReset().invoke({}, {})
+
+    assert result["status"] == "ERROR"
+    assert "a design pipeline" in result["error"]
+
+    # The in-flight run's own feedback must survive untouched.
+    load_feedback = ProcessLoadFeedback()
+    assert load_feedback.invoke({"channel": "compliance"}, {})["data"] == ["in-flight run's own feedback"]

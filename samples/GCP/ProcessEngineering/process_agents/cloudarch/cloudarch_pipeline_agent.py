@@ -3,20 +3,35 @@
 import logging
 import os
 from google.adk.agents import LoopAgent
+from google.genai import types
 
 from ..common.utils import getProperty
 from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
 from ..common.utils_agent import stop_controller_agent, status_logger, cloudarch_stop_if_ready
 from ..common.agent_wrappers import ProcessAgent
+from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
 SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
 
 
-def _reset_cloudarch_approval_state(callback_context=None) -> None:
+def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | None":
     """
+    Claims the shared output/ directory's pipeline lock (see
+    process_toolkit.run_lock) before touching any state. Unlike the two
+    create pipelines' own reset tools, this runs as a before_agent_callback
+    rather than a model-invoked tool, so a lock conflict can short-circuit
+    the whole CloudArch_Pipeline run deterministically: returning a
+    types.Content here (rather than None) ends the invocation immediately
+    with that content as the agent's entire response -- see ADK's own
+    BaseAgent._handle_before_agent_callback (end_invocation_on_content=True)
+    -- instead of depending on an LLM instruction to notice and relay an
+    error string, the way the process/design-doc pipelines' own reset tools
+    have to (those run as ordinary tool calls inside an LLM turn, with no
+    equivalent short-circuit available).
+
     Clears any stale output/approval.json / output/stop_counter.json left
     over from an earlier, unrelated pipeline run, before CloudArch_Pipeline's
     review loop starts.
@@ -44,6 +59,11 @@ def _reset_cloudarch_approval_state(callback_context=None) -> None:
     after cloudarch_reviewer_agent writes it on iteration 1, breaking the
     approval check on iteration 2 for any run that needs more than one pass.
     """
+    try:
+        acquire_pipeline_lock("the cloud architecture pipeline")
+    except PipelineLockedError as e:
+        return types.Content(role="model", parts=[types.Part(text=str(e))])
+
     for name in ("approval.json", "stop_counter.json"):
         path = os.path.join("output", name)
         try:

@@ -13,6 +13,7 @@ from ..common.utils import (
     load_requirements_summary,
     getProperty,
 )
+from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.Analysis")
 
@@ -23,6 +24,22 @@ def _remove_previous_approval_logs():
     # "APPROVED" status or loop count from before could make this run's
     # stop controller think review is already done before it has actually
     # happened. Silently remove output/approval.json, ignore exceptions.
+    #
+    # Also claims the shared output/ directory's pipeline lock (see
+    # process_toolkit.run_lock) before clearing anything -- this is the
+    # one call BOTH Full_Design_Pipeline (via log_analysis_metadata) and
+    # Update_Design_Pipeline (via Process_Update_Analyst's own reuse of
+    # log_analysis_metadata) already make exactly once per run, so it's
+    # the right place to detect and refuse a second, concurrent run
+    # against the same directory rather than letting it silently
+    # interleave with and corrupt this one's state. A lock conflict
+    # returns an error string instead of clearing anything, so a
+    # genuinely-running other pipeline's state survives untouched.
+    try:
+        acquire_pipeline_lock("the process pipeline")
+    except PipelineLockedError as e:
+        return f"ERROR: {e}"
+
     approvalLog = "output/approval.json"
     counterLog = "output/stop_counter.json"
     try:
@@ -37,7 +54,9 @@ def _remove_previous_approval_logs():
 def log_analysis_metadata(sector: str, goal_count: int):
     """Internal tool to track extraction progress and CLEAN environment."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-    _remove_previous_approval_logs()
+    cleared = _remove_previous_approval_logs()
+    if cleared.startswith("ERROR"):
+        return cleared
     logger.debug(f"Analysis Metadata - Sector: {sector}, Goals Identified: {goal_count}.")
     return f"Analysis started for {sector} with {goal_count} identified objectives."
 
@@ -45,7 +64,9 @@ def record_analysis_request(request: str):
     """Internal tool to log the original user request for traceability."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug(f"Original Analysis Request: {request}")
-    _remove_previous_approval_logs()
+    cleared = _remove_previous_approval_logs()
+    if cleared.startswith("ERROR"):
+        return cleared
     return "User request logged."
 
 # -----------------------------

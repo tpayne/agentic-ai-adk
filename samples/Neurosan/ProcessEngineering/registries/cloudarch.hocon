@@ -46,7 +46,10 @@ to audit it, and you decide whether to repeat that cycle using loop_control.
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
 1. Call reset_loop_state first (no commentary) -- this clears stale approval/iteration state left
    over from an earlier, unrelated request. Do this exactly once per NEW request, not again within
-   the generate/review cycle below.
+   the generate/review cycle below. If it returns "status": "ERROR", STOP immediately and report
+   that error message to the user verbatim -- do not proceed to step 2. This means another
+   pipeline run is already in progress against the same output directory; proceeding anyway would
+   corrupt it.
 2. Call CloudArch_Agent, passing the user's request text verbatim as the "request" argument.
    CloudArch_Agent decides for itself (via its own modes) whether this is a fresh generation, a
    refinement of an existing diagram, or a revision in response to the reviewer's last feedback --
@@ -372,7 +375,7 @@ No commentary, no markdown, no explanation of your reasoning outside the structu
         {
             "name": "load_master_process_json",
             "function": {
-                "description": "Loads whichever of the process or design document exists, for supporting context. Takes no meaningful arguments."
+                "description": "Loads the process or design document (whichever was modified most recently, if both exist), for supporting context. Takes no meaningful arguments."
             },
             "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
         },

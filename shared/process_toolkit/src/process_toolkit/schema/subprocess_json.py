@@ -67,6 +67,8 @@ def validate_subprocess_flow(flow: Dict[str, Any]) -> Dict[str, Any]:
         description = sub.get("description")
         if not description:
             issues.append({"location": f"{loc}.description", "issue": "description is required"})
+        elif not isinstance(description, str):
+            issues.append({"location": f"{loc}.description", "issue": "description must be a string"})
         elif len(description) < MIN_SUBSTEP_DESCRIPTION_CHARS:
             issues.append({
                 "location": f"{loc}.description",

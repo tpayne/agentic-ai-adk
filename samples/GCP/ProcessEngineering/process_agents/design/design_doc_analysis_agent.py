@@ -12,11 +12,23 @@ from ..common.utils import (
     load_requirements_summary,
     getProperty,
 )
+from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.DesignDocAnalysis")
 
 def _remove_previous_approval_logs():
-    """Silently remove output/approval.json and counter log, ignore exceptions."""
+    """Silently remove output/approval.json and counter log, ignore exceptions.
+
+    Also claims the shared output/ directory's pipeline lock (see
+    process_toolkit.run_lock) before clearing anything -- see the parallel
+    comment in process/analysis_agent.py's own _remove_previous_approval_logs
+    for why this is the right choke point (both Full_Design_Doc_Pipeline and
+    Update_Design_Doc_Pipeline route through this one function)."""
+    try:
+        acquire_pipeline_lock("the design document pipeline")
+    except PipelineLockedError as e:
+        return f"ERROR: {e}"
+
     approvalLog = "output/approval.json"
     counterLog = "output/stop_counter.json"
     try:
@@ -31,7 +43,9 @@ def _remove_previous_approval_logs():
 def log_analysis_metadata(industry_sector: str, goal_count: int):
     """Internal tool to track architectural extraction progress and clean environment."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
-    _remove_previous_approval_logs()
+    cleared = _remove_previous_approval_logs()
+    if cleared.startswith("ERROR"):
+        return cleared
     logger.debug(f"Analysis Metadata - Sector: {industry_sector}, Goals Identified: {goal_count}.")
     return f"Analysis started for {industry_sector} with {goal_count} identified objectives."
 
@@ -39,7 +53,9 @@ def record_analysis_request(request: str):
     """Internal tool to log the original user request for traceability."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug(f"Original Analysis Request: {request}")
-    _remove_previous_approval_logs()
+    cleared = _remove_previous_approval_logs()
+    if cleared.startswith("ERROR"):
+        return cleared
     return "User request logged."
 
 # -----------------------------

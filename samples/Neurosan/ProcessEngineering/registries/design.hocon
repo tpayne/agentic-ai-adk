@@ -59,7 +59,9 @@ requirements, design, or audit the document yourself.
 
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
 1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
-   earlier, unrelated request.
+   earlier, unrelated request. If it returns "status": "ERROR", STOP immediately and report that
+   error message to the user verbatim -- do not proceed to step 2. This means another pipeline run
+   is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Design_Doc_Analysis_Agent, passing the user's request text verbatim as "request". It
    extracts architectural requirements and writes them to its own feedback channel for
    Design_Doc_Agent to pick up.

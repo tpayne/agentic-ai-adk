@@ -59,7 +59,9 @@ own result comes back, the document and flow diagram will be built from a design
 subprocess data yet, silently producing a document with no subprocess sections or diagrams at
 all. Step 7 MUST fully complete (its result message received) before you call step 8.
 1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
-   earlier, unrelated request.
+   earlier, unrelated request. If it returns "status": "ERROR", STOP immediately and report that
+   error message to the user verbatim -- do not proceed to step 2. This means another pipeline run
+   is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Analysis_Agent, passing the user's request text verbatim as "request". It extracts
    requirements and writes them to its own feedback channel for Design_Agent to pick up.
 3. Call Design_Agent (no arguments needed -- it reads the requirements and any prior review

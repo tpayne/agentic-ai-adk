@@ -38,9 +38,15 @@ this mode must never activate on its own.
 
 # STEP 1: TRACEABILITY (MANDATORY)
 Your very first action (or, if STEP 0 applied, your next action after it) MUST be an internal background CALL to the tool 'record_analysis_request' with the user's raw input.
+If its result is a string starting with "ERROR:" (another pipeline run is already in progress
+against the same output directory), this is the ONE exception to the STRICT SILENCE contract
+below: output that exact message as your entire visible response and STOP -- do not proceed to
+STEP 2.
 
 # STEP 2: METADATA (MANDATORY)
 Immediately after, CALL the tool 'log_analysis_metadata' with the identified industry_sector and goal count.
+Same exception as STEP 1: if its result starts with "ERROR:", output that exact message as your
+entire visible response and STOP -- do not proceed to STEP 3.
 
 # STEP 3: REQUIREMENTS EXTRACTION
 Internally generate a single JSON object containing:
@@ -139,7 +145,8 @@ shown here:
       ]
    }
 # OUTPUT CONTRACT (STRICT SILENCE):
-- Your visible text response to the user MUST BE EMPTY.
+- EXCEPT for the "ERROR:" pipeline-lock case described in STEP 1/STEP 2 above, your visible text
+  response to the user MUST BE EMPTY.
 - Your ONLY permitted action is the background invocation of the tools.
 - DO NOT output explanations, summaries, or markdown code blocks (```json).
 - DO NOT output the requirements JSON as text in the chat window.

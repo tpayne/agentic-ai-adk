@@ -68,6 +68,21 @@ def test_validate_rejects_a_process_step_description_that_is_too_thin():
     assert any(issue["location"] == "process_steps[0].description" for issue in result["issues"])
 
 
+def test_validate_rejects_a_non_string_description_without_raising():
+    # Regression test: a malformed description that isn't a string (e.g. a
+    # model emitting a number or list instead of text) must come back as a
+    # validation issue, not raise TypeError out of len(description).
+    doc = {
+        "process_name": "X",
+        "process_steps": [{
+            "step_name": "A", "responsible_party": "Ops", "description": 12345, "dependencies": [],
+        }],
+    }
+    result = validate_process_json(doc)
+    assert not result["valid"]
+    assert any(issue["location"] == "process_steps[0].description" for issue in result["issues"])
+
+
 def test_validate_rejects_a_too_thin_purpose_introduction_or_scope():
     doc = {
         "process_name": "X",
