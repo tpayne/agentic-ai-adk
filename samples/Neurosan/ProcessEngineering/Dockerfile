@@ -24,6 +24,24 @@
 # tooling could.
 FROM python:3.15-slim
 
+# Install native build dependencies needed for Python packages that compile
+# from source during dependency resolution (for example, zstandard for
+# langsmith/neuro-san). Without the standard C toolchain and libzstd headers,
+# `uv sync` can fail in CI during wheel builds. This keeps the Docker image
+# self-sufficient for dependency resolution without changing the app's runtime.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
+        python3-dev \
+        libzstd-dev \
+        pkg-config \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --upgrade pip setuptools wheel
+
 # Installs the `uv` binary itself by copying it out of Astral's own
 # published image, rather than `pip install uv` -- the standard way to get
 # uv into a Docker build without needing pip/network access for it
