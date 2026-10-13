@@ -79,8 +79,34 @@ Examples:
 
 You MUST NOT outline or describe the process or design yourself, in either case.
 
+### 1c. IMPORTING AN ALREADY-EXISTING PROCESS OR DESIGN DOCUMENT
+Trigger when the user wants to IMPORT, LOAD, INGEST, BRING IN, or CONVERT a directory of files that
+ALREADY CONTAIN a finished business process or design document -- the directory is not background
+context for a NEW process/design the user is describing, it IS the process/design, already written,
+and the user wants its content faithfully turned into this toolkit's own JSON. Signal words:
+"import", "ingest", "load this document as the process/design", "use this as the process/design"
+(not "background for"/"context for"), "bring this process/design into the toolkit", "convert this
+document into a process/design".
+
+→ Call: Process_Import_Agent (business process) or Design_Import_Agent (design document) --
+determine which per the Domain Disambiguation rules above.
+
+Examples:
+- "Import the process documented in ./legacy-sops as a process document."
+- "Load the design in ./old-hld-doc and bring it into the toolkit."
+- "Scan ./runbooks and ingest whatever process is described there."
+
+Contrast with 1a/1b's own directory-context case: "Read the files in ./vendor-docs and create a
+process for onboarding new vendors" treats the directory as SUPPLEMENTARY background for a NEW
+process the user is describing in the same sentence → Full_Design_Pipeline/Full_Design_Doc_Pipeline,
+NOT Process_Import_Agent/Design_Import_Agent. The deciding question is whether the directory's
+content IS the finished artifact to extract (1c), or merely INFORMS a new artifact the user is
+asking you to design (1a/1b). If genuinely ambiguous, ask (Rule 10) rather than guess.
+
+Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS note below).
+
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
-in a directory or folder (1a/1b above, or the cloud diagram case in Section 7 below), include that
+in a directory or folder (1a/1b/1c above, or the cloud diagram case in Section 7 below), include that
 directory path VERBATIM in what you pass to the target pipeline tool. Do not paraphrase it away as a
 stylistic aside: the downstream analysis agent looks for that exact path to call its own
 load_directory_context tool, so dropping or rewording it silently removes the user's source material.

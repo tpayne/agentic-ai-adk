@@ -43,6 +43,8 @@ The following are a list of known issues: -
     * CloudArch Pipeline for generating or regenerating cloud architecture diagrams from a **design document**
     * Requirements Summary Agent for reading a directory of files and summarising/saving the requirements found in them, **without** creating a process, design, or architecture
     * Requirements Consultant Agent for general queries about a previously saved requirements summary (including flagged conflicts, priorities, clarifications, inferred requirements, and coverage gaps)
+    * Process Import Agent for importing an **already-existing** business process document found in a directory of files directly into the process JSON schema, **without** generating a new one from a brief
+    * Design Import Agent for importing an **already-existing** architectural/technical design document (HLD/LLD/Combined) found in a directory of files directly into the design JSON schema, **without** generating a new one from a brief
   If the root agent picks the wrong domain (e.g. it treats a design-document question as a process question, or vice-versa), naming the agent explicitly in your prompt (e.g. **"using the Design Consultant Agent..."**) will steer it correctly.
 
 ---
@@ -73,6 +75,7 @@ The ADK pipeline provides:
 - **Design Consultant & Scenario Testing**: A `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while a `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation agent for any quantitative estimate.
 - **File-Based Requirements Extraction (opt-in)**: Any process, design-document, or cloud-architecture creation/refinement request can source its requirements from a directory of files instead of (or alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a process for onboarding new vendors."* `load_directory_context` extracts and combines text from every `.txt`/`.md`/`.docx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx` file directly inside the given directory using pure-Python extractors (no system binaries required). This is strictly opt-in — absent that explicit phrasing, no agent ever reads a directory on its own.
 - **Standalone Requirements Summarization & Consultation**: A `Requirements_Summary_Agent` can read a directory of files on its own — without running a full creation pipeline — synthesize a structured requirements summary, report it in plain language in chat, and save it to `output/requirements_summary.json` for later reuse (e.g. *"read the files in ./vendor-docs and summarize the requirements"*). A `Requirements_Consultant_Agent` then lets you ask follow-up questions about that saved summary at any time (e.g. *"what's in the saved requirements summary?"*), and any later process/design/architecture creation request can reuse it instead of re-reading the original documents by saying so explicitly (e.g. *"create a process using the saved requirements summary"*).
+- **Importing Already-Existing Process/Design Documents**: Distinct from the directory-based requirements extraction above (which treats a directory's contents as *background* for a *new* process/design the user describes in the same request), `Process_Import_Agent` and `Design_Import_Agent` treat the directory's contents as an **already-finished** process or design document to faithfully extract and persist as-is — no brief, no fresh design decisions. Point either agent at a directory (e.g. *"import the process documented in ./legacy-sops as a process document"*, *"load the design in ./old-hld-doc and bring it into the toolkit"*) and it reads every supported file, normalizes the content against the real `process_data.json`/`design_data.json` schema (inferring only what the material clearly implies, never inventing steps/components it doesn't support), determines the design document's type (HLD/LLD/Combined) when relevant, validates against the same structural rules every other generator uses, and persists the result — asking first if doing so would overwrite an existing baseline. Once imported, the document is immediately available to every other process/design tool (consultant, scenario testing, simulation, updates) exactly as if it had been generated from scratch.
 - **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
 - **Requirement Traceability Register**: Every atomic requirement identified during analysis gets a stable id (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which source file it came from, and one or more concrete acceptance criteria. For the design-document pipeline, this register is mapped directly into `design_document_schema.json`'s `requirements.functional_requirements`/`requirements.non_functional_requirements`/`requirements.traceability_matrix` sections — closing a gap where the HLD/Combined generator previously never populated that part of the schema — giving every generated design document real, ISO/IEC/IEEE 29148-style requirement traceability.
 - **Requirements-Aware Consultation & Simulation**: Every consultant, scenario-tester, and simulation-query agent (`Consultant_Agent`, `Design_Consultant_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Simulation_Optimization_Query_Agent`) also checks once per conversation for a saved requirements summary (`load_requirements_summary`) alongside the process/design/diagram it's actually answering about. A `NOT_FOUND` status changes nothing. If a summary exists and the question is specifically about requirement fulfillment, coverage, or a gap (e.g. *"does this diagram satisfy the encryption-at-rest requirement?"*, *"would this what-if scenario breach our SLA?"*), the agent cross-checks the stated requirement against the actual process/design/diagram data and says plainly whether it's met, partially met, at risk, or not addressed — naming the responsible component or step. For any other question it stays silent on the subject; it never volunteers the requirements summary unprompted. The three pipeline-internal auto-revision gates (`Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Simulation_Optimization_Agent`) are deliberately excluded, since they run automatically mid-creation with no user turn to ask a fulfillment question against.
@@ -563,12 +566,14 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │   ├── design_doc_update_analysis_agent.txt
 │   │   ├── design_scenario_tester_agent.txt
 │   │   ├── design_simulation_agent.txt
-│   │   └── design_simulation_query_agent.txt
+│   │   ├── design_simulation_query_agent.txt
+│   │   └── import_agent.txt
 │   └── process
 │       ├── analysis_agent.txt
 │       ├── compliance_agent.txt
 │       ├── consultant_agent.txt
 │       ├── design_agent.txt
+│       ├── import_agent.txt
 │       ├── scenario_tester_agent.txt
 │       ├── simulation_agent.txt
 │       ├── simulation_query_agent.txt
@@ -630,6 +635,7 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │   ├── design_doc_lld_agent.py
 │   │   ├── design_doc_update_agent.py
 │   │   ├── design_simulation_agent.py
+│   │   ├── import_agent.py
 │   │   └── scenario_design_agent.py
 │   ├── doc_generation_agent.py
 │   ├── edge_inference_agent.py
@@ -640,6 +646,7 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 │   │   ├── consultant_agent.py
 │   │   ├── create_process_agent.py
 │   │   ├── design_agent.py
+│   │   ├── import_agent.py
 │   │   ├── scenario_agent.py
 │   │   ├── simulation_agent.py
 │   │   ├── subprocess_driver_agent.py
@@ -670,6 +677,7 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
     ├── test_design_simulation_agent.py
     ├── test_get_property_env_fallback.py
     ├── test_grounding_agent.py
+    ├── test_import_agents_wiring.py
     ├── test_load_directory_context.py
     ├── test_process_graph_helpers.py
     ├── test_requirements_summary_agent_wiring.py
@@ -1188,6 +1196,37 @@ concrete acceptance criteria where testable.
 
 ---
 
+## Sample Prompts — Importing Existing Process/Design Documents
+
+These prompts use `Process_Import_Agent` and `Design_Import_Agent` to bring an **already-written**
+process or design document into the toolkit, as opposed to creating a new one from a brief. The
+directory's contents ARE the finished artifact to extract, not background context for something new
+— contrast with the "File-Based Requirements Extraction" examples above, which feed a directory into
+a *new* creation request in the same sentence.
+
+### Importing an Existing Process
+
+- "Import the process documented in ./legacy-sops as a process document."
+- "Scan ./runbooks and ingest whatever process is described there."
+- "Load the onboarding process in ./old-process-docs and bring it into the toolkit."
+
+### Importing an Existing Design Document
+
+- "Load the design in ./old-hld-doc and bring it into the toolkit."
+- "Import the architecture documented in ./legacy-design-notes as a design document."
+- "Convert the LLD in ./notification-service-lld into our design document format."
+
+Each run reads every supported file in the directory, faithfully extracts what it already says
+(inferring only what the material clearly implies — never inventing steps, components, or decisions
+it doesn't support), normalizes the result against the real schema, validates it, and persists it to
+`output/process_data.json` or `output/design_data.json`. If a baseline with that name already exists,
+the agent asks for confirmation before overwriting it rather than silently replacing it. Once
+imported, the document is available to every other process/design tool exactly as if it had been
+generated from scratch — e.g. follow up with "review this process for compliance" or "simulate this
+design for resilience and scalability."
+
+---
+
 ## Running the document generator manually
 
 To run the document generator manually, you must: -
@@ -1412,6 +1451,8 @@ children only where the module builds a composite agent.
 | `doc_generation_agent.py` | Builds process and design-document artifacts, including Word output. | `Document_Generation_Agent` | — |
 | `edge_inference_agent.py` | Converts process JSON into graph and diagram data. | `Edge_Inference_Agent` | — |
 | `grounding_agent.py` | Validates generated claims against approved OpenAPI sources. | `Grounding_Validation_Agent` | — |
+| `design/import_agent.py` | Imports an already-existing design document from a directory of files directly into `design_data.json`, faithfully extracting what the material states rather than designing from a brief. | `Design_Import_Agent` | — |
+| `process/import_agent.py` | Imports an already-existing business process document from a directory of files directly into `process_data.json`, faithfully extracting what the material states rather than designing from a brief. | `Process_Import_Agent` | — |
 | `json_normalizer_agent.py` | Repairs and normalizes generated JSON. | `JSON_Normalizer_Agent` | — |
 | `json_review_agent.py` | Reviews normalized JSON and records feedback. | `JSON_Review_Agent` | — |
 | `json_writer_agent.py` | Persists approved process or design-document JSON. | `JSON_Writer_Agent` | — |
@@ -1435,7 +1476,7 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 
 | Agent | What it does | Direct sub-agents |
 | :--- | :--- | :--- |
-| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, document, and requirements-summarization workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline`, `Requirements_Summary_Agent`, `Requirements_Consultant_Agent` |
+| `Process_Architect_Orchestrator` | Top-level entry point that routes requests to process, design-document, cloud-architecture, simulation, scenario, document, requirements-summarization, and document-import workflows. | `Full_Design_Pipeline`, `Consultant_Agent`, `Design_Consultant_Agent`, `CloudArch_Pipeline`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `Update_Design_Pipeline`, `Simulation_Optimization_Query_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Create_Doc_Agent`, `Subprocess_Driver_Agent_Main`, `Full_Design_Doc_Pipeline`, `Update_Design_Doc_Pipeline`, `Requirements_Summary_Agent`, `Requirements_Consultant_Agent`, `Process_Import_Agent`, `Design_Import_Agent` |
 | `Full_Design_Pipeline` | Creates a new business process from requirements through validation, normalization, subprocesses, and deliverables. | `Mute_Agent`, `Analysis_Agent`, `Design_Compliance_Loop`, `JSON_Normalization_Retry_Loop`, `Subprocess_Driver_Agent_Create`, `Create`, `Unmute_Agent` |
 | `Design_Compliance_Loop` | Repeats design, compliance, simulation, grounding, and stop-control checks until the design is acceptable. | `Iterative_Design_Stage` |
 | `Iterative_Design_Stage` | Executes one design-review iteration. | `Design_Agent`, `Compliance_Agent`, `Design_Compliance_Agent`, `Simulation_Optimization_Agent`, `Design_Architecture_Simulation_Agent`, `Grounding_Validation_Agent`, `Design_Grounding_Agent`, `Stop_Controller` |
@@ -1487,6 +1528,8 @@ instances with pipeline-specific prompts, callbacks, or output keys.
 | `CloudArch_FinOps_Agent` | Estimates monthly cost and recommends cost-optimization opportunities for an existing cloud architecture diagram, preferring live CSP pricing-calculator lookups over heuristic estimates when available. | — |
 | `Requirements_Summary_Agent` | Reads a directory of files and produces/saves a structured, traceable requirements summary (functional/non-functional/goal/constraint register with ids, source files, and acceptance criteria; conflicts, priorities, clarifications, inferred requirements, and coverage gaps). | — |
 | `Requirements_Consultant_Agent` | Answers questions about the saved requirements summary, grounded strictly in its JSON. | — |
+| `Process_Import_Agent` | Reads a directory of files describing an already-existing business process and imports it directly into `process_data.json` — an extraction of what the material states, not a fresh design. | — |
+| `Design_Import_Agent` | Reads a directory of files describing an already-existing architectural/technical design (HLD/LLD/Combined) and imports it directly into `design_data.json` — an extraction of what the material states, not a fresh design. | — |
 | `Doc_Creation_Agent` | Coordinates graph creation and document generation. | `Doc_Creation_Sequence` |
 | `Doc_Creation_Sequence` | Runs the document artifact stages in order. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
 | `Edge_Inference_Agent` | Derives graph edges, lanes, labels, and dependencies from process JSON. | — |

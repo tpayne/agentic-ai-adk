@@ -25,13 +25,15 @@ Responses API is unavailable, set it to `false` in the shared config.
 
 ## Status
 
-**Complete.** All seventeen agent networks below are wired and verified end-to-end (structurally and
+**Complete.** All nineteen agent networks below are wired and verified end-to-end (structurally and
 functionally — see [Verification](#verification)):
 
 | Network | Front-man agent | What it does |
 |---|---|---|
 | `requirements_summary` | `Requirements_Summary_Agent` | Reads a directory of source files, extracts a structured, traceable requirements register, saves it for later reuse. |
 | `requirements_consultant` | `Requirements_Consultant_Agent` | Answers questions about a previously-saved requirements summary. |
+| `process_import` | `Process_Import_Agent` | Reads a directory of source files that already describe an existing business process and imports them directly into `process_data.json` — an extraction of what the material states, not a fresh design. |
+| `design_import` | `Design_Import_Agent` | Reads a directory of source files that already describe an existing design document (HLD/LLD/Combined) and imports them directly into `design_data.json` — an extraction of what the material states, not a fresh design. |
 | `cloudarch` | `CloudArch_Pipeline` | Generates/refines a cloud architecture diagram (drawio/mxGraph XML) via a deterministic layout engine, audited by a reviewer agent in a generate→review→revise loop. |
 | `cloudarch_consultant` | `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram. |
 | `cloudarch_simulation_query` | `CloudArch_Simulation_Query_Agent` | Runs a resilience/scalability/latency simulation over an existing diagram and explains findings in business language. |
@@ -178,6 +180,20 @@ functionally — see [Verification](#verification)):
   follow-up questions about that saved summary at any time, and any later process/design/diagram
   creation request can reuse it instead of re-reading the original documents by saying so
   explicitly (e.g. *"create a process using the saved requirements summary"*).
+- **Importing already-existing process/design documents**: distinct from the directory-based
+  requirements extraction above (which treats a directory's contents as *background* for a *new*
+  process/design described in the same request), `process_import`/`design_import` treat the
+  directory's contents as an **already-finished** process or design document to faithfully extract
+  and persist as-is — no brief, no fresh design decisions. Point either network at a directory
+  (e.g. *"import the process documented in ./legacy-sops as a process document"*, *"load the design
+  in ./old-hld-doc and bring it into the toolkit"*) and it reads every supported file, normalizes
+  the content against the real schema (inferring only what the material clearly implies, never
+  inventing steps/components it doesn't support), determines the design document's type
+  (HLD/LLD/Combined) when relevant, validates it against the same structural rules every other
+  generator uses, and persists the result — asking first if doing so would overwrite an existing
+  baseline. Once imported, the document is immediately available to every other process/design
+  network (consultant, scenario testing, simulation, updates) exactly as if it had been generated
+  from scratch.
 - **Requirements-quality analysis**: both the standalone summarizer and the pipeline's own analysis
   agents flag requirements that conflict with each other, requirements too vague to act on,
   relative priority (critical/high/medium/low), important requirements *not* stated in the source
@@ -522,6 +538,35 @@ structured, traceable requirements register to `output/requirements_summary.json
 - "Design a system using the saved requirements summary, including any inferred requirements."
   *(the "including any inferred requirements" phrasing is required to opt in — otherwise
   inferred/derived requirements are never used to drive scope, by design.)*
+
+---
+
+## Sample Prompts — Importing Existing Process/Design Documents
+
+These prompts use `process_import` and `design_import` to bring an **already-written** process or
+design document into the toolkit, as opposed to creating a new one from a brief. The directory's
+contents ARE the finished artifact to extract, not background context for something new — contrast
+with the file-based requirements extraction examples above, which feed a directory into a *new*
+creation request in the same sentence.
+
+### Importing an Existing Process
+- "Import the process documented in ./legacy-sops as a process document."
+- "Scan ./runbooks and ingest whatever process is described there."
+- "Load the onboarding process in ./old-process-docs and bring it into the toolkit."
+
+### Importing an Existing Design Document
+- "Load the design in ./old-hld-doc and bring it into the toolkit."
+- "Import the architecture documented in ./legacy-design-notes as a design document."
+- "Convert the LLD in ./notification-service-lld into our design document format."
+
+Each run reads every supported file in the directory, faithfully extracts what it already says
+(inferring only what the material clearly implies — never inventing steps, components, or decisions
+it doesn't support), normalizes the result against the real schema, validates it, and persists it
+to `output/process_data.json` or `output/design_data.json`. If a baseline with that name already
+exists, the agent asks for confirmation before overwriting it rather than silently replacing it.
+Once imported, the document is available to every other process/design network exactly as if it had
+been generated from scratch — e.g. follow up with "review this process for compliance" or "simulate
+this design for resilience and scalability."
 
 ---
 

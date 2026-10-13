@@ -13,11 +13,12 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Routes a request to whichever ProcessEngineering capability actually handles it -- generating or updating a business process, generating or refining a cloud architecture diagram, running simulations, answering questions about existing artifacts, or summarizing requirements from a directory of files.",
+        "description": "Routes a request to whichever ProcessEngineering capability actually handles it -- generating or updating a business process, generating or refining a cloud architecture diagram, running simulations, answering questions about existing artifacts, importing an already-existing process/design document from a directory, or summarizing requirements from a directory of files.",
         "tags": ["process-engineering-port", "router"],
         "sample_queries": [
             "Create a process for onboarding new vendors, including KYC checks and contract approval.",
             "Generate an AWS cloud architecture diagram for an e-commerce checkout service.",
+            "Import the process documented in ./legacy-sops as a process document.",
             "Read the files in ./vendor-docs and summarize the requirements.",
             "What does the current process look like?"
         ]
@@ -32,8 +33,9 @@
 I am the entry point for the ProcessEngineering assistant. I can generate or update a business
 process design, generate or update an architectural design document (HLD/LLD/Combined), generate
 or refine a cloud architecture diagram, run simulations against any of these, answer questions
-about an existing process/design document/diagram/requirements summary, test what-if scenarios, or
-read a directory of files and summarize the requirements in them. Tell me what you need.
+about an existing process/design document/diagram/requirements summary, test what-if scenarios,
+import an already-existing process or design document from a directory of files, or read a
+directory of files and summarize the requirements in them. Tell me what you need.
 """
             },
 
@@ -117,9 +119,35 @@ Examples:
 
 You MUST NOT outline or describe the process or design yourself, in either case.
 
+### 1c. IMPORTING AN ALREADY-EXISTING PROCESS OR DESIGN DOCUMENT
+Trigger when the user wants to IMPORT, LOAD, INGEST, BRING IN, or CONVERT a directory of files that
+ALREADY CONTAIN a finished business process or design document -- the directory is not background
+context for a NEW process/design the user is describing, it IS the process/design, already written,
+and the user wants its content faithfully turned into this toolkit's own JSON. Signal words:
+"import", "ingest", "load this document as the process/design", "use this as the process/design"
+(not "background for"/"context for"), "bring this process/design into the toolkit", "convert this
+document into a process/design".
+
+-> Call: Process_Import_Agent (business process) or Design_Import_Agent (design document) --
+determine which per the Domain Disambiguation rules above.
+
+Examples:
+- "Import the process documented in ./legacy-sops as a process document."
+- "Load the design in ./old-hld-doc and bring it into the toolkit."
+- "Scan ./runbooks and ingest whatever process is described there."
+
+Contrast with 1a/1b's own directory-context case: "Read the files in ./vendor-docs and create a
+process for onboarding new vendors" treats the directory as SUPPLEMENTARY background for a NEW
+process the user is describing in the same sentence -> Process_Pipeline/Design_Doc_Pipeline, NOT
+Process_Import_Agent/Design_Import_Agent. The deciding question is whether the directory's content
+IS the finished artifact to extract (1c), or merely INFORMS a new artifact the user is asking you to
+design (1a/1b). If genuinely ambiguous, ask (Rule 9) rather than guess.
+
+Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS rule below).
+
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
-in a directory or folder (1a/1b above, or the cloud diagram case in Section 6 below), include that
-directory path VERBATIM in what you pass to the target tool. Do not paraphrase it away as a
+in a directory or folder (1a/1b/1c above, or the cloud diagram case in Section 6 below), include
+that directory path VERBATIM in what you pass to the target tool. Do not paraphrase it away as a
 stylistic aside -- the downstream analysis agent looks for that exact path to call its own
 load_directory_context tool, so dropping or rewording it silently removes the user's source
 material.
@@ -397,11 +425,13 @@ tools do exactly that standalone action. Do not force it into Process_Pipeline/P
 """,
             "tools": [
                 "/process",
+                "/process_import",
                 "/process_update",
                 "/process_consultant",
                 "/process_scenario_tester",
                 "/process_simulation_query",
                 "/design",
+                "/design_import",
                 "/design_update",
                 "/design_consultant",
                 "/design_scenario_tester",

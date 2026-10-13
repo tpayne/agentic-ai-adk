@@ -211,6 +211,8 @@ from .agent_registry import (
     update_design_doc_pipeline,
     requirements_summary_agent,
     requirements_consultant_agent,
+    process_import_agent,
+    design_import_agent,
 )
 
 # Signal handler for abnormal errors
@@ -263,6 +265,8 @@ root_agent = ProcessLlmAgent(
         update_design_doc_pipeline,
         requirements_summary_agent,
         requirements_consultant_agent,
+        process_import_agent,
+        design_import_agent,
     ],
 )
 
