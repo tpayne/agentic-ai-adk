@@ -16,6 +16,14 @@ from .utils import (
     CleanedStdout
 )
 
+from process_toolkit.loop_control import (
+    evaluate_loop_stop,
+    load_counter,
+    save_counter,
+    reset_counter,
+    load_approval_state,
+)
+
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
 
@@ -54,6 +62,13 @@ def _default_required_approvals() -> dict:
     return required
 
 
+_STOP_MESSAGES = {
+    "HARD_STOP": "Hard stop condition met via loopHardStop property — exiting loop.",
+    "APPROVED": "All approvals present — exiting loop.",
+    "MAX_ITERATIONS": "Max loop iterations exceeded — exiting loop.",
+}
+
+
 def _build_stop_if_ready(required_keys_fn):
     """
     Builds a stop_if_ready tool gated on whatever {approval.json key:
@@ -69,6 +84,11 @@ def _build_stop_if_ready(required_keys_fn):
     CloudArch reviewer approved on iteration 1. Each pipeline's stop
     controller must be built with the key set that pipeline's reviewer(s)
     actually write.
+
+    The decision itself (evaluate_loop_stop, shared with the neuro-san
+    port) is pure -- this wrapper just resolves ADK's own config sources
+    (properties) into plain arguments, calls it, then does the one thing
+    only ADK has: setting tool_context.actions.escalate.
     """
 
     def stop_if_ready(tool_context: ToolContext):
@@ -78,51 +98,16 @@ def _build_stop_if_ready(required_keys_fn):
           - approval.json indicates all required approvals; OR
           - persistent loop counter exceeds SAFE_LOOP_ITERS
         """
-
         logger.debug("Evaluating stop_if_ready conditions.")
 
-        # ---------------------------------------------------------
-        # 1. Persistent counter setup
-        # ---------------------------------------------------------
-        counter_path = os.path.join(PROJECT_ROOT, "output", "stop_counter.json")
-        SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
-
-        # Load existing counter
-        loop_count = 0
-        if os.path.exists(counter_path):
-            try:
-                with open(counter_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    loop_count = int(data.get("count", 0))
-            except Exception:
-                loop_count = 0
-
-        # Increment counter
-        loop_count += 1
-
-        # Persist updated counter
-        try:
-            with open(counter_path, "w", encoding="utf-8") as f:
-                json.dump({"count": loop_count}, f)
-        except Exception:
-            logger.debug("Failed to persist stop counter.")
-
-        logger.debug(f"Stop Controller loop count = {loop_count} / {SAFE_LOOP_ITERS}")
-
-        # ---------------------------------------------------------
-        # 2. Hard stop override
-        # ---------------------------------------------------------
+        max_iterations = int(getProperty("loopIterations", default=2))
         hard_stop = str(getProperty("loopHardStop", default=False)).lower() in ("1", "true", "yes", "on")
-        if hard_stop:
-            tool_context.actions.escalate = True
-            logger.debug("Hard stop condition met via loopHardStop property.")
-            _reset_stop_counter(counter_path)
-            return "Hard stop condition met via loopHardStop property — exiting loop."
 
-        # ---------------------------------------------------------
-        # 3. Approval-state stop
-        # ---------------------------------------------------------
-        # Checked BEFORE the max-iteration stop below, not after: the
+        loop_count = load_counter() + 1
+        save_counter(loop_count)
+        logger.debug(f"Stop Controller loop count = {loop_count} / {max_iterations}")
+
+        # Approval-state stop is checked BEFORE the max-iteration stop: the
         # reviewer's own turn (which writes approval.json) always runs
         # immediately before this tool call within the same iteration, so
         # on the last allowed iteration a genuine approval and "iteration
@@ -132,49 +117,20 @@ def _build_stop_if_ready(required_keys_fn):
         # run where the reviewer approved on iteration 2/2, but because the
         # max-iteration check ran first, the stop controller's own visible
         # response described the run as having hit its iteration limit
-        # instead of recognizing the approval, and (with no real "we
-        # succeeded" signal to work from) went on to improvise a verbose,
-        # internals-leaking summary instead of a clean approval message.
-        approval_path = os.path.join(PROJECT_ROOT, "output", "approval.json")
-        approval_state = {}
+        # instead of recognizing the approval.
+        decision = evaluate_loop_stop(
+            loop_count=loop_count,
+            max_iterations=max_iterations,
+            hard_stop=hard_stop,
+            approval_state=load_approval_state(),
+            required_approvals=required_keys_fn(),
+        )
+        logger.debug(f"stop_if_ready decision: {decision}")
 
-        if os.path.exists(approval_path):
-            try:
-                with open(approval_path, "r", encoding="utf-8") as f:
-                    approval_state = json.load(f)
-            except Exception:
-                approval_state = {}
-
-        logger.debug(f"Current approval state: {approval_state}")
-
-        required = required_keys_fn()
-
-        if "JSON APPROVED" in approval_state.get("status", "").strip().upper():
+        if decision.verdict == "STOP":
             tool_context.actions.escalate = True
-            logger.debug("JSON APPROVED detected in status — exiting loop.")
-            _reset_stop_counter(counter_path)
-            return "JSON APPROVED detected — exiting loop."
-
-        if any(approval_state.get(k) == "JSON APPROVED" for k in required.keys()):
-            tool_context.actions.escalate = True
-            logger.debug("JSON APPROVED detected in required approvals — exiting loop.")
-            _reset_stop_counter(counter_path)
-            return "JSON APPROVED detected — exiting loop."
-
-        if all(approval_state.get(k) == v for k, v in required.items()):
-            tool_context.actions.escalate = True
-            logger.debug("All required approvals present — exiting loop.")
-            _reset_stop_counter(counter_path)
-            return "All approvals present — exiting loop."
-
-        # ---------------------------------------------------------
-        # 4. Max iteration stop
-        # ---------------------------------------------------------
-        if loop_count >= SAFE_LOOP_ITERS:
-            tool_context.actions.escalate = True
-            logger.debug("Max loop iterations exceeded — exiting loop.")
-            _reset_stop_counter(counter_path)
-            return "Max loop iterations exceeded — exiting loop."
+            reset_counter()
+            return _STOP_MESSAGES[decision.reason]
 
         return "Continue with loop — no stop conditions met."
 

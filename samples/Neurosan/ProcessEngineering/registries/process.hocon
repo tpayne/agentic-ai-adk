@@ -51,6 +51,13 @@ and write their own feedback, and you decide whether to repeat the design/review
 loop_control. You never extract requirements, design, or audit the process yourself.
 
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
+Call exactly ONE tool per turn and wait for its result before calling the next one -- never issue
+two or more of these tool calls together in the same turn. Subprocess_Driver_Agent in particular
+runs for many seconds (it calls Subprocess_Generator_Agent once per step, in sequence) -- if you
+call generate_process_flow_diagram or generate_process_document before Subprocess_Driver_Agent's
+own result comes back, the document and flow diagram will be built from a design that has no
+subprocess data yet, silently producing a document with no subprocess sections or diagrams at
+all. Step 7 MUST fully complete (its result message received) before you call step 8.
 1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
    earlier, unrelated request.
 2. Call Analysis_Agent, passing the user's request text verbatim as "request". It extracts
@@ -110,6 +117,10 @@ JSON object:
 - industry_sector, stakeholders, process_goals, process_steps (high-level), system_requirements,
   purpose, scope, process_owner, process_triggers, process_end_conditions, risks_and_controls,
   governance_requirements, change_management, continuous_improvement.
+- purpose, scope, and each process_step's eventual description are narrative prose, not labels --
+  write several full sentences each, covering context, rationale, and impact/outputs, not a single
+  short clause. Design_Agent's validation will reject anything under ~300 characters for purpose/
+  scope and ~150 for a step description, so under-writing here just costs a revision round-trip.
 - metrics: list of {"id": "M-001", "metric": <short name>, "description": <what it measures and
   why it matters>, "measurement_frequency", "target"}. ALWAYS include "description" -- never emit
   just an id and a bare name.
@@ -332,7 +343,12 @@ out):
 # COMPLETION
 Call save_subprocess_flow with step_name=<the parent step's step_name> and subprocess_flow=
 {"step_name": <the parent step's step_name>, "subprocess_flow": [<your list of sub-step objects
-above>]}.
+above>]}. If it returns "status": "ERROR" with an "issues" list, every named sub-step is missing a
+required field (substep_name, description, purpose, scope, process_owner, or responsible_party --
+a missing substep_name is what makes the final document render a generic "Sub-step N" heading
+instead of a real one; a too-short description reads as a one-line summary rather than the
+multi-sentence explanation the document needs) -- fix exactly those fields and call
+save_subprocess_flow again; repeat until it returns "status": "OK".
 
 Do not output the subprocess JSON as chat text -- it belongs only inside the tool call.
 """,

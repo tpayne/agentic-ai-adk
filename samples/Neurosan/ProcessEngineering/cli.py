@@ -117,35 +117,23 @@ _THINKING_FILE = os.path.join(_LOGS_DIR, "agent_thinking.txt")
 _THINKING_DIR = os.path.join(_LOGS_DIR, "agent_thinking")
 _APP_LOG_FILE = os.path.join(_LOGS_DIR, "cli.log")
 
-# Mirrors the ADK original's own agent.py logging setup exactly: a
-# LOGLEVEL env var (same name, same five values), a file handler that
-# follows it, and a console handler fixed at WARNING+ regardless of
-# LOGLEVEL -- so raising LOGLEVEL to get full DEBUG tracing never also
-# floods the terminal with it; that still only goes to the file. Default
-# WARNING means none of this project's own DEBUG/INFO trace logging
-# below is active (or written anywhere) unless deliberately turned on --
-# "off by default, tracing when you need it," not a bespoke print
-# mechanism of this script's own.
-os.makedirs(_LOGS_DIR, exist_ok=True)
-
-_VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
-_LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
-if _LOGLEVEL not in _VALID_LOG_LEVELS:
-    _LOGLEVEL = "WARNING"
-
-_log_format = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-
-_file_handler = logging.FileHandler(_APP_LOG_FILE)
-_file_handler.setFormatter(_log_format)
-
-_console_handler = logging.StreamHandler(sys.stderr)
-_console_handler.setFormatter(_log_format)
-_console_handler.setLevel(logging.WARNING)
-
-_root_logger = logging.getLogger()
-_root_logger.addHandler(_file_handler)
-_root_logger.addHandler(_console_handler)
-_root_logger.setLevel(_LOGLEVEL)
+# Actual configuration happens in coded_tools/__init__.py (same shared
+# helper also configures logging for the `ns chat`/`ns run` server path,
+# which never executes this file at all, and previously had no equivalent
+# logging setup whatsoever) -- that module is guaranteed to run before any
+# CodedTool loads, including as a side effect of the very next import
+# below, so it must be told the filename cli.py wants BEFORE that import
+# happens, not after. Mirrors the ADK original's own agent.py logging
+# setup: a dedicated "ProcessArchitect" logger (not root), a LOGLEVEL env
+# var (same name, same five values) controlling the file handler, and a
+# console handler fixed at WARNING+ regardless of LOGLEVEL -- so raising
+# LOGLEVEL to get full DEBUG tracing never also floods the terminal with
+# it; that still only goes to the file. Default WARNING means none of
+# this project's own DEBUG/INFO trace logging below is active (or written
+# anywhere) unless deliberately turned on -- "off by default, tracing
+# when you need it," not a bespoke print mechanism of this script's own.
+os.environ["PROCESS_ARCHITECT_LOG_FILENAME"] = "cli.log"
+import coded_tools  # noqa: E402,F401 -- triggers configure_logging() above
 
 from neuro_san.client.agent_session_factory import AgentSessionFactory  # noqa: E402
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor  # noqa: E402

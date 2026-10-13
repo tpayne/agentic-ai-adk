@@ -12,9 +12,9 @@ import docx
 import pytest
 
 from coded_tools.common import paths
-from coded_tools.common.process_json import PROCESS_JSON_FILENAME
-from coded_tools.common.docgen.edge_inference import generate_clean_diagram
-from coded_tools.common.docgen.generation import create_standard_doc_from_file
+from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_toolkit.docgen.generation import create_standard_doc_from_file
 from coded_tools.process.edge_inference_tool import GenerateProcessFlowDiagramCodedTool
 from coded_tools.process.doc_generation_tool import GenerateProcessDocumentCodedTool
 
@@ -247,39 +247,16 @@ def test_real_world_doc_renders_id_tagged_dicts_and_string_shapes():
 
 
 # ============================================================
-# Matplotlib warning regressions (step_diagrams.py / edge_inference.py).
+# Matplotlib warning regression (edge_inference.py).
 #
-# Neither of these raises -- they're logged UserWarnings on an otherwise
-# successful run -- but both are real, root-cause-fixable issues
-# (a font weight DejaVu Sans can't render; a tight_layout() call that
-# can't reconcile with far-left swimlane-label text), not noise to
-# silence. simplefilter("error") turns the warning into a failure so a
-# regression is caught the same way a raised exception would be.
+# This doesn't raise -- it's a logged UserWarning on an otherwise
+# successful run -- but it's a real, root-cause-fixable issue (a
+# tight_layout() call that can't reconcile with far-left swimlane-label
+# text), not noise to silence. simplefilter("error") turns the warning
+# into a failure so a regression is caught the same way a raised
+# exception would be. The equivalent step_diagrams.py regression test now
+# lives in shared/process_toolkit/tests/docgen/test_step_diagrams.py.
 # ============================================================
-
-def test_step_diagram_with_long_lane_names_does_not_warn():
-    import warnings
-
-    from coded_tools.common.docgen.step_diagrams import generate_step_diagram_for_step
-
-    subprocess_json = {
-        "subprocess_steps": [
-            {"step_name": "Draft Pull Request With Full Description", "responsible_party": "Software Developer / Engineer"},
-            {"step_name": "Peer Review And Approve Changes", "responsible_party": "Senior Reviewer / Tech Lead"},
-            {"step_name": "Run Continuous Integration Pipeline", "responsible_party": "CI/CD Automation System"},
-            {"step_name": "Merge To Main Branch And Deploy", "responsible_party": "Release Manager"},
-            {"step_name": "Monitor Production Health", "responsible_party": "Site Reliability Engineer"},
-        ]
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        out = generate_step_diagram_for_step(
-            "Deploy a New Feature Through the Full GitOps-Driven Sprint Pipeline", subprocess_json
-        )
-    assert out.endswith(".png")
-    assert os.path.exists(out)
-
 
 def test_flow_diagram_non_start_end_node_label_does_not_warn():
     import warnings

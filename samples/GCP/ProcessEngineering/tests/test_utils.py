@@ -66,7 +66,13 @@ def valid_process():
         "process_name": "Example",
         "industry_sector": "Technology",
         "version": "1.0",
-        "introduction": "Intro",
+        "introduction": (
+            "This process defines how Example Corp designs, builds, and ships software products, "
+            "covering the full lifecycle from requirements intake through production release and "
+            "ongoing support, with clear ownership and governance at every stage. It applies to "
+            "every product team across the organization and establishes the baseline expectations "
+            "that downstream teams build their own working agreements on top of."
+        ),
         "stakeholders": [],
         "process_steps": [],
         "tools_summary": [],
@@ -78,8 +84,20 @@ def valid_process():
         "assumptions": [],
         "constraints": [],
         "appendix": {},
-        "purpose": "Purpose",
-        "scope": "Scope",
+        "purpose": (
+            "This process exists to give Example Corp a repeatable, auditable way to take a product "
+            "idea from concept to production, ensuring every release meets quality, security, and "
+            "compliance expectations before it reaches customers. It also gives leadership a "
+            "consistent basis for forecasting delivery timelines and allocating engineering capacity "
+            "across competing priorities."
+        ),
+        "scope": (
+            "Covers all product engineering activity from requirements gathering through release and "
+            "post-release support for Example Corp's core product line; excludes internal tooling "
+            "and infrastructure projects that do not ship to external customers. Applies equally to "
+            "net-new product work and to significant enhancements of existing, already-shipped "
+            "products."
+        ),
         "process_owner": "Owner",
         "process_triggers": [],
         "process_end_conditions": [],
@@ -91,7 +109,10 @@ def valid_process():
     top_level["process_steps"] = [
         {
             "step_name": "Step one",
-            "description": "Do the work",
+            "description": (
+                "Do the work required for this step, coordinating with the responsible team to turn "
+                "the inputs into the expected outputs before handing off to the next step."
+            ),
             "responsible_party": "Team",
             "estimated_duration": 1,
             "deliverables": [],
@@ -221,24 +242,6 @@ class UtilsPersistenceTests(unittest.TestCase):
         self.root_patch = patch.object(utils, "PROJECT_ROOT", self.temp_dir.name)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
-
-    def test_save_and_load_iteration_feedback_tracks_approval(self):
-        result = utils.save_iteration_feedback(
-            {"status": "COMPLIANCE APPROVED", "issues": ["fixed"]}
-        )
-        self.assertTrue(result.startswith("SUCCESS:"))
-
-        feedback_path = Path(self.temp_dir.name) / "output" / "iteration_feedback.json"
-        approval_path = Path(self.temp_dir.name) / "output" / "approval.json"
-        saved = json.loads(feedback_path.read_text())
-        approval = json.loads(approval_path.read_text())
-        self.assertEqual(saved, {"status": "COMPLIANCE APPROVED", "data": ["fixed"]})
-        self.assertEqual(approval["compliance_status"], "APPROVED")
-
-        loaded = utils.load_iteration_feedback(reset_data=True)
-        self.assertEqual(loaded["data"], ["fixed"])
-        reset = json.loads(feedback_path.read_text())
-        self.assertEqual(reset["data"], [])
 
     def test_load_master_process_json_uses_template_when_master_missing(self):
         template = Path(self.temp_dir.name) / "template.json"

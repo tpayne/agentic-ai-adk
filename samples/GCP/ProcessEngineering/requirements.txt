@@ -1,3 +1,12 @@
+# Shared business logic (also used by the neuro-san port at
+# samples/Neurosan/ProcessEngineering) -- resolved relative to the CWD pip
+# is invoked from, which must be this directory (matching this file's own
+# documented `cd samples/GCP/ProcessEngineering && pip install -r
+# requirements.txt` setup flow, and this Dockerfile's WORKDIR). Docker
+# builds must use the repo root as build context so this path exists --
+# see the Dockerfile's own comments.
+-e ../../../shared/process_toolkit
+
 # ADK runtime
 google-adk>=2.9.2,<3.0.0  # Or strictly google-adk==2.9.2
 google-auth>=2.17.3

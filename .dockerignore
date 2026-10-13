@@ -1,0 +1,15 @@
+# Used when a sample's Docker build context is the repo root (needed for
+# samples that depend on shared/process_toolkit, which lives outside any
+# single sample directory). Samples that build with their own directory as
+# context use their own .dockerignore instead; this one only applies to
+# builds actually invoked with the repo root as context.
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/output/
+**/logs/
+**/*.pyc
+**/node_modules/
+.git/
+.gitignore
+**/tests/

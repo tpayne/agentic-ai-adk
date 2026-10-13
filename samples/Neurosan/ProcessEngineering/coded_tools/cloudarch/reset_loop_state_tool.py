@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.common.iteration_feedback import reset_approval_state, reset_feedback_channels
+from process_toolkit.feedback.iteration_feedback import reset_approval_state, reset_feedback_channels
 from coded_tools.common.loop_control import reset_iteration_counter
 
 

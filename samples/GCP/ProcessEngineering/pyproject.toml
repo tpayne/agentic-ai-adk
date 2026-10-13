@@ -1,0 +1,36 @@
+[project]
+name = "processengineering-adk"
+version = "0.1.0"
+description = "ADK (Google Agent Development Kit) implementation of the ProcessEngineering sample."
+requires-python = ">=3.12"
+dependencies = [
+    "google-adk>=2.9.2,<3.0.0",
+    "google-auth>=2.17.3",
+    "litellm>=1.55.0",
+    "botocore>=1.43.106",
+    "flask>=3.0.0",
+    "pyopenssl>=24.0.0",
+    "pandas",
+    "numpy",
+    "json-repair>=0.30.0",
+    "python-docx>=1.1.0",
+    "pypdf>=4.0.0",
+    "openpyxl>=3.1.0",
+    "xlrd>=2.0.0",
+    "extract-msg>=0.45.0",
+    "networkx>=3.0",
+    "matplotlib>=3.8.0",
+    "scipy",
+    "starlette>=0.49.1",
+    "mcp>=1.0.0",
+    "process-toolkit",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.0",
+    "pytest>=9.1.1",
+]
+
+[tool.uv.sources]
+process-toolkit = { path = "../../../shared/process_toolkit", editable = true }

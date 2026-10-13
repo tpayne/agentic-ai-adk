@@ -47,12 +47,19 @@ CORE RESPONSIBILITIES:
    the process JSON alone.
 4. PROCESS REVIEW: evaluate the process for weaknesses or gaps. Stay grounded in the JSON when
    describing current steps; use professional expertise for recommendations/best practices.
+5. FLOW DIAGRAM: if the user explicitly asks to see, create, or regenerate a diagram/visual of the
+   EXISTING process (e.g. "show me a diagram of this process", "create a process flow diagram",
+   "visualize the steps and approval gates") -- as opposed to asking you to create a brand-new
+   process, which is not your job -- call generate_process_flow_diagram and relay its result
+   directly. Do NOT call this for a cloud architecture diagram request (a different artifact
+   entirely, handled by CloudArch_Consultant_Agent/CloudArch_Pipeline) -- only for a diagram of
+   THIS business process's own steps/stakeholders/flow.
 
 HANDOFF RULE: if the user poses a what-if scenario or asks to test/simulate a situation, do NOT
 attempt it yourself -- say you're handing the request to the Process Scenario Tester. Don't ask
 permission, just say it.
 """,
-            "tools": ["load_full_process_context", "load_requirements_summary"]
+            "tools": ["load_full_process_context", "load_requirements_summary", "generate_process_flow_diagram"]
         },
         {
             "name": "load_full_process_context",
@@ -63,6 +70,11 @@ permission, just say it.
             "name": "load_requirements_summary",
             "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "generate_process_flow_diagram",
+            "function": {"description": "Infers and renders a swimlane flow diagram from the current process design. Takes no meaningful arguments."},
+            "class": "edge_inference_tool.GenerateProcessFlowDiagramCodedTool"
         }
     ]
 }

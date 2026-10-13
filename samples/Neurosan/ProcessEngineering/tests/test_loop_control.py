@@ -4,8 +4,9 @@ max-iterations) is exactly what the ADK original's own docstring calls out
 as load-bearing -- a genuine approval on the final allowed iteration must
 report as approved, not exhausted."""
 
-from coded_tools.common.iteration_feedback import save_iteration_feedback
-from coded_tools.common.loop_control import LoopControlCodedTool, output_path
+from coded_tools.common.loop_control import LoopControlCodedTool
+from process_toolkit.feedback.iteration_feedback import save_iteration_feedback
+from process_toolkit.paths import output_path
 
 
 def test_continues_while_unapproved_and_under_max_iterations():
@@ -60,7 +61,7 @@ def test_independent_runs_do_not_leak_iteration_count():
     the ADK original's _remove_previous_approval_logs), run once at the
     start of a genuinely NEW top-level request, not by loop_control itself
     on every stop. So a fresh "run" here must reset approval state too."""
-    from coded_tools.common.iteration_feedback import reset_approval_state
+    from process_toolkit.feedback.iteration_feedback import reset_approval_state
 
     tool = LoopControlCodedTool()
     required = {"cloudarch_status": "APPROVED"}

@@ -63,8 +63,24 @@ def test_process_pipeline_approves_after_both_reviewers_write_to_their_own_chann
     doc = {
         "process_name": "Vendor Onboarding",
         "process_steps": [
-            {"step_name": "KYC Check", "responsible_party": "Compliance", "dependencies": []},
-            {"step_name": "Contract Approval", "responsible_party": "Legal", "dependencies": ["KYC Check"]},
+            {
+                "step_name": "KYC Check", "responsible_party": "Compliance",
+                "description": (
+                    "Verify the vendor's identity and compliance documents, cross-checking submitted "
+                    "paperwork against regulatory watchlists and sanctions lists before approving the "
+                    "vendor for onboarding into the procurement system."
+                ),
+                "dependencies": [],
+            },
+            {
+                "step_name": "Contract Approval", "responsible_party": "Legal",
+                "description": (
+                    "Review and approve the vendor contract, confirming terms align with procurement "
+                    "policy and escalating any deviations to Legal counsel for sign-off before the "
+                    "contract is countersigned and filed."
+                ),
+                "dependencies": ["KYC Check"],
+            },
         ],
     }
     persist_result = PersistFinalJsonCodedTool().invoke({"json_content": doc}, {})

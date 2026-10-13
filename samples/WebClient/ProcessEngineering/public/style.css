@@ -1252,6 +1252,33 @@ button, input, textarea {
 .message-row.user .bubble pre {
   background: rgba(255, 255, 255, 0.18);
 }
+.bubble table {
+  width: 100%;
+  margin: 8px 0;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.bubble th, .bubble td {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.bubble th {
+  background: rgba(127, 127, 127, 0.14);
+  font-weight: 600;
+}
+.bubble tbody tr:nth-child(even) td {
+  background: rgba(127, 127, 127, 0.06);
+}
+.message-row.user .bubble th,
+.message-row.user .bubble td {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.message-row.user .bubble th,
+.message-row.user .bubble tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.14);
+}
 
 .message-meta {
   display: flex;

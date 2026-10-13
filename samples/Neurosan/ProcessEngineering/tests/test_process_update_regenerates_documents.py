@@ -32,7 +32,7 @@ import docx
 import pytest
 
 from coded_tools.common import paths
-from coded_tools.common.process_json import PROCESS_JSON_FILENAME
+from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
 from coded_tools.process_update.edge_inference_tool import GenerateProcessFlowDiagramCodedTool
 from coded_tools.process_update.doc_generation_tool import GenerateProcessDocumentCodedTool
 from coded_tools.process_update.subprocess_tool import LoadProcessStepsCodedTool, SaveSubprocessFlowCodedTool
@@ -123,7 +123,17 @@ def test_process_update_subprocess_flow_actually_persists_and_renders():
     assert steps["process_steps"][0]["step_name"] == "KYC Check"
 
     flow = {"step_name": "KYC Check", "subprocess_flow": [
-        {"substep_name": "Collect Documents", "description": "Gather KYC docs.", "responsible_party": "Compliance"},
+        {
+            "substep_name": "Collect Documents",
+            "description": (
+                "The compliance team gathers the applicant's KYC documents, checking each one against "
+                "the required checklist and flagging anything missing before moving to verification."
+            ),
+            "responsible_party": "Compliance",
+            "purpose": "Ensure all required KYC documents are on file.",
+            "scope": "Document collection.",
+            "process_owner": "Compliance",
+        },
     ]}
     save_result = SaveSubprocessFlowCodedTool().invoke({"step_name": "KYC Check", "subprocess_flow": flow}, {})
     assert save_result["status"] == "OK"

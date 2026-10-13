@@ -18,13 +18,6 @@ if "pydantic" not in sys.modules:
 
 from process_agents.common import utils_agent  # noqa: E402
 
-try:
-    from process_agents.common.helpers import doc_design_sections  # noqa: E402
-except ModuleNotFoundError as error:
-    if error.name != "docx":
-        raise
-    doc_design_sections = None
-
 
 class UtilsAgentTests(unittest.TestCase):
     def test_contains_marker_walks_nested_structures(self):
@@ -62,59 +55,21 @@ class UtilsAgentTests(unittest.TestCase):
             lambda: {"cloudarch_status": "APPROVED"}
         )
         with tempfile.TemporaryDirectory() as directory:
-            (Path(directory) / "output").mkdir()
-            (Path(directory) / "output" / "stop_counter.json").write_text(
+            (Path(directory) / "stop_counter.json").write_text(
                 json.dumps({"count": 1})  # about to become 2/2 -- the last allowed iteration
             )
-            (Path(directory) / "output" / "approval.json").write_text(
+            (Path(directory) / "approval.json").write_text(
                 json.dumps({"cloudarch_status": "APPROVED"})
             )
             tool_context = types.SimpleNamespace(
                 actions=types.SimpleNamespace(escalate=False)
             )
-            with patch.object(utils_agent, "PROJECT_ROOT", directory):
+            from process_toolkit import paths as shared_paths
+            with patch.object(shared_paths, "OUTPUT_DIR", directory):
                 result = cloudarch_stop_if_ready(tool_context)
 
         self.assertEqual(result, "All approvals present — exiting loop.")
         self.assertTrue(tool_context.actions.escalate)
-
-
-@unittest.skipIf(doc_design_sections is None, "python-docx is not installed")
-class DesignHelperTests(unittest.TestCase):
-    def test_priority_and_natural_sort_keys(self):
-        self.assertLess(
-            doc_design_sections._priority_sort_key("high"),
-            doc_design_sections._priority_sort_key("low"),
-        )
-        self.assertEqual(
-            doc_design_sections._natural_sort_key("Requirement 12"),
-            ["requirement ", 12, ""],
-        )
-
-    def test_bulleted_group_handles_empty_and_values(self):
-        class FakeDoc:
-            def __init__(self):
-                self.paragraphs = []
-                self.runs = []
-
-            def add_paragraph(self, text="", style=None):
-                self.paragraphs.append((text, style))
-
-                def add_run(run_text="", **kwargs):
-                    self.runs.append(run_text)
-                    return types.SimpleNamespace(bold=None)
-
-                return types.SimpleNamespace(
-                    paragraph_format=types.SimpleNamespace(
-                        left_indent=None, space_before=None, space_after=None
-                    ),
-                    add_run=add_run,
-                )
-
-        doc = FakeDoc()
-        doc_design_sections._add_bulleted_group(doc, "Controls", ["one", "two"], 0.25)
-        self.assertTrue(doc.paragraphs)
-        self.assertEqual(doc.runs[0], "Controls:")
 
 
 if __name__ == "__main__":

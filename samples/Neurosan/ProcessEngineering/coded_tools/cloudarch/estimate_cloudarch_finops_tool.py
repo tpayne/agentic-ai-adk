@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from coded_tools.cloudarch.finops import estimate_cloudarch_finops
+from process_toolkit.cloudarch.finops import estimate_cloudarch_finops
 
 
 class EstimateCloudarchFinopsCodedTool(CodedTool):

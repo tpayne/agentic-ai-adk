@@ -9,6 +9,7 @@ from ..common.utils import (
     load_full_process_context,
     load_requirements_summary,
 )
+from process_toolkit.docgen.edge_inference import generate_clean_diagram
 
 logger = logging.getLogger("ProcessArchitect.Consultant")
 
@@ -21,5 +22,5 @@ consultant_agent = ProcessLlmAgent(
     name="Consultant_Agent",
     description="Use this for questions about EXISTING processes. It cannot create new ones.",
     instruction_file="process/consultant_agent.txt",
-    tools=[load_full_process_context, load_requirements_summary],
+    tools=[load_full_process_context, load_requirements_summary, generate_clean_diagram],
 )
