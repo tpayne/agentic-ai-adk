@@ -30,15 +30,28 @@ Design notes:
     two calls -- not inferred from how close together they happened to
     run. A DIFFERENT token (or none) always means a different run, and is
     rejected unless the existing lock has gone stale.
-  - Atomic claim. The "nobody holds it yet" case is claimed with
-    os.O_CREAT | os.O_EXCL, which is atomic on POSIX and Windows -- two
-    callers racing to acquire with no existing lock can never both
-    "win"; the loser immediately sees the winner's lock on its very next
-    read and goes through the normal conflict/staleness path instead.
-    Reclaiming an abandoned (stale) lock uses the same primitive (remove,
-    then re-claim with O_EXCL) rather than an unconditional overwrite, so
-    two callers racing to reclaim the SAME stale lock also can't both
-    "win" silently.
+  - A short-lived mutex serializes the read-decide-write sequence.
+    Deciding "is the existing lock mine / stale / someone else's active
+    one" and then writing a new state is NOT atomic as a single
+    filesystem operation -- two callers could both read the same stale
+    lock, both decide to reclaim it, and the second one's unconditional
+    removal would delete the FIRST one's brand new, legitimate claim
+    instead of the stale lock it thought it was removing. _mutex_guard
+    wraps that whole sequence in a tiny, separate sentinel file
+    (LOCK_FILENAME + ".mutex") claimed via the one primitive that IS
+    atomic on both POSIX and Windows -- os.O_CREAT | os.O_EXCL -- so only
+    one acquire_pipeline_lock/release_pipeline_lock call runs that logic
+    at a time. The mutex itself needs no such protection against the same
+    race: "steal" on a stale mutex is just a best-effort remove (ignoring
+    "someone already removed it") followed by retrying the SAME O_CREAT |
+    O_EXCL claim, which can only ever let exactly one of several racing
+    stealers actually win -- it doesn't matter if several of them also
+    call remove(), since removing an already-removed file is harmless and
+    carries no ownership semantics of its own.
+  - Every write to the real lock file goes through a temp-file-then-
+    os.replace swap, which is atomic on POSIX and Windows -- a crash
+    mid-write can never leave the lock file itself observably truncated
+    or holding half-written JSON for a later reader to choke on.
   - Self-healing. A crashed or never-finished run's lock expires after
     DEFAULT_STALE_AFTER_SECONDS (comfortably above this project's own
     documented ~5-10 minute typical run time) and is then reclaimable by
@@ -51,6 +64,7 @@ import logging
 import os
 import time
 import uuid
+from contextlib import contextmanager
 from typing import Optional
 
 from process_toolkit import paths
@@ -58,6 +72,7 @@ from process_toolkit import paths
 logger = logging.getLogger("ProcessArchitect.RunLock")
 
 LOCK_FILENAME = "pipeline.lock"
+_MUTEX_SUFFIX = ".mutex"
 
 # How long an unreleased lock is honored before it's treated as abandoned
 # (a crashed process, an exception that skipped the release step) and
@@ -67,11 +82,20 @@ LOCK_FILENAME = "pipeline.lock"
 # crashed/abandoned run can impose on everyone else.
 DEFAULT_STALE_AFTER_SECONDS = 1200.0
 
-# Bounds the "remove a stale lock, then re-claim it" retry loop below --
-# only matters if multiple callers race to reclaim the exact same stale
-# lock at once; one retry is enough for all but a pathological, repeated
-# collision, which this caps rather than risking unbounded recursion.
-_MAX_RECLAIM_ATTEMPTS = 3
+# How long a caller waits to claim the mutex before giving up. The
+# critical section it guards is pure local file I/O (microseconds to low
+# milliseconds), so this only ever matters under heavy contention from
+# many callers queued at once -- generous relative to that, tiny relative
+# to DEFAULT_STALE_AFTER_SECONDS.
+_MUTEX_ACQUIRE_TIMEOUT_SECONDS = 10.0
+_MUTEX_POLL_INTERVAL_SECONDS = 0.02
+
+# How long an unreleased MUTEX (not the pipeline lock itself) is honored
+# before it's treated as abandoned. Deliberately much shorter than
+# DEFAULT_STALE_AFTER_SECONDS -- a legitimate holder only ever holds the
+# mutex for the duration of one acquire/release call's file I/O, so
+# anything still holding it this long died without releasing.
+_MUTEX_STALE_AFTER_SECONDS = 5.0
 
 
 class PipelineLockedError(RuntimeError):
@@ -92,33 +116,74 @@ def _read_lock(path: str) -> Optional[dict]:
         return None
 
 
-def _try_claim(path: str, payload: dict) -> bool:
-    """Atomically creates `path` with `payload` iff it doesn't already
-    exist. Returns False (without raising) if it does -- the normal,
-    expected outcome of losing a race, not an error."""
+def _atomic_write(path: str, payload: dict) -> None:
+    """Writes `payload` to `path` via a temp-file-then-os.replace swap, so
+    a reader can never observe `path` partially written -- it's always
+    either the previous complete content or the new complete content."""
+    tmp_path = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass  # normal case: os.replace already consumed it
+
+
+def _try_exclusive_create(path: str) -> bool:
+    """True iff this call atomically created (empty) `path` -- False if
+    it already existed. The one primitive here that's genuinely atomic
+    against other callers on both POSIX and Windows."""
     try:
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         return False
-    try:
-        os.write(fd, json.dumps(payload).encode("utf-8"))
-    finally:
-        os.close(fd)
+    os.close(fd)
     return True
 
 
-def _refresh(path: str, payload: dict) -> None:
-    """Rewrites a lock this caller already confirmed it owns. Not the
-    atomic claim primitive -- used only for a same-token refresh, where
-    there is no "nobody else could have already claimed it" question to
-    resolve, just a timestamp update."""
+@contextmanager
+def _mutex_guard(path: str):
+    """Serializes the read-decide-write critical section in
+    acquire_pipeline_lock/release_pipeline_lock across callers (processes
+    or threads) -- see this module's own docstring for why that sequence
+    isn't safe as plain, unsynchronized file operations. Self-heals a
+    crashed holder via _MUTEX_STALE_AFTER_SECONDS rather than ever
+    blocking forever."""
+    mutex_path = path + _MUTEX_SUFFIX
+    deadline = time.time() + _MUTEX_ACQUIRE_TIMEOUT_SECONDS
+    while True:
+        if _try_exclusive_create(mutex_path):
+            break
+        try:
+            if time.time() - os.path.getmtime(mutex_path) > _MUTEX_STALE_AFTER_SECONDS:
+                # Best-effort steal of an abandoned mutex: if several
+                # callers reach here at once, at most one of their
+                # upcoming _try_exclusive_create calls (next loop turn)
+                # can actually win -- the others just loop back to
+                # waiting, exactly as if they'd lost the race to a
+                # legitimate holder. Removing an already-removed file is
+                # harmless, so no coordination is needed for this step.
+                os.remove(mutex_path)
+                continue
+        except OSError:
+            pass  # vanished between getmtime and remove, or never existed -- fine, retry
+        if time.time() >= deadline:
+            raise PipelineLockedError(
+                "Could not acquire the pipeline lock's internal mutex -- the system is "
+                "under unusually heavy concurrent load. Please retry."
+            )
+        time.sleep(_MUTEX_POLL_INTERVAL_SECONDS)
+
     try:
-        tmp_path = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f)
-        os.replace(tmp_path, path)
-    except Exception:
-        logger.warning("Could not refresh pipeline lock -- continuing anyway.", exc_info=True)
+        yield
+    finally:
+        try:
+            os.remove(mutex_path)
+        except OSError:
+            pass
 
 
 def acquire_pipeline_lock(
@@ -149,35 +214,32 @@ def acquire_pipeline_lock(
     """
     path = _lock_path()
     my_token = token or uuid.uuid4().hex
+    payload = {"label": label, "token": my_token, "started_at": time.time(), "pid": os.getpid()}
 
-    for _ in range(_MAX_RECLAIM_ATTEMPTS):
-        payload = {"label": label, "token": my_token, "started_at": time.time(), "pid": os.getpid()}
+    with _mutex_guard(path):
+        existing = _read_lock(path)
 
-        if _try_claim(path, payload):
+        if existing is None:
+            # Absent, or unreadable/corrupt (e.g. a crash mid-write from
+            # before this module started writing via _atomic_write) --
+            # either way there is no legitimate current owner, so this is
+            # safe to (re)create. Safe under the mutex: no other caller
+            # can be inside this same critical section concurrently.
+            _atomic_write(path, payload)
             return my_token
 
-        existing = _read_lock(path)
-        if existing is None:
-            # Unreadable/corrupt, or removed between our failed claim and
-            # this read -- treat as absent and retry the atomic claim.
-            continue
-
         if existing.get("token") == my_token:
-            _refresh(path, payload)
+            _atomic_write(path, payload)
             return my_token
 
         started_at = existing.get("started_at")
         age = time.time() - started_at if isinstance(started_at, (int, float)) else None
         if age is not None and age >= stale_after_seconds:
-            # Abandoned by its original owner -- reclaim it via the same
-            # atomic primitive (remove, then re-claim) rather than an
-            # unconditional overwrite, so a second caller racing to
-            # reclaim this exact same stale lock can't also "win".
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-            continue
+            # Abandoned by its original owner -- safe to reclaim under
+            # the mutex: no concurrent reader/writer of the real lock
+            # file can observe or race this decision.
+            _atomic_write(path, payload)
+            return my_token
 
         held_by = existing.get("label") or "another pipeline run"
         raise PipelineLockedError(
@@ -186,13 +248,6 @@ def acquire_pipeline_lock(
             "against the same output/ directory can corrupt each other's state. "
             "Wait for it to finish, then retry."
         )
-
-    # Exhausted retries racing other reclaimers -- fail safe (refuse)
-    # rather than silently proceeding unlocked.
-    raise PipelineLockedError(
-        "Could not acquire the pipeline lock after repeated attempts -- another run "
-        "may be starting at the same time. Please retry."
-    )
 
 
 def release_pipeline_lock(token: Optional[str]) -> None:
@@ -204,9 +259,10 @@ def release_pipeline_lock(token: Optional[str]) -> None:
     if not token:
         return
     path = _lock_path()
-    existing = _read_lock(path)
-    if existing is not None and existing.get("token") == token:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+    with _mutex_guard(path):
+        existing = _read_lock(path)
+        if existing is not None and existing.get("token") == token:
+            try:
+                os.remove(path)
+            except OSError:
+                pass

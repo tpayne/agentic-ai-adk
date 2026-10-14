@@ -73,6 +73,44 @@ def test_release_with_none_is_a_safe_no_op():
     acquire_pipeline_lock("my pipeline")
 
 
+def test_a_corrupt_lock_file_is_recovered_not_permanently_stuck():
+    # Regression test: a crash mid-write (before this module wrote via
+    # os.replace, or any other way a non-JSON/garbage file ends up at
+    # this path) must not permanently block every future acquire --
+    # there's no "started_at" to ever judge as stale, so it has to be
+    # recognized as having no legitimate owner at all.
+    with open(paths.output_path("pipeline.lock"), "w", encoding="utf-8") as f:
+        f.write("{not valid json")
+
+    acquire_pipeline_lock("a new pipeline")  # must not raise
+
+
+def test_concurrent_stale_reclaim_attempts_let_exactly_one_caller_win():
+    # Regression test: the previous design read a stale lock, then
+    # unconditionally os.remove'd whatever was at that path -- if another
+    # caller had already reclaimed it in the gap, the first caller's
+    # remove would delete the NEW legitimate owner's lock too, and both
+    # would believe they held it exclusively. Many callers racing to
+    # reclaim the SAME stale lock must still produce exactly one winner.
+    _write_lock(started_at=time.time() - (DEFAULT_STALE_AFTER_SECONDS + 1))
+
+    results = []
+
+    def _attempt(i):
+        try:
+            acquire_pipeline_lock(f"pipeline {i}")
+            return ("ok", i)
+        except PipelineLockedError:
+            return ("locked", i)
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        for result in pool.map(_attempt, range(16)):
+            results.append(result)
+
+    successes = [r for r in results if r[0] == "ok"]
+    assert len(successes) == 1, f"expected exactly one winner reclaiming the stale lock, got {successes}"
+
+
 def test_concurrent_acquire_attempts_let_exactly_one_caller_win():
     # Directly exercises the race the time-based design couldn't rule
     # out: many callers hitting acquire_pipeline_lock at effectively the
