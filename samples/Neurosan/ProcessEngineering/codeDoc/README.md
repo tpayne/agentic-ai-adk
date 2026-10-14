@@ -17,10 +17,10 @@ The hierarchy distinguishes project classes from external bases by labeling the 
 each node. Composition edges are included only where construction or typed fields establish the
 relationship; agent/tool names alone are not treated as class relationships.
 
-This project's own class inventory (33 classes, scoped to exclude the neuro-san-studio scaffolding
+This project's own class inventory (34 classes, scoped to exclude the neuro-san-studio scaffolding
 this project didn't write) is considerably flatter than the ADK original's (61 classes across a
 real `LlmAgent`/`BaseAgent`/pydantic-schema hierarchy): neuro-san's `CodedTool` interface is a
-single-method entry point (`invoke(args, sly_data)`), so 29 of the 33 are direct, sibling
+single-method entry point (`invoke(args, sly_data)`), so 30 of the 34 are direct, sibling
 subclasses of the same external base with essentially identical shape. The Mermaid diagrams render
 on GitHub; no local Mermaid/PlantUML renderer was available when these were prepared.
 
@@ -34,10 +34,10 @@ change:
 cd samples/Neurosan/ProcessEngineering && uv run python codeDoc/generate_diagrams.py
 ```
 
-- [`class-diagram.png`](class-diagram.png) -- the same 33 application classes as
+- [`class-diagram.png`](class-diagram.png) -- the same 34 application classes as
   [application-classes.md](application-classes.md), rendered as a physical UML class diagram
-  (inheritance/composition arrows; the 29 near-identical `CodedTool` leaves collapsed into 5
-  cluster boxes by network area so the diagram doesn't repeat the same shape 29 times).
+  (inheritance/composition arrows; the 30 near-identical `CodedTool` leaves collapsed into 5
+  cluster boxes by network area so the diagram doesn't repeat the same shape 30 times).
 - [`sequence-cloudarch-pipeline.png`](sequence-cloudarch-pipeline.png) -- full detail for
   `CloudArch_Pipeline` (generator/reviewer/`loop_control`), including the review loop's frame.
 - [`sequence-process-create.png`](sequence-process-create.png) /

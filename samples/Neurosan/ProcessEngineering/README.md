@@ -25,7 +25,7 @@ Responses API is unavailable, set it to `false` in the shared config.
 
 ## Status
 
-**Complete.** All nineteen agent networks below are wired and verified end-to-end (structurally and
+**Complete.** All twenty agent networks below are wired and verified end-to-end (structurally and
 functionally — see [Verification](#verification)):
 
 | Network | Front-man agent | What it does |
@@ -37,6 +37,7 @@ functionally — see [Verification](#verification)):
 | `cloudarch` | `CloudArch_Pipeline` | Generates/refines a cloud architecture diagram (drawio/mxGraph XML) via a deterministic layout engine, audited by a reviewer agent in a generate→review→revise loop. |
 | `cloudarch_consultant` | `CloudArch_Consultant_Agent` | Answers questions about an existing cloud architecture diagram. |
 | `cloudarch_simulation_query` | `CloudArch_Simulation_Query_Agent` | Runs a resilience/scalability/latency simulation over an existing diagram and explains findings in business language. |
+| `cloudarch_attack_simulation_query` | `CloudArch_Attack_Simulation_Query_Agent` | Runs an adversarial attack-path simulation (unauthenticated access, lateral movement, privilege escalation, data exfiltration, credential compromise) over an existing diagram and explains what an attacker could reach, in business language. Analysis-only — never modifies the diagram. |
 | `cloudarch_finops` | `CloudArch_FinOps_Agent` | Estimates diagram costs and optimization opportunities; uses live provider price catalogs for resources with explicit SKUs and monthly usage details when accessible, and keeps the existing heuristic estimate otherwise. |
 | `process` | `Process_Pipeline` | Generates/refines a business process design via analysis → design → compliance review → simulation review (looping until approved or a revision limit is hit), expands every top-level step into its own detailed subprocess, renders a flow diagram, and produces a final ISO-formatted Word document. |
 | `process_update` | `Process_Update_Pipeline` | The same generate/review loop, applied as a delta against an existing process in response to a change request. |
@@ -148,6 +149,15 @@ functionally — see [Verification](#verification)):
   730 hours per month. Components without sufficiently detailed, accessible matching catalog data
   retain the existing rough estimate. These estimates are not quotes and should be confirmed with
   the provider's pricing calculator or actual billing data.
+- **Cloud architecture attack simulation** (`cloudarch_attack_simulation_query`): a deliberately
+  separate agent (not folded into the consultant or resilience-simulation agents above, since
+  adversarial reasoning is a genuinely distinct capability) that simulates how a hacker who
+  compromised a plausible entry point would move through the architecture — unauthenticated access,
+  lateral movement, privilege escalation, data exfiltration, and credential compromise — each
+  derived deterministically from the diagram's own graph structure and each component's shape/label
+  vocabulary (entry points, WAF/firewall/MFA-SSO/KMS/monitoring controls, data stores). Explains what
+  an attacker could reach and what controls are missing, in business/red-team language. Analysis
+  only — it never modifies the diagram.
 - **Real LLD sequence diagrams**: a Low-Level Design component's `sequence_flows` entries carry
   their own inline participants and ordered steps, rendered as an actual UML-style sequence diagram
   (lifelines, sync/async calls, returns) and embedded in the generated document.
@@ -242,8 +252,9 @@ what-if scenarios (`design_scenario_tester`), simulated across resilience/scalab
 latency (`design_simulation_query`), or updated and re-documented (`design_update`) — mirroring the
 equivalent process-side capabilities above. Cloud architecture diagramming (`cloudarch`) is a
 separate, standalone network with the same query/simulate/update parity: queried
-(`cloudarch_consultant`), simulated (`cloudarch_simulation_query`), cost-estimated
-(`cloudarch_finops`), or modified via natural language (`cloudarch` itself) — generate one from a
+(`cloudarch_consultant`), simulated (`cloudarch_simulation_query`), attack-simulated
+(`cloudarch_attack_simulation_query`), cost-estimated (`cloudarch_finops`), or modified via natural
+language (`cloudarch` itself) — generate one from a
 design document's components whenever you want one, rather than it happening automatically as part
 of the design pipeline.
 
@@ -505,6 +516,11 @@ Sample prompts for the design-document (HLD/LLD/Combined architecture) side:
 ### Running Cloud Architecture Diagram Simulations
 - "Simulate a failure in this cloud architecture diagram — what are the single points of failure?"
 - "Will the architecture in the diagram scale under load?"
+
+### Running Cloud Architecture Diagram Attack Simulations
+- "If an attacker compromises the public API Gateway, what could they reach?"
+- "Run a threat model / pentest against this cloud architecture diagram."
+- "Red-team this cloud architecture — what's the blast radius of a credential compromise?"
 
 ### Estimating Cloud Architecture Costs
 - "Estimate the monthly cost of this diagram and identify the best optimization opportunities."

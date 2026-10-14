@@ -16,7 +16,7 @@ of a class that IS listed here, declared once under `coded_tools/common/`, `code
 `coded_tools/process/`, `coded_tools/design/`, or `coded_tools/requirements_summary/` -- see
 `coded_tools/<network>/`'s own files for exactly which shared class each one re-exports.
 
-## Application classes (33)
+## Application classes (34)
 
 | ID | Class | Source | Declared base |
 |---|---|---|---|
@@ -53,6 +53,7 @@ of a class that IS listed here, declared once under `coded_tools/common/`, `code
 | R31 | `LoadRequirementsSummaryCodedTool` | `coded_tools/requirements_summary/load_requirements_summary_tool.py:23` | `CodedTool` |
 | R32 | `LiveTraceMessageProcessor` | `cli.py:164` | `neuro_san.message.processors.message_processor.MessageProcessor` |
 | R33 | `ChatSession` | `cli.py:233` | none |
+| R34 | `SimulateCloudarchAttackCodedTool` | `coded_tools/cloudarch/simulate_cloudarch_attack_tool.py:9` | `CodedTool` |
 
 R09/R10 are two independently-declared classes with the identical name, in different modules --
 not an import/re-export of one another. `coded_tools/cloudarch/`'s own copy reads the same

@@ -4,8 +4,8 @@ This diagram has one node per Python class declaration in the package and tests.
 are labeled with their owning package. Inheritance arrows follow declared bases.
 
 Flatter than a typical ADK-style hierarchy by design: neuro-san's `CodedTool` interface is a
-single-method entry point (`invoke(args, sly_data)`), not a class hierarchy, so 31 of this
-project's 33 application classes are direct, sibling subclasses of the same external base with no
+single-method entry point (`invoke(args, sly_data)`), not a class hierarchy, so 32 of this
+project's 34 application classes are direct, sibling subclasses of the same external base with no
 intermediate layers between them -- there's no equivalent of ADK's `DefaultLlmAgent`/`DefaultAgent`
 wrapper tier, or its pydantic schema composition tree.
 
@@ -46,6 +46,7 @@ classDiagram
     class R31["LoadRequirementsSummaryCodedTool (load_requirements_summary_tool.py:23)"]
     class R32["LiveTraceMessageProcessor (cli.py:164)"]
     class R33["ChatSession (cli.py:233)"]
+    class R34["SimulateCloudarchAttackCodedTool (simulate_cloudarch_attack_tool.py:9)"]
 
     class T01["_StubSession (test_cli.py:50)"]
     class T02["TestLiveTraceMessageProcessor (test_cli.py:141)"]
@@ -86,6 +87,7 @@ classDiagram
     R29 --|> CodedTool : declared base
     R30 --|> CodedTool : declared base
     R31 --|> CodedTool : declared base
+    R34 --|> CodedTool : declared base
     R32 --|> MessageProcessor : declared base
 
     R33 *-- AgentSessionFactory : creates self.session via create_session()

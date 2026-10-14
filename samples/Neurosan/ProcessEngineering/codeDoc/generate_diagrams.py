@@ -237,7 +237,7 @@ def generate_class_diagram():
     def row_after(prev_box, gap=GAP):
         return prev_box[0] + prev_box[2] + gap
 
-    # Tier A -- the 29 near-identical CodedTool leaves, collapsed into one
+    # Tier A -- the 30 near-identical CodedTool leaves, collapsed into one
     # cluster box per network area (see application-classes.md for why:
     # each one is a 1-method invoke()/async_invoke() wrapper around a
     # shared coded_tools/common/*.py function, individually declared --
@@ -246,11 +246,11 @@ def generate_class_diagram():
     # wide label text can never overlap its neighbor.
     row_y = 2.6
     x = 0.3
-    b = add("CloudarchTools", x, row_y, ["Cloudarch tools (7)"],
+    b = add("CloudarchTools", x, row_y, ["Cloudarch tools (8)"],
             ["ResetLoopStateCodedTool", "LoadIterationFeedbackCodedTool",
              "SaveIterationFeedbackCodedTool", "LoadDrawioCodedTool",
              "SaveDrawioStructuredCodedTool", "SimulateCloudarchArchitectureCodedTool",
-             "LoadMasterProcessJsonCodedTool"])
+             "SimulateCloudarchAttackCodedTool", "LoadMasterProcessJsonCodedTool"])
     x = row_after(b)
     b = add("ProcessTools", x, row_y, ["Process tools (9)"],
             ["LoadMasterProcessJsonCodedTool", "LoadProcessTemplateCodedTool",
@@ -333,7 +333,7 @@ def generate_class_diagram():
     _finish(
         fig, ax, "class-diagram.png", (0, max_x + 0.5), (-0.3, max_y + 0.8),
         "ProcessEngineering (neuro-san port) -- application class diagram\n"
-        "(33 project classes; 29 near-identical CodedTool leaves collapsed into 5 cluster boxes; "
+        "(34 project classes; 30 near-identical CodedTool leaves collapsed into 5 cluster boxes; "
         "external neuro-san bases shown in gray)",
     )
 
