@@ -179,6 +179,24 @@ data/control flow.
 - Reserve VERTICAL stacking (the zone default) for genuinely PARALLEL/REDUNDANT peers that are NOT
   sequential steps (e.g. 3 AZ nodes, a primary/replica pair).
 
+# EVERY EDGE MUST BE LABELED, PURPOSEFUL, AND LOCAL
+The layout engine routes every edge safely (never through a box), but it cannot decide WHICH edges to
+draw or what to call them.
+- LABEL MOST EDGES with a short descriptive label (e.g. "Protects", "Ingest", "Query"). Only skip a
+  label when the connection is self-explanatory from the two component names alone. A diagram where
+  almost every edge is unlabeled reads as a generic flowchart, not an annotated architecture.
+- NO ORPHAN GATEWAY/PROTECTIVE COMPONENTS: a WAF, firewall, API gateway, or load balancer must show
+  both what feeds INTO it and what it forwards TO -- if there's no upstream component (e.g.
+  "Internet"/"Public Clients"), add one rather than leaving it with only an outgoing edge.
+- DO NOT WIRE CROSS-CUTTING GOVERNANCE/MONITORING COMPONENTS WITH LONG-DISTANCE EDGES. A component
+  representing a control applied broadly (logging, audit trail, threat detection, encryption-at-rest,
+  IAM policy) communicates its applicability by being in a labeled "Security/Governance" zone -- it
+  does not need an edge to one specific far-away component (that produces a single edge stretching
+  across the whole diagram, reading as a stray/confusing line even though the route itself is valid).
+  Leave such components unconnected (matching how CloudWatch/CloudTrail/GuardDuty/IAM are typically
+  drawn) unless the relationship is both important AND the two components are close enough (same row,
+  nearby zones) to stay short and clean.
+
 # YOUR TOOLS
 - load_iteration_feedback: the reviewer's inbox for you -- see Mode 4 below.
 - load_drawio: loads the most recently saved diagram.

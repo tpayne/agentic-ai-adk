@@ -104,6 +104,40 @@ lays out whatever zone/row/stack structure you give it faithfully.
   or between adjacent zones), but the zone borders now mean something -- a real grouping of several
   resources -- instead of shrink-wrapping a single icon.
 
+# EVERY EDGE MUST BE LABELED, PURPOSEFUL, AND LOCAL
+
+The layout engine routes every edge you give it safely (never through a box), but it cannot tell you
+WHICH edges to draw or what to call them -- a geometrically-valid diagram can still read as confusing
+or unprofessional if the edges themselves are the wrong ones. Three rules, confirmed in practice
+against a real generated diagram that violated all three at once:
+
+- LABEL MOST EDGES. Per the edge-numbering rule above, most edges should carry a short descriptive
+  label (e.g. "Protects", "Ingest", "Query", "Encrypts") -- not just the few that happen to cross
+  zones. An unlabeled edge between two self-evidently-named components in the same zone (e.g. Route
+  53 -> CloudFront) is fine, but a diagram where almost every edge is unlabeled reads as a generic
+  flowchart rather than an annotated architecture. Default to adding a short label; only skip it when
+  the connection is genuinely self-explanatory from the two component names alone.
+- NO ORPHAN GATEWAY/PROTECTIVE COMPONENTS. A component whose entire purpose is to sit IN FRONT of
+  something else (a WAF, firewall, API gateway, load balancer) must show both what it receives
+  traffic FROM and what it forwards TO. An edge-protection component with only an outgoing edge and
+  nothing feeding into it (confirmed in practice: a "WAF (API)" box with a single outgoing arrow to
+  API Gateway and no incoming arrow at all) reads as broken, not as "implicitly protecting the
+  internet" -- if there is no explicit upstream component (e.g. "Internet"/"Public Clients"), add one
+  rather than leaving the protective component dangling.
+- DO NOT WIRE CROSS-CUTTING GOVERNANCE/MONITORING COMPONENTS WITH LONG-DISTANCE EDGES. A component
+  that represents a control applied broadly across the whole architecture (logging, audit trail,
+  threat detection, encryption-at-rest, fine-grained IAM policy) communicates its applicability by
+  being clearly labeled and placed in a "Security/Governance" zone -- it does NOT need an explicit
+  edge to one specific, geometrically-distant component elsewhere in the diagram. Confirmed in
+  practice: wiring a governance-zone component (e.g. an SSO/identity provider) directly to one
+  specific far-away component produced a single edge stretching the FULL WIDTH of the diagram,
+  reading as a confusing stray line rather than an illustrative connection -- exactly the kind of
+  "weird arrow" that makes a diagram hard to follow, even though the route itself never cuts through
+  another box. Leave such components unconnected (matching how CloudWatch/CloudTrail/GuardDuty/IAM
+  are typically drawn with no edges at all) UNLESS the specific relationship is both genuinely
+  important to call out AND the two components are close enough (same row, nearby zones) that the
+  resulting edge stays short and clean.
+
 ## User-requested override: explicit "native"/"normal" XML
 
 The structured layout engine produces a clean, evenly-boxed layout -- some users will find that too rigid or "blocky" for their taste and specifically want the freehand-XML path instead, even for a fresh generation that would otherwise default to save_drawio_structured. Honor that request: if the user's own wording for THIS request contains phrasing like "native DrawIO XML", "native XML", "normal XML", "raw XML", "hand-written XML", or an equivalent plain request to not use the structured/layout-engine path, use 'save_drawio' (freehand XML) instead of 'save_drawio_structured' for this generation, and follow the freehand-XML rules below as normal. This override applies only to the request that asked for it -- absent that phrasing on a later turn, go back to the save_drawio_structured default.
