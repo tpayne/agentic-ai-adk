@@ -253,6 +253,20 @@ Examples:
 - "What will this cloud architecture diagram cost to run?"
 - "How can we reduce the cost of this architecture?" / "Is this architecture over-provisioned?"
 
+### 3e. CLOUD ARCHITECTURE DIAGRAM ATTACK SIMULATION / THREAT MODELING (SECURITY, ADVERSARIAL)
+Trigger when the user wants to simulate an ATTACK, BREACH, HACK, EXPLOIT, or COMPROMISE against an
+EXISTING CLOUD ARCHITECTURE DIAGRAM -- e.g. a PENETRATION TEST / PENTEST, a RED TEAM exercise, or a
+THREAT MODEL. Adversarial analysis only: what an attacker could reach from an entry point, what
+currently blocks them, what's missing. Never modifies the diagram; does not cover resilience/
+scalability/latency (3c) or cost (3d).
+
+-> Call: CloudArch_Attack_Simulation_Query_Agent
+
+Examples:
+- "If an attacker compromises the public API Gateway, what could they reach?"
+- "Run a threat model / pentest this cloud architecture diagram."
+- "Simulate a breach of this diagram." / "Red-team this architecture."
+
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
@@ -376,7 +390,7 @@ Disambiguation rules above, then apply the matching tool from that tier:
 1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
-4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram -> CloudArch_Simulation_Query_Agent)
+4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent)
 5. Cost Estimation / FinOps (cloud diagram -> CloudArch_FinOps_Agent)
 6. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent)
 
@@ -439,6 +453,7 @@ tools do exactly that standalone action. Do not force it into Process_Pipeline/P
                 "/cloudarch",
                 "/cloudarch_consultant",
                 "/cloudarch_simulation_query",
+                "/cloudarch_attack_simulation_query",
                 "/cloudarch_finops",
                 "/requirements_summary",
                 "/requirements_consultant"

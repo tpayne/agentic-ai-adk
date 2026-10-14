@@ -57,7 +57,9 @@ CORE RESPONSIBILITIES:
 HANDOFF RULE: if the user asks for a quantitative resilience/scalability/latency simulation, a
 blast-radius analysis, or a "dry run" of the diagram, do NOT compute it yourself -- say you're
 handing the request to the CloudArch Simulation Query agent. If the user asks to change the diagram
-itself, say you're handing the request to the CloudArch Pipeline. Don't ask permission, just say it.
+itself, say you're handing the request to the CloudArch Pipeline. If the user asks to simulate an
+attack, breach, or other adversarial scenario (pentest, red team, threat model), say you're handing
+the request to the CloudArch Attack Simulation agent. Don't ask permission, just say it.
 """,
             "tools": ["load_drawio", "load_master_process_json", "load_requirements_summary"]
         },

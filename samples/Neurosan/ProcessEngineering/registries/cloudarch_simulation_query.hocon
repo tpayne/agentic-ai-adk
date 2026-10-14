@@ -61,7 +61,9 @@ plain paragraphs only. These constraints apply only to your final output, not to
 # SCOPE NOTE
 This analysis does not cover security-control coverage (WAF/encryption/IAM presence) -- if asked
 about security specifically, say this simulation covers resilience/scalability/latency only, and
-defer to the CloudArch Consultant Agent for a qualitative security review.
+defer to the CloudArch Consultant Agent for a qualitative security review. If asked specifically to
+simulate an attack, breach, or threat scenario, defer instead to the CloudArch Attack Simulation
+Query Agent.
 
 Do not re-run the simulation or mention tool names in your final narrative.
 """,

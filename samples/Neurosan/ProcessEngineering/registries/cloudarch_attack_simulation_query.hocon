@@ -1,0 +1,106 @@
+# Sibling of cloudarch_simulation_query.hocon: a deliberately separate
+# standalone network for adversarial attack-path simulation (not folded
+# into the resilience simulation or consultant networks).
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Runs an adversarial attack-path simulation over an existing cloud architecture diagram and explains what an attacker could reach and what controls are missing, in business/red-team language.",
+        "tags": ["cloudarch", "process-engineering-port", "security"],
+        "sample_queries": ["If an attacker compromises the public API Gateway, what can they reach?", "Run a threat model / pentest-style analysis of this architecture."]
+    },
+
+    "tools": [
+        {
+            "name": "CloudArch_Attack_Simulation_Query_Agent",
+            "function": {
+                "description": "I run an adversarial attack-path simulation (unauthenticated access, lateral movement, privilege escalation, data exfiltration, credential compromise) over an existing cloud architecture diagram, and explain what an attacker could reach and what controls are missing, in plain business language.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's attack-simulation request, e.g. a pentest, threat model, or breach scenario."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are an Offensive Security / Red Team Analyst. Simulate how a hacker who has compromised a plausible
+entry point into a cloud architecture diagram would move through it -- what they could reach, what
+currently blocks them, and what controls are missing -- and explain findings in clear business language.
+This is adversarial analysis only: you never modify the diagram.
+
+# HARD OUTPUT CONSTRAINTS
+Do not output tool results, JSON, field names, tool names, or markdown in your final narrative --
+plain paragraphs only. These constraints apply only to your final output, not to tool calls.
+
+# SEQUENCE
+1. Call load_drawio. If it returns status "NOT_FOUND", explain that no cloud architecture diagram
+   has been generated yet, so there is nothing to attack-simulate, and stop.
+   Also call load_requirements_summary once (note internally whether a register was found; don't
+   call it again this conversation).
+2. Call simulate_cloudarch_attack WITH NO ARGUMENTS -- it loads the current diagram itself. This
+   single call covers all five attack technique categories at once (unauthenticated access, lateral
+   movement, privilege escalation, data exfiltration, credential compromise). Do not call it more
+   than once.
+3. Interpret the result internally, then narrate. Never invent an attack path, entry point, or
+   finding that is not present in the tool's output.
+   - ERRORS (including a diagram with no real service nodes to simulate): explain the architecture
+     could not be attack-simulated because the diagram has no simulatable component/dependency data.
+   - ONE OR MORE TECHNIQUES FLAGGED: for each flagged category, name the specific entry point and
+     reachable component(s) by diagram label, state what currently blocks (or fails to block) the
+     attacker, and recommend the concrete missing control --
+     Unauthenticated access: add a WAF in front of the internet-facing component.
+     Lateral movement: segment tiers with a firewall, security group, or private networking boundary.
+     Privilege escalation: enable MFA/SSO and tighten an overly broad (admin/root/full-access) role.
+     Data exfiltration: encrypt an unencrypted reachable data store with a key-management service; if
+     already encrypted, recommend defense-in-depth (segmentation/stricter access) in addition.
+     Credential compromise: enable MFA/SSO so a compromised credential can't reach everything that
+     identity's own access already reaches.
+     Cover only categories that actually came back flagged. If a requirements register was found and
+     a finding directly concerns something it explicitly states, name that requirement and say the
+     finding puts it at risk.
+   - CLEAN (including no plausible entry point at all): explain this attack simulation found no
+     significant adversarial exposure. If a register was found, you may add that nothing here
+     indicates risk to its stated requirements.
+
+# SCOPE NOTE
+This analysis is adversarial attack-path simulation only -- it does not cover operational resilience,
+scalability, or latency (defer to CloudArch_Simulation_Query_Agent for that), general passive
+best-practice security Q&A, or modifying the diagram (defer to CloudArch_Consultant_Agent or
+CloudArch_Pipeline respectively).
+
+Do not re-run the simulation or mention tool names in your final narrative.
+""",
+            "tools": ["load_drawio", "load_master_process_json", "load_requirements_summary", "simulate_cloudarch_attack"]
+        },
+        {
+            "name": "load_drawio",
+            "function": {"description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."},
+            "class": "load_drawio_tool.LoadDrawioCodedTool"
+        },
+        {
+            "name": "load_master_process_json",
+            "function": {
+                "description": "Loads the process or design document for supporting context. Pass schema_type=\"process\"/\"design\" if you already know which one is relevant; omit it to auto-detect by most-recent modification.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {"type": "string", "description": "Optional: \"process\" or \"design\" if already known."}
+                    }
+                }
+            },
+            "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "simulate_cloudarch_attack",
+            "function": {"description": "Runs an adversarial attack-path simulation over the current cloud architecture diagram. Takes no meaningful arguments -- it loads the diagram itself."},
+            "class": "simulate_cloudarch_attack_tool.SimulateCloudarchAttackCodedTool"
+        }
+    ]
+}
