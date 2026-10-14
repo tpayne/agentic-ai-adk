@@ -535,6 +535,26 @@ def _stagger_offset(slot: int, step: float, clamp: Optional[float] = None) -> fl
     return magnitude if slot % 2 == 1 else -magnitude
 
 
+def _channel_stagger_step(total: int, clamp: float, fallback_step: float) -> float:
+    """
+    A stagger step that spreads `total` edges sharing one channel across the
+    FULL available [-clamp, clamp] range, instead of always using a small
+    fixed increment that leaves most of the pre-verified-safe clamp range
+    unused once 2+ edges share a channel. Confirmed directly against a real
+    generated diagram: three distinct below-row-channel edges, each
+    individually a safe/valid route, ended up only one fixed step (18px)
+    apart -- visually indistinguishable parallel lines a viewer's eye picks
+    up mid-span with no obvious endpoint, reading as "arrows connected to
+    nothing" -- when the channel had roughly twice that much pre-verified
+    safe room (`clamp`) to spread them further apart. `total <= 1` has only
+    slot 0 (always offset 0 regardless of step), so the fallback is unused
+    in practice -- kept only so a caller that doesn't know its channel's
+    total size yet still gets sane, unchanged behavior.
+    """
+    half = total // 2
+    return clamp / half if half >= 1 else fallback_step
+
+
 def _safe_x_for_vertical_span(
     preferred_x: float,
     y_lo: float,
@@ -589,6 +609,7 @@ def _route_edge(
     channel_slot: int,
     row_bottoms: Dict[int, float],
     all_boxes: Dict[str, "_Box"],
+    channel_slot_total: int = 1,
 ) -> Tuple[List[Tuple[float, float]], str, str]:
     """
     Returns (waypoints, exit_side, entry_side) for this edge, chosen so the
@@ -627,6 +648,10 @@ def _route_edge(
     share its _channel_key -- the caller assigns these per-channel, not
     globally, so two edges sharing a channel always get visibly different
     offsets regardless of how many unrelated edges exist elsewhere.
+    channel_slot_total is how many edges total share that same channel --
+    used by the below-row-channel branches (see _channel_stagger_step) to
+    spread them across the full pre-verified-safe clamp range rather than a
+    small fixed step that stays cramped regardless of how many share it.
 
     all_boxes is every zone's and every component's own box, keyed by id --
     needed to verify a candidate route coordinate is actually clear of every
@@ -735,7 +760,9 @@ def _route_edge(
         # ends connect from their own BOTTOM edge (dropping into, then
         # rising back out of, that below-row channel).
         channel_y = row_bottoms[src.row] + ROW_GAP / 2 + _stagger_offset(
-            channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+            channel_slot,
+            _channel_stagger_step(channel_slot_total, ROW_GAP_STAGGER_CLAMP, STAGGER_STEP_ROW_GAP),
+            clamp=ROW_GAP_STAGGER_CLAMP,
         )
         exit_x = _safe_x_for_vertical_span(
             src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
@@ -768,7 +795,9 @@ def _route_edge(
     exit_side, entry_side = ("bottom", "top") if going_down else ("top", "bottom")
     lower_row = max(src.row, tgt.row)
     channel_y = row_bottoms[lower_row - 1] + ROW_GAP / 2 + _stagger_offset(
-        channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+        channel_slot,
+        _channel_stagger_step(channel_slot_total, ROW_GAP_STAGGER_CLAMP, STAGGER_STEP_ROW_GAP),
+        clamp=ROW_GAP_STAGGER_CLAMP,
     )
     exit_x = _safe_x_for_vertical_span(
         src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
@@ -811,6 +840,7 @@ def _assign_connection_slots(
     all_boxes: Dict[str, "_Box"],
     row_bottoms: Dict[int, float],
     channel_slots: List[int],
+    channel_totals: Optional[List[int]] = None,
 ) -> List[Optional[Dict[str, Any]]]:
     """
     Pre-computes, for every edge, its waypoints AND which exact fractional
@@ -835,7 +865,10 @@ def _assign_connection_slots(
         if src is None or tgt is None:
             raw.append(None)
             continue
-        waypoints, exit_side, entry_side = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms, all_boxes)
+        total = channel_totals[i] if channel_totals is not None else 1
+        waypoints, exit_side, entry_side = _route_edge(
+            edge, src, tgt, channel_slots[i], row_bottoms, all_boxes, channel_slot_total=total
+        )
         raw.append({
             "waypoints": waypoints,
             "exit_side": exit_side,
@@ -1281,21 +1314,35 @@ def build_structured_drawio_xml(
     # them the same offset by coincidence.
     channel_slot_counts: Dict[Tuple[str, Any], int] = {}
     channel_slots: List[int] = []
+    channel_keys: List[Optional[Tuple[str, Any]]] = []
     for edge in edges:
         src = all_boxes.get(edge["source"])
         tgt = all_boxes.get(edge["target"])
         if src is None or tgt is None:
             channel_slots.append(0)
+            channel_keys.append(None)
             continue
         key = _channel_key(src, tgt, all_boxes)
         slot = channel_slot_counts.get(key, 0)
         channel_slot_counts[key] = slot + 1
         channel_slots.append(slot)
+        channel_keys.append(key)
+
+    # How many edges TOTAL share each edge's own channel -- known only once
+    # every edge has been counted above, so this is a second, cheap pass
+    # over the now-final channel_slot_counts. Lets the below-row-channel
+    # routing branches spread that many edges across the full pre-verified-
+    # safe clamp range (see _channel_stagger_step) instead of a small fixed
+    # step that stays cramped regardless of how many edges actually share
+    # the channel.
+    channel_totals: List[int] = [
+        channel_slot_counts[key] if key is not None else 1 for key in channel_keys
+    ]
 
     # Pin exact connection points instead of letting drawio float them, and
     # spread multiple edges sharing a box+side across that side -- see
     # _assign_connection_slots's own docstring for why.
-    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots)
+    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots, channel_totals)
 
     # Compute every edge's absolute label point UP FRONT, across all edges,
     # so collisions BETWEEN unrelated edges (not just within one edge's own

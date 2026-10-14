@@ -578,6 +578,53 @@ class TestSafeRouting:
             "indistinguishable as separate lines"
         )
 
+    def test_three_edges_sharing_a_channel_spread_across_the_full_safe_range(self):
+        # Regression test: confirmed against a real generated diagram that
+        # THREE distinct below-row-channel edges (not just two, the shape
+        # the previous test covers) only ended up one fixed step (18px)
+        # apart each -- visually indistinguishable parallel lines a viewer
+        # picks up mid-span with no obvious endpoint, reading as "arrows
+        # connected to nothing" -- when the channel had roughly twice that
+        # much pre-verified-safe room (ROW_GAP_STAGGER_CLAMP) to spread
+        # them further apart. l1->r1 (same-row detour), l1->w1, and
+        # m1->w2 (both cross-row) all land in the same below-row-0 channel
+        # per _channel_key.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "l1", "target": "r1", "label": "First"},
+                {"source": "l1", "target": "w1", "label": "Second"},
+                {"source": "m1", "target": "w2", "label": "Third"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edges_by_label = {}
+        for cell in root.findall(".//mxCell"):
+            if cell.get("edge") != "1":
+                continue
+            label = cell.get("value", "").replace("<b>", "").replace("</b>", "")
+            arr = cell.find("mxGeometry/Array")
+            ys = [float(p.get("y")) for p in arr.findall("mxPoint")] if arr is not None else []
+            edges_by_label[label] = ys
+
+        def _channel_y(ys):
+            seen = set()
+            for y in ys:
+                if y in seen:
+                    return y
+                seen.add(y)
+            raise AssertionError(f"no repeated y (no channel leg) in {ys}")
+
+        channel_ys = sorted(_channel_y(edges_by_label[label]) for label in ("First", "Second", "Third"))
+        assert len(set(channel_ys)) == 3, f"two channels collapsed onto the same y: {channel_ys}"
+        gaps = [channel_ys[1] - channel_ys[0], channel_ys[2] - channel_ys[1]]
+        # With the old fixed 18px step, three edges ended up only 18px
+        # apart each -- assert something close to double that (confirming
+        # the dynamic step is actually using the available clamp range),
+        # not just "more than the old step by a hair".
+        assert min(gaps) >= 30, f"channel legs only {gaps}px apart -- still cramped like the old fixed step"
+
     def test_blocked_exit_stays_axis_aligned_and_keeps_its_conceptual_side(self):
         # Regression test for a real generated diagram: when
         # _safe_x_for_vertical_span has to search far from a box's own
