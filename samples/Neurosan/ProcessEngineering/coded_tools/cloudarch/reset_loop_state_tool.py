@@ -6,6 +6,7 @@ from neuro_san.interfaces.coded_tool import CodedTool
 from process_toolkit.feedback.iteration_feedback import reset_approval_state, reset_feedback_channels
 from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 from coded_tools.common.loop_control import reset_iteration_counter
+from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
 
 
 class ResetLoopStateCodedTool(CodedTool):
@@ -27,11 +28,18 @@ class ResetLoopStateCodedTool(CodedTool):
     project's five generate/update pipelines already makes exactly once
     at the start of a run, so it's the right place to detect and refuse a
     second, concurrent run against the same directory rather than letting
-    it silently interleave with and corrupt this one's state."""
+    it silently interleave with and corrupt this one's state. The token
+    returned by acquire_pipeline_lock is stashed in sly_data under
+    PIPELINE_LOCK_TOKEN_KEY (persists across every tool call within this
+    same session) so this pipeline's own finalize step (persist_final_json
+    / persist_final_design_json / save_drawio_structured) can release it
+    once the run genuinely completes."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         try:
-            acquire_pipeline_lock("a neuro-san pipeline")
+            sly_data[PIPELINE_LOCK_TOKEN_KEY] = acquire_pipeline_lock(
+                "a neuro-san pipeline", token=sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+            )
         except PipelineLockedError as e:
             return {"status": "ERROR", "error": str(e)}
         reset_approval_state()

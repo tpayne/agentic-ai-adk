@@ -3,6 +3,11 @@ the real CodedTool classes in the same sequence the HOCON instructions
 describe -- without needing a real LLM. Catches wiring bugs the individual
 unit tests above wouldn't (e.g. a channel name typo between two tools)."""
 
+import pytest
+
+from process_toolkit import paths
+from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+
 from coded_tools.cloudarch.load_drawio_tool import LoadDrawioCodedTool
 from coded_tools.cloudarch.loop_control_tool import LoopControlCodedTool as CloudArchLoopControl
 from coded_tools.cloudarch.reset_loop_state_tool import ResetLoopStateCodedTool as CloudArchReset
@@ -22,7 +27,9 @@ from coded_tools.process.reset_loop_state_tool import ResetLoopStateCodedTool as
 from coded_tools.process.save_iteration_feedback_tool import (
     SaveIterationFeedbackCodedTool as ProcessSaveFeedback,
 )
-from process_toolkit.run_lock import GRACE_SECONDS
+from coded_tools.process.doc_generation_tool import GenerateProcessDocumentCodedTool
+from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
+from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 
 
 def test_cloudarch_pipeline_approves_on_first_pass():
@@ -133,15 +140,11 @@ def test_reset_loop_state_clears_stale_undrained_feedback_from_an_earlier_run():
         assert result.get("data") in (None, []), f"channel {channel!r} still has stale data: {result}"
 
 
-def test_reset_loop_state_refuses_to_run_while_another_pipeline_is_still_in_flight(tmp_path):
+def test_reset_loop_state_refuses_to_run_while_another_pipeline_is_still_in_flight():
     # Reproduces the concurrency risk directly: a run's own reset_loop_state
     # call must not clear another, still-active run's approval/feedback
     # state out from under it -- it should refuse instead.
-    import json
-    import time
-
-    with open(tmp_path / "pipeline.lock", "w", encoding="utf-8") as f:
-        json.dump({"label": "a design pipeline", "started_at": time.time() - (GRACE_SECONDS + 1), "pid": 1}, f)
+    acquire_pipeline_lock("a design pipeline")
     ProcessSaveFeedback().invoke(
         {"channel": "compliance", "feedback": {"status": "REVISION REQUIRED", "data": ["in-flight run's own feedback"]}}, {}
     )
@@ -154,3 +157,50 @@ def test_reset_loop_state_refuses_to_run_while_another_pipeline_is_still_in_flig
     # The in-flight run's own feedback must survive untouched.
     load_feedback = ProcessLoadFeedback()
     assert load_feedback.invoke({"channel": "compliance"}, {})["data"] == ["in-flight run's own feedback"]
+
+
+def test_process_pipeline_releases_its_lock_once_the_document_is_generated():
+    # End-to-end token round-trip: reset_loop_state acquires and stashes a
+    # token in sly_data; the pipeline's own genuine last step
+    # (GenerateProcessDocumentCodedTool) reads that SAME sly_data and
+    # releases it on success -- a later, different run must then be able
+    # to acquire cleanly, rather than waiting out the staleness window.
+    import json
+
+    sly_data = {}
+    assert ProcessReset().invoke({}, sly_data)["status"] == "OK"
+    assert sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({
+            "process_name": "Vendor Onboarding",
+            "process_steps": [{"step_name": "KYC Check", "responsible_party": "Compliance", "dependencies": []}],
+        }, f)
+
+    doc_result = GenerateProcessDocumentCodedTool().invoke({}, sly_data)
+    assert doc_result.startswith("SUCCESS:")
+
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+
+
+def test_cloudarch_pipeline_releases_its_lock_only_once_the_loop_genuinely_stops():
+    # Mirrors the process-pipeline round-trip above, but for cloudarch's
+    # own shape: the release lives in loop_control (cloudarch's own
+    # subclass), not in save_drawio_structured, since the latter is
+    # called on EVERY loop iteration, not just the final one.
+    sly_data = {}
+    assert CloudArchReset().invoke({}, sly_data)["status"] == "OK"
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    assert token
+
+    # Mid-loop: a CONTINUE verdict must NOT release the lock.
+    continuing = CloudArchLoopControl().invoke({"required": {"cloudarch_status": "APPROVED"}, "max_iterations": 2}, sly_data)
+    assert continuing["verdict"] == "CONTINUE"
+    with pytest.raises(PipelineLockedError):
+        acquire_pipeline_lock("a different pipeline")
+
+    CloudArchSaveFeedback().invoke({"feedback": {"status": "CLOUDARCH APPROVED", "data": []}}, sly_data)
+    stopped = CloudArchLoopControl().invoke({"required": {"cloudarch_status": "APPROVED"}, "max_iterations": 2}, sly_data)
+    assert stopped["verdict"] == "STOP"
+
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released on STOP

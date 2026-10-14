@@ -10,7 +10,8 @@ from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
 from ..common.utils_agent import stop_controller_agent, status_logger, cloudarch_stop_if_ready
 from ..common.agent_wrappers import ProcessAgent
-from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
+from ..common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
+from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock, PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
@@ -60,9 +61,11 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
     approval check on iteration 2 for any run that needs more than one pass.
     """
     try:
-        acquire_pipeline_lock("the cloud architecture pipeline")
+        token = acquire_pipeline_lock("the cloud architecture pipeline")
     except PipelineLockedError as e:
         return types.Content(role="model", parts=[types.Part(text=str(e))])
+    if callback_context is not None:
+        callback_context.state[PIPELINE_LOCK_TOKEN_STATE_KEY] = token
 
     for name in ("approval.json", "stop_counter.json"):
         path = os.path.join("output", name)
@@ -72,6 +75,21 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
         except Exception:
             pass
     return None
+
+
+def _release_cloudarch_pipeline_lock(callback_context=None) -> None:
+    """Releases the lock _reset_cloudarch_approval_state claimed above,
+    once the review loop has genuinely finished (approved, or exhausted
+    max_iterations) -- registered as cloudarch_review_loop's own
+    after_agent_callback below, which ADK fires exactly once, after the
+    LoopAgent's last iteration, regardless of how many iterations it
+    actually took. This is the right choke point for CloudArch
+    specifically (unlike process/design, where further stages -- subprocess
+    expansion, diagram/doc generation -- still follow the review loop's own
+    stop, cloudarch.hocon's neuro-san equivalent and this ADK pipeline both
+    have nothing left to do once the loop itself stops)."""
+    if callback_context is not None:
+        release_pipeline_lock(callback_context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY))
 
 # ---------------------------------------------------------
 # STOP CONTROLLER CLONE
@@ -131,6 +149,9 @@ cloudarch_review_loop = LoopAgent(
     # _reset_cloudarch_approval_state's docstring for why this can't live
     # inside cloudarch_agent's own tools instead.
     before_agent_callback=_reset_cloudarch_approval_state,
+    # Runs exactly once, after the LAST loop iteration (however many that
+    # took) -- see _release_cloudarch_pipeline_lock's own docstring.
+    after_agent_callback=_release_cloudarch_pipeline_lock,
 )
 
 # ---------------------------------------------------------

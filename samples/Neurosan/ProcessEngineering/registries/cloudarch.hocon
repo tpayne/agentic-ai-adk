@@ -183,6 +183,9 @@ data/control flow.
 - load_iteration_feedback: the reviewer's inbox for you -- see Mode 4 below.
 - load_drawio: loads the most recently saved diagram.
 - load_master_process_json: loads a process/design document, if one exists, for supporting context.
+  If you already know which one is relevant (e.g. the user's own request names "the design" or
+  "the process" specifically), pass schema_type="design" or schema_type="process" rather than
+  omitting it -- otherwise it just returns whichever of the two was modified most recently.
 - load_directory_context: reads a directory of source files -- see Mode 5.
 - load_requirements_summary: loads a previously-saved requirements summary -- see Mode 6.
 - save_drawio_structured: saves the architecture -- see above.
@@ -375,7 +378,17 @@ No commentary, no markdown, no explanation of your reasoning outside the structu
         {
             "name": "load_master_process_json",
             "function": {
-                "description": "Loads the process or design document (whichever was modified most recently, if both exist), for supporting context. Takes no meaningful arguments."
+                "description": "Loads the process or design document for supporting context. If you already know which one is relevant (e.g. the conversation has been about a design document specifically, or the user says so), pass schema_type to get exactly that one -- otherwise omit it and the most recently modified of the two (if both exist) is returned.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["process", "design"],
+                            "description": "Optional. \"process\" or \"design\" if you already know which document is relevant; omit to auto-detect by most-recent modification."
+                        }
+                    }
+                }
             },
             "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
         },

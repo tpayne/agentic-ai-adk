@@ -43,7 +43,13 @@ class ValidateProcessJsonCodedTool(CodedTool):
 
 
 class PersistFinalJsonCodedTool(CodedTool):
-    """Validates and writes the final process JSON to output/process_data.json."""
+    """Validates and writes the final process JSON to output/process_data.json.
+
+    NOTE: this is called mid-loop (by Design_Agent, on any iteration where
+    it actually changed something) -- NOT only once at the true end of a
+    run -- so it must NOT release the pipeline lock here; see
+    doc_generation_tool.py's GenerateProcessDocumentCodedTool, which is
+    this pipeline's actual last step, for where that happens instead."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return persist_final_json(args.get("json_content"))

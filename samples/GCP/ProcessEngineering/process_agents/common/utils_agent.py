@@ -29,6 +29,15 @@ from .agent_wrappers import ProcessAgent
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
+# tool_context.state / callback_context.state key for threading a
+# process_toolkit.run_lock token between a pipeline's own reset step
+# (which acquires the lock) and its own finalize step (which releases
+# it) -- separate ADK tool/callback functions, but both operate on the
+# SAME session's state within one run. Mirrors the neuro-san port's own
+# coded_tools/common/pipeline_lock.py::PIPELINE_LOCK_TOKEN_KEY convention
+# (same purpose, different underlying storage mechanism).
+PIPELINE_LOCK_TOKEN_STATE_KEY = "_pipeline_lock_token"
+
 # ---------- Programmatic stop/kill-switch tool ----------
 def _contains_marker(obj: Any, needle: str) -> bool:
     """Recursive search for case-insensitive needle in dict/list/str."""
