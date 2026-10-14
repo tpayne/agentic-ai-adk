@@ -162,12 +162,19 @@ If the input does not describe a architecture footprint or a workflow that can b
    reconstruct a zones/components/edges representation of it -- containers/swimlanes become zones (carrying over
    label/sublabel/color where identifiable); their child vertex cells with a bold title become components
    (carrying over each one's identifiable label, bullets/caption, icon shape, and color); edge cells become edges
-   (carrying over source/target/label). Deliberately DISCARD the old coordinates and edge waypoints -- the layout
-   engine recomputes those, and carrying old positions forward is exactly the kind of manual pixel-math this
-   reconstruction step exists to avoid. Apply the requested modification (add, remove, or edit a component/zone/
-   edge) to this reconstructed model, then CALL save_drawio_structured with the updated model -- same as a fresh
-   generation, and the same VISUAL STYLE rules above apply (don't inherit a prior pass's dense bullets just
-   because the loaded diagram had them; tighten them down to the new default while you're reconstructing).
+   (carrying over source/target/label). ALSO carry over the diagram's own title/subtitle: find the cell with
+   id="title_banner" in the loaded XML -- its bold text is the existing title, and any trailing line after it is
+   the existing subtitle. Reuse them VERBATIM as save_drawio_structured's own title/subtitle arguments UNLESS the
+   user's CURRENT-turn request explicitly asks to rename or retitle the diagram -- do not invent a new title from
+   whatever happens to be salient in the current request text (e.g. a request that also mentions running a dry-run
+   or generating a report alongside the modification is not asking you to retitle the diagram "dry-run" or
+   anything else; that wording describes a SEPARATE, later action, not this one's title). Deliberately DISCARD the
+   old coordinates and edge waypoints -- the layout engine recomputes those, and carrying old positions forward is
+   exactly the kind of manual pixel-math this reconstruction step exists to avoid. Apply the requested modification
+   (add, remove, or edit a component/zone/edge) to this reconstructed model, then CALL save_drawio_structured with
+   the updated model -- same as a fresh generation, and the same VISUAL STYLE rules above apply (don't inherit a
+   prior pass's dense bullets just because the loaded diagram had them; tighten them down to the new default while
+   you're reconstructing).
    There is no "too irregular to reconstruct" fallback: every loaded diagram, however messy, must be
    reconstructed into the zone/component/edge model and re-saved via save_drawio_structured. If the loaded
    XML's grouping is unclear, make a reasonable best-effort reconstruction (e.g. treat ungrouped vertex cells

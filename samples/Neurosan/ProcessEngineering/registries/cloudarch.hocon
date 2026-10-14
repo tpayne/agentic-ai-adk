@@ -199,11 +199,27 @@ data/control flow.
    call load_drawio first to retrieve the current canvas. If it returns status "NOT_FOUND", treat
    this as Mode 1/2 generation instead.
    RECONSTRUCT, DON'T HAND-EDIT: reconstruct a zones/components/edges representation of the loaded
-   XML -- containers/swimlanes become zones; their child vertex cells become components; edge cells
-   become edges. Discard old coordinates and waypoints entirely -- the layout engine recomputes
-   those. Apply the requested modification to this reconstructed model, then call
-   save_drawio_structured with the updated model. There is no "too irregular to reconstruct"
-   fallback -- however messy the loaded diagram, reconstruct it into the zone/component/edge model.
+   XML -- containers/swimlanes become zones; their child vertex cells WITH A BOLD TITLE become
+   components; edge cells become edges. The "with a bold title" qualifier matters: every icon-
+   bearing component the layout engine renders is actually TWO cells -- the labeled parent box, and
+   a separate small icon child cell with an EMPTY label purely to hold the icon's shape token. That
+   icon child cell is NOT its own component -- it belongs to its labeled parent -- so skip any child
+   cell with no title/empty value; only its labeled parent counts. Treating the icon child as a
+   second, separate component silently doubles the component count on every refinement pass. ALSO
+   carry over the diagram's own title/subtitle: find the cell with id="title_banner" in the loaded
+   XML -- its bold text is the existing title, any trailing line after it is the existing subtitle.
+   Reuse them VERBATIM as save_drawio_structured's own title/subtitle arguments UNLESS "request"
+   explicitly asks to rename or retitle the diagram -- do not invent a new title from whatever
+   happens to be salient in "request" itself (e.g. a request that also mentions running a dry-run
+   or generating a report alongside the modification is not asking you to retitle the diagram
+   "dry-run" or anything else; that wording describes a SEPARATE, later action, not this one's
+   title). Discard old coordinates and waypoints entirely -- the layout engine recomputes those.
+   Apply the requested modification to this reconstructed model, then call save_drawio_structured
+   with the updated model -- same VISUAL STYLE rules as a fresh generation apply here too: do NOT
+   inherit a prior pass's dense bullets just because the loaded diagram had them -- tighten them down to the normal default
+   while reconstructing, rather than carrying forward whatever density the diagram already had. There
+   is no "too irregular to reconstruct" fallback -- however messy the loaded diagram, reconstruct it
+   into the zone/component/edge model.
 4. Review-Loop Refinement Mode: your FIRST action on every single call, before anything else, MUST
    be to call load_iteration_feedback (this is the reviewer's inbox for you).
     - If the returned status is "REVISION REQUIRED", the "data" list contains the specific issues
