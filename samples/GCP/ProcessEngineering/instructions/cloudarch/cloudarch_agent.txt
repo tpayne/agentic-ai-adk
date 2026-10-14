@@ -104,6 +104,24 @@ lays out whatever zone/row/stack structure you give it faithfully.
   or between adjacent zones), but the zone borders now mean something -- a real grouping of several
   resources -- instead of shrink-wrapping a single icon.
 
+# MULTI-ROW LAYOUT: NEVER MORE THAN 3-4 ZONES IN A SINGLE ROW
+The layout engine arranges zones sharing the same "row" value as side-by-side columns. EVERY zone
+in a row adds to the canvas WIDTH -- cramming 5+ zones into row 0 produces an ultra-wide, unreadable
+letterbox diagram (observed: a 4600×970px canvas, ~5:1 aspect ratio, where every icon is
+microscopic). DISTRIBUTE zones across multiple rows to keep the canvas roughly 16:9 to 4:3:
+- ROW 0 (the primary flow): at most 3-4 zones containing the architecture's main data/control
+  pipeline (edge/ingress, compute/processing, data stores). This is the row the viewer reads first.
+- ROW 1+ (supporting tiers): place remaining zones on subsequent rows. Each row spans the full
+  canvas width automatically, so a row with 1-2 zones still reads as a full-width band.
+- GOVERNANCE/CROSS-CUTTING ZONES (monitoring, logging, security, identity/IAM) MUST go on their
+  own row (typically the last row), NEVER mixed into row 0 alongside the primary pipeline. These
+  zones are wide horizontal strips with "stack": "horizontal" -- if they share row 0 they force
+  every other zone to match their width, inflating the canvas.
+- VERTICAL ZONES (a zone with "stack": "vertical" and 2+ components, e.g. a data-store tier with
+  3 stacked databases) are TALL but narrow. Place them at the END of their row (rightmost) so they
+  don't force the entire row to be as tall as their own stack. If a vertical zone would make the
+  row much taller than needed for its horizontal-stack siblings, consider moving it to its own row
+  instead.
 # EVERY EDGE MUST BE LABELED, PURPOSEFUL, AND LOCAL
 
 The layout engine routes every edge you give it safely (never through a box), but it cannot tell you
