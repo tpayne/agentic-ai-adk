@@ -663,6 +663,60 @@ class TestSafeRouting:
                     f"{edge_cell.get('id')}: diagonal segment ({x1},{y1}) -> ({x2},{y2})"
                 )
 
+    def test_zone_skip_edge_sharing_its_box_side_with_another_edge_does_not_backtrack(self):
+        # Regression test: confirmed against a real generated diagram (an
+        # OpenSearch architecture's "Data Nodes -> S3 Storage" backup
+        # edge). The zone_skip branch of _route_edge (a same-zone,
+        # non-adjacent-sibling edge) computes its own waypoints assuming
+        # it exits its source box from the box's own CENTER. When that
+        # same box+side is ALSO used by another edge, slot-spreading
+        # moves this edge's REAL exit point away from center -- and the
+        # old reconciliation logic inserted a jog that ran BACKWARD along
+        # the box's own edge (toward the center) before turning toward
+        # the real destination, visually indistinguishable from a stray,
+        # disconnected line sitting on top of the source box. "a" here
+        # plays the role of "Data Nodes": both the target of an incoming
+        # edge from above and the source of a same-zone skip edge, both
+        # sharing its "top" side.
+        zones = [
+            {"id": "upstream", "label": "Upstream", "row": 0},
+            {"id": "z", "label": "Z", "row": 1, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "u1", "zone_id": "upstream", "label": "U1"},
+            {"id": "a", "zone_id": "z", "label": "A"},
+            {"id": "b", "zone_id": "z", "label": "B"},
+            {"id": "c", "zone_id": "z", "label": "C"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "u1", "target": "a", "label": "In"},
+                {"source": "a", "target": "c", "label": "Skip"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        edge_cell = next(
+            c for c in root.findall(".//mxCell")
+            if c.get("edge") == "1" and "Skip" in (c.get("value") or "")
+        )
+        style = edge_cell.get("style", "")
+        parts = dict(p.split("=", 1) for p in style.split(";") if "=" in p)
+        assert parts["exitX"] != "0.5", "test fixture did not actually force slot-spreading off-center"
+        src = comp_boxes["a"]
+        exit_pt = (int(src.x + float(parts["exitX"]) * src.w), int(src.y + float(parts["exitY"]) * src.h))
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (int(p.get("x")), int(p.get("y"))) for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        # "a" exits toward "c" (further right) -- the very first segment
+        # must not move LEFT, back across the box's own top edge, before
+        # heading toward the real destination.
+        assert waypoints[0][0] >= exit_pt[0], (
+            f"edge backtracks left from its own exit point: {exit_pt} -> {waypoints[0]}"
+        )
+
 
 class TestLabelPosition:
     """New coverage for _label_position_fraction -- see its own docstring

@@ -887,7 +887,8 @@ def _assign_connection_slots(
         exit_pt = (src.x + exit_frac[i][0] * src.w, src.y + exit_frac[i][1] * src.h)
         entry_pt = (tgt.x + entry_frac[i][0] * tgt.w, tgt.y + entry_frac[i][1] * tgt.h)
         waypoints = _reconcile_connection_points(
-            r["waypoints"], r["exit_side"], r["entry_side"], exit_pt, entry_pt
+            r["waypoints"], r["exit_side"], r["entry_side"], exit_pt, entry_pt,
+            (edges[i]["source"], edges[i]["target"]), all_boxes,
         )
         result.append({**r, "waypoints": waypoints, "exit_frac": exit_frac[i], "entry_frac": entry_frac[i]})
     return result
@@ -899,6 +900,8 @@ def _reconcile_connection_points(
     entry_side: str,
     exit_point: Tuple[float, float],
     entry_point: Tuple[float, float],
+    exclude_ids: Tuple[str, str],
+    all_boxes: Dict[str, "_Box"],
 ) -> List[Tuple[float, float]]:
     """
     Rebuilds `waypoints` so the path actually starts at `exit_point` and
@@ -917,34 +920,72 @@ def _reconcile_connection_points(
     edge's own route was still built assuming it started from the box's
     center.
     """
-    def _jog(side: str, point: Tuple[float, float], anchor: Tuple[float, float]) -> Optional[Tuple[float, float]]:
+    def _jog(
+        side: str, point: Tuple[float, float], anchor: Tuple[float, float]
+    ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+        # Returns (replacement_for_anchor, jog_point_to_insert) -- at most
+        # one is non-None.
+        #
         # "top"/"bottom" pin the box's Y (point.y); the connection point's
         # X is the only coordinate slot-spreading can have moved, so no
-        # jog is needed if anchor already shares that X. When it doesn't,
-        # the jog must sit at (anchor.x, point.y) -- NOT (point.x,
-        # anchor.y) -- so the segment from `point` is a short HORIZONTAL
-        # hop along the box's own edge to the anchor's (already verified
-        # safe, see _safe_x_for_vertical_span) x, before the EXISTING,
-        # pre-verified segment from the jog to `anchor` takes over. The
-        # reverse choice would instead draw a brand new, unverified
-        # VERTICAL segment straight down from the box edge at the
-        # connection point's own x -- confirmed directly against a real
-        # generated diagram to cut straight through boxes nothing had
-        # ever checked that specific x against.
+        # correction is needed if anchor already shares that X.
+        #
+        # When it doesn't, PREFER snapping `anchor` itself to the real
+        # point's X outright (no extra segment at all) -- but only once
+        # verified safe via _safe_x_for_vertical_span across the span
+        # between point and anchor. Confirmed directly against a real
+        # generated diagram: when the slot-assigned exit point lands far
+        # from the box's own center (two edges sharing the same side),
+        # inserting a jog at (anchor.x, point.y) draws a horizontal
+        # segment running along the box's OWN edge back toward its
+        # center -- visually indistinguishable from the line doubling
+        # back on itself right where it leaves the box.
+        #
+        # Falls back to the previous jog-insertion behavior -- a short
+        # HORIZONTAL hop along the box's own edge to the anchor's
+        # (already verified safe) x, before the EXISTING, pre-verified
+        # segment from the jog to `anchor` takes over -- whenever the
+        # point's own x is NOT verified clear (e.g. a channel-routed
+        # branch that genuinely had to move off-center to dodge an
+        # obstacle, so snapping back to the unverified point.x could cut
+        # straight through it).
         px, py = point
         ax, ay = anchor
         if side in ("top", "bottom"):
-            return None if ax == px else (ax, py)
-        return None if ay == py else (px, ay)
+            if ax == px:
+                return None, None
+            if _safe_x_for_vertical_span(px, min(py, ay), max(py, ay), exclude_ids, all_boxes) == px:
+                return (px, ay), None
+            return None, (ax, py)
+        if ay == py:
+            return None, None
+        return None, (px, ay)
 
     path = list(waypoints)
     if path:
-        exit_jog = _jog(exit_side, exit_point, path[0])
-        if exit_jog is not None:
-            path.insert(0, exit_jog)
-        entry_jog = _jog(entry_side, entry_point, path[-1])
-        if entry_jog is not None:
-            path.append(entry_jog)
+        if len(path) >= 2:
+            exit_replace, exit_jog = _jog(exit_side, exit_point, path[0])
+            if exit_replace is not None:
+                path[0] = exit_replace
+            elif exit_jog is not None:
+                path.insert(0, exit_jog)
+            entry_replace, entry_jog = _jog(entry_side, entry_point, path[-1])
+            if entry_replace is not None:
+                path[-1] = entry_replace
+            elif entry_jog is not None:
+                path.append(entry_jog)
+        else:
+            # A single shared waypoint -- path[0] and path[-1] are the
+            # SAME element, so a "replace" correction on both ends could
+            # clash (each independently rewriting the one shared point).
+            # Insertion is always safe here regardless of count, so skip
+            # the replace optimization for this narrow case.
+            _, exit_jog = _jog(exit_side, exit_point, path[0])
+            if exit_jog is not None:
+                path.insert(0, exit_jog)
+            _, entry_jog = _jog(entry_side, entry_point, path[-1])
+            if entry_jog is not None:
+                path.append(entry_jog)
         return path
 
     # No internal waypoints at all -- the route was a bare straight line
