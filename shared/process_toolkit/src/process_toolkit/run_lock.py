@@ -30,28 +30,25 @@ Design notes:
     two calls -- not inferred from how close together they happened to
     run. A DIFFERENT token (or none) always means a different run, and is
     rejected unless the existing lock has gone stale.
-  - A short-lived mutex serializes the read-decide-write sequence.
-    Deciding "is the existing lock mine / stale / someone else's active
-    one" and then writing a new state is NOT atomic as a single
-    filesystem operation -- two callers could both read the same stale
-    lock, both decide to reclaim it, and the second one's unconditional
-    removal would delete the FIRST one's brand new, legitimate claim
-    instead of the stale lock it thought it was removing. _mutex_guard
-    wraps that whole sequence in a tiny, separate sentinel file
-    (LOCK_FILENAME + ".mutex") claimed via the one primitive that IS
-    atomic on both POSIX and Windows -- os.O_CREAT | os.O_EXCL -- so only
-    one acquire_pipeline_lock/release_pipeline_lock call runs that logic
-    at a time. The mutex itself needs no such protection against the same
-    race: "steal" on a stale mutex is just a best-effort remove (ignoring
-    "someone already removed it") followed by retrying the SAME O_CREAT |
-    O_EXCL claim, which can only ever let exactly one of several racing
-    stealers actually win -- it doesn't matter if several of them also
-    call remove(), since removing an already-removed file is harmless and
-    carries no ownership semantics of its own.
+  - A true OS-level mutex (fcntl.flock) serializes the read-decide-write
+    sequence. Deciding "is the existing lock mine / stale / someone
+    else's active one" and then writing a new state is NOT atomic as a
+    single filesystem operation, so it's wrapped in _mutex_guard, which
+    holds an exclusive flock on a separate sentinel file
+    (LOCK_FILENAME + ".mutex") for the duration. flock is tied to the
+    holding process's open file descriptor: the kernel releases it the
+    instant that process exits or dies, for ANY reason, including a hard
+    kill -- unlike a sentinel-file-existence mutex (an earlier version of
+    this module used exactly that), there is no staleness window to
+    judge and no "steal an abandoned mutex" logic needed at all, which
+    means there's no equivalent of the very race this mutex exists to
+    close one level up: two callers can never both end up believing they
+    hold it. POSIX-only (this project's CI and Docker images are both
+    Linux; no Windows target).
   - Every write to the real lock file goes through a temp-file-then-
-    os.replace swap, which is atomic on POSIX and Windows -- a crash
-    mid-write can never leave the lock file itself observably truncated
-    or holding half-written JSON for a later reader to choke on.
+    os.replace swap, which is atomic -- a crash mid-write can never leave
+    the lock file itself observably truncated or holding half-written
+    JSON for a later reader to choke on.
   - Self-healing. A crashed or never-finished run's lock expires after
     DEFAULT_STALE_AFTER_SECONDS (comfortably above this project's own
     documented ~5-10 minute typical run time) and is then reclaimable by
@@ -59,6 +56,7 @@ Design notes:
     future run.
 """
 
+import fcntl
 import json
 import logging
 import os
@@ -86,16 +84,12 @@ DEFAULT_STALE_AFTER_SECONDS = 1200.0
 # critical section it guards is pure local file I/O (microseconds to low
 # milliseconds), so this only ever matters under heavy contention from
 # many callers queued at once -- generous relative to that, tiny relative
-# to DEFAULT_STALE_AFTER_SECONDS.
+# to DEFAULT_STALE_AFTER_SECONDS. Unlike a sentinel-file mutex, this bound
+# is purely a safety margin, not a correctness mechanism -- a crashed
+# holder's flock is released by the kernel immediately, so this timeout
+# only ever fires under genuine, unexpected contention.
 _MUTEX_ACQUIRE_TIMEOUT_SECONDS = 10.0
 _MUTEX_POLL_INTERVAL_SECONDS = 0.02
-
-# How long an unreleased MUTEX (not the pipeline lock itself) is honored
-# before it's treated as abandoned. Deliberately much shorter than
-# DEFAULT_STALE_AFTER_SECONDS -- a legitimate holder only ever holds the
-# mutex for the duration of one acquire/release call's file I/O, so
-# anything still holding it this long died without releasing.
-_MUTEX_STALE_AFTER_SECONDS = 5.0
 
 
 class PipelineLockedError(RuntimeError):
@@ -132,58 +126,38 @@ def _atomic_write(path: str, payload: dict) -> None:
             pass  # normal case: os.replace already consumed it
 
 
-def _try_exclusive_create(path: str) -> bool:
-    """True iff this call atomically created (empty) `path` -- False if
-    it already existed. The one primitive here that's genuinely atomic
-    against other callers on both POSIX and Windows."""
-    try:
-        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
-        return False
-    os.close(fd)
-    return True
-
-
 @contextmanager
 def _mutex_guard(path: str):
     """Serializes the read-decide-write critical section in
     acquire_pipeline_lock/release_pipeline_lock across callers (processes
     or threads) -- see this module's own docstring for why that sequence
-    isn't safe as plain, unsynchronized file operations. Self-heals a
-    crashed holder via _MUTEX_STALE_AFTER_SECONDS rather than ever
-    blocking forever."""
+    isn't safe as plain, unsynchronized file operations, and why this
+    uses a real OS advisory lock (fcntl.flock) rather than a second
+    sentinel-file-existence mutex: a crashed holder's flock is released
+    by the kernel the instant its process dies, so there's no staleness
+    window to judge and nothing to "steal" -- the exact shape of race
+    this mutex exists to close one level up for the real lock file."""
     mutex_path = path + _MUTEX_SUFFIX
-    deadline = time.time() + _MUTEX_ACQUIRE_TIMEOUT_SECONDS
-    while True:
-        if _try_exclusive_create(mutex_path):
-            break
-        try:
-            if time.time() - os.path.getmtime(mutex_path) > _MUTEX_STALE_AFTER_SECONDS:
-                # Best-effort steal of an abandoned mutex: if several
-                # callers reach here at once, at most one of their
-                # upcoming _try_exclusive_create calls (next loop turn)
-                # can actually win -- the others just loop back to
-                # waiting, exactly as if they'd lost the race to a
-                # legitimate holder. Removing an already-removed file is
-                # harmless, so no coordination is needed for this step.
-                os.remove(mutex_path)
-                continue
-        except OSError:
-            pass  # vanished between getmtime and remove, or never existed -- fine, retry
-        if time.time() >= deadline:
-            raise PipelineLockedError(
-                "Could not acquire the pipeline lock's internal mutex -- the system is "
-                "under unusually heavy concurrent load. Please retry."
-            )
-        time.sleep(_MUTEX_POLL_INTERVAL_SECONDS)
-
+    fd = os.open(mutex_path, os.O_CREAT | os.O_RDWR)
     try:
-        yield
-    finally:
+        deadline = time.time() + _MUTEX_ACQUIRE_TIMEOUT_SECONDS
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() >= deadline:
+                    raise PipelineLockedError(
+                        "Could not acquire the pipeline lock's internal mutex -- the "
+                        "system is under unusually heavy concurrent load. Please retry."
+                    )
+                time.sleep(_MUTEX_POLL_INTERVAL_SECONDS)
         try:
-            os.remove(mutex_path)
-        except OSError:
-            pass
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def acquire_pipeline_lock(

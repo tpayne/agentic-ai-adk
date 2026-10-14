@@ -1,4 +1,6 @@
+import fcntl
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +9,8 @@ import pytest
 from process_toolkit import paths
 from process_toolkit.run_lock import (
     DEFAULT_STALE_AFTER_SECONDS,
+    _MUTEX_SUFFIX,
+    _lock_path,
     acquire_pipeline_lock,
     release_pipeline_lock,
     PipelineLockedError,
@@ -109,6 +113,34 @@ def test_concurrent_stale_reclaim_attempts_let_exactly_one_caller_win():
 
     successes = [r for r in results if r[0] == "ok"]
     assert len(successes) == 1, f"expected exactly one winner reclaiming the stale lock, got {successes}"
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_mutex_held_by_a_crashed_process_does_not_block_a_later_acquire():
+    # Directly proves the crash-safety property the flock-based mutex
+    # exists for: a process that dies mid-critical-section (simulated
+    # here via os.fork + os._exit, which skips every Python-level
+    # cleanup including the mutex's own "finally: flock(LOCK_UN)") must
+    # not leave the mutex held -- the kernel releases it the instant the
+    # holding process's file descriptors close, for any reason. A
+    # sentinel-file-existence mutex (the design this replaced) would
+    # instead leave a permanently-locked file here, recoverable only by
+    # waiting out an arbitrary staleness window.
+    mutex_path = _lock_path() + _MUTEX_SUFFIX
+
+    pid = os.fork()
+    if pid == 0:
+        # Child: acquire the mutex and die without releasing it or
+        # running any other cleanup.
+        fd = os.open(mutex_path, os.O_CREAT | os.O_RDWR)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        os._exit(0)
+
+    os.waitpid(pid, 0)  # child has now fully exited
+
+    start = time.time()
+    acquire_pipeline_lock("a pipeline in the parent")  # must not raise or hang
+    assert time.time() - start < 1.0, "acquire waited as if the mutex were still held"
 
 
 def test_concurrent_acquire_attempts_let_exactly_one_caller_win():
