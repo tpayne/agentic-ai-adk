@@ -528,6 +528,56 @@ class TestSafeRouting:
             == layout._channel_key(comp_boxes["l1"], comp_boxes["w1"], all_boxes)
         )
 
+    def test_two_edges_sharing_a_channel_with_overlapping_spans_get_a_visible_stagger(self):
+        # Regression test: confirmed against a real generated diagram that
+        # sharing the same _channel_key was not enough on its own -- two
+        # edges (a same-row detour and a cross-row edge, landing in the
+        # same below-row channel per the test above) whose horizontal
+        # spans substantially overlap rendered as one indistinguishable
+        # line with two competing labels, because the per-slot stagger
+        # step was too small to notice over a long shared run. l1->r1 and
+        # l1->w1 both start at l1, so their channel legs overlap for their
+        # entire length -- exactly the shape that broke.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "l1", "target": "r1", "label": "First"},
+                {"source": "l1", "target": "w1", "label": "Second"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edges_by_label = {}
+        for cell in root.findall(".//mxCell"):
+            if cell.get("edge") != "1":
+                continue
+            label = cell.get("value", "").replace("<b>", "").replace("</b>", "")
+            arr = cell.find("mxGeometry/Array")
+            ys = [float(p.get("y")) for p in arr.findall("mxPoint")] if arr is not None else []
+            edges_by_label[label] = ys
+
+        def _channel_y(ys):
+            # The channel leg is the y that repeats (both ends of the
+            # horizontal run through the channel share it) -- distinct
+            # from any single jog point reconciling a slot-spread
+            # connection point back to the route's own exit/entry x,
+            # which appears only once.
+            seen = set()
+            for y in ys:
+                if y in seen:
+                    return y
+                seen.add(y)
+            raise AssertionError(f"no repeated y (no channel leg) in {ys}")
+
+        channel_y_first = _channel_y(edges_by_label["First"])
+        channel_y_second = _channel_y(edges_by_label["Second"])
+        # A couple of pixels would technically be "different" but is
+        # imperceptible at diagram scale -- require a real, visible gap.
+        assert abs(channel_y_first - channel_y_second) >= 15, (
+            f"channel legs only {abs(channel_y_first - channel_y_second)}px apart -- "
+            "indistinguishable as separate lines"
+        )
+
     def test_blocked_exit_stays_axis_aligned_and_keeps_its_conceptual_side(self):
         # Regression test for a real generated diagram: when
         # _safe_x_for_vertical_span has to search far from a box's own

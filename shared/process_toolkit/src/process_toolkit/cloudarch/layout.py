@@ -75,19 +75,36 @@ from typing import Any, Dict, List, Optional, Tuple
 # ============================================================
 PAGE_MARGIN = 40
 TITLE_HEIGHT = 70
-ZONE_GAP = 50          # horizontal gap between row-0 (column) zones -- the
-                        # reserved channel inter-zone edges route through
-ROW_GAP = 60            # vertical gap between one row of zones and the next
+ZONE_GAP = 70          # horizontal gap between row-0 (column) zones -- the
+                        # reserved channel inter-zone edges route through.
+                        # Was 50, confirmed too narrow on a real diagram for
+                        # an edge landing here WITH a label (e.g. "Protects",
+                        # "PrivateLink"): the gap itself was narrower than
+                        # the label's own text, so it read as overlapping
+                        # the zone borders on both sides rather than sitting
+                        # cleanly in open space.
+ROW_GAP = 90            # vertical gap between one row of zones and the next
                         # -- the reserved channel drop-down edges route through.
                         # Wider than the bare minimum so several staggered
                         # edge labels sharing one row boundary have room to
-                        # separate without touching either zone's edge.
+                        # separate without touching either zone's edge. 60
+                        # was confirmed too tight on a real wide diagram: two
+                        # edges sharing this channel (a same-row detour and a
+                        # cross-row edge, landing here via _channel_key's own
+                        # unification of those two cases) ran almost the full
+                        # diagram width, nearly coincident, with only
+                        # STAGGER_STEP_ROW_GAP's 10px separating them --
+                        # imperceptible at that scale, reading as one line
+                        # with two competing labels rather than two distinct
+                        # edges.
 ZONE_HEADER_H_PLAIN = 45
 ZONE_HEADER_H_SUBLABEL = 62
 ZONE_INNER_MARGIN = 18   # margin inside a zone, above/below/beside its children
-COMPONENT_GAP = 30       # vertical gap between stacked components in the
+COMPONENT_GAP = 40       # vertical gap between stacked components in the
                         # same zone -- the reserved channel same-zone edges
-                        # route through
+                        # route through. Was 30 -- same narrower-than-its-
+                        # own-label problem as ZONE_GAP above (e.g.
+                        # "Snapshot" landing in this gap).
 COMPONENT_H_MARGIN = 26  # left/right margin inside a zone for its components --
                         # also the reserved channel non-adjacent same-zone
                         # edges route through (see _route_edge's "zone_skip"
@@ -118,9 +135,13 @@ DEFAULT_ZONE_COLOR = "#5F6368"
 # step and, for the tightest channel, a hard clamp.
 STAGGER_STEP_ZONE_GAP = 20    # horizontal inter-zone gap -- spans a whole
                                # row's height, so there's ample vertical room
-STAGGER_STEP_ROW_GAP = 10     # inter-row channel -- bounded by ROW_GAP
-ROW_GAP_STAGGER_CLAMP = ROW_GAP / 2 - 10  # never let a waypoint get within
-                               # 10px of either zone edge bounding the channel
+STAGGER_STEP_ROW_GAP = 18     # inter-row channel -- bounded by ROW_GAP. Was
+                               # 10, confirmed too subtle to visually tell two
+                               # parallel lines apart over a long shared run
+                               # (see ROW_GAP's own comment for the real
+                               # diagram that surfaced this).
+ROW_GAP_STAGGER_CLAMP = ROW_GAP / 2 - 12  # never let a waypoint get within
+                               # 12px of either zone edge bounding the channel
 SAME_PAIR_OFFSET = 18         # perpendicular nudge for the 2nd+ edge between
                                # the exact same two components (e.g. a
                                # request/response pair) -- with no offset at
