@@ -10,6 +10,7 @@ for the full staleness window.
 import json
 import os
 import time
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -26,11 +27,14 @@ def isolated_output_dir(tmp_path, monkeypatch):
     yield tmp_path
 
 
-def _fake_context():
+def _fake_context(state=None, invocation_id=None):
     """Minimal stand-in for ADK's ToolContext/CallbackContext -- the lock
-    wiring only ever does tool_context.state.get(...)/[...] = ..., which a
-    plain dict satisfies exactly."""
-    return SimpleNamespace(state={})
+    wiring only ever does context.state.get(...)/[...] = ... (a plain
+    dict satisfies exactly) and reads context.invocation_id. Defaults to
+    a FRESH invocation_id per call, matching a new top-level run_async()
+    per turn; pass a shared `state` dict (but a different invocation_id)
+    to model two different turns in the SAME chat session."""
+    return SimpleNamespace(state=state if state is not None else {}, invocation_id=invocation_id or uuid.uuid4().hex)
 
 
 def _write_conflicting_lock(label: str = "an earlier run") -> None:
@@ -66,19 +70,69 @@ def test_process_analysis_succeeds_with_no_conflicting_lock():
 def test_process_analysis_reentrant_calls_share_one_token_via_tool_context_state():
     # Mirrors the real call pattern: record_analysis_request and
     # log_analysis_metadata both call the same reset step, moments apart,
-    # within the same turn -- sharing ONE tool_context means the second
-    # call recognizes the first's own lock instead of conflicting with it.
+    # within the SAME turn -- sharing one tool_context (and therefore one
+    # invocation_id) means the second call recognizes the first's own
+    # lock instead of conflicting with it.
     from process_agents.process.analysis_agent import log_analysis_metadata, record_analysis_request
     from process_agents.common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
 
     ctx = _fake_context()
     first = record_analysis_request("design a vendor onboarding process", tool_context=ctx)
     assert not first.startswith("ERROR:")
-    token_after_first = ctx.state[PIPELINE_LOCK_TOKEN_STATE_KEY]
+    token_after_first = ctx.state[PIPELINE_LOCK_TOKEN_STATE_KEY]["token"]
 
     second = log_analysis_metadata("Retail", 3, tool_context=ctx)
     assert not second.startswith("ERROR:")
-    assert ctx.state[PIPELINE_LOCK_TOKEN_STATE_KEY] == token_after_first
+    assert ctx.state[PIPELINE_LOCK_TOKEN_STATE_KEY]["token"] == token_after_first
+
+
+def test_a_second_overlapping_turn_in_the_same_session_does_not_inherit_the_first_turns_token():
+    # Regression test for the actual concurrency bug: tool_context.state
+    # is scoped to the whole chat SESSION, not to one request. If a
+    # second, genuinely different turn starts in that SAME session while
+    # the first turn's pipeline is still running, it must NOT silently
+    # inherit the first turn's still-valid token from the shared state
+    # dict and sail through as "the same run" -- it has to compete for
+    # the real lock like any other concurrent request.
+    from process_agents.process.analysis_agent import log_analysis_metadata
+
+    shared_session_state = {}
+    first_turn_ctx = _fake_context(state=shared_session_state)
+    first = log_analysis_metadata("Retail", 3, tool_context=first_turn_ctx)
+    assert not first.startswith("ERROR:")
+
+    # A second, later turn in the SAME session (same state dict) but a
+    # DIFFERENT invocation_id, arriving before the first turn's pipeline
+    # has released its lock.
+    second_turn_ctx = _fake_context(state=shared_session_state)
+    second = log_analysis_metadata("Retail", 3, tool_context=second_turn_ctx)
+    assert second.startswith("ERROR:")
+    assert "the process pipeline" in second
+
+
+def test_a_later_sequential_turn_in_the_same_session_is_not_blocked_by_an_earlier_finished_one(monkeypatch):
+    # The legitimate counterpart to the regression test above: once the
+    # first turn's pipeline has actually finished (released its lock), a
+    # LATER turn in that same session (e.g. "now update the process")
+    # must acquire cleanly -- being in the same session must never, by
+    # itself, cause a false conflict either.
+    import process_agents.common.doc_generation_agent as doc_generation_agent_module
+    from process_agents.process.analysis_agent import log_analysis_metadata
+
+    monkeypatch.setattr(
+        doc_generation_agent_module, "_shared_create_standard_doc_from_file",
+        lambda process_name, schema_type=None: "SUCCESS: mocked",
+    )
+
+    shared_session_state = {}
+    first_turn_ctx = _fake_context(state=shared_session_state)
+    assert not log_analysis_metadata("Retail", 3, tool_context=first_turn_ctx).startswith("ERROR:")
+    assert doc_generation_agent_module.create_standard_doc_from_file(
+        "Vendor Onboarding", tool_context=first_turn_ctx
+    ).startswith("SUCCESS:")
+
+    second_turn_ctx = _fake_context(state=shared_session_state)
+    assert not log_analysis_metadata("Retail", 3, tool_context=second_turn_ctx).startswith("ERROR:")
 
 
 def test_design_doc_analysis_log_metadata_refuses_when_locked():

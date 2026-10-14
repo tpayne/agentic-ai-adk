@@ -10,10 +10,9 @@ from typing import Optional
 from google.adk.tools.tool_context import ToolContext
 
 from process_toolkit.docgen.generation import create_standard_doc_from_file as _shared_create_standard_doc_from_file
-from process_toolkit.run_lock import release_pipeline_lock
 
 from .agent_wrappers import ProcessAgent
-from .utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
+from .utils_agent import release_pipeline_lock_for_turn
 
 
 def create_standard_doc_from_file(
@@ -37,8 +36,8 @@ def create_standard_doc_from_file(
     from the LLM-facing schema -- the LLM still just calls this with
     process_name, exactly as the instruction file describes."""
     result = _shared_create_standard_doc_from_file(process_name, schema_type)
-    if isinstance(result, str) and result.startswith("SUCCESS:") and tool_context is not None:
-        release_pipeline_lock(tool_context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY))
+    if isinstance(result, str) and result.startswith("SUCCESS:"):
+        release_pipeline_lock_for_turn(tool_context)
     return result
 
 

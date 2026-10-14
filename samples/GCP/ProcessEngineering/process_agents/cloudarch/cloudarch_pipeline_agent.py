@@ -10,8 +10,8 @@ from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
 from ..common.utils_agent import stop_controller_agent, status_logger, cloudarch_stop_if_ready
 from ..common.agent_wrappers import ProcessAgent
-from ..common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
-from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock, PipelineLockedError
+from ..common.utils_agent import acquire_pipeline_lock_for_turn, release_pipeline_lock_for_turn
+from process_toolkit.run_lock import PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
@@ -61,11 +61,9 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
     approval check on iteration 2 for any run that needs more than one pass.
     """
     try:
-        token = acquire_pipeline_lock("the cloud architecture pipeline")
+        acquire_pipeline_lock_for_turn("the cloud architecture pipeline", callback_context)
     except PipelineLockedError as e:
         return types.Content(role="model", parts=[types.Part(text=str(e))])
-    if callback_context is not None:
-        callback_context.state[PIPELINE_LOCK_TOKEN_STATE_KEY] = token
 
     for name in ("approval.json", "stop_counter.json"):
         path = os.path.join("output", name)
@@ -88,8 +86,7 @@ def _release_cloudarch_pipeline_lock(callback_context=None) -> None:
     expansion, diagram/doc generation -- still follow the review loop's own
     stop, cloudarch.hocon's neuro-san equivalent and this ADK pipeline both
     have nothing left to do once the loop itself stops)."""
-    if callback_context is not None:
-        release_pipeline_lock(callback_context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY))
+    release_pipeline_lock_for_turn(callback_context)
 
 # ---------------------------------------------------------
 # STOP CONTROLLER CLONE

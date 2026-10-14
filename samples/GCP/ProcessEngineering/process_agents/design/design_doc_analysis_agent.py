@@ -14,8 +14,8 @@ from ..common.utils import (
     load_requirements_summary,
     getProperty,
 )
-from ..common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
-from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
+from ..common.utils_agent import acquire_pipeline_lock_for_turn
+from process_toolkit.run_lock import PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.DesignDocAnalysis")
 
@@ -26,17 +26,16 @@ def _remove_previous_approval_logs(tool_context: Optional[ToolContext] = None):
     process_toolkit.run_lock) before clearing anything -- see the parallel
     comment in process/analysis_agent.py's own _remove_previous_approval_logs
     for why this is the right choke point (both Full_Design_Doc_Pipeline and
-    Update_Design_Doc_Pipeline route through this one function) and why the
-    returned token is stashed in tool_context.state. doc_generation_agent.py's
-    own create_standard_doc_from_file wrapper (this pipeline's genuine last
-    step) releases it using the same key once the run truly completes."""
-    existing_token = tool_context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if tool_context is not None else None
+    Update_Design_Doc_Pipeline route through this one function) and why
+    acquire_pipeline_lock_for_turn (not a bare acquire_pipeline_lock call)
+    is what makes token reuse here safe across a chat session with
+    multiple, possibly-overlapping turns. doc_generation_agent.py's own
+    create_standard_doc_from_file wrapper (this pipeline's genuine last
+    step) releases it once the run truly completes."""
     try:
-        token = acquire_pipeline_lock("the design document pipeline", token=existing_token)
+        acquire_pipeline_lock_for_turn("the design document pipeline", tool_context)
     except PipelineLockedError as e:
         return f"ERROR: {e}"
-    if tool_context is not None:
-        tool_context.state[PIPELINE_LOCK_TOKEN_STATE_KEY] = token
 
     approvalLog = "output/approval.json"
     counterLog = "output/stop_counter.json"

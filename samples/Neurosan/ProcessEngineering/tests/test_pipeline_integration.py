@@ -23,6 +23,7 @@ from coded_tools.process.process_json_tool import (
     LoadMasterProcessJsonCodedTool,
     PersistFinalJsonCodedTool,
 )
+from coded_tools.design.reset_loop_state_tool import ResetLoopStateCodedTool as DesignReset
 from coded_tools.process.reset_loop_state_tool import ResetLoopStateCodedTool as ProcessReset
 from coded_tools.process.save_iteration_feedback_tool import (
     SaveIterationFeedbackCodedTool as ProcessSaveFeedback,
@@ -157,6 +158,22 @@ def test_reset_loop_state_refuses_to_run_while_another_pipeline_is_still_in_flig
     # The in-flight run's own feedback must survive untouched.
     load_feedback = ProcessLoadFeedback()
     assert load_feedback.invoke({"channel": "compliance"}, {})["data"] == ["in-flight run's own feedback"]
+
+
+def test_a_second_overlapping_request_in_the_same_session_does_not_inherit_the_first_requests_token():
+    # Regression test: sly_data is scoped to the whole chat SESSION, not
+    # to one request. If reset_loop_state read back whatever token a
+    # PRIOR request in that same session had already stashed there, a
+    # second, genuinely different request arriving while the first's
+    # pipeline is still running would silently inherit it and be waved
+    # through as "the same run" instead of correctly conflicting.
+    shared_session_sly_data = {}
+    first = ProcessReset().invoke({}, shared_session_sly_data)
+    assert first["status"] == "OK"
+
+    second = DesignReset().invoke({}, shared_session_sly_data)
+    assert second["status"] == "ERROR"
+    assert "a neuro-san pipeline" in second["error"]
 
 
 def test_process_pipeline_releases_its_lock_once_the_document_is_generated():

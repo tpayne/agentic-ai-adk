@@ -15,8 +15,8 @@ from ..common.utils import (
     load_requirements_summary,
     getProperty,
 )
-from ..common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
-from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
+from ..common.utils_agent import acquire_pipeline_lock_for_turn
+from process_toolkit.run_lock import PipelineLockedError
 
 logger = logging.getLogger("ProcessArchitect.Analysis")
 
@@ -39,22 +39,19 @@ def _remove_previous_approval_logs(tool_context: Optional[ToolContext] = None):
     # returns an error string instead of clearing anything, so a
     # genuinely-running other pipeline's state survives untouched.
     #
-    # The token acquire_pipeline_lock returns is stashed in
-    # tool_context.state (persists across every tool call within this
-    # same session) -- both log_analysis_metadata and
-    # record_analysis_request call this function moments apart in the
-    # same turn, and passing the previously-stored token back in on the
-    # second call means that's recognized as this SAME run refreshing
-    # its own lock, not a conflict. doc_generation_agent.py's own
+    # acquire_pipeline_lock_for_turn (see utils_agent.py) handles the
+    # token reuse itself: log_analysis_metadata and record_analysis_request
+    # call this function moments apart in the SAME turn and need to share
+    # one token, but tool_context.state is scoped to the whole chat
+    # SESSION -- a bare stashed token would otherwise also get reused by
+    # a second, genuinely different turn arriving in that same session
+    # while this one is still running. doc_generation_agent.py's own
     # create_standard_doc_from_file wrapper (this pipeline's genuine last
-    # step) releases it using the same key once the run truly completes.
-    existing_token = tool_context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if tool_context is not None else None
+    # step) releases it once the run truly completes.
     try:
-        token = acquire_pipeline_lock("the process pipeline", token=existing_token)
+        acquire_pipeline_lock_for_turn("the process pipeline", tool_context)
     except PipelineLockedError as e:
         return f"ERROR: {e}"
-    if tool_context is not None:
-        tool_context.state[PIPELINE_LOCK_TOKEN_STATE_KEY] = token
 
     approvalLog = "output/approval.json"
     counterLog = "output/stop_counter.json"
