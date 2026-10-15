@@ -481,6 +481,43 @@ def _same_row_zones_adjacent(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"])
     return row_zones.index(right_z) - row_zones.index(left_z) == 1
 
 
+def _facing_corridor_clear(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> bool:
+    """
+    Whether the straight horizontal corridor between src's and tgt's facing
+    edges -- the space a same-row, adjacent-zone edge runs its horizontal
+    leg through -- is free of every OTHER component.
+
+    _same_row_zones_adjacent being True only means the two ZONES are column-
+    neighbors; it says nothing about where src and tgt sit WITHIN their
+    zones. When the target is not the first component in its zone (a sibling
+    stacked between the zone boundary and the target), the horizontal leg
+    from the inter-zone gap to the target's own edge runs straight through
+    that sibling. Confirmed directly against a real generated diagram: an
+    edge into the SECOND component of an adjacent zone cut clean through the
+    FIRST one at mid-height, the arrowhead appearing to emerge from inside
+    that unrelated box ("an arrow attached to nothing"). When this returns
+    False the caller routes through the reserved below-row channel instead
+    (exactly like a genuinely non-adjacent-zone edge), which is clear across
+    the full row width by construction.
+    """
+    if src.right <= tgt.x:
+        lo_x, hi_x = src.right, tgt.x
+    elif tgt.right <= src.x:
+        lo_x, hi_x = tgt.right, src.x
+    else:
+        # Horizontally overlapping -- there is no clean one-dimensional
+        # corridor to vet; leave this to the caller's own handling.
+        return True
+    y_lo = min(src.y, tgt.y)
+    y_hi = max(src.bottom, tgt.bottom)
+    for b in all_boxes.values():
+        if b.zone_id is None or b.id in (src.id, tgt.id):
+            continue  # skip zone containers and the edge's own endpoints
+        if b.x < hi_x and b.right > lo_x and b.y < y_hi and b.bottom > y_lo:
+            return False
+    return True
+
+
 def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[str, Any]:
     """
     Identifies which shared routing channel an edge falls into. Two edges
@@ -512,10 +549,16 @@ def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[st
         # each other rather than overlapping by coincidence.
         return ("zone_skip", src.zone_id)
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes):
+        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
             return ("h", frozenset({src.zone_id, tgt.zone_id}))
-        # Routed via this row's own below-row channel, same as a cross-row
-        # edge leaving this row -- see _route_edge.
+        # Either genuinely non-adjacent zones, OR adjacent zones whose
+        # facing corridor is blocked by an intervening component (see
+        # _facing_corridor_clear) -- both route via this row's own below-row
+        # channel, same as a cross-row edge leaving this row (see
+        # _route_edge). This key MUST match _route_edge's actual routing
+        # choice, or a corridor-blocked edge would land in the "v" channel
+        # physically while being counted in the "h" channel for staggering,
+        # and collide with whatever genuinely shares the "v" band.
         return ("v", src.row)
     return ("v", max(src.row, tgt.row) - 1)
 
@@ -704,14 +747,18 @@ def _route_edge(
         return [(margin_x, src.cy), (margin_x, tgt.cy)], "left", "left"
 
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes):
-            # Different zones, same row, immediate neighbors: route through
-            # the horizontal gap between the two zone columns -- the x
-            # midway between whichever pair of edges actually face each
-            # other. Verified (and corrected if needed) against every
-            # component in the row rather than trusted outright, since a
-            # sibling edge's stagger can still push this x into a shorter
-            # row-mate zone's interior.
+        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
+            # Different zones, same row, immediate neighbors WITH a clear
+            # facing corridor: route through the horizontal gap between the
+            # two zone columns -- the x midway between whichever pair of
+            # edges actually face each other. Verified (and corrected if
+            # needed) against every component in the row rather than trusted
+            # outright, since a sibling edge's stagger can still push this x
+            # into a shorter row-mate zone's interior. If the corridor is
+            # NOT clear (the target is not the first component in its zone,
+            # so a sibling sits between the zone boundary and it), this
+            # branch is skipped and the edge falls through to the below-row
+            # channel route below -- see _facing_corridor_clear.
             if src.right <= tgt.x:
                 base_gap_x = (src.right + tgt.x) / 2
                 exit_side, entry_side = "right", "left"
@@ -1403,7 +1450,13 @@ def build_structured_drawio_xml(
                 # that has been observed to disconnect from the actual target box.
                 f"rounded=1;html=1;startArrow=none;endArrow=classic;"
                 f"strokeColor={color};strokeWidth=2;"
-                f"{dashed}fontColor=#202124;fontSize=10;labelBackgroundColor=#ffffff;"
+                # verticalAlign=bottom anchors the label's BOTTOM edge to its
+                # point on the line, so the text sits just ABOVE the edge
+                # rather than centered on top of it (the mxGraph default,
+                # which paints the label's white background squarely over the
+                # line). Requested against a real generated diagram where
+                # every edge label sat on its own arrow.
+                f"{dashed}fontColor=#202124;fontSize=10;labelBackgroundColor=#ffffff;verticalAlign=bottom;"
                 f"exitX={exit_x};exitY={exit_y};exitDx=0;exitDy=0;"
                 f"entryX={entry_x};entryY={entry_y};entryDx=0;entryDy=0;"
             ),

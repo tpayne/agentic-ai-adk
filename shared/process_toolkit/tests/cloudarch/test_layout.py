@@ -247,6 +247,21 @@ class TestEdgeRouting:
         )
         assert waypoints == []
 
+    def test_edge_labels_sit_above_the_line_not_centered_on_it(self):
+        # Requested against a real generated diagram: edge labels rendered
+        # centered ON their arrow (the mxGraph default, which paints the
+        # label's white background squarely over the line). verticalAlign=
+        # bottom anchors each label's bottom edge to its point on the line,
+        # lifting the text just above the arrow instead.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "top", "target": "bottom", "label": "Flows"}],
+        )
+        root = ET.fromstring(xml_str)
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        assert "verticalAlign=bottom;" in edge_cell.get("style", "")
+
     def test_non_adjacent_same_zone_edge_routes_through_the_side_margin_not_through_bottom(self):
         # Regression test for the "lines cutting through boxes" bug: "top"
         # and "far" are both in z1 but "bottom" sits between them in the
@@ -624,6 +639,47 @@ class TestSafeRouting:
         # the dynamic step is actually using the available clamp range),
         # not just "more than the old step by a hair".
         assert min(gaps) >= 30, f"channel legs only {gaps}px apart -- still cramped like the old fixed step"
+
+    def test_adjacent_zone_edge_into_a_non_first_component_does_not_cut_through_its_sibling(self):
+        # Regression test: confirmed against a real generated diagram. An
+        # edge from a source zone into the SECOND component of the adjacent
+        # target zone (with a sibling occupying the first slot, between the
+        # zone boundary and the real target) must NOT draw a straight
+        # horizontal connector at the shared mid-height -- that cuts clean
+        # through the sibling, the arrowhead appearing to emerge from inside
+        # that unrelated box. Two single-component "edge" zones feeding the
+        # SECOND box of a 2-box adjacent zone reproduce exactly that shape.
+        zones = [
+            {"id": "src_zone", "label": "Source", "row": 0, "stack": "horizontal"},
+            {"id": "tgt_zone", "label": "Target", "row": 0, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "s1", "zone_id": "src_zone", "label": "S1"},
+            {"id": "t_first", "zone_id": "tgt_zone", "label": "T First"},
+            {"id": "t_second", "zone_id": "tgt_zone", "label": "T Second"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "s1", "target": "t_second", "label": "Reach"}],
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        sibling = comp_boxes["t_first"]
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        style = dict(p.split("=", 1) for p in edge_cell.get("style", "").split(";") if "=" in p)
+        src, tgt = comp_boxes["s1"], comp_boxes["t_second"]
+        exit_pt = (src.x + float(style["exitX"]) * src.w, src.y + float(style["exitY"]) * src.h)
+        entry_pt = (tgt.x + float(style["entryX"]) * tgt.w, tgt.y + float(style["entryY"]) * tgt.h)
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (float(p.get("x")), float(p.get("y")))
+            for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        full_path = [exit_pt, *waypoints, entry_pt]
+        for p1, p2 in zip(full_path, full_path[1:]):
+            assert not _segment_crosses_box(p1, p2, sibling), (
+                f"edge cuts through its target's sibling: {p1} -> {p2} crosses t_first"
+            )
 
     def test_blocked_exit_stays_axis_aligned_and_keeps_its_conceptual_side(self):
         # Regression test for a real generated diagram: when
