@@ -134,6 +134,23 @@ class TestLayoutOverlap:
                         f"{boxes[i].id} overlaps {boxes[j].id} in zone {zone_id}"
                     )
 
+    def test_horizontal_stack_siblings_with_different_caption_lengths_get_matched_heights(self):
+        # Regression test: confirmed against a real generated diagram. In a
+        # "stack": "horizontal" zone, siblings with different bullet/caption
+        # counts (c6 has 1, c7 has 2) previously kept their own, individually
+        # shorter/taller heights while staying top-aligned at the same inner
+        # y -- their vertical CENTERS then differed by a few pixels, forcing
+        # every connecting edge between them into a small reconciliation jog
+        # instead of a clean straight line, reading as "wonky"/pixels out of
+        # alignment in an otherwise unbroken left-to-right row. Every
+        # sibling in a horizontal-stack zone must get the SAME height (the
+        # zone's own, tallest-sibling-driven content height).
+        zones, components = self._sample()
+        _, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        c6, c7 = comp_boxes["c6"], comp_boxes["c7"]
+        assert c6.h == c7.h, f"horizontal-stack siblings have mismatched heights: {c6.h} vs {c7.h}"
+        assert c6.cy == c7.cy, f"mismatched heights left their centers misaligned: {c6.cy} vs {c7.cy}"
+
     def test_no_zone_overlaps_another_zone(self):
         zones, components = self._sample()
         zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)

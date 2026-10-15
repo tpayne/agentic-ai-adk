@@ -419,7 +419,22 @@ def _layout_zones_and_components(
                 inner_y = cy + header_h + ZONE_INNER_MARGIN
                 for order_idx, child in enumerate(zone_children):
                     w = child.get("width") or child_w
-                    h = _component_height(child)
+                    # content_h (the MAX height among this zone's own
+                    # children, computed above for the zone's own box) --
+                    # NOT this child's own individually-shorter height.
+                    # Confirmed directly against a real generated diagram:
+                    # siblings with different caption-line counts (e.g. one
+                    # with a subtitle, one without) kept their own, different
+                    # heights while staying top-aligned at the same inner_y,
+                    # so their vertical CENTERS differed by a few pixels --
+                    # forcing every edge between them into a small
+                    # reconciliation jog instead of a clean straight line,
+                    # reading as "wonky"/"not quite aligned" in an otherwise
+                    # unbroken left-to-right row. Matching every sibling's
+                    # height to the zone's own eliminates the center
+                    # mismatch at its source, rather than routing an edge
+                    # around it after the fact.
+                    h = content_h
                     component_boxes[child["id"]] = _Box(
                         child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num,
                         order=order_idx, stack=stack,
