@@ -127,20 +127,53 @@ def test_lateral_movement_not_flagged_when_blocked_immediately():
     assert findings == []
 
 
+def test_lateral_movement_still_flagged_when_segmentation_is_unrelated_to_this_path():
+    # Regression test: a segmentation control existing ANYWHERE in the
+    # diagram must not mask an entry point whose own reachable path never
+    # actually encounters it -- only a control this specific traversal
+    # reaches (and therefore sits on) may lower severity/clear
+    # missing_controls.
+    entry = {"id": "apigw", "value": "API Gateway"}
+    by_id = {"apigw": entry, "web": {"id": "web", "value": "Web"}, "app": {"id": "app", "value": "App"}}
+    # fw is a real segmentation control, but it's off on its own, nowhere
+    # near apigw's own reachable graph.
+    fw = {"id": "fw", "value": "Unrelated Firewall"}
+    adjacency = {"apigw": {"web"}, "web": {"apigw", "app"}, "app": {"web"}, "fw": set()}
+    controls = {"firewall_segmentation": [fw]}
+    findings = atk._analyze_lateral_movement([entry], adjacency, controls, by_id, total=10)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "High"
+    assert findings[0]["missing_controls"] == ["network_segmentation"]
+    assert findings[0]["blocked_by"] == []
+
+
 def test_privilege_escalation_flags_admin_identity_without_mfa_sso():
     admin = {"id": "admin_role", "value": "Admin Role"}
     controls = {"identity_mfa_sso": []}
-    findings = atk._analyze_privilege_escalation([admin], controls)
+    findings = atk._analyze_privilege_escalation([admin], controls, adjacency={})
     assert len(findings) == 1
     assert findings[0]["severity"] == "High"
 
 
-def test_privilege_escalation_not_flagged_when_mfa_sso_present():
+def test_privilege_escalation_not_flagged_when_mfa_sso_protects_this_identity():
     admin = {"id": "admin_role", "value": "Admin Role"}
     sso = {"id": "sso", "value": "SSO"}
     controls = {"identity_mfa_sso": [sso]}
-    findings = atk._analyze_privilege_escalation([admin], controls)
+    adjacency = {"admin_role": {"sso"}, "sso": {"admin_role"}}
+    findings = atk._analyze_privilege_escalation([admin], controls, adjacency)
     assert findings == []
+
+
+def test_privilege_escalation_still_flagged_when_mfa_sso_is_unrelated():
+    # Regression test: an SSO/MFA node existing ANYWHERE in the diagram
+    # must not suppress a privileged identity it isn't actually wired to.
+    admin = {"id": "admin_role", "value": "Admin Role"}
+    sso = {"id": "sso", "value": "SSO"}
+    controls = {"identity_mfa_sso": [sso]}
+    adjacency = {"admin_role": set(), "sso": set()}
+    findings = atk._analyze_privilege_escalation([admin], controls, adjacency)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "High"
 
 
 def test_data_exfiltration_flags_unencrypted_reachable_store():
@@ -188,13 +221,26 @@ def test_credential_compromise_flags_missing_mfa_sso_and_reports_blast_scope():
     assert {r["id"] for r in findings[0]["reachable"]} == {"web", "app"}
 
 
-def test_credential_compromise_not_flagged_when_mfa_sso_present():
+def test_credential_compromise_not_flagged_when_mfa_sso_protects_this_entry_point():
     entry = {"id": "apigw", "value": "API Gateway"}
-    by_id = {"apigw": entry}
-    adjacency = {"apigw": set()}
-    controls = {"identity_mfa_sso": [{"id": "sso", "value": "SSO"}]}
+    sso = {"id": "sso", "value": "SSO"}
+    by_id = {"apigw": entry, "sso": sso}
+    adjacency = {"apigw": {"sso"}, "sso": {"apigw"}}
+    controls = {"identity_mfa_sso": [sso]}
     findings = atk._analyze_credential_compromise([entry], [], adjacency, controls, by_id, total=10)
     assert findings == []
+
+
+def test_credential_compromise_still_flagged_when_mfa_sso_is_unrelated():
+    # Regression test: an SSO/MFA node existing ANYWHERE in the diagram
+    # must not suppress a credential it isn't actually wired to.
+    entry = {"id": "apigw", "value": "API Gateway"}
+    sso = {"id": "sso", "value": "SSO"}
+    by_id = {"apigw": entry, "sso": sso}
+    adjacency = {"apigw": set(), "sso": set()}
+    controls = {"identity_mfa_sso": [sso]}
+    findings = atk._analyze_credential_compromise([entry], [], adjacency, controls, by_id, total=10)
+    assert len(findings) == 1
 
 
 def test_simulate_cloudarch_attack_returns_expected_top_level_shape():

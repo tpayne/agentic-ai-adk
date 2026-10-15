@@ -174,7 +174,13 @@ def _analyze_lateral_movement(
         if len(reachable) < 2:
             continue
         fraction = len(reachable) / max(1, total)
-        if not segmentation:
+        # A segmentation control only mitigates THIS path if it actually sits
+        # on it (i.e. the traversal reached it and stopped) -- checked via
+        # blocked_by, not via "does segmentation exist anywhere in the
+        # diagram". An unrelated firewall elsewhere does nothing for an
+        # entry point whose own path never encounters it.
+        blocked_by = [c for c in segmentation if c["id"] in reachable]
+        if not blocked_by:
             severity = "High" if fraction > 0.15 else "Medium"
             missing = ["network_segmentation"]
         else:
@@ -185,7 +191,7 @@ def _analyze_lateral_movement(
             "entry_point_value": entry.get("value", ""),
             "technique_category": "lateral_movement",
             "reachable": [_vertex_ref(by_id[n]) for n in reachable if n in by_id],
-            "blocked_by": [_vertex_ref(c) for c in segmentation if c["id"] in reachable],
+            "blocked_by": [_vertex_ref(c) for c in blocked_by],
             "missing_controls": missing,
             "severity": severity,
         })
@@ -194,11 +200,17 @@ def _analyze_lateral_movement(
 
 def _analyze_privilege_escalation(
     identities: List[Dict[str, Any]], controls: Dict[str, List[Dict[str, Any]]],
+    adjacency: Dict[str, Set[str]],
 ) -> List[Dict[str, Any]]:
-    if controls["identity_mfa_sso"]:
-        return []
+    # An MFA/SSO control only protects an identity it's actually wired to
+    # (itself or a direct neighbor) -- an unrelated SSO provider elsewhere
+    # in the diagram says nothing about whether THIS role requires it.
+    mfa_sso_ids = {c["id"] for c in controls["identity_mfa_sso"]}
     findings = []
     for identity in identities:
+        neighbors = adjacency.get(identity["id"], set())
+        if identity["id"] in mfa_sso_ids or (neighbors & mfa_sso_ids):
+            continue
         privileged = _matches_any(identity, _PRIVILEGED_LABEL_KEYWORDS)
         findings.append({
             "entry_point_id": identity["id"],
@@ -244,10 +256,15 @@ def _analyze_credential_compromise(
     adjacency: Dict[str, Set[str]], controls: Dict[str, List[Dict[str, Any]]],
     by_id: Dict[str, Dict[str, Any]], total: int,
 ) -> List[Dict[str, Any]]:
-    if controls["identity_mfa_sso"]:
-        return []
+    # Same reasoning as _analyze_privilege_escalation: an MFA/SSO control
+    # only protects a credential it's actually wired to, not every
+    # credential in the diagram just because SOME MFA/SSO node exists.
+    mfa_sso_ids = {c["id"] for c in controls["identity_mfa_sso"]}
     findings = []
     for vertex in [*entry_points, *identities]:
+        neighbors = adjacency.get(vertex["id"], set())
+        if vertex["id"] in mfa_sso_ids or (neighbors & mfa_sso_ids):
+            continue
         reachable = _reachable_through({vertex["id"]}, adjacency, set()) - {vertex["id"]}
         fraction = len(reachable) / max(1, total)
         findings.append({
@@ -311,7 +328,7 @@ def simulate_cloudarch_attack(xml_content: Any = None) -> str:
             entry_points, adjacency, controls, by_id, data_store_ids, identity_ids
         )
         attack_paths += _analyze_lateral_movement(entry_points, adjacency, controls, by_id, total)
-        attack_paths += _analyze_privilege_escalation(identities, controls)
+        attack_paths += _analyze_privilege_escalation(identities, controls, adjacency)
         attack_paths += _analyze_data_exfiltration(entry_points, data_stores, adjacency, controls, by_id)
         attack_paths += _analyze_credential_compromise(entry_points, identities, adjacency, controls, by_id, total)
 
