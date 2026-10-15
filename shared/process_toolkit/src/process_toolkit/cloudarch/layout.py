@@ -660,6 +660,45 @@ def _safe_x_for_vertical_span(
     return preferred_x  # exhausted the search -- fall back rather than loop forever
 
 
+def _safe_jog_y(
+    x: float, near_y: float, far_y: float, exclude_ids: Tuple[str, str], all_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    The y closest to `near_y` (shrinking the span toward `far_y` one
+    SAFE_X_SEARCH_STEP at a time) at which a vertical probe at `x` across
+    [returned_y, near_y] is clear of every component. Returns `far_y` if
+    no such y is found before reaching it.
+
+    Built for exactly one case: `_jog`'s fallback (see its own docstring)
+    inserts a horizontal correction segment running right along a box's
+    OWN edge -- confirmed directly against a real generated diagram to be
+    the ONLY remaining option when the slot-assigned connection point's
+    own x is blocked across the FULL span back to the channel (so `_jog`'s
+    "snap to point.x" check already correctly rejected it) -- but that
+    edge-hugging segment is only strictly necessary across however much of
+    the span the obstacle actually occupies, not the entire thing. A cross-
+    row edge entering a zone's SECOND stacked component, for instance,
+    is blocked by the FIRST component only across that first component's
+    own height -- the reserved COMPONENT_GAP strip just past it is clear
+    by construction, same reasoning as every other margin/gap route in
+    this file. Landing the horizontal correction there instead of at the
+    target's own boundary reads as a clean entry into the reserved gap,
+    not a line hugging the box it's about to enter.
+    """
+    direction = 1 if far_y >= near_y else -1
+    best = near_y
+    for step in range(1, 300):
+        candidate = near_y + direction * step * SAFE_X_SEARCH_STEP
+        if (direction > 0 and candidate > far_y) or (direction < 0 and candidate < far_y):
+            return far_y
+        lo, hi = min(near_y, candidate), max(near_y, candidate)
+        if _safe_x_for_vertical_span(x, lo, hi, exclude_ids, all_boxes) == x:
+            best = candidate  # still safe this far -- keep growing toward far_y
+        else:
+            return best  # this step is where it stops being safe -- use the last one that was
+    return best
+
+
 def _route_edge(
     edge: Dict[str, Any],
     src: _Box,
@@ -1017,9 +1056,10 @@ def _reconcile_connection_points(
     """
     def _jog(
         side: str, point: Tuple[float, float], anchor: Tuple[float, float]
-    ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-        # Returns (replacement_for_anchor, jog_point_to_insert) -- at most
-        # one is non-None.
+    ) -> Tuple[Optional[Tuple[float, float]], List[Tuple[float, float]]]:
+        # Returns (replacement_for_anchor, jog_points_to_insert) -- either
+        # replacement is set (0 extra points needed) or jog_points holds 1
+        # or 2 points to insert; never both.
         #
         # "top"/"bottom" pin the box's Y (point.y); the connection point's
         # X is the only coordinate slot-spreading can have moved, so no
@@ -1036,51 +1076,76 @@ def _reconcile_connection_points(
         # center -- visually indistinguishable from the line doubling
         # back on itself right where it leaves the box.
         #
-        # Falls back to the previous jog-insertion behavior -- a short
-        # HORIZONTAL hop along the box's own edge to the anchor's
-        # (already verified safe) x, before the EXISTING, pre-verified
-        # segment from the jog to `anchor` takes over -- whenever the
-        # point's own x is NOT verified clear (e.g. a channel-routed
-        # branch that genuinely had to move off-center to dodge an
-        # obstacle, so snapping back to the unverified point.x could cut
-        # straight through it).
+        # When THAT isn't safe either (the point's own x is blocked
+        # somewhere across the full span back to the anchor), try a
+        # second fallback before giving up: a two-point jog that does the
+        # horizontal correction at _safe_jog_y's y instead of point.y --
+        # confirmed directly against a real generated diagram that the
+        # single-point fallback below, which runs the horizontal
+        # correction segment at point.y (i.e. right along the target
+        # box's OWN edge), is only forced to do so because point.y is the
+        # worst possible choice when the obstacle is a SIBLING positioned
+        # between the channel and this specific box (e.g. a cross-row
+        # edge entering a zone's second stacked component, blocked by the
+        # first) -- the reserved gap just past that sibling is clear by
+        # construction, same reasoning as every other margin/gap route in
+        # this file, and landing the correction there instead reads as a
+        # clean entry into the gap rather than a line hugging the box.
+        #
+        # Only falls all the way back to the original single-point jog --
+        # a short HORIZONTAL hop along the box's own edge to the anchor's
+        # (already verified safe) x -- when _safe_jog_y finds no
+        # improvement at all (the obstacle extends essentially all the
+        # way to point.y itself, leaving no safe gap to land in).
         px, py = point
         ax, ay = anchor
         if side in ("top", "bottom"):
             if ax == px:
-                return None, None
+                return None, []
             if _safe_x_for_vertical_span(px, min(py, ay), max(py, ay), exclude_ids, all_boxes) == px:
-                return (px, ay), None
-            return None, (ax, py)
+                return (px, ay), []
+            safe_y = _safe_jog_y(px, py, ay, exclude_ids, all_boxes)
+            if safe_y != py:
+                return None, [(ax, safe_y), (px, safe_y)]
+            return None, [(ax, py)]
         if ay == py:
-            return None, None
-        return None, (px, ay)
+            return None, []
+        return None, [(px, ay)]
+
+    # _jog always builds a 2-point correction in anchor-to-point order --
+    # correct as-is for an ENTRY jog (appended AFTER the anchor, reading
+    # anchor -> jog -> point), but an EXIT jog is inserted BEFORE the
+    # anchor (reading point -> jog -> anchor) and needs that same pair
+    # reversed, or the segment from the real exit point to the jog's
+    # first element is diagonal.
+    def _insert_exit_jogs(path: List[Tuple[float, float]], jogs: List[Tuple[float, float]]) -> None:
+        path[0:0] = list(reversed(jogs))
 
     path = list(waypoints)
     if path:
         if len(path) >= 2:
-            exit_replace, exit_jog = _jog(exit_side, exit_point, path[0])
+            exit_replace, exit_jogs = _jog(exit_side, exit_point, path[0])
             if exit_replace is not None:
                 path[0] = exit_replace
-            elif exit_jog is not None:
-                path.insert(0, exit_jog)
-            entry_replace, entry_jog = _jog(entry_side, entry_point, path[-1])
+            elif exit_jogs:
+                _insert_exit_jogs(path, exit_jogs)
+            entry_replace, entry_jogs = _jog(entry_side, entry_point, path[-1])
             if entry_replace is not None:
                 path[-1] = entry_replace
-            elif entry_jog is not None:
-                path.append(entry_jog)
+            elif entry_jogs:
+                path.extend(entry_jogs)
         else:
             # A single shared waypoint -- path[0] and path[-1] are the
             # SAME element, so a "replace" correction on both ends could
             # clash (each independently rewriting the one shared point).
             # Insertion is always safe here regardless of count, so skip
             # the replace optimization for this narrow case.
-            _, exit_jog = _jog(exit_side, exit_point, path[0])
-            if exit_jog is not None:
-                path.insert(0, exit_jog)
-            _, entry_jog = _jog(entry_side, entry_point, path[-1])
-            if entry_jog is not None:
-                path.append(entry_jog)
+            _, exit_jogs = _jog(exit_side, exit_point, path[0])
+            if exit_jogs:
+                _insert_exit_jogs(path, exit_jogs)
+            _, entry_jogs = _jog(entry_side, entry_point, path[-1])
+            if entry_jogs:
+                path.extend(entry_jogs)
         return path
 
     # No internal waypoints at all -- the route was a bare straight line

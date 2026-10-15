@@ -657,6 +657,58 @@ class TestSafeRouting:
         # not just "more than the old step by a hair".
         assert min(gaps) >= 30, f"channel legs only {gaps}px apart -- still cramped like the old fixed step"
 
+    def test_cross_row_edge_into_a_non_first_vertically_stacked_target_lands_in_the_gap_not_the_boundary(self):
+        # Regression test: confirmed against a real generated diagram. A
+        # cross-row edge into "target" (the SECOND of two vertically-
+        # stacked, same-width siblings, so "blocker" shares target's own
+        # center-x) must search away from center to avoid blocker -- but
+        # the entry point itself (computed independently, unaware of that
+        # search) still defaults to target's true center, which IS
+        # blocked. The old single-point jog fallback reconciled that gap
+        # with a horizontal segment run at the TARGET's own boundary y --
+        # i.e. right along the edge of the box the arrow is about to
+        # enter, indistinguishable from a line hugging/pointing at the box
+        # rather than cleanly terminating on it. The correction must
+        # instead land in the reserved gap between blocker and target, a
+        # few px above target's own top edge, not AT it.
+        zones = [
+            {"id": "z_src", "label": "Src", "row": 0},
+            {"id": "z_tgt", "label": "Tgt", "row": 1},
+        ]
+        components = [
+            {"id": "src", "zone_id": "z_src", "label": "Src"},
+            {"id": "blocker", "zone_id": "z_tgt", "label": "Blocker"},
+            {"id": "target", "zone_id": "z_tgt", "label": "Target"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "src", "target": "target", "label": "E"}],
+        )
+        root = ET.fromstring(xml_str)
+        _, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        blocker, target = comp_boxes["blocker"], comp_boxes["target"]
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        style = dict(p.split("=", 1) for p in edge_cell.get("style", "").split(";") if "=" in p)
+        entry_pt = (target.x + float(style["entryX"]) * target.w, target.y + float(style["entryY"]) * target.h)
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (float(p.get("x")), float(p.get("y")))
+            for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        full_path = waypoints + [entry_pt]
+        # No segment of the final approach may run along target's own top
+        # boundary (y == target.y) for a horizontal stretch -- the
+        # correction must land inside the gap above it instead.
+        for (x1, y1), (x2, y2) in zip(full_path, full_path[1:]):
+            hugs_target_edge = y1 == target.y and y2 == target.y and x1 != x2
+            assert not hugs_target_edge, (
+                f"correction segment runs along target's own edge: ({x1},{y1}) -> ({x2},{y2})"
+            )
+        for p1, p2 in zip(full_path, full_path[1:]):
+            assert not _segment_crosses_box(p1, p2, blocker), (
+                f"edge cuts through the blocking sibling: {p1} -> {p2}"
+            )
+
     def test_adjacent_zone_edge_into_a_non_first_component_does_not_cut_through_its_sibling(self):
         # Regression test: confirmed against a real generated diagram. An
         # edge from a source zone into the SECOND component of the adjacent
