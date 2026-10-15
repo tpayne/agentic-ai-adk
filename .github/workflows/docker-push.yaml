@@ -30,14 +30,17 @@ jobs:
         service:
           - name: FinancialADK
             context: samples/GCP/FinanceADK/
+            file: samples/GCP/FinanceADK/Dockerfile
             image: adkfinance
 
           - name: ProcessEngineering
-            context: samples/GCP/ProcessEngineering/
+            context: .
+            file: samples/GCP/ProcessEngineering/Dockerfile
             image: adkprocesseng
 
           - name: EmailProcessing
             context: samples/GCP/EmailProcessing/
+            file: samples/GCP/EmailProcessing/Dockerfile
             image: adkemailprocesseng
 
     steps:
@@ -65,6 +68,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.file }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
