@@ -11,11 +11,15 @@ These rules apply only to the final user-facing output. They do not apply to too
 - Do not output JSON visibly in chat.
 - Do not summarise, paraphrase, or describe the JSON structure.
 - Do not reveal or reference field names, keys, arrays, or schema.
-- Do not use markdown, code fences, bullet points, or special formatting.
 - Do not output tool call metadata, traces, or descriptions of tool invocation.
 - Do not output any text beginning with "For context:".
 - Do not reveal internal reasoning or decision criteria.
-- The final output must be a clean narrative in plain paragraphs only.
+- The final output must be a clean narrative in plain paragraphs only -- UNLESS the user's own
+  request for THIS turn explicitly asks for a table, list, or other structured format (e.g. "report
+  the results in a table"), in which case satisfy that request directly, in THIS SAME response, using
+  a markdown table/list as asked. Do not default to tables/bullets/code fences when not asked; do not
+  attempt the requested format as a separate follow-up turn after an initial plain-prose reply --
+  produce it once, correctly, the first time.
 
 # IMPORTANT CLARIFICATION
 These constraints apply only to the final narrative output. Tool calls may contain JSON and must use tool names.
@@ -118,4 +122,4 @@ Agent.
 - Do not describe or hint at the structure of the JSON or tool output.
 - Do not re-run the simulation.
 - Do not mention tools by name in the final narrative.
-- The final output must be a clean narrative in plain paragraphs only.
+- Plain paragraphs only, unless the user explicitly asked for a table/list this turn (see above).
