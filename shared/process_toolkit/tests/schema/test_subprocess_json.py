@@ -49,6 +49,23 @@ def test_validate_rejects_a_substep_missing_purpose_scope_owner_or_responsible_p
         ), f"expected a missing-{field} issue"
 
 
+def test_validate_rejects_a_non_string_description_without_raising():
+    # Regression test: a malformed description that isn't a string must
+    # come back as a validation issue, not raise TypeError out of
+    # len(description).
+    result = validate_subprocess_flow({
+        "subprocess_flow": [
+            {
+                "substep_name": "Draft plan", "description": ["not", "a", "string"],
+                "purpose": "Produce a first draft to review.", "scope": "Team level",
+                "process_owner": "Lead", "responsible_party": "Team",
+            },
+        ],
+    })
+    assert not result["valid"]
+    assert any(issue["location"] == "subprocess_flow[0].description" for issue in result["issues"])
+
+
 def test_save_subprocess_flow_refuses_to_write_an_invalid_flow(tmp_path, monkeypatch):
     from process_toolkit import paths
     monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path))

@@ -735,7 +735,25 @@ def lookup_catalog_resource_price(
 def _catalog_failure_reason(provider: str, exc: Exception) -> str:
     error_type = type(exc).__name__
     if error_type in {"NoCredentialsError", "PartialCredentialsError"}:
-        return "AWS catalog request failed: AWS credentials are not configured or are incomplete."
+        # The pricing DATA is free and public, but AWS's Pricing Query API
+        # (GetProducts/DescribeServices -- the only AWS pricing API that
+        # supports server-side filtering by SKU/region, which is what makes
+        # a single targeted lookup practical) still requires every request
+        # to be SigV4-signed, same as any other AWS API call. AWS's
+        # alternative, truly unauthenticated option -- the Price List Bulk
+        # API's static per-region JSON indexes -- has no such filtering: a
+        # single service's index for one region can run into the hundreds
+        # of MB (confirmed for AmazonEC2/us-east-1), so it isn't a viable
+        # per-request fallback here. Read-only credentials are genuinely
+        # the only practical path to live AWS catalog pricing.
+        return (
+            "AWS catalog request failed: no AWS credentials are configured. The pricing data itself "
+            "is free, but AWS's Pricing Query API still requires a signed, authenticated request like "
+            "any other AWS API call. Set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (or AWS_PROFILE, or "
+            "run under an IAM role) with the read-only pricing:GetProducts and pricing:DescribeServices "
+            "permissions -- no billing or account access is needed. The heuristic estimate below is "
+            "used until then."
+        )
     response = getattr(exc, "response", {})
     code = str(response.get("Error", {}).get("Code", "")) if isinstance(response, dict) else ""
     if code.startswith("AccessDenied") or code in {"UnauthorizedOperation", "UnrecognizedClientException"}:

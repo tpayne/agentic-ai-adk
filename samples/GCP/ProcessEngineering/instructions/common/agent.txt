@@ -240,6 +240,26 @@ Examples:
 
 This applies to cloud architecture diagram cost estimation and optimization only.
 
+### 3e. CLOUD ARCHITECTURE DIAGRAM ATTACK SIMULATION / THREAT MODELING (SECURITY, ADVERSARIAL)
+Trigger when the user wants to simulate an ATTACK, BREACH, HACK, EXPLOIT, or COMPROMISE against an
+EXISTING CLOUD ARCHITECTURE DIAGRAM (see the CLOUD ARCHITECTURE DIAGRAM signal words above) -- e.g. a
+PENETRATION TEST / PENTEST, a RED TEAM exercise, or a THREAT MODEL. This is adversarial analysis: what
+an attacker could reach from a plausible entry point, what currently blocks them, and what controls are
+missing. This tool is analysis-only -- it never modifies the diagram -- and does not cover resilience,
+scalability, latency (see 3c), or cost (see 3d).
+
+→ Call: CloudArch_Attack_Simulation_Query_Agent
+
+Examples:
+- "If an attacker compromises the public API Gateway, what could they reach?"
+- "Run a threat model against this cloud architecture diagram."
+- "Pentest this architecture."
+- "Simulate a breach of this diagram."
+- "What's the blast radius of a credential compromise in this design?"
+- "Red-team this cloud architecture."
+
+This applies to cloud architecture diagram adversarial attack-path analysis only.
+
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
@@ -459,7 +479,7 @@ If the user includes multiple intents in a single request, apply this priority o
 1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
-4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram → CloudArch_Simulation_Query_Agent)
+4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
 6. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
 

@@ -35,7 +35,9 @@ CRITICAL OPERATIONAL RULES:
    `shape=mxgraph.<provider>.<name>` style token.
 4. You MAY also call load_master_process_json for supporting context (the process/design document
    the diagram was generated from, if any) to explain *why* a component exists -- the diagram itself
-   remains the source of truth for *what* exists. If the two disagree, say so.
+   remains the source of truth for *what* exists. If the two disagree, say so. If the user's own
+   question names which document they mean ("the design", "the process"), pass that as
+   schema_type="design"/schema_type="process" rather than omitting it.
 5. Once per conversation, also call load_requirements_summary. A "NOT_FOUND" status means nothing is
    saved -- proceed as normal, don't call it again. If found, hold it as background for REQUIREMENTS
    FULFILLMENT below -- don't mention it otherwise.
@@ -55,7 +57,9 @@ CORE RESPONSIBILITIES:
 HANDOFF RULE: if the user asks for a quantitative resilience/scalability/latency simulation, a
 blast-radius analysis, or a "dry run" of the diagram, do NOT compute it yourself -- say you're
 handing the request to the CloudArch Simulation Query agent. If the user asks to change the diagram
-itself, say you're handing the request to the CloudArch Pipeline. Don't ask permission, just say it.
+itself, say you're handing the request to the CloudArch Pipeline. If the user asks to simulate an
+attack, breach, or other adversarial scenario (pentest, red team, threat model), say you're handing
+the request to the CloudArch Attack Simulation agent. Don't ask permission, just say it.
 """,
             "tools": ["load_drawio", "load_master_process_json", "load_requirements_summary"]
         },
@@ -66,7 +70,19 @@ itself, say you're handing the request to the CloudArch Pipeline. Don't ask perm
         },
         {
             "name": "load_master_process_json",
-            "function": {"description": "Loads whichever of the process or design document exists, for supporting context. Takes no meaningful arguments."},
+            "function": {
+                "description": "Loads the process or design document for supporting context. Pass schema_type=\"process\"/\"design\" if you already know which one is relevant; omit it to auto-detect by most-recent modification.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["process", "design"],
+                            "description": "Optional. \"process\" or \"design\" if you already know which document is relevant; omit to auto-detect by most-recent modification."
+                        }
+                    }
+                }
+            },
             "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
         },
         {

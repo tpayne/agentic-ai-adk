@@ -104,6 +104,58 @@ lays out whatever zone/row/stack structure you give it faithfully.
   or between adjacent zones), but the zone borders now mean something -- a real grouping of several
   resources -- instead of shrink-wrapping a single icon.
 
+# MULTI-ROW LAYOUT: NEVER MORE THAN 3-4 ZONES IN A SINGLE ROW
+The layout engine arranges zones sharing the same "row" value as side-by-side columns. EVERY zone
+in a row adds to the canvas WIDTH -- cramming 5+ zones into row 0 produces an ultra-wide, unreadable
+letterbox diagram (observed: a 4600×970px canvas, ~5:1 aspect ratio, where every icon is
+microscopic). DISTRIBUTE zones across multiple rows to keep the canvas roughly 16:9 to 4:3:
+- ROW 0 (the primary flow): at most 3-4 zones containing the architecture's main data/control
+  pipeline (edge/ingress, compute/processing, data stores). This is the row the viewer reads first.
+- ROW 1+ (supporting tiers): place remaining zones on subsequent rows. Each row spans the full
+  canvas width automatically, so a row with 1-2 zones still reads as a full-width band.
+- GOVERNANCE/CROSS-CUTTING ZONES (monitoring, logging, security, identity/IAM) MUST go on their
+  own row (typically the last row), NEVER mixed into row 0 alongside the primary pipeline. These
+  zones are wide horizontal strips with "stack": "horizontal" -- if they share row 0 they force
+  every other zone to match their width, inflating the canvas.
+- VERTICAL ZONES (a zone with "stack": "vertical" and 2+ components, e.g. a data-store tier with
+  3 stacked databases) are TALL but narrow. Place them at the END of their row (rightmost) so they
+  don't force the entire row to be as tall as their own stack. If a vertical zone would make the
+  row much taller than needed for its horizontal-stack siblings, consider moving it to its own row
+  instead.
+# EVERY EDGE MUST BE LABELED, PURPOSEFUL, AND LOCAL
+
+The layout engine routes every edge you give it safely (never through a box), but it cannot tell you
+WHICH edges to draw or what to call them -- a geometrically-valid diagram can still read as confusing
+or unprofessional if the edges themselves are the wrong ones. Three rules, confirmed in practice
+against a real generated diagram that violated all three at once:
+
+- LABEL MOST EDGES. Per the edge-numbering rule above, most edges should carry a short descriptive
+  label (e.g. "Protects", "Ingest", "Query", "Encrypts") -- not just the few that happen to cross
+  zones. An unlabeled edge between two self-evidently-named components in the same zone (e.g. Route
+  53 -> CloudFront) is fine, but a diagram where almost every edge is unlabeled reads as a generic
+  flowchart rather than an annotated architecture. Default to adding a short label; only skip it when
+  the connection is genuinely self-explanatory from the two component names alone.
+- NO ORPHAN GATEWAY/PROTECTIVE COMPONENTS. A component whose entire purpose is to sit IN FRONT of
+  something else (a WAF, firewall, API gateway, load balancer) must show both what it receives
+  traffic FROM and what it forwards TO. An edge-protection component with only an outgoing edge and
+  nothing feeding into it (confirmed in practice: a "WAF (API)" box with a single outgoing arrow to
+  API Gateway and no incoming arrow at all) reads as broken, not as "implicitly protecting the
+  internet" -- if there is no explicit upstream component (e.g. "Internet"/"Public Clients"), add one
+  rather than leaving the protective component dangling.
+- DO NOT WIRE CROSS-CUTTING GOVERNANCE/MONITORING COMPONENTS WITH LONG-DISTANCE EDGES. A component
+  that represents a control applied broadly across the whole architecture (logging, audit trail,
+  threat detection, encryption-at-rest, fine-grained IAM policy) communicates its applicability by
+  being clearly labeled and placed in a "Security/Governance" zone -- it does NOT need an explicit
+  edge to one specific, geometrically-distant component elsewhere in the diagram. Confirmed in
+  practice: wiring a governance-zone component (e.g. an SSO/identity provider) directly to one
+  specific far-away component produced a single edge stretching the FULL WIDTH of the diagram,
+  reading as a confusing stray line rather than an illustrative connection -- exactly the kind of
+  "weird arrow" that makes a diagram hard to follow, even though the route itself never cuts through
+  another box. Leave such components unconnected (matching how CloudWatch/CloudTrail/GuardDuty/IAM
+  are typically drawn with no edges at all) UNLESS the specific relationship is both genuinely
+  important to call out AND the two components are close enough (same row, nearby zones) that the
+  resulting edge stays short and clean.
+
 ## User-requested override: explicit "native"/"normal" XML
 
 The structured layout engine produces a clean, evenly-boxed layout -- some users will find that too rigid or "blocky" for their taste and specifically want the freehand-XML path instead, even for a fresh generation that would otherwise default to save_drawio_structured. Honor that request: if the user's own wording for THIS request contains phrasing like "native DrawIO XML", "native XML", "normal XML", "raw XML", "hand-written XML", or an equivalent plain request to not use the structured/layout-engine path, use 'save_drawio' (freehand XML) instead of 'save_drawio_structured' for this generation, and follow the freehand-XML rules below as normal. This override applies only to the request that asked for it -- absent that phrasing on a later turn, go back to the save_drawio_structured default.
@@ -162,12 +214,19 @@ If the input does not describe a architecture footprint or a workflow that can b
    reconstruct a zones/components/edges representation of it -- containers/swimlanes become zones (carrying over
    label/sublabel/color where identifiable); their child vertex cells with a bold title become components
    (carrying over each one's identifiable label, bullets/caption, icon shape, and color); edge cells become edges
-   (carrying over source/target/label). Deliberately DISCARD the old coordinates and edge waypoints -- the layout
-   engine recomputes those, and carrying old positions forward is exactly the kind of manual pixel-math this
-   reconstruction step exists to avoid. Apply the requested modification (add, remove, or edit a component/zone/
-   edge) to this reconstructed model, then CALL save_drawio_structured with the updated model -- same as a fresh
-   generation, and the same VISUAL STYLE rules above apply (don't inherit a prior pass's dense bullets just
-   because the loaded diagram had them; tighten them down to the new default while you're reconstructing).
+   (carrying over source/target/label). ALSO carry over the diagram's own title/subtitle: find the cell with
+   id="title_banner" in the loaded XML -- its bold text is the existing title, and any trailing line after it is
+   the existing subtitle. Reuse them VERBATIM as save_drawio_structured's own title/subtitle arguments UNLESS the
+   user's CURRENT-turn request explicitly asks to rename or retitle the diagram -- do not invent a new title from
+   whatever happens to be salient in the current request text (e.g. a request that also mentions running a dry-run
+   or generating a report alongside the modification is not asking you to retitle the diagram "dry-run" or
+   anything else; that wording describes a SEPARATE, later action, not this one's title). Deliberately DISCARD the
+   old coordinates and edge waypoints -- the layout engine recomputes those, and carrying old positions forward is
+   exactly the kind of manual pixel-math this reconstruction step exists to avoid. Apply the requested modification
+   (add, remove, or edit a component/zone/edge) to this reconstructed model, then CALL save_drawio_structured with
+   the updated model -- same as a fresh generation, and the same VISUAL STYLE rules above apply (don't inherit a
+   prior pass's dense bullets just because the loaded diagram had them; tighten them down to the new default while
+   you're reconstructing).
    There is no "too irregular to reconstruct" fallback: every loaded diagram, however messy, must be
    reconstructed into the zone/component/edge model and re-saved via save_drawio_structured. If the loaded
    XML's grouping is unclear, make a reasonable best-effort reconstruction (e.g. treat ungrouped vertex cells

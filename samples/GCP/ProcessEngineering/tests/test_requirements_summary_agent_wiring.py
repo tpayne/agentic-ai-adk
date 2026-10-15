@@ -108,6 +108,12 @@ class RequirementsSummaryAgentWiringTest(unittest.TestCase):
             "cloudarch/cloudarch_simulation_query_agent.txt",
         )
 
+    def test_cloudarch_attack_simulation_query_agent(self):
+        self._assert_has_requirements_tool(
+            "process_agents.cloudarch.cloudarch_attack_simulation_agent", "cloudarch_attack_simulation_query_agent",
+            "cloudarch/cloudarch_attack_simulation_query_agent.txt",
+        )
+
     def test_design_architecture_simulation_query_agent(self):
         self._assert_has_requirements_tool(
             "process_agents.design.design_simulation_agent", "design_simulation_query_agent",

@@ -60,7 +60,13 @@ class ValidateDesignJsonCodedTool(CodedTool):
 
 class PersistFinalDesignJsonCodedTool(CodedTool):
     """Validates and writes the final design-document JSON to
-    output/design_data.json."""
+    output/design_data.json.
+
+    NOTE: this is called mid-loop (by Design_Doc_Agent, on any iteration
+    where it actually changed something) -- NOT only once at the true end
+    of a run -- so it must NOT release the pipeline lock here; see
+    doc_generation_tool.py's GenerateDesignDocumentCodedTool, which is
+    this pipeline's actual last step, for where that happens instead."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return persist_final_design_json(args.get("json_content"))

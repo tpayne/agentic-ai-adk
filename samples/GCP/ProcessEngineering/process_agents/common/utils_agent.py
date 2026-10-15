@@ -23,11 +23,87 @@ from process_toolkit.loop_control import (
     reset_counter,
     load_approval_state,
 )
+from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock
 
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+# tool_context.state / callback_context.state key for threading a
+# process_toolkit.run_lock token between a pipeline's own reset step
+# (which acquires the lock) and its own finalize step (which releases
+# it) -- separate ADK tool/callback functions, but both operate on the
+# SAME session's state within one run. Mirrors the neuro-san port's own
+# coded_tools/common/pipeline_lock.py::PIPELINE_LOCK_TOKEN_KEY convention
+# (same purpose, different underlying storage mechanism).
+#
+# Stores {"invocation_id": ..., "token": ...}, not a bare token -- see
+# acquire_pipeline_lock_for_turn's own docstring for why the invocation_id
+# matters: tool_context.state is scoped to the whole chat SESSION, not to
+# one request, so a bare stashed token would be silently reused by a
+# SECOND, genuinely different request arriving in that same session while
+# the first one is still running, waving it through as "the same run".
+PIPELINE_LOCK_TOKEN_STATE_KEY = "_pipeline_lock_token"
+
+
+def acquire_pipeline_lock_for_turn(label: str, context) -> str:
+    """acquire_pipeline_lock, but reentrancy-safe across the TWO separate
+    tool calls a create/update pipeline's own analysis stage makes
+    moments apart in the same turn (record_analysis_request then
+    log_analysis_metadata) -- without also accidentally letting a LATER,
+    different turn in the same long-lived chat session inherit an
+    earlier turn's still-valid token from state and skip the real
+    conflict check entirely. `context` is a ToolContext (the process/
+    design-doc analysis agents' own tool functions) or a CallbackContext
+    (cloudarch_pipeline_agent.py's before_agent_callback) -- both expose
+    the same .invocation_id/.state this function actually uses.
+
+    Gates reuse on context.invocation_id -- an ADK-minted id fresh for
+    every top-level run_async() call (one per user turn), distinct from
+    the session id, which persists across many turns. The stored token
+    is only treated as "mine to refresh" when the invocation_id stored
+    alongside it still matches the CURRENT one; a match means this is
+    genuinely the second of the two calls within the SAME turn. Anything
+    else (nothing stored yet, or a stored invocation_id from an earlier,
+    already-superseded turn) mints a fresh token instead, which then
+    correctly conflicts against the real lock file if some OTHER turn
+    (same session or not) is still actually holding it.
+
+    context may be None (a caller invoked directly, e.g. a test, with no
+    ADK-managed context) -- falls back to a plain, non-reentrant
+    acquire_pipeline_lock call in that case."""
+    if context is None:
+        return acquire_pipeline_lock(label)
+
+    current_invocation_id = context.invocation_id
+    stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
+    reusable_token = None
+    if isinstance(stored, dict) and stored.get("invocation_id") == current_invocation_id:
+        reusable_token = stored.get("token")
+
+    token = acquire_pipeline_lock(label, token=reusable_token)
+    context.state[PIPELINE_LOCK_TOKEN_STATE_KEY] = {
+        "invocation_id": current_invocation_id,
+        "token": token,
+    }
+    return token
+
+
+def release_pipeline_lock_for_turn(context) -> None:
+    """Releases whatever token acquire_pipeline_lock_for_turn (or
+    cloudarch_pipeline_agent.py's own single-acquire equivalent) stashed
+    under PIPELINE_LOCK_TOKEN_STATE_KEY on tool_context/callback_context
+    -- a plain `context.state.get(...)` read, not gated on invocation_id
+    the way acquire is: by the time a pipeline's own finalize step runs,
+    it's always within the SAME turn that acquired the lock in the first
+    place, so no cross-turn confusion is possible on the release side.
+    Safe to call with context=None or an empty/missing key -- that just
+    means nothing was ever acquired, and release_pipeline_lock(None) is
+    itself a no-op."""
+    stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if context is not None else None
+    token = stored.get("token") if isinstance(stored, dict) else None
+    release_pipeline_lock(token)
 
 # ---------- Programmatic stop/kill-switch tool ----------
 def _contains_marker(obj: Any, needle: str) -> bool:

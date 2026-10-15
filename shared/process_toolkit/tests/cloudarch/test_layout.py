@@ -134,6 +134,23 @@ class TestLayoutOverlap:
                         f"{boxes[i].id} overlaps {boxes[j].id} in zone {zone_id}"
                     )
 
+    def test_horizontal_stack_siblings_with_different_caption_lengths_get_matched_heights(self):
+        # Regression test: confirmed against a real generated diagram. In a
+        # "stack": "horizontal" zone, siblings with different bullet/caption
+        # counts (c6 has 1, c7 has 2) previously kept their own, individually
+        # shorter/taller heights while staying top-aligned at the same inner
+        # y -- their vertical CENTERS then differed by a few pixels, forcing
+        # every connecting edge between them into a small reconciliation jog
+        # instead of a clean straight line, reading as "wonky"/pixels out of
+        # alignment in an otherwise unbroken left-to-right row. Every
+        # sibling in a horizontal-stack zone must get the SAME height (the
+        # zone's own, tallest-sibling-driven content height).
+        zones, components = self._sample()
+        _, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        c6, c7 = comp_boxes["c6"], comp_boxes["c7"]
+        assert c6.h == c7.h, f"horizontal-stack siblings have mismatched heights: {c6.h} vs {c7.h}"
+        assert c6.cy == c7.cy, f"mismatched heights left their centers misaligned: {c6.cy} vs {c7.cy}"
+
     def test_no_zone_overlaps_another_zone(self):
         zones, components = self._sample()
         zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
@@ -246,6 +263,21 @@ class TestEdgeRouting:
             {"source": "top", "target": "bottom"}, comp_boxes["top"], comp_boxes["bottom"], 0, row_bottoms, all_boxes
         )
         assert waypoints == []
+
+    def test_edge_labels_sit_above_the_line_not_centered_on_it(self):
+        # Requested against a real generated diagram: edge labels rendered
+        # centered ON their arrow (the mxGraph default, which paints the
+        # label's white background squarely over the line). verticalAlign=
+        # bottom anchors each label's bottom edge to its point on the line,
+        # lifting the text just above the arrow instead.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "top", "target": "bottom", "label": "Flows"}],
+        )
+        root = ET.fromstring(xml_str)
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        assert "verticalAlign=bottom;" in edge_cell.get("style", "")
 
     def test_non_adjacent_same_zone_edge_routes_through_the_side_margin_not_through_bottom(self):
         # Regression test for the "lines cutting through boxes" bug: "top"
@@ -528,6 +560,196 @@ class TestSafeRouting:
             == layout._channel_key(comp_boxes["l1"], comp_boxes["w1"], all_boxes)
         )
 
+    def test_two_edges_sharing_a_channel_with_overlapping_spans_get_a_visible_stagger(self):
+        # Regression test: confirmed against a real generated diagram that
+        # sharing the same _channel_key was not enough on its own -- two
+        # edges (a same-row detour and a cross-row edge, landing in the
+        # same below-row channel per the test above) whose horizontal
+        # spans substantially overlap rendered as one indistinguishable
+        # line with two competing labels, because the per-slot stagger
+        # step was too small to notice over a long shared run. l1->r1 and
+        # l1->w1 both start at l1, so their channel legs overlap for their
+        # entire length -- exactly the shape that broke.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "l1", "target": "r1", "label": "First"},
+                {"source": "l1", "target": "w1", "label": "Second"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edges_by_label = {}
+        for cell in root.findall(".//mxCell"):
+            if cell.get("edge") != "1":
+                continue
+            label = cell.get("value", "").replace("<b>", "").replace("</b>", "")
+            arr = cell.find("mxGeometry/Array")
+            ys = [float(p.get("y")) for p in arr.findall("mxPoint")] if arr is not None else []
+            edges_by_label[label] = ys
+
+        def _channel_y(ys):
+            # The channel leg is the y that repeats (both ends of the
+            # horizontal run through the channel share it) -- distinct
+            # from any single jog point reconciling a slot-spread
+            # connection point back to the route's own exit/entry x,
+            # which appears only once.
+            seen = set()
+            for y in ys:
+                if y in seen:
+                    return y
+                seen.add(y)
+            raise AssertionError(f"no repeated y (no channel leg) in {ys}")
+
+        channel_y_first = _channel_y(edges_by_label["First"])
+        channel_y_second = _channel_y(edges_by_label["Second"])
+        # A couple of pixels would technically be "different" but is
+        # imperceptible at diagram scale -- require a real, visible gap.
+        assert abs(channel_y_first - channel_y_second) >= 15, (
+            f"channel legs only {abs(channel_y_first - channel_y_second)}px apart -- "
+            "indistinguishable as separate lines"
+        )
+
+    def test_three_edges_sharing_a_channel_spread_across_the_full_safe_range(self):
+        # Regression test: confirmed against a real generated diagram that
+        # THREE distinct below-row-channel edges (not just two, the shape
+        # the previous test covers) only ended up one fixed step (18px)
+        # apart each -- visually indistinguishable parallel lines a viewer
+        # picks up mid-span with no obvious endpoint, reading as "arrows
+        # connected to nothing" -- when the channel had roughly twice that
+        # much pre-verified-safe room (ROW_GAP_STAGGER_CLAMP) to spread
+        # them further apart. l1->r1 (same-row detour), l1->w1, and
+        # m1->w2 (both cross-row) all land in the same below-row-0 channel
+        # per _channel_key.
+        zones, components = self._sample()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "l1", "target": "r1", "label": "First"},
+                {"source": "l1", "target": "w1", "label": "Second"},
+                {"source": "m1", "target": "w2", "label": "Third"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        edges_by_label = {}
+        for cell in root.findall(".//mxCell"):
+            if cell.get("edge") != "1":
+                continue
+            label = cell.get("value", "").replace("<b>", "").replace("</b>", "")
+            arr = cell.find("mxGeometry/Array")
+            ys = [float(p.get("y")) for p in arr.findall("mxPoint")] if arr is not None else []
+            edges_by_label[label] = ys
+
+        def _channel_y(ys):
+            seen = set()
+            for y in ys:
+                if y in seen:
+                    return y
+                seen.add(y)
+            raise AssertionError(f"no repeated y (no channel leg) in {ys}")
+
+        channel_ys = sorted(_channel_y(edges_by_label[label]) for label in ("First", "Second", "Third"))
+        assert len(set(channel_ys)) == 3, f"two channels collapsed onto the same y: {channel_ys}"
+        gaps = [channel_ys[1] - channel_ys[0], channel_ys[2] - channel_ys[1]]
+        # With the old fixed 18px step, three edges ended up only 18px
+        # apart each -- assert something close to double that (confirming
+        # the dynamic step is actually using the available clamp range),
+        # not just "more than the old step by a hair".
+        assert min(gaps) >= 30, f"channel legs only {gaps}px apart -- still cramped like the old fixed step"
+
+    def test_cross_row_edge_into_a_non_first_vertically_stacked_target_lands_in_the_gap_not_the_boundary(self):
+        # Regression test: confirmed against a real generated diagram. A
+        # cross-row edge into "target" (the SECOND of two vertically-
+        # stacked, same-width siblings, so "blocker" shares target's own
+        # center-x) must search away from center to avoid blocker -- but
+        # the entry point itself (computed independently, unaware of that
+        # search) still defaults to target's true center, which IS
+        # blocked. The old single-point jog fallback reconciled that gap
+        # with a horizontal segment run at the TARGET's own boundary y --
+        # i.e. right along the edge of the box the arrow is about to
+        # enter, indistinguishable from a line hugging/pointing at the box
+        # rather than cleanly terminating on it. The correction must
+        # instead land in the reserved gap between blocker and target, a
+        # few px above target's own top edge, not AT it.
+        zones = [
+            {"id": "z_src", "label": "Src", "row": 0},
+            {"id": "z_tgt", "label": "Tgt", "row": 1},
+        ]
+        components = [
+            {"id": "src", "zone_id": "z_src", "label": "Src"},
+            {"id": "blocker", "zone_id": "z_tgt", "label": "Blocker"},
+            {"id": "target", "zone_id": "z_tgt", "label": "Target"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "src", "target": "target", "label": "E"}],
+        )
+        root = ET.fromstring(xml_str)
+        _, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        blocker, target = comp_boxes["blocker"], comp_boxes["target"]
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        style = dict(p.split("=", 1) for p in edge_cell.get("style", "").split(";") if "=" in p)
+        entry_pt = (target.x + float(style["entryX"]) * target.w, target.y + float(style["entryY"]) * target.h)
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (float(p.get("x")), float(p.get("y")))
+            for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        full_path = waypoints + [entry_pt]
+        # No segment of the final approach may run along target's own top
+        # boundary (y == target.y) for a horizontal stretch -- the
+        # correction must land inside the gap above it instead.
+        for (x1, y1), (x2, y2) in zip(full_path, full_path[1:]):
+            hugs_target_edge = y1 == target.y and y2 == target.y and x1 != x2
+            assert not hugs_target_edge, (
+                f"correction segment runs along target's own edge: ({x1},{y1}) -> ({x2},{y2})"
+            )
+        for p1, p2 in zip(full_path, full_path[1:]):
+            assert not _segment_crosses_box(p1, p2, blocker), (
+                f"edge cuts through the blocking sibling: {p1} -> {p2}"
+            )
+
+    def test_adjacent_zone_edge_into_a_non_first_component_does_not_cut_through_its_sibling(self):
+        # Regression test: confirmed against a real generated diagram. An
+        # edge from a source zone into the SECOND component of the adjacent
+        # target zone (with a sibling occupying the first slot, between the
+        # zone boundary and the real target) must NOT draw a straight
+        # horizontal connector at the shared mid-height -- that cuts clean
+        # through the sibling, the arrowhead appearing to emerge from inside
+        # that unrelated box. Two single-component "edge" zones feeding the
+        # SECOND box of a 2-box adjacent zone reproduce exactly that shape.
+        zones = [
+            {"id": "src_zone", "label": "Source", "row": 0, "stack": "horizontal"},
+            {"id": "tgt_zone", "label": "Target", "row": 0, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "s1", "zone_id": "src_zone", "label": "S1"},
+            {"id": "t_first", "zone_id": "tgt_zone", "label": "T First"},
+            {"id": "t_second", "zone_id": "tgt_zone", "label": "T Second"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "s1", "target": "t_second", "label": "Reach"}],
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        sibling = comp_boxes["t_first"]
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        style = dict(p.split("=", 1) for p in edge_cell.get("style", "").split(";") if "=" in p)
+        src, tgt = comp_boxes["s1"], comp_boxes["t_second"]
+        exit_pt = (src.x + float(style["exitX"]) * src.w, src.y + float(style["exitY"]) * src.h)
+        entry_pt = (tgt.x + float(style["entryX"]) * tgt.w, tgt.y + float(style["entryY"]) * tgt.h)
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (float(p.get("x")), float(p.get("y")))
+            for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        full_path = [exit_pt, *waypoints, entry_pt]
+        for p1, p2 in zip(full_path, full_path[1:]):
+            assert not _segment_crosses_box(p1, p2, sibling), (
+                f"edge cuts through its target's sibling: {p1} -> {p2} crosses t_first"
+            )
+
     def test_blocked_exit_stays_axis_aligned_and_keeps_its_conceptual_side(self):
         # Regression test for a real generated diagram: when
         # _safe_x_for_vertical_span has to search far from a box's own
@@ -612,6 +834,60 @@ class TestSafeRouting:
                 assert x1 == x2 or y1 == y2, (
                     f"{edge_cell.get('id')}: diagonal segment ({x1},{y1}) -> ({x2},{y2})"
                 )
+
+    def test_zone_skip_edge_sharing_its_box_side_with_another_edge_does_not_backtrack(self):
+        # Regression test: confirmed against a real generated diagram (an
+        # OpenSearch architecture's "Data Nodes -> S3 Storage" backup
+        # edge). The zone_skip branch of _route_edge (a same-zone,
+        # non-adjacent-sibling edge) computes its own waypoints assuming
+        # it exits its source box from the box's own CENTER. When that
+        # same box+side is ALSO used by another edge, slot-spreading
+        # moves this edge's REAL exit point away from center -- and the
+        # old reconciliation logic inserted a jog that ran BACKWARD along
+        # the box's own edge (toward the center) before turning toward
+        # the real destination, visually indistinguishable from a stray,
+        # disconnected line sitting on top of the source box. "a" here
+        # plays the role of "Data Nodes": both the target of an incoming
+        # edge from above and the source of a same-zone skip edge, both
+        # sharing its "top" side.
+        zones = [
+            {"id": "upstream", "label": "Upstream", "row": 0},
+            {"id": "z", "label": "Z", "row": 1, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "u1", "zone_id": "upstream", "label": "U1"},
+            {"id": "a", "zone_id": "z", "label": "A"},
+            {"id": "b", "zone_id": "z", "label": "B"},
+            {"id": "c", "zone_id": "z", "label": "C"},
+        ]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[
+                {"source": "u1", "target": "a", "label": "In"},
+                {"source": "a", "target": "c", "label": "Skip"},
+            ],
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        edge_cell = next(
+            c for c in root.findall(".//mxCell")
+            if c.get("edge") == "1" and "Skip" in (c.get("value") or "")
+        )
+        style = edge_cell.get("style", "")
+        parts = dict(p.split("=", 1) for p in style.split(";") if "=" in p)
+        assert parts["exitX"] != "0.5", "test fixture did not actually force slot-spreading off-center"
+        src = comp_boxes["a"]
+        exit_pt = (int(src.x + float(parts["exitX"]) * src.w), int(src.y + float(parts["exitY"]) * src.h))
+        geom = edge_cell.find("./mxGeometry")
+        waypoints = [
+            (int(p.get("x")), int(p.get("y"))) for p in geom.findall("./Array[@as='points']/mxPoint")
+        ]
+        # "a" exits toward "c" (further right) -- the very first segment
+        # must not move LEFT, back across the box's own top edge, before
+        # heading toward the real destination.
+        assert waypoints[0][0] >= exit_pt[0], (
+            f"edge backtracks left from its own exit point: {exit_pt} -> {waypoints[0]}"
+        )
 
 
 class TestLabelPosition:
@@ -836,6 +1112,27 @@ class TestBuildXml:
         assert "z1" in ids
         assert "c1" in ids
         assert "c1_icon" in ids
+
+    def test_explicit_empty_icon_color_falls_back_to_the_component_color_not_a_blank_fill(self):
+        # Regression test: confirmed against a real generated diagram, a
+        # component spec with an explicit "icon_color": "" produced a
+        # literal "fillColor=;" style fragment -- dict.get(key, default)
+        # only falls back when the KEY is absent, not when its value is
+        # present but empty -- which drawio renders as a solid black icon
+        # instead of the component's own color.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[{
+                "id": "c1", "zone_id": "z1", "label": "Comp", "shape": "mxgraph.aws4.opensearch_service",
+                "color": "#527FFF", "icon_color": "",
+            }],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        icon_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon")
+        assert "fillColor=#527FFF;" in icon_cell.get("style", "")
+        assert "fillColor=;" not in icon_cell.get("style", "")
 
     def test_bidirectional_edges_between_same_pair_get_visibly_different_labels(self):
         # End-to-end regression test for the label-collision fix: a request

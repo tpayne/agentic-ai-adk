@@ -75,19 +75,36 @@ from typing import Any, Dict, List, Optional, Tuple
 # ============================================================
 PAGE_MARGIN = 40
 TITLE_HEIGHT = 70
-ZONE_GAP = 50          # horizontal gap between row-0 (column) zones -- the
-                        # reserved channel inter-zone edges route through
-ROW_GAP = 60            # vertical gap between one row of zones and the next
+ZONE_GAP = 70          # horizontal gap between row-0 (column) zones -- the
+                        # reserved channel inter-zone edges route through.
+                        # Was 50, confirmed too narrow on a real diagram for
+                        # an edge landing here WITH a label (e.g. "Protects",
+                        # "PrivateLink"): the gap itself was narrower than
+                        # the label's own text, so it read as overlapping
+                        # the zone borders on both sides rather than sitting
+                        # cleanly in open space.
+ROW_GAP = 90            # vertical gap between one row of zones and the next
                         # -- the reserved channel drop-down edges route through.
                         # Wider than the bare minimum so several staggered
                         # edge labels sharing one row boundary have room to
-                        # separate without touching either zone's edge.
+                        # separate without touching either zone's edge. 60
+                        # was confirmed too tight on a real wide diagram: two
+                        # edges sharing this channel (a same-row detour and a
+                        # cross-row edge, landing here via _channel_key's own
+                        # unification of those two cases) ran almost the full
+                        # diagram width, nearly coincident, with only
+                        # STAGGER_STEP_ROW_GAP's 10px separating them --
+                        # imperceptible at that scale, reading as one line
+                        # with two competing labels rather than two distinct
+                        # edges.
 ZONE_HEADER_H_PLAIN = 45
 ZONE_HEADER_H_SUBLABEL = 62
 ZONE_INNER_MARGIN = 18   # margin inside a zone, above/below/beside its children
-COMPONENT_GAP = 30       # vertical gap between stacked components in the
+COMPONENT_GAP = 40       # vertical gap between stacked components in the
                         # same zone -- the reserved channel same-zone edges
-                        # route through
+                        # route through. Was 30 -- same narrower-than-its-
+                        # own-label problem as ZONE_GAP above (e.g.
+                        # "Snapshot" landing in this gap).
 COMPONENT_H_MARGIN = 26  # left/right margin inside a zone for its components --
                         # also the reserved channel non-adjacent same-zone
                         # edges route through (see _route_edge's "zone_skip"
@@ -118,9 +135,13 @@ DEFAULT_ZONE_COLOR = "#5F6368"
 # step and, for the tightest channel, a hard clamp.
 STAGGER_STEP_ZONE_GAP = 20    # horizontal inter-zone gap -- spans a whole
                                # row's height, so there's ample vertical room
-STAGGER_STEP_ROW_GAP = 10     # inter-row channel -- bounded by ROW_GAP
-ROW_GAP_STAGGER_CLAMP = ROW_GAP / 2 - 10  # never let a waypoint get within
-                               # 10px of either zone edge bounding the channel
+STAGGER_STEP_ROW_GAP = 18     # inter-row channel -- bounded by ROW_GAP. Was
+                               # 10, confirmed too subtle to visually tell two
+                               # parallel lines apart over a long shared run
+                               # (see ROW_GAP's own comment for the real
+                               # diagram that surfaced this).
+ROW_GAP_STAGGER_CLAMP = ROW_GAP / 2 - 12  # never let a waypoint get within
+                               # 12px of either zone edge bounding the channel
 SAME_PAIR_OFFSET = 18         # perpendicular nudge for the 2nd+ edge between
                                # the exact same two components (e.g. a
                                # request/response pair) -- with no offset at
@@ -398,7 +419,22 @@ def _layout_zones_and_components(
                 inner_y = cy + header_h + ZONE_INNER_MARGIN
                 for order_idx, child in enumerate(zone_children):
                     w = child.get("width") or child_w
-                    h = _component_height(child)
+                    # content_h (the MAX height among this zone's own
+                    # children, computed above for the zone's own box) --
+                    # NOT this child's own individually-shorter height.
+                    # Confirmed directly against a real generated diagram:
+                    # siblings with different caption-line counts (e.g. one
+                    # with a subtitle, one without) kept their own, different
+                    # heights while staying top-aligned at the same inner_y,
+                    # so their vertical CENTERS differed by a few pixels --
+                    # forcing every edge between them into a small
+                    # reconciliation jog instead of a clean straight line,
+                    # reading as "wonky"/"not quite aligned" in an otherwise
+                    # unbroken left-to-right row. Matching every sibling's
+                    # height to the zone's own eliminates the center
+                    # mismatch at its source, rather than routing an edge
+                    # around it after the fact.
+                    h = content_h
                     component_boxes[child["id"]] = _Box(
                         child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num,
                         order=order_idx, stack=stack,
@@ -460,6 +496,43 @@ def _same_row_zones_adjacent(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"])
     return row_zones.index(right_z) - row_zones.index(left_z) == 1
 
 
+def _facing_corridor_clear(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> bool:
+    """
+    Whether the straight horizontal corridor between src's and tgt's facing
+    edges -- the space a same-row, adjacent-zone edge runs its horizontal
+    leg through -- is free of every OTHER component.
+
+    _same_row_zones_adjacent being True only means the two ZONES are column-
+    neighbors; it says nothing about where src and tgt sit WITHIN their
+    zones. When the target is not the first component in its zone (a sibling
+    stacked between the zone boundary and the target), the horizontal leg
+    from the inter-zone gap to the target's own edge runs straight through
+    that sibling. Confirmed directly against a real generated diagram: an
+    edge into the SECOND component of an adjacent zone cut clean through the
+    FIRST one at mid-height, the arrowhead appearing to emerge from inside
+    that unrelated box ("an arrow attached to nothing"). When this returns
+    False the caller routes through the reserved below-row channel instead
+    (exactly like a genuinely non-adjacent-zone edge), which is clear across
+    the full row width by construction.
+    """
+    if src.right <= tgt.x:
+        lo_x, hi_x = src.right, tgt.x
+    elif tgt.right <= src.x:
+        lo_x, hi_x = tgt.right, src.x
+    else:
+        # Horizontally overlapping -- there is no clean one-dimensional
+        # corridor to vet; leave this to the caller's own handling.
+        return True
+    y_lo = min(src.y, tgt.y)
+    y_hi = max(src.bottom, tgt.bottom)
+    for b in all_boxes.values():
+        if b.zone_id is None or b.id in (src.id, tgt.id):
+            continue  # skip zone containers and the edge's own endpoints
+        if b.x < hi_x and b.right > lo_x and b.y < y_hi and b.bottom > y_lo:
+            return False
+    return True
+
+
 def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[str, Any]:
     """
     Identifies which shared routing channel an edge falls into. Two edges
@@ -491,10 +564,16 @@ def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[st
         # each other rather than overlapping by coincidence.
         return ("zone_skip", src.zone_id)
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes):
+        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
             return ("h", frozenset({src.zone_id, tgt.zone_id}))
-        # Routed via this row's own below-row channel, same as a cross-row
-        # edge leaving this row -- see _route_edge.
+        # Either genuinely non-adjacent zones, OR adjacent zones whose
+        # facing corridor is blocked by an intervening component (see
+        # _facing_corridor_clear) -- both route via this row's own below-row
+        # channel, same as a cross-row edge leaving this row (see
+        # _route_edge). This key MUST match _route_edge's actual routing
+        # choice, or a corridor-blocked edge would land in the "v" channel
+        # physically while being counted in the "h" channel for staggering,
+        # and collide with whatever genuinely shares the "v" band.
         return ("v", src.row)
     return ("v", max(src.row, tgt.row) - 1)
 
@@ -512,6 +591,26 @@ def _stagger_offset(slot: int, step: float, clamp: Optional[float] = None) -> fl
     if clamp is not None:
         magnitude = min(magnitude, clamp)
     return magnitude if slot % 2 == 1 else -magnitude
+
+
+def _channel_stagger_step(total: int, clamp: float, fallback_step: float) -> float:
+    """
+    A stagger step that spreads `total` edges sharing one channel across the
+    FULL available [-clamp, clamp] range, instead of always using a small
+    fixed increment that leaves most of the pre-verified-safe clamp range
+    unused once 2+ edges share a channel. Confirmed directly against a real
+    generated diagram: three distinct below-row-channel edges, each
+    individually a safe/valid route, ended up only one fixed step (18px)
+    apart -- visually indistinguishable parallel lines a viewer's eye picks
+    up mid-span with no obvious endpoint, reading as "arrows connected to
+    nothing" -- when the channel had roughly twice that much pre-verified
+    safe room (`clamp`) to spread them further apart. `total <= 1` has only
+    slot 0 (always offset 0 regardless of step), so the fallback is unused
+    in practice -- kept only so a caller that doesn't know its channel's
+    total size yet still gets sane, unchanged behavior.
+    """
+    half = total // 2
+    return clamp / half if half >= 1 else fallback_step
 
 
 def _safe_x_for_vertical_span(
@@ -561,6 +660,45 @@ def _safe_x_for_vertical_span(
     return preferred_x  # exhausted the search -- fall back rather than loop forever
 
 
+def _safe_jog_y(
+    x: float, near_y: float, far_y: float, exclude_ids: Tuple[str, str], all_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    The y closest to `near_y` (shrinking the span toward `far_y` one
+    SAFE_X_SEARCH_STEP at a time) at which a vertical probe at `x` across
+    [returned_y, near_y] is clear of every component. Returns `far_y` if
+    no such y is found before reaching it.
+
+    Built for exactly one case: `_jog`'s fallback (see its own docstring)
+    inserts a horizontal correction segment running right along a box's
+    OWN edge -- confirmed directly against a real generated diagram to be
+    the ONLY remaining option when the slot-assigned connection point's
+    own x is blocked across the FULL span back to the channel (so `_jog`'s
+    "snap to point.x" check already correctly rejected it) -- but that
+    edge-hugging segment is only strictly necessary across however much of
+    the span the obstacle actually occupies, not the entire thing. A cross-
+    row edge entering a zone's SECOND stacked component, for instance,
+    is blocked by the FIRST component only across that first component's
+    own height -- the reserved COMPONENT_GAP strip just past it is clear
+    by construction, same reasoning as every other margin/gap route in
+    this file. Landing the horizontal correction there instead of at the
+    target's own boundary reads as a clean entry into the reserved gap,
+    not a line hugging the box it's about to enter.
+    """
+    direction = 1 if far_y >= near_y else -1
+    best = near_y
+    for step in range(1, 300):
+        candidate = near_y + direction * step * SAFE_X_SEARCH_STEP
+        if (direction > 0 and candidate > far_y) or (direction < 0 and candidate < far_y):
+            return far_y
+        lo, hi = min(near_y, candidate), max(near_y, candidate)
+        if _safe_x_for_vertical_span(x, lo, hi, exclude_ids, all_boxes) == x:
+            best = candidate  # still safe this far -- keep growing toward far_y
+        else:
+            return best  # this step is where it stops being safe -- use the last one that was
+    return best
+
+
 def _route_edge(
     edge: Dict[str, Any],
     src: _Box,
@@ -568,6 +706,7 @@ def _route_edge(
     channel_slot: int,
     row_bottoms: Dict[int, float],
     all_boxes: Dict[str, "_Box"],
+    channel_slot_total: int = 1,
 ) -> Tuple[List[Tuple[float, float]], str, str]:
     """
     Returns (waypoints, exit_side, entry_side) for this edge, chosen so the
@@ -606,6 +745,10 @@ def _route_edge(
     share its _channel_key -- the caller assigns these per-channel, not
     globally, so two edges sharing a channel always get visibly different
     offsets regardless of how many unrelated edges exist elsewhere.
+    channel_slot_total is how many edges total share that same channel --
+    used by the below-row-channel branches (see _channel_stagger_step) to
+    spread them across the full pre-verified-safe clamp range rather than a
+    small fixed step that stays cramped regardless of how many share it.
 
     all_boxes is every zone's and every component's own box, keyed by id --
     needed to verify a candidate route coordinate is actually clear of every
@@ -658,14 +801,18 @@ def _route_edge(
         return [(margin_x, src.cy), (margin_x, tgt.cy)], "left", "left"
 
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes):
-            # Different zones, same row, immediate neighbors: route through
-            # the horizontal gap between the two zone columns -- the x
-            # midway between whichever pair of edges actually face each
-            # other. Verified (and corrected if needed) against every
-            # component in the row rather than trusted outright, since a
-            # sibling edge's stagger can still push this x into a shorter
-            # row-mate zone's interior.
+        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
+            # Different zones, same row, immediate neighbors WITH a clear
+            # facing corridor: route through the horizontal gap between the
+            # two zone columns -- the x midway between whichever pair of
+            # edges actually face each other. Verified (and corrected if
+            # needed) against every component in the row rather than trusted
+            # outright, since a sibling edge's stagger can still push this x
+            # into a shorter row-mate zone's interior. If the corridor is
+            # NOT clear (the target is not the first component in its zone,
+            # so a sibling sits between the zone boundary and it), this
+            # branch is skipped and the edge falls through to the below-row
+            # channel route below -- see _facing_corridor_clear.
             if src.right <= tgt.x:
                 base_gap_x = (src.right + tgt.x) / 2
                 exit_side, entry_side = "right", "left"
@@ -714,7 +861,9 @@ def _route_edge(
         # ends connect from their own BOTTOM edge (dropping into, then
         # rising back out of, that below-row channel).
         channel_y = row_bottoms[src.row] + ROW_GAP / 2 + _stagger_offset(
-            channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+            channel_slot,
+            _channel_stagger_step(channel_slot_total, ROW_GAP_STAGGER_CLAMP, STAGGER_STEP_ROW_GAP),
+            clamp=ROW_GAP_STAGGER_CLAMP,
         )
         exit_x = _safe_x_for_vertical_span(
             src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
@@ -747,7 +896,9 @@ def _route_edge(
     exit_side, entry_side = ("bottom", "top") if going_down else ("top", "bottom")
     lower_row = max(src.row, tgt.row)
     channel_y = row_bottoms[lower_row - 1] + ROW_GAP / 2 + _stagger_offset(
-        channel_slot, STAGGER_STEP_ROW_GAP, clamp=ROW_GAP_STAGGER_CLAMP
+        channel_slot,
+        _channel_stagger_step(channel_slot_total, ROW_GAP_STAGGER_CLAMP, STAGGER_STEP_ROW_GAP),
+        clamp=ROW_GAP_STAGGER_CLAMP,
     )
     exit_x = _safe_x_for_vertical_span(
         src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
@@ -790,6 +941,7 @@ def _assign_connection_slots(
     all_boxes: Dict[str, "_Box"],
     row_bottoms: Dict[int, float],
     channel_slots: List[int],
+    channel_totals: Optional[List[int]] = None,
 ) -> List[Optional[Dict[str, Any]]]:
     """
     Pre-computes, for every edge, its waypoints AND which exact fractional
@@ -814,7 +966,10 @@ def _assign_connection_slots(
         if src is None or tgt is None:
             raw.append(None)
             continue
-        waypoints, exit_side, entry_side = _route_edge(edge, src, tgt, channel_slots[i], row_bottoms, all_boxes)
+        total = channel_totals[i] if channel_totals is not None else 1
+        waypoints, exit_side, entry_side = _route_edge(
+            edge, src, tgt, channel_slots[i], row_bottoms, all_boxes, channel_slot_total=total
+        )
         raw.append({
             "waypoints": waypoints,
             "exit_side": exit_side,
@@ -866,7 +1021,8 @@ def _assign_connection_slots(
         exit_pt = (src.x + exit_frac[i][0] * src.w, src.y + exit_frac[i][1] * src.h)
         entry_pt = (tgt.x + entry_frac[i][0] * tgt.w, tgt.y + entry_frac[i][1] * tgt.h)
         waypoints = _reconcile_connection_points(
-            r["waypoints"], r["exit_side"], r["entry_side"], exit_pt, entry_pt
+            r["waypoints"], r["exit_side"], r["entry_side"], exit_pt, entry_pt,
+            (edges[i]["source"], edges[i]["target"]), all_boxes,
         )
         result.append({**r, "waypoints": waypoints, "exit_frac": exit_frac[i], "entry_frac": entry_frac[i]})
     return result
@@ -878,6 +1034,8 @@ def _reconcile_connection_points(
     entry_side: str,
     exit_point: Tuple[float, float],
     entry_point: Tuple[float, float],
+    exclude_ids: Tuple[str, str],
+    all_boxes: Dict[str, "_Box"],
 ) -> List[Tuple[float, float]]:
     """
     Rebuilds `waypoints` so the path actually starts at `exit_point` and
@@ -896,34 +1054,98 @@ def _reconcile_connection_points(
     edge's own route was still built assuming it started from the box's
     center.
     """
-    def _jog(side: str, point: Tuple[float, float], anchor: Tuple[float, float]) -> Optional[Tuple[float, float]]:
+    def _jog(
+        side: str, point: Tuple[float, float], anchor: Tuple[float, float]
+    ) -> Tuple[Optional[Tuple[float, float]], List[Tuple[float, float]]]:
+        # Returns (replacement_for_anchor, jog_points_to_insert) -- either
+        # replacement is set (0 extra points needed) or jog_points holds 1
+        # or 2 points to insert; never both.
+        #
         # "top"/"bottom" pin the box's Y (point.y); the connection point's
         # X is the only coordinate slot-spreading can have moved, so no
-        # jog is needed if anchor already shares that X. When it doesn't,
-        # the jog must sit at (anchor.x, point.y) -- NOT (point.x,
-        # anchor.y) -- so the segment from `point` is a short HORIZONTAL
-        # hop along the box's own edge to the anchor's (already verified
-        # safe, see _safe_x_for_vertical_span) x, before the EXISTING,
-        # pre-verified segment from the jog to `anchor` takes over. The
-        # reverse choice would instead draw a brand new, unverified
-        # VERTICAL segment straight down from the box edge at the
-        # connection point's own x -- confirmed directly against a real
-        # generated diagram to cut straight through boxes nothing had
-        # ever checked that specific x against.
+        # correction is needed if anchor already shares that X.
+        #
+        # When it doesn't, PREFER snapping `anchor` itself to the real
+        # point's X outright (no extra segment at all) -- but only once
+        # verified safe via _safe_x_for_vertical_span across the span
+        # between point and anchor. Confirmed directly against a real
+        # generated diagram: when the slot-assigned exit point lands far
+        # from the box's own center (two edges sharing the same side),
+        # inserting a jog at (anchor.x, point.y) draws a horizontal
+        # segment running along the box's OWN edge back toward its
+        # center -- visually indistinguishable from the line doubling
+        # back on itself right where it leaves the box.
+        #
+        # When THAT isn't safe either (the point's own x is blocked
+        # somewhere across the full span back to the anchor), try a
+        # second fallback before giving up: a two-point jog that does the
+        # horizontal correction at _safe_jog_y's y instead of point.y --
+        # confirmed directly against a real generated diagram that the
+        # single-point fallback below, which runs the horizontal
+        # correction segment at point.y (i.e. right along the target
+        # box's OWN edge), is only forced to do so because point.y is the
+        # worst possible choice when the obstacle is a SIBLING positioned
+        # between the channel and this specific box (e.g. a cross-row
+        # edge entering a zone's second stacked component, blocked by the
+        # first) -- the reserved gap just past that sibling is clear by
+        # construction, same reasoning as every other margin/gap route in
+        # this file, and landing the correction there instead reads as a
+        # clean entry into the gap rather than a line hugging the box.
+        #
+        # Only falls all the way back to the original single-point jog --
+        # a short HORIZONTAL hop along the box's own edge to the anchor's
+        # (already verified safe) x -- when _safe_jog_y finds no
+        # improvement at all (the obstacle extends essentially all the
+        # way to point.y itself, leaving no safe gap to land in).
         px, py = point
         ax, ay = anchor
         if side in ("top", "bottom"):
-            return None if ax == px else (ax, py)
-        return None if ay == py else (px, ay)
+            if ax == px:
+                return None, []
+            if _safe_x_for_vertical_span(px, min(py, ay), max(py, ay), exclude_ids, all_boxes) == px:
+                return (px, ay), []
+            safe_y = _safe_jog_y(px, py, ay, exclude_ids, all_boxes)
+            if safe_y != py:
+                return None, [(ax, safe_y), (px, safe_y)]
+            return None, [(ax, py)]
+        if ay == py:
+            return None, []
+        return None, [(px, ay)]
+
+    # _jog always builds a 2-point correction in anchor-to-point order --
+    # correct as-is for an ENTRY jog (appended AFTER the anchor, reading
+    # anchor -> jog -> point), but an EXIT jog is inserted BEFORE the
+    # anchor (reading point -> jog -> anchor) and needs that same pair
+    # reversed, or the segment from the real exit point to the jog's
+    # first element is diagonal.
+    def _insert_exit_jogs(path: List[Tuple[float, float]], jogs: List[Tuple[float, float]]) -> None:
+        path[0:0] = list(reversed(jogs))
 
     path = list(waypoints)
     if path:
-        exit_jog = _jog(exit_side, exit_point, path[0])
-        if exit_jog is not None:
-            path.insert(0, exit_jog)
-        entry_jog = _jog(entry_side, entry_point, path[-1])
-        if entry_jog is not None:
-            path.append(entry_jog)
+        if len(path) >= 2:
+            exit_replace, exit_jogs = _jog(exit_side, exit_point, path[0])
+            if exit_replace is not None:
+                path[0] = exit_replace
+            elif exit_jogs:
+                _insert_exit_jogs(path, exit_jogs)
+            entry_replace, entry_jogs = _jog(entry_side, entry_point, path[-1])
+            if entry_replace is not None:
+                path[-1] = entry_replace
+            elif entry_jogs:
+                path.extend(entry_jogs)
+        else:
+            # A single shared waypoint -- path[0] and path[-1] are the
+            # SAME element, so a "replace" correction on both ends could
+            # clash (each independently rewriting the one shared point).
+            # Insertion is always safe here regardless of count, so skip
+            # the replace optimization for this narrow case.
+            _, exit_jogs = _jog(exit_side, exit_point, path[0])
+            if exit_jogs:
+                _insert_exit_jogs(path, exit_jogs)
+            _, entry_jogs = _jog(entry_side, entry_point, path[-1])
+            if entry_jogs:
+                path.extend(entry_jogs)
         return path
 
     # No internal waypoints at all -- the route was a bare straight line
@@ -1195,7 +1417,14 @@ def build_structured_drawio_xml(
         })
 
         if has_icon:
-            icon_color = component.get("icon_color", color)
+            # `.get(key, default)` only falls back when the key is ABSENT,
+            # not when its value is present but empty -- a component spec
+            # with an explicit "icon_color": "" (confirmed directly against
+            # a real generated diagram) silently produced a literal
+            # "fillColor=;" style fragment instead of falling back to the
+            # component's own color, which drawio renders as a solid black
+            # fill rather than the intended icon color.
+            icon_color = component.get("icon_color") or color
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
                 "style": f"shape={component['shape']};fillColor={icon_color};strokeColor=none;html=1;",
@@ -1219,21 +1448,35 @@ def build_structured_drawio_xml(
     # them the same offset by coincidence.
     channel_slot_counts: Dict[Tuple[str, Any], int] = {}
     channel_slots: List[int] = []
+    channel_keys: List[Optional[Tuple[str, Any]]] = []
     for edge in edges:
         src = all_boxes.get(edge["source"])
         tgt = all_boxes.get(edge["target"])
         if src is None or tgt is None:
             channel_slots.append(0)
+            channel_keys.append(None)
             continue
         key = _channel_key(src, tgt, all_boxes)
         slot = channel_slot_counts.get(key, 0)
         channel_slot_counts[key] = slot + 1
         channel_slots.append(slot)
+        channel_keys.append(key)
+
+    # How many edges TOTAL share each edge's own channel -- known only once
+    # every edge has been counted above, so this is a second, cheap pass
+    # over the now-final channel_slot_counts. Lets the below-row-channel
+    # routing branches spread that many edges across the full pre-verified-
+    # safe clamp range (see _channel_stagger_step) instead of a small fixed
+    # step that stays cramped regardless of how many edges actually share
+    # the channel.
+    channel_totals: List[int] = [
+        channel_slot_counts[key] if key is not None else 1 for key in channel_keys
+    ]
 
     # Pin exact connection points instead of letting drawio float them, and
     # spread multiple edges sharing a box+side across that side -- see
     # _assign_connection_slots's own docstring for why.
-    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots)
+    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots, channel_totals)
 
     # Compute every edge's absolute label point UP FRONT, across all edges,
     # so collisions BETWEEN unrelated edges (not just within one edge's own
@@ -1294,7 +1537,13 @@ def build_structured_drawio_xml(
                 # that has been observed to disconnect from the actual target box.
                 f"rounded=1;html=1;startArrow=none;endArrow=classic;"
                 f"strokeColor={color};strokeWidth=2;"
-                f"{dashed}fontColor=#202124;fontSize=10;labelBackgroundColor=#ffffff;"
+                # verticalAlign=bottom anchors the label's BOTTOM edge to its
+                # point on the line, so the text sits just ABOVE the edge
+                # rather than centered on top of it (the mxGraph default,
+                # which paints the label's white background squarely over the
+                # line). Requested against a real generated diagram where
+                # every edge label sat on its own arrow.
+                f"{dashed}fontColor=#202124;fontSize=10;labelBackgroundColor=#ffffff;verticalAlign=bottom;"
                 f"exitX={exit_x};exitY={exit_y};exitDx=0;exitDy=0;"
                 f"entryX={entry_x};entryY={entry_y};entryDx=0;entryDy=0;"
             ),

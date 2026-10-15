@@ -175,6 +175,8 @@ def validate_process_json(json_content: Any) -> Dict[str, Any]:
             description = step.get("description")
             if not description:
                 issues.append({"location": f"{loc}.description", "issue": "description is required"})
+            elif not isinstance(description, str):
+                issues.append({"location": f"{loc}.description", "issue": "description must be a string"})
             elif len(description) < MIN_STEP_DESCRIPTION_CHARS:
                 issues.append({
                     "location": f"{loc}.description",
