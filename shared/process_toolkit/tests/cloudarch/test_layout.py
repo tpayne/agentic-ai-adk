@@ -1044,6 +1044,27 @@ class TestBuildXml:
         assert "c1" in ids
         assert "c1_icon" in ids
 
+    def test_explicit_empty_icon_color_falls_back_to_the_component_color_not_a_blank_fill(self):
+        # Regression test: confirmed against a real generated diagram, a
+        # component spec with an explicit "icon_color": "" produced a
+        # literal "fillColor=;" style fragment -- dict.get(key, default)
+        # only falls back when the KEY is absent, not when its value is
+        # present but empty -- which drawio renders as a solid black icon
+        # instead of the component's own color.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[{
+                "id": "c1", "zone_id": "z1", "label": "Comp", "shape": "mxgraph.aws4.opensearch_service",
+                "color": "#527FFF", "icon_color": "",
+            }],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        icon_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon")
+        assert "fillColor=#527FFF;" in icon_cell.get("style", "")
+        assert "fillColor=;" not in icon_cell.get("style", "")
+
     def test_bidirectional_edges_between_same_pair_get_visibly_different_labels(self):
         # End-to-end regression test for the label-collision fix: a request
         # edge and a response edge between the identical two components must

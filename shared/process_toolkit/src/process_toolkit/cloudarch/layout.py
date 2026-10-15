@@ -1337,7 +1337,14 @@ def build_structured_drawio_xml(
         })
 
         if has_icon:
-            icon_color = component.get("icon_color", color)
+            # `.get(key, default)` only falls back when the key is ABSENT,
+            # not when its value is present but empty -- a component spec
+            # with an explicit "icon_color": "" (confirmed directly against
+            # a real generated diagram) silently produced a literal
+            # "fillColor=;" style fragment instead of falling back to the
+            # component's own color, which drawio renders as a solid black
+            # fill rather than the intended icon color.
+            icon_color = component.get("icon_color") or color
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
                 "style": f"shape={component['shape']};fillColor={icon_color};strokeColor=none;html=1;",
