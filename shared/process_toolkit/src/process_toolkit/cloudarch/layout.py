@@ -138,6 +138,17 @@ DEFAULT_COMPONENT_COLOR = "#5F6368"  # neutral gray -- deliberately NOT a
                         # explicitly set their own color) -- a safety net
                         # for a forgotten color, not a provider's identity
 DEFAULT_ZONE_COLOR = "#5F6368"
+MAX_VISIBLE_LUMINANCE = 0.8  # above this, a color reads as a pale/white tint
+                        # rather than a real accent -- confirmed against a
+                        # real generated diagram where the model picked
+                        # near-white "background tint" hex values (e.g.
+                        # #FCE4EC, #F3E5F5, #E3F2FD, luminance ~0.9+) for
+                        # zone borders AND icon fills, rendering both
+                        # practically invisible against this engine's own
+                        # light zone body (#F8F9FA) and white component
+                        # boxes (#FFFFFF). Real AWS/Azure/GCP brand colors
+                        # (#8C4FFF, #ED7100, #DD344C, ...) all sit well
+                        # below this threshold -- see _visible_color.
 
 # Recognized zone "container_type" values -> the AWS4 group stencil + brand
 # color that renders a correct, provider-specific container instead of a
@@ -175,6 +186,30 @@ ZONE_SKIP_CLAMP_HORIZONTAL = ZONE_INNER_MARGIN / 2 - 4
 SAFE_X_SEARCH_STEP = 6        # step size when _safe_x_for_vertical_span has
                                # to search away from its preferred x -- see
                                # that function's own docstring
+
+
+def _relative_luminance(hex_color: str) -> float:
+    """0 (black) to 1 (white) -- good enough to tell "too close to white to
+    read" from a real brand color, not meant to be a WCAG-exact formula."""
+    try:
+        h = hex_color.lstrip("#")
+        if len(h) != 6:
+            return 0.0
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    except ValueError:
+        return 0.0
+
+
+def _visible_color(value: Optional[str], default: str) -> str:
+    """Falls back to `default` when `value` is missing/empty OR too pale to
+    read against this engine's own light canvas (zone bodies and component
+    boxes are always a light/white fill) -- the same "guarantee by
+    construction, not by hoping the model got it right" principle this
+    module exists for (see module docstring), applied to color instead of
+    layout."""
+    color = value or default
+    return color if _relative_luminance(color) <= MAX_VISIBLE_LUMINANCE else default
 
 
 def _line_count(component: Dict[str, Any]) -> int:
@@ -1364,7 +1399,9 @@ def build_structured_drawio_xml(
     for zone in zones:
         box = zone_boxes[zone["id"]]
         style_def = _ZONE_CONTAINER_STYLES.get(zone.get("container_type"))
-        color = zone.get("color", style_def["strokeColor"] if style_def else DEFAULT_ZONE_COLOR)
+        color = _visible_color(
+            zone.get("color"), style_def["strokeColor"] if style_def else DEFAULT_ZONE_COLOR
+        )
         value = f"<b>{zone['label']}</b>"
         if zone.get("sublabel"):
             value += f"<br/><span style=\"font-size:10px;color:#5f6368\">{zone['sublabel']}</span>"
@@ -1417,7 +1454,7 @@ def build_structured_drawio_xml(
 
         has_icon = bool(component.get("shape"))
         spacing_top = SPACING_TOP_WITH_ICON if has_icon else SPACING_TOP_NO_ICON
-        color = component.get("color", DEFAULT_COMPONENT_COLOR)
+        color = _visible_color(component.get("color"), DEFAULT_COMPONENT_COLOR)
         value = _html_value(component["label"], component.get("bullets"))
 
         if has_icon:
@@ -1460,7 +1497,7 @@ def build_structured_drawio_xml(
             # "fillColor=;" style fragment instead of falling back to the
             # component's own color, which drawio renders as a solid black
             # fill rather than the intended icon color.
-            icon_color = component.get("icon_color") or color
+            icon_color = _visible_color(component.get("icon_color"), color)
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
                 "style": f"shape={component['shape']};fillColor={icon_color};strokeColor=none;html=1;",
