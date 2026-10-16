@@ -2257,6 +2257,7 @@ def save_drawio_structured(
     zones: list,
     components: list,
     edges: list,
+    provider: str = "azure",
 ) -> str:
     """
     Builds and saves a cloud architecture diagram from STRUCTURED content --
@@ -2273,6 +2274,12 @@ def save_drawio_structured(
 
     title, subtitle: diagram title banner text (subtitle may be "").
 
+    provider: "aws", "azure", or "gcp" -- MUST match the cloud provider this
+    architecture is actually being designed for (defaults to "azure"). This
+    controls which real icon/container convention every component icon and
+    every "type": "vpc" zone (see below) renders with -- getting this wrong
+    silently swaps in the wrong provider's rendering rules.
+
     EVERY zone id and every component id MUST be unique across the WHOLE
     diagram, not just within its own zone -- reusing an id for two
     different resources (e.g. naming two different "Vertex AI ..."
@@ -2286,13 +2293,47 @@ def save_drawio_structured(
       {"id": str, "label": str, "sublabel": str (optional, ""),
        "row": int (optional, default 0), "color": str (optional hex),
        "stack": "vertical"|"horizontal" (optional, default "vertical"),
-       "width": int (optional)}
+       "width": int (optional), "type": "vpc" (optional),
+       "parent_zone_id": str (optional)}
       Zones sharing the same "row" are laid out as side-by-side columns, in
       the order given. Higher row numbers stack as a full-width band below
       all lower rows (e.g. a governance/security strip spanning the bottom).
       "stack": "horizontal" arranges that zone's own components side by
       side instead of stacked -- use this for a full-width band of several
       peer boxes (e.g. Observability | IAM | KMS | Security Controls).
+      "type": "vpc" renders this zone as the chosen provider's REAL VPC/
+      VNet/VPC-network container (AWS's native vector VPC group shape, GCP's
+      pastel VPC-network rectangle, Azure's VNet-badged dashed boundary)
+      instead of the generic flat swimlane -- use this for any zone that is
+      an actual VPC/VNet boundary, which is the normal case for almost
+      every cloud architecture, not just a plain logical/tier grouping.
+
+      "parent_zone_id" NESTS this zone inside another zone -- e.g. an AWS
+      Account/subscription/project that CONTAINS a VPC, rather than being
+      one. A multi-account landing-zone/organization diagram has no single
+      zone that IS a VPC -- it has Account zones, each of which typically
+      contains its own VPC -- so model that as an outer zone (the Account,
+      no "type") with an inner zone nested via "parent_zone_id": <account
+      zone id> and "type": "vpc" set on the inner one. ONE level of
+      nesting only (the parent zone itself must not have its own
+      parent_zone_id); "row" is ignored on a nested zone -- its position
+      is entirely determined by its parent.
+
+      The PARENT's own "stack" controls how its nested children combine --
+      same field, same meaning it already has for components. Default
+      ("vertical") stacks nested children top to bottom, each stretched to
+      the parent's own width. SET THE PARENT'S "stack" TO "horizontal"
+      WHENEVER IT HAS MORE THAN ONE OR TWO PEER NESTED CHILDREN (e.g. an OU
+      containing several sibling Accounts, each itself containing its own
+      VPC) -- confirmed directly against a real generated diagram: leaving
+      "stack" at its vertical default for an OU with 3-5 sibling Account
+      zones (each already tall from its own stacked VPC/components)
+      produced an extremely tall, narrow single-column "tower" (over 6000px
+      tall, barely 400px wide) that was effectively unreadable. Horizontal
+      nested stacking turns that into a normal landscape layout instead.
+      This is exactly the same "favor left-to-right over a tall vertical
+      stack" principle as the DIAGRAM FLOW guidance below -- it now also
+      applies to nested zones, not just components and top-level zone rows.
 
     components: list of dicts, each:
       {"id": str, "zone_id": str, "label": str,
@@ -2332,6 +2373,7 @@ def save_drawio_structured(
         xml_content = build_structured_drawio_xml(
             title=title, subtitle=subtitle or None,
             zones=zones, components=components, edges=edges,
+            provider=provider,
         )
     except Exception as e:
         error_trace = traceback.format_exc()

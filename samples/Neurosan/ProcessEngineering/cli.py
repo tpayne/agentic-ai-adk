@@ -412,13 +412,26 @@ class ChatSession:
                 # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
                 # message with empty text and no structure is the server's own
                 # keepalive frame, not real progress).
+                #
+                # A message with a "structure" payload but no "text" (observed
+                # in practice: neuro-san's own token-accounting bookkeeping
+                # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
+                # used to fall back to a synthetic "<structure: key1, key2,
+                # ...>" preview -- literally the dict's field NAMES, not its
+                # values, with zero conversational meaning -- and the web
+                # client renders every yielded "progress" event as a visible
+                # step in the turn's "Thinking" trace, so that leaked straight
+                # into the chat transcript as confusing noise. The real token
+                # totals already reach the client cleanly via this method's
+                # own "done" event ("usage", built from
+                # processor.get_token_accounting() below) -- this stream is
+                # only ever meant to preview genuine progress TEXT, so a
+                # structure-only message (no text) is simply skipped, the
+                # same as the heartbeat case.
                 text_field = response.get("text")
-                structure = response.get("structure")
-                if not text_field and not isinstance(structure, dict):
+                if not text_field:
                     continue
-                preview = (text_field or "").strip().replace("\n", " ")
-                if not preview and isinstance(structure, dict):
-                    preview = f"<structure: {', '.join(structure.keys())}>"
+                preview = text_field.strip().replace("\n", " ")
                 if not preview:
                     continue
                 if len(preview) > 160:

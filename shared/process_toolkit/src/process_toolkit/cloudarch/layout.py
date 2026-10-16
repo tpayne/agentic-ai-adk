@@ -38,6 +38,48 @@
 #                                         # side boxes (e.g. a governance strip).
 #       "color": str (optional hex),     # header/border accent color
 #       "width": int (optional),         # override the default column width
+#       "type": "vpc" (optional),        # renders this zone as the chosen
+#                                         # provider's REAL VPC/VNet container
+#                                         # convention (AWS's native vector
+#                                         # group shape, GCP's pastel VPC-
+#                                         # network rectangle, Azure's VNet-
+#                                         # badged dashed boundary) instead of
+#                                         # the generic flat swimlane. Use for
+#                                         # any zone that represents an actual
+#                                         # VPC/VNet/VPC-network boundary.
+#       "parent_zone_id": str (optional), # nests this zone INSIDE another
+#                                         # zone (e.g. a VPC inside an AWS
+#                                         # Account, or a subnet inside a
+#                                         # VPC) -- that parent zone's own
+#                                         # box grows to contain this one,
+#                                         # drawn with the parent as its
+#                                         # real container cell, not just
+#                                         # placed nearby. ONE level of
+#                                         # nesting only -- the referenced
+#                                         # parent zone must itself be
+#                                         # top-level (no parent_zone_id of
+#                                         # its own). A nested zone is NOT
+#                                         # part of the top-level row/column
+#                                         # grid -- "row" is ignored on it;
+#                                         # its position is fully determined
+#                                         # by its parent. The PARENT's own
+#                                         # "stack" controls how its nested
+#                                         # children combine -- "vertical"
+#                                         # (default) stacks them top to
+#                                         # bottom, each stretched to the
+#                                         # parent's own width unless it
+#                                         # sets an explicit "width";
+#                                         # "horizontal" places them side by
+#                                         # side instead, each sized by its
+#                                         # own natural width. Use
+#                                         # "horizontal" whenever a parent
+#                                         # has more than one or two peer
+#                                         # nested children (e.g. several
+#                                         # sibling Accounts under one OU) --
+#                                         # left at vertical, that shape was
+#                                         # confirmed (against a real
+#                                         # generated diagram) to produce an
+#                                         # unreadable single-column "tower".
 #   }, ...]
 #
 #   components: [{
@@ -129,6 +171,18 @@ DEFAULT_COMPONENT_COLOR = "#5F6368"  # neutral gray -- deliberately NOT a
                         # for a forgotten color, not a provider's identity
 DEFAULT_ZONE_COLOR = "#5F6368"
 
+# AWS4 icons confirmed (via a real draw.io-generated AWS reference file) to
+# be genuine "dedicated shapes" rendered bare -- shape=mxgraph.aws4.<name>;
+# strokeColor=none;pointerEvents=1; with no points=[...] array -- unlike
+# every other individual AWS4 service icon, which is NOT a registered
+# stencil on its own and must be wrapped in the resourceIcon carrier (see
+# _style_for_icon_shape below). Mirrors samples/GCP/ProcessEngineering's
+# own _AWS4_DEDICATED_SHAPES -- keep both in sync if this set grows.
+_AWS4_DEDICATED_SHAPES = {
+    "data_lake_resource_icon", "msk_amazon_msk_connect",
+    "nat_gateway", "peering",
+}
+
 # Stagger step sizes for edges that share a routing channel with other
 # edges (see _channel_key/_stagger_offset). Each channel kind has very
 # different amounts of real room to spread out in, so each gets its own
@@ -177,6 +231,109 @@ def _html_value(label: str, bullets: Optional[List[str]]) -> str:
     for bullet in (bullets or []):
         parts.append(f"<font style=\"font-size:10px;color:#5f6368\">{bullet}</font>")
     return "<br/>".join(parts)
+
+
+def _style_for_icon_shape(ref: str, icon_color: str) -> str:
+    """
+    Renders a component's icon-cell style from its raw shape reference.
+    Real draw.io icon sets are NOT all addressed the same way (confirmed
+    against draw.io's own shipped assets and real-world exports -- mirrors
+    samples/GCP/ProcessEngineering's own _style_for_shape_ref, which is the
+    verified source of truth this was ported from):
+
+      - Azure's modern icon set (and any embedded SVG data URI) is
+        image-only -- rendered via `image=`, never `shape=`, which
+        silently ignores an image reference entirely.
+      - Most individual AWS4 service icons are NOT a registered stencil
+        bare -- `shape=mxgraph.aws4.lambda` on its own draws nothing
+        resembling the real icon. They must be wrapped in the
+        resourceIcon carrier (the octagon points=[...] array plus
+        resIcon=<ref>). This was the actual cause of AWS icons rendering
+        as faint/blank boxes when built directly as `shape=<ref>;
+        fillColor=<color>;` -- exactly what this function replaces.
+        AWS4 group/container shapes and a confirmed set of "dedicated
+        shapes" (_AWS4_DEDICATED_SHAPES) are the only bare-shape
+        exceptions.
+      - GCP2 and legacy AWS3 stencils render correctly as a bare `shape=`.
+    """
+    if ref.endswith(".svg") or ref.startswith("img/") or ref.startswith("data:image/"):
+        return f"image;aspect=fixed;html=1;image={ref};"
+    if ref.startswith("mxgraph.aws4."):
+        name = ref[len("mxgraph.aws4."):]
+        if name.startswith("group") or name in _AWS4_DEDICATED_SHAPES:
+            return (
+                "sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;"
+                f"fillColor={icon_color};strokeColor=none;dashed=0;"
+                "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
+                f"fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape={ref};"
+            )
+        return (
+            "sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],"
+            "[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],"
+            "[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;"
+            f"fontColor=#232F3E;fillColor={icon_color};strokeColor=#ffffff;"
+            "dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;"
+            f"fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon={ref};"
+        )
+    return f"shape={ref};fillColor={icon_color};strokeColor=none;html=1;"
+
+
+# Canonical per-provider VPC/VNet container accent, matching each provider's
+# own real convention (confirmed against real draw.io exports -- see
+# samples/GCP/ProcessEngineering's AWS_CONTAINERS/GCP_CONTAINERS): AWS's
+# networking purple, GCP's pastel "vpc network" fill, Azure's own blue.
+_VPC_DEFAULT_ACCENT = {"aws": "#8C4FFF", "gcp": "#E3F2FD", "azure": "#0078D4"}
+
+
+def _vpc_zone_style(provider: str, color_override: Optional[str]) -> str:
+    """
+    A VPC/VNet boundary is rendered using the chosen provider's REAL
+    container convention instead of the generic flat swimlane used for a
+    plain logical zone -- verified directly against real draw.io exports
+    (the same source as samples/GCP/ProcessEngineering's AWS_CONTAINERS/
+    GCP_CONTAINERS dicts, which this mirrors):
+
+      - AWS: a native vector group shape (shape=mxgraph.aws4.group;
+        grIcon=mxgraph.aws4.group_vpc2;) with the confirmed octagon
+        points=[...] array, not a stretched image or plain rectangle.
+      - GCP: a plain borderless pastel rectangle -- Google's own
+        systematic container-by-concept color convention, no stencil or
+        image reference at all.
+      - Azure: there is no native vector VNet container stencil, so this
+        falls back to a dashed bordered box (the caller adds a small
+        Virtual_Networks.svg corner badge separately, matching how real
+        Azure diagrams mark a VNet boundary).
+    """
+    accent = color_override or _VPC_DEFAULT_ACCENT.get(provider, _VPC_DEFAULT_ACCENT["azure"])
+    if provider == "aws":
+        parts = [
+            "points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],"
+            "[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],"
+            "[0,0.75],[0,0.5],[0,0.25]]",
+            "outlineConnect=0", "gradientColor=none", "html=1", "whiteSpace=wrap",
+            "fontSize=12", "fontStyle=1", "container=1", "pointerEvents=0",
+            "collapsible=0", "recursiveResize=0", "shape=mxgraph.aws4.group",
+            "grIcon=mxgraph.aws4.group_vpc2", f"strokeColor={accent}",
+            "fillColor=none", "verticalAlign=top", "align=left", "spacingLeft=30",
+            f"fontColor={accent}", "dashed=0",
+        ]
+        return ";".join(parts) + ";"
+    if provider == "gcp":
+        parts = [
+            "shape=rect", "strokeColor=none", "strokeWidth=2", "shadow=0",
+            "gradientColor=none", "fontColor=#757575", "align=left", "html=1",
+            "fontStyle=1", "spacingTop=3", f"fillColor={accent}", "verticalAlign=top",
+            "fontSize=11", "spacingLeft=10", "spacing=0", "container=1",
+            "collapsible=0", "recursiveResize=0",
+        ]
+        return ";".join(parts) + ";"
+    parts = [
+        "whiteSpace=wrap", "html=1", "fillColor=none", f"strokeColor={accent}",
+        "dashed=1", "verticalAlign=top", "align=left", "fontStyle=1",
+        "spacingLeft=8", "spacingTop=6", "container=1", "collapsible=0",
+        "recursiveResize=0", "pointerEvents=0",
+    ]
+    return ";".join(parts) + ";"
 
 
 class _Box:
@@ -286,6 +443,35 @@ def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str,
         )
 
 
+def _validate_zone_nesting(zones: List[Dict[str, Any]]) -> None:
+    """
+    "parent_zone_id" nests one zone inside another (e.g. a VPC inside an
+    AWS Account). v1 supports exactly ONE level of this -- every
+    parent_zone_id must reference a real zone id, and that referenced
+    zone must itself be top-level (no parent_zone_id of its own), or the
+    layout engine has no defined behavior for where the grandchild's
+    content would actually go.
+    """
+    by_id = {z["id"]: z for z in zones if z.get("id") is not None}
+    for z in zones:
+        pid = z.get("parent_zone_id")
+        if pid is None:
+            continue
+        if pid == z.get("id"):
+            raise ValueError(f"zone '{z.get('id')}' cannot set its own id as parent_zone_id.")
+        if pid not in by_id:
+            raise KeyError(
+                f"zone '{z.get('id')}' has parent_zone_id '{pid}', which does not "
+                "match any zone id."
+            )
+        if by_id[pid].get("parent_zone_id") is not None:
+            raise ValueError(
+                f"zone '{z.get('id')}' is nested inside '{pid}', which is itself "
+                "nested inside another zone -- only one level of zone nesting "
+                "(e.g. an Account containing a VPC) is supported."
+            )
+
+
 def _zone_natural_width(zone: Dict[str, Any], zone_children: List[Dict[str, Any]]) -> float:
     """
     This zone's own width with NO row-level stretching applied -- an explicit
@@ -297,7 +483,7 @@ def _zone_natural_width(zone: Dict[str, Any], zone_children: List[Dict[str, Any]
     """
     if zone.get("width"):
         return zone["width"]
-    if zone.get("stack", "vertical") == "horizontal":
+    if (zone.get("stack") or "vertical") == "horizontal":
         child_w = max(
             (c.get("width") or DEFAULT_ZONE_WIDTH for c in zone_children),
             default=DEFAULT_ZONE_WIDTH,
@@ -308,6 +494,221 @@ def _zone_natural_width(zone: Dict[str, Any], zone_children: List[Dict[str, Any]
             + 2 * COMPONENT_H_MARGIN
         )
     return DEFAULT_ZONE_WIDTH
+
+
+def _zone_outer_natural_width(
+    zone: Dict[str, Any],
+    comps_by_zone: Dict[str, List[Dict[str, Any]]],
+    nested_by_parent: Dict[str, List[Dict[str, Any]]],
+) -> float:
+    """
+    Same contract as _zone_natural_width, but accounts for NESTED child
+    zones (zone["id"] appearing as another zone's "parent_zone_id"). The
+    parent's own "stack" field controls how its nested children combine
+    into a natural width, same meaning as it has for components: "vertical"
+    (default) -- driven by the widest nested child, each stacked full-width
+    below the last; "horizontal" -- the SUM of every nested child's own
+    natural width (plus gaps), laid out side by side instead of as a tower
+    (see _layout_parent_zone). Delegates straight through to
+    _zone_natural_width when there are no nested children, so this is a
+    strict superset with zero behavior change for the (overwhelmingly
+    common) non-nested case.
+    """
+    children = nested_by_parent.get(zone.get("id"), [])
+    if not children:
+        return _zone_natural_width(zone, comps_by_zone.get(zone.get("id"), []))
+    if zone.get("width"):
+        return zone["width"]
+    child_widths = [
+        c.get("width") or _zone_natural_width(c, comps_by_zone.get(c.get("id"), []))
+        for c in children
+    ]
+    if (zone.get("stack") or "vertical") == "horizontal":
+        return (
+            sum(child_widths)
+            + max(0, len(children) - 1) * ZONE_GAP
+            + 2 * COMPONENT_H_MARGIN
+        )
+    return max(child_widths, default=DEFAULT_ZONE_WIDTH) + 2 * COMPONENT_H_MARGIN
+
+
+def _stack_components_vertically(
+    components: List[Dict[str, Any]], zone_id: str, x: float, y: float, width: float,
+    row_num: int, component_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    Stacks `components` top-to-bottom starting at (x, y), each sized by
+    _component_height and given `width` unless it overrides its own with
+    "width". Returns the y just below the last component (NOT including
+    the trailing gap), or `y` unchanged if `components` is empty --
+    callers that need zone-height semantics for the empty case handle
+    that themselves (see _layout_leaf_zone / _layout_parent_zone).
+    """
+    cursor_y = y
+    for order_idx, child in enumerate(components):
+        h = _component_height(child)
+        w = child.get("width") or width
+        component_boxes[child["id"]] = _Box(
+            child["id"], x, cursor_y, w, h,
+            zone_id=zone_id, row=row_num, order=order_idx, stack="vertical",
+        )
+        cursor_y += h + COMPONENT_GAP
+    return cursor_y - COMPONENT_GAP if components else y
+
+
+def _layout_leaf_zone(
+    zone: Dict[str, Any], zone_id: str, zone_children: List[Dict[str, Any]],
+    zone_x: float, zone_y: float, zone_w: float, row_num: int,
+    zone_boxes: Dict[str, "_Box"], component_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    Lays out a zone with NO nested child zones of its own -- just its own
+    directly-owned components, stacked according to its own "stack" field.
+    Sets zone_boxes[zone_id] and every one of zone_children's boxes in
+    place; returns the zone's own total height.
+
+    Used for a NESTED child zone (e.g. a VPC inside an Account) -- a
+    zone's own interior layout doesn't care whether it is itself nested
+    inside something else, only about its own origin/width, which the
+    caller (_layout_parent_zone) already resolved. This mirrors the
+    inline per-zone logic in _layout_zones_and_components's own PASS 2
+    exactly (that code path is left untouched for top-level zones, to
+    keep zero risk of regressing its existing, heavily-tested geometry).
+    """
+    header_h = _zone_header_height(zone)
+    stack = zone.get("stack") or "vertical"
+
+    if stack == "horizontal":
+        child_w = max(
+            (c.get("width") or DEFAULT_ZONE_WIDTH for c in zone_children),
+            default=DEFAULT_ZONE_WIDTH,
+        )
+        content_h = max((_component_height(c) for c in zone_children), default=0)
+        zone_h = header_h + content_h + 2 * ZONE_INNER_MARGIN
+        zone_boxes[zone_id] = _Box(zone_id, zone_x, zone_y, zone_w, zone_h, row=row_num)
+
+        content_w = (
+            len(zone_children) * child_w
+            + max(0, len(zone_children) - 1) * ZONE_GAP
+            + 2 * COMPONENT_H_MARGIN
+        )
+        n = len(zone_children)
+        if n == 0:
+            inner_x = zone_x + COMPONENT_H_MARGIN
+            gap = ZONE_GAP
+        elif n == 1:
+            w0 = zone_children[0].get("width") or child_w
+            inner_x = zone_x + (zone_w - w0) / 2
+            gap = ZONE_GAP
+        else:
+            inner_x = zone_x + COMPONENT_H_MARGIN
+            gap = ZONE_GAP + (zone_w - content_w) / (n - 1)
+        inner_y = zone_y + header_h + ZONE_INNER_MARGIN
+        for order_idx, child in enumerate(zone_children):
+            w = child.get("width") or child_w
+            h = content_h
+            component_boxes[child["id"]] = _Box(
+                child["id"], inner_x, inner_y, w, h, zone_id=zone_id, row=row_num,
+                order=order_idx, stack=stack,
+            )
+            inner_x += w + gap
+        return zone_h
+
+    inner_w = zone_w - 2 * COMPONENT_H_MARGIN
+    if zone_children:
+        content_bottom = _stack_components_vertically(
+            zone_children, zone_id, zone_x + COMPONENT_H_MARGIN,
+            zone_y + header_h + ZONE_INNER_MARGIN, inner_w, row_num, component_boxes,
+        )
+    else:
+        content_bottom = zone_y + header_h
+    zone_h = (content_bottom + ZONE_INNER_MARGIN) - zone_y
+    zone_boxes[zone_id] = _Box(zone_id, zone_x, zone_y, zone_w, zone_h, row=row_num)
+    return zone_h
+
+
+def _layout_parent_zone(
+    zone: Dict[str, Any], zone_id: str, nested_children: List[Dict[str, Any]],
+    direct_components: List[Dict[str, Any]], zone_x: float, zone_y: float, zone_w: float,
+    row_num: int, zone_boxes: Dict[str, "_Box"], component_boxes: Dict[str, "_Box"],
+    comps_by_zone: Dict[str, List[Dict[str, Any]]],
+) -> float:
+    """
+    Lays out a zone that has one or more NESTED child zones (another
+    zone's "parent_zone_id" points at this one) -- e.g. an AWS Account
+    containing its own VPC, or an OU containing several peer Accounts.
+    The parent's own "stack" field controls how its nested children
+    combine, same meaning as it has for components: "vertical" (default)
+    -- each nested child stretched to the parent's own inner width unless
+    it sets an explicit "width", stacked top to bottom; "horizontal" --
+    nested children placed SIDE BY SIDE instead, each sized by its own
+    natural width (any slack redistributed as extra gap between them,
+    same stretch-to-fill rule _layout_leaf_zone already uses for
+    horizontally-stacked components). Without this, a parent with several
+    peer nested children (e.g. 5 sibling Accounts, each itself containing
+    a VPC with its own stacked components) was confirmed, against a real
+    generated diagram, to produce an extremely tall single-column "tower"
+    -- nested children always stacking vertically regardless of how many
+    there were, with no way to request a wider/shorter layout instead.
+
+    Any components whose zone_id is this PARENT's own id (not a nested
+    child's) are stacked below the nested child zone(s) either way, using
+    the same component-stacking rule as a plain leaf zone. Sets
+    zone_boxes[zone_id] in place; returns the zone's own total height.
+    """
+    header_h = _zone_header_height(zone)
+    inner_w = zone_w - 2 * COMPONENT_H_MARGIN
+    stack = zone.get("stack") or "vertical"
+    content_top = zone_y + header_h + ZONE_INNER_MARGIN
+
+    if stack == "horizontal":
+        natural_widths = [
+            child.get("width") or _zone_natural_width(child, comps_by_zone.get(child["id"], []))
+            for child in nested_children
+        ]
+        n = len(nested_children)
+        content_w = sum(natural_widths) + max(0, n - 1) * ZONE_GAP
+        if n == 0:
+            cursor_x = zone_x + COMPONENT_H_MARGIN
+            gap = ZONE_GAP
+        elif n == 1:
+            cursor_x = zone_x + (zone_w - natural_widths[0]) / 2
+            gap = ZONE_GAP
+        else:
+            cursor_x = zone_x + COMPONENT_H_MARGIN
+            gap = ZONE_GAP + max(0.0, inner_w - content_w) / (n - 1)
+        tallest = 0.0
+        for idx, child in enumerate(nested_children):
+            child_w = natural_widths[idx]
+            child_h = _layout_leaf_zone(
+                child, child["id"], comps_by_zone.get(child["id"], []),
+                cursor_x, content_top, child_w, row_num, zone_boxes, component_boxes,
+            )
+            tallest = max(tallest, child_h)
+            cursor_x += child_w + gap
+        cursor_y = content_top + tallest + ZONE_GAP if nested_children else content_top
+    else:
+        cursor_y = content_top
+        for child in nested_children:
+            child_w = child.get("width") or inner_w
+            child_h = _layout_leaf_zone(
+                child, child["id"], comps_by_zone.get(child["id"], []),
+                zone_x + COMPONENT_H_MARGIN, cursor_y, child_w, row_num,
+                zone_boxes, component_boxes,
+            )
+            cursor_y += child_h + ZONE_GAP
+
+    if direct_components:
+        content_bottom = _stack_components_vertically(
+            direct_components, zone_id, zone_x + COMPONENT_H_MARGIN,
+            cursor_y, inner_w, row_num, component_boxes,
+        )
+    else:
+        content_bottom = cursor_y - ZONE_GAP if nested_children else cursor_y
+
+    zone_h = (content_bottom + ZONE_INNER_MARGIN) - zone_y
+    zone_boxes[zone_id] = _Box(zone_id, zone_x, zone_y, zone_w, zone_h, row=row_num)
+    return zone_h
 
 
 def _layout_zones_and_components(
@@ -328,17 +729,32 @@ def _layout_zones_and_components(
     the "wasted space" this was rewritten to fix.
     """
     _validate_unique_ids(zones, components)
+    _validate_zone_nesting(zones)
 
     comps_by_zone: Dict[str, List[Dict[str, Any]]] = {}
     for c in components:
         comps_by_zone.setdefault(c["zone_id"], []).append(c)
 
+    nested_by_parent: Dict[str, List[Dict[str, Any]]] = {}
+    for z in zones:
+        pid = z.get("parent_zone_id")
+        if pid:
+            nested_by_parent.setdefault(pid, []).append(z)
+
+    # Nested zones are NOT part of the top-level row/column grid -- their
+    # "row" is ignored; their position is fully determined by their parent
+    # (see _layout_parent_zone), which IS a normal row/column participant.
     rows: Dict[int, List[Dict[str, Any]]] = {}
     for z in zones:
-        rows.setdefault(int(z.get("row", 0)), []).append(z)
+        if z.get("parent_zone_id"):
+            continue
+        # `or 0`, not a positional .get default -- an explicit "row": null
+        # would otherwise reach int(None) and crash the whole build over
+        # one optional field the LLM didn't bother setting.
+        rows.setdefault(int(z.get("row") or 0), []).append(z)
 
     def row_natural_width(row_zones: List[Dict[str, Any]]) -> float:
-        widths = [_zone_natural_width(z, comps_by_zone.get(z["id"], [])) for z in row_zones]
+        widths = [_zone_outer_natural_width(z, comps_by_zone, nested_by_parent) for z in row_zones]
         return sum(widths) + max(0, len(widths) - 1) * ZONE_GAP
 
     # PASS 1: the one true target content width every row should fill -- the
@@ -355,19 +771,37 @@ def _layout_zones_and_components(
 
     # PASS 2: position every row, stretching it to target_width -- shared out
     # across THIS row's own eligible zones (any zone without an explicit
-    # "width" override), not independently re-claimed in full by each one.
-    # A row with no eligible zones (every zone has an explicit width) is
-    # centered within target_width instead, so it reads as intentional
-    # rather than stuck flush-left with space only on the right.
+    # "width" override AND whose own "stack" is "horizontal"), not
+    # independently re-claimed in full by each one. A row with no eligible
+    # zones (every zone has an explicit width, or is a plain vertical-stack
+    # zone) is centered within target_width instead, so it reads as
+    # intentional rather than stuck flush-left with space only on the right.
+    #
+    # ONLY "stack": "horizontal" zones stretch -- confirmed directly against
+    # a real generated diagram: a vertical-stack zone's own interior layout
+    # gives EVERY child the SAME full zone width regardless of how many
+    # children there are (see the vertical branch below), so stretching one
+    # to match a much wider row elsewhere adds nothing but dead padding
+    # around its own (often single, icon-sized) content -- a management/
+    # security/network-account row of 1-3-icon zones, sharing a canvas with
+    # a much wider row of multi-resource VPC accounts, had each of its
+    # zones blown up to ~1850px to match, with a single centered icon
+    # swimming in whitespace. A horizontal-stack zone's children genuinely
+    # DO spread out to use extra width (see the horizontal branch), so it
+    # keeps stretching exactly as before -- this only narrows eligibility,
+    # it does not change what happens to an eligible zone.
     for row_num in sorted(rows.keys()):
         row_zones = rows[row_num]
         natural_widths = {
-            z["id"]: _zone_natural_width(z, comps_by_zone.get(z["id"], [])) for z in row_zones
+            z["id"]: _zone_outer_natural_width(z, comps_by_zone, nested_by_parent) for z in row_zones
         }
         row_natural_total = sum(natural_widths.values()) + max(0, len(row_zones) - 1) * ZONE_GAP
         shortfall = max(0.0, target_width - row_natural_total)
 
-        eligible_ids = {z["id"] for z in row_zones if not z.get("width")}
+        eligible_ids = {
+            z["id"] for z in row_zones
+            if not z.get("width") and (z.get("stack") or "vertical") == "horizontal"
+        }
         extra_per_eligible = shortfall / len(eligible_ids) if eligible_ids else 0.0
         row_x_offset = shortfall / 2 if not eligible_ids else 0.0  # center an unstretchable row
 
@@ -378,10 +812,27 @@ def _layout_zones_and_components(
             zone_id = zone["id"]
             zone_children = comps_by_zone.get(zone_id, [])
             header_h = _zone_header_height(zone)
-            stack = zone.get("stack", "vertical")
+            stack = zone.get("stack") or "vertical"
             zone_w = natural_widths[zone_id] + (
                 extra_per_eligible if zone_id in eligible_ids else 0.0
             )
+
+            nested_children = nested_by_parent.get(zone_id)
+            if nested_children:
+                # This zone (e.g. an AWS Account) has its own nested child
+                # zone(s) (e.g. a VPC) -- delegate entirely to
+                # _layout_parent_zone rather than treating zone_children as
+                # this zone's own directly-stacked components (the existing
+                # branches below, untouched, still handle every zone with
+                # no nested children exactly as before).
+                zone_h = _layout_parent_zone(
+                    zone, zone_id, nested_children, zone_children,
+                    x_cursor, y_cursor, zone_w, row_num,
+                    zone_boxes, component_boxes, comps_by_zone,
+                )
+                x_cursor += zone_w + ZONE_GAP
+                row_height = max(row_height, zone_h)
+                continue
 
             if stack == "horizontal":
                 child_w = max(
@@ -1292,6 +1743,7 @@ def build_structured_drawio_xml(
     zones: List[Dict[str, Any]],
     components: List[Dict[str, Any]],
     edges: List[Dict[str, Any]],
+    provider: str = "azure",
 ) -> str:
     """
     The only function that turns structured content into drawio XML with
@@ -1299,7 +1751,13 @@ def build_structured_drawio_xml(
     (see _component_height) and every edge is routed through space no box
     occupies (see _route_edge) -- both computed from the whole layout at
     once, not guessed one cell at a time.
+
+    provider: "aws", "azure", or "gcp" -- which real icon/container
+    convention to render component icons and any zone with "type": "vpc"
+    in (see _style_for_icon_shape / _vpc_zone_style). Defaults to "azure",
+    matching this pipeline's own default cloud provider.
     """
+    provider = (provider or "azure").strip().lower()
     zone_boxes, component_boxes, canvas_w, canvas_h = _layout_zones_and_components(
         zones, components
     )
@@ -1340,15 +1798,60 @@ def build_structured_drawio_xml(
     })
 
     # --- Zones ---
-    for zone in zones:
+    def _render_zone_cell(zone: Dict[str, Any], parent_cell_id: str, local_x: float, local_y: float) -> None:
+        """
+        Emits one zone's mxCell + geometry under `parent_cell_id`, at
+        `(local_x, local_y)` relative to that parent -- "1" (the canvas
+        root) for a top-level zone, same as every zone used to be parented
+        before nesting existed; a parent zone's own id, with coordinates
+        relative to ITS box, for a nested child zone (exactly how a
+        component is already parented under its own zone below). Reused
+        for both passes so a nested zone gets byte-identical VPC/swimlane
+        styling to a top-level one -- only the parent/coordinates differ.
+        """
         box = zone_boxes[zone["id"]]
-        color = zone.get("color", DEFAULT_ZONE_COLOR)
         value = f"<b>{zone['label']}</b>"
         if zone.get("sublabel"):
             value += f"<br/><span style=\"font-size:10px;color:#5f6368\">{zone['sublabel']}</span>"
+
+        if zone.get("type") == "vpc":
+            # Real VPC/VNet boundary -- the provider's own native container
+            # convention, not the generic flat swimlane below. See
+            # _vpc_zone_style's own docstring.
+            cell = ET.SubElement(root, "mxCell", {
+                "id": zone["id"], "value": value, "vertex": "1", "parent": parent_cell_id,
+                "style": _vpc_zone_style(provider, zone.get("color")),
+            })
+            ET.SubElement(cell, "mxGeometry", {
+                "x": str(int(local_x)), "y": str(int(local_y)),
+                "width": str(int(box.w)), "height": str(int(box.h)), "as": "geometry",
+            })
+            if provider not in ("aws", "gcp") and box.w >= 60:
+                # Azure has no native vector VNet container stencil -- a
+                # small corner badge marks the boundary instead, mirroring
+                # samples/GCP/ProcessEngineering's own container-badge
+                # pattern for the same reason.
+                badge = ET.SubElement(root, "mxCell", {
+                    "id": f"{zone['id']}_badge", "value": "", "vertex": "1", "parent": zone["id"],
+                    "style": "image;aspect=fixed;html=1;image=img/lib/azure2/networking/Virtual_Networks.svg;",
+                })
+                ET.SubElement(badge, "mxGeometry", {
+                    "x": str(int(box.w - 34)), "y": "6", "width": "28", "height": "28", "as": "geometry",
+                })
+            return
+
+        # `.get(key, default)` only falls back when the key is ABSENT, not
+        # when it's present with an explicit JSON null -- confirmed
+        # directly against a real generated diagram where the LLM emitted
+        # "color": null for many zones/components, which this would
+        # otherwise bake in as the literal text "None" (fillColor=None /
+        # strokeColor=None), invalid drawio styling that renders as a
+        # blank/invisible fill or border. `or` catches both "absent" and
+        # "explicitly null" the same way.
+        color = zone.get("color") or DEFAULT_ZONE_COLOR
         header_h = _zone_header_height(zone)
         cell = ET.SubElement(root, "mxCell", {
-            "id": zone["id"], "value": value, "vertex": "1", "parent": "1",
+            "id": zone["id"], "value": value, "vertex": "1", "parent": parent_cell_id,
             "style": (
                 f"swimlane;startSize={header_h};rounded=1;arcSize=4;fillColor=#F8F9FA;"
                 f"swimlaneFillColor=#F8F9FA;"
@@ -1367,9 +1870,24 @@ def build_structured_drawio_xml(
             ),
         })
         ET.SubElement(cell, "mxGeometry", {
-            "x": str(int(box.x)), "y": str(int(box.y)),
+            "x": str(int(local_x)), "y": str(int(local_y)),
             "width": str(int(box.w)), "height": str(int(box.h)), "as": "geometry",
         })
+
+    nested_zone_ids = {z["id"] for z in zones if z.get("parent_zone_id")}
+    # Top-level zones first (so a nested zone's parent cell already exists
+    # in the XML before the child references it as its own "parent").
+    for zone in zones:
+        if zone["id"] in nested_zone_ids:
+            continue
+        box = zone_boxes[zone["id"]]
+        _render_zone_cell(zone, "1", box.x, box.y)
+    for zone in zones:
+        if zone["id"] not in nested_zone_ids:
+            continue
+        box = zone_boxes[zone["id"]]
+        parent_box = zone_boxes[zone["parent_zone_id"]]
+        _render_zone_cell(zone, zone["parent_zone_id"], box.x - parent_box.x, box.y - parent_box.y)
 
     # --- Components (+ their icons) ---
     for component in components:
@@ -1381,7 +1899,10 @@ def build_structured_drawio_xml(
 
         has_icon = bool(component.get("shape"))
         spacing_top = SPACING_TOP_WITH_ICON if has_icon else SPACING_TOP_NO_ICON
-        color = component.get("color", DEFAULT_COMPONENT_COLOR)
+        # See the identical note on the zone's own `color` above -- `or`,
+        # not a positional .get default, so an explicit "color": null
+        # doesn't bake the literal text "None" into fillColor/strokeColor.
+        color = component.get("color") or DEFAULT_COMPONENT_COLOR
         value = _html_value(component["label"], component.get("bullets"))
 
         if has_icon:
@@ -1427,7 +1948,7 @@ def build_structured_drawio_xml(
             icon_color = component.get("icon_color") or color
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
-                "style": f"shape={component['shape']};fillColor={icon_color};strokeColor=none;html=1;",
+                "style": _style_for_icon_shape(component["shape"], icon_color),
             })
             ET.SubElement(icon_cell, "mxGeometry", {
                 "x": str(int((box.w - ICON_SIZE) / 2)), "y": str(ICON_TOP_MARGIN),
@@ -1510,10 +2031,13 @@ def build_structured_drawio_xml(
             continue  # dangling reference -- skip rather than emit a broken edge
 
         waypoints = plan["waypoints"]
-        label = edge.get("label", "")
+        label = edge.get("label") or ""
         if edge.get("number") is not None and label:
             label = f"{edge['number']}. {label}"
-        color = edge.get("color", "#5f6368")
+        # Same "or", not a positional .get default, as the zone/component
+        # color above -- an explicit "color": null must not become the
+        # literal text "None" in strokeColor.
+        color = edge.get("color") or "#5f6368"
         dashed = "dashed=1;" if edge.get("dashed") else ""
 
         exit_x, exit_y = plan["exit_frac"]

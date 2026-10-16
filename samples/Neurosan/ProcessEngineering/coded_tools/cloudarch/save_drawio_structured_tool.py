@@ -29,6 +29,7 @@ class SaveDrawioStructuredCodedTool(CodedTool):
                 zones=args.get("zones") or [],
                 components=args.get("components") or [],
                 edges=args.get("edges") or [],
+                provider=args.get("provider") or "azure",
             )
         except Exception as e:
             return {

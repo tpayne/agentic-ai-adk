@@ -365,6 +365,40 @@ class TestChatSessionSendStreaming:
         progress_events = [e for e in events if e["status"] == "progress"]
         assert len(progress_events) == 1
 
+    def test_skips_structure_only_progress_message_instead_of_leaking_key_names(self):
+        # Regression test: confirmed in a real session -- neuro-san's own
+        # token-accounting bookkeeping ping carries a {total_tokens,
+        # prompt_tokens, ...} "structure" dict with NO "text". This used to
+        # fall back to a synthetic "<structure: total_tokens, prompt_tokens,
+        # ...>" preview (the dict's field NAMES, not values) that the web
+        # client renders as a visible step in the turn's "Thinking" trace --
+        # pure internal bookkeeping leaking into the chat transcript as
+        # confusing noise. The real totals already reach the client cleanly
+        # via this same method's "done" event ("usage") -- a structure-only
+        # message (no text) must now be skipped entirely, same as the
+        # already-skipped empty-text heartbeat.
+        class _StructureOnlySession:
+            def streaming_chat(self, chat_request):
+                yield {"response": {
+                    "type": "progress", "origin": [{"tool": "cloudarch"}],
+                    "structure": {
+                        "total_tokens": 42, "prompt_tokens": 30, "completion_tokens": 12,
+                        "successful_requests": 1, "empty_responses": 0, "total_cost": 0.01,
+                        "time_taken_in_seconds": 1.2, "caveats": [],
+                    },
+                }}
+                yield {"response": {"type": "answer", "origin": [], "text": "Final answer"}}
+
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session.chat_context = None
+        session.session = _StructureOnlySession()
+        session.input_processor = _StubStreamingInputProcessor()
+
+        events = list(session.send_streaming("hello"))
+        assert not any(e["status"] == "progress" for e in events)
+        assert not any("<structure:" in str(e.get("text", "")) for e in events)
+
     def test_no_duplicate_delta_for_an_unchanged_compiled_answer(self):
         class _RepeatingSession:
             def streaming_chat(self, chat_request):

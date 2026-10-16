@@ -229,6 +229,109 @@ class TestLayoutOverlap:
         assert z1b_box.right - last_child.right == pytest.approx(layout.COMPONENT_H_MARGIN, abs=1)
 
 
+class TestVerticalZonesDoNotStretch:
+    """Regression coverage for the fix to a real generated diagram: a row
+    of plain vertical-stack zones (e.g. Management/Log/Security/Network
+    accounts, each holding just 1-3 single-icon components) sharing a
+    canvas with a much wider row (e.g. Customer accounts, each containing
+    a horizontally-spread VPC of 6 resources) had every zone in the
+    narrow row individually stretched to match the wide row's width --
+    each ballooning from its natural 340px to ~1850px, since the vertical
+    branch gives every child the SAME full zone width regardless of
+    content, producing a single centered icon swimming in huge dead
+    whitespace. Only "stack": "horizontal" zones (whose children genuinely
+    spread out to use extra width) should stretch; the existing
+    TestLayoutOverlap tests above already cover that they still do."""
+
+    def _mismatched_rows(self):
+        zones = [
+            {"id": "small_a", "row": 0},
+            {"id": "small_b", "row": 0},
+            {"id": "wide_a", "row": 1, "stack": "horizontal"},
+            {"id": "wide_b", "row": 1, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "sa_c1", "zone_id": "small_a", "label": "X"},
+            {"id": "sb_c1", "zone_id": "small_b", "label": "X"},
+        ] + [
+            {"id": f"wa_c{i}", "zone_id": "wide_a", "label": "X", "shape": "mxgraph.aws4.lambda"}
+            for i in range(5)
+        ] + [
+            {"id": f"wb_c{i}", "zone_id": "wide_b", "label": "X", "shape": "mxgraph.aws4.lambda"}
+            for i in range(5)
+        ]
+        return zones, components
+
+    def test_plain_vertical_zone_keeps_its_natural_width_despite_a_much_wider_row(self):
+        zones, components = self._mismatched_rows()
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        assert zone_boxes["small_a"].w == pytest.approx(layout.DEFAULT_ZONE_WIDTH)
+        assert zone_boxes["small_b"].w == pytest.approx(layout.DEFAULT_ZONE_WIDTH)
+        # The wide row's own horizontal-stack zones are, as ever, much
+        # wider -- confirming this is a real width mismatch, not a fixture
+        # that happens to produce equal widths anyway.
+        assert zone_boxes["wide_a"].w > zone_boxes["small_a"].w * 3
+
+    def test_row_of_only_vertical_zones_is_centered_not_individually_inflated(self):
+        zones, components = self._mismatched_rows()
+        zone_boxes, _, canvas_w, _ = layout._layout_zones_and_components(zones, components)
+        small_a, small_b = zone_boxes["small_a"], zone_boxes["small_b"]
+        row_total = small_b.right - small_a.x
+        # The row as a whole is centered WITHIN the content region (between
+        # PAGE_MARGIN and canvas_w) -- not individually stretched to fill
+        # it. left_margin/right_margin are each measured from their own
+        # edge of that content region, per _layout_zones_and_components'
+        # own "centered within target_width" comment.
+        left_margin = small_a.x - layout.PAGE_MARGIN
+        right_margin = canvas_w - small_b.right
+        assert left_margin == pytest.approx(right_margin, abs=2)
+        assert left_margin > 0  # genuinely centered, not flush left
+        # Not individually inflated: the row's total footprint is far
+        # narrower than the wide row's own combined width.
+        wide_total = zone_boxes["wide_b"].right - zone_boxes["wide_a"].x
+        assert row_total < wide_total / 3
+
+    def test_vertical_zone_with_an_explicit_width_is_still_unaffected(self):
+        # Explicit "width" was already excluded from stretch eligibility
+        # before this fix -- confirm that's still true (not a regression
+        # introduced by also excluding plain vertical zones).
+        zones, components = self._mismatched_rows()
+        zones[0]["width"] = 500
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        assert zone_boxes["small_a"].w == pytest.approx(500)
+
+    def test_horizontal_zones_still_stretch_as_before(self):
+        # Non-regression check: this fix narrows eligibility, it must not
+        # change what happens to an eligible ("stack": "horizontal") zone
+        # -- already covered in depth by TestLayoutOverlap above, repeated
+        # here directly alongside the vertical-exclusion fixture for
+        # clarity that both behaviors coexist correctly in the same row.
+        zones, components = self._mismatched_rows()
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        assert zone_boxes["wide_a"].w == pytest.approx(zone_boxes["wide_b"].w)
+
+    def test_mixed_row_only_stretches_the_horizontal_sibling(self):
+        zones = [
+            {"id": "v1", "row": 0},
+            {"id": "h1", "row": 0, "stack": "horizontal"},
+            {"id": "wide_a", "row": 1, "stack": "horizontal"},
+            {"id": "wide_b", "row": 1, "stack": "horizontal"},
+        ]
+        components = [
+            {"id": "v1_c1", "zone_id": "v1", "label": "X"},
+            {"id": "h1_c1", "zone_id": "h1", "label": "X"},
+        ] + [
+            {"id": f"wa_c{i}", "zone_id": "wide_a", "label": "X", "shape": "mxgraph.aws4.lambda"}
+            for i in range(5)
+        ] + [
+            {"id": f"wb_c{i}", "zone_id": "wide_b", "label": "X", "shape": "mxgraph.aws4.lambda"}
+            for i in range(5)
+        ]
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        assert zone_boxes["v1"].w == pytest.approx(layout.DEFAULT_ZONE_WIDTH)
+        assert zone_boxes["h1"].w > zone_boxes["v1"].w
+
+
 class TestEdgeRouting:
     def _sample(self):
         zones = [
@@ -1134,6 +1237,78 @@ class TestBuildXml:
         assert "fillColor=#527FFF;" in icon_cell.get("style", "")
         assert "fillColor=;" not in icon_cell.get("style", "")
 
+    def test_explicit_json_null_color_falls_back_instead_of_literal_none(self):
+        # Regression test: confirmed against a real generated diagram -- the
+        # LLM emitted explicit "color": null (and "icon_color" omitted) for
+        # components, which component.get("color", DEFAULT) does NOT catch
+        # (that positional default only applies when the KEY is absent, not
+        # when it's present with value None) -- the result was the literal
+        # text "None" baked into fillColor=None;strokeColor=None;, invalid
+        # drawio styling that rendered icons and box borders as invisible.
+        # Same bug class as the empty-string case above, but for JSON null.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "color": None}],
+            components=[
+                {
+                    "id": "c1", "zone_id": "z1", "label": "Icon Comp",
+                    "shape": "mxgraph.aws4.organizations", "color": None, "icon_color": None,
+                },
+                {"id": "c2", "zone_id": "z1", "label": "Box Comp", "color": None},
+            ],
+            edges=[{"source": "c1", "target": "c2", "label": "E", "color": None}],
+        )
+        assert "None" not in xml_str
+
+        root = ET.fromstring(xml_str)
+        zone_style = next(c for c in root.findall(".//mxCell") if c.get("id") == "z1").get("style", "")
+        assert "strokeColor=None" not in zone_style
+
+        icon_style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon").get("style", "")
+        assert "fillColor=None" not in icon_style
+        assert f"fillColor={layout.DEFAULT_COMPONENT_COLOR};" in icon_style
+
+        box_style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c2").get("style", "")
+        assert "strokeColor=None" not in box_style
+        assert f"strokeColor={layout.DEFAULT_COMPONENT_COLOR};" in box_style
+
+        edge_style = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1").get("style", "")
+        assert "strokeColor=None" not in edge_style
+
+    def test_explicit_json_null_row_does_not_crash(self):
+        # Regression test: int(z.get("row", 0)) crashes with TypeError if
+        # "row" is explicitly null (present-but-None is not caught by a
+        # positional .get default) -- one optional field the LLM didn't
+        # bother setting shouldn't take down the whole build.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "row": None}],
+            components=[{"id": "c1", "zone_id": "z1", "label": "Comp"}],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        assert next(c for c in root.findall(".//mxCell") if c.get("id") == "z1") is not None
+
+    def test_explicit_json_null_stack_falls_back_to_vertical(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "stack": None}],
+            components=[
+                {"id": "c1", "zone_id": "z1", "label": "A"},
+                {"id": "c2", "zone_id": "z1", "label": "B"},
+            ],
+            edges=[],
+        )
+        _, comp_boxes, _, _ = layout._layout_zones_and_components(
+            [{"id": "z1", "label": "Zone", "stack": None}],
+            [
+                {"id": "c1", "zone_id": "z1", "label": "A"},
+                {"id": "c2", "zone_id": "z1", "label": "B"},
+            ],
+        )
+        # Vertical stacking: second component sits strictly below the first.
+        assert comp_boxes["c2"].y > comp_boxes["c1"].y
+
     def test_bidirectional_edges_between_same_pair_get_visibly_different_labels(self):
         # End-to-end regression test for the label-collision fix: a request
         # edge and a response edge between the identical two components must
@@ -1246,3 +1421,478 @@ class TestBuildXml:
         root = ET.fromstring(xml_str)
         edge_cells = [c for c in root.findall(".//mxCell") if c.get("edge") == "1"]
         assert edge_cells == []
+
+
+class TestIconShapeStyle:
+    """Coverage for _style_for_icon_shape -- the fix for icons that render
+    faint/blank because a bare `shape=mxgraph.aws4.<name>;fillColor=...;` is
+    not a registered stencil for most individual AWS4 service icons (only
+    confirmed via a real draw.io-generated AWS reference export -- see the
+    function's own docstring). Mirrors samples/GCP/ProcessEngineering's
+    already-verified _style_for_shape_ref."""
+
+    def test_most_aws4_icons_are_wrapped_in_the_resource_icon_carrier(self):
+        style = layout._style_for_icon_shape("mxgraph.aws4.lambda", "#ED7100")
+        assert "shape=mxgraph.aws4.resourceIcon;" in style
+        assert "resIcon=mxgraph.aws4.lambda;" in style
+        assert "fillColor=#ED7100;" in style
+        # The bare, non-rendering form must never be emitted for this case.
+        assert "shape=mxgraph.aws4.lambda;" not in style
+
+    def test_aws4_dedicated_shapes_stay_bare(self):
+        style = layout._style_for_icon_shape("mxgraph.aws4.nat_gateway", "#8C4FFF")
+        assert "shape=mxgraph.aws4.nat_gateway;" in style
+        assert "resIcon=" not in style
+        assert "fillColor=#8C4FFF;" in style
+
+    def test_aws4_group_shapes_stay_bare(self):
+        style = layout._style_for_icon_shape("mxgraph.aws4.group_vpc2", "#8C4FFF")
+        assert "shape=mxgraph.aws4.group_vpc2;" in style
+        assert "resIcon=" not in style
+
+    def test_azure_svg_path_uses_image_not_shape(self):
+        style = layout._style_for_icon_shape("img/lib/azure2/compute/Virtual_Machine.svg", "#0078D4")
+        assert style.startswith("image;")
+        assert "image=img/lib/azure2/compute/Virtual_Machine.svg;" in style
+        assert "shape=" not in style
+
+    def test_data_uri_uses_image_not_shape(self):
+        style = layout._style_for_icon_shape("data:image/svg+xml;base64,AAAA", "#4285F4")
+        assert style.startswith("image;")
+
+    def test_gcp2_shape_stays_bare(self):
+        style = layout._style_for_icon_shape("mxgraph.gcp2.cloud_run", "#4285F4")
+        assert style == "shape=mxgraph.gcp2.cloud_run;fillColor=#4285F4;strokeColor=none;html=1;"
+
+    def test_build_structured_drawio_xml_renders_aws4_icons_via_the_resource_icon_carrier(self):
+        # End-to-end: confirms the real pipeline actually uses the fixed
+        # helper, not just that the helper itself is correct in isolation.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[{
+                "id": "c1", "zone_id": "z1", "label": "Fn",
+                "shape": "mxgraph.aws4.lambda", "icon_color": "#ED7100",
+            }],
+            edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        icon_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon")
+        assert "resIcon=mxgraph.aws4.lambda;" in icon_cell.get("style", "")
+
+
+class TestVpcZoneContainer:
+    """Coverage for the "type": "vpc" zone style -- a VPC/VNet boundary
+    renders using each provider's REAL container convention instead of the
+    generic flat swimlane, per the request that cloud architecture diagrams
+    use VPC containers whenever possible, with visible (not faint) icons
+    inside them."""
+
+    def _zone_cell(self, root, zone_id):
+        return next(c for c in root.findall(".//mxCell") if c.get("id") == zone_id)
+
+    def test_aws_vpc_zone_uses_the_native_group_vpc_shape(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "vpc1", "label": "App VPC", "type": "vpc"}],
+            components=[{"id": "c1", "zone_id": "vpc1", "label": "Comp"}],
+            edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        style = self._zone_cell(root, "vpc1").get("style", "")
+        assert "shape=mxgraph.aws4.group;" in style
+        assert "grIcon=mxgraph.aws4.group_vpc2;" in style
+        assert "strokeColor=#8C4FFF;" in style
+        assert "swimlane" not in style
+
+    def test_gcp_vpc_zone_uses_the_pastel_container_rectangle(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "vpc1", "label": "App VPC", "type": "vpc"}],
+            components=[{"id": "c1", "zone_id": "vpc1", "label": "Comp"}],
+            edges=[], provider="gcp",
+        )
+        root = ET.fromstring(xml_str)
+        style = self._zone_cell(root, "vpc1").get("style", "")
+        assert "shape=rect;" in style
+        assert "fillColor=#E3F2FD;" in style
+        assert "strokeColor=none;" in style
+        assert "swimlane" not in style
+
+    def test_azure_vpc_zone_gets_a_dashed_border_and_a_vnet_corner_badge(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "vpc1", "label": "App VNet", "type": "vpc", "width": 340}],
+            components=[{"id": "c1", "zone_id": "vpc1", "label": "Comp"}],
+            edges=[], provider="azure",
+        )
+        root = ET.fromstring(xml_str)
+        style = self._zone_cell(root, "vpc1").get("style", "")
+        assert "dashed=1;" in style
+        assert "strokeColor=#0078D4;" in style
+        badge = next(c for c in root.findall(".//mxCell") if c.get("id") == "vpc1_badge")
+        assert badge.get("parent") == "vpc1"
+        assert "img/lib/azure2/networking/Virtual_Networks.svg" in badge.get("style", "")
+
+    def test_vpc_zone_color_override_is_honored(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "vpc1", "label": "App VPC", "type": "vpc", "color": "#123456"}],
+            components=[{"id": "c1", "zone_id": "vpc1", "label": "Comp"}],
+            edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        style = self._zone_cell(root, "vpc1").get("style", "")
+        assert "strokeColor=#123456;" in style
+
+    def test_vpc_zone_components_are_still_positioned_without_overlap(self):
+        # The VPC container swaps out swimlane for a different cell style,
+        # but must not change the reserved header space the layout engine
+        # already computed -- components must still sit inside the zone,
+        # not overlapping its own label area.
+        zones = [{"id": "vpc1", "label": "App VPC", "type": "vpc"}]
+        components = [
+            {"id": "c1", "zone_id": "vpc1", "label": "A", "shape": "mxgraph.gcp2.cloud_run"},
+            {"id": "c2", "zone_id": "vpc1", "label": "B", "shape": "mxgraph.gcp2.cloud_sql"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        zbox = zone_boxes["vpc1"]
+        for box in comp_boxes.values():
+            assert box.x >= zbox.x
+            assert box.right <= zbox.right
+            assert box.y >= zbox.y + layout.ZONE_HEADER_H_PLAIN
+
+    def test_plain_zone_without_type_is_unaffected(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[{"id": "c1", "zone_id": "z1", "label": "Comp"}],
+            edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        style = self._zone_cell(root, "z1").get("style", "")
+        assert "swimlane" in style
+        assert "shape=mxgraph.aws4.group" not in style
+
+
+class TestNestedZones:
+    """Coverage for "parent_zone_id" -- a zone nested inside another (e.g. a
+    VPC inside an AWS Account), the real-world shape that was missing: a
+    landing-zone/multi-account diagram has no single zone that IS a VPC, it
+    has Account zones that each CONTAIN one. Regression target: every
+    existing (non-nested) test above must keep passing unchanged, since
+    this only adds a new code path gated on parent_zone_id being present."""
+
+    def _account_and_vpc(self, vpc_type="vpc", vpc_extra=None):
+        zones = [
+            {"id": "acct", "label": "Workload Account", "row": 0},
+            {"id": "vpc", "label": "App VPC", "parent_zone_id": "acct", "type": vpc_type, **(vpc_extra or {})},
+        ]
+        components = [
+            {"id": "rds", "zone_id": "vpc", "label": "RDS", "shape": "mxgraph.aws4.rds"},
+            {"id": "ddb", "zone_id": "vpc", "label": "DynamoDB", "shape": "mxgraph.aws4.dynamodb_2"},
+        ]
+        return zones, components
+
+    def test_nested_zone_box_sits_strictly_inside_its_parent(self):
+        zones, components = self._account_and_vpc()
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc = zone_boxes["acct"], zone_boxes["vpc"]
+        assert vpc.x > acct.x
+        assert vpc.y > acct.y
+        assert vpc.right < acct.right
+        assert vpc.bottom < acct.bottom
+
+    def test_components_of_the_nested_zone_sit_inside_the_nested_zone_not_the_account(self):
+        zones, components = self._account_and_vpc()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        vpc = zone_boxes["vpc"]
+        for cid in ("rds", "ddb"):
+            box = comp_boxes[cid]
+            assert box.x >= vpc.x
+            assert box.right <= vpc.right
+            assert box.y >= vpc.y
+            assert box.bottom <= vpc.bottom
+
+    def test_account_zone_grows_to_fit_its_nested_vpc(self):
+        zones, components = self._account_and_vpc()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc = zone_boxes["acct"], zone_boxes["vpc"]
+        # The account must be tall/wide enough to actually contain the VPC
+        # plus its own margins, not just clip to the VPC's own box.
+        assert acct.w > vpc.w
+        assert acct.h > vpc.h
+
+    def test_nested_zone_renders_with_parent_cell_id_and_local_coordinates(self):
+        zones, components = self._account_and_vpc()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc = zone_boxes["acct"], zone_boxes["vpc"]
+
+        acct_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "acct")
+        assert acct_cell.get("parent") == "1"
+
+        vpc_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "vpc")
+        assert vpc_cell.get("parent") == "acct"
+        geom = vpc_cell.find("./mxGeometry")
+        assert float(geom.get("x")) == pytest.approx(vpc.x - acct.x)
+        assert float(geom.get("y")) == pytest.approx(vpc.y - acct.y)
+
+    def test_nested_vpc_zone_still_gets_the_real_vpc_container_style(self):
+        zones, components = self._account_and_vpc()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        vpc_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "vpc")
+        style = vpc_cell.get("style", "")
+        assert "shape=mxgraph.aws4.group;" in style
+        assert "grIcon=mxgraph.aws4.group_vpc2;" in style
+        assert "swimlane" not in style
+
+    def test_account_parent_keeps_the_plain_swimlane_style(self):
+        zones, components = self._account_and_vpc()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        acct_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "acct")
+        style = acct_cell.get("style", "")
+        assert "swimlane" in style
+        assert "shape=mxgraph.aws4.group" not in style
+
+    def test_account_level_direct_components_stack_below_the_nested_vpc(self):
+        zones = [
+            {"id": "acct", "label": "Account", "row": 0},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct", "type": "vpc"},
+        ]
+        components = [
+            {"id": "net_rsc", "zone_id": "vpc", "label": "NAT GW", "shape": "mxgraph.aws4.nat_gateway"},
+            {"id": "iam", "zone_id": "acct", "label": "IAM Role"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        vpc_box, iam_box = zone_boxes["vpc"], comp_boxes["iam"]
+        assert iam_box.y > vpc_box.bottom
+        acct_box = zone_boxes["acct"]
+        assert iam_box.x >= acct_box.x
+        assert iam_box.right <= acct_box.right
+
+    def test_two_nested_zones_stack_vertically_without_overlap(self):
+        zones = [
+            {"id": "acct", "label": "Account", "row": 0},
+            {"id": "vpc_a", "label": "VPC A", "parent_zone_id": "acct"},
+            {"id": "vpc_b", "label": "VPC B", "parent_zone_id": "acct"},
+        ]
+        components = [
+            {"id": "a1", "zone_id": "vpc_a", "label": "A1"},
+            {"id": "b1", "zone_id": "vpc_b", "label": "B1"},
+        ]
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        va, vb = zone_boxes["vpc_a"], zone_boxes["vpc_b"]
+        assert vb.y >= va.bottom
+        acct = zone_boxes["acct"]
+        for z in (va, vb):
+            assert z.x >= acct.x
+            assert z.right <= acct.right
+
+    def test_nested_zone_without_explicit_width_fills_the_parents_inner_width(self):
+        zones, components = self._account_and_vpc()
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc = zone_boxes["acct"], zone_boxes["vpc"]
+        assert vpc.w == pytest.approx(acct.w - 2 * layout.COMPONENT_H_MARGIN)
+
+    def test_nested_zone_respects_its_own_explicit_width(self):
+        zones, components = self._account_and_vpc(vpc_extra={"width": 250})
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        assert zone_boxes["vpc"].w == pytest.approx(250)
+
+    def test_multiple_accounts_each_with_their_own_vpc_do_not_overlap(self):
+        zones = [
+            {"id": "acct1", "label": "Account 1", "row": 0},
+            {"id": "acct2", "label": "Account 2", "row": 0},
+            {"id": "vpc1", "label": "VPC 1", "parent_zone_id": "acct1", "type": "vpc"},
+            {"id": "vpc2", "label": "VPC 2", "parent_zone_id": "acct2", "type": "vpc"},
+        ]
+        components = [
+            {"id": "c1", "zone_id": "vpc1", "label": "C1", "shape": "mxgraph.aws4.rds"},
+            {"id": "c2", "zone_id": "vpc2", "label": "C2", "shape": "mxgraph.aws4.rds"},
+        ]
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        acct1, acct2 = zone_boxes["acct1"], zone_boxes["acct2"]
+        assert not _boxes_overlap(acct1, acct2)
+        vpc1, vpc2 = zone_boxes["vpc1"], zone_boxes["vpc2"]
+        assert vpc1.x >= acct1.x and vpc1.right <= acct1.right
+        assert vpc2.x >= acct2.x and vpc2.right <= acct2.right
+
+    def test_dangling_parent_zone_id_raises(self):
+        with pytest.raises(KeyError):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "vpc", "label": "VPC", "parent_zone_id": "NO_SUCH_ZONE"}],
+                components=[],
+                edges=[],
+            )
+
+    def test_self_referential_parent_zone_id_raises(self):
+        with pytest.raises(ValueError, match="own id"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Z1", "parent_zone_id": "z1"}],
+                components=[],
+                edges=[],
+            )
+
+    def test_two_levels_of_nesting_raises(self):
+        with pytest.raises(ValueError, match="only one level"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[
+                    {"id": "acct", "label": "Account"},
+                    {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
+                    {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc"},
+                ],
+                components=[],
+                edges=[],
+            )
+
+    def test_unrelated_top_level_zone_is_unaffected_by_a_sibling_with_nesting(self):
+        # A top-level zone with NO nested children in the same diagram must
+        # keep going through the untouched, pre-nesting leaf code path.
+        zones = [
+            {"id": "acct", "label": "Account", "row": 0},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
+            {"id": "plain", "label": "Plain Zone", "row": 0},
+        ]
+        components = [
+            {"id": "c1", "zone_id": "vpc", "label": "C1"},
+            {"id": "c2", "zone_id": "plain", "label": "C2", "bullets": ["x"]},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        plain = zone_boxes["plain"]
+        c2 = comp_boxes["c2"]
+        assert c2.x >= plain.x
+        assert c2.right <= plain.right
+        assert not _boxes_overlap(zone_boxes["acct"], plain)
+
+
+class TestHorizontalNestedZones:
+    """Coverage for "stack": "horizontal" on a parent zone with nested
+    children -- regression target for a real generated diagram where every
+    nested zone always stacked vertically regardless of how many peer
+    siblings there were (5 sibling Accounts, each itself containing a VPC),
+    producing an extremely tall single-column "tower" (6212px tall, 432px
+    wide) that the user explicitly asked to fix by favoring horizontal over
+    vertical stacking."""
+
+    def _ou_with_accounts(self, n=3, stack="horizontal"):
+        zones = [{"id": "ou", "label": "OU", "row": 0, "stack": stack}]
+        components = []
+        for i in range(n):
+            zones.append({"id": f"acct{i}", "label": f"Account {i}", "parent_zone_id": "ou"})
+            components.append({"id": f"c{i}", "zone_id": f"acct{i}", "label": f"Comp {i}"})
+        return zones, components
+
+    def test_horizontal_nested_siblings_sit_side_by_side_not_stacked(self):
+        zones, components = self._ou_with_accounts(n=3)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        a0, a1, a2 = zone_boxes["acct0"], zone_boxes["acct1"], zone_boxes["acct2"]
+        # Same row (same y), increasing x -- not the vertical-stack shape
+        # (same x, increasing y) the default produces.
+        assert a0.y == a1.y == a2.y
+        assert a1.x > a0.right
+        assert a2.x > a1.right
+
+    def test_horizontal_nested_siblings_do_not_overlap(self):
+        zones, components = self._ou_with_accounts(n=5)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        accounts = [zone_boxes[f"acct{i}"] for i in range(5)]
+        for i in range(len(accounts)):
+            for j in range(i + 1, len(accounts)):
+                assert not _boxes_overlap(accounts[i], accounts[j])
+
+    def test_horizontal_nested_siblings_stay_inside_their_parent(self):
+        zones, components = self._ou_with_accounts(n=4)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        ou = zone_boxes["ou"]
+        for i in range(4):
+            acct = zone_boxes[f"acct{i}"]
+            assert acct.x >= ou.x
+            assert acct.right <= ou.right
+            assert acct.bottom <= ou.bottom
+
+    def test_horizontal_stacking_produces_a_wider_shorter_parent_than_vertical(self):
+        # The whole point of the feature: for the same content, horizontal
+        # must be wider and (consequently) shorter than vertical stacking
+        # -- not just geometrically valid, but actually fixing the "tower"
+        # complaint.
+        h_zones, h_components = self._ou_with_accounts(n=5, stack="horizontal")
+        v_zones, v_components = self._ou_with_accounts(n=5, stack="vertical")
+        h_boxes, _, _, _ = layout._layout_zones_and_components(h_zones, h_components)
+        v_boxes, _, _, _ = layout._layout_zones_and_components(v_zones, v_components)
+        assert h_boxes["ou"].w > v_boxes["ou"].w
+        assert h_boxes["ou"].h < v_boxes["ou"].h
+
+    def test_single_horizontal_nested_child_is_centered(self):
+        zones, components = self._ou_with_accounts(n=1)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        ou, acct = zone_boxes["ou"], zone_boxes["acct0"]
+        assert acct.cx == pytest.approx(ou.cx, abs=1)
+
+    def test_horizontal_nested_children_stretch_to_fill_an_explicitly_wide_parent(self):
+        zones, components = self._ou_with_accounts(n=2)
+        zones[0]["width"] = 1200
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        a0, a1 = zone_boxes["acct0"], zone_boxes["acct1"]
+        ou = zone_boxes["ou"]
+        # No big dead-space gap left unused past the last child.
+        assert ou.right - a1.right == pytest.approx(layout.COMPONENT_H_MARGIN, abs=1)
+        assert a1.x > a0.right
+
+    def test_direct_components_of_a_horizontal_parent_stack_below_the_nested_row(self):
+        zones = [
+            {"id": "ou", "label": "OU", "row": 0, "stack": "horizontal"},
+            {"id": "acct0", "label": "Account 0", "parent_zone_id": "ou"},
+            {"id": "acct1", "label": "Account 1", "parent_zone_id": "ou"},
+        ]
+        components = [
+            {"id": "c0", "zone_id": "acct0", "label": "C0"},
+            {"id": "c1", "zone_id": "acct1", "label": "C1"},
+            {"id": "direct", "zone_id": "ou", "label": "Direct"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        a0, a1 = zone_boxes["acct0"], zone_boxes["acct1"]
+        direct = comp_boxes["direct"]
+        assert direct.y > max(a0.bottom, a1.bottom)
+        ou = zone_boxes["ou"]
+        assert direct.x >= ou.x
+        assert direct.right <= ou.right
+
+    def test_horizontal_nested_zone_renders_with_correct_parent_and_local_coords(self):
+        zones, components = self._ou_with_accounts(n=2)
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        ou, a1 = zone_boxes["ou"], zone_boxes["acct1"]
+
+        cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "acct1")
+        assert cell.get("parent") == "ou"
+        geom = cell.find("./mxGeometry")
+        assert float(geom.get("x")) == pytest.approx(a1.x - ou.x)
+        assert float(geom.get("y")) == pytest.approx(a1.y - ou.y)
+
+    def test_default_stack_still_stacks_nested_children_vertically(self):
+        # Regression guard: omitting "stack" entirely must keep the
+        # original (pre-horizontal-support) vertical tower behavior --
+        # this feature is opt-in, not a change in default.
+        zones, components = self._ou_with_accounts(n=3, stack=None)
+        del zones[0]["stack"]
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        a0, a1, a2 = zone_boxes["acct0"], zone_boxes["acct1"], zone_boxes["acct2"]
+        assert a0.x == a1.x == a2.x
+        assert a1.y > a0.bottom
+        assert a2.y > a1.bottom
