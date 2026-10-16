@@ -38,6 +38,11 @@
 #                                         # side boxes (e.g. a governance strip).
 #       "color": str (optional hex),     # header/border accent color
 #       "width": int (optional),         # override the default column width
+#       "container_type": str (optional),# e.g. "aws_vpc" -- renders a real AWS
+#                                         # VPC group container (purple border +
+#                                         # corner badge, no header bar) instead
+#                                         # of a generic swimlane box. Unrecognized
+#                                         # or absent -> today's generic rendering.
 #   }, ...]
 #
 #   components: [{
@@ -99,6 +104,11 @@ ROW_GAP = 90            # vertical gap between one row of zones and the next
                         # edges.
 ZONE_HEADER_H_PLAIN = 45
 ZONE_HEADER_H_SUBLABEL = 62
+ZONE_GROUP_MARGIN_PLAIN = 30     # clearance below a group container's corner
+                        # badge+label row (no header bar to reserve space --
+                        # the label floats inset at the top-left instead)
+ZONE_GROUP_MARGIN_SUBLABEL = 46  # +16px for the second (sublabel) line, same
+                        # plain/sublabel split as the swimlane case above
 ZONE_INNER_MARGIN = 18   # margin inside a zone, above/below/beside its children
 COMPONENT_GAP = 40       # vertical gap between stacked components in the
                         # same zone -- the reserved channel same-zone edges
@@ -128,6 +138,26 @@ DEFAULT_COMPONENT_COLOR = "#5F6368"  # neutral gray -- deliberately NOT a
                         # explicitly set their own color) -- a safety net
                         # for a forgotten color, not a provider's identity
 DEFAULT_ZONE_COLOR = "#5F6368"
+MAX_VISIBLE_LUMINANCE = 0.8  # above this, a color reads as a pale/white tint
+                        # rather than a real accent -- confirmed against a
+                        # real generated diagram where the model picked
+                        # near-white "background tint" hex values (e.g.
+                        # #FCE4EC, #F3E5F5, #E3F2FD, luminance ~0.9+) for
+                        # zone borders AND icon fills, rendering both
+                        # practically invisible against this engine's own
+                        # light zone body (#F8F9FA) and white component
+                        # boxes (#FFFFFF). Real AWS/Azure/GCP brand colors
+                        # (#8C4FFF, #ED7100, #DD344C, ...) all sit well
+                        # below this threshold -- see _visible_color.
+
+# Recognized zone "container_type" values -> the AWS4 group stencil + brand
+# color that renders a correct, provider-specific container instead of a
+# generic swimlane. Only AWS has a verified stencil+color today -- do not add
+# a bare "vpc" alias; an Azure/GCP VPC-equivalent needs its own
+# provider-correct stencil+color pair, never the AWS4 "group" stencil.
+_ZONE_CONTAINER_STYLES = {
+    "aws_vpc": {"grIcon": "mxgraph.aws4.group_vpc", "strokeColor": "#8C4FFF"},
+}
 
 # Stagger step sizes for edges that share a routing channel with other
 # edges (see _channel_key/_stagger_offset). Each channel kind has very
@@ -158,6 +188,30 @@ SAFE_X_SEARCH_STEP = 6        # step size when _safe_x_for_vertical_span has
                                # that function's own docstring
 
 
+def _relative_luminance(hex_color: str) -> float:
+    """0 (black) to 1 (white) -- good enough to tell "too close to white to
+    read" from a real brand color, not meant to be a WCAG-exact formula."""
+    try:
+        h = hex_color.lstrip("#")
+        if len(h) != 6:
+            return 0.0
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    except ValueError:
+        return 0.0
+
+
+def _visible_color(value: Optional[str], default: str) -> str:
+    """Falls back to `default` when `value` is missing/empty OR too pale to
+    read against this engine's own light canvas (zone bodies and component
+    boxes are always a light/white fill) -- the same "guarantee by
+    construction, not by hoping the model got it right" principle this
+    module exists for (see module docstring), applied to color instead of
+    layout."""
+    color = value or default
+    return color if _relative_luminance(color) <= MAX_VISIBLE_LUMINANCE else default
+
+
 def _line_count(component: Dict[str, Any]) -> int:
     return 1 + len(component.get("bullets") or [])  # title line + each bullet
 
@@ -169,6 +223,8 @@ def _component_height(component: Dict[str, Any]) -> int:
 
 
 def _zone_header_height(zone: Dict[str, Any]) -> int:
+    if zone.get("container_type") in _ZONE_CONTAINER_STYLES:
+        return ZONE_GROUP_MARGIN_SUBLABEL if zone.get("sublabel") else ZONE_GROUP_MARGIN_PLAIN
     return ZONE_HEADER_H_SUBLABEL if zone.get("sublabel") else ZONE_HEADER_H_PLAIN
 
 
@@ -1342,14 +1398,28 @@ def build_structured_drawio_xml(
     # --- Zones ---
     for zone in zones:
         box = zone_boxes[zone["id"]]
-        color = zone.get("color", DEFAULT_ZONE_COLOR)
+        style_def = _ZONE_CONTAINER_STYLES.get(zone.get("container_type"))
+        color = _visible_color(
+            zone.get("color"), style_def["strokeColor"] if style_def else DEFAULT_ZONE_COLOR
+        )
         value = f"<b>{zone['label']}</b>"
         if zone.get("sublabel"):
             value += f"<br/><span style=\"font-size:10px;color:#5f6368\">{zone['sublabel']}</span>"
         header_h = _zone_header_height(zone)
-        cell = ET.SubElement(root, "mxCell", {
-            "id": zone["id"], "value": value, "vertex": "1", "parent": "1",
-            "style": (
+        if style_def is not None:
+            # A real AWS group container (e.g. a VPC): sharp-cornered, transparent
+            # fill, solid brand-color border, label floats inset at the top-left
+            # next to a corner icon badge -- NOT a swimlane with a header bar, so
+            # no rounded/arcSize/startSize here (startSize is swimlane-specific and
+            # meaningless for this shape).
+            zone_style = (
+                f"shape=mxgraph.aws4.group;grIcon={style_def['grIcon']};"
+                f"verticalAlign=top;align=left;spacingLeft=30;dashed=0;fillColor=none;"
+                f"strokeColor={color};strokeWidth=2;html=1;fontStyle=1;fontSize=12;"
+                f"fontColor=#202124;container=1;collapsible=0;"
+            )
+        else:
+            zone_style = (
                 f"swimlane;startSize={header_h};rounded=1;arcSize=4;fillColor=#F8F9FA;"
                 f"swimlaneFillColor=#F8F9FA;"
                 # swimlaneFillColor is mxgraph's own style key for a swimlane's BODY/
@@ -1364,7 +1434,10 @@ def build_structured_drawio_xml(
                 # which has been observed to render pale/near-illegible against the
                 # light header fill -- pin it explicitly rather than rely on
                 # whatever default a given viewer falls back to.
-            ),
+            )
+        cell = ET.SubElement(root, "mxCell", {
+            "id": zone["id"], "value": value, "vertex": "1", "parent": "1",
+            "style": zone_style,
         })
         ET.SubElement(cell, "mxGeometry", {
             "x": str(int(box.x)), "y": str(int(box.y)),
@@ -1381,7 +1454,7 @@ def build_structured_drawio_xml(
 
         has_icon = bool(component.get("shape"))
         spacing_top = SPACING_TOP_WITH_ICON if has_icon else SPACING_TOP_NO_ICON
-        color = component.get("color", DEFAULT_COMPONENT_COLOR)
+        color = _visible_color(component.get("color"), DEFAULT_COMPONENT_COLOR)
         value = _html_value(component["label"], component.get("bullets"))
 
         if has_icon:
@@ -1424,7 +1497,7 @@ def build_structured_drawio_xml(
             # "fillColor=;" style fragment instead of falling back to the
             # component's own color, which drawio renders as a solid black
             # fill rather than the intended icon color.
-            icon_color = component.get("icon_color") or color
+            icon_color = _visible_color(component.get("icon_color"), color)
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
                 "style": f"shape={component['shape']};fillColor={icon_color};strokeColor=none;html=1;",
