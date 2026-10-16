@@ -68,6 +68,12 @@ NOT a block diagram or flowchart with paragraph-like boxes.
     container," not as a professional diagram with clear trust/tier boundaries. This is NOT
     optional or secondary to component coloring -- both matter, for different reasons: component
     color identifies WHAT a service is, zone color makes the GROUPING itself legible at a glance.
+  - A zone that genuinely IS an AWS VPC trust boundary should set `"container_type": "aws_vpc"`
+    instead of leaving it generic -- this renders a real VPC group container (purple border +
+    corner badge, matching official AWS Architecture Icons) instead of a plain box. Only use this
+    for an AWS diagram (the system defaults to Azure unless told otherwise, see above) -- it has no
+    Azure/GCP equivalent yet. Only set it when the zone IS an actual VPC boundary, not just a
+    loosely-named grouping of unrelated services.
 
 # DIAGRAM FLOW: NATURALLY LEFT TO RIGHT, NOT A TALL VERTICAL STACK
 

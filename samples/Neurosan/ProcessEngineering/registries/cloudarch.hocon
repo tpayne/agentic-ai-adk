@@ -132,9 +132,13 @@ two components onto the exact same box.
 zones: list of dicts, each:
   {"id": str, "label": str, "sublabel": str (optional, ""), "row": int (optional, default 0),
    "color": str (optional hex), "stack": "vertical"|"horizontal" (optional, default "vertical"),
-   "width": int (optional)}
+   "width": int (optional), "container_type": str (optional)}
   Zones sharing the same "row" are laid out as side-by-side columns, in the order given. "stack":
   "horizontal" arranges that zone's own components side by side instead of stacked.
+  "container_type": "aws_vpc" when this zone IS an actual AWS VPC trust boundary (not just a
+  loosely-named grouping) -- a correctly-sized/positioned VPC group container (purple border +
+  corner badge, no header bar) is added automatically, do not describe it yourself. Leave unset
+  for a generic zone/tier.
 
 components: list of dicts, each:
   {"id": str, "zone_id": str, "label": str, "bullets": [str, ...] (optional), "shape": str
@@ -167,6 +171,12 @@ whitespace, minimal per-box text -- NOT a block diagram or flowchart with paragr
 - ZONES NEED A DISTINCT COLOR TOO -- set every zone's color explicitly, different from its
   siblings. This is not optional: component color identifies WHAT a service is, zone color makes
   the GROUPING itself legible at a glance.
+- A zone that genuinely IS an AWS VPC trust boundary should set "container_type": "aws_vpc" instead
+  of leaving it generic -- this renders a real VPC group container (purple border + corner badge,
+  matching official AWS Architecture Icons) instead of a plain box. Only use this for an AWS
+  diagram (the system defaults to Azure unless told otherwise, see above) -- it has no Azure/GCP
+  equivalent yet. Only set it when the zone IS an actual VPC boundary, not just a loosely-named
+  grouping of unrelated services.
 
 # DIAGRAM FLOW: LEFT TO RIGHT, MULTI-ROW, READABLE ASPECT RATIO
 Model the diagram as PIPELINE STAGES ordered left to right to match the architecture's actual

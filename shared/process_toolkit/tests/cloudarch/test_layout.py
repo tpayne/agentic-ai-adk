@@ -109,6 +109,7 @@ class TestLayoutOverlap:
             {"id": "z2", "label": "Zone Two", "row": 0},
             {"id": "z3", "label": "Zone Three", "row": 0, "width": 300},
             {"id": "z_gov", "label": "Governance", "row": 1, "stack": "horizontal"},
+            {"id": "z_vpc", "label": "App VPC", "row": 2, "container_type": "aws_vpc"},
         ]
         components = [
             {"id": "c1", "zone_id": "z1", "label": "A", "bullets": ["x", "y"], "shape": "mxgraph.gcp2.user"},
@@ -118,6 +119,8 @@ class TestLayoutOverlap:
             {"id": "c5", "zone_id": "z3", "label": "E", "bullets": ["x", "y", "z"]},
             {"id": "c6", "zone_id": "z_gov", "label": "F", "bullets": ["x"]},
             {"id": "c7", "zone_id": "z_gov", "label": "G", "bullets": ["x", "y"]},
+            {"id": "c8", "zone_id": "z_vpc", "label": "H", "bullets": ["x"], "shape": "mxgraph.aws4.lambda"},
+            {"id": "c9", "zone_id": "z_vpc", "label": "I"},
         ]
         return zones, components
 
@@ -1133,6 +1136,60 @@ class TestBuildXml:
         icon_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon")
         assert "fillColor=#527FFF;" in icon_cell.get("style", "")
         assert "fillColor=;" not in icon_cell.get("style", "")
+
+    def test_aws_vpc_container_type_renders_group_stencil_not_swimlane(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "App VPC", "container_type": "aws_vpc"}],
+            components=[{"id": "c1", "zone_id": "z1", "label": "Comp"}],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        zone_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "z1")
+        style = zone_cell.get("style", "")
+        assert "shape=mxgraph.aws4.group;" in style
+        assert "grIcon=mxgraph.aws4.group_vpc;" in style
+        assert "fillColor=none;" in style
+        assert "swimlane" not in style
+        assert "startSize=" not in style
+
+    def test_aws_vpc_zone_defaults_to_aws_brand_purple_unless_overridden(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[
+                {"id": "z1", "label": "Default VPC", "container_type": "aws_vpc"},
+                {"id": "z2", "label": "Custom VPC", "container_type": "aws_vpc", "color": "#123456"},
+            ],
+            components=[],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        cells = {c.get("id"): c.get("style", "") for c in root.findall(".//mxCell")}
+        assert "strokeColor=#8C4FFF;" in cells["z1"]
+        assert "strokeColor=#123456;" in cells["z2"]
+
+    def test_unrecognized_container_type_falls_back_to_generic_swimlane(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "container_type": "banana"}],
+            components=[],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        zone_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "z1")
+        assert "swimlane;" in zone_cell.get("style", "")
+
+    def test_aws_vpc_zone_with_sublabel_gets_the_taller_group_margin(self):
+        # Regression lock: a single fixed top margin for every aws_vpc zone
+        # would clip a two-line (label + sublabel) header, since the group
+        # stencil's label floats inset at the top-left rather than reserving
+        # a dedicated header bar -- the plain/sublabel margin split must
+        # carry over from the swimlane case.
+        plain = layout._zone_header_height({"container_type": "aws_vpc"})
+        with_sublabel = layout._zone_header_height({"container_type": "aws_vpc", "sublabel": "x"})
+        assert plain == layout.ZONE_GROUP_MARGIN_PLAIN
+        assert with_sublabel == layout.ZONE_GROUP_MARGIN_SUBLABEL
+        assert with_sublabel > plain
 
     def test_bidirectional_edges_between_same_pair_get_visibly_different_labels(self):
         # End-to-end regression test for the label-collision fix: a request

@@ -2286,13 +2286,18 @@ def save_drawio_structured(
       {"id": str, "label": str, "sublabel": str (optional, ""),
        "row": int (optional, default 0), "color": str (optional hex),
        "stack": "vertical"|"horizontal" (optional, default "vertical"),
-       "width": int (optional)}
+       "width": int (optional), "container_type": str (optional)}
       Zones sharing the same "row" are laid out as side-by-side columns, in
       the order given. Higher row numbers stack as a full-width band below
       all lower rows (e.g. a governance/security strip spanning the bottom).
       "stack": "horizontal" arranges that zone's own components side by
       side instead of stacked -- use this for a full-width band of several
       peer boxes (e.g. Observability | IAM | KMS | Security Controls).
+      "container_type": "aws_vpc" when this zone IS an actual AWS VPC trust
+      boundary (not just a loosely-named grouping) -- a correctly-sized/
+      positioned VPC group container (purple border + corner badge, no
+      header bar) is added automatically, do not describe it yourselves.
+      Leave unset for a generic zone/tier.
 
     components: list of dicts, each:
       {"id": str, "zone_id": str, "label": str,
