@@ -308,7 +308,7 @@ class WebServiceRequestControlsTest(unittest.TestCase):
 
         self.assertEqual(
             run_chat_turn.await_args_list,
-            [call(None, "hello"), call(None, "hello")],
+            [call(None, "hello", files=[]), call(None, "hello", files=[])],
         )
 
     def test_status_is_open_and_does_not_consume_the_rate_limit(self):
@@ -422,7 +422,7 @@ class WebServiceChatStreamTest(unittest.TestCase):
             return_value=("web-session-123", "user-1", "adk-session-1")
         )
 
-        async def fake_stream_chat_turn(user_id, session_id, query, event_queue):
+        async def fake_stream_chat_turn(user_id, session_id, query, event_queue, files=None):
             self.assertEqual(user_id, "user-1")
             self.assertEqual(session_id, "adk-session-1")
             self.assertEqual(query, "hello")
@@ -453,7 +453,7 @@ class WebServiceChatStreamTest(unittest.TestCase):
             return_value=("web-session-err", "user-1", "adk-session-1")
         )
 
-        async def failing_stream_chat_turn(user_id, session_id, query, event_queue):
+        async def failing_stream_chat_turn(user_id, session_id, query, event_queue, files=None):
             event_queue.put({"status": "progress", "origin": "root_agent", "text": "starting"})
             event_queue.put({"status": "error", "error": "An internal error has occurred."})
             event_queue.put(None)
@@ -472,6 +472,42 @@ class WebServiceChatStreamTest(unittest.TestCase):
         events = self._parse_sse(response.get_data(as_text=True))
         self.assertEqual(events[0]["status"], "progress")
         self.assertEqual(events[-1]["status"], "error")
+
+    def test_stream_recovers_with_an_error_event_if_the_turn_never_starts_at_all(self):
+        # Regression test: unlike the test above (a failure INSIDE
+        # _stream_chat_turn's own body, after its coroutine has already
+        # started -- its own try/finally reliably pushes event_queue's
+        # terminating None in that case), this simulates a failure DURING
+        # CONSTRUCTION of that coroutine itself -- e.g. a bad argument
+        # binding. _stream_chat_turn's own error handling never gets a
+        # chance to run at all here, since the coroutine object was never
+        # successfully created for loop.create_task to even schedule.
+        # Confirmed directly: this previously left event_queue with no
+        # sentinel whatsoever, hanging the whole SSE connection forever
+        # (generate()'s consumer loop blocks on event_queue.get() with
+        # nothing left to ever wake it). A plain (non-async) stand-in
+        # reproduces this exactly -- calling it raises immediately,
+        # before any coroutine/task exists.
+        get_session = AsyncMock(
+            return_value=("web-session-construct-fail", "user-1", "adk-session-1")
+        )
+
+        def broken_stream_chat_turn(user_id, session_id, query, event_queue, files=None):
+            raise TypeError("simulated failure constructing the coroutine")
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_stream_chat_turn", broken_stream_chat_turn
+        ):
+            response = self.client.post(
+                "/chat/stream", json={"query": "hello"}, headers=self._authorized_headers()
+            )
+
+        # Must complete at all (not hang) and surface the failure in-band,
+        # same contract as the mid-turn-failure case above.
+        self.assertEqual(response.status_code, 200)
+        events = self._parse_sse(response.get_data(as_text=True))
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["status"], "error")
 
 
 class WebServiceChatStopTest(unittest.TestCase):
@@ -539,7 +575,7 @@ class WebServiceChatStopTest(unittest.TestCase):
         started = threading.Event()
         cancelled = threading.Event()
 
-        async def fake_stream_chat_turn(user_id, session_id, query, event_queue):
+        async def fake_stream_chat_turn(user_id, session_id, query, event_queue, files=None):
             event_queue.put({"status": "progress", "origin": "root_agent", "text": "starting"})
             started.set()
             try:
@@ -742,6 +778,132 @@ class UsageAccumulationTest(unittest.TestCase):
         self.assertEqual(
             totals, {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
         )
+
+
+class ParseAttachmentsTest(unittest.TestCase):
+    """_parse_attachments -- validates/decodes POST /chat or /chat/stream's
+    optional "files" field server-side, re-checking size/count even though
+    the web client enforces the same limits before ever sending (a client
+    is never a trusted boundary). Deliberately kept identical (same
+    checks, same error wording) to the Neurosan port's own
+    cli.py._parse_attachments -- see that file's own TestParseAttachments
+    for the mirrored coverage."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    @staticmethod
+    def _b64(raw: bytes) -> str:
+        import base64
+        return base64.b64encode(raw).decode("ascii")
+
+    def test_absent_files_is_not_an_error(self):
+        files, error = self.agent._parse_attachments({})
+        self.assertEqual(files, [])
+        self.assertIsNone(error)
+
+    def test_decodes_a_valid_file(self):
+        payload = {"files": [{"name": "notes.txt", "mime_type": "text/plain", "data_base64": self._b64(b"hello")}]}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(error)
+        self.assertEqual(files, [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello"}])
+
+    def test_files_not_a_list_is_rejected(self):
+        files, error = self.agent._parse_attachments({"files": "not-a-list"})
+        self.assertIsNone(files)
+        self.assertIn("must be a list", error)
+
+    def test_too_many_files_is_rejected(self):
+        entry = {"name": "x.txt", "mime_type": "text/plain", "data_base64": self._b64(b"x")}
+        payload = {"files": [entry] * (self.agent.ATTACHMENT_MAX_FILES + 1)}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(files)
+        self.assertIn("Too many", error)
+
+    def test_entry_missing_mime_type_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "data_base64": self._b64(b"x")}]}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(files)
+        self.assertIn("mime_type", error)
+
+    def test_invalid_base64_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "mime_type": "text/plain", "data_base64": "not valid base64!!"}]}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(files)
+        self.assertIn("invalid base64", error)
+
+    def test_oversized_file_is_rejected(self):
+        oversized = self._b64(b"x" * (self.agent.ATTACHMENT_MAX_BYTES + 1))
+        payload = {"files": [{"name": "big.bin", "mime_type": "application/octet-stream", "data_base64": oversized}]}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(files)
+        self.assertIn("exceeds", error)
+
+    def test_file_at_exactly_the_limit_is_accepted(self):
+        at_limit = self._b64(b"x" * self.agent.ATTACHMENT_MAX_BYTES)
+        payload = {"files": [{"name": "ok.bin", "mime_type": "application/octet-stream", "data_base64": at_limit}]}
+        files, error = self.agent._parse_attachments(payload)
+        self.assertIsNone(error)
+        self.assertEqual(len(files[0]["data"]), self.agent.ATTACHMENT_MAX_BYTES)
+
+    def test_same_limits_as_the_neurosan_port(self):
+        # Not a hard architectural requirement, but confirmed deliberate
+        # (see both files' own ATTACHMENT_MAX_FILES/ATTACHMENT_MAX_BYTES
+        # comments) -- the shared WebClient's behavior shouldn't change
+        # depending on which backend it's talking to.
+        self.assertEqual(self.agent.ATTACHMENT_MAX_FILES, 4)
+        self.assertEqual(self.agent.ATTACHMENT_MAX_BYTES, 8 * 1024 * 1024)
+
+
+class ContentPartsForTurnTest(unittest.TestCase):
+    """_content_parts_for_turn -- builds the Content.parts list Gemini
+    actually receives. Unlike the Neurosan port (text-extraction
+    workaround, see that project's own cli.py), attached files reach
+    Gemini as genuine multimodal content here -- a real types.Part.
+    from_bytes per file, not just a text summary."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def test_no_files_produces_just_the_text_part(self):
+        parts = self.agent._content_parts_for_turn("hello", None)
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0].text, "hello")
+
+    def test_empty_files_list_produces_just_the_text_part(self):
+        parts = self.agent._content_parts_for_turn("hello", [])
+        self.assertEqual(len(parts), 1)
+
+    def test_one_file_adds_one_real_multimodal_part(self):
+        files = [{"name": "diagram.png", "mime_type": "image/png", "data": b"\x89PNGnotreal"}]
+        parts = self.agent._content_parts_for_turn("describe this", files)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].text, "describe this")
+        # A genuine multimodal Part carries inline_data (bytes + mime
+        # type), not a text summary of the file.
+        self.assertIsNotNone(parts[1].inline_data)
+        self.assertEqual(parts[1].inline_data.mime_type, "image/png")
+        self.assertEqual(parts[1].inline_data.data, b"\x89PNGnotreal")
+
+    def test_multiple_files_each_get_their_own_part_in_order(self):
+        files = [
+            {"name": "a.png", "mime_type": "image/png", "data": b"AAA"},
+            {"name": "b.pdf", "mime_type": "application/pdf", "data": b"BBB"},
+        ]
+        parts = self.agent._content_parts_for_turn("compare these", files)
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[1].inline_data.data, b"AAA")
+        self.assertEqual(parts[2].inline_data.data, b"BBB")
+
+    def test_used_directly_as_a_contents_parts_list(self):
+        files = [{"name": "a.txt", "mime_type": "text/plain", "data": b"hi"}]
+        content = self.agent.types.Content(role="user", parts=self.agent._content_parts_for_turn("q", files))
+        self.assertEqual(content.role, "user")
+        self.assertEqual(len(content.parts), 2)
 
 
 if __name__ == "__main__":

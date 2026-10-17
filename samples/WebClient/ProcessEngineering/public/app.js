@@ -3,8 +3,17 @@
 // A static, backend-agnostic chat UI for the ADK and neuro-san
 // ProcessEngineering samples' REST API:
 //   GET    /status                 -> { status: "live" }
-//   POST   /chat                   { query, session_id? } -> { status, session_id, query, response }
+//   POST   /chat                   { query, session_id?, files? } -> { status, session_id, query, response }
 //   DELETE /chat/<session_id>      -> { status, session_id, cleared }
+// "files" (optional): [{ name, mime_type, data_base64 }, ...] -- see
+// addAttachments/attachmentsForRequest below for how the composer builds
+// this. The two backends use attached files differently: the ADK sample
+// passes them to Gemini as genuine multimodal content (an attached image
+// is actually seen); the neuro-san port extracts them to text instead
+// (its underlying framework's own multimodal plumbing is a stub in the
+// installed version) -- either way, this page's own request/response
+// shape is identical, so it doesn't need to know which backend it's
+// talking to.
 // Both backends expose an identical contract (see each project's own
 // cli.py / process_agents/common/agent.py), so this single page works
 // against either one -- just point "Base URL" at whichever is running.
@@ -155,6 +164,9 @@
     stopBtn: document.getElementById("stopBtn"),
     toolbarBtns: Array.from(document.querySelectorAll(".toolbar-btn[data-command]")),
     saveChatBtn: document.getElementById("saveChatBtn"),
+    attachFileBtn: document.getElementById("attachFileBtn"),
+    attachFileInput: document.getElementById("attachFileInput"),
+    composerAttachments: document.getElementById("composerAttachments"),
 
     tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
     chatTabPanel: document.getElementById("chatTabPanel"),
@@ -1875,7 +1887,7 @@
     state.transcript.push({ role, text, timestamp: new Date() });
   }
 
-  function addMessage(role, text, { isMarkdown = false } = {}) {
+  function addMessage(role, text, { isMarkdown = false, attachmentNames = [] } = {}) {
     recordTranscript(role, text);
     el.emptyState.style.display = "none";
 
@@ -1898,6 +1910,25 @@
       bubble.textContent = text;
     }
     col.appendChild(bubble);
+
+    // Static (non-removable) echo of what was attached to THIS turn --
+    // distinct from .composer-attachments, which is the live, still-
+    // editable pending list shown before sending.
+    if (attachmentNames.length) {
+      const list = document.createElement("div");
+      list.className = "message-attachments";
+      attachmentNames.forEach((name) => {
+        const chip = document.createElement("span");
+        chip.className = "attachment-chip";
+        const chipName = document.createElement("span");
+        chipName.className = "attachment-chip-name";
+        chipName.textContent = name;
+        chipName.title = name;
+        chip.appendChild(chipName);
+        list.appendChild(chip);
+      });
+      col.appendChild(list);
+    }
 
     const meta = document.createElement("div");
     meta.className = "message-meta";
@@ -2116,13 +2147,140 @@
   }
 
   // ---------------------------------------------------------------
+  // Composer attachments -- files picked via the paperclip button, read
+  // client-side into base64 and sent alongside the next turn's query.
+  // Kept in sync with each backend's own server-side limits (see
+  // ATTACHMENT_MAX_FILES/ATTACHMENT_MAX_BYTES in cli.py and agent.py) --
+  // these client-side checks are purely for fast feedback; the server
+  // re-validates independently regardless (a client is never a trusted
+  // boundary). Runtime only, like state.network/state.transcript -- not
+  // persisted across a reload (see loadState/saveState).
+  // ---------------------------------------------------------------
+  const ATTACHMENT_MAX_FILES = 4;
+  const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024;
+
+  state.pendingAttachments = []; // {name, mimeType, size, dataBase64}
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  // Some browsers report an empty `file.type` for extensions they don't
+  // have a built-in mapping for (confirmed in practice for .md) -- fall
+  // back to guessing from the extension for the types this composer's
+  // own <input accept> list actually offers, rather than sending the
+  // backend a blank/wrong mime_type for an otherwise-valid attachment.
+  function guessMimeType(file) {
+    if (file.type) return file.type;
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    const byExt = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
+    return byExt[ext] || "application/octet-stream";
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // reader.result is "data:<mime>;base64,<data>" -- only the part
+        // after the comma is the actual payload the backend expects.
+        const result = reader.result;
+        const commaIndex = result.indexOf(",");
+        resolve(commaIndex === -1 ? result : result.slice(commaIndex + 1));
+      };
+      reader.onerror = () => reject(reader.error || new Error("Failed to read file."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderAttachmentChips() {
+    const container = el.composerAttachments;
+    container.innerHTML = "";
+    container.hidden = state.pendingAttachments.length === 0;
+    state.pendingAttachments.forEach((attachment, index) => {
+      const chip = document.createElement("span");
+      chip.className = "attachment-chip";
+
+      const name = document.createElement("span");
+      name.className = "attachment-chip-name";
+      name.textContent = attachment.name;
+      name.title = attachment.name;
+      chip.appendChild(name);
+
+      const size = document.createElement("span");
+      size.className = "attachment-chip-size";
+      size.textContent = formatFileSize(attachment.size);
+      chip.appendChild(size);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "attachment-chip-remove";
+      removeBtn.setAttribute("aria-label", `Remove ${attachment.name}`);
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => {
+        state.pendingAttachments.splice(index, 1);
+        renderAttachmentChips();
+      });
+      chip.appendChild(removeBtn);
+
+      container.appendChild(chip);
+    });
+  }
+
+  async function addAttachments(fileList) {
+    const files = Array.from(fileList || []);
+    for (const file of files) {
+      if (state.pendingAttachments.length >= ATTACHMENT_MAX_FILES) {
+        toast(`You can attach up to ${ATTACHMENT_MAX_FILES} files per message.`);
+        break;
+      }
+      if (file.size > ATTACHMENT_MAX_BYTES) {
+        toast(`"${file.name}" is too large (max ${formatFileSize(ATTACHMENT_MAX_BYTES)}).`);
+        continue;
+      }
+      try {
+        const dataBase64 = await fileToBase64(file);
+        state.pendingAttachments.push({
+          name: file.name,
+          mimeType: guessMimeType(file),
+          size: file.size,
+          dataBase64,
+        });
+      } catch (err) {
+        toast(`Couldn't read "${file.name}": ${err.message || err}`);
+      }
+    }
+    renderAttachmentChips();
+  }
+
+  function clearAttachments() {
+    state.pendingAttachments = [];
+    renderAttachmentChips();
+  }
+
+  // Shape expected by both backends' POST /chat and /chat/stream "files"
+  // field -- see cli.py's / agent.py's own _parse_attachments.
+  function attachmentsForRequest() {
+    return state.pendingAttachments.map((a) => ({
+      name: a.name, mime_type: a.mimeType, data_base64: a.dataBase64,
+    }));
+  }
+
+  el.attachFileBtn.addEventListener("click", () => el.attachFileInput.click());
+  el.attachFileInput.addEventListener("change", async (event) => {
+    await addAttachments(event.target.files);
+    event.target.value = ""; // allow re-selecting the same file(s) later
+  });
+
+  // ---------------------------------------------------------------
   // Sending a turn (with retry/backoff for transient failures)
   // ---------------------------------------------------------------
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async function postChat(baseUrl, query) {
+  async function postChat(baseUrl, query, files) {
     let lastError = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
       if (attempt > 0) {
@@ -2132,7 +2290,10 @@
         const res = await fetch(`${baseUrl}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ query, session_id: state.sessionId || undefined }),
+          body: JSON.stringify({
+            query, session_id: state.sessionId || undefined,
+            files: files && files.length ? files : undefined,
+          }),
         });
 
         if (res.ok) {
@@ -2170,11 +2331,14 @@
   // reading response.body's ReadableStream works the same way EventSource
   // would from the caller's point of view (just `for await` the events)
   // without that limitation.
-  async function* streamChat(baseUrl, query) {
+  async function* streamChat(baseUrl, query, files) {
     const response = await fetch(`${baseUrl}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ query, session_id: state.sessionId || undefined }),
+      body: JSON.stringify({
+        query, session_id: state.sessionId || undefined,
+        files: files && files.length ? files : undefined,
+      }),
     });
 
     if (!response.ok || !response.body) {
@@ -2205,14 +2369,14 @@
     }
   }
 
-  async function sendMessage(text) {
+  async function sendMessage(text, files) {
     const baseUrl = currentBaseUrl();
     if (!baseUrl) {
       toast("Set a Base URL and click Connect first.");
       return;
     }
 
-    addMessage("user", text, { isMarkdown: true });
+    addMessage("user", text, { isMarkdown: true, attachmentNames: (files || []).map((f) => f.name) });
     beginNetworkTurn(text);
     el.sendBtn.disabled = true;
     el.sendBtn.hidden = true;
@@ -2225,7 +2389,7 @@
     let sawDone = false;
 
     try {
-      for await (const event of streamChat(baseUrl, text)) {
+      for await (const event of streamChat(baseUrl, text, files)) {
         gotAnyEvent = true;
         if (event.session_id) setSessionId(event.session_id);
 
@@ -2263,7 +2427,7 @@
         // a dead typing indicator.
         live.row.remove();
         try {
-          const data = await postChat(baseUrl, text);
+          const data = await postChat(baseUrl, text, files);
           if (data.status === "ok") {
             setSessionId(data.session_id);
             addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
@@ -2641,18 +2805,26 @@
   el.composerForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const markdown = richTextToMarkdown(el.messageInput);
-    if (!markdown) return;
+    const hasAttachments = state.pendingAttachments.length > 0;
+    if (!markdown && !hasAttachments) return;
+    // A turn with only attachments and no typed text still needs a
+    // non-empty "query" -- both backends require one (see each one's own
+    // _parse_attachments/_run_chat_turn) -- substitute a minimal default
+    // rather than silently blocking the send.
+    const query = markdown || "Please review the attached file(s).";
     // Skip an exact repeat of the immediately-previous entry (bash's own
     // default ignoredups behavior) so resending the same query doesn't
     // clutter history with duplicates.
-    if (state.commandHistory[state.commandHistory.length - 1] !== markdown) {
-      state.commandHistory.push(markdown);
+    if (state.commandHistory[state.commandHistory.length - 1] !== query) {
+      state.commandHistory.push(query);
     }
     historyIndex = state.commandHistory.length;
     draftBeforeHistory = "";
     el.messageInput.innerHTML = "";
     updateEmptyState();
-    sendMessage(markdown);
+    const files = attachmentsForRequest();
+    clearAttachments();
+    sendMessage(query, files);
   });
 
   // ---------------------------------------------------------------

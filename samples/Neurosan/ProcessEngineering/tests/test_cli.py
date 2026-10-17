@@ -232,6 +232,152 @@ class TestExtractUsage:
         assert usage["total_tokens"] == 10
 
 
+class TestParseAttachments:
+    """_parse_attachments -- validates/decodes POST /chat or /chat/stream's
+    optional "files" field server-side, re-checking size/count even though
+    the web client enforces the same limits before ever sending (a client
+    is never a trusted boundary)."""
+
+    def _b64(self, raw: bytes) -> str:
+        import base64
+        return base64.b64encode(raw).decode("ascii")
+
+    def test_absent_files_is_not_an_error(self):
+        files, error = cli._parse_attachments({})
+        assert files == []
+        assert error is None
+
+    def test_decodes_a_valid_file(self):
+        payload = {"files": [{"name": "notes.txt", "mime_type": "text/plain", "data_base64": self._b64(b"hello")}]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert files == [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello"}]
+
+    def test_decodes_multiple_files_in_order(self):
+        payload = {"files": [
+            {"name": "a.txt", "mime_type": "text/plain", "data_base64": self._b64(b"A")},
+            {"name": "b.txt", "mime_type": "text/plain", "data_base64": self._b64(b"B")},
+        ]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert [f["name"] for f in files] == ["a.txt", "b.txt"]
+
+    def test_files_not_a_list_is_rejected(self):
+        files, error = cli._parse_attachments({"files": "not-a-list"})
+        assert files is None
+        assert "must be a list" in error
+
+    def test_too_many_files_is_rejected(self):
+        entry = {"name": "x.txt", "mime_type": "text/plain", "data_base64": self._b64(b"x")}
+        payload = {"files": [entry] * (cli.ATTACHMENT_MAX_FILES + 1)}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "Too many" in error
+
+    def test_entry_missing_name_is_rejected(self):
+        payload = {"files": [{"mime_type": "text/plain", "data_base64": self._b64(b"x")}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "name" in error
+
+    def test_entry_missing_mime_type_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "data_base64": self._b64(b"x")}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "mime_type" in error
+
+    def test_entry_missing_data_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "mime_type": "text/plain"}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "data_base64" in error
+
+    def test_invalid_base64_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "mime_type": "text/plain", "data_base64": "not valid base64!!"}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "invalid base64" in error
+
+    def test_oversized_file_is_rejected(self):
+        oversized = self._b64(b"x" * (cli.ATTACHMENT_MAX_BYTES + 1))
+        payload = {"files": [{"name": "big.bin", "mime_type": "application/octet-stream", "data_base64": oversized}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "exceeds" in error
+
+    def test_file_at_exactly_the_limit_is_accepted(self):
+        at_limit = self._b64(b"x" * cli.ATTACHMENT_MAX_BYTES)
+        payload = {"files": [{"name": "ok.bin", "mime_type": "application/octet-stream", "data_base64": at_limit}]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert len(files[0]["data"]) == cli.ATTACHMENT_MAX_BYTES
+
+
+class TestIngestAttachments:
+    """ChatSession._ingest_attachments -- extracts text from this turn's
+    attached files and stores it in sly_data, where the
+    load_attached_files CodedTool can surface it to the agent (sly_data
+    itself is invisible to the LLM's own prompt)."""
+
+    def _session(self):
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        return session
+
+    def test_no_files_is_a_no_op(self):
+        session = self._session()
+        session._ingest_attachments(None)
+        assert session.sly_data is None
+        session._ingest_attachments([])
+        assert session.sly_data is None
+
+    def test_text_file_is_extracted_into_sly_data(self):
+        session = self._session()
+        session._ingest_attachments([{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello world"}])
+        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
+        assert len(entries) == 1
+        assert entries[0]["name"] == "notes.txt"
+        assert entries[0]["mime_type"] == "text/plain"
+        assert entries[0]["status"] == "OK"
+        assert entries[0]["text"] == "hello world"
+
+    def test_image_file_is_marked_unsupported_not_dropped_silently(self):
+        session = self._session()
+        session._ingest_attachments([{"name": "diagram.png", "mime_type": "image/png", "data": b"\x89PNGnotreal"}])
+        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
+        assert entries[0]["status"] == "UNSUPPORTED"
+        assert "not readable as text" in entries[0]["reason"]
+
+    def test_creates_sly_data_dict_when_none(self):
+        session = self._session()
+        assert session.sly_data is None
+        session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
+        assert isinstance(session.sly_data, dict)
+
+    def test_new_turns_files_replace_the_previous_turns(self):
+        session = self._session()
+        session._ingest_attachments([{"name": "first.txt", "mime_type": "text/plain", "data": b"first"}])
+        session._ingest_attachments([{"name": "second.txt", "mime_type": "text/plain", "data": b"second"}])
+        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
+        assert [e["name"] for e in entries] == ["second.txt"]
+
+    def test_a_turn_with_no_new_files_leaves_earlier_attachments_in_place(self):
+        # A later turn with no attachments of its own can still reference
+        # something attached a few messages back.
+        session = self._session()
+        session._ingest_attachments([{"name": "spec.txt", "mime_type": "text/plain", "data": b"spec content"}])
+        session._ingest_attachments(None)
+        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
+        assert [e["name"] for e in entries] == ["spec.txt"]
+
+    def test_existing_sly_data_keys_are_preserved(self):
+        session = self._session()
+        session.sly_data = {"some_other_key": "value"}
+        session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
+        assert session.sly_data["some_other_key"] == "value"
+        assert cli.ATTACHED_FILES_SLY_DATA_KEY in session.sly_data
+
+
 def test_send_logs_token_accounting_at_info(caplog):
     """ChatSession.send must surface token_accounting (previously silently
     discarded) via the standard logger at INFO, not swallow it."""
@@ -419,12 +565,14 @@ class TestChatSessionSendStreaming:
 class TestChatStreamRoute:
     """POST /chat/stream -- the Flask route wrapping ChatSession.send_streaming."""
 
-    def _build_client(self, monkeypatch, send_streaming_events):
+    def _build_client(self, monkeypatch, send_streaming_events, received_files=None):
         class _StubChatSession:
             def __init__(self, agent_name, isolated=False):
                 self.agent_name = agent_name
 
-            def send_streaming(self, text):
+            def send_streaming(self, text, files=None):
+                if received_files is not None:
+                    received_files.append(files)
                 yield from send_streaming_events
 
         monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
@@ -477,7 +625,7 @@ class TestChatStreamRoute:
             def __init__(self, agent_name, isolated=False):
                 pass
 
-            def send_streaming(self, text):
+            def send_streaming(self, text, files=None):
                 yield {"status": "progress", "origin": "x", "text": "starting"}
                 raise RuntimeError("boom")
 
@@ -498,6 +646,93 @@ class TestChatStreamRoute:
         client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
         resp = client.post("/chat/stream", json={"query": "hello"})
         assert resp.status_code == 401
+
+    def test_stream_decodes_and_forwards_attached_files(self, monkeypatch):
+        import base64
+
+        received = []
+        client = self._build_client(
+            monkeypatch, [{"status": "done", "response": "hi"}], received_files=received
+        )
+        resp = client.post("/chat/stream", json={
+            "query": "hello",
+            "files": [{
+                "name": "notes.txt", "mime_type": "text/plain",
+                "data_base64": base64.b64encode(b"hi there").decode("ascii"),
+            }],
+        })
+        assert resp.status_code == 200
+        assert received == [[{"name": "notes.txt", "mime_type": "text/plain", "data": b"hi there"}]]
+
+    def test_stream_rejects_an_invalid_files_payload_with_400_before_reaching_the_session(self, monkeypatch):
+        received = []
+        client = self._build_client(monkeypatch, [], received_files=received)
+        resp = client.post("/chat/stream", json={"query": "hello", "files": "not-a-list"})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+        assert received == []  # never reached send_streaming at all
+
+
+class TestChatRoute:
+    """POST /chat -- the non-streaming counterpart wrapping
+    ChatSession.send. Same request contract as /chat/stream (see that
+    class above), blocking until the turn completes instead of streaming
+    progress."""
+
+    def _build_client(self, monkeypatch, response_text="hi", received_files=None):
+        class _StubChatSession:
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+                self.last_usage = None
+
+            def send(self, text, files=None):
+                if received_files is not None:
+                    received_files.append(files)
+                return response_text
+
+        monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_chat_requires_a_nonempty_query(self, monkeypatch):
+        client = self._build_client(monkeypatch)
+        resp = client.post("/chat", json={})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+
+    def test_chat_returns_the_response_and_sets_the_session_cookie(self, monkeypatch):
+        client = self._build_client(monkeypatch, response_text="the answer")
+        resp = client.post("/chat", json={"query": "hello"})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "ok"
+        assert body["response"] == "the answer"
+        assert cli.WEB_SESSION_COOKIE in resp.headers.get("Set-Cookie", "")
+
+    def test_chat_decodes_and_forwards_attached_files(self, monkeypatch):
+        import base64
+
+        received = []
+        client = self._build_client(monkeypatch, received_files=received)
+        resp = client.post("/chat", json={
+            "query": "hello",
+            "files": [{
+                "name": "spec.md", "mime_type": "text/markdown",
+                "data_base64": base64.b64encode(b"# Spec").decode("ascii"),
+            }],
+        })
+        assert resp.status_code == 200
+        assert received == [[{"name": "spec.md", "mime_type": "text/markdown", "data": b"# Spec"}]]
+
+    def test_chat_rejects_an_invalid_files_payload_with_400_before_reaching_the_session(self, monkeypatch):
+        received = []
+        client = self._build_client(monkeypatch, received_files=received)
+        resp = client.post("/chat", json={"query": "hello", "files": [{"name": "x.txt"}]})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+        assert received == []
 
 
 class TestChatStopRoute:

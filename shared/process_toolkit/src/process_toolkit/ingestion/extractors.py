@@ -6,6 +6,7 @@ framework-specific, so the logic carries over unchanged.
 """
 
 import os
+import tempfile
 
 
 def _extract_txt_file(path: str) -> str:
@@ -185,6 +186,66 @@ def load_directory_context(directory: str, max_chars: int = 150000) -> dict:
         "files_skipped": files_skipped,
         "combined_text": combined_text,
     }
+    if truncated:
+        result["truncated"] = True
+    return result
+
+
+# Smaller than load_directory_context's 150000 -- a single chat turn can
+# carry several attachments at once, all of which need to fit in the same
+# model context window alongside the conversation itself, not just one
+# directory's worth of requirements source material.
+ATTACHMENT_MAX_CHARS = 20000
+
+
+def extract_attachment_text(name: str, data: bytes, max_chars: int = ATTACHMENT_MAX_CHARS) -> dict:
+    """
+    Extracts text from a single uploaded file's raw bytes, reusing the
+    exact same per-extension extractors load_directory_context uses for
+    an on-disk directory -- DIRECTORY_CONTEXT_EXTRACTORS only accepts a
+    file PATH, so this writes `data` to a short-lived temp file under the
+    original extension before handing it off, rather than re-implementing
+    per-format parsing against in-memory bytes.
+
+    Returns {"status": "OK", "name": ..., "text": "..."} (truncated at
+    max_chars, same truncation convention as load_directory_context), or
+    {"status": "UNSUPPORTED", "name": ..., "reason": "..."} for an
+    extension with no extractor (e.g. an image has no text to extract at
+    all -- not a failure, just nothing this function can do) or one that
+    failed to parse / yielded no text.
+    """
+    ext = os.path.splitext(name)[1].lower()
+    extractor = DIRECTORY_CONTEXT_EXTRACTORS.get(ext)
+    if extractor is None:
+        reason = (
+            "legacy .doc (unsupported -- re-save as .docx)" if ext == ".doc"
+            else f"no text extractor for '{ext or '(no extension)'}' -- binary/image content, not readable as text"
+        )
+        return {"status": "UNSUPPORTED", "name": name, "reason": reason}
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        text = (extractor(tmp_path) or "").strip()
+    except Exception as e:
+        return {"status": "UNSUPPORTED", "name": name, "reason": f"failed to read: {e}"}
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    if not text:
+        return {"status": "UNSUPPORTED", "name": name, "reason": "no extractable text"}
+
+    truncated = len(text) > max_chars
+    if truncated:
+        text = text[:max_chars] + f"\n\n[... truncated at {max_chars} characters ...]"
+
+    result = {"status": "OK", "name": name, "text": text}
     if truncated:
         result["truncated"] = True
     return result

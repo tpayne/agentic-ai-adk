@@ -1,8 +1,12 @@
+import os
 import tempfile
 from email.message import EmailMessage
 from pathlib import Path
 
-from process_toolkit.ingestion.extractors import load_directory_context, DIRECTORY_CONTEXT_EXTRACTORS, _extract_msg_file
+from process_toolkit.ingestion.extractors import (
+    load_directory_context, DIRECTORY_CONTEXT_EXTRACTORS, _extract_msg_file,
+    extract_attachment_text,
+)
 
 
 def test_missing_directory_returns_not_found():
@@ -154,3 +158,64 @@ def test_combined_text_is_truncated_past_the_configured_limit():
     assert result["status"] == "OK"
     assert result.get("truncated") is True
     assert "truncated at 100 characters" in result["combined_text"]
+
+
+class TestExtractAttachmentText:
+    """extract_attachment_text -- the single-uploaded-file counterpart to
+    load_directory_context, used by a chat turn's file-attachment support.
+    Reuses the exact same DIRECTORY_CONTEXT_EXTRACTORS, just against raw
+    in-memory bytes instead of an on-disk directory."""
+
+    def test_extracts_txt_bytes(self):
+        result = extract_attachment_text("notes.txt", b"Vendor onboarding requires a 3-day SLA.")
+        assert result == {"status": "OK", "name": "notes.txt", "text": "Vendor onboarding requires a 3-day SLA."}
+
+    def test_extracts_pdf_bytes(self):
+        from pypdf import PdfWriter
+        import io
+
+        writer = PdfWriter()
+        writer.add_blank_page(width=200, height=200)
+        buf = io.BytesIO()
+        writer.write(buf)
+
+        result = extract_attachment_text("blank.pdf", buf.getvalue())
+        # A blank page has no text layer -- confirms the PDF extractor
+        # path actually ran (no exception/UNSUPPORTED-for-wrong-reason),
+        # landing on the same "no extractable text" outcome
+        # load_directory_context's own PDF test would hit for a blank page.
+        assert result["status"] == "UNSUPPORTED"
+        assert result["name"] == "blank.pdf"
+        assert result["reason"] == "no extractable text"
+
+    def test_image_extension_has_no_extractor(self):
+        result = extract_attachment_text("diagram.png", b"\x89PNG\r\n\x1a\nnot a real png")
+        assert result["status"] == "UNSUPPORTED"
+        assert result["name"] == "diagram.png"
+        assert "not readable as text" in result["reason"]
+
+    def test_legacy_doc_extension_gets_a_specific_reason(self):
+        result = extract_attachment_text("old.doc", b"ignored -- old binary format")
+        assert result["status"] == "UNSUPPORTED"
+        assert "re-save as .docx" in result["reason"]
+
+    def test_malformed_file_fails_gracefully_not_with_an_exception(self):
+        result = extract_attachment_text("broken.pdf", b"not a real pdf")
+        assert result["status"] == "UNSUPPORTED"
+        assert "failed to read" in result["reason"] or "no extractable text" in result["reason"]
+
+    def test_text_is_truncated_past_the_configured_limit(self):
+        result = extract_attachment_text("big.txt", b"x" * 500, max_chars=100)
+        assert result["status"] == "OK"
+        assert result.get("truncated") is True
+        assert "truncated at 100 characters" in result["text"]
+        assert len(result["text"]) < 500
+
+    def test_temp_file_is_cleaned_up_after_extraction(self):
+        import glob
+        import tempfile as tempfile_module
+
+        before = set(glob.glob(os.path.join(tempfile_module.gettempdir(), "*.txt")))
+        extract_attachment_text("notes.txt", b"hello")
+        after = set(glob.glob(os.path.join(tempfile_module.gettempdir(), "*.txt")))
+        assert after - before == set()

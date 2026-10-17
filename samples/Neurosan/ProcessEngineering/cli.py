@@ -49,6 +49,8 @@ registries/manifest.hocon relative to the current working directory.
 
 import argparse
 import asyncio
+import base64
+import binascii
 import hmac
 import json
 import logging
@@ -142,8 +144,28 @@ from neuro_san.message.processors.message_processor import MessageProcessor  # n
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
+from process_toolkit.ingestion.extractors import extract_attachment_text  # noqa: E402
+
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
+
+# POST /chat and /chat/stream's optional "files" field (see
+# _parse_attachments below): each entry is {"name", "mime_type",
+# "data_base64"}. neuro-san's own chat.proto has a "mime_data" field for
+# genuine multimodal content, but it's a stub in the installed neuro-san
+# version (base_message_dictionary_converter.py explicitly skips it,
+# "# No mime_data for now", and the one utility that WOULD turn it into
+# real model content is never called anywhere in the package) -- wiring a
+# client-supplied mime_data through would silently vanish, not reach the
+# LLM. Attachments are extracted to TEXT instead (see extract_attachment_text)
+# and stored in sly_data, where the "load_attached_files" CodedTool (see
+# coded_tools/cloudarch/load_attached_files_tool.py) can read them and
+# surface their content as a tool result the agent actually sees -- the
+# same, already-working mechanism load_directory_context/
+# load_requirements_summary use for getting file content to the LLM.
+ATTACHMENT_MAX_FILES = 4
+ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
+ATTACHED_FILES_SLY_DATA_KEY = "attached_files"
 
 _trace_logger = logging.getLogger("ProcessArchitect.CLI.Trace")
 _web_logger = logging.getLogger("ProcessArchitect.CLI.WebService")
@@ -228,6 +250,55 @@ def run_shell_command(cmdline: str) -> None:
             display_text(f"Shell command exited with code {proc.returncode}", kind="error")
     except Exception as e:
         display_text(f"[Shell]: Error executing command: {e}", kind="error")
+
+
+def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str, Any]]], Optional[str]]":
+    """
+    Validates and decodes POST /chat or /chat/stream's optional "files"
+    field: [{"name": str, "mime_type": str, "data_base64": str}, ...].
+    Returns (decoded_files, None) on success -- decoded_files is the same
+    shape with "data_base64" replaced by "data" (raw bytes) -- or
+    (None, error_message) on the first violation found, for the caller to
+    turn into a 400 response exactly like the existing "query required"
+    check does. Returns ([], None) when "files" is absent/empty -- not an
+    error, just nothing to attach.
+
+    Re-validates server-side (size/count) even though the web client
+    enforces the same limits before ever sending -- a client is never a
+    trusted boundary; a modified or scripted caller could send an
+    oversized/overlong payload directly against this route.
+    """
+    raw_files = payload.get("files")
+    if raw_files is None:
+        return [], None
+    if not isinstance(raw_files, list):
+        return None, "Field 'files' must be a list."
+    if len(raw_files) > ATTACHMENT_MAX_FILES:
+        return None, f"Too many attached files (max {ATTACHMENT_MAX_FILES})."
+
+    decoded: List[Dict[str, Any]] = []
+    for entry in raw_files:
+        if not isinstance(entry, dict):
+            return None, "Each entry in 'files' must be an object."
+        name = entry.get("name")
+        mime_type = entry.get("mime_type")
+        data_b64 = entry.get("data_base64")
+        if not isinstance(name, str) or not name.strip():
+            return None, "Each attached file requires a non-empty 'name'."
+        if not isinstance(mime_type, str) or not mime_type.strip():
+            return None, f"Attached file '{name}' is missing 'mime_type'."
+        if not isinstance(data_b64, str) or not data_b64:
+            return None, f"Attached file '{name}' is missing 'data_base64'."
+        try:
+            data = base64.b64decode(data_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return None, f"Attached file '{name}' has invalid base64 data."
+        if len(data) > ATTACHMENT_MAX_BYTES:
+            max_mb = ATTACHMENT_MAX_BYTES / (1024 * 1024)
+            return None, f"Attached file '{name}' exceeds the {max_mb:.0f}MB size limit."
+        decoded.append({"name": name, "mime_type": mime_type, "data": data})
+
+    return decoded, None
 
 
 def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -321,7 +392,35 @@ class ChatSession:
         # mapping from neuro-san's own token_accounting shape.
         self.last_usage: Optional[Dict[str, Any]] = None
 
-    def send(self, text: str) -> str:
+    def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> None:
+        """
+        Extracts text from this turn's attached files (see
+        _parse_attachments) and stores it in self.sly_data under
+        ATTACHED_FILES_SLY_DATA_KEY, where the "load_attached_files"
+        CodedTool (coded_tools/cloudarch/load_attached_files_tool.py) can
+        read it. sly_data is intentionally invisible to the LLM's own
+        prompt (see chat.proto's own ChatMessage.sly_data comment: keys
+        may appear in the chat stream, "but the data itself does not") --
+        a CodedTool explicitly calling for it is the only way this
+        content actually reaches the agent.
+
+        No-op when `files` is empty -- a turn with no NEW attachments
+        leaves any earlier turn's attachments in sly_data as-is, rather
+        than clearing them, so a later turn can still reference something
+        attached a few messages back (e.g. "regenerate using the spec I
+        sent earlier").
+        """
+        if not files:
+            return
+        if self.sly_data is None:
+            self.sly_data = {}
+        self.sly_data[ATTACHED_FILES_SLY_DATA_KEY] = [
+            {**extract_attachment_text(f["name"], f["data"]), "mime_type": f["mime_type"]}
+            for f in files
+        ]
+
+    def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
+        self._ingest_attachments(files)
         state = {
             "last_chat_response": None,
             "user_input": text,
@@ -341,7 +440,7 @@ class ChatSession:
 
         return state.get("last_chat_response") or ""
 
-    def send_streaming(self, text: str):
+    def send_streaming(self, text: str, files: Optional[List[Dict[str, Any]]] = None):
         """
         Generator version of send(): yields an incremental update dict
         after EVERY message produced in the agent network's response
@@ -388,6 +487,7 @@ class ChatSession:
         caller-side 'close' method" comment in the installed neuro_san
         package).
         """
+        self._ingest_attachments(files)
         processor = self.input_processor.get_message_processor()
         chat_filter = {"chat_filter_type": "MAXIMAL"}
         chat_request = self.input_processor.formulate_chat_request(
@@ -654,12 +754,22 @@ def build_web_app(agent_name: str, https: bool = True):
     Build (but do not run) the Flask REST app for -d/--detached --flask mode.
 
     Exposes the SAME routes/shapes as the ADK original's build_web_app:
-      POST   /chat            {"query": "...", "session_id": "..." (optional)}
+      POST   /chat            {"query": "...", "session_id": "..." (optional),
+                               "files": [{"name": "...", "mime_type": "...",
+                               "data_base64": "..."}, ...] (optional, up to
+                               ATTACHMENT_MAX_FILES entries, each up to
+                               ATTACHMENT_MAX_BYTES decoded)}
                                -> {"status": "ok", "session_id": "...",
                                    "query": "...", "response": "...",
                                    "usage": {"prompt_tokens": N,
                                    "completion_tokens": N, "total_tokens": N,
                                    "model": "..."} or null}
+                               Attached files are extracted to text (see
+                               _parse_attachments/extract_attachment_text)
+                               and surfaced to the agent via the
+                               "load_attached_files" CodedTool, NOT sent to
+                               the LLM as genuine multimodal content -- see
+                               ATTACHMENT_MAX_FILES's own comment for why.
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
@@ -763,11 +873,15 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
-            response_text = session.send(query.strip())
+            response_text = session.send(query.strip(), files=files)
         except Exception:
             _web_logger.exception("Web chat error")
             return jsonify({
@@ -813,6 +927,10 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
         # Resolved up front (not inside the generator below) so the
         # session id is known -- and its cookie set -- before the
@@ -821,7 +939,7 @@ def build_web_app(agent_name: str, https: bool = True):
 
         def generate():
             try:
-                for update in session.send_streaming(query.strip()):
+                for update in session.send_streaming(query.strip(), files=files):
                     yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
             except Exception:
                 _web_logger.exception("Web chat stream error")

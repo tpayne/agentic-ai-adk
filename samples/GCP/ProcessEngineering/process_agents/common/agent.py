@@ -10,7 +10,9 @@ import time
 import hmac
 import json
 import queue
-from typing import Dict, Optional
+import base64
+import binascii
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import pkgutil
@@ -573,11 +575,94 @@ def _new_usage_totals() -> Dict[str, int]:
     return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
 
-async def _run_chat_turn(existing_session_id: Optional[str], query: str):
+# POST /chat and /chat/stream's optional "files" field (see
+# _parse_attachments below): each entry is {"name", "mime_type",
+# "data_base64"}. Unlike the Neurosan port's own cli.py (see its matching
+# comment -- its underlying framework's multimodal plumbing is a stub in
+# the installed version), google-genai's Content.parts already accepts a
+# real multimodal Part directly: types.Part.from_bytes(data=..., mime_type=
+# ...) wraps the bytes as inline_data, which Gemini actually receives and
+# can read (images natively, and plenty of document types like PDF/text
+# too) -- no server-side text-extraction workaround needed on this side,
+# see _content_parts_for_turn below. Limits kept identical to the
+# Neurosan port's (same numbers, same field names) so the shared
+# WebClient's behavior doesn't change depending on which backend it's
+# talking to.
+ATTACHMENT_MAX_FILES = 4
+ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
+
+
+def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str, Any]]], Optional[str]]":
+    """
+    Validates and decodes POST /chat or /chat/stream's optional "files"
+    field: [{"name": str, "mime_type": str, "data_base64": str}, ...].
+    Returns (decoded_files, None) on success -- decoded_files is the same
+    shape with "data_base64" replaced by "data" (raw bytes) -- or
+    (None, error_message) on the first violation found, for the caller to
+    turn into a 400 response exactly like the existing "query required"
+    check does. Returns ([], None) when "files" is absent/empty.
+
+    Re-validates server-side (size/count) even though the web client
+    enforces the same limits before ever sending -- a client is never a
+    trusted boundary. Deliberately kept identical (same checks, same
+    error wording) to the Neurosan port's own cli.py._parse_attachments,
+    so a caller sees the same behavior regardless of which backend it
+    talks to.
+    """
+    raw_files = payload.get("files")
+    if raw_files is None:
+        return [], None
+    if not isinstance(raw_files, list):
+        return None, "Field 'files' must be a list."
+    if len(raw_files) > ATTACHMENT_MAX_FILES:
+        return None, f"Too many attached files (max {ATTACHMENT_MAX_FILES})."
+
+    decoded: List[Dict[str, Any]] = []
+    for entry in raw_files:
+        if not isinstance(entry, dict):
+            return None, "Each entry in 'files' must be an object."
+        name = entry.get("name")
+        mime_type = entry.get("mime_type")
+        data_b64 = entry.get("data_base64")
+        if not isinstance(name, str) or not name.strip():
+            return None, "Each attached file requires a non-empty 'name'."
+        if not isinstance(mime_type, str) or not mime_type.strip():
+            return None, f"Attached file '{name}' is missing 'mime_type'."
+        if not isinstance(data_b64, str) or not data_b64:
+            return None, f"Attached file '{name}' is missing 'data_base64'."
+        try:
+            data = base64.b64decode(data_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return None, f"Attached file '{name}' has invalid base64 data."
+        if len(data) > ATTACHMENT_MAX_BYTES:
+            max_mb = ATTACHMENT_MAX_BYTES / (1024 * 1024)
+            return None, f"Attached file '{name}' exceeds the {max_mb:.0f}MB size limit."
+        decoded.append({"name": name, "mime_type": mime_type, "data": data})
+
+    return decoded, None
+
+
+def _content_parts_for_turn(query: str, files: Optional[List[Dict[str, Any]]]) -> List["types.Part"]:
+    """
+    Builds the list of Parts for this turn's Content: the query text,
+    plus one real multimodal Part per attached file (see
+    ATTACHMENT_MAX_FILES's own comment for why this works natively here
+    but needs a text-extraction workaround on the Neurosan port). Gemini
+    receives each attached file as genuine inline_data -- an image is
+    actually seen by the model's vision input, not just described in
+    text.
+    """
+    parts = [types.Part(text=query)]
+    for f in (files or []):
+        parts.append(types.Part.from_bytes(data=f["data"], mime_type=f["mime_type"]))
+    return parts
+
+
+async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):
     """Resolve/create the web session, then run one query through it."""
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
 
-    content = types.Content(role="user", parts=[types.Part(text=query)])
+    content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
     final_response = None
     usage_totals = _new_usage_totals()
     async for event in _web_runner.run_async(
@@ -595,7 +680,10 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str):
     return web_session_id, (final_response or ""), usage
 
 
-async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_queue: "queue.Queue") -> None:
+async def _stream_chat_turn(
+    user_id: str, session_id: str, query: str, event_queue: "queue.Queue",
+    files: Optional[List[Dict[str, Any]]] = None,
+) -> None:
     """
     Runs one query through _web_runner with STREAMING_RUN_CONFIG, pushing
     an incremental update dict into event_queue after every meaningful
@@ -626,7 +714,7 @@ async def _stream_chat_turn(user_id: str, session_id: str, query: str, event_que
     actual model call, or its real token cost, from running to completion
     in the background thread).
     """
-    content = types.Content(role="user", parts=[types.Part(text=query)])
+    content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
     answer_so_far = ""
     last_progress_author: Optional[str] = None
     usage_totals = _new_usage_totals()
@@ -717,12 +805,21 @@ def build_web_app(https: bool = True):
     Build (but do not run) the Flask REST app for -d/--detached mode.
 
     Exposes:
-      POST   /chat            {"query": "...", "session_id": "..." (optional)}
+      POST   /chat            {"query": "...", "session_id": "..." (optional),
+                               "files": [{"name": "...", "mime_type": "...",
+                               "data_base64": "..."}, ...] (optional, up to
+                               ATTACHMENT_MAX_FILES entries, each up to
+                               ATTACHMENT_MAX_BYTES decoded)}
                                -> {"status": "ok", "session_id": "...",
                                    "query": "...", "response": "...",
                                    "usage": {"prompt_tokens": N,
                                    "completion_tokens": N, "total_tokens": N,
                                    "model": "..."}}
+                               Attached files reach Gemini as genuine
+                               multimodal content (see
+                               _content_parts_for_turn) -- unlike the
+                               Neurosan port, which only extracts them to
+                               text (see that port's own cli.py for why).
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
@@ -830,11 +927,15 @@ def build_web_app(https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
         try:
             web_session_id, response_text, usage = asyncio.run(
-                _run_chat_turn(session_id, query.strip())
+                _run_chat_turn(session_id, query.strip(), files=files)
             )
         except Exception:
             logger.exception("Web chat error")
@@ -892,6 +993,10 @@ def build_web_app(https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
         web_session_id, user_id, adk_session_id = asyncio.run(_get_or_create_web_session(session_id))
 
@@ -907,22 +1012,49 @@ def build_web_app(https: bool = True):
                 # this specific turn from a different request's thread.
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                task = loop.create_task(
-                    _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue)
-                )
-                with _active_stream_tasks_lock:
-                    _active_stream_tasks[web_session_id] = (loop, task)
+                task = None
                 try:
+                    # Constructing the coroutine (evaluating/binding
+                    # _stream_chat_turn's own arguments) happens eagerly,
+                    # synchronously, right here -- a bad argument (e.g. a
+                    # signature mismatch) raises immediately, before
+                    # loop.create_task even runs, let alone the coroutine
+                    # body itself. Keeping that construction INSIDE this
+                    # try (not before it, as this used to be written)
+                    # matters: _stream_chat_turn's own finally (below in
+                    # that function) is what reliably pushes event_queue's
+                    # terminating None, but that finally can only run once
+                    # the coroutine body has actually started -- an
+                    # exception here, before that ever happens, previously
+                    # left event_queue with no sentinel at all, and
+                    # generate()'s consumer loop below blocks on
+                    # event_queue.get() forever as a result: a silent hang,
+                    # not a clean error. Confirmed directly: a transient
+                    # files= keyword-argument mismatch during development
+                    # hit exactly this path.
+                    task = loop.create_task(
+                        _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue, files=files)
+                    )
+                    with _active_stream_tasks_lock:
+                        _active_stream_tasks[web_session_id] = (loop, task)
                     loop.run_until_complete(task)
                 except asyncio.CancelledError:
                     pass  # _stream_chat_turn's own "stopped" event already queued
+                except Exception:
+                    # Reached only when the coroutine never started running
+                    # at all (see the comment above) -- _stream_chat_turn's
+                    # own error handling never got a chance to push
+                    # anything, so this is the only place that still can.
+                    logger.exception("Web chat stream setup error")
+                    event_queue.put({"status": "error", "error": "An internal error has occurred."})
+                    event_queue.put(None)
                 finally:
                     with _active_stream_tasks_lock:
                         # Only remove OUR OWN entry -- guards against a race
                         # where a brand new turn for the same session has
                         # already registered its own (loop, task) pair by
                         # the time this cleanup runs.
-                        if _active_stream_tasks.get(web_session_id) == (loop, task):
+                        if task is not None and _active_stream_tasks.get(web_session_id) == (loop, task):
                             _active_stream_tasks.pop(web_session_id, None)
                     loop.close()
 
