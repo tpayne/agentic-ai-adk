@@ -1275,6 +1275,82 @@ class TestBuildXml:
         edge_style = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1").get("style", "")
         assert "strokeColor=None" not in edge_style
 
+    def test_uncolored_component_inherits_its_own_zones_color(self):
+        # Regression test: confirmed against a real generated diagram -- the
+        # LLM set distinct, correct colors on every ZONE (per the "ZONES
+        # NEED A DISTINCT COLOR TOO" instruction) but left every single
+        # component's own color/icon_color unset. Previously that meant
+        # EVERY icon in the whole diagram rendered in the identical flat
+        # DEFAULT_COMPONENT_COLOR gray regardless of which (differently
+        # colored) zone it sat in -- a diagram read as entirely monochrome
+        # instead of at least differentiating by zone/grouping. An
+        # uncolored component must now inherit its OWN zone's color.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[
+                {"id": "z_mgmt", "label": "Management", "row": 0, "color": "#E7157B"},
+                {"id": "z_sec", "label": "Security", "row": 0, "color": "#DD344C"},
+            ],
+            components=[
+                {"id": "orgs", "zone_id": "z_mgmt", "label": "Organizations", "shape": "mxgraph.aws4.organizations"},
+                {"id": "kms", "zone_id": "z_sec", "label": "KMS", "shape": "mxgraph.aws4.key_management_service"},
+            ],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        orgs_style = next(c for c in root.findall(".//mxCell") if c.get("id") == "orgs_icon").get("style", "")
+        kms_style = next(c for c in root.findall(".//mxCell") if c.get("id") == "kms_icon").get("style", "")
+        assert "fillColor=#E7157B;" in orgs_style
+        assert "fillColor=#DD344C;" in kms_style
+        # Different zones' uncolored components must differ from each
+        # other, not all collapse onto the same flat default.
+        assert "fillColor=#E7157B;" not in kms_style
+
+    def test_component_explicit_color_still_wins_over_its_zones_color(self):
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "color": "#E7157B"}],
+            components=[{
+                "id": "c1", "zone_id": "z1", "label": "X",
+                "shape": "mxgraph.aws4.lambda", "color": "#ED7100",
+            }],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon").get("style", "")
+        assert "fillColor=#ED7100;" in style
+        assert "fillColor=#E7157B;" not in style
+
+    def test_uncolored_component_in_an_uncolored_zone_still_falls_back_to_the_flat_default(self):
+        # The zone-color-inheritance fallback must not regress the
+        # ultimate safety net when NEITHER the component NOR its zone has
+        # any color at all.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone"}],
+            components=[{"id": "c1", "zone_id": "z1", "label": "X", "shape": "mxgraph.aws4.lambda"}],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon").get("style", "")
+        assert f"fillColor={layout.DEFAULT_COMPONENT_COLOR};" in style
+
+    def test_uncolored_component_in_an_uncolored_vpc_zone_inherits_an_icon_safe_accent_not_the_pale_container_fill(self):
+        # GCP's own VPC container accent (#E3F2FD) is a pale pastel FILL
+        # meant for a large background rectangle -- inheriting it as an
+        # icon's own fillColor would reproduce the "icons too faint to
+        # see" problem this pipeline already fixed once, just for GCP.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "vpc1", "label": "VPC", "type": "vpc"}],
+            components=[{"id": "c1", "zone_id": "vpc1", "label": "X", "shape": "mxgraph.gcp2.cloud_run"}],
+            edges=[], provider="gcp",
+        )
+        root = ET.fromstring(xml_str)
+        style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon").get("style", "")
+        assert "fillColor=#E3F2FD;" not in style
+        assert "fillColor=#4285F4;" in style
+
     def test_explicit_json_null_row_does_not_crash(self):
         # Regression test: int(z.get("row", 0)) crashes with TypeError if
         # "row" is explicitly null (present-but-None is not caught by a

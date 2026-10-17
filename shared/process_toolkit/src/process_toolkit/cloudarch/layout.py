@@ -284,6 +284,37 @@ def _style_for_icon_shape(ref: str, icon_color: str) -> str:
 # networking purple, GCP's pastel "vpc network" fill, Azure's own blue.
 _VPC_DEFAULT_ACCENT = {"aws": "#8C4FFF", "gcp": "#E3F2FD", "azure": "#0078D4"}
 
+# A separate, ICON-safe per-provider accent for _effective_zone_color below --
+# deliberately NOT the same dict as _VPC_DEFAULT_ACCENT. GCP's own container
+# accent (#E3F2FD) is a pale pastel FILL meant for a large background
+# rectangle; using it as an icon's own fillColor would reproduce the exact
+# "icons too faint to see" problem this pipeline already fixed once, just
+# for GCP specifically. Google Blue is the icon-appropriate equivalent.
+_VPC_ICON_SAFE_ACCENT = {"aws": "#8C4FFF", "gcp": "#4285F4", "azure": "#0078D4"}
+
+
+def _effective_zone_color(zone: Optional[Dict[str, Any]], provider: str) -> str:
+    """
+    The color an uncolored COMPONENT should inherit from its own zone, as a
+    richer fallback than the flat neutral DEFAULT_COMPONENT_COLOR -- fixes a
+    real generated diagram where the LLM set distinct, correct colors on
+    every ZONE (per the "ZONES NEED A DISTINCT COLOR TOO" instruction) but
+    left every component's own "color"/"icon_color" unset, so EVERY icon in
+    the entire diagram still rendered in the identical neutral gray
+    regardless of which (differently-colored) zone it sat in -- a "forgot
+    per-component colors" diagram read as entirely monochrome instead of at
+    least differentiating by zone/grouping. A component's own explicit
+    color/icon_color, when set, still always wins -- this is purely a
+    better-than-flat-gray fallback for when it's missing.
+    """
+    if not zone:
+        return DEFAULT_COMPONENT_COLOR
+    if zone.get("color"):
+        return zone["color"]
+    if zone.get("type") == "vpc":
+        return _VPC_ICON_SAFE_ACCENT.get(provider, _VPC_ICON_SAFE_ACCENT["azure"])
+    return DEFAULT_ZONE_COLOR
+
 
 def _vpc_zone_style(provider: str, color_override: Optional[str]) -> str:
     """
@@ -1761,6 +1792,7 @@ def build_structured_drawio_xml(
     zone_boxes, component_boxes, canvas_w, canvas_h = _layout_zones_and_components(
         zones, components
     )
+    zones_by_id = {z["id"]: z for z in zones if z.get("id") is not None}
 
     mxfile = ET.Element("mxfile", {"host": "Electron"})
     diagram = ET.SubElement(mxfile, "diagram", {"id": "structured", "name": title[:40] or "Architecture"})
@@ -1902,7 +1934,14 @@ def build_structured_drawio_xml(
         # See the identical note on the zone's own `color` above -- `or`,
         # not a positional .get default, so an explicit "color": null
         # doesn't bake the literal text "None" into fillColor/strokeColor.
-        color = component.get("color") or DEFAULT_COMPONENT_COLOR
+        # Falls back to the component's OWN ZONE's color (see
+        # _effective_zone_color) rather than straight to the flat neutral
+        # DEFAULT_COMPONENT_COLOR, so a diagram with no per-component
+        # colors set still differentiates by zone instead of reading as
+        # entirely monochrome.
+        color = component.get("color") or _effective_zone_color(
+            zones_by_id.get(component["zone_id"]), provider
+        )
         value = _html_value(component["label"], component.get("bullets"))
 
         if has_icon:
