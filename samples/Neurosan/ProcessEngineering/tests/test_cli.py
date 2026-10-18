@@ -869,35 +869,43 @@ class TestArtifactRoute:
 
 class TestGetOrCreateWebSessionEviction:
     """_get_or_create_web_session's opportunistic idle-eviction sweep --
-    regression coverage for the race a code review flagged: last_accessed
-    is stamped once, at turn START, so a turn genuinely running longer
-    than the idle timeout must not be evicted out from under itself just
-    because its timestamp looks stale. The session's own lock (held for a
-    turn's entire duration -- see ChatSession.send/send_streaming) is what
-    the sweep checks instead of trusting the timestamp alone."""
+    regression coverage for two review findings:
 
-    def _fake_session(self, *, last_accessed, locked):
+    1. last_accessed is stamped at turn START (ChatSession.send/
+       send_streaming), so a turn genuinely running longer than the idle
+       timeout must not be evicted out from under itself just because its
+       timestamp looks stale while it's still running. _active_web_sessions
+       (a per-session request COUNT, pinned/unpinned by
+       _get_or_create_web_session/_release_web_session) is the signal the
+       sweep actually checks.
+    2. The pin happens in the SAME _web_sessions_lock-protected step as the
+       lookup/creation itself -- closing the narrow window where a request
+       could look up a session, then (before ever calling
+       session.send()/send_streaming(), which is the only other thing that
+       used to guard against eviction) have a concurrent sweep see it as
+       idle and not yet pinned, and evict it out from under the request
+       about to use it.
+    """
+
+    def _fake_session(self, *, last_accessed):
         close_calls = []
-        session = SimpleNamespace(
+        return SimpleNamespace(
             last_accessed=last_accessed,
-            _lock=threading.Lock(),
             session=SimpleNamespace(close=lambda: close_calls.append(True)),
             _close_calls=close_calls,
         )
-        if locked:
-            session._lock.acquire()
-        return session
 
     def _reset(self, monkeypatch):
         monkeypatch.setattr(cli, "_web_sessions_last_swept", 0.0)
         with cli._web_sessions_lock:
             cli._web_sessions.clear()
+            cli._active_web_sessions.clear()
 
-    def test_idle_unlocked_session_is_evicted(self, monkeypatch):
+    def test_idle_and_unpinned_session_is_evicted(self, monkeypatch):
         self._reset(monkeypatch)
         stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
-        idle = self._fake_session(last_accessed=stale, locked=False)
-        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        idle = self._fake_session(last_accessed=stale)
+        current = self._fake_session(last_accessed=time.monotonic())
         with cli._web_sessions_lock:
             cli._web_sessions["idle"] = idle
             cli._web_sessions["current"] = current
@@ -908,16 +916,17 @@ class TestGetOrCreateWebSessionEviction:
         assert "idle" not in cli._web_sessions
         assert idle._close_calls == [True]
 
-    def test_idle_but_locked_session_mid_turn_is_not_evicted(self, monkeypatch):
+    def test_idle_but_pinned_session_mid_turn_is_not_evicted(self, monkeypatch):
         self._reset(monkeypatch)
         stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
-        # Locked == a turn is still actively running on it, per
-        # ChatSession.send/send_streaming holding _lock for the whole turn.
-        mid_turn = self._fake_session(last_accessed=stale, locked=True)
-        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        # Pinned == a request is still holding this session, per
+        # _get_or_create_web_session/_release_web_session's contract.
+        mid_turn = self._fake_session(last_accessed=stale)
+        current = self._fake_session(last_accessed=time.monotonic())
         with cli._web_sessions_lock:
             cli._web_sessions["mid-turn"] = mid_turn
             cli._web_sessions["current"] = current
+            cli._active_web_sessions["mid-turn"] = 1
 
         result = cli._get_or_create_web_session("current", "process_architect")
 
@@ -927,7 +936,7 @@ class TestGetOrCreateWebSessionEviction:
 
     def test_recently_accessed_session_is_never_swept(self, monkeypatch):
         self._reset(monkeypatch)
-        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        current = self._fake_session(last_accessed=time.monotonic())
         with cli._web_sessions_lock:
             cli._web_sessions["current"] = current
 
@@ -935,3 +944,66 @@ class TestGetOrCreateWebSessionEviction:
 
         assert "current" in cli._web_sessions
         assert current._close_calls == []
+
+    def test_lookup_pins_the_session_in_the_same_locked_step(self, monkeypatch):
+        self._reset(monkeypatch)
+        current = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["current"] = current
+
+        cli._get_or_create_web_session("current", "process_architect")
+
+        with cli._web_sessions_lock:
+            assert cli._active_web_sessions["current"] == 1
+
+    def test_overlapping_lookups_on_the_same_session_both_must_release_before_eviction_is_possible(self, monkeypatch):
+        # Regression test: _active_web_sessions used to be (in an earlier,
+        # since-fixed design) a bare flag -- two overlapping requests on
+        # the SAME session both pinned it, but the FIRST to release could
+        # blindly unpin it even while the SECOND was still active. The
+        # count must only reach zero once BOTH requests have released.
+        self._reset(monkeypatch)
+        shared = self._fake_session(last_accessed=time.monotonic())
+        anchor = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["shared"] = shared
+            cli._web_sessions["anchor"] = anchor
+
+        cli._get_or_create_web_session("shared", "process_architect")  # first overlapping request
+        cli._get_or_create_web_session("shared", "process_architect")  # second overlapping request
+        with cli._web_sessions_lock:
+            assert cli._active_web_sessions["shared"] == 2
+
+        cli._release_web_session("shared")  # first request finishes
+        with cli._web_sessions_lock:
+            assert "shared" in cli._active_web_sessions  # still pinned -- second request active
+            # Simulate the second request's turn having run long enough
+            # that shared's timestamp now LOOKS idle, even though it is
+            # genuinely still in flight.
+            shared.last_accessed = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+
+        cli._get_or_create_web_session("anchor", "process_architect")  # triggers a sweep pass
+        with cli._web_sessions_lock:
+            assert "shared" in cli._web_sessions  # must survive -- second request still holds it
+
+        cli._release_web_session("shared")  # second request finishes
+        with cli._web_sessions_lock:
+            assert "shared" not in cli._active_web_sessions
+
+    def test_release_web_session_refreshes_last_accessed(self, monkeypatch):
+        # Regression test: last_accessed was only ever stamped at turn
+        # START. A turn that runs right up to (or past) the idle timeout
+        # finished successfully, but still carried its original, now-stale
+        # start timestamp the instant it ended -- making the very next
+        # sweep see it as idle and evict a session that had just finished
+        # normally.
+        self._reset(monkeypatch)
+        turn_start = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        session = self._fake_session(last_accessed=turn_start)
+        with cli._web_sessions_lock:
+            cli._web_sessions["just-finished"] = session
+            cli._active_web_sessions["just-finished"] = 1
+
+        cli._release_web_session("just-finished")
+
+        assert session.last_accessed > turn_start

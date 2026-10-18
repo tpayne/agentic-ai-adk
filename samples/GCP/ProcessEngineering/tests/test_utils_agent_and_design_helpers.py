@@ -52,7 +52,7 @@ class UtilsAgentTests(unittest.TestCase):
         # was reported as "exhausted" instead of "approved" (confirmed from
         # a real run's log).
         cloudarch_stop_if_ready = utils_agent._build_stop_if_ready(
-            lambda: {"cloudarch_status": "APPROVED"}, "the cloud architecture pipeline"
+            lambda: {"cloudarch_status": "APPROVED"}
         )
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / "stop_counter.json").write_text(
@@ -61,14 +61,8 @@ class UtilsAgentTests(unittest.TestCase):
             (Path(directory) / "approval.json").write_text(
                 json.dumps({"cloudarch_status": "APPROVED"})
             )
-            # invocation_id/state are required now that stop_if_ready
-            # refreshes this invocation's pipeline-lock lease on every call
-            # (see _build_stop_if_ready's own docstring) -- a real
-            # ToolContext always provides both; this test double must too.
             tool_context = types.SimpleNamespace(
-                actions=types.SimpleNamespace(escalate=False),
-                invocation_id="test-invocation",
-                state={},
+                actions=types.SimpleNamespace(escalate=False)
             )
             from process_toolkit import paths as shared_paths
             with patch.object(shared_paths, "OUTPUT_DIR", directory):
@@ -77,41 +71,39 @@ class UtilsAgentTests(unittest.TestCase):
         self.assertEqual(result, "All approvals present — exiting loop.")
         self.assertTrue(tool_context.actions.escalate)
 
-    def test_stop_if_ready_refreshes_an_existing_pipeline_lock_lease(self):
+    def test_acquire_pipeline_lock_for_turn_starts_a_heartbeat_that_outlives_the_second_call(self):
         # Regression test for a review finding: a review loop that
         # genuinely runs long enough to cross process_toolkit.run_lock.
         # DEFAULT_STALE_AFTER_SECONDS between the pipeline's one-time
         # reset step and its own finalize step must not have its lock
-        # reclaimed by an unrelated concurrent run just because no one
-        # refreshed its started_at in between. stop_if_ready runs once
-        # per loop iteration, so it's the natural heartbeat.
-        from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock
+        # reclaimed by an unrelated concurrent run just because no tool
+        # call happened to refresh started_at in between. The background
+        # heartbeat (process_toolkit.run_lock) is what actually keeps the
+        # lease fresh now -- this confirms acquire_pipeline_lock_for_turn
+        # starts exactly one (reentrant re-acquire within the same
+        # invocation_id must not start a second one), and that
+        # release_pipeline_lock_for_turn stops it again.
+        from process_toolkit import run_lock
 
-        cloudarch_stop_if_ready = utils_agent._build_stop_if_ready(
-            lambda: {"cloudarch_status": "NOT_YET"}, "the cloud architecture pipeline"
-        )
         with tempfile.TemporaryDirectory() as directory:
             from process_toolkit import paths as shared_paths
             with patch.object(shared_paths, "OUTPUT_DIR", directory):
-                token = acquire_pipeline_lock("the cloud architecture pipeline")
-                try:
-                    lock_path = Path(directory) / "pipeline.lock"
-                    before_started_at = json.loads(lock_path.read_text())["started_at"]
+                tool_context = types.SimpleNamespace(invocation_id="test-invocation", state={})
+                token = utils_agent.acquire_pipeline_lock_for_turn("the cloud architecture pipeline", tool_context)
+                self.assertIn(token, run_lock._heartbeats)
+                first_heartbeat = run_lock._heartbeats[token]
 
-                    tool_context = types.SimpleNamespace(
-                        actions=types.SimpleNamespace(escalate=False),
-                        invocation_id="test-invocation",
-                        state={utils_agent.PIPELINE_LOCK_TOKEN_STATE_KEY: {
-                            "invocation_id": "test-invocation", "token": token,
-                        }},
-                    )
-                    cloudarch_stop_if_ready(tool_context)
+                # The reentrant second call within the SAME invocation (e.g.
+                # record_analysis_request -> log_analysis_metadata) must
+                # reuse the token and must NOT start a second heartbeat.
+                second_token = utils_agent.acquire_pipeline_lock_for_turn(
+                    "the cloud architecture pipeline", tool_context
+                )
+                self.assertEqual(second_token, token)
+                self.assertIs(run_lock._heartbeats[token], first_heartbeat)
 
-                    after = json.loads(lock_path.read_text())
-                    self.assertGreaterEqual(after["started_at"], before_started_at)
-                    self.assertEqual(after["token"], token)  # still this run's own lock
-                finally:
-                    release_pipeline_lock(token)
+                utils_agent.release_pipeline_lock_for_turn(tool_context)
+                self.assertNotIn(token, run_lock._heartbeats)
 
 
 if __name__ == "__main__":

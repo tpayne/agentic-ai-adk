@@ -30,6 +30,30 @@ _LOG_MAX_BYTES = 10 * 1024 * 1024
 _LOG_BACKUP_COUNT = 5
 
 
+def _resolve_log_level() -> str:
+    """Reads LOGLEVEL from the environment, falling back to INFO -- not
+    WARNING -- when it's unset or not one of the five recognized values.
+
+    The ADK original ships its own equivalent default as DEBUG in
+    properties/agentapp.properties (that code's own WARNING fallback only
+    applies if that file is ever missing/misread), so its turn-completion/
+    outcome logs are visible out of the box. This project has no
+    equivalent checked-in default-setting file -- an unset LOGLEVEL used
+    to mean every ProcessArchitect.* INFO call (turn completion/duration/
+    usage, idle-session eviction notices) was silently suppressed even
+    though nothing explicitly asked for that, leaving a production
+    deployment with zero after-the-fact trace for anything short of an
+    exception. The console handler in configure_logging stays fixed at
+    WARNING+ regardless of this, so raising the default only affects the
+    file -- the per-message agent/tool trace still logs at DEBUG and
+    stays opt-in.
+
+    :return: One of _VALID_LOG_LEVELS.
+    """
+    log_level = os.environ.get("LOGLEVEL", "INFO").upper()
+    return log_level if log_level in _VALID_LOG_LEVELS else "INFO"
+
+
 def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
     logger = logging.getLogger("ProcessArchitect")
     if logger.handlers:
@@ -53,10 +77,6 @@ def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     logger.propagate = False
-
-    log_level = os.environ.get("LOGLEVEL", "WARNING").upper()
-    if log_level not in _VALID_LOG_LEVELS:
-        log_level = "WARNING"
-    logger.setLevel(log_level)
+    logger.setLevel(_resolve_log_level())
 
     return logger

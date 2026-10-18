@@ -23,7 +23,12 @@ from process_toolkit.loop_control import (
     reset_counter,
     load_approval_state,
 )
-from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock, PipelineLockedError
+from process_toolkit.run_lock import (
+    acquire_pipeline_lock,
+    release_pipeline_lock,
+    start_pipeline_lock_heartbeat,
+    stop_pipeline_lock_heartbeat,
+)
 
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
@@ -72,9 +77,21 @@ def acquire_pipeline_lock_for_turn(label: str, context) -> str:
 
     context may be None (a caller invoked directly, e.g. a test, with no
     ADK-managed context) -- falls back to a plain, non-reentrant
-    acquire_pipeline_lock call in that case."""
+    acquire_pipeline_lock call in that case.
+
+    Also (re)starts this token's background heartbeat (see
+    process_toolkit.run_lock) -- idempotent for the reentrant-reuse case
+    above, so the two calls within one turn share a single heartbeat
+    rather than each starting their own. The heartbeat, not this
+    function's own call sites, is what actually keeps a still-running
+    pipeline's lease fresh between here and release_pipeline_lock_for_turn
+    -- there is no guarantee either tool call happens again soon enough
+    on its own (e.g. during a single long generate/review phase, or a
+    pause awaiting the next piece of user input)."""
     if context is None:
-        return acquire_pipeline_lock(label)
+        token = acquire_pipeline_lock(label)
+        start_pipeline_lock_heartbeat(label, token)
+        return token
 
     current_invocation_id = context.invocation_id
     stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
@@ -87,6 +104,7 @@ def acquire_pipeline_lock_for_turn(label: str, context) -> str:
         "invocation_id": current_invocation_id,
         "token": token,
     }
+    start_pipeline_lock_heartbeat(label, token)
     return token
 
 
@@ -100,9 +118,12 @@ def release_pipeline_lock_for_turn(context) -> None:
     place, so no cross-turn confusion is possible on the release side.
     Safe to call with context=None or an empty/missing key -- that just
     means nothing was ever acquired, and release_pipeline_lock(None) is
-    itself a no-op."""
+    itself a no-op. Stops that token's heartbeat (if any) before
+    releasing the lock itself, so the heartbeat can never fire again
+    against a lock this call has already given up."""
     stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if context is not None else None
     token = stored.get("token") if isinstance(stored, dict) else None
+    stop_pipeline_lock_heartbeat(token)
     release_pipeline_lock(token)
 
 # ---------- Programmatic stop/kill-switch tool ----------
@@ -145,7 +166,7 @@ _STOP_MESSAGES = {
 }
 
 
-def _build_stop_if_ready(required_keys_fn, lock_refresh_label: str):
+def _build_stop_if_ready(required_keys_fn):
     """
     Builds a stop_if_ready tool gated on whatever {approval.json key:
     expected value} mapping `required_keys_fn()` returns.
@@ -165,24 +186,6 @@ def _build_stop_if_ready(required_keys_fn, lock_refresh_label: str):
     port) is pure -- this wrapper just resolves ADK's own config sources
     (properties) into plain arguments, calls it, then does the one thing
     only ADK has: setting tool_context.actions.escalate.
-
-    :param lock_refresh_label: Passed to acquire_pipeline_lock_for_turn
-            below on every call, purely as a refresh -- see stop_if_ready's
-            own comment for why. This tool is called once per loop
-            iteration by every pipeline that uses it (process create/update
-            and design-doc create/update all clone the SAME stop_if_ready
-            instance built with this label; only CloudArch builds its own
-            with a distinct one), so a review loop that runs long enough to
-            cross DEFAULT_STALE_AFTER_SECONDS between the pipeline's
-            one-time reset step and its own finalize step never actually
-            goes stale. The refresh reuses whatever token this invocation
-            already holds (acquire_pipeline_lock_for_turn's own reentrancy
-            check, keyed on tool_context.invocation_id) rather than minting
-            anything new, so a label here that doesn't exactly match
-            whichever of the four flows is actually running only affects
-            the lock file's own diagnostic "label" field (shown to a
-            DIFFERENT, genuinely conflicting run's error message) -- never
-            which lock gets refreshed or whether it's genuinely this run's.
     """
 
     def stop_if_ready(tool_context: ToolContext):
@@ -192,16 +195,6 @@ def _build_stop_if_ready(required_keys_fn, lock_refresh_label: str):
           - approval.json indicates all required approvals; OR
           - persistent loop counter exceeds SAFE_LOOP_ITERS
         """
-        try:
-            acquire_pipeline_lock_for_turn(lock_refresh_label, tool_context)
-        except PipelineLockedError:
-            # Reached only if this invocation never actually held the lock
-            # to begin with (defensive -- every pipeline's own reset step
-            # acquires it before stop_if_ready can ever run). Refreshing is
-            # a courtesy, not stop_if_ready's actual job, so a failure here
-            # must not abort the loop-continuation decision below.
-            logger.warning("Could not refresh the pipeline lock lease during stop_if_ready.")
-
         logger.debug("Evaluating stop_if_ready conditions.")
 
         max_iterations = int(getProperty("loopIterations", default=2))
@@ -244,20 +237,14 @@ def _build_stop_if_ready(required_keys_fn, lock_refresh_label: str):
 # Default gate: process/design-doc pipelines (compliance + simulation +
 # optional grounding). Kept as a module-level `stop_if_ready` name since
 # stop_controller_agent below (and its process/design-doc clones) already
-# reference it this way. Genuinely shared across four flows (process
-# create/update, design-doc create/update), each of which acquired its own
-# lock with its own distinct label -- "an active ADK pipeline" is a
-# deliberately generic lock_refresh_label rather than any one of theirs;
-# see _build_stop_if_ready's own docstring for why that's fine.
-stop_if_ready = _build_stop_if_ready(_default_required_approvals, "an active ADK pipeline")
+# reference it this way.
+stop_if_ready = _build_stop_if_ready(_default_required_approvals)
 
 # CloudArch's reviewer writes cloudarch_status, not compliance/simulation/
 # grounding_status -- see _build_stop_if_ready's docstring. Used by
 # cloudarch_pipeline_agent.py's stop-controller clone instead of the
-# default stop_if_ready. Label matches cloudarch_pipeline_agent.py's own
-# acquire_pipeline_lock_for_turn call exactly, since this one is never
-# shared with another flow.
-cloudarch_stop_if_ready = _build_stop_if_ready(lambda: {"cloudarch_status": "APPROVED"}, "the cloud architecture pipeline")
+# default stop_if_ready.
+cloudarch_stop_if_ready = _build_stop_if_ready(lambda: {"cloudarch_status": "APPROVED"})
 
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""

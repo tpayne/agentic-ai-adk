@@ -30,6 +30,7 @@ from coded_tools.process.save_iteration_feedback_tool import (
 )
 from coded_tools.process.doc_generation_tool import GenerateProcessDocumentCodedTool
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
+from process_toolkit import run_lock
 from process_toolkit.run_lock import acquire_pipeline_lock, PipelineLockedError
 
 
@@ -186,7 +187,13 @@ def test_process_pipeline_releases_its_lock_once_the_document_is_generated():
 
     sly_data = {}
     assert ProcessReset().invoke({}, sly_data)["status"] == "OK"
-    assert sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    assert token
+    # reset_loop_state starts a background heartbeat for this token --
+    # there is no single tool call spanning the whole run to otherwise
+    # keep the lease fresh between here and the release below (see
+    # ResetLoopStateCodedTool's own docstring).
+    assert token in run_lock._heartbeats
 
     with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
         json.dump({
@@ -196,6 +203,7 @@ def test_process_pipeline_releases_its_lock_once_the_document_is_generated():
 
     doc_result = GenerateProcessDocumentCodedTool().invoke({}, sly_data)
     assert doc_result.startswith("SUCCESS:")
+    assert token not in run_lock._heartbeats  # stopped alongside the release below
 
     acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
 
@@ -209,15 +217,20 @@ def test_cloudarch_pipeline_releases_its_lock_only_once_the_loop_genuinely_stops
     assert CloudArchReset().invoke({}, sly_data)["status"] == "OK"
     token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
     assert token
+    assert token in run_lock._heartbeats
 
-    # Mid-loop: a CONTINUE verdict must NOT release the lock.
+    # Mid-loop: a CONTINUE verdict must NOT release the lock, and must
+    # leave the heartbeat running -- the loop could still have another,
+    # possibly long, generate/review iteration ahead of it.
     continuing = CloudArchLoopControl().invoke({"required": {"cloudarch_status": "APPROVED"}, "max_iterations": 2}, sly_data)
     assert continuing["verdict"] == "CONTINUE"
+    assert token in run_lock._heartbeats
     with pytest.raises(PipelineLockedError):
         acquire_pipeline_lock("a different pipeline")
 
     CloudArchSaveFeedback().invoke({"feedback": {"status": "CLOUDARCH APPROVED", "data": []}}, sly_data)
     stopped = CloudArchLoopControl().invoke({"required": {"cloudarch_status": "APPROVED"}, "max_iterations": 2}, sly_data)
     assert stopped["verdict"] == "STOP"
+    assert token not in run_lock._heartbeats  # stopped alongside the release on STOP
 
     acquire_pipeline_lock("a different pipeline")  # must not raise -- released on STOP

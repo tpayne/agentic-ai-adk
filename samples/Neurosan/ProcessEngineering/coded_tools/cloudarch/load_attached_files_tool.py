@@ -10,6 +10,13 @@ explicitly calling for it, and returning its content as a tool result, is
 the only way this content actually reaches the agent. Same mechanism
 load_directory_context/load_requirements_summary already use for getting
 file content to the LLM.
+
+KNOWN GAP (prompt-injection exposure, not yet addressed): the "text"
+returned below (see extract_attachment_text's own docstring) is the
+literal, unmodified content of whatever the user attached, surfaced as a
+plain tool result with no framing marking it as untrusted, LLM-facing
+data rather than instructions. See this project's own README "Known
+issues" for the fuller writeup.
 """
 
 import asyncio

@@ -6,15 +6,29 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from process_toolkit import paths
+from process_toolkit import paths, run_lock
 from process_toolkit.run_lock import (
     DEFAULT_STALE_AFTER_SECONDS,
     _MUTEX_SUFFIX,
     _lock_path,
     acquire_pipeline_lock,
     release_pipeline_lock,
+    start_pipeline_lock_heartbeat,
+    stop_pipeline_lock_heartbeat,
     PipelineLockedError,
 )
+
+
+@pytest.fixture(autouse=True)
+def _stop_leftover_heartbeats():
+    # A test that starts a heartbeat but asserts/raises before stopping it
+    # would otherwise leave a daemon thread running (harmless to process
+    # exit, but it would keep re-acquiring a lock tests after it no
+    # longer exist for) -- clean up anything left in the registry after
+    # every test regardless of how it ended.
+    yield
+    for token in list(run_lock._heartbeats):
+        stop_pipeline_lock_heartbeat(token)
 
 
 def _write_lock(started_at: float, label: str = "an earlier run", token: str = "someone-elses-token") -> None:
@@ -163,5 +177,59 @@ def test_concurrent_acquire_attempts_let_exactly_one_caller_win():
             results.append(result)
 
     successes = [r for r in results if r[0] == "ok"]
-    assert len(successes) == 1, f"expected exactly one winner, got {successes}"
+    assert len(successes) == 1, f"expected exactly one winner, got {results}"
     assert len(results) == 16
+
+
+def test_heartbeat_keeps_a_lock_from_going_stale(monkeypatch):
+    # The whole reason this exists: between a pipeline's one-time reset
+    # step (acquire) and its own finalize step (release), there is no
+    # guarantee any tool call happens often enough on its own to refresh
+    # started_at -- a long single generate/review phase, or a pause
+    # awaiting the next piece of user input, could otherwise outlast
+    # DEFAULT_STALE_AFTER_SECONDS. A fast interval here stands in for
+    # that real, much longer gap.
+    monkeypatch.setattr(run_lock, "_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    token = acquire_pipeline_lock("a long-running pipeline")
+    before = run_lock._read_lock(_lock_path())["started_at"]
+
+    start_pipeline_lock_heartbeat("a long-running pipeline", token)
+    time.sleep(0.2)
+
+    after = run_lock._read_lock(_lock_path())["started_at"]
+    assert after > before
+    assert run_lock._read_lock(_lock_path())["token"] == token  # still this run's own lock
+
+
+def test_starting_a_heartbeat_twice_for_the_same_token_is_idempotent(monkeypatch):
+    monkeypatch.setattr(run_lock, "_HEARTBEAT_INTERVAL_SECONDS", 60.0)
+    token = acquire_pipeline_lock("my pipeline")
+    start_pipeline_lock_heartbeat("my pipeline", token)
+    first = run_lock._heartbeats[token]
+
+    start_pipeline_lock_heartbeat("my pipeline", token)  # reentrant re-acquire within the same run
+    assert run_lock._heartbeats[token] is first  # no second thread/entry
+
+
+def test_stop_heartbeat_actually_stops_refreshing(monkeypatch):
+    monkeypatch.setattr(run_lock, "_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    token = acquire_pipeline_lock("a pipeline")
+    start_pipeline_lock_heartbeat("a pipeline", token)
+    time.sleep(0.15)
+    stop_pipeline_lock_heartbeat(token)
+    assert token not in run_lock._heartbeats
+
+    after_stop = run_lock._read_lock(_lock_path())["started_at"]
+    time.sleep(0.15)
+    still = run_lock._read_lock(_lock_path())["started_at"]
+    assert still == after_stop  # no further refreshes once stopped
+
+
+def test_stop_heartbeat_is_a_safe_noop_for_none_or_unknown_token():
+    stop_pipeline_lock_heartbeat(None)  # must not raise
+    stop_pipeline_lock_heartbeat("a-token-with-no-heartbeat")  # must not raise
+
+
+def test_start_heartbeat_is_a_safe_noop_for_a_falsy_token():
+    start_pipeline_lock_heartbeat("a pipeline", None)  # must not raise
+    assert None not in run_lock._heartbeats

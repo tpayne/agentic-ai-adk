@@ -786,6 +786,21 @@ _WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(os.environ.get("WEBSESSIONIDLETIMEOUTS
 _WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
 _web_sessions_last_swept = 0.0
 
+# web_session_id -> count of requests currently holding a reference to it,
+# from the moment _get_or_create_web_session resolves/creates it through
+# the moment the caller (the /chat or /chat/stream route) is fully done
+# with it -- see _release_web_session. A COUNT, not a set/bool: two
+# overlapping requests for the SAME session_id both pin it, and the sweep
+# must keep excluding it until BOTH have released, not just whichever
+# finishes first. Pinning happens in the SAME _web_sessions_lock-protected
+# block as the lookup/creation itself, which is what closes a narrower
+# race than last_accessed alone could: without it, a request could look up
+# a session, then -- before it ever calls session.send()/send_streaming()
+# (which only THEN acquires the session's own lock) -- a concurrent sweep
+# could see that same session as idle and not yet pinned, and evict (close)
+# it out from under the request about to use it.
+_active_web_sessions: Dict[str, int] = {}
+
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
@@ -832,10 +847,16 @@ def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
 
 
 def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: str):
-    """Resolve a web session id to its ChatSession. If existing_session_id is
-    missing/unknown, a fresh (isolated -- see ChatSession's own docstring)
-    ChatSession is created and registered under a new web session id, which
-    is returned alongside it."""
+    """Resolve a web session id to its ChatSession, PINNING it against the
+    idle-eviction sweep below in the same locked step (see
+    _active_web_sessions's own comment for why that matters) -- the
+    caller MUST call _release_web_session(web_session_id) once it is
+    fully done with the returned session, including having called
+    session.send()/send_streaming() to completion, or the session can
+    never become eligible for eviction again. If existing_session_id is
+    missing/unknown, a fresh (isolated -- see ChatSession's own
+    docstring) ChatSession is created and registered under a new web
+    session id, which is returned alongside it (also pinned)."""
     global _web_sessions_last_swept
 
     now = time.monotonic()
@@ -844,26 +865,16 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     with _web_sessions_lock:
         if now - _web_sessions_last_swept >= _WEB_SESSION_SWEEP_INTERVAL_SECONDS:
             _web_sessions_last_swept = now
-            for sid, s in list(_web_sessions.items()):
-                if now - s.last_accessed < _WEB_SESSION_IDLE_TIMEOUT_SECONDS:
-                    continue
-                # last_accessed is stamped once, at turn START (see
-                # ChatSession.send/send_streaming) -- a turn that legitimately
-                # runs longer than _WEB_SESSION_IDLE_TIMEOUT_SECONDS would
-                # otherwise look just as idle as an abandoned session. The
-                # session's own lock (held for a turn's ENTIRE duration, not
-                # just its setup) is the real signal: acquiring it
-                # non-blocking here means no turn is in flight right now, so
-                # it's safe to evict. Failing to acquire it means one is --
-                # skip eviction and let the next sweep (_WEB_SESSION_SWEEP_
-                # INTERVAL_SECONDS later) re-check; by then the turn has
-                # either finished (last_accessed refreshed, no longer stale)
-                # or is still running (skipped again).
-                if not s._lock.acquire(blocking=False):
-                    continue
-                evicted.append((sid, _web_sessions.pop(sid)))
+            stale_ids = [
+                sid for sid, s in _web_sessions.items()
+                if sid not in _active_web_sessions
+                and now - s.last_accessed >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+            ]
+            evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
         if existing_session_id:
             session = _web_sessions.get(existing_session_id)
+            if session is not None:
+                _active_web_sessions[existing_session_id] = _active_web_sessions.get(existing_session_id, 0) + 1
 
     for stale_id, stale_session in evicted:
         _web_logger.info("Evicting idle web session %s after %.0fs of inactivity.",
@@ -872,17 +883,39 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
             stale_session.session.close()
         except Exception:
             _web_logger.exception("Error closing idle neuro-san session %s during eviction sweep.", stale_id)
-        finally:
-            stale_session._lock.release()
 
     if session is not None:
         return existing_session_id, session
 
+    # Constructed outside the lock -- ChatSession's own __init__ does real
+    # I/O (neuro-san session setup, thinking-file creation), which would
+    # otherwise serialize EVERY concurrent session creation (even for
+    # unrelated users) behind this one lock.
     session = ChatSession(agent_name, isolated=True)
     web_session_id = str(uuid.uuid4())
     with _web_sessions_lock:
         _web_sessions[web_session_id] = session
+        _active_web_sessions[web_session_id] = 1
     return web_session_id, session
+
+
+def _release_web_session(web_session_id: str) -> None:
+    """Unpins web_session_id -- see _get_or_create_web_session's own
+    docstring for the contract. Also refreshes last_accessed to now: a
+    turn that ran right up to (or past) _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+    would otherwise still carry its turn-START timestamp (see
+    ChatSession.send/send_streaming) the instant it finishes, making it
+    look just as idle as a genuinely abandoned session to the very next
+    sweep, even though it just finished successfully."""
+    with _web_sessions_lock:
+        remaining = _active_web_sessions.get(web_session_id, 0) - 1
+        if remaining > 0:
+            _active_web_sessions[web_session_id] = remaining
+        else:
+            _active_web_sessions.pop(web_session_id, None)
+        session = _web_sessions.get(web_session_id)
+        if session is not None:
+            session.last_accessed = time.monotonic()
 
 
 def build_web_app(agent_name: str, https: bool = True):
@@ -1019,6 +1052,7 @@ def build_web_app(agent_name: str, https: bool = True):
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
+        web_session_id = None
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
             response_text = session.send(query.strip(), files=files)
@@ -1028,6 +1062,14 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": "An internal error has occurred.",
             }), 500
+        finally:
+            # Unpins the session resolved above (see
+            # _get_or_create_web_session's own docstring for the
+            # pin/release contract) regardless of how this turn ended --
+            # a leaked pin would make the session permanently ineligible
+            # for the idle-eviction sweep.
+            if web_session_id is not None:
+                _release_web_session(web_session_id)
 
         resp = make_response(jsonify({
             "status": "ok",
@@ -1079,12 +1121,23 @@ def build_web_app(agent_name: str, https: bool = True):
 
         def generate():
             try:
-                for update in session.send_streaming(query.strip(), files=files):
-                    yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
-            except Exception:
-                _web_logger.exception("Web chat stream error")
-                error_event = {"status": "error", "session_id": web_session_id, "error": "An internal error has occurred."}
-                yield f"data: {json.dumps(error_event)}\n\n"
+                try:
+                    for update in session.send_streaming(query.strip(), files=files):
+                        yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+                except Exception:
+                    _web_logger.exception("Web chat stream error")
+                    error_event = {
+                        "status": "error", "session_id": web_session_id, "error": "An internal error has occurred.",
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
+            finally:
+                # Unpins the session resolved above (see
+                # _get_or_create_web_session's own docstring for the
+                # pin/release contract) whenever this generator ends --
+                # normal completion, the in-band error event above, or the
+                # client disconnecting mid-stream (GeneratorExit unwinds
+                # through this finally the same as any other exception).
+                _release_web_session(web_session_id)
 
         resp = Response(generate(), mimetype="text/event-stream")
         resp.headers["Cache-Control"] = "no-cache"

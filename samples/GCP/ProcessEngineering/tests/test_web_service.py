@@ -173,7 +173,7 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
         with agent._web_sessions_lock:
             agent._web_sessions["mid-turn"] = self._make_entry("u1", "s1", stale)
             agent._web_sessions["current"] = self._make_entry("u2", "s2", time.monotonic())
-            agent._active_web_sessions.add("mid-turn")
+            agent._active_web_sessions["mid-turn"] = 1
 
         agent.asyncio.run(agent._get_or_create_web_session("current"))
 
@@ -193,6 +193,59 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
 
         with agent._web_sessions_lock:
             self.assertIn("current", agent._web_sessions)
+
+    def test_overlapping_turns_on_the_same_session_both_must_finish_before_eviction_is_possible(self):
+        # Regression test for a review finding: _active_web_sessions used
+        # to be a plain set -- two overlapping turns on the SAME session
+        # both called _mark_web_session_active (idempotent add), but the
+        # first to finish called _mark_web_session_inactive, which blindly
+        # discarded the session from the set even though the SECOND turn
+        # was still running. A sweep landing in that window could then
+        # evict a session with a turn still genuinely in flight. The count
+        # must only reach zero once BOTH turns have finished.
+        agent = self.agent
+        stale = time.monotonic() - agent._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        with agent._web_sessions_lock:
+            agent._web_sessions["shared"] = self._make_entry("u1", "s1", stale)
+            # A second, already-known, non-stale session to look up below --
+            # avoids this test's sweep-triggering lookup also taking the
+            # (heavier) "create a brand new session" path.
+            agent._web_sessions["anchor"] = self._make_entry("u2", "s2", time.monotonic())
+
+        agent._mark_web_session_active("shared")
+        agent._mark_web_session_active("shared")  # a second, overlapping turn
+        with agent._web_sessions_lock:
+            self.assertEqual(agent._active_web_sessions["shared"], 2)
+
+        agent._mark_web_session_inactive("shared")  # first turn finishes
+        with agent._web_sessions_lock:
+            self.assertIn("shared", agent._active_web_sessions)  # still pinned -- second turn active
+
+        agent.asyncio.run(agent._get_or_create_web_session("anchor"))
+        with agent._web_sessions_lock:
+            self.assertIn("shared", agent._web_sessions)  # must survive the sweep above
+
+        agent._mark_web_session_inactive("shared")  # second turn finishes
+        with agent._web_sessions_lock:
+            self.assertNotIn("shared", agent._active_web_sessions)
+
+    def test_mark_inactive_refreshes_last_accessed_so_a_turn_ending_near_the_timeout_is_not_evicted(self):
+        # Regression test: last_accessed was only ever stamped at turn
+        # START. A turn that runs right up to (or past)
+        # _WEB_SESSION_IDLE_TIMEOUT_SECONDS finished successfully, but
+        # still carried its original, now-stale start timestamp the
+        # instant it ended -- making the very next sweep see it as idle
+        # and evict a session that had just finished normally.
+        agent = self.agent
+        turn_start = time.monotonic() - agent._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        with agent._web_sessions_lock:
+            agent._web_sessions["just-finished"] = self._make_entry("u1", "s1", turn_start)
+            agent._active_web_sessions["just-finished"] = 1
+
+        agent._mark_web_session_inactive("just-finished")
+
+        with agent._web_sessions_lock:
+            self.assertGreater(agent._web_sessions["just-finished"]["last_accessed"], turn_start)
 
 
 class WebServiceInitRaceTest(unittest.TestCase):
