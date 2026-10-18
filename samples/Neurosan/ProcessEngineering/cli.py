@@ -145,6 +145,7 @@ from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
 from process_toolkit.ingestion.extractors import extract_attachment_text  # noqa: E402
+from coded_tools.common.attachments import ATTACHED_FILES_SLY_DATA_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
@@ -165,7 +166,11 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # load_requirements_summary use for getting file content to the LLM.
 ATTACHMENT_MAX_FILES = 4
 ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
-ATTACHED_FILES_SLY_DATA_KEY = "attached_files"
+# ATTACHED_FILES_SLY_DATA_KEY itself lives in coded_tools/common/attachments.py
+# (imported above), not here -- it's a contract between this module and
+# whichever CodedTool reads it (load_attached_files_tool.py), so a single
+# shared definition is what keeps a future rename/typo from silently
+# desynchronizing the two.
 
 _trace_logger = logging.getLogger("ProcessArchitect.CLI.Trace")
 _web_logger = logging.getLogger("ProcessArchitect.CLI.WebService")
@@ -391,6 +396,20 @@ class ChatSession:
         # Token Usage tab -- see _extract_usage's own docstring for the
         # mapping from neuro-san's own token_accounting shape.
         self.last_usage: Optional[Dict[str, Any]] = None
+        # The web service (run_web_service, threaded=True) can dispatch two
+        # overlapping requests for the SAME session_id onto two different
+        # OS threads, both resolving to this one ChatSession instance (see
+        # _get_or_create_web_session) -- a double-click/retry on /chat, or
+        # overlapping /chat + /chat/stream calls. Without a lock, their
+        # read-modify-write of self.sly_data/self.chat_context (and
+        # _ingest_attachments' check-then-set of self.sly_data) can
+        # interleave and silently lose or clobber a turn's updates. A plain
+        # threading.Lock, not asyncio.Lock, matches _web_sessions_lock
+        # above: these are real OS threads, not one shared event loop.
+        self._lock = threading.Lock()
+        # Updated on every send()/send_streaming() call; read by the web
+        # service's idle-session eviction sweep (see _web_sessions above).
+        self.last_accessed = time.monotonic()
 
     def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> None:
         """
@@ -420,25 +439,27 @@ class ChatSession:
         ]
 
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
-        self._ingest_attachments(files)
-        state = {
-            "last_chat_response": None,
-            "user_input": text,
-            "sly_data": self.sly_data,
-            "chat_context": self.chat_context or {},
-            "chat_filter": {"chat_filter_type": "MAXIMAL"},
-            "num_input": 0,
-        }
-        state = self.input_processor.process_once(state)
-        self.sly_data = state.get("sly_data")
-        self.chat_context = state.get("chat_context")
+        with self._lock:
+            self.last_accessed = time.monotonic()
+            self._ingest_attachments(files)
+            state = {
+                "last_chat_response": None,
+                "user_input": text,
+                "sly_data": self.sly_data,
+                "chat_context": self.chat_context or {},
+                "chat_filter": {"chat_filter_type": "MAXIMAL"},
+                "num_input": 0,
+            }
+            state = self.input_processor.process_once(state)
+            self.sly_data = state.get("sly_data")
+            self.chat_context = state.get("chat_context")
 
-        token_accounting = state.get("token_accounting")
-        if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-            _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
-        self.last_usage = _extract_usage(token_accounting)
+            token_accounting = state.get("token_accounting")
+            if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
+                _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
+            self.last_usage = _extract_usage(token_accounting)
 
-        return state.get("last_chat_response") or ""
+            return state.get("last_chat_response") or ""
 
     def send_streaming(self, text: str, files: Optional[List[Dict[str, Any]]] = None):
         """
@@ -487,75 +508,85 @@ class ChatSession:
         caller-side 'close' method" comment in the installed neuro_san
         package).
         """
-        self._ingest_attachments(files)
-        processor = self.input_processor.get_message_processor()
-        chat_filter = {"chat_filter_type": "MAXIMAL"}
-        chat_request = self.input_processor.formulate_chat_request(
-            text, self.sly_data, self.chat_context or {}, chat_filter
-        )
-        self.input_processor.reset()
+        # Held for this whole generator's lifetime (across every yield, not
+        # just the setup below) -- same race as send() above, but a stream
+        # is long-lived, so a second overlapping request for this session
+        # must wait for the WHOLE turn, not just this method's setup, or it
+        # could still interleave its own sly_data/chat_context read-modify-
+        # write with this turn's eventual one at the bottom. Released
+        # whenever this generator is exhausted, returns early, or is
+        # closed/GC'd (GeneratorExit also unwinds through this `with`).
+        with self._lock:
+            self.last_accessed = time.monotonic()
+            self._ingest_attachments(files)
+            processor = self.input_processor.get_message_processor()
+            chat_filter = {"chat_filter_type": "MAXIMAL"}
+            chat_request = self.input_processor.formulate_chat_request(
+                text, self.sly_data, self.chat_context or {}, chat_filter
+            )
+            self.input_processor.reset()
 
-        last_compiled_answer = None
-        try:
-            for chat_response in self.session.streaming_chat(chat_request):
-                response = chat_response.get("response") or {}
-                processor.process_message(response)
+            last_compiled_answer = None
+            try:
+                for chat_response in self.session.streaming_chat(chat_request):
+                    response = chat_response.get("response") or {}
+                    processor.process_message(response)
 
-                compiled_answer = processor.get_compiled_answer()
-                if compiled_answer and compiled_answer != last_compiled_answer:
-                    last_compiled_answer = compiled_answer
-                    yield {"status": "delta", "text": compiled_answer}
-                    continue
+                    compiled_answer = processor.get_compiled_answer()
+                    if compiled_answer and compiled_answer != last_compiled_answer:
+                        last_compiled_answer = compiled_answer
+                        yield {"status": "delta", "text": compiled_answer}
+                        continue
 
-                # Not an answer-text update -- surface it as a lightweight
-                # progress note instead, same heartbeat filter
-                # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
-                # message with empty text and no structure is the server's own
-                # keepalive frame, not real progress).
-                #
-                # A message with a "structure" payload but no "text" (observed
-                # in practice: neuro-san's own token-accounting bookkeeping
-                # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
-                # used to fall back to a synthetic "<structure: key1, key2,
-                # ...>" preview -- literally the dict's field NAMES, not its
-                # values, with zero conversational meaning -- and the web
-                # client renders every yielded "progress" event as a visible
-                # step in the turn's "Thinking" trace, so that leaked straight
-                # into the chat transcript as confusing noise. The real token
-                # totals already reach the client cleanly via this method's
-                # own "done" event ("usage", built from
-                # processor.get_token_accounting() below) -- this stream is
-                # only ever meant to preview genuine progress TEXT, so a
-                # structure-only message (no text) is simply skipped, the
-                # same as the heartbeat case.
-                text_field = response.get("text")
-                if not text_field:
-                    continue
-                preview = text_field.strip().replace("\n", " ")
-                if not preview:
-                    continue
-                if len(preview) > 160:
-                    preview = preview[:159] + "…"
-                origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
-                yield {"status": "progress", "origin": origin_str, "text": preview}
-        except asyncio.CancelledError:
-            yield {"status": "stopped", "response": last_compiled_answer or ""}
-            return
+                    # Not an answer-text update -- surface it as a lightweight
+                    # progress note instead, same heartbeat filter
+                    # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
+                    # message with empty text and no structure is the server's own
+                    # keepalive frame, not real progress).
+                    #
+                    # A message with a "structure" payload but no "text" (observed
+                    # in practice: neuro-san's own token-accounting bookkeeping
+                    # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
+                    # used to fall back to a synthetic "<structure: key1, key2,
+                    # ...>" preview -- literally the dict's field NAMES, not its
+                    # values, with zero conversational meaning -- and the web
+                    # client renders every yielded "progress" event as a visible
+                    # step in the turn's "Thinking" trace, so that leaked straight
+                    # into the chat transcript as confusing noise. The real token
+                    # totals already reach the client cleanly via this method's
+                    # own "done" event ("usage", built from
+                    # processor.get_token_accounting() below) -- this stream is
+                    # only ever meant to preview genuine progress TEXT, so a
+                    # structure-only message (no text) is simply skipped, the
+                    # same as the heartbeat case.
+                    text_field = response.get("text")
+                    if not text_field:
+                        continue
+                    preview = text_field.strip().replace("\n", " ")
+                    if not preview:
+                        continue
+                    if len(preview) > 160:
+                        preview = preview[:159] + "…"
+                    origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                    yield {"status": "progress", "origin": origin_str, "text": preview}
+            except asyncio.CancelledError:
+                yield {"status": "stopped", "response": last_compiled_answer or ""}
+                return
 
-        self.chat_context = processor.get_chat_context()
-        returned_sly_data = processor.get_sly_data()
-        if returned_sly_data is not None:
-            if self.sly_data is not None:
-                self.sly_data.update(returned_sly_data)
-            else:
-                self.sly_data = returned_sly_data.copy()
+            self.chat_context = processor.get_chat_context()
+            returned_sly_data = processor.get_sly_data()
+            if returned_sly_data is not None:
+                if self.sly_data is not None:
+                    self.sly_data.update(returned_sly_data)
+                else:
+                    self.sly_data = returned_sly_data.copy()
 
-        token_accounting = processor.get_token_accounting()
-        if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-            _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
-        self.last_usage = _extract_usage(token_accounting)
+            token_accounting = processor.get_token_accounting()
+            if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
+                _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
+            self.last_usage = _extract_usage(token_accounting)
 
-        yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+            yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
 
 
 async def handle_logical_line(
@@ -702,6 +733,21 @@ _web_sessions: Dict[str, ChatSession] = {}
 _web_sessions_lock = threading.Lock()
 WEB_SESSION_COOKIE = "process_architect_session"
 
+# A client that creates a session and never calls DELETE /chat/<session_id>
+# (closed tab, crash, forgotten cleanup) would otherwise leak its entry here
+# -- and the live neuro-san DirectAgentSession/thinking-file directory
+# under it -- for the life of the process. Entries idle longer than this
+# are swept opportunistically by _get_or_create_web_session below.
+# Generous relative to this project's own documented ~5-10 minute typical
+# turn time, so a slow-but-active session is never evicted out from under
+# a still-engaged user.
+_WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(os.environ.get("WEBSESSIONIDLETIMEOUTSECONDS", "3600"))
+# Bounds how often the sweep below actually scans _web_sessions, independent
+# of request volume -- a pure efficiency knob, not something a deployer
+# needs to tune, so it's a plain constant rather than an env var.
+_WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
+_web_sessions_last_swept = 0.0
+
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
@@ -712,16 +758,32 @@ WEB_SESSION_COOKIE = "process_architect_session"
 # chat API to the network.
 _web_rate_limit_lock = threading.Lock()
 _web_rate_limit_state: Dict[str, List[float]] = {}  # client key -> timestamps within the current window
+# Unlike the timestamp lists above (self-trimming on every call for a key
+# that's actually in use), a client_key that stops making requests entirely
+# keeps its dict entry forever -- distinct IPs seen even once would
+# otherwise accumulate unbounded over the process's lifetime. Swept on the
+# same opportunistic cadence as _web_sessions above.
+_WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS = 300.0
+_web_rate_limit_last_swept = 0.0
 
 
 def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
     """Fixed 60s sliding window per client_key. limit_per_minute <= 0 disables
     the check entirely (returns True unconditionally)."""
+    global _web_rate_limit_last_swept
     if limit_per_minute <= 0:
         return True
     now = time.monotonic()
     window_start = now - 60.0
     with _web_rate_limit_lock:
+        if now - _web_rate_limit_last_swept >= _WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS:
+            _web_rate_limit_last_swept = now
+            stale_keys = [
+                key for key, timestamps in _web_rate_limit_state.items()
+                if not any(t >= window_start for t in timestamps)
+            ]
+            for key in stale_keys:
+                _web_rate_limit_state.pop(key, None)
         timestamps = [t for t in _web_rate_limit_state.get(client_key, ()) if t >= window_start]
         if len(timestamps) >= limit_per_minute:
             _web_rate_limit_state[client_key] = timestamps
@@ -736,11 +798,32 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     missing/unknown, a fresh (isolated -- see ChatSession's own docstring)
     ChatSession is created and registered under a new web session id, which
     is returned alongside it."""
-    if existing_session_id:
-        with _web_sessions_lock:
+    global _web_sessions_last_swept
+
+    now = time.monotonic()
+    evicted: List[tuple] = []
+    session = None
+    with _web_sessions_lock:
+        if now - _web_sessions_last_swept >= _WEB_SESSION_SWEEP_INTERVAL_SECONDS:
+            _web_sessions_last_swept = now
+            stale_ids = [
+                sid for sid, s in _web_sessions.items()
+                if now - s.last_accessed >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+            ]
+            evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
+        if existing_session_id:
             session = _web_sessions.get(existing_session_id)
-        if session is not None:
-            return existing_session_id, session
+
+    for stale_id, stale_session in evicted:
+        _web_logger.info("Evicting idle web session %s after %.0fs of inactivity.",
+                          stale_id, _WEB_SESSION_IDLE_TIMEOUT_SECONDS)
+        try:
+            stale_session.session.close()
+        except Exception:
+            _web_logger.exception("Error closing idle neuro-san session %s during eviction sweep.", stale_id)
+
+    if session is not None:
+        return existing_session_id, session
 
     session = ChatSession(agent_name, isolated=True)
     web_session_id = str(uuid.uuid4())
@@ -1221,18 +1304,6 @@ async def run_cli() -> None:
         f"Process Architect Orchestrator (local mode, agent={args.agent})\n",
         kind="info",
     )
-
-    """ display_text(
-        f"To see the thinking involved with the agent:\n\n"
-        f"    tail -f {_THINKING_FILE}\n\n"
-        f"or see any one of the per-agent files under {_THINKING_DIR}/ for this project's own "
-        f"equivalent of the ADK original's output/logs/pipeline_*.log. Framework/application "
-        f"logging (this project's own tool/sub-agent trace at DEBUG, token accounting at INFO, "
-        f"neuro-san/langchain's own warnings) goes to {_APP_LOG_FILE} at whatever level the "
-        f"LOGLEVEL env var sets (default WARNING -- quiet). Set LOGLEVEL=DEBUG before running for "
-        f"full tracing; a WARNING+ copy always prints to this terminal regardless.",
-        kind="debug",
-    ) """
 
     if args.file:
         await process_file(args.file, args.agent)

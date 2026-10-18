@@ -208,7 +208,25 @@ def acquire_pipeline_lock(
 
         started_at = existing.get("started_at")
         age = time.time() - started_at if isinstance(started_at, (int, float)) else None
-        if age is not None and age >= stale_after_seconds:
+        if age is None:
+            # A valid JSON dict (not caught by the `existing is None`
+            # check above) but with a missing/non-numeric "started_at" --
+            # this module always writes that field itself via
+            # _atomic_write's own payload, so the only way it's absent is
+            # external tampering or a future schema regression. There is
+            # no legitimate way to judge this lock's age, and treating
+            # "unknown age" as "never stale" would contradict this
+            # module's own documented self-healing guarantee (a bad lock
+            # could then wedge every future run forever, exactly the
+            # failure mode this module exists to prevent) -- so an
+            # unreadable age is treated the same as a confirmed-stale one.
+            logger.warning(
+                "Lock at %s has no usable 'started_at' -- treating as stale and reclaiming it.",
+                path,
+            )
+            _atomic_write(path, payload)
+            return my_token
+        if age >= stale_after_seconds:
             # Abandoned by its original owner -- safe to reclaim under
             # the mutex: no concurrent reader/writer of the real lock
             # file can observe or race this decision.

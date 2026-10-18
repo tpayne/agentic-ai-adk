@@ -8,6 +8,7 @@ it in a unit test.
 """
 
 import asyncio
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -384,6 +385,7 @@ def test_send_logs_token_accounting_at_info(caplog):
     session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
     session.sly_data = None
     session.chat_context = None
+    session._lock = threading.Lock()
 
     class _StubInputProcessor:
         def process_once(self, state):
@@ -474,6 +476,7 @@ def _make_streaming_session():
     session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
     session.sly_data = None
     session.chat_context = None
+    session._lock = threading.Lock()
     session.session = _StubStreamingSession()
     session.input_processor = _StubStreamingInputProcessor()
     return session
@@ -538,6 +541,7 @@ class TestChatSessionSendStreaming:
         session = cli.ChatSession.__new__(cli.ChatSession)
         session.sly_data = None
         session.chat_context = None
+        session._lock = threading.Lock()
         session.session = _StructureOnlySession()
         session.input_processor = _StubStreamingInputProcessor()
 
@@ -554,6 +558,7 @@ class TestChatSessionSendStreaming:
         session = cli.ChatSession.__new__(cli.ChatSession)
         session.sly_data = None
         session.chat_context = None
+        session._lock = threading.Lock()
         session.session = _RepeatingSession()
         session.input_processor = _StubStreamingInputProcessor()
 

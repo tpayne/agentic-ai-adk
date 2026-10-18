@@ -467,7 +467,22 @@ class AgentNetworkPersistenceMiddleware(AgentMiddleware):
         persistor: AgentNetworkPersistor
         client_token_mcp_headers: dict[str, list[str]]
         persistor, client_token_mcp_headers = await self._create_persistor()
-        top_agent_name: str = UnreachableNodesNetworkValidator().find_all_front_man_agents(network_def).pop()
+        front_man_agents: set[str] = UnreachableNodesNetworkValidator().find_all_front_man_agents(network_def)
+        if not front_man_agents:
+            # find_all_front_man_agents returns an EMPTY set for a
+            # multi-agent network where every agent is itself a
+            # down-chain of another (e.g. a cycle, or several
+            # disconnected non-root agents) -- a structural problem
+            # earlier validation should normally catch, but .pop() on an
+            # empty set raises an unhandled KeyError here instead of a
+            # clear, catchable error if it somehow doesn't.
+            raise ValueError(
+                f"Could not identify a front-man agent for network '{agent_network_name}' -- "
+                "every agent is a down-chain of another (e.g. a cycle) or the network "
+                "definition has no clear entry point. Cannot persist a network with no "
+                "identifiable front man."
+            )
+        top_agent_name: str = front_man_agents.pop()
         # Built once so the HOCON text handed to the client and the persisted content carry one block,
         # and before the write so the fallback read never sees a half-written file. The assemblers run
         # the same merge again on it; that pass is idempotent (nothing new to drop), at most a generated

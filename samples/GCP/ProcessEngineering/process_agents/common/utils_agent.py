@@ -275,7 +275,14 @@ def restore_console():
     undoing silence_console's redirect once the pipeline run finishes."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Restoring console output.")
+    previous = sys.stdout
     sys.stdout = sys.__stdout__
+    if isinstance(previous, CleanedStdout):
+        # silence_console's own file handle -- never closed otherwise, so
+        # every silence/restore cycle (one per generation pipeline run)
+        # leaked a file descriptor relying on garbage collection to
+        # eventually reclaim it instead of a deterministic close.
+        previous.close()
     print(f"{ANSI_GREEN}- Finished generation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...{ANSI_RESET}", end="\n")
     sys.stdout.flush()
     return "Console output restored."

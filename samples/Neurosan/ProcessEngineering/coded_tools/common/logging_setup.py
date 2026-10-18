@@ -15,10 +15,19 @@ happens to run after cli.py has already configured things) are no-ops.
 """
 
 import logging
+import logging.handlers
 import os
 import sys
 
 _VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+# A long-running web service (run_web_service/-d --flask) never restarts
+# on its own to truncate this file the way a one-shot CLI invocation
+# implicitly does -- a plain FileHandler grew it unbounded for the life
+# of the process. 10MB x 5 backups (50MB ceiling) is generous for this
+# project's own request volume while still being a real, enforced bound.
+_LOG_MAX_BYTES = 10 * 1024 * 1024
+_LOG_BACKUP_COUNT = 5
 
 
 def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
@@ -32,7 +41,9 @@ def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
 
     log_format = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    file_handler = logging.FileHandler(log_file)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=_LOG_MAX_BYTES, backupCount=_LOG_BACKUP_COUNT,
+    )
     file_handler.setFormatter(log_format)
 
     console_handler = logging.StreamHandler(sys.stderr)

@@ -17,7 +17,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-ATTACHED_FILES_SLY_DATA_KEY = "attached_files"
+from coded_tools.common.attachments import ATTACHED_FILES_SLY_DATA_KEY
 
 
 class LoadAttachedFilesCodedTool(CodedTool):

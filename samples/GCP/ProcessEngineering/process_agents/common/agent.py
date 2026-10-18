@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 import logging
+import logging.handlers
 import secrets
 import threading
 import time
@@ -150,7 +151,13 @@ log_dir = "output/logs"
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler = logging.FileHandler(log_file)
+# RotatingFileHandler, not a plain FileHandler -- each process start
+# already mints its own timestamped log_file above, but -d/--detached
+# (the web service) can run for a very long time without restarting,
+# and this file would otherwise grow unbounded for that entire uptime.
+# 10MB x 5 backups (50MB ceiling) is generous for this project's own
+# request volume while still being a real, enforced bound.
+file_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5)
 file_handler.setFormatter(log_format)
 file_handler.flush = lambda: file_handler.stream.flush()
 console_handler = logging.StreamHandler(sys.stdout)
@@ -451,6 +458,21 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
 _web_sessions: dict = {}
 _web_sessions_lock = threading.Lock()
 
+# A client that creates a session and never calls DELETE /chat/<session_id>
+# (closed tab, crash, forgotten cleanup) would otherwise leak its entry here
+# -- and its backing ADK session in _web_session_service -- for the life of
+# the process. Entries idle longer than this are swept opportunistically by
+# _get_or_create_web_session below. Generous relative to this project's own
+# documented ~5-10 minute typical turn time, so a slow-but-active session is
+# never evicted out from under a still-engaged user.
+_WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(getProperty("webSessionIdleTimeoutSeconds", default=3600))
+# Bounds how often the sweep below actually scans _web_sessions, independent
+# of request volume -- a pure efficiency knob (an O(active sessions) scan on
+# every single request would be wasteful), not something a deployer needs to
+# tune, so it's a plain constant rather than a getProperty.
+_WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
+_web_sessions_last_swept = 0.0
+
 # Tracks the currently in-flight /chat/stream task per web session, so
 # POST /chat/<session_id>/stop (see chat_stop below) can actually cancel
 # it instead of merely abandoning the client-side connection -- the
@@ -487,19 +509,43 @@ WEB_SESSION_COOKIE = "process_architect_session"
 # no-new-dependency way to lock it down before exposing it further.
 _web_rate_limit_lock = threading.Lock()
 _web_rate_limit_state: dict = {}  # client key -> [monotonic timestamps within the current window]
+# Unlike the timestamp lists above (self-trimming on every call for a key
+# that's actually in use), a client_key that stops making requests entirely
+# keeps its dict entry forever -- distinct IPs seen even once would
+# otherwise accumulate unbounded over the process's lifetime. Swept on the
+# same opportunistic cadence as _web_sessions above.
+_WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS = 300.0
+_web_rate_limit_last_swept = 0.0
 
 
 def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
     """Fixed 60s sliding window per client_key. limit_per_minute <= 0 disables
     the check entirely (returns True unconditionally)."""
+    global _web_rate_limit_last_swept
     if limit_per_minute <= 0:
         return True
     now = time.monotonic()
     window_start = now - 60.0
     with _web_rate_limit_lock:
+        if now - _web_rate_limit_last_swept >= _WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS:
+            _web_rate_limit_last_swept = now
+            stale_keys = [
+                key for key, timestamps in _web_rate_limit_state.items()
+                if not any(t >= window_start for t in timestamps)
+            ]
+            for key in stale_keys:
+                _web_rate_limit_state.pop(key, None)
         timestamps = [t for t in _web_rate_limit_state.get(client_key, ()) if t >= window_start]
         if len(timestamps) >= limit_per_minute:
             _web_rate_limit_state[client_key] = timestamps
+            # A sustained flood (attack, or a misbehaving client retrying
+            # too aggressively) was otherwise invisible in the logs --
+            # every rejected request hit this branch and returned 429
+            # with zero trace of it ever happening.
+            logger.warning(
+                "Rate limit exceeded for %s: %d requests in the last 60s (limit %d).",
+                client_key, len(timestamps), limit_per_minute,
+            )
             return False
         timestamps.append(now)
         _web_rate_limit_state[client_key] = timestamps
@@ -514,13 +560,40 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
     created and registered under a new web session id, which is returned
     alongside the pair.
     """
-    global _web_runner, _web_session_service
+    global _web_runner, _web_session_service, _web_sessions_last_swept
 
-    if existing_session_id:
-        with _web_sessions_lock:
+    now = time.monotonic()
+    evicted: list = []
+    entry = None
+    with _web_sessions_lock:
+        if now - _web_sessions_last_swept >= _WEB_SESSION_SWEEP_INTERVAL_SECONDS:
+            _web_sessions_last_swept = now
+            stale_ids = [
+                sid for sid, e in _web_sessions.items()
+                if now - e.get("last_accessed", now) >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+            ]
+            evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
+        if existing_session_id:
             entry = _web_sessions.get(existing_session_id)
-        if entry:
-            return existing_session_id, entry["user_id"], entry["session_id"]
+            if entry is not None:
+                entry["last_accessed"] = now
+
+    for stale_id, stale_entry in evicted:
+        logger.info("Evicting idle web session %s after %.0fs of inactivity.",
+                    stale_id, _WEB_SESSION_IDLE_TIMEOUT_SECONDS)
+        if _web_session_service is not None:
+            try:
+                await _web_session_service.delete_session(
+                    app_name=_WEB_APP_NAME,
+                    user_id=stale_entry["user_id"],
+                    session_id=stale_entry["session_id"],
+                )
+            except Exception:
+                logger.warning("Failed to delete idle ADK session %s during eviction sweep.",
+                                stale_id, exc_info=True)
+
+    if entry is not None:
+        return existing_session_id, entry["user_id"], entry["session_id"]
 
     if _web_runner is None or _web_session_service is None:
         with _web_runtime_init_lock:
@@ -544,7 +617,9 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
 
     web_session_id = str(uuid.uuid4())
     with _web_sessions_lock:
-        _web_sessions[web_session_id] = {"user_id": user_id, "session_id": session_id}
+        _web_sessions[web_session_id] = {
+            "user_id": user_id, "session_id": session_id, "last_accessed": time.monotonic(),
+        }
     return web_session_id, user_id, session_id
 
 
@@ -584,12 +659,15 @@ def _new_usage_totals() -> Dict[str, int]:
 # ...) wraps the bytes as inline_data, which Gemini actually receives and
 # can read (images natively, and plenty of document types like PDF/text
 # too) -- no server-side text-extraction workaround needed on this side,
-# see _content_parts_for_turn below. Limits kept identical to the
+# see _content_parts_for_turn below. Defaults kept identical to the
 # Neurosan port's (same numbers, same field names) so the shared
 # WebClient's behavior doesn't change depending on which backend it's
-# talking to.
-ATTACHMENT_MAX_FILES = 4
-ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
+# talking to -- configurable here (unlike that port, which hardcodes
+# them) for consistency with every other tunable in this file
+# (webApiKey, webRateLimitPerMinute, modelTimeoutSeconds, ...), all of
+# which go through getProperty rather than a bare literal.
+ATTACHMENT_MAX_FILES = int(getProperty("attachmentMaxFiles", default=4))
+ATTACHMENT_MAX_BYTES = int(getProperty("attachmentMaxBytes", default=8 * 1024 * 1024))  # per file, raw (decoded) size
 
 
 def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str, Any]]], Optional[str]]":
@@ -718,6 +796,7 @@ async def _stream_chat_turn(
     answer_so_far = ""
     last_progress_author: Optional[str] = None
     usage_totals = _new_usage_totals()
+    turn_started = time.monotonic()
     try:
         async for event in _web_runner.run_async(
             user_id=user_id,
@@ -776,6 +855,13 @@ async def _stream_chat_turn(
                     "text": "responding...",
                 })
 
+        # Success path previously logged nothing at all -- only exceptions
+        # were ever visible, so diagnosing "why did this session behave
+        # oddly" after the fact (without reproducing it) had no trail.
+        logger.debug(
+            "Chat stream turn completed: session=%s user=%s query_len=%d files=%d duration=%.2fs usage=%s",
+            session_id, user_id, len(query), len(files or []), time.monotonic() - turn_started, usage_totals,
+        )
         event_queue.put({
             "status": "done",
             "response": answer_so_far,
@@ -933,6 +1019,7 @@ def build_web_app(https: bool = True):
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
+        turn_started = time.monotonic()
         try:
             web_session_id, response_text, usage = asyncio.run(
                 _run_chat_turn(session_id, query.strip(), files=files)
@@ -943,6 +1030,14 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": "An internal error has occurred.",
             }), 500
+
+        # Success path previously logged nothing at all -- only exceptions
+        # were ever visible, so diagnosing "why did this session behave
+        # oddly" after the fact (without reproducing it) had no trail.
+        logger.debug(
+            "Chat turn completed: session=%s query_len=%d files=%d duration=%.2fs usage=%s",
+            web_session_id, len(query), len(files or []), time.monotonic() - turn_started, usage,
+        )
 
         resp = make_response(jsonify({
             "status": "ok",
