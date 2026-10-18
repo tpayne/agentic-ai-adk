@@ -1007,3 +1007,66 @@ class TestGetOrCreateWebSessionEviction:
         cli._release_web_session("just-finished")
 
         assert session.last_accessed > turn_start
+
+
+class TestReleaseAnyLeftoverPipelineLock:
+    """_release_any_leftover_pipeline_lock -- regression coverage for a
+    review finding: POST /chat/<session_id>/stop cancels whatever tool/
+    model call is currently in flight via cancel_current_tasks(), but
+    there is no guarantee the specific CodedTool call that would have
+    released the pipeline lock (doc_generation_tool.py / loop_control_
+    tool.py) ever runs afterward. Without this safety net, a cancelled
+    turn would leave both the lock AND its background heartbeat
+    (process_toolkit.run_lock) running forever -- worse than before that
+    heartbeat existed, since it would keep the lock's started_at fresh
+    indefinitely, permanently defeating the staleness-based self-healing
+    every pipeline run still depends on for a genuine crash/abandonment.
+    """
+
+    def test_no_sly_data_is_a_safe_noop(self):
+        cli._release_any_leftover_pipeline_lock(None)  # must not raise
+
+    def test_no_token_in_sly_data_is_a_safe_noop(self):
+        cli._release_any_leftover_pipeline_lock({})  # must not raise
+
+    def test_leftover_token_is_released_and_its_heartbeat_stopped(self):
+        from process_toolkit.run_lock import acquire_pipeline_lock, start_pipeline_lock_heartbeat, _heartbeats
+
+        token = acquire_pipeline_lock("a neuro-san pipeline")
+        start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
+        assert token in _heartbeats
+
+        cli._release_any_leftover_pipeline_lock({cli.PIPELINE_LOCK_TOKEN_KEY: token})
+
+        assert token not in _heartbeats
+        acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+
+
+class TestSendStreamingCancellationReleasesLeftoverLock:
+    """send_streaming's own cancellation path must still release a
+    leftover pipeline lock -- see TestReleaseAnyLeftoverPipelineLock's
+    own docstring for why this specific path is the one that matters."""
+
+    def test_cancellation_releases_a_leftover_pipeline_lock(self):
+        from process_toolkit.run_lock import acquire_pipeline_lock, _heartbeats, start_pipeline_lock_heartbeat
+
+        class _CancelledStreamingSession:
+            def streaming_chat(self, chat_request):
+                yield {"response": {"type": "progress", "origin": [], "text": "starting"}}
+                raise asyncio.CancelledError()
+
+        token = acquire_pipeline_lock("a neuro-san pipeline")
+        start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
+
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = {cli.PIPELINE_LOCK_TOKEN_KEY: token}
+        session.chat_context = None
+        session._lock = threading.Lock()
+        session.session = _CancelledStreamingSession()
+        session.input_processor = _StubStreamingInputProcessor()
+
+        events = list(session.send_streaming("hello"))
+
+        assert events[-1]["status"] == "stopped"
+        assert token not in _heartbeats
+        acquire_pipeline_lock("a different pipeline")  # must not raise -- released above

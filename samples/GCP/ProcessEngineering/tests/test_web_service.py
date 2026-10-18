@@ -248,6 +248,89 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
             self.assertGreater(agent._web_sessions["just-finished"]["last_accessed"], turn_start)
 
 
+class LeftoverPipelineLockCleanupTest(unittest.TestCase):
+    """_release_any_leftover_pipeline_lock -- regression coverage for a
+    review finding: POST /chat/<session_id>/stop cancels a turn's asyncio
+    Task mid-flight, which raises asyncio.CancelledError wherever the
+    agent chain happened to be suspended -- there is no guarantee ADK's
+    own LoopAgent still runs its after_agent_callback (the thing that
+    would normally release the pipeline lock) on that path. Without this
+    safety net, a cancelled turn would leave both the lock AND its
+    background heartbeat (process_toolkit.run_lock) running forever --
+    worse than before the heartbeat existed, since the heartbeat would
+    keep refreshing a lock nothing is still using, permanently defeating
+    the staleness-based self-healing every pipeline still depends on for
+    a genuine crash/abandonment.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        _STUBBED_PREFIXES = (
+            "google", "pydantic", "certifi", "requests", "urllib3",
+            "yaml", "matplotlib", "networkx",
+        )
+        for name in list(sys.modules):
+            if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
+                del sys.modules[name]
+        for name in list(sys.modules):
+            if name == "process_agents" or name.startswith("process_agents."):
+                del sys.modules[name]
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def test_leftover_token_is_released_and_its_heartbeat_stopped(self):
+        from process_toolkit.run_lock import (
+            acquire_pipeline_lock, release_pipeline_lock, start_pipeline_lock_heartbeat, _heartbeats,
+        )
+        from process_agents.common.utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
+
+        agent = self.agent
+        token = acquire_pipeline_lock("the cloud architecture pipeline")
+        start_pipeline_lock_heartbeat("the cloud architecture pipeline", token)
+        self.assertIn(token, _heartbeats)
+
+        fake_session = SimpleNamespace(state={PIPELINE_LOCK_TOKEN_STATE_KEY: {"token": token}})
+
+        class _StubSessionService:
+            async def get_session(self, app_name, user_id, session_id):
+                return fake_session
+
+        agent._web_session_service = _StubSessionService()
+        try:
+            agent.asyncio.run(agent._release_any_leftover_pipeline_lock("u1", "s1"))
+
+            self.assertNotIn(token, _heartbeats)
+            acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+        finally:
+            release_pipeline_lock(token)  # safe no-op if already released
+
+    def test_no_leftover_token_is_a_safe_noop(self):
+        agent = self.agent
+        fake_session = SimpleNamespace(state={})
+
+        class _StubSessionService:
+            async def get_session(self, app_name, user_id, session_id):
+                return fake_session
+
+        agent._web_session_service = _StubSessionService()
+        agent.asyncio.run(agent._release_any_leftover_pipeline_lock("u1", "s1"))  # must not raise
+
+    def test_no_session_service_configured_is_a_safe_noop(self):
+        agent = self.agent
+        agent._web_session_service = None
+        agent.asyncio.run(agent._release_any_leftover_pipeline_lock("u1", "s1"))  # must not raise
+
+    def test_session_lookup_failure_is_a_safe_noop(self):
+        agent = self.agent
+
+        class _ExplodingSessionService:
+            async def get_session(self, app_name, user_id, session_id):
+                raise RuntimeError("boom")
+
+        agent._web_session_service = _ExplodingSessionService()
+        agent.asyncio.run(agent._release_any_leftover_pipeline_lock("u1", "s1"))  # must not raise
+
+
 class WebServiceInitRaceTest(unittest.TestCase):
     """Regression test for a review finding: two concurrent first requests
     could each see _web_runner/_web_session_service as None and build their

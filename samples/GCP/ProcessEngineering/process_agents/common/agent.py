@@ -805,6 +805,65 @@ def _mark_web_session_inactive(web_session_id: str) -> None:
             entry["last_accessed"] = time.monotonic()
 
 
+async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> None:
+    """
+    Safety net: every pipeline (process/design-doc/cloudarch) acquires its
+    own output/ directory pipeline-lock exactly once, as the first action
+    of a brand new top-level turn, and releases it (via
+    release_pipeline_lock_for_turn, an after_agent_callback) once that
+    SAME turn's own LoopAgent genuinely finishes -- the whole thing
+    happens within one run_async() call, never spanning more than one
+    turn. So a token still sitting in this ADK session's own state once
+    that run_async() call has returned, for ANY reason, means the
+    pipeline's own after_agent_callback never ran.
+
+    The one way that happens: POST /chat/<session_id>/stop (see chat_stop
+    below) cancels this turn's asyncio Task mid-flight. asyncio.
+    CancelledError is raised at whatever await point the agent chain
+    happened to be suspended at -- there is no guarantee ADK's own
+    LoopAgent treats that the same as a normal last iteration and still
+    runs its registered after_agent_callback, and empirically it does
+    not. Without this, a cancelled turn would leave BOTH the lock AND its
+    background heartbeat (process_toolkit.run_lock) running forever --
+    worse than before that heartbeat existed, since the heartbeat would
+    keep the lock's started_at fresh indefinitely, permanently defeating
+    the staleness-based self-healing every pipeline run still depends on
+    for the crash/abandonment case the heartbeat was never meant to
+    replace.
+
+    Called from both _run_chat_turn and _stream_chat_turn's own
+    finally/cleanup, unconditionally (success, in-band error, and
+    cancellation alike) -- cheap and a no-op on the overwhelming majority
+    of calls, where the pipeline's own finalize step already released
+    everything normally.
+    """
+    if _web_session_service is None:
+        return
+    try:
+        session = await _web_session_service.get_session(
+            app_name=_WEB_APP_NAME, user_id=user_id, session_id=session_id,
+        )
+    except Exception:
+        logger.warning("Could not check session %s for a leftover pipeline lock.", session_id, exc_info=True)
+        return
+    if session is None or not session.state:
+        return
+
+    from .utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
+    from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
+
+    stored = session.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
+    token = stored.get("token") if isinstance(stored, dict) else None
+    if not token:
+        return
+    logger.warning(
+        "Turn for session %s ended with pipeline lock token %s still held -- "
+        "releasing it defensively (most likely a cancelled turn).", session_id, token,
+    )
+    stop_pipeline_lock_heartbeat(token)
+    release_pipeline_lock(token)
+
+
 async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):
     """Resolve/create the web session, then run one query through it."""
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
@@ -827,6 +886,7 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: 
         usage = {**usage_totals, "model": MODEL}
         return web_session_id, (final_response or ""), usage
     finally:
+        await _release_any_leftover_pipeline_lock(user_id, session_id)
         _mark_web_session_inactive(web_session_id)
 
 
@@ -961,6 +1021,7 @@ async def _stream_chat_turn(
         logger.exception("Web chat stream error")
         event_queue.put({"status": "error", "error": "An internal error has occurred."})
     finally:
+        await _release_any_leftover_pipeline_lock(user_id, session_id)
         event_queue.put(None)
 
 

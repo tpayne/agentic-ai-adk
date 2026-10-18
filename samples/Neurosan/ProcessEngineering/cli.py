@@ -145,7 +145,9 @@ from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
 from process_toolkit.ingestion.extractors import extract_attachment_text  # noqa: E402
+from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
 from coded_tools.common.attachments import ATTACHED_FILES_SLY_DATA_KEY  # noqa: E402
+from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
@@ -347,6 +349,49 @@ def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[
     }
 
 
+def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> None:
+    """
+    Safety net: every pipeline (process/design-doc/cloudarch) acquires its
+    own output/ directory pipeline-lock exactly once, as the first action
+    of a brand new top-level turn (reset_loop_state_tool.py), and releases
+    it (doc_generation_tool.py / loop_control_tool.py) once that SAME
+    turn's own generate/review loop genuinely finishes -- the whole thing
+    happens within one send()/send_streaming() call, never spanning more
+    than one turn. So a token still sitting in sly_data once that call has
+    returned, for ANY reason, means the pipeline's own finalize step never
+    ran.
+
+    The one way that happens: POST /chat/<session_id>/stop (see
+    build_web_app's own chat_stop route) reaches into
+    self.session.invocation_context.get_asyncio_executor().
+    cancel_current_tasks(), cancelling whatever tool/model call is
+    currently in flight -- there is no guarantee the specific CodedTool
+    call that would have released the lock ever runs afterward. Without
+    this, a cancelled turn would leave BOTH the lock AND its background
+    heartbeat (process_toolkit.run_lock) running forever -- worse than
+    before that heartbeat existed, since the heartbeat would keep the
+    lock's started_at fresh indefinitely, permanently defeating the
+    staleness-based self-healing every pipeline run still depends on for
+    the crash/abandonment case the heartbeat was never meant to replace.
+
+    Called from both send() and send_streaming()'s own cleanup,
+    unconditionally (success, in-band error, and cancellation alike) --
+    cheap and a no-op on the overwhelming majority of calls, where the
+    pipeline's own finalize step already released everything normally.
+    """
+    if not sly_data:
+        return
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    if not token:
+        return
+    _web_logger.warning(
+        "Turn ended with pipeline lock token %s still held -- releasing it "
+        "defensively (most likely a cancelled turn).", token,
+    )
+    stop_pipeline_lock_heartbeat(token)
+    release_pipeline_lock(token)
+
+
 class ChatSession:
     """One underlying neuro-san direct session against an agent network,
     plus the request/response state (chat_context, sly_data) that must be
@@ -454,35 +499,38 @@ class ChatSession:
         with self._lock:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
-            self._ingest_attachments(files)
-            state = {
-                "last_chat_response": None,
-                "user_input": text,
-                "sly_data": self.sly_data,
-                "chat_context": self.chat_context or {},
-                "chat_filter": {"chat_filter_type": "MAXIMAL"},
-                "num_input": 0,
-            }
-            state = self.input_processor.process_once(state)
-            self.sly_data = state.get("sly_data")
-            self.chat_context = state.get("chat_context")
+            try:
+                self._ingest_attachments(files)
+                state = {
+                    "last_chat_response": None,
+                    "user_input": text,
+                    "sly_data": self.sly_data,
+                    "chat_context": self.chat_context or {},
+                    "chat_filter": {"chat_filter_type": "MAXIMAL"},
+                    "num_input": 0,
+                }
+                state = self.input_processor.process_once(state)
+                self.sly_data = state.get("sly_data")
+                self.chat_context = state.get("chat_context")
 
-            token_accounting = state.get("token_accounting")
-            self.last_usage = _extract_usage(token_accounting)
+                token_accounting = state.get("token_accounting")
+                self.last_usage = _extract_usage(token_accounting)
 
-            # Previously only logged AT ALL when token_accounting happened
-            # to be present, and even then carried no duration or explicit
-            # outcome -- a successful turn with no accounting data left no
-            # trace whatsoever at INFO level, the level this project's own
-            # logging_setup.py defaults LOGLEVEL to.
-            if _trace_logger.isEnabledFor(logging.INFO):
-                _trace_logger.info(
-                    "Chat turn completed: duration=%.2fs usage=%s",
-                    time.monotonic() - turn_started,
-                    json.dumps(token_accounting) if token_accounting else None,
-                )
+                # Previously only logged AT ALL when token_accounting happened
+                # to be present, and even then carried no duration or explicit
+                # outcome -- a successful turn with no accounting data left no
+                # trace whatsoever at INFO level, the level this project's own
+                # logging_setup.py defaults LOGLEVEL to.
+                if _trace_logger.isEnabledFor(logging.INFO):
+                    _trace_logger.info(
+                        "Chat turn completed: duration=%.2fs usage=%s",
+                        time.monotonic() - turn_started,
+                        json.dumps(token_accounting) if token_accounting else None,
+                    )
 
-            return state.get("last_chat_response") or ""
+                return state.get("last_chat_response") or ""
+            finally:
+                _release_any_leftover_pipeline_lock(self.sly_data)
 
     def send_streaming(self, text: str, files: Optional[List[Dict[str, Any]]] = None):
         """
@@ -552,79 +600,82 @@ class ChatSession:
 
             last_compiled_answer = None
             try:
-                for chat_response in self.session.streaming_chat(chat_request):
-                    response = chat_response.get("response") or {}
-                    processor.process_message(response)
+                try:
+                    for chat_response in self.session.streaming_chat(chat_request):
+                        response = chat_response.get("response") or {}
+                        processor.process_message(response)
 
-                    compiled_answer = processor.get_compiled_answer()
-                    if compiled_answer and compiled_answer != last_compiled_answer:
-                        last_compiled_answer = compiled_answer
-                        yield {"status": "delta", "text": compiled_answer}
-                        continue
+                        compiled_answer = processor.get_compiled_answer()
+                        if compiled_answer and compiled_answer != last_compiled_answer:
+                            last_compiled_answer = compiled_answer
+                            yield {"status": "delta", "text": compiled_answer}
+                            continue
 
-                    # Not an answer-text update -- surface it as a lightweight
-                    # progress note instead, same heartbeat filter
-                    # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
-                    # message with empty text and no structure is the server's own
-                    # keepalive frame, not real progress).
-                    #
-                    # A message with a "structure" payload but no "text" (observed
-                    # in practice: neuro-san's own token-accounting bookkeeping
-                    # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
-                    # used to fall back to a synthetic "<structure: key1, key2,
-                    # ...>" preview -- literally the dict's field NAMES, not its
-                    # values, with zero conversational meaning -- and the web
-                    # client renders every yielded "progress" event as a visible
-                    # step in the turn's "Thinking" trace, so that leaked straight
-                    # into the chat transcript as confusing noise. The real token
-                    # totals already reach the client cleanly via this method's
-                    # own "done" event ("usage", built from
-                    # processor.get_token_accounting() below) -- this stream is
-                    # only ever meant to preview genuine progress TEXT, so a
-                    # structure-only message (no text) is simply skipped, the
-                    # same as the heartbeat case.
-                    text_field = response.get("text")
-                    if not text_field:
-                        continue
-                    preview = text_field.strip().replace("\n", " ")
-                    if not preview:
-                        continue
-                    if len(preview) > 160:
-                        preview = preview[:159] + "…"
-                    origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
-                    yield {"status": "progress", "origin": origin_str, "text": preview}
-            except asyncio.CancelledError:
+                        # Not an answer-text update -- surface it as a lightweight
+                        # progress note instead, same heartbeat filter
+                        # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
+                        # message with empty text and no structure is the server's own
+                        # keepalive frame, not real progress).
+                        #
+                        # A message with a "structure" payload but no "text" (observed
+                        # in practice: neuro-san's own token-accounting bookkeeping
+                        # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
+                        # used to fall back to a synthetic "<structure: key1, key2,
+                        # ...>" preview -- literally the dict's field NAMES, not its
+                        # values, with zero conversational meaning -- and the web
+                        # client renders every yielded "progress" event as a visible
+                        # step in the turn's "Thinking" trace, so that leaked straight
+                        # into the chat transcript as confusing noise. The real token
+                        # totals already reach the client cleanly via this method's
+                        # own "done" event ("usage", built from
+                        # processor.get_token_accounting() below) -- this stream is
+                        # only ever meant to preview genuine progress TEXT, so a
+                        # structure-only message (no text) is simply skipped, the
+                        # same as the heartbeat case.
+                        text_field = response.get("text")
+                        if not text_field:
+                            continue
+                        preview = text_field.strip().replace("\n", " ")
+                        if not preview:
+                            continue
+                        if len(preview) > 160:
+                            preview = preview[:159] + "…"
+                        origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                        yield {"status": "progress", "origin": origin_str, "text": preview}
+                except asyncio.CancelledError:
+                    if _trace_logger.isEnabledFor(logging.INFO):
+                        _trace_logger.info(
+                            "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
+                        )
+                    yield {"status": "stopped", "response": last_compiled_answer or ""}
+                    return
+
+                self.chat_context = processor.get_chat_context()
+                returned_sly_data = processor.get_sly_data()
+                if returned_sly_data is not None:
+                    if self.sly_data is not None:
+                        self.sly_data.update(returned_sly_data)
+                    else:
+                        self.sly_data = returned_sly_data.copy()
+
+                token_accounting = processor.get_token_accounting()
+                self.last_usage = _extract_usage(token_accounting)
+
+                # Previously only logged AT ALL when token_accounting happened
+                # to be present, and even then carried no duration or explicit
+                # outcome -- a successful turn with no accounting data left no
+                # trace whatsoever at INFO level, the level this project's own
+                # logging_setup.py defaults LOGLEVEL to.
                 if _trace_logger.isEnabledFor(logging.INFO):
                     _trace_logger.info(
-                        "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
+                        "Chat stream turn completed: duration=%.2fs usage=%s",
+                        time.monotonic() - turn_started,
+                        json.dumps(token_accounting) if token_accounting else None,
                     )
-                yield {"status": "stopped", "response": last_compiled_answer or ""}
-                return
 
-            self.chat_context = processor.get_chat_context()
-            returned_sly_data = processor.get_sly_data()
-            if returned_sly_data is not None:
-                if self.sly_data is not None:
-                    self.sly_data.update(returned_sly_data)
-                else:
-                    self.sly_data = returned_sly_data.copy()
-
-            token_accounting = processor.get_token_accounting()
-            self.last_usage = _extract_usage(token_accounting)
-
-            # Previously only logged AT ALL when token_accounting happened
-            # to be present, and even then carried no duration or explicit
-            # outcome -- a successful turn with no accounting data left no
-            # trace whatsoever at INFO level, the level this project's own
-            # logging_setup.py defaults LOGLEVEL to.
-            if _trace_logger.isEnabledFor(logging.INFO):
-                _trace_logger.info(
-                    "Chat stream turn completed: duration=%.2fs usage=%s",
-                    time.monotonic() - turn_started,
-                    json.dumps(token_accounting) if token_accounting else None,
-                )
-
-            yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+                yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+            finally:
+                _release_any_leftover_pipeline_lock(self.sly_data)
 
 
 async def handle_logical_line(
