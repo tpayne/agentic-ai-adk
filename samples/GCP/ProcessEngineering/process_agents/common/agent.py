@@ -473,6 +473,17 @@ _WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(getProperty("webSessionIdleTimeoutSeco
 _WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
 _web_sessions_last_swept = 0.0
 
+# web_session_ids with a turn currently executing, streaming or not.
+# last_accessed (above) is stamped once, at turn START -- a turn that
+# legitimately runs longer than _WEB_SESSION_IDLE_TIMEOUT_SECONDS would
+# otherwise look just as idle to the sweep as an abandoned session, and get
+# its entry (and its backing ADK session) deleted while still in use.
+# Checked by the sweep in _get_or_create_web_session; added/removed by
+# _run_chat_turn (non-streaming) and chat_stream's generate() (streaming),
+# guarded by _web_sessions_lock since both already take it to touch
+# _web_sessions itself.
+_active_web_sessions: set = set()
+
 # Tracks the currently in-flight /chat/stream task per web session, so
 # POST /chat/<session_id>/stop (see chat_stop below) can actually cancel
 # it instead of merely abandoning the client-side connection -- the
@@ -570,7 +581,8 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
             _web_sessions_last_swept = now
             stale_ids = [
                 sid for sid, e in _web_sessions.items()
-                if now - e.get("last_accessed", now) >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+                if sid not in _active_web_sessions
+                and now - e.get("last_accessed", now) >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
             ]
             evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
         if existing_session_id:
@@ -669,6 +681,18 @@ def _new_usage_totals() -> Dict[str, int]:
 ATTACHMENT_MAX_FILES = int(getProperty("attachmentMaxFiles", default=4))
 ATTACHMENT_MAX_BYTES = int(getProperty("attachmentMaxBytes", default=8 * 1024 * 1024))  # per file, raw (decoded) size
 
+# Flask's own MAX_CONTENT_LENGTH (set on web_app in build_web_app) rejects an
+# oversized request before reading its body at all -- without it, chat()/
+# chat_stream() below call request.get_json() first and only check
+# ATTACHMENT_MAX_FILES/ATTACHMENT_MAX_BYTES afterward, so a request far
+# beyond what any legitimate attachment set could produce would still be
+# fully parsed into memory (the JSON body, its base64 strings, all of it)
+# before those per-file limits ever get a chance to reject it. Derived from
+# the two limits above rather than its own getProperty, so it can't drift
+# out of sync with them: base64 inflates raw bytes by ~4/3, and the extra
+# 1MB covers the query text plus JSON punctuation/field-name overhead.
+MAX_REQUEST_BODY_BYTES = int(ATTACHMENT_MAX_FILES * ATTACHMENT_MAX_BYTES * 4 / 3) + 1 * 1024 * 1024
+
 
 def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str, Any]]], Optional[str]]":
     """
@@ -736,26 +760,42 @@ def _content_parts_for_turn(query: str, files: Optional[List[Dict[str, Any]]]) -
     return parts
 
 
+def _mark_web_session_active(web_session_id: str) -> None:
+    """Excludes web_session_id from the idle-eviction sweep in
+    _get_or_create_web_session for as long as a turn is actually running on
+    it -- see _active_web_sessions's own comment for why."""
+    with _web_sessions_lock:
+        _active_web_sessions.add(web_session_id)
+
+
+def _mark_web_session_inactive(web_session_id: str) -> None:
+    with _web_sessions_lock:
+        _active_web_sessions.discard(web_session_id)
+
+
 async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):
     """Resolve/create the web session, then run one query through it."""
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
+    _mark_web_session_active(web_session_id)
+    try:
+        content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
+        final_response = None
+        usage_totals = _new_usage_totals()
+        async for event in _web_runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+            run_config=RUN_CONFIG,
+        ):
+            if not event.partial:
+                _accumulate_event_usage(event, usage_totals)
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
 
-    content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
-    final_response = None
-    usage_totals = _new_usage_totals()
-    async for event in _web_runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=content,
-        run_config=RUN_CONFIG,
-    ):
-        if not event.partial:
-            _accumulate_event_usage(event, usage_totals)
-        if event.is_final_response() and event.content and event.content.parts:
-            final_response = event.content.parts[0].text
-
-    usage = {**usage_totals, "model": MODEL}
-    return web_session_id, (final_response or ""), usage
+        usage = {**usage_totals, "model": MODEL}
+        return web_session_id, (final_response or ""), usage
+    finally:
+        _mark_web_session_inactive(web_session_id)
 
 
 async def _stream_chat_turn(
@@ -855,10 +895,12 @@ async def _stream_chat_turn(
                     "text": "responding...",
                 })
 
-        # Success path previously logged nothing at all -- only exceptions
-        # were ever visible, so diagnosing "why did this session behave
+        # Previously only visible at DEBUG, so a successful turn's
+        # outcome/duration/usage left no trace at this project's default
+        # LOGLEVEL (WARNING) or even at INFO -- only exceptions were ever
+        # visible by default, so diagnosing "why did this session behave
         # oddly" after the fact (without reproducing it) had no trail.
-        logger.debug(
+        logger.info(
             "Chat stream turn completed: session=%s user=%s query_len=%d files=%d duration=%.2fs usage=%s",
             session_id, user_id, len(query), len(files or []), time.monotonic() - turn_started, usage_totals,
         )
@@ -873,6 +915,10 @@ async def _stream_chat_turn(
         # Task is properly marked cancelled (the "finally" below still
         # runs either way, sending the None sentinel the reading side
         # needs regardless of how this turn ended).
+        logger.info(
+            "Chat stream turn stopped: session=%s user=%s query_len=%d files=%d duration=%.2fs usage=%s",
+            session_id, user_id, len(query), len(files or []), time.monotonic() - turn_started, usage_totals,
+        )
         event_queue.put({
             "status": "stopped",
             "response": answer_so_far,
@@ -946,6 +992,10 @@ def build_web_app(https: bool = True):
 
     web_app = Flask("ProcessArchitectWebService")
     web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    # Rejects an oversized request at the WSGI layer, before Flask reads any
+    # of its body -- see MAX_REQUEST_BODY_BYTES's own comment for why this
+    # has to happen before request.get_json(), not after.
+    web_app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 
     api_key = getProperty("webApiKey")
     if not api_key:
@@ -1031,10 +1081,12 @@ def build_web_app(https: bool = True):
                 "error": "An internal error has occurred.",
             }), 500
 
-        # Success path previously logged nothing at all -- only exceptions
-        # were ever visible, so diagnosing "why did this session behave
-        # oddly" after the fact (without reproducing it) had no trail.
-        logger.debug(
+        # Previously only visible at DEBUG, so a successful turn's
+        # outcome/duration/usage left no trace at this project's default
+        # LOGLEVEL -- only exceptions were ever visible by default, so
+        # diagnosing "why did this session behave oddly" after the fact
+        # (without reproducing it) had no trail.
+        logger.info(
             "Chat turn completed: session=%s query_len=%d files=%d duration=%.2fs usage=%s",
             web_session_id, len(query), len(files or []), time.monotonic() - turn_started, usage,
         )
@@ -1094,6 +1146,7 @@ def build_web_app(https: bool = True):
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
         web_session_id, user_id, adk_session_id = asyncio.run(_get_or_create_web_session(session_id))
+        _mark_web_session_active(web_session_id)
 
         def generate():
             event_queue: "queue.Queue" = queue.Queue()
@@ -1152,6 +1205,7 @@ def build_web_app(https: bool = True):
                         if task is not None and _active_stream_tasks.get(web_session_id) == (loop, task):
                             _active_stream_tasks.pop(web_session_id, None)
                     loop.close()
+                    _mark_web_session_inactive(web_session_id)
 
             thread = threading.Thread(target=run, daemon=True)
             thread.start()

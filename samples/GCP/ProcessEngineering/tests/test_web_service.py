@@ -107,6 +107,94 @@ class WebServiceSessionDeleteTest(unittest.TestCase):
         self.assertFalse(delete_resp.get_json()["cleared"])
 
 
+class WebServiceSessionEvictionTest(unittest.TestCase):
+    """_get_or_create_web_session's opportunistic idle-eviction sweep --
+    regression coverage for a review finding: last_accessed is stamped
+    once, at turn START (see _run_chat_turn/_mark_web_session_active), so a
+    turn genuinely running longer than the idle timeout must not be
+    evicted out from under itself just because its timestamp looks stale.
+    _active_web_sessions is the signal the sweep actually checks to avoid
+    exactly that race.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        _STUBBED_PREFIXES = (
+            "google", "pydantic", "certifi", "requests", "urllib3",
+            "yaml", "matplotlib", "networkx",
+        )
+        for name in list(sys.modules):
+            if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
+                del sys.modules[name]
+        for name in list(sys.modules):
+            if name == "process_agents" or name.startswith("process_agents."):
+                del sys.modules[name]
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        agent = self.agent
+        agent._web_session_service = agent.InMemorySessionService()
+        agent._web_runner = None
+        with agent._web_sessions_lock:
+            agent._web_sessions.clear()
+            agent._active_web_sessions.clear()
+        agent._web_sessions_last_swept = 0.0
+
+    def _make_entry(self, user_id, session_id, last_accessed):
+        agent = self.agent
+        agent.asyncio.run(
+            agent._web_session_service.create_session(
+                app_name=agent._WEB_APP_NAME, user_id=user_id, session_id=session_id, state={},
+            )
+        )
+        return {"user_id": user_id, "session_id": session_id, "last_accessed": last_accessed}
+
+    def test_idle_and_inactive_session_is_evicted(self):
+        agent = self.agent
+        stale = time.monotonic() - agent._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        with agent._web_sessions_lock:
+            agent._web_sessions["idle"] = self._make_entry("u1", "s1", stale)
+            agent._web_sessions["current"] = self._make_entry("u2", "s2", time.monotonic())
+
+        result = agent.asyncio.run(agent._get_or_create_web_session("current"))
+
+        self.assertEqual(result[0], "current")
+        with agent._web_sessions_lock:
+            self.assertNotIn("idle", agent._web_sessions)
+        post_delete = agent.asyncio.run(
+            agent._web_session_service.get_session(app_name=agent._WEB_APP_NAME, user_id="u1", session_id="s1")
+        )
+        self.assertIsNone(post_delete)
+
+    def test_idle_but_active_turn_is_not_evicted(self):
+        agent = self.agent
+        stale = time.monotonic() - agent._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        with agent._web_sessions_lock:
+            agent._web_sessions["mid-turn"] = self._make_entry("u1", "s1", stale)
+            agent._web_sessions["current"] = self._make_entry("u2", "s2", time.monotonic())
+            agent._active_web_sessions.add("mid-turn")
+
+        agent.asyncio.run(agent._get_or_create_web_session("current"))
+
+        with agent._web_sessions_lock:
+            self.assertIn("mid-turn", agent._web_sessions)
+        still_there = agent.asyncio.run(
+            agent._web_session_service.get_session(app_name=agent._WEB_APP_NAME, user_id="u1", session_id="s1")
+        )
+        self.assertIsNotNone(still_there)
+
+    def test_recently_accessed_session_is_never_swept(self):
+        agent = self.agent
+        with agent._web_sessions_lock:
+            agent._web_sessions["current"] = self._make_entry("u1", "s1", time.monotonic())
+
+        agent.asyncio.run(agent._get_or_create_web_session("current"))
+
+        with agent._web_sessions_lock:
+            self.assertIn("current", agent._web_sessions)
+
+
 class WebServiceInitRaceTest(unittest.TestCase):
     """Regression test for a review finding: two concurrent first requests
     could each see _web_runner/_web_session_service as None and build their

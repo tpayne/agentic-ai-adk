@@ -4,9 +4,13 @@ max-iterations) is exactly what the ADK original's own docstring calls out
 as load-bearing -- a genuine approval on the final allowed iteration must
 report as approved, not exhausted."""
 
+import json
+
 from coded_tools.common.loop_control import LoopControlCodedTool
+from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
 from process_toolkit.feedback.iteration_feedback import save_iteration_feedback
 from process_toolkit.paths import output_path
+from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock
 
 
 def test_continues_while_unapproved_and_under_max_iterations():
@@ -75,3 +79,43 @@ def test_independent_runs_do_not_leak_iteration_count():
     reset_approval_state()  # what a NEW top-level request's reset_loop_state call does
     second_run = tool.invoke({"required": required, "max_iterations": 5}, {})
     assert second_run["iteration"] == 1
+
+
+def test_invoke_refreshes_an_existing_pipeline_lock_lease():
+    """Regression test for a review finding: a review loop that genuinely
+    runs long enough to cross process_toolkit.run_lock.
+    DEFAULT_STALE_AFTER_SECONDS between reset_loop_state_tool.py's
+    one-time acquire and this run's own finalize step must not have its
+    lock reclaimed by an unrelated concurrent run just because no one
+    refreshed its started_at in between. loop_control runs once per
+    iteration, so it's the natural heartbeat."""
+    token = acquire_pipeline_lock("a neuro-san pipeline")
+    try:
+        lock_path = output_path("pipeline.lock")
+        with open(lock_path, encoding="utf-8") as f:
+            before_started_at = json.load(f)["started_at"]
+
+        tool = LoopControlCodedTool()
+        tool.invoke(
+            {"required": {"x": "APPROVED"}, "max_iterations": 5},
+            {PIPELINE_LOCK_TOKEN_KEY: token},
+        )
+
+        with open(lock_path, encoding="utf-8") as f:
+            after = json.load(f)
+        assert after["started_at"] >= before_started_at
+        assert after["token"] == token  # still this run's own lock, not a new one
+    finally:
+        release_pipeline_lock(token)
+
+
+def test_invoke_with_no_token_in_sly_data_does_not_touch_any_lock():
+    import os
+
+    # No PIPELINE_LOCK_TOKEN_KEY at all (e.g. a direct unit-tested call, or
+    # a pipeline that never ran its own reset step) -- must not mint a
+    # lock on this call's behalf.
+    tool = LoopControlCodedTool()
+    result = tool.invoke({"required": {"x": "APPROVED"}, "max_iterations": 5}, {})
+    assert result["verdict"] == "CONTINUE"
+    assert not os.path.exists(output_path("pipeline.lock"))

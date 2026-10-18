@@ -166,6 +166,18 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # load_requirements_summary use for getting file content to the LLM.
 ATTACHMENT_MAX_FILES = 4
 ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
+
+# Flask's own MAX_CONTENT_LENGTH (set on web_app in build_web_app) rejects an
+# oversized request before reading its body at all -- without it, the /chat
+# and /chat/stream routes call request.get_json() first and only check
+# ATTACHMENT_MAX_FILES/ATTACHMENT_MAX_BYTES afterward, so a request far
+# beyond what any legitimate attachment set could produce would still be
+# fully parsed into memory (the JSON body, its base64 strings, all of it)
+# before those per-file limits ever get a chance to reject it. Derived from
+# the two limits above rather than its own constant, so it can't drift out
+# of sync with them: base64 inflates raw bytes by ~4/3, and the extra 1MB
+# covers the query text plus JSON punctuation/field-name overhead.
+MAX_REQUEST_BODY_BYTES = int(ATTACHMENT_MAX_FILES * ATTACHMENT_MAX_BYTES * 4 / 3) + 1 * 1024 * 1024
 # ATTACHED_FILES_SLY_DATA_KEY itself lives in coded_tools/common/attachments.py
 # (imported above), not here -- it's a contract between this module and
 # whichever CodedTool reads it (load_attached_files_tool.py), so a single
@@ -440,7 +452,8 @@ class ChatSession:
 
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
         with self._lock:
-            self.last_accessed = time.monotonic()
+            turn_started = time.monotonic()
+            self.last_accessed = turn_started
             self._ingest_attachments(files)
             state = {
                 "last_chat_response": None,
@@ -455,9 +468,19 @@ class ChatSession:
             self.chat_context = state.get("chat_context")
 
             token_accounting = state.get("token_accounting")
-            if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-                _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
             self.last_usage = _extract_usage(token_accounting)
+
+            # Previously only logged AT ALL when token_accounting happened
+            # to be present, and even then carried no duration or explicit
+            # outcome -- a successful turn with no accounting data left no
+            # trace whatsoever at INFO level, the level this project's own
+            # logging_setup.py defaults LOGLEVEL to.
+            if _trace_logger.isEnabledFor(logging.INFO):
+                _trace_logger.info(
+                    "Chat turn completed: duration=%.2fs usage=%s",
+                    time.monotonic() - turn_started,
+                    json.dumps(token_accounting) if token_accounting else None,
+                )
 
             return state.get("last_chat_response") or ""
 
@@ -517,7 +540,8 @@ class ChatSession:
         # whenever this generator is exhausted, returns early, or is
         # closed/GC'd (GeneratorExit also unwinds through this `with`).
         with self._lock:
-            self.last_accessed = time.monotonic()
+            turn_started = time.monotonic()
+            self.last_accessed = turn_started
             self._ingest_attachments(files)
             processor = self.input_processor.get_message_processor()
             chat_filter = {"chat_filter_type": "MAXIMAL"}
@@ -570,6 +594,10 @@ class ChatSession:
                     origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
                     yield {"status": "progress", "origin": origin_str, "text": preview}
             except asyncio.CancelledError:
+                if _trace_logger.isEnabledFor(logging.INFO):
+                    _trace_logger.info(
+                        "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
+                    )
                 yield {"status": "stopped", "response": last_compiled_answer or ""}
                 return
 
@@ -582,9 +610,19 @@ class ChatSession:
                     self.sly_data = returned_sly_data.copy()
 
             token_accounting = processor.get_token_accounting()
-            if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-                _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
             self.last_usage = _extract_usage(token_accounting)
+
+            # Previously only logged AT ALL when token_accounting happened
+            # to be present, and even then carried no duration or explicit
+            # outcome -- a successful turn with no accounting data left no
+            # trace whatsoever at INFO level, the level this project's own
+            # logging_setup.py defaults LOGLEVEL to.
+            if _trace_logger.isEnabledFor(logging.INFO):
+                _trace_logger.info(
+                    "Chat stream turn completed: duration=%.2fs usage=%s",
+                    time.monotonic() - turn_started,
+                    json.dumps(token_accounting) if token_accounting else None,
+                )
 
             yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
 
@@ -806,11 +844,24 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     with _web_sessions_lock:
         if now - _web_sessions_last_swept >= _WEB_SESSION_SWEEP_INTERVAL_SECONDS:
             _web_sessions_last_swept = now
-            stale_ids = [
-                sid for sid, s in _web_sessions.items()
-                if now - s.last_accessed >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
-            ]
-            evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
+            for sid, s in list(_web_sessions.items()):
+                if now - s.last_accessed < _WEB_SESSION_IDLE_TIMEOUT_SECONDS:
+                    continue
+                # last_accessed is stamped once, at turn START (see
+                # ChatSession.send/send_streaming) -- a turn that legitimately
+                # runs longer than _WEB_SESSION_IDLE_TIMEOUT_SECONDS would
+                # otherwise look just as idle as an abandoned session. The
+                # session's own lock (held for a turn's ENTIRE duration, not
+                # just its setup) is the real signal: acquiring it
+                # non-blocking here means no turn is in flight right now, so
+                # it's safe to evict. Failing to acquire it means one is --
+                # skip eviction and let the next sweep (_WEB_SESSION_SWEEP_
+                # INTERVAL_SECONDS later) re-check; by then the turn has
+                # either finished (last_accessed refreshed, no longer stale)
+                # or is still running (skipped again).
+                if not s._lock.acquire(blocking=False):
+                    continue
+                evicted.append((sid, _web_sessions.pop(sid)))
         if existing_session_id:
             session = _web_sessions.get(existing_session_id)
 
@@ -821,6 +872,8 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
             stale_session.session.close()
         except Exception:
             _web_logger.exception("Error closing idle neuro-san session %s during eviction sweep.", stale_id)
+        finally:
+            stale_session._lock.release()
 
     if session is not None:
         return existing_session_id, session
@@ -898,6 +951,10 @@ def build_web_app(agent_name: str, https: bool = True):
 
     web_app = Flask("ProcessArchitectWebServiceNS")
     web_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    # Rejects an oversized request at the WSGI layer, before Flask reads any
+    # of its body -- see MAX_REQUEST_BODY_BYTES's own comment for why this
+    # has to happen before request.get_json(), not after.
+    web_app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 
     api_key = os.environ.get("WEBAPIKEY")
     if not api_key:

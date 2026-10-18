@@ -52,7 +52,7 @@ class UtilsAgentTests(unittest.TestCase):
         # was reported as "exhausted" instead of "approved" (confirmed from
         # a real run's log).
         cloudarch_stop_if_ready = utils_agent._build_stop_if_ready(
-            lambda: {"cloudarch_status": "APPROVED"}
+            lambda: {"cloudarch_status": "APPROVED"}, "the cloud architecture pipeline"
         )
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / "stop_counter.json").write_text(
@@ -61,8 +61,14 @@ class UtilsAgentTests(unittest.TestCase):
             (Path(directory) / "approval.json").write_text(
                 json.dumps({"cloudarch_status": "APPROVED"})
             )
+            # invocation_id/state are required now that stop_if_ready
+            # refreshes this invocation's pipeline-lock lease on every call
+            # (see _build_stop_if_ready's own docstring) -- a real
+            # ToolContext always provides both; this test double must too.
             tool_context = types.SimpleNamespace(
-                actions=types.SimpleNamespace(escalate=False)
+                actions=types.SimpleNamespace(escalate=False),
+                invocation_id="test-invocation",
+                state={},
             )
             from process_toolkit import paths as shared_paths
             with patch.object(shared_paths, "OUTPUT_DIR", directory):
@@ -70,6 +76,42 @@ class UtilsAgentTests(unittest.TestCase):
 
         self.assertEqual(result, "All approvals present — exiting loop.")
         self.assertTrue(tool_context.actions.escalate)
+
+    def test_stop_if_ready_refreshes_an_existing_pipeline_lock_lease(self):
+        # Regression test for a review finding: a review loop that
+        # genuinely runs long enough to cross process_toolkit.run_lock.
+        # DEFAULT_STALE_AFTER_SECONDS between the pipeline's one-time
+        # reset step and its own finalize step must not have its lock
+        # reclaimed by an unrelated concurrent run just because no one
+        # refreshed its started_at in between. stop_if_ready runs once
+        # per loop iteration, so it's the natural heartbeat.
+        from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock
+
+        cloudarch_stop_if_ready = utils_agent._build_stop_if_ready(
+            lambda: {"cloudarch_status": "NOT_YET"}, "the cloud architecture pipeline"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            from process_toolkit import paths as shared_paths
+            with patch.object(shared_paths, "OUTPUT_DIR", directory):
+                token = acquire_pipeline_lock("the cloud architecture pipeline")
+                try:
+                    lock_path = Path(directory) / "pipeline.lock"
+                    before_started_at = json.loads(lock_path.read_text())["started_at"]
+
+                    tool_context = types.SimpleNamespace(
+                        actions=types.SimpleNamespace(escalate=False),
+                        invocation_id="test-invocation",
+                        state={utils_agent.PIPELINE_LOCK_TOKEN_STATE_KEY: {
+                            "invocation_id": "test-invocation", "token": token,
+                        }},
+                    )
+                    cloudarch_stop_if_ready(tool_context)
+
+                    after = json.loads(lock_path.read_text())
+                    self.assertGreaterEqual(after["started_at"], before_started_at)
+                    self.assertEqual(after["token"], token)  # still this run's own lock
+                finally:
+                    release_pipeline_lock(token)
 
 
 if __name__ == "__main__":

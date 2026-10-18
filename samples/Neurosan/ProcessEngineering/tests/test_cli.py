@@ -9,6 +9,7 @@ it in a unit test.
 
 import asyncio
 import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -864,3 +865,73 @@ class TestArtifactRoute:
         client = self._build_client(monkeypatch, tmp_path)
         resp = client.get("/status")
         assert resp.status_code == 200
+
+
+class TestGetOrCreateWebSessionEviction:
+    """_get_or_create_web_session's opportunistic idle-eviction sweep --
+    regression coverage for the race a code review flagged: last_accessed
+    is stamped once, at turn START, so a turn genuinely running longer
+    than the idle timeout must not be evicted out from under itself just
+    because its timestamp looks stale. The session's own lock (held for a
+    turn's entire duration -- see ChatSession.send/send_streaming) is what
+    the sweep checks instead of trusting the timestamp alone."""
+
+    def _fake_session(self, *, last_accessed, locked):
+        close_calls = []
+        session = SimpleNamespace(
+            last_accessed=last_accessed,
+            _lock=threading.Lock(),
+            session=SimpleNamespace(close=lambda: close_calls.append(True)),
+            _close_calls=close_calls,
+        )
+        if locked:
+            session._lock.acquire()
+        return session
+
+    def _reset(self, monkeypatch):
+        monkeypatch.setattr(cli, "_web_sessions_last_swept", 0.0)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+
+    def test_idle_unlocked_session_is_evicted(self, monkeypatch):
+        self._reset(monkeypatch)
+        stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        idle = self._fake_session(last_accessed=stale, locked=False)
+        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        with cli._web_sessions_lock:
+            cli._web_sessions["idle"] = idle
+            cli._web_sessions["current"] = current
+
+        result = cli._get_or_create_web_session("current", "process_architect")
+
+        assert result == ("current", current)
+        assert "idle" not in cli._web_sessions
+        assert idle._close_calls == [True]
+
+    def test_idle_but_locked_session_mid_turn_is_not_evicted(self, monkeypatch):
+        self._reset(monkeypatch)
+        stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        # Locked == a turn is still actively running on it, per
+        # ChatSession.send/send_streaming holding _lock for the whole turn.
+        mid_turn = self._fake_session(last_accessed=stale, locked=True)
+        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        with cli._web_sessions_lock:
+            cli._web_sessions["mid-turn"] = mid_turn
+            cli._web_sessions["current"] = current
+
+        result = cli._get_or_create_web_session("current", "process_architect")
+
+        assert result == ("current", current)
+        assert "mid-turn" in cli._web_sessions
+        assert mid_turn._close_calls == []
+
+    def test_recently_accessed_session_is_never_swept(self, monkeypatch):
+        self._reset(monkeypatch)
+        current = self._fake_session(last_accessed=time.monotonic(), locked=False)
+        with cli._web_sessions_lock:
+            cli._web_sessions["current"] = current
+
+        cli._get_or_create_web_session("current", "process_architect")
+
+        assert "current" in cli._web_sessions
+        assert current._close_calls == []
