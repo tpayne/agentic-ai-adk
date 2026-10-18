@@ -1,0 +1,127 @@
+{
+  "rfp_metadata": {
+    "rfp_title": "",
+    "rfp_reference_id": "",
+    "issuing_organization": "",
+    "issue_date": "",
+    "due_date": "",
+    "contact_person": "",
+    "contact_email": "",
+    "currency": "",
+    "language": "",
+    "source_files": []
+  },
+  "client_context": {
+    "organization_overview": "",
+    "business_drivers": "",
+    "strategic_objectives": "",
+    "current_state_summary": "",
+    "future_state_vision": ""
+  },
+  "engagement_scope": {
+    "services_in_scope": [],
+    "services_out_of_scope": [],
+    "geographies_in_scope": [],
+    "business_units_in_scope": [],
+    "constraints": []
+  },
+  "deliverables": {
+    "primary_deliverables": [],
+    "interim_deliverables": [],
+    "acceptance_criteria": [],
+    "reporting_requirements": []
+  },
+  "requirements": {
+    "functional_requirements": [],
+    "non_functional_requirements": [],
+    "technical_requirements": [],
+    "integration_requirements": [],
+    "security_requirements": [],
+    "data_privacy_requirements": [],
+    "service_level_requirements": [],
+    "resource_profile_requirements": [],
+    "pricing_requirements": [],
+    "commercial_terms_requirements": []
+  },
+  "iso9001_alignment": {
+    "context_of_organization": {
+      "clause": "4",
+      "summary": "",
+      "explicit_references": []
+    },
+    "leadership": {
+      "clause": "5",
+      "summary": "",
+      "explicit_references": []
+    },
+    "planning": {
+      "clause": "6",
+      "summary": "",
+      "explicit_references": []
+    },
+    "support": {
+      "clause": "7",
+      "summary": "",
+      "explicit_references": []
+    },
+    "operation": {
+      "clause": "8",
+      "summary": "",
+      "explicit_references": []
+    },
+    "performance_evaluation": {
+      "clause": "9",
+      "summary": "",
+      "explicit_references": []
+    },
+    "improvement": {
+      "clause": "10",
+      "summary": "",
+      "explicit_references": []
+    }
+  },
+  "evaluation_and_award": {
+    "evaluation_criteria": [],
+    "weightings_if_stated": [],
+    "mandatory_requirements": [],
+    "nice_to_have_requirements": [],
+    "shortlisting_process": "",
+    "presentation_or_demo_requirements": "",
+    "contract_award_criteria": ""
+  },
+  "timeline_and_milestones": {
+    "key_dates": [],
+    "project_start_target": "",
+    "project_end_target": "",
+    "milestones_if_stated": []
+  },
+  "submission_instructions": {
+    "submission_format": "",
+    "submission_channel": "",
+    "number_of_copies": "",
+    "page_limits": "",
+    "section_structure_required": [],
+    "questions_deadline": "",
+    "clarification_process": ""
+  },
+  "risks_and_assumptions": {
+    "client_stated_risks": [],
+    "implied_risks": [],
+    "client_assumptions": [],
+    "vendor_assumptions_to_confirm": []
+  },
+  "compliance_and_legal": {
+    "regulatory_requirements": [],
+    "standards_and_frameworks": [],
+    "ip_and_confidentiality_terms": "",
+    "liability_and_indemnity_terms": "",
+    "termination_conditions": "",
+    "other_legal_terms": ""
+  },
+  "open_questions_for_vendor": [],
+  "analysis_notes": {
+    "confidence_level": "high | medium | low",
+    "gaps_or_ambiguities": [],
+    "files_not_parsed": []
+  }
+}
