@@ -276,8 +276,49 @@ def _add_step_diagram_if_available(
     doc.add_paragraph()  # spacer
 
 
-def _add_process_steps_section(doc: docx.Document, steps) -> None:
-    """Hybrid prose + bullet renderer for top-level process steps (3.x)."""
+def _resolve_index_references(value, top_level_items):
+    """A process step's own risks_and_controls/change_management/
+    continuous_improvement sometimes comes back as a list of bare
+    integers instead of the documented {"risk", "control"}-shaped (etc.)
+    objects -- confirmed directly against real generated output: every
+    step's step_risks_and_controls/change_management/
+    continuous_improvement rendered as literal bullets "0", "2", "4",
+    and those exact integers were always valid positions into the
+    process-wide risks_and_controls/change_management/
+    continuous_improvement list of the SAME name (e.g. step_risks_and_
+    controls=[0, 2, 4] against a 5-entry top-level risks_and_controls
+    list). The model is apparently referencing shared process-wide
+    entries by position instead of repeating them inline for every step.
+
+    Resolves each index into the real object it points to, silently
+    dropping an out-of-range one (never rendered as if it were real
+    content). Returns `value` UNCHANGED if it doesn't look like an index
+    list (not all bare, non-bool ints) or no top-level list is available
+    to resolve against -- a genuinely well-formed step-level value (the
+    documented shape) is never altered."""
+    if not isinstance(value, list) or not value:
+        return value
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in value):
+        return value
+    if not isinstance(top_level_items, list) or not top_level_items:
+        return []
+    return [top_level_items[i] for i in value if 0 <= i < len(top_level_items)]
+
+
+def _add_process_steps_section(
+    doc: docx.Document, steps,
+    top_level_risks_and_controls=None, top_level_change_management=None,
+    top_level_continuous_improvement=None,
+) -> None:
+    """Hybrid prose + bullet renderer for top-level process steps (3.x).
+
+    top_level_risks_and_controls/change_management/continuous_improvement:
+    the PROCESS-WIDE lists of the same name (see generation.py's own
+    extraction of these from the source JSON) -- passed through so a
+    step-level field that turns out to be an index-reference list (see
+    _resolve_index_references) can be resolved against real content
+    instead of rendering bare integers.
+    """
     logger.debug("Rendering process workflow (prose + bullets)...")
 
     if not isinstance(steps, list) or not steps:
@@ -344,8 +385,16 @@ def _add_process_steps_section(doc: docx.Document, steps) -> None:
         prose("Purpose", step.get("purpose"))
         prose("Scope", step.get("scope"))
 
+        _TOP_LEVEL_FOR_KEY = {
+            "risks_and_controls": top_level_risks_and_controls,
+            "change_management": top_level_change_management,
+            "continuous_improvement": top_level_continuous_improvement,
+        }
+
         def bullets(field_label, json_key):
             value = step.get(json_key) or step.get(f"step_{json_key}")
+            if json_key in _TOP_LEVEL_FOR_KEY:
+                value = _resolve_index_references(value, _TOP_LEVEL_FOR_KEY[json_key])
             if not value:
                 return
 

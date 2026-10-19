@@ -284,7 +284,12 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
     add_iso_page_break(doc)
 
     if process_steps:
-        _add_process_steps_section(doc, process_steps)
+        _add_process_steps_section(
+            doc, process_steps,
+            top_level_risks_and_controls=risks_and_controls,
+            top_level_change_management=change_management,
+            top_level_continuous_improvement=continuous_improvement,
+        )
         add_iso_page_break(doc)
 
     if tools_summary:
