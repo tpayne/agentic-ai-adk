@@ -25,8 +25,8 @@ Responses API is unavailable, set it to `false` in the shared config.
 
 ## Status
 
-**Complete.** All twenty agent networks below are wired and verified end-to-end (structurally and
-functionally — see [Verification](#verification)):
+**Complete.** All twenty-one agent networks below are wired and verified end-to-end (structurally
+and functionally — see [Verification](#verification)):
 
 | Network | Front-man agent | What it does |
 |---|---|---|
@@ -49,6 +49,7 @@ functionally — see [Verification](#verification)):
 | `design_consultant` | `Design_Consultant_Agent` | Answers questions about an existing design document, with license to bring in outside best-practice recommendations. |
 | `design_scenario_tester` | `Design_Scenario_Tester` | Tests what-if scenarios against an existing design document by tracing its real component dependency graph. |
 | `design_simulation_query` | `Design_Architecture_Simulation_Query_Agent` | Runs a composite resilience (blast-radius Monte Carlo)/scalability/security/latency simulation over an existing design document and explains findings in business language. |
+| `regenerate_document` | `Regenerate_Document_Agent` | Regenerates ONLY the flow/architecture diagram and final Word document from whatever process or design JSON is already saved on disk — no re-analysis, no compliance/simulation review. Auto-detects process vs. design from disk. |
 | `process_architect` | `Process_Architect_Orchestrator` | Top-level front-man routing a request to whichever network above fits it. |
 
 ---
