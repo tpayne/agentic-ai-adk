@@ -8,8 +8,12 @@ it in a unit test.
 """
 
 import asyncio
+import os
+import shutil
+import tempfile
 import threading
 import time
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -316,68 +320,145 @@ class TestParseAttachments:
 
 
 class TestIngestAttachments:
-    """ChatSession._ingest_attachments -- extracts text from this turn's
-    attached files and stores it in sly_data, where the
-    load_attached_files CodedTool can surface it to the agent (sly_data
-    itself is invisible to the LLM's own prompt)."""
+    """ChatSession._ingest_attachments -- stages this turn's attached
+    files into this session's FIXED on-disk directory
+    (self._attachments_directory, set once in __init__) and returns that
+    directory's path so send()/send_streaming() can append it to the
+    user's own message text as a literal "[ATTACHMENT DIRECTORY: ...]"
+    marker (see _append_attachment_directory_marker) -- no sly_data, no
+    dedicated CodedTool; the agent picks it up through its existing
+    "request explicitly names a directory" handling."""
 
     def _session(self):
         session = cli.ChatSession.__new__(cli.ChatSession)
         session.sly_data = None
+        session._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"test_attachments_{uuid.uuid4().hex}",
+        )
         return session
+
+    def _cleanup(self, session):
+        shutil.rmtree(session._attachments_directory, ignore_errors=True)
 
     def test_no_files_is_a_no_op(self):
         session = self._session()
-        session._ingest_attachments(None)
-        assert session.sly_data is None
-        session._ingest_attachments([])
-        assert session.sly_data is None
+        assert session._ingest_attachments(None) is None
+        assert not os.path.exists(session._attachments_directory)
+        assert session._ingest_attachments([]) is None
+        assert not os.path.exists(session._attachments_directory)
 
-    def test_text_file_is_extracted_into_sly_data(self):
+    def test_text_file_is_staged_to_the_fixed_directory(self):
+        from pathlib import Path
+
         session = self._session()
-        session._ingest_attachments([{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello world"}])
-        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
-        assert len(entries) == 1
-        assert entries[0]["name"] == "notes.txt"
-        assert entries[0]["mime_type"] == "text/plain"
-        assert entries[0]["status"] == "OK"
-        assert entries[0]["text"] == "hello world"
+        try:
+            returned = session._ingest_attachments(
+                [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello world"}]
+            )
+            assert returned == session._attachments_directory
+            assert (Path(session._attachments_directory) / "notes.txt").read_bytes() == b"hello world"
+        finally:
+            self._cleanup(session)
 
-    def test_image_file_is_marked_unsupported_not_dropped_silently(self):
+    def test_new_turns_files_replace_the_previous_turns_in_the_same_directory(self):
+        from pathlib import Path
+
         session = self._session()
-        session._ingest_attachments([{"name": "diagram.png", "mime_type": "image/png", "data": b"\x89PNGnotreal"}])
-        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
-        assert entries[0]["status"] == "UNSUPPORTED"
-        assert "not readable as text" in entries[0]["reason"]
+        try:
+            session._ingest_attachments([{"name": "first.txt", "mime_type": "text/plain", "data": b"first"}])
+            session._ingest_attachments([{"name": "second.txt", "mime_type": "text/plain", "data": b"second"}])
 
-    def test_creates_sly_data_dict_when_none(self):
-        session = self._session()
-        assert session.sly_data is None
-        session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
-        assert isinstance(session.sly_data, dict)
+            remaining = [p.name for p in Path(session._attachments_directory).iterdir()]
+            assert remaining == ["second.txt"]
+        finally:
+            self._cleanup(session)
 
-    def test_new_turns_files_replace_the_previous_turns(self):
-        session = self._session()
-        session._ingest_attachments([{"name": "first.txt", "mime_type": "text/plain", "data": b"first"}])
-        session._ingest_attachments([{"name": "second.txt", "mime_type": "text/plain", "data": b"second"}])
-        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
-        assert [e["name"] for e in entries] == ["second.txt"]
-
-    def test_a_turn_with_no_new_files_leaves_earlier_attachments_in_place(self):
+    def test_a_turn_with_no_new_files_returns_none_but_leaves_earlier_files_in_place(self):
         # A later turn with no attachments of its own can still reference
-        # something attached a few messages back.
-        session = self._session()
-        session._ingest_attachments([{"name": "spec.txt", "mime_type": "text/plain", "data": b"spec content"}])
-        session._ingest_attachments(None)
-        entries = session.sly_data[cli.ATTACHED_FILES_SLY_DATA_KEY]
-        assert [e["name"] for e in entries] == ["spec.txt"]
+        # something attached a few messages back, by name, without
+        # re-attaching it -- but it must NOT get a fresh
+        # "[ATTACHMENT DIRECTORY: ...]" marker appended to ITS OWN text
+        # just because an earlier turn attached something.
+        from pathlib import Path
 
-    def test_existing_sly_data_keys_are_preserved(self):
         session = self._session()
-        session.sly_data = {"some_other_key": "value"}
+        try:
+            session._ingest_attachments([{"name": "spec.txt", "mime_type": "text/plain", "data": b"spec content"}])
+            returned = session._ingest_attachments(None)
+            assert returned is None
+            assert (Path(session._attachments_directory) / "spec.txt").read_bytes() == b"spec content"
+        finally:
+            self._cleanup(session)
+
+    def test_staging_failure_raises_instead_of_silently_dropping_the_attachment(self, monkeypatch):
+        # A silently-ignored staging failure would be worse than a loud
+        # one: the user believes their attachment was used, nothing in
+        # the response says otherwise, and the agent just works from
+        # whatever text they typed instead.
+        monkeypatch.setattr(
+            cli, "stage_attachments_to_directory",
+            lambda files, directory: {"status": "ERROR", "error": "disk full"},
+        )
+        session = self._session()
+        with pytest.raises(RuntimeError, match="disk full"):
+            session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
+
+
+class TestAppendAttachmentDirectoryMarker:
+    """_append_attachment_directory_marker -- the one place the staged
+    directory's path becomes visible, literal text in the user's own
+    message, instead of an invisible sly_data side channel."""
+
+    def test_none_directory_leaves_text_unchanged(self):
+        assert cli._append_attachment_directory_marker("hello", None) == "hello"
+
+    def test_directory_is_appended_as_a_marker_line(self):
+        result = cli._append_attachment_directory_marker("create a process", "/tmp/xyz")
+        assert result == "create a process\n\n[ATTACHMENT DIRECTORY: /tmp/xyz]"
+
+    def test_empty_text_becomes_just_the_marker(self):
+        # cli.py's own /chat and /chat/stream routes already require a
+        # non-empty "query", but this helper is defensive regardless --
+        # no leading blank lines if "text" ever is empty.
+        result = cli._append_attachment_directory_marker("", "/tmp/xyz")
+        assert result == "[ATTACHMENT DIRECTORY: /tmp/xyz]"
+
+
+class TestChatSessionClose:
+    """ChatSession.close() -- must release both the attachment-staging
+    directory and the underlying neuro-san session, since it's called
+    from both the idle-eviction sweep and DELETE /chat/<session_id>."""
+
+    def _session(self):
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session.session = SimpleNamespace(close=lambda: None)
+        session._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"test_attachments_{uuid.uuid4().hex}",
+        )
+        return session
+
+    def test_close_removes_the_staging_directory_from_disk(self):
+        from pathlib import Path
+
+        session = self._session()
         session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
-        assert session.sly_data["some_other_key"] == "value"
-        assert cli.ATTACHED_FILES_SLY_DATA_KEY in session.sly_data
+        directory = session._attachments_directory
+        assert Path(directory).is_dir()
+
+        session.close()
+        assert not Path(directory).exists()
+
+    def test_close_is_a_no_op_on_the_filesystem_when_nothing_was_attached(self):
+        session = self._session()
+        session.close()  # must not raise just because there's nothing to clean up
+
+    def test_close_always_closes_the_underlying_neuro_san_session(self):
+        closed = []
+        session = self._session()
+        session.session = SimpleNamespace(close=lambda: closed.append(True))
+        session.close()
+        assert closed == [True]
 
 
 def test_send_logs_token_accounting_at_info(caplog):
@@ -741,6 +822,49 @@ class TestChatRoute:
         assert received == []
 
 
+class TestChatDeleteRoute:
+    """DELETE /chat/<session_id> -- drops server-side state for a
+    session, calling ChatSession.close() (not session.session.close()
+    directly) so the attachment-staging directory is released alongside
+    the underlying neuro-san session."""
+
+    def _build_client(self, monkeypatch, known_session=None):
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            if known_session is not None:
+                cli._web_sessions["known-session"] = known_session
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_delete_of_unknown_session_reports_not_cleared(self, monkeypatch):
+        client = self._build_client(monkeypatch)
+        resp = client.delete("/chat/unknown-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "unknown-session", "cleared": False}
+
+    def test_delete_of_known_session_calls_close_and_reports_cleared(self, monkeypatch):
+        close_calls = []
+        session = SimpleNamespace(close=lambda: close_calls.append(True))
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.delete("/chat/known-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "known-session", "cleared": True}
+        assert close_calls == [True]
+        assert "known-session" not in cli._web_sessions
+
+    def test_delete_logs_but_does_not_fail_when_close_raises(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("neuro-san session already closed")
+
+        session = SimpleNamespace(close=_boom)
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.delete("/chat/known-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "known-session", "cleared": True}
+
+
 class TestChatStopRoute:
     """POST /chat/<session_id>/stop -- cancels an in-flight turn by
     reaching into the underlying DirectAgentSession's own AsyncioExecutor
@@ -888,10 +1012,15 @@ class TestGetOrCreateWebSessionEviction:
     """
 
     def _fake_session(self, *, last_accessed):
+        # The eviction sweep calls ChatSession.close() directly (not
+        # session.session.close()) -- it's the one place responsible for
+        # releasing BOTH the attachment-staging directory and the
+        # underlying neuro-san session, so this fake mirrors that single
+        # entry point rather than the neuro-san session's own close().
         close_calls = []
         return SimpleNamespace(
             last_accessed=last_accessed,
-            session=SimpleNamespace(close=lambda: close_calls.append(True)),
+            close=lambda: close_calls.append(True),
             _close_calls=close_calls,
         )
 

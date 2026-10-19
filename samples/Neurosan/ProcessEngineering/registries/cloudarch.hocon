@@ -266,19 +266,9 @@ draw or what to call them.
   omitting it -- otherwise it just returns whichever of the two was modified most recently.
 - load_directory_context: reads a directory of source files -- see Mode 5.
 - load_requirements_summary: loads a previously-saved requirements summary -- see Mode 6.
-- load_attached_files: returns any file(s) the user attached to THIS message -- see Mode 0.
 - save_drawio_structured: saves the architecture -- see above.
 
 # INPUT MODES & HANDLING
-0. Attached Files Mode: on EVERY call, before anything else (including Mode 4's load_iteration_feedback
-   below), call load_attached_files -- a cheap, safe no-op when nothing was attached, so always call it
-   rather than trying to guess from "request" whether a file might be present. If it returns "status":
-   "OK", treat each "status": "OK" entry's "text" as additional source material alongside "request"
-   itself for whichever mode below applies (merge it into your understanding of the requirements/
-   architecture, exactly like Directory Context Mode's "combined_text"). Entries with "status":
-   "UNSUPPORTED" (e.g. an attached image, which this pipeline cannot read as text) contribute nothing --
-   simply disregard them, there is no commentary channel to acknowledge them in (see the output-format
-   rule at the end of this prompt).
 1. Default Mode: if the "request" argument is empty or generic, call load_master_process_json to
    look for an existing process/design document to ground the architecture in.
 2. Ad-hoc Generation Mode: if "request" describes specific criteria (virtual networks, firewalls,
@@ -315,9 +305,8 @@ draw or what to call them.
    while reconstructing, rather than carrying forward whatever density the diagram already had. There
    is no "too irregular to reconstruct" fallback -- however messy the loaded diagram, reconstruct it
    into the zone/component/edge model.
-4. Review-Loop Refinement Mode: immediately after Mode 0's load_attached_files call, your NEXT action
-   on every single call, before anything else, MUST be to call load_iteration_feedback (this is the
-   reviewer's inbox for you).
+4. Review-Loop Refinement Mode: on EVERY call, before anything else, your NEXT action MUST be to
+   call load_iteration_feedback (this is the reviewer's inbox for you).
     - If the returned status is "REVISION REQUIRED", the "data" list contains the specific issues
       the reviewer found in your last saved architecture. Call load_drawio next to retrieve that
       architecture, then treat each feedback item as a mandatory structural change. Use the SAME
@@ -327,10 +316,12 @@ draw or what to call them.
       the feedback, do not re-litigate it.
     - If the returned status is "NONE" or the feedback is empty, there is nothing pending from the
       reviewer; proceed with whichever of Modes 1-3 applies to the "request" argument.
-5. Directory Context Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks you to
-   read/scan a directory of files, call load_directory_context with that path before analyzing
-   requirements. Treat "combined_text" as source material alongside "request" itself. If
-   "NOT_FOUND", fall back to Mode 1/2.
+5. Directory Context Mode: if "request" explicitly asks you to read/scan a directory of files, OR
+   contains a line of the exact form "[ATTACHMENT DIRECTORY: <path>]" (appended by the server itself
+   when the user attaches file(s) directly to this message -- treat it exactly like the user having
+   typed that path), call load_directory_context with that path before analyzing requirements. Treat
+   "combined_text" as source material alongside "request" itself. If "NOT_FOUND", fall back to Mode
+   1/2.
 6. Saved Requirements Summary Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks
    to use the saved/previous requirements summary, call load_requirements_summary before analyzing
    requirements. If "NOT_FOUND", fall back to Mode 1/2. Treat "inferred_requirements" as
@@ -352,7 +343,7 @@ commentary, no XML, no markdown, no explanation.
 """,
             "tools": [
                 "load_iteration_feedback", "load_drawio", "load_master_process_json",
-                "load_directory_context", "load_requirements_summary", "load_attached_files",
+                "load_directory_context", "load_requirements_summary",
                 "save_drawio_structured"
             ]
         },
@@ -528,14 +519,6 @@ No commentary, no markdown, no explanation of your reasoning outside the structu
                 "description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."
             },
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
-        },
-
-        {
-            "name": "load_attached_files",
-            "function": {
-                "description": "Returns the text extracted from any file(s) the user attached to this message, if any -- {\"status\": \"NONE\"} when nothing was attached. Cheap and safe to call unconditionally on every turn. Takes no meaningful arguments."
-            },
-            "class": "load_attached_files_tool.LoadAttachedFilesCodedTool"
         }
     ]
 }

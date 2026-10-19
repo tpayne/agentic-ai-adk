@@ -60,6 +60,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -144,9 +145,8 @@ from neuro_san.message.processors.message_processor import MessageProcessor  # n
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
-from process_toolkit.ingestion.extractors import extract_attachment_text  # noqa: E402
+from process_toolkit.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
 from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
-from coded_tools.common.attachments import ATTACHED_FILES_SLY_DATA_KEY  # noqa: E402
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
@@ -160,12 +160,27 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # "# No mime_data for now", and the one utility that WOULD turn it into
 # real model content is never called anywhere in the package) -- wiring a
 # client-supplied mime_data through would silently vanish, not reach the
-# LLM. Attachments are extracted to TEXT instead (see extract_attachment_text)
-# and stored in sly_data, where the "load_attached_files" CodedTool (see
-# coded_tools/cloudarch/load_attached_files_tool.py) can read them and
-# surface their content as a tool result the agent actually sees -- the
-# same, already-working mechanism load_directory_context/
-# load_requirements_summary use for getting file content to the LLM.
+# LLM.
+#
+# Attachments are staged to a FIXED, per-ChatSession on-disk directory
+# (see ChatSession._attachments_directory/_ingest_attachments below) via
+# stage_attachments_to_directory, and that directory's path is appended
+# directly to the user's own message text as a literal
+# "[ATTACHMENT DIRECTORY: <path>]" marker (see
+# ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) -- NOT passed through sly_data to
+# a dedicated CodedTool. An earlier version of this did exactly that (a
+# "load_attached_files" CodedTool reading sly_data), which is architecturally
+# sound (neuro-san threads the same sly_data dict unchanged through every
+# level of a nested agent-calls-agent chain) but depends on an LLM
+# correctly choosing to call that extra tool before anything else, every
+# single turn -- exactly the kind of instruction an agent can quietly
+# skip under its own judgment. Putting the directory path directly into
+# the visible request text instead reuses the SAME "if request explicitly
+# names a directory, read it" handling every network already has for a
+# user who types a path themselves -- no new tool-calling behavior to
+# rely on, and the path is directly visible in the agent's own thinking-
+# file trace for debugging, instead of sitting invisibly in sly_data.
+ATTACHMENT_DIRECTORY_MARKER_TEMPLATE = "[ATTACHMENT DIRECTORY: {path}]"
 ATTACHMENT_MAX_FILES = 4
 ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
 
@@ -180,11 +195,6 @@ ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
 # of sync with them: base64 inflates raw bytes by ~4/3, and the extra 1MB
 # covers the query text plus JSON punctuation/field-name overhead.
 MAX_REQUEST_BODY_BYTES = int(ATTACHMENT_MAX_FILES * ATTACHMENT_MAX_BYTES * 4 / 3) + 1 * 1024 * 1024
-# ATTACHED_FILES_SLY_DATA_KEY itself lives in coded_tools/common/attachments.py
-# (imported above), not here -- it's a contract between this module and
-# whichever CodedTool reads it (load_attached_files_tool.py), so a single
-# shared definition is what keeps a future rename/typo from silently
-# desynchronizing the two.
 
 _trace_logger = logging.getLogger("ProcessArchitect.CLI.Trace")
 _web_logger = logging.getLogger("ProcessArchitect.CLI.WebService")
@@ -320,6 +330,20 @@ def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str
     return decoded, None
 
 
+def _append_attachment_directory_marker(text: str, directory: Optional[str]) -> str:
+    """Appends an "[ATTACHMENT DIRECTORY: <path>]" marker (see
+    ATTACHMENT_DIRECTORY_MARKER_TEMPLATE's own comment for why this is a
+    literal text marker rather than a sly_data-only signal) onto the
+    user's own message text, so the agent network's existing "request
+    explicitly names a directory" handling picks it up exactly like a
+    user who typed a path themselves. Returns `text` unchanged when
+    `directory` is None (no attachment this turn)."""
+    if not directory:
+        return text
+    marker = ATTACHMENT_DIRECTORY_MARKER_TEMPLATE.format(path=directory)
+    return f"{text}\n\n{marker}" if text else marker
+
+
 def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Maps neuro-san's own token_accounting dict (see
     TokenAccountingMessageProcessor/LangChainTokenCounter in the installed
@@ -449,6 +473,17 @@ class ChatSession:
         self.input_processor.get_message_processor().add_processor(LiveTraceMessageProcessor())
         self.sly_data = None
         self.chat_context = None
+        # Fixed for this ChatSession's entire lifetime -- deterministic
+        # (pid + this instance's own id(), not a random mkdtemp suffix)
+        # specifically so it's easy to find and inspect by hand while
+        # debugging ("ls /tmp/process_architect_attachments_*"), and so
+        # every turn's attachments land in the SAME place rather than a
+        # fresh path each time. Created lazily (only once a turn actually
+        # attaches a file -- see _ingest_attachments), not here, so a
+        # session that never attaches anything never touches disk for this.
+        self._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"process_architect_attachments_{os.getpid()}_{id(self):x}",
+        )
         # Set by send()/send_streaming() below, for the web service's
         # Token Usage tab -- see _extract_usage's own docstring for the
         # mapping from neuro-san's own token_accounting shape.
@@ -468,42 +503,94 @@ class ChatSession:
         # service's idle-session eviction sweep (see _web_sessions above).
         self.last_accessed = time.monotonic()
 
-    def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> None:
-        """
-        Extracts text from this turn's attached files (see
-        _parse_attachments) and stores it in self.sly_data under
-        ATTACHED_FILES_SLY_DATA_KEY, where the "load_attached_files"
-        CodedTool (coded_tools/cloudarch/load_attached_files_tool.py) can
-        read it. sly_data is intentionally invisible to the LLM's own
-        prompt (see chat.proto's own ChatMessage.sly_data comment: keys
-        may appear in the chat stream, "but the data itself does not") --
-        a CodedTool explicitly calling for it is the only way this
-        content actually reaches the agent.
+    def _cleanup_attachments_directory(self) -> None:
+        """Removes this session's fixed attachment-staging directory
+        (self._attachments_directory, set once in __init__) from disk,
+        if it was ever created. Called only from close() -- the
+        directory is a FIXED path for this session's whole lifetime now
+        (not a fresh one per turn; see _ingest_attachments), so it only
+        needs releasing once, when the session itself ends, not between
+        turns."""
+        shutil.rmtree(self._attachments_directory, ignore_errors=True)
 
-        No-op when `files` is empty -- a turn with no NEW attachments
-        leaves any earlier turn's attachments in sly_data as-is, rather
-        than clearing them, so a later turn can still reference something
-        attached a few messages back (e.g. "regenerate using the spec I
-        sent earlier").
+    def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+        """
+        Stages this turn's attached files (see _parse_attachments) into
+        this session's FIXED self._attachments_directory
+        (process_toolkit.ingestion.extractors.stage_attachments_to_directory
+        clears any files already there first, so a later turn's set
+        never mixes with an earlier one left behind in the same path).
+
+        Returns that directory path if files were staged THIS turn, or
+        None if `files` was empty. The caller (send()/send_streaming())
+        uses a non-None return to append an
+        "[ATTACHMENT DIRECTORY: <path>]" marker (see
+        ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) directly onto the user's
+        own message text -- a literal, visible string every network's
+        existing "request explicitly names a directory" handling already
+        knows how to act on, rather than a side channel (sly_data plus a
+        dedicated CodedTool) an agent has to remember to separately call
+        before anything else, every single turn.
+
+        No-op (returns None, touches nothing on disk) when `files` is
+        empty -- a turn with no NEW attachments leaves the directory's
+        existing contents (from an earlier turn) alone, so a later turn
+        can still reference something attached a few messages back by
+        name, without re-attaching it.
+
+        Raises RuntimeError if staging fails (see
+        stage_attachments_to_directory's own "ERROR" cases -- e.g. a full
+        disk) -- callers (send()/send_streaming()) already have a
+        try/except around the whole turn that turns this into a clean
+        "An internal error has occurred" response while logging the real
+        reason, which is the right outcome here: silently proceeding as
+        if nothing had been attached would make the user's actual
+        requirements vanish with zero indication anything went wrong.
         """
         if not files:
-            return
-        if self.sly_data is None:
-            self.sly_data = {}
-        self.sly_data[ATTACHED_FILES_SLY_DATA_KEY] = [
-            {**extract_attachment_text(f["name"], f["data"]), "mime_type": f["mime_type"]}
-            for f in files
-        ]
+            return None
+        result = stage_attachments_to_directory(files, directory=self._attachments_directory)
+        if result.get("status") != "OK":
+            _web_logger.warning(
+                "Failed to stage %d attached file(s) to disk: %s",
+                len(files), result.get("error"),
+            )
+            raise RuntimeError(f"Failed to stage attached files to disk: {result.get('error')}")
+        # WARNING, not INFO -- this project's console handler is fixed at
+        # WARNING+ regardless of LOGLEVEL (see logging_setup's own
+        # comment), so confirming a successful staging is visible
+        # on-screen immediately, not only in output/logs/cli.log and only
+        # if LOGLEVEL happens to be raised. This is the one concrete,
+        # zero-LLM-cost checkpoint for "did the attachment actually make
+        # it past the HTTP layer" -- if this line is missing from a run
+        # where a file was attached, the problem is upstream of this
+        # project's own code (the client never sent "files", or sent it
+        # somewhere _parse_attachments doesn't look).
+        _web_logger.warning(
+            "Staged %d attached file(s) to %s: %s",
+            len(result["files_written"]), result["directory"], result["files_written"],
+        )
+        return result["directory"]
+
+    def close(self) -> None:
+        """Releases this session's resources: the attachment-staging
+        directory, then the underlying neuro-san session. Called from
+        both the web service's idle-eviction sweep and its DELETE
+        /chat/<session_id> route -- centralized here so neither call
+        site can forget the staging-directory half of cleanup."""
+        self._cleanup_attachments_directory()
+        self.session.close()
 
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
         with self._lock:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
             try:
-                self._ingest_attachments(files)
+                attachments_directory = self._ingest_attachments(files)
+                effective_text = _append_attachment_directory_marker(text, attachments_directory)
                 state = {
                     "last_chat_response": None,
-                    "user_input": text,
+                    "user_input": effective_text,
                     "sly_data": self.sly_data,
                     "chat_context": self.chat_context or {},
                     "chat_filter": {"chat_filter_type": "MAXIMAL"},
@@ -590,11 +677,12 @@ class ChatSession:
         with self._lock:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
-            self._ingest_attachments(files)
+            attachments_directory = self._ingest_attachments(files)
+            effective_text = _append_attachment_directory_marker(text, attachments_directory)
             processor = self.input_processor.get_message_processor()
             chat_filter = {"chat_filter_type": "MAXIMAL"}
             chat_request = self.input_processor.formulate_chat_request(
-                text, self.sly_data, self.chat_context or {}, chat_filter
+                effective_text, self.sly_data, self.chat_context or {}, chat_filter
             )
             self.input_processor.reset()
 
@@ -931,7 +1019,7 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
         _web_logger.info("Evicting idle web session %s after %.0fs of inactivity.",
                           stale_id, _WEB_SESSION_IDLE_TIMEOUT_SECONDS)
         try:
-            stale_session.session.close()
+            stale_session.close()
         except Exception:
             _web_logger.exception("Error closing idle neuro-san session %s during eviction sweep.", stale_id)
 
@@ -984,12 +1072,14 @@ def build_web_app(agent_name: str, https: bool = True):
                                    "usage": {"prompt_tokens": N,
                                    "completion_tokens": N, "total_tokens": N,
                                    "model": "..."} or null}
-                               Attached files are extracted to text (see
-                               _parse_attachments/extract_attachment_text)
-                               and surfaced to the agent via the
-                               "load_attached_files" CodedTool, NOT sent to
-                               the LLM as genuine multimodal content -- see
-                               ATTACHMENT_MAX_FILES's own comment for why.
+                               Attached files are staged to this session's
+                               fixed on-disk directory (see
+                               _parse_attachments/stage_attachments_to_directory)
+                               and that directory's path is appended to the
+                               query text as a literal
+                               "[ATTACHMENT DIRECTORY: ...]" marker, NOT sent
+                               to the LLM as genuine multimodal content --
+                               see ATTACHMENT_MAX_FILES's own comment for why.
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
@@ -1251,10 +1341,11 @@ def build_web_app(agent_name: str, https: bool = True):
         # the underlying neuro-san DirectAgentSession holds its own
         # server-side resources (invocation context) until explicitly
         # closed, or it leaks for the life of the process across repeated
-        # create/delete cycles.
+        # create/delete cycles -- same reason ChatSession.close() also
+        # cleans up any attachment-staging directory still on disk.
         if existed:
             try:
-                session.session.close()
+                session.close()
             except Exception:
                 _web_logger.exception("Error closing neuro-san session %s", session_id)
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
