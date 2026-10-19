@@ -1445,8 +1445,23 @@ class TestBuildXml:
                 edges=[],
             )
 
-    def test_dangling_component_zone_reference_raises(self):
-        with pytest.raises(KeyError):
+    def test_dangling_component_zone_reference_raises_a_clear_value_error(self):
+        # Regression test: a component whose zone_id doesn't match any
+        # real zone previously crashed with a bare, uninformative
+        # `KeyError: 'c1'` from deep inside the final render pass (the
+        # component silently never got laid out because nothing ever
+        # visits comps_by_zone's own keys independently -- it's only
+        # ever read via comps_by_zone.get(<a real zone's own id>)) --
+        # confirmed directly against a real generated request. That
+        # KeyError names the orphaned COMPONENT's id, not the bogus
+        # zone_id that actually caused it, giving an LLM caller nothing
+        # to act on despite save_drawio_structured_tool.py's own
+        # error-handling message always having claimed this exact case
+        # ("every component's zone_id references a real zone id") was
+        # checked. Must raise a clear, actionable ValueError instead,
+        # naming both the component and the bad zone_id, before any
+        # layout work starts.
+        with pytest.raises(ValueError, match="c1.*NO_SUCH_ZONE"):
             layout.build_structured_drawio_xml(
                 title="T", subtitle="",
                 zones=[{"id": "z1", "label": "Zone"}],
@@ -1484,6 +1499,34 @@ class TestBuildXml:
                 ],
                 edges=[],
             )
+
+    def test_multiple_dangling_component_zone_references_are_all_named(self):
+        with pytest.raises(ValueError, match="c1.*BAD_A.*c2.*BAD_B"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[
+                    {"id": "c1", "zone_id": "BAD_A", "label": "Orphan A"},
+                    {"id": "c2", "zone_id": "BAD_B", "label": "Orphan B"},
+                ],
+                edges=[],
+            )
+
+    def test_component_attached_to_a_nested_child_zone_is_not_flagged_as_dangling(self):
+        # A component's zone_id correctly pointing at a NESTED (level-2)
+        # zone -- e.g. a VPC inside an Account -- must not be mistaken
+        # for a dangling reference just because it isn't a top-level zone.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[
+                {"id": "account", "label": "Account"},
+                {"id": "vpc", "label": "VPC", "parent_zone_id": "account"},
+            ],
+            components=[{"id": "c1", "zone_id": "vpc", "label": "Comp"}],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        assert any(c.get("id") == "c1" for c in root.findall(".//mxCell"))
 
     def test_dangling_edge_reference_is_skipped_not_fatal(self):
         # An edge to a nonexistent component id is dropped rather than
@@ -1812,6 +1855,37 @@ class TestNestedZones:
                 edges=[],
             )
 
+    def test_merged_field_parent_zone_id_raises_with_a_specific_diagnosis(self):
+        # Regression test, confirmed directly against a real generated
+        # request: the model produced parent_zone_id="saas_vpc,row:0,
+        # stack:horizontal" -- "row"/"stack" (which belong as the zone's
+        # OWN separate top-level keys) collapsed into the reference
+        # string alongside the real id. A bare "does not match any zone
+        # id" message gives no hint why; this specific pattern must be
+        # called out by name so the agent has something concrete to fix.
+        with pytest.raises(KeyError, match="MULTIPLE fields got merged"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[
+                    {"id": "saas_vpc", "label": "VPC"},
+                    {
+                        "id": "saas_vpc_compute", "label": "Compute",
+                        "parent_zone_id": "saas_vpc,row:0,stack:horizontal",
+                    },
+                ],
+                components=[],
+                edges=[],
+            )
+
+    def test_merged_field_component_zone_id_raises_with_a_specific_diagnosis(self):
+        with pytest.raises(KeyError, match="MULTIPLE fields got merged"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[{"id": "c1", "zone_id": "z1,row:0,stack:horizontal", "label": "Comp"}],
+                edges=[],
+            )
+
     def test_self_referential_parent_zone_id_raises(self):
         with pytest.raises(ValueError, match="own id"):
             layout.build_structured_drawio_xml(
@@ -1821,18 +1895,133 @@ class TestNestedZones:
                 edges=[],
             )
 
-    def test_two_levels_of_nesting_raises(self):
-        with pytest.raises(ValueError, match="only one level"):
+    def test_two_levels_of_nesting_is_supported(self):
+        # Raised from "exactly one level" after a real request (AWS
+        # Organizations -> per-tenant Account -> VPC -> an inner
+        # monitoring-agent boundary) legitimately needed a third zone
+        # level and had no way to express it -- confirmed directly: the
+        # agent kept retrying ever-deeper nesting attempts, all rejected.
+        zones = [
+            {"id": "acct", "label": "Account"},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
+            {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc"},
+        ]
+        components = [{"id": "c1", "zone_id": "subnet", "label": "Comp"}]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc, subnet = zone_boxes["acct"], zone_boxes["vpc"], zone_boxes["subnet"]
+        # Each level strictly contains the next.
+        assert vpc.x > acct.x and vpc.right < acct.right
+        assert vpc.y > acct.y and vpc.bottom < acct.bottom
+        assert subnet.x > vpc.x and subnet.right < vpc.right
+        assert subnet.y > vpc.y and subnet.bottom < vpc.bottom
+        # The depth-2 zone's own component sits inside IT, not just
+        # somewhere inside the outer ancestors.
+        c1 = comp_boxes["c1"]
+        assert c1.x >= subnet.x and c1.right <= subnet.right
+        assert c1.y >= subnet.y and c1.bottom <= subnet.bottom
+
+    def test_two_levels_of_nesting_renders_with_correct_parent_chain(self):
+        zones = [
+            {"id": "acct", "label": "Account"},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct", "type": "vpc"},
+            {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc"},
+        ]
+        components = [{"id": "c1", "zone_id": "subnet", "label": "Comp"}]
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        acct_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "acct")
+        vpc_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "vpc")
+        subnet_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "subnet")
+        assert acct_cell.get("parent") == "1"
+        assert vpc_cell.get("parent") == "acct"
+        assert subnet_cell.get("parent") == "vpc"
+
+    def test_nesting_depth_has_no_fixed_limit(self):
+        # An earlier version capped this first at 1 level, then at 2 --
+        # both caps were hit in turn by the SAME real request (AWS
+        # Organizations -> per-tenant Account -> VPC -> an inner
+        # monitoring-agent boundary needed a fourth zone level once the
+        # cap was already raised to 2), so the cap was removed rather
+        # than raised a third time. Depth 3 (4 total zone levels) must
+        # now succeed, containment holding all the way down.
+        zones = [
+            {"id": "acct", "label": "Account"},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
+            {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc"},
+            {"id": "inner", "label": "Inner", "parent_zone_id": "subnet"},
+        ]
+        components = [{"id": "c1", "zone_id": "inner", "label": "Comp"}]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc, subnet, inner = (
+            zone_boxes["acct"], zone_boxes["vpc"], zone_boxes["subnet"], zone_boxes["inner"],
+        )
+        assert vpc.x > acct.x and vpc.right < acct.right
+        assert subnet.x > vpc.x and subnet.right < vpc.right
+        assert inner.x > subnet.x and inner.right < subnet.right
+        c1 = comp_boxes["c1"]
+        assert c1.x >= inner.x and c1.right <= inner.right
+
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        inner_cell = next(c for c in root.findall(".//mxCell") if c.get("id") == "inner")
+        assert inner_cell.get("parent") == "subnet"
+
+    def test_circular_parent_zone_id_chain_raises(self):
+        with pytest.raises(ValueError, match="circular"):
             layout.build_structured_drawio_xml(
                 title="T", subtitle="",
                 zones=[
-                    {"id": "acct", "label": "Account"},
-                    {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
-                    {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc"},
+                    {"id": "a", "label": "A", "parent_zone_id": "b"},
+                    {"id": "b", "label": "B", "parent_zone_id": "a"},
                 ],
                 components=[],
                 edges=[],
             )
+
+    def test_horizontal_stack_of_accounts_each_with_a_depth_2_descendant(self):
+        # OU (horizontal) -> 2 peer Accounts, each itself containing a
+        # VPC (depth 1) that contains a Subnet (depth 2) -- exercises the
+        # RECURSIVE natural-width calc (_zone_outer_natural_width calling
+        # itself for a middle zone that has its own nested children) at
+        # the same time as sibling horizontal placement.
+        zones = [
+            {"id": "ou", "label": "OU", "stack": "horizontal"},
+            {"id": "acct0", "label": "Account 0", "parent_zone_id": "ou"},
+            {"id": "acct1", "label": "Account 1", "parent_zone_id": "ou"},
+            {"id": "vpc0", "label": "VPC 0", "parent_zone_id": "acct0"},
+            {"id": "vpc1", "label": "VPC 1", "parent_zone_id": "acct1"},
+        ]
+        components = [
+            {"id": "sub0", "zone_id": "vpc0", "label": "Sub 0"},
+            {"id": "sub1", "zone_id": "vpc1", "label": "Sub 1"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        acct0, acct1 = zone_boxes["acct0"], zone_boxes["acct1"]
+        vpc0, vpc1 = zone_boxes["vpc0"], zone_boxes["vpc1"]
+        assert not _boxes_overlap(acct0, acct1)
+        assert vpc0.x >= acct0.x and vpc0.right <= acct0.right
+        assert vpc1.x >= acct1.x and vpc1.right <= acct1.right
+        sub0, sub1 = comp_boxes["sub0"], comp_boxes["sub1"]
+        assert sub0.x >= vpc0.x and sub0.right <= vpc0.right
+        assert sub1.x >= vpc1.x and sub1.right <= vpc1.right
+
+    def test_account_grows_to_fit_a_depth_2_descendant(self):
+        # The outermost zone must be wide/tall enough to actually contain
+        # BOTH nested levels plus margins, not just the immediate child.
+        zones = [
+            {"id": "acct", "label": "Account"},
+            {"id": "vpc", "label": "VPC", "parent_zone_id": "acct"},
+            {"id": "subnet", "label": "Subnet", "parent_zone_id": "vpc", "width": 400},
+        ]
+        components = [{"id": "c1", "zone_id": "subnet", "label": "Comp"}]
+        zone_boxes, _, _, _ = layout._layout_zones_and_components(zones, components)
+        acct, vpc, subnet = zone_boxes["acct"], zone_boxes["vpc"], zone_boxes["subnet"]
+        assert acct.w > vpc.w > 0
+        assert vpc.w >= subnet.w
 
     def test_unrelated_top_level_zone_is_unaffected_by_a_sibling_with_nesting(self):
         # A top-level zone with NO nested children in the same diagram must

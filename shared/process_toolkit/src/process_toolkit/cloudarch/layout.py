@@ -477,11 +477,20 @@ def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str,
 def _validate_zone_nesting(zones: List[Dict[str, Any]]) -> None:
     """
     "parent_zone_id" nests one zone inside another (e.g. a VPC inside an
-    AWS Account). v1 supports exactly ONE level of this -- every
-    parent_zone_id must reference a real zone id, and that referenced
-    zone must itself be top-level (no parent_zone_id of its own), or the
-    layout engine has no defined behavior for where the grandchild's
-    content would actually go.
+    AWS Account, or a subnet-like zone inside that VPC, or deeper still
+    for a genuinely multi-level hierarchy like an Organization -> a
+    per-tenant Account -> that Account's VPC -> a monitoring subnet
+    inside it). No fixed depth limit -- every nesting-aware function in
+    this module (_zone_outer_natural_width, _layout_parent_zone, the
+    final XML render pass) is written generically against parent/child
+    relationships, not a hardcoded level count, so there is no layout
+    reason to cap this (an earlier version capped it first at 1, then at
+    2, and kept getting hit by real requests with a legitimately deeper
+    hierarchy than whatever the current cap happened to be -- removed
+    rather than raised a third time). The one real requirement is that
+    parent_zone_id must reference a real zone id and form a tree, never
+    a cycle -- a cycle has no defined "outermost" zone for the layout
+    engine to even start positioning from.
     """
     by_id = {z["id"]: z for z in zones if z.get("id") is not None}
     for z in zones:
@@ -491,16 +500,107 @@ def _validate_zone_nesting(zones: List[Dict[str, Any]]) -> None:
         if pid == z.get("id"):
             raise ValueError(f"zone '{z.get('id')}' cannot set its own id as parent_zone_id.")
         if pid not in by_id:
-            raise KeyError(
-                f"zone '{z.get('id')}' has parent_zone_id '{pid}', which does not "
-                "match any zone id."
+            _raise_clear_dangling_reference_error(
+                owner_kind="zone", owner_id=z.get("id"), field="parent_zone_id",
+                referenced_kind="zone", bad_value=pid,
             )
-        if by_id[pid].get("parent_zone_id") is not None:
-            raise ValueError(
-                f"zone '{z.get('id')}' is nested inside '{pid}', which is itself "
-                "nested inside another zone -- only one level of zone nesting "
-                "(e.g. an Account containing a VPC) is supported."
-            )
+
+    # Cycle check, walked independently per zone so the error always
+    # names the zone actually closest to the problem (not just wherever
+    # the cycle happens to be first detected from).
+    for z in zones:
+        zid = z["id"]
+        seen = {zid}
+        current = z
+        while current.get("parent_zone_id") is not None:
+            pid = current["parent_zone_id"]
+            if pid in seen:
+                raise ValueError(
+                    f"zone '{zid}' has a circular parent_zone_id chain (reaches "
+                    f"'{pid}' again) -- parent_zone_id must form a tree, never a cycle."
+                )
+            seen.add(pid)
+            current = by_id[pid]
+
+
+def _raise_clear_dangling_reference_error(
+    owner_kind: str, owner_id: Any, field: str, referenced_kind: str, bad_value: Any,
+) -> None:
+    """
+    Raised for a reference field (parent_zone_id, zone_id, ...) whose
+    value doesn't match any real id of `referenced_kind` ("zone" or
+    "component"). Also detects one specific real failure mode, confirmed
+    directly against a real generated request: a value like
+    "saas_vpc,row:0,stack:horizontal" -- several DIFFERENT fields' worth
+    of content (a real id, plus "row"/"stack" that belong as the OWNING
+    object's own separate top-level keys, not inside the reference
+    string) collapsed into one comma/colon-joined string, instead of
+    separate JSON fields on that object. A bare "does not match any id"
+    message leaves an LLM caller to guess why its own clearly-stated id
+    went missing; naming the exact merged-field pattern gives it
+    something concrete to fix on retry instead of repeating the same
+    mistake.
+    """
+    looks_merged = isinstance(bad_value, str) and "," in bad_value and ":" in bad_value
+    if looks_merged:
+        raise KeyError(
+            f"{owner_kind} '{owner_id}' has {field} '{bad_value}', which does not match "
+            f"any {referenced_kind} id -- this looks like MULTIPLE fields got merged "
+            "into one string (e.g. \"<id>,row:0,stack:horizontal\") instead of separate "
+            f"JSON keys. {field} must be ONLY the real, separate id of an existing "
+            f"{referenced_kind} -- put \"row\"/\"stack\"/any other fields back as their "
+            f"own top-level keys on the {owner_kind} object itself, not appended into "
+            f"{field}."
+        )
+    raise KeyError(
+        f"{owner_kind} '{owner_id}' has {field} '{bad_value}', which does not match "
+        f"any {referenced_kind} id."
+    )
+
+
+def _validate_component_zone_ids(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
+    """
+    Every component's "zone_id" must reference a real, declared zone id.
+    save_drawio_structured_tool.py's own error-handling message has
+    always claimed this is checked ("every component's zone_id
+    references a real zone id") but it never actually was -- a component
+    whose zone_id doesn't match any zone is silently grouped under a key
+    nothing in _layout_zones_and_components ever visits (comps_by_zone is
+    only ever read via comps_by_zone.get(<a real zone's own id>), never
+    iterated by its own keys), so the component never gets a
+    component_boxes entry, and the final render pass -- which iterates
+    the raw `components` list, not comps_by_zone -- crashes with a bare
+    `KeyError: '<component id>'` on the lookup `component_boxes[component["id"]]`.
+    That KeyError names the ORPHANED COMPONENT's id, not the bogus
+    zone_id that actually caused it, which gives an LLM caller nothing
+    to act on. Confirmed directly against a real generated request.
+    Raising here instead, naming both the component and the zone_id it
+    incorrectly referenced, up front and before any layout work starts,
+    is the fix.
+    """
+    zone_ids = {z["id"] for z in zones if z.get("id") is not None}
+    bad = sorted(
+        (c.get("id"), c.get("zone_id")) for c in components
+        if c.get("id") is not None and c.get("zone_id") not in zone_ids
+    )
+    if bad:
+        # Same merged-field pattern _raise_clear_dangling_reference_error
+        # detects for a zone's parent_zone_id (confirmed directly against
+        # a real generated request) -- reuse its exact wording for
+        # whichever bad component hits it first, rather than maintaining
+        # a second copy of that detection.
+        for cid, zid in bad:
+            if isinstance(zid, str) and "," in zid and ":" in zid:
+                _raise_clear_dangling_reference_error(
+                    owner_kind="component", owner_id=cid, field="zone_id",
+                    referenced_kind="zone", bad_value=zid,
+                )
+        detail = "; ".join(f"component '{cid}' has zone_id '{zid}'" for cid, zid in bad)
+        raise ValueError(
+            "Every component's zone_id must reference a real, declared zone id -- "
+            + detail + ". Fix each component's zone_id to match an existing zone's "
+            "own id and retry."
+        )
 
 
 def _zone_natural_width(zone: Dict[str, Any], zone_children: List[Dict[str, Any]]) -> float:
@@ -544,6 +644,14 @@ def _zone_outer_natural_width(
     _zone_natural_width when there are no nested children, so this is a
     strict superset with zero behavior change for the (overwhelmingly
     common) non-nested case.
+
+    RECURSIVE: a child's own natural width is computed via THIS function
+    again (not the plain, non-nesting-aware _zone_natural_width), so a
+    child that itself has nested grandchildren (depth 2, e.g. a VPC
+    containing its own subnet-like zone) correctly grows to fit THEM too,
+    instead of being measured as if it had only its own direct
+    components. No-op change for depth-1 nesting (a childless child just
+    recurses one level deeper, straight into the childless branch above).
     """
     children = nested_by_parent.get(zone.get("id"), [])
     if not children:
@@ -551,7 +659,7 @@ def _zone_outer_natural_width(
     if zone.get("width"):
         return zone["width"]
     child_widths = [
-        c.get("width") or _zone_natural_width(c, comps_by_zone.get(c.get("id"), []))
+        c.get("width") or _zone_outer_natural_width(c, comps_by_zone, nested_by_parent)
         for c in children
     ]
     if (zone.get("stack") or "vertical") == "horizontal":
@@ -663,6 +771,7 @@ def _layout_parent_zone(
     direct_components: List[Dict[str, Any]], zone_x: float, zone_y: float, zone_w: float,
     row_num: int, zone_boxes: Dict[str, "_Box"], component_boxes: Dict[str, "_Box"],
     comps_by_zone: Dict[str, List[Dict[str, Any]]],
+    nested_by_parent: Dict[str, List[Dict[str, Any]]],
 ) -> float:
     """
     Lays out a zone that has one or more NESTED child zones (another
@@ -686,15 +795,36 @@ def _layout_parent_zone(
     child's) are stacked below the nested child zone(s) either way, using
     the same component-stacking rule as a plain leaf zone. Sets
     zone_boxes[zone_id] in place; returns the zone's own total height.
+
+    RECURSIVE, to whatever depth _validate_zone_nesting's own cycle check
+    allowed through (no fixed depth limit): a nested child that itself
+    has nested children of its own (e.g. a VPC containing a subnet-like
+    zone) is laid out via a RECURSIVE call to this same function instead
+    of _layout_leaf_zone -- _layout_child below is the single place that
+    decides which of the two a given child needs,
+    shared by both the horizontal and vertical branches so neither can
+    drift out of sync with the other.
     """
     header_h = _zone_header_height(zone)
     inner_w = zone_w - 2 * COMPONENT_H_MARGIN
     stack = zone.get("stack") or "vertical"
     content_top = zone_y + header_h + ZONE_INNER_MARGIN
 
+    def _layout_child(child: Dict[str, Any], x: float, y: float, w: float) -> float:
+        grandchildren = nested_by_parent.get(child["id"])
+        if grandchildren:
+            return _layout_parent_zone(
+                child, child["id"], grandchildren, comps_by_zone.get(child["id"], []),
+                x, y, w, row_num, zone_boxes, component_boxes, comps_by_zone, nested_by_parent,
+            )
+        return _layout_leaf_zone(
+            child, child["id"], comps_by_zone.get(child["id"], []),
+            x, y, w, row_num, zone_boxes, component_boxes,
+        )
+
     if stack == "horizontal":
         natural_widths = [
-            child.get("width") or _zone_natural_width(child, comps_by_zone.get(child["id"], []))
+            child.get("width") or _zone_outer_natural_width(child, comps_by_zone, nested_by_parent)
             for child in nested_children
         ]
         n = len(nested_children)
@@ -711,10 +841,7 @@ def _layout_parent_zone(
         tallest = 0.0
         for idx, child in enumerate(nested_children):
             child_w = natural_widths[idx]
-            child_h = _layout_leaf_zone(
-                child, child["id"], comps_by_zone.get(child["id"], []),
-                cursor_x, content_top, child_w, row_num, zone_boxes, component_boxes,
-            )
+            child_h = _layout_child(child, cursor_x, content_top, child_w)
             tallest = max(tallest, child_h)
             cursor_x += child_w + gap
         cursor_y = content_top + tallest + ZONE_GAP if nested_children else content_top
@@ -722,11 +849,7 @@ def _layout_parent_zone(
         cursor_y = content_top
         for child in nested_children:
             child_w = child.get("width") or inner_w
-            child_h = _layout_leaf_zone(
-                child, child["id"], comps_by_zone.get(child["id"], []),
-                zone_x + COMPONENT_H_MARGIN, cursor_y, child_w, row_num,
-                zone_boxes, component_boxes,
-            )
+            child_h = _layout_child(child, zone_x + COMPONENT_H_MARGIN, cursor_y, child_w)
             cursor_y += child_h + ZONE_GAP
 
     if direct_components:
@@ -761,6 +884,7 @@ def _layout_zones_and_components(
     """
     _validate_unique_ids(zones, components)
     _validate_zone_nesting(zones)
+    _validate_component_zone_ids(zones, components)
 
     comps_by_zone: Dict[str, List[Dict[str, Any]]] = {}
     for c in components:
@@ -859,7 +983,7 @@ def _layout_zones_and_components(
                 zone_h = _layout_parent_zone(
                     zone, zone_id, nested_children, zone_children,
                     x_cursor, y_cursor, zone_w, row_num,
-                    zone_boxes, component_boxes, comps_by_zone,
+                    zone_boxes, component_boxes, comps_by_zone, nested_by_parent,
                 )
                 x_cursor += zone_w + ZONE_GAP
                 row_height = max(row_height, zone_h)
@@ -1906,20 +2030,36 @@ def build_structured_drawio_xml(
             "width": str(int(box.w)), "height": str(int(box.h)), "as": "geometry",
         })
 
-    nested_zone_ids = {z["id"] for z in zones if z.get("parent_zone_id")}
-    # Top-level zones first (so a nested zone's parent cell already exists
-    # in the XML before the child references it as its own "parent").
+    # Rendered in ASCENDING nesting-depth order (top-level zones first,
+    # then depth-1, then depth-2, ...) so a nested zone's parent cell
+    # already exists in the XML before the child references it as its
+    # own "parent" -- generalized from a fixed two-pass (top + nested)
+    # loop to however many levels this particular diagram actually uses,
+    # not hardcoded to any specific nesting depth.
+    zones_by_id = {z["id"]: z for z in zones if z.get("id") is not None}
+
+    def _zone_depth(zone: Dict[str, Any]) -> int:
+        depth = 0
+        current = zone
+        while current.get("parent_zone_id") is not None:
+            current = zones_by_id[current["parent_zone_id"]]
+            depth += 1
+        return depth
+
+    zones_by_depth: Dict[int, List[Dict[str, Any]]] = {}
     for zone in zones:
-        if zone["id"] in nested_zone_ids:
-            continue
-        box = zone_boxes[zone["id"]]
-        _render_zone_cell(zone, "1", box.x, box.y)
-    for zone in zones:
-        if zone["id"] not in nested_zone_ids:
-            continue
-        box = zone_boxes[zone["id"]]
-        parent_box = zone_boxes[zone["parent_zone_id"]]
-        _render_zone_cell(zone, zone["parent_zone_id"], box.x - parent_box.x, box.y - parent_box.y)
+        zones_by_depth.setdefault(_zone_depth(zone), []).append(zone)
+
+    for depth in sorted(zones_by_depth):
+        for zone in zones_by_depth[depth]:
+            box = zone_boxes[zone["id"]]
+            if depth == 0:
+                _render_zone_cell(zone, "1", box.x, box.y)
+            else:
+                parent_box = zone_boxes[zone["parent_zone_id"]]
+                _render_zone_cell(
+                    zone, zone["parent_zone_id"], box.x - parent_box.x, box.y - parent_box.y,
+                )
 
     # --- Components (+ their icons) ---
     for component in components:

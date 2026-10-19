@@ -149,11 +149,23 @@ zones: list of dicts, each:
   that CONTAINS a VPC, rather than being one. A multi-account landing-zone/organization diagram has
   no single zone that IS a VPC -- it has Account zones, each of which typically contains its own
   VPC -- so model that as an outer zone (the Account, no "type") with an inner zone nested via
-  "parent_zone_id": <account zone id> and "type": "vpc" set on the inner one. ONE level of nesting
-  only (the parent zone itself must not have its own parent_zone_id); "row" is ignored on a nested
-  zone -- its position is entirely determined by its parent. Put every VPC-resident resource's
-  components in the nested VPC zone; only genuinely account-level, non-VPC resources go directly in
-  the Account zone itself.
+  "parent_zone_id": <account zone id> and "type": "vpc" set on the inner one. There is NO fixed
+  limit on how many levels deep this can go -- nest as many levels as the architecture genuinely
+  has (e.g. OU -> Account -> VPC -> a subnet-like inner zone is perfectly fine), as long as every
+  parent_zone_id you set is the real, separate id of an ALREADY-DECLARED zone and the chain never
+  cycles back on itself. "row" is ignored on any nested zone -- its position is entirely determined
+  by its parent. Put every VPC-resident resource's components in the nested VPC zone (or a further
+  zone nested inside IT, if the architecture genuinely has a boundary inside the VPC, e.g. a
+  dedicated monitoring/management subnet); only genuinely account-level, non-VPC resources go
+  directly in the Account zone itself.
+
+  "parent_zone_id" MUST be ONLY that other zone's id -- a bare string, nothing else appended to it.
+  "row"/"stack"/"width"/"type"/every other zone field belongs as this zone's OWN separate top-level
+  key, never concatenated into parent_zone_id itself (e.g. "acct_zone,row:0,stack:horizontal" is
+  WRONG -- that is three different fields' worth of content merged into one string; the correct
+  shape is "parent_zone_id": "acct_zone" as one key and "stack": "horizontal" as a completely
+  separate key on the SAME zone object). Every zone id and component id is similarly always a bare
+  string on its own -- never comma/colon-joined with any other field's value.
 
   The PARENT's own "stack" controls how its nested children combine -- same field, same meaning it
   already has for components. Default ("vertical") stacks nested children top to bottom, each
@@ -176,6 +188,14 @@ edges: list of dicts, each:
   {"source": str, "target": str, "label": str (optional, ""), "number": int (optional), "color":
    str (optional hex), "dashed": bool (optional, false)}
   source/target must be component ids (or zone ids, for a zone-to-zone connection).
+
+EVERY "label" field (zone, component, AND edge) is USER-FACING DISPLAY TEXT ONLY -- the real-world
+name of that zone/resource/relationship, exactly as a real viewer would expect, and NOTHING else.
+Do not append any note, comment, or annotation of your own -- about how this item relates to a
+prior revision, what you changed, why you organized it this way, or any other remark about your own
+generation/editing process -- to a "label" value, ever, under any circumstance. If you have a reason
+to track that kind of thing while reconstructing or refining a diagram, keep that reasoning entirely
+out of the JSON you emit; it has no business in any "label" field, full stop.
 
 # VISUAL STYLE: MATCH PROFESSIONAL CLOUD-PROVIDER ARCHITECTURE DIAGRAMS
 The quality bar is a diagram that could pass for an official AWS Architecture Icons / Azure
