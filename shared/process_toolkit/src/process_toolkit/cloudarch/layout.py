@@ -408,6 +408,48 @@ class _Box:
         return self.y + self.h
 
 
+def _validate_required_fields(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
+    """
+    Every zone needs a real, non-empty "id"; every component needs a
+    real, non-empty "id" AND "zone_id". Must run FIRST, before any other
+    validation in this module -- confirmed directly against a real
+    generated request: _validate_unique_ids's own duplicate-id detection,
+    _validate_zone_nesting's by_id lookup, and
+    _validate_component_zone_ids's own bad-zone_id detection all filter
+    OUT an entry with a missing "id" (a missing id can never be a
+    duplicate or a dangling reference, so none of those checks have any
+    reason to even look at it), which means a component missing BOTH
+    "id" and "zone_id" sailed straight through every one of them and
+    crashed deep inside _layout_zones_and_components's own comps_by_zone
+    grouping with a bare `KeyError: 'zone_id'` -- no indication of WHICH
+    component, or that "id" was missing too. Catching it here, by
+    position (there's no id yet to name it by), before any of those
+    other checks run, is the fix.
+    """
+    problems: List[str] = []
+    for i, z in enumerate(zones):
+        if not isinstance(z, dict):
+            problems.append(f"zones[{i}] must be an object, not {type(z).__name__}")
+        elif not z.get("id"):
+            problems.append(f"zones[{i}] is missing a real, non-empty 'id'")
+    for i, c in enumerate(components):
+        if not isinstance(c, dict):
+            problems.append(f"components[{i}] must be an object, not {type(c).__name__}")
+            continue
+        cid = c.get("id")
+        name = f"component '{cid}'" if cid else f"components[{i}]"
+        if not cid:
+            problems.append(f"components[{i}] is missing a real, non-empty 'id'")
+        if not c.get("zone_id"):
+            problems.append(f"{name} is missing a real, non-empty 'zone_id'")
+    if problems:
+        raise ValueError(
+            "Every zone needs a real, non-empty 'id'; every component needs a real, "
+            "non-empty 'id' AND 'zone_id' -- " + "; ".join(problems) + ". Add the "
+            "missing field(s) and retry."
+        )
+
+
 def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
     """
     Every zone id and every component id must be unique across the WHOLE
@@ -882,6 +924,7 @@ def _layout_zones_and_components(
     stranded at a fraction of the final, inflated canvas width -- exactly
     the "wasted space" this was rewritten to fix.
     """
+    _validate_required_fields(zones, components)
     _validate_unique_ids(zones, components)
     _validate_zone_nesting(zones)
     _validate_component_zone_ids(zones, components)

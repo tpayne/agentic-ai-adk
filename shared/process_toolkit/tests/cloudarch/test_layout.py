@@ -1433,6 +1433,64 @@ class TestBuildXml:
                 edges=[],
             )
 
+    def test_component_missing_both_id_and_zone_id_raises_a_clear_value_error(self):
+        # Regression test, confirmed directly against a real generated
+        # request: a component missing BOTH "id" and "zone_id" entirely
+        # slipped past every existing validation (duplicate-id detection
+        # and the dangling-zone-id check above both filter OUT an entry
+        # with no "id" at all, since a missing id can never be a
+        # duplicate or a dangling reference) and crashed with a bare,
+        # uninformative `KeyError: 'zone_id'` deep inside
+        # _layout_zones_and_components's own comps_by_zone grouping --
+        # before any component-level validation even had a chance to run.
+        with pytest.raises(ValueError, match="missing a real, non-empty 'id'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[{"label": "Orphan, no id or zone_id at all"}],
+                edges=[],
+            )
+
+    def test_component_missing_only_zone_id_is_named_by_its_own_id(self):
+        with pytest.raises(ValueError, match="component 'c1' is missing a real, non-empty 'zone_id'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[{"id": "c1", "label": "Comp"}],
+                edges=[],
+            )
+
+    def test_component_missing_only_id_is_named_by_position(self):
+        with pytest.raises(ValueError, match=r"components\[0\] is missing a real, non-empty 'id'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"id": "z1", "label": "Zone"}],
+                components=[{"zone_id": "z1", "label": "Comp"}],
+                edges=[],
+            )
+
+    def test_zone_missing_id_is_named_by_position(self):
+        with pytest.raises(ValueError, match=r"zones\[0\] is missing a real, non-empty 'id'"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"label": "Nameless Zone"}],
+                components=[],
+                edges=[],
+            )
+
+    def test_multiple_missing_required_fields_are_all_named_at_once(self):
+        with pytest.raises(ValueError) as exc_info:
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="",
+                zones=[{"label": "Nameless Zone"}],
+                components=[{"id": "c1", "label": "No zone_id"}, {"label": "No id or zone_id"}],
+                edges=[],
+            )
+        message = str(exc_info.value)
+        assert "zones[0]" in message
+        assert "component 'c1'" in message
+        assert "components[1]" in message
+
     def test_duplicate_zone_id_raises_with_offending_id_named(self):
         with pytest.raises(ValueError, match="z1"):
             layout.build_structured_drawio_xml(
