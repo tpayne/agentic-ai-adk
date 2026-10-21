@@ -1365,6 +1365,21 @@ This will launch a simple web server that will let you view the JSON process flo
 
 ---
 
+## Sample Cloud Architecture Diagrams
+
+The following are examples of sample cloud architecture diagrams created by this tool.
+
+### Central Backup Solution
+![Central Backup Solution](./examples/XML/BackupSolution/cloudarch_drawio.jpg)
+
+### Data Processing Solution
+![Data Processing](./examples/XML/DataProcessing/cloudarch_drawio.jpg)
+
+### Hybrid Cloud Solution
+![Hybrid Setup](./examples/XML/Hybrid/cloudarch_drawio.jpg)
+
+---
+
 ### ISO Compliance Mapping
 
 The following table outlines the alignment of the process JSON generated with international ISO standards.
