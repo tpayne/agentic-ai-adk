@@ -4,7 +4,7 @@ from typing import Any, Dict, Union
 from neuro_san.interfaces.coded_tool import CodedTool
 
 from process_toolkit.docgen.generation import create_standard_doc_from_file
-from process_toolkit.run_lock import release_pipeline_lock
+from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
 
 
@@ -25,7 +25,9 @@ class GenerateDesignDocumentCodedTool(CodedTool):
         fallback_name = args.get("process_name") or "Design"
         result = create_standard_doc_from_file(fallback_name, schema_type="design")
         if isinstance(result, str) and result.startswith("SUCCESS:"):
-            release_pipeline_lock(sly_data.get(PIPELINE_LOCK_TOKEN_KEY))
+            token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+            stop_pipeline_lock_heartbeat(token)
+            release_pipeline_lock(token)
         return result
 
     async def async_invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:

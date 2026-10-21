@@ -10,6 +10,11 @@ it in a unit test.
 import asyncio
 import importlib
 import os
+import shutil
+import tempfile
+import threading
+import time
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -250,12 +255,236 @@ class TestExtractUsage:
         assert usage["total_tokens"] == 10
 
 
+class TestParseAttachments:
+    """_parse_attachments -- validates/decodes POST /chat or /chat/stream's
+    optional "files" field server-side, re-checking size/count even though
+    the web client enforces the same limits before ever sending (a client
+    is never a trusted boundary)."""
+
+    def _b64(self, raw: bytes) -> str:
+        import base64
+        return base64.b64encode(raw).decode("ascii")
+
+    def test_absent_files_is_not_an_error(self):
+        files, error = cli._parse_attachments({})
+        assert files == []
+        assert error is None
+
+    def test_decodes_a_valid_file(self):
+        payload = {"files": [{"name": "notes.txt", "mime_type": "text/plain", "data_base64": self._b64(b"hello")}]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert files == [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello"}]
+
+    def test_decodes_multiple_files_in_order(self):
+        payload = {"files": [
+            {"name": "a.txt", "mime_type": "text/plain", "data_base64": self._b64(b"A")},
+            {"name": "b.txt", "mime_type": "text/plain", "data_base64": self._b64(b"B")},
+        ]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert [f["name"] for f in files] == ["a.txt", "b.txt"]
+
+    def test_files_not_a_list_is_rejected(self):
+        files, error = cli._parse_attachments({"files": "not-a-list"})
+        assert files is None
+        assert "must be a list" in error
+
+    def test_too_many_files_is_rejected(self):
+        entry = {"name": "x.txt", "mime_type": "text/plain", "data_base64": self._b64(b"x")}
+        payload = {"files": [entry] * (cli.ATTACHMENT_MAX_FILES + 1)}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "Too many" in error
+
+    def test_entry_missing_name_is_rejected(self):
+        payload = {"files": [{"mime_type": "text/plain", "data_base64": self._b64(b"x")}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "name" in error
+
+    def test_entry_missing_mime_type_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "data_base64": self._b64(b"x")}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "mime_type" in error
+
+    def test_entry_missing_data_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "mime_type": "text/plain"}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "data_base64" in error
+
+    def test_invalid_base64_is_rejected(self):
+        payload = {"files": [{"name": "x.txt", "mime_type": "text/plain", "data_base64": "not valid base64!!"}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "invalid base64" in error
+
+    def test_oversized_file_is_rejected(self):
+        oversized = self._b64(b"x" * (cli.ATTACHMENT_MAX_BYTES + 1))
+        payload = {"files": [{"name": "big.bin", "mime_type": "application/octet-stream", "data_base64": oversized}]}
+        files, error = cli._parse_attachments(payload)
+        assert files is None
+        assert "exceeds" in error
+
+    def test_file_at_exactly_the_limit_is_accepted(self):
+        at_limit = self._b64(b"x" * cli.ATTACHMENT_MAX_BYTES)
+        payload = {"files": [{"name": "ok.bin", "mime_type": "application/octet-stream", "data_base64": at_limit}]}
+        files, error = cli._parse_attachments(payload)
+        assert error is None
+        assert len(files[0]["data"]) == cli.ATTACHMENT_MAX_BYTES
+
+
+class TestIngestAttachments:
+    """ChatSession._ingest_attachments -- stages this turn's attached
+    files into this session's FIXED on-disk directory
+    (self._attachments_directory, set once in __init__) and returns that
+    directory's path so send()/send_streaming() can append it to the
+    user's own message text as a literal "[ATTACHMENT DIRECTORY: ...]"
+    marker (see _append_attachment_directory_marker) -- no sly_data, no
+    dedicated CodedTool; the agent picks it up through its existing
+    "request explicitly names a directory" handling."""
+
+    def _session(self):
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"test_attachments_{uuid.uuid4().hex}",
+        )
+        return session
+
+    def _cleanup(self, session):
+        shutil.rmtree(session._attachments_directory, ignore_errors=True)
+
+    def test_no_files_is_a_no_op(self):
+        session = self._session()
+        assert session._ingest_attachments(None) is None
+        assert not os.path.exists(session._attachments_directory)
+        assert session._ingest_attachments([]) is None
+        assert not os.path.exists(session._attachments_directory)
+
+    def test_text_file_is_staged_to_the_fixed_directory(self):
+        from pathlib import Path
+
+        session = self._session()
+        try:
+            returned = session._ingest_attachments(
+                [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello world"}]
+            )
+            assert returned == session._attachments_directory
+            assert (Path(session._attachments_directory) / "notes.txt").read_bytes() == b"hello world"
+        finally:
+            self._cleanup(session)
+
+    def test_new_turns_files_replace_the_previous_turns_in_the_same_directory(self):
+        from pathlib import Path
+
+        session = self._session()
+        try:
+            session._ingest_attachments([{"name": "first.txt", "mime_type": "text/plain", "data": b"first"}])
+            session._ingest_attachments([{"name": "second.txt", "mime_type": "text/plain", "data": b"second"}])
+
+            remaining = [p.name for p in Path(session._attachments_directory).iterdir()]
+            assert remaining == ["second.txt"]
+        finally:
+            self._cleanup(session)
+
+    def test_a_turn_with_no_new_files_returns_none_but_leaves_earlier_files_in_place(self):
+        # A later turn with no attachments of its own can still reference
+        # something attached a few messages back, by name, without
+        # re-attaching it -- but it must NOT get a fresh
+        # "[ATTACHMENT DIRECTORY: ...]" marker appended to ITS OWN text
+        # just because an earlier turn attached something.
+        from pathlib import Path
+
+        session = self._session()
+        try:
+            session._ingest_attachments([{"name": "spec.txt", "mime_type": "text/plain", "data": b"spec content"}])
+            returned = session._ingest_attachments(None)
+            assert returned is None
+            assert (Path(session._attachments_directory) / "spec.txt").read_bytes() == b"spec content"
+        finally:
+            self._cleanup(session)
+
+    def test_staging_failure_raises_instead_of_silently_dropping_the_attachment(self, monkeypatch):
+        # A silently-ignored staging failure would be worse than a loud
+        # one: the user believes their attachment was used, nothing in
+        # the response says otherwise, and the agent just works from
+        # whatever text they typed instead.
+        monkeypatch.setattr(
+            cli, "stage_attachments_to_directory",
+            lambda files, directory: {"status": "ERROR", "error": "disk full"},
+        )
+        session = self._session()
+        with pytest.raises(RuntimeError, match="disk full"):
+            session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
+
+
+class TestAppendAttachmentDirectoryMarker:
+    """_append_attachment_directory_marker -- the one place the staged
+    directory's path becomes visible, literal text in the user's own
+    message, instead of an invisible sly_data side channel."""
+
+    def test_none_directory_leaves_text_unchanged(self):
+        assert cli._append_attachment_directory_marker("hello", None) == "hello"
+
+    def test_directory_is_appended_as_a_marker_line(self):
+        result = cli._append_attachment_directory_marker("create a process", "/tmp/xyz")
+        assert result == "create a process\n\n[ATTACHMENT DIRECTORY: /tmp/xyz]"
+
+    def test_empty_text_becomes_just_the_marker(self):
+        # cli.py's own /chat and /chat/stream routes already require a
+        # non-empty "query", but this helper is defensive regardless --
+        # no leading blank lines if "text" ever is empty.
+        result = cli._append_attachment_directory_marker("", "/tmp/xyz")
+        assert result == "[ATTACHMENT DIRECTORY: /tmp/xyz]"
+
+
+class TestChatSessionClose:
+    """ChatSession.close() -- must release both the attachment-staging
+    directory and the underlying neuro-san session, since it's called
+    from both the idle-eviction sweep and DELETE /chat/<session_id>."""
+
+    def _session(self):
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session.session = SimpleNamespace(close=lambda: None)
+        session._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"test_attachments_{uuid.uuid4().hex}",
+        )
+        return session
+
+    def test_close_removes_the_staging_directory_from_disk(self):
+        from pathlib import Path
+
+        session = self._session()
+        session._ingest_attachments([{"name": "a.txt", "mime_type": "text/plain", "data": b"x"}])
+        directory = session._attachments_directory
+        assert Path(directory).is_dir()
+
+        session.close()
+        assert not Path(directory).exists()
+
+    def test_close_is_a_no_op_on_the_filesystem_when_nothing_was_attached(self):
+        session = self._session()
+        session.close()  # must not raise just because there's nothing to clean up
+
+    def test_close_always_closes_the_underlying_neuro_san_session(self):
+        closed = []
+        session = self._session()
+        session.session = SimpleNamespace(close=lambda: closed.append(True))
+        session.close()
+        assert closed == [True]
+
+
 def test_send_logs_token_accounting_at_info(caplog):
     """ChatSession.send must surface token_accounting (previously silently
     discarded) via the standard logger at INFO, not swallow it."""
     session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
     session.sly_data = None
     session.chat_context = None
+    session._lock = threading.Lock()
 
     class _StubInputProcessor:
         def process_once(self, state):
@@ -346,6 +575,7 @@ def _make_streaming_session():
     session = cli.ChatSession.__new__(cli.ChatSession)  # bypass __init__'s real session setup
     session.sly_data = None
     session.chat_context = None
+    session._lock = threading.Lock()
     session.session = _StubStreamingSession()
     session.input_processor = _StubStreamingInputProcessor()
     return session
@@ -383,6 +613,41 @@ class TestChatSessionSendStreaming:
         progress_events = [e for e in events if e["status"] == "progress"]
         assert len(progress_events) == 1
 
+    def test_skips_structure_only_progress_message_instead_of_leaking_key_names(self):
+        # Regression test: confirmed in a real session -- neuro-san's own
+        # token-accounting bookkeeping ping carries a {total_tokens,
+        # prompt_tokens, ...} "structure" dict with NO "text". This used to
+        # fall back to a synthetic "<structure: total_tokens, prompt_tokens,
+        # ...>" preview (the dict's field NAMES, not values) that the web
+        # client renders as a visible step in the turn's "Thinking" trace --
+        # pure internal bookkeeping leaking into the chat transcript as
+        # confusing noise. The real totals already reach the client cleanly
+        # via this same method's "done" event ("usage") -- a structure-only
+        # message (no text) must now be skipped entirely, same as the
+        # already-skipped empty-text heartbeat.
+        class _StructureOnlySession:
+            def streaming_chat(self, chat_request):
+                yield {"response": {
+                    "type": "progress", "origin": [{"tool": "cloudarch"}],
+                    "structure": {
+                        "total_tokens": 42, "prompt_tokens": 30, "completion_tokens": 12,
+                        "successful_requests": 1, "empty_responses": 0, "total_cost": 0.01,
+                        "time_taken_in_seconds": 1.2, "caveats": [],
+                    },
+                }}
+                yield {"response": {"type": "answer", "origin": [], "text": "Final answer"}}
+
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = None
+        session.chat_context = None
+        session._lock = threading.Lock()
+        session.session = _StructureOnlySession()
+        session.input_processor = _StubStreamingInputProcessor()
+
+        events = list(session.send_streaming("hello"))
+        assert not any(e["status"] == "progress" for e in events)
+        assert not any("<structure:" in str(e.get("text", "")) for e in events)
+
     def test_no_duplicate_delta_for_an_unchanged_compiled_answer(self):
         class _RepeatingSession:
             def streaming_chat(self, chat_request):
@@ -392,6 +657,7 @@ class TestChatSessionSendStreaming:
         session = cli.ChatSession.__new__(cli.ChatSession)
         session.sly_data = None
         session.chat_context = None
+        session._lock = threading.Lock()
         session.session = _RepeatingSession()
         session.input_processor = _StubStreamingInputProcessor()
 
@@ -403,12 +669,14 @@ class TestChatSessionSendStreaming:
 class TestChatStreamRoute:
     """POST /chat/stream -- the Flask route wrapping ChatSession.send_streaming."""
 
-    def _build_client(self, monkeypatch, send_streaming_events):
+    def _build_client(self, monkeypatch, send_streaming_events, received_files=None):
         class _StubChatSession:
             def __init__(self, agent_name, isolated=False):
                 self.agent_name = agent_name
 
-            def send_streaming(self, text):
+            def send_streaming(self, text, files=None):
+                if received_files is not None:
+                    received_files.append(files)
                 yield from send_streaming_events
 
         monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
@@ -461,7 +729,7 @@ class TestChatStreamRoute:
             def __init__(self, agent_name, isolated=False):
                 pass
 
-            def send_streaming(self, text):
+            def send_streaming(self, text, files=None):
                 yield {"status": "progress", "origin": "x", "text": "starting"}
                 raise RuntimeError("boom")
 
@@ -482,6 +750,136 @@ class TestChatStreamRoute:
         client = self._build_client(monkeypatch, [{"status": "done", "response": "hi"}])
         resp = client.post("/chat/stream", json={"query": "hello"})
         assert resp.status_code == 401
+
+    def test_stream_decodes_and_forwards_attached_files(self, monkeypatch):
+        import base64
+
+        received = []
+        client = self._build_client(
+            monkeypatch, [{"status": "done", "response": "hi"}], received_files=received
+        )
+        resp = client.post("/chat/stream", json={
+            "query": "hello",
+            "files": [{
+                "name": "notes.txt", "mime_type": "text/plain",
+                "data_base64": base64.b64encode(b"hi there").decode("ascii"),
+            }],
+        })
+        assert resp.status_code == 200
+        assert received == [[{"name": "notes.txt", "mime_type": "text/plain", "data": b"hi there"}]]
+
+    def test_stream_rejects_an_invalid_files_payload_with_400_before_reaching_the_session(self, monkeypatch):
+        received = []
+        client = self._build_client(monkeypatch, [], received_files=received)
+        resp = client.post("/chat/stream", json={"query": "hello", "files": "not-a-list"})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+        assert received == []  # never reached send_streaming at all
+
+
+class TestChatRoute:
+    """POST /chat -- the non-streaming counterpart wrapping
+    ChatSession.send. Same request contract as /chat/stream (see that
+    class above), blocking until the turn completes instead of streaming
+    progress."""
+
+    def _build_client(self, monkeypatch, response_text="hi", received_files=None):
+        class _StubChatSession:
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+                self.last_usage = None
+
+            def send(self, text, files=None):
+                if received_files is not None:
+                    received_files.append(files)
+                return response_text
+
+        monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_chat_requires_a_nonempty_query(self, monkeypatch):
+        client = self._build_client(monkeypatch)
+        resp = client.post("/chat", json={})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+
+    def test_chat_returns_the_response_and_sets_the_session_cookie(self, monkeypatch):
+        client = self._build_client(monkeypatch, response_text="the answer")
+        resp = client.post("/chat", json={"query": "hello"})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "ok"
+        assert body["response"] == "the answer"
+        assert cli.WEB_SESSION_COOKIE in resp.headers.get("Set-Cookie", "")
+
+    def test_chat_decodes_and_forwards_attached_files(self, monkeypatch):
+        import base64
+
+        received = []
+        client = self._build_client(monkeypatch, received_files=received)
+        resp = client.post("/chat", json={
+            "query": "hello",
+            "files": [{
+                "name": "spec.md", "mime_type": "text/markdown",
+                "data_base64": base64.b64encode(b"# Spec").decode("ascii"),
+            }],
+        })
+        assert resp.status_code == 200
+        assert received == [[{"name": "spec.md", "mime_type": "text/markdown", "data": b"# Spec"}]]
+
+    def test_chat_rejects_an_invalid_files_payload_with_400_before_reaching_the_session(self, monkeypatch):
+        received = []
+        client = self._build_client(monkeypatch, received_files=received)
+        resp = client.post("/chat", json={"query": "hello", "files": [{"name": "x.txt"}]})
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] == "error"
+        assert received == []
+
+
+class TestChatDeleteRoute:
+    """DELETE /chat/<session_id> -- drops server-side state for a
+    session, calling ChatSession.close() (not session.session.close()
+    directly) so the attachment-staging directory is released alongside
+    the underlying neuro-san session."""
+
+    def _build_client(self, monkeypatch, known_session=None):
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            if known_session is not None:
+                cli._web_sessions["known-session"] = known_session
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_delete_of_unknown_session_reports_not_cleared(self, monkeypatch):
+        client = self._build_client(monkeypatch)
+        resp = client.delete("/chat/unknown-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "unknown-session", "cleared": False}
+
+    def test_delete_of_known_session_calls_close_and_reports_cleared(self, monkeypatch):
+        close_calls = []
+        session = SimpleNamespace(close=lambda: close_calls.append(True))
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.delete("/chat/known-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "known-session", "cleared": True}
+        assert close_calls == [True]
+        assert "known-session" not in cli._web_sessions
+
+    def test_delete_logs_but_does_not_fail_when_close_raises(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("neuro-san session already closed")
+
+        session = SimpleNamespace(close=_boom)
+        client = self._build_client(monkeypatch, known_session=session)
+
+        resp = client.delete("/chat/known-session")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"status": "ok", "session_id": "known-session", "cleared": True}
 
 
 class TestChatStopRoute:
@@ -608,3 +1006,226 @@ class TestArtifactRoute:
         client = self._build_client(monkeypatch, tmp_path)
         resp = client.get("/status")
         assert resp.status_code == 200
+
+
+class TestGetOrCreateWebSessionEviction:
+    """_get_or_create_web_session's opportunistic idle-eviction sweep --
+    regression coverage for two review findings:
+
+    1. last_accessed is stamped at turn START (ChatSession.send/
+       send_streaming), so a turn genuinely running longer than the idle
+       timeout must not be evicted out from under itself just because its
+       timestamp looks stale while it's still running. _active_web_sessions
+       (a per-session request COUNT, pinned/unpinned by
+       _get_or_create_web_session/_release_web_session) is the signal the
+       sweep actually checks.
+    2. The pin happens in the SAME _web_sessions_lock-protected step as the
+       lookup/creation itself -- closing the narrow window where a request
+       could look up a session, then (before ever calling
+       session.send()/send_streaming(), which is the only other thing that
+       used to guard against eviction) have a concurrent sweep see it as
+       idle and not yet pinned, and evict it out from under the request
+       about to use it.
+    """
+
+    def _fake_session(self, *, last_accessed):
+        # The eviction sweep calls ChatSession.close() directly (not
+        # session.session.close()) -- it's the one place responsible for
+        # releasing BOTH the attachment-staging directory and the
+        # underlying neuro-san session, so this fake mirrors that single
+        # entry point rather than the neuro-san session's own close().
+        close_calls = []
+        return SimpleNamespace(
+            last_accessed=last_accessed,
+            close=lambda: close_calls.append(True),
+            _close_calls=close_calls,
+        )
+
+    def _reset(self, monkeypatch):
+        # time.monotonic()'s own baseline is platform-dependent -- on a
+        # long-uptime dev machine it's already huge, but on a freshly
+        # booted CI container it can be well under
+        # _WEB_SESSION_SWEEP_INTERVAL_SECONDS (300) itself. A hardcoded
+        # 0.0 here relies on "now - 0.0 >= 300" always being true, which
+        # is false whenever time.monotonic() < 300 at test time --
+        # confirmed directly against a real CI run, where it was ~50 --
+        # silently skipping the sweep and making eviction look broken.
+        # Anchoring relative to the current clock instead makes "last
+        # swept long enough ago to sweep again" true unconditionally.
+        monkeypatch.setattr(
+            cli, "_web_sessions_last_swept",
+            time.monotonic() - cli._WEB_SESSION_SWEEP_INTERVAL_SECONDS - 10,
+        )
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            cli._active_web_sessions.clear()
+
+    def test_idle_and_unpinned_session_is_evicted(self, monkeypatch):
+        self._reset(monkeypatch)
+        stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        idle = self._fake_session(last_accessed=stale)
+        current = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["idle"] = idle
+            cli._web_sessions["current"] = current
+
+        result = cli._get_or_create_web_session("current", "process_architect")
+
+        assert result == ("current", current)
+        assert "idle" not in cli._web_sessions
+        assert idle._close_calls == [True]
+
+    def test_idle_but_pinned_session_mid_turn_is_not_evicted(self, monkeypatch):
+        self._reset(monkeypatch)
+        stale = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        # Pinned == a request is still holding this session, per
+        # _get_or_create_web_session/_release_web_session's contract.
+        mid_turn = self._fake_session(last_accessed=stale)
+        current = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["mid-turn"] = mid_turn
+            cli._web_sessions["current"] = current
+            cli._active_web_sessions["mid-turn"] = 1
+
+        result = cli._get_or_create_web_session("current", "process_architect")
+
+        assert result == ("current", current)
+        assert "mid-turn" in cli._web_sessions
+        assert mid_turn._close_calls == []
+
+    def test_recently_accessed_session_is_never_swept(self, monkeypatch):
+        self._reset(monkeypatch)
+        current = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["current"] = current
+
+        cli._get_or_create_web_session("current", "process_architect")
+
+        assert "current" in cli._web_sessions
+        assert current._close_calls == []
+
+    def test_lookup_pins_the_session_in_the_same_locked_step(self, monkeypatch):
+        self._reset(monkeypatch)
+        current = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["current"] = current
+
+        cli._get_or_create_web_session("current", "process_architect")
+
+        with cli._web_sessions_lock:
+            assert cli._active_web_sessions["current"] == 1
+
+    def test_overlapping_lookups_on_the_same_session_both_must_release_before_eviction_is_possible(self, monkeypatch):
+        # Regression test: _active_web_sessions used to be (in an earlier,
+        # since-fixed design) a bare flag -- two overlapping requests on
+        # the SAME session both pinned it, but the FIRST to release could
+        # blindly unpin it even while the SECOND was still active. The
+        # count must only reach zero once BOTH requests have released.
+        self._reset(monkeypatch)
+        shared = self._fake_session(last_accessed=time.monotonic())
+        anchor = self._fake_session(last_accessed=time.monotonic())
+        with cli._web_sessions_lock:
+            cli._web_sessions["shared"] = shared
+            cli._web_sessions["anchor"] = anchor
+
+        cli._get_or_create_web_session("shared", "process_architect")  # first overlapping request
+        cli._get_or_create_web_session("shared", "process_architect")  # second overlapping request
+        with cli._web_sessions_lock:
+            assert cli._active_web_sessions["shared"] == 2
+
+        cli._release_web_session("shared")  # first request finishes
+        with cli._web_sessions_lock:
+            assert "shared" in cli._active_web_sessions  # still pinned -- second request active
+            # Simulate the second request's turn having run long enough
+            # that shared's timestamp now LOOKS idle, even though it is
+            # genuinely still in flight.
+            shared.last_accessed = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+
+        cli._get_or_create_web_session("anchor", "process_architect")  # triggers a sweep pass
+        with cli._web_sessions_lock:
+            assert "shared" in cli._web_sessions  # must survive -- second request still holds it
+
+        cli._release_web_session("shared")  # second request finishes
+        with cli._web_sessions_lock:
+            assert "shared" not in cli._active_web_sessions
+
+    def test_release_web_session_refreshes_last_accessed(self, monkeypatch):
+        # Regression test: last_accessed was only ever stamped at turn
+        # START. A turn that runs right up to (or past) the idle timeout
+        # finished successfully, but still carried its original, now-stale
+        # start timestamp the instant it ended -- making the very next
+        # sweep see it as idle and evict a session that had just finished
+        # normally.
+        self._reset(monkeypatch)
+        turn_start = time.monotonic() - cli._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
+        session = self._fake_session(last_accessed=turn_start)
+        with cli._web_sessions_lock:
+            cli._web_sessions["just-finished"] = session
+            cli._active_web_sessions["just-finished"] = 1
+
+        cli._release_web_session("just-finished")
+
+        assert session.last_accessed > turn_start
+
+
+class TestReleaseAnyLeftoverPipelineLock:
+    """_release_any_leftover_pipeline_lock -- regression coverage for a
+    review finding: POST /chat/<session_id>/stop cancels whatever tool/
+    model call is currently in flight via cancel_current_tasks(), but
+    there is no guarantee the specific CodedTool call that would have
+    released the pipeline lock (doc_generation_tool.py / loop_control_
+    tool.py) ever runs afterward. Without this safety net, a cancelled
+    turn would leave both the lock AND its background heartbeat
+    (process_toolkit.run_lock) running forever -- worse than before that
+    heartbeat existed, since it would keep the lock's started_at fresh
+    indefinitely, permanently defeating the staleness-based self-healing
+    every pipeline run still depends on for a genuine crash/abandonment.
+    """
+
+    def test_no_sly_data_is_a_safe_noop(self):
+        cli._release_any_leftover_pipeline_lock(None)  # must not raise
+
+    def test_no_token_in_sly_data_is_a_safe_noop(self):
+        cli._release_any_leftover_pipeline_lock({})  # must not raise
+
+    def test_leftover_token_is_released_and_its_heartbeat_stopped(self):
+        from process_toolkit.run_lock import acquire_pipeline_lock, start_pipeline_lock_heartbeat, _heartbeats
+
+        token = acquire_pipeline_lock("a neuro-san pipeline")
+        start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
+        assert token in _heartbeats
+
+        cli._release_any_leftover_pipeline_lock({cli.PIPELINE_LOCK_TOKEN_KEY: token})
+
+        assert token not in _heartbeats
+        acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+
+
+class TestSendStreamingCancellationReleasesLeftoverLock:
+    """send_streaming's own cancellation path must still release a
+    leftover pipeline lock -- see TestReleaseAnyLeftoverPipelineLock's
+    own docstring for why this specific path is the one that matters."""
+
+    def test_cancellation_releases_a_leftover_pipeline_lock(self):
+        from process_toolkit.run_lock import acquire_pipeline_lock, _heartbeats, start_pipeline_lock_heartbeat
+
+        class _CancelledStreamingSession:
+            def streaming_chat(self, chat_request):
+                yield {"response": {"type": "progress", "origin": [], "text": "starting"}}
+                raise asyncio.CancelledError()
+
+        token = acquire_pipeline_lock("a neuro-san pipeline")
+        start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
+
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.sly_data = {cli.PIPELINE_LOCK_TOKEN_KEY: token}
+        session.chat_context = None
+        session._lock = threading.Lock()
+        session.session = _CancelledStreamingSession()
+        session.input_processor = _StubStreamingInputProcessor()
+
+        events = list(session.send_streaming("hello"))
+
+        assert events[-1]["status"] == "stopped"
+        assert token not in _heartbeats
+        acquire_pipeline_lock("a different pipeline")  # must not raise -- released above

@@ -49,6 +49,8 @@ registries/manifest.hocon relative to the current working directory.
 
 import argparse
 import asyncio
+import base64
+import binascii
 import hmac
 import json
 import logging
@@ -58,6 +60,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -151,8 +154,56 @@ from neuro_san.message.processors.message_processor import MessageProcessor  # n
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
+from process_toolkit.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
+from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
+from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
+
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
+
+# POST /chat and /chat/stream's optional "files" field (see
+# _parse_attachments below): each entry is {"name", "mime_type",
+# "data_base64"}. neuro-san's own chat.proto has a "mime_data" field for
+# genuine multimodal content, but it's a stub in the installed neuro-san
+# version (base_message_dictionary_converter.py explicitly skips it,
+# "# No mime_data for now", and the one utility that WOULD turn it into
+# real model content is never called anywhere in the package) -- wiring a
+# client-supplied mime_data through would silently vanish, not reach the
+# LLM.
+#
+# Attachments are staged to a FIXED, per-ChatSession on-disk directory
+# (see ChatSession._attachments_directory/_ingest_attachments below) via
+# stage_attachments_to_directory, and that directory's path is appended
+# directly to the user's own message text as a literal
+# "[ATTACHMENT DIRECTORY: <path>]" marker (see
+# ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) -- NOT passed through sly_data to
+# a dedicated CodedTool. An earlier version of this did exactly that (a
+# "load_attached_files" CodedTool reading sly_data), which is architecturally
+# sound (neuro-san threads the same sly_data dict unchanged through every
+# level of a nested agent-calls-agent chain) but depends on an LLM
+# correctly choosing to call that extra tool before anything else, every
+# single turn -- exactly the kind of instruction an agent can quietly
+# skip under its own judgment. Putting the directory path directly into
+# the visible request text instead reuses the SAME "if request explicitly
+# names a directory, read it" handling every network already has for a
+# user who types a path themselves -- no new tool-calling behavior to
+# rely on, and the path is directly visible in the agent's own thinking-
+# file trace for debugging, instead of sitting invisibly in sly_data.
+ATTACHMENT_DIRECTORY_MARKER_TEMPLATE = "[ATTACHMENT DIRECTORY: {path}]"
+ATTACHMENT_MAX_FILES = 4
+ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
+
+# Flask's own MAX_CONTENT_LENGTH (set on web_app in build_web_app) rejects an
+# oversized request before reading its body at all -- without it, the /chat
+# and /chat/stream routes call request.get_json() first and only check
+# ATTACHMENT_MAX_FILES/ATTACHMENT_MAX_BYTES afterward, so a request far
+# beyond what any legitimate attachment set could produce would still be
+# fully parsed into memory (the JSON body, its base64 strings, all of it)
+# before those per-file limits ever get a chance to reject it. Derived from
+# the two limits above rather than its own constant, so it can't drift out
+# of sync with them: base64 inflates raw bytes by ~4/3, and the extra 1MB
+# covers the query text plus JSON punctuation/field-name overhead.
+MAX_REQUEST_BODY_BYTES = int(ATTACHMENT_MAX_FILES * ATTACHMENT_MAX_BYTES * 4 / 3) + 1 * 1024 * 1024
 
 _trace_logger = logging.getLogger("ProcessArchitect.CLI.Trace")
 _web_logger = logging.getLogger("ProcessArchitect.CLI.WebService")
@@ -239,6 +290,69 @@ def run_shell_command(cmdline: str) -> None:
         display_text(f"[Shell]: Error executing command: {e}", kind="error")
 
 
+def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str, Any]]], Optional[str]]":
+    """
+    Validates and decodes POST /chat or /chat/stream's optional "files"
+    field: [{"name": str, "mime_type": str, "data_base64": str}, ...].
+    Returns (decoded_files, None) on success -- decoded_files is the same
+    shape with "data_base64" replaced by "data" (raw bytes) -- or
+    (None, error_message) on the first violation found, for the caller to
+    turn into a 400 response exactly like the existing "query required"
+    check does. Returns ([], None) when "files" is absent/empty -- not an
+    error, just nothing to attach.
+
+    Re-validates server-side (size/count) even though the web client
+    enforces the same limits before ever sending -- a client is never a
+    trusted boundary; a modified or scripted caller could send an
+    oversized/overlong payload directly against this route.
+    """
+    raw_files = payload.get("files")
+    if raw_files is None:
+        return [], None
+    if not isinstance(raw_files, list):
+        return None, "Field 'files' must be a list."
+    if len(raw_files) > ATTACHMENT_MAX_FILES:
+        return None, f"Too many attached files (max {ATTACHMENT_MAX_FILES})."
+
+    decoded: List[Dict[str, Any]] = []
+    for entry in raw_files:
+        if not isinstance(entry, dict):
+            return None, "Each entry in 'files' must be an object."
+        name = entry.get("name")
+        mime_type = entry.get("mime_type")
+        data_b64 = entry.get("data_base64")
+        if not isinstance(name, str) or not name.strip():
+            return None, "Each attached file requires a non-empty 'name'."
+        if not isinstance(mime_type, str) or not mime_type.strip():
+            return None, f"Attached file '{name}' is missing 'mime_type'."
+        if not isinstance(data_b64, str) or not data_b64:
+            return None, f"Attached file '{name}' is missing 'data_base64'."
+        try:
+            data = base64.b64decode(data_b64, validate=True)
+        except (binascii.Error, ValueError):
+            return None, f"Attached file '{name}' has invalid base64 data."
+        if len(data) > ATTACHMENT_MAX_BYTES:
+            max_mb = ATTACHMENT_MAX_BYTES / (1024 * 1024)
+            return None, f"Attached file '{name}' exceeds the {max_mb:.0f}MB size limit."
+        decoded.append({"name": name, "mime_type": mime_type, "data": data})
+
+    return decoded, None
+
+
+def _append_attachment_directory_marker(text: str, directory: Optional[str]) -> str:
+    """Appends an "[ATTACHMENT DIRECTORY: <path>]" marker (see
+    ATTACHMENT_DIRECTORY_MARKER_TEMPLATE's own comment for why this is a
+    literal text marker rather than a sly_data-only signal) onto the
+    user's own message text, so the agent network's existing "request
+    explicitly names a directory" handling picks it up exactly like a
+    user who typed a path themselves. Returns `text` unchanged when
+    `directory` is None (no attachment this turn)."""
+    if not directory:
+        return text
+    marker = ATTACHMENT_DIRECTORY_MARKER_TEMPLATE.format(path=directory)
+    return f"{text}\n\n{marker}" if text else marker
+
+
 def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Maps neuro-san's own token_accounting dict (see
     TokenAccountingMessageProcessor/LangChainTokenCounter in the installed
@@ -266,6 +380,49 @@ def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[
         "total_tokens": token_accounting.get("total_tokens", 0),
         "model": " + ".join(model_names) if model_names else None,
     }
+
+
+def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> None:
+    """
+    Safety net: every pipeline (process/design-doc/cloudarch) acquires its
+    own output/ directory pipeline-lock exactly once, as the first action
+    of a brand new top-level turn (reset_loop_state_tool.py), and releases
+    it (doc_generation_tool.py / loop_control_tool.py) once that SAME
+    turn's own generate/review loop genuinely finishes -- the whole thing
+    happens within one send()/send_streaming() call, never spanning more
+    than one turn. So a token still sitting in sly_data once that call has
+    returned, for ANY reason, means the pipeline's own finalize step never
+    ran.
+
+    The one way that happens: POST /chat/<session_id>/stop (see
+    build_web_app's own chat_stop route) reaches into
+    self.session.invocation_context.get_asyncio_executor().
+    cancel_current_tasks(), cancelling whatever tool/model call is
+    currently in flight -- there is no guarantee the specific CodedTool
+    call that would have released the lock ever runs afterward. Without
+    this, a cancelled turn would leave BOTH the lock AND its background
+    heartbeat (process_toolkit.run_lock) running forever -- worse than
+    before that heartbeat existed, since the heartbeat would keep the
+    lock's started_at fresh indefinitely, permanently defeating the
+    staleness-based self-healing every pipeline run still depends on for
+    the crash/abandonment case the heartbeat was never meant to replace.
+
+    Called from both send() and send_streaming()'s own cleanup,
+    unconditionally (success, in-band error, and cancellation alike) --
+    cheap and a no-op on the overwhelming majority of calls, where the
+    pipeline's own finalize step already released everything normally.
+    """
+    if not sly_data:
+        return
+    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    if not token:
+        return
+    _web_logger.warning(
+        "Turn ended with pipeline lock token %s still held -- releasing it "
+        "defensively (most likely a cancelled turn).", token,
+    )
+    stop_pipeline_lock_heartbeat(token)
+    release_pipeline_lock(token)
 
 
 class ChatSession:
@@ -325,32 +482,153 @@ class ChatSession:
         self.input_processor.get_message_processor().add_processor(LiveTraceMessageProcessor())
         self.sly_data = None
         self.chat_context = None
+        # Fixed for this ChatSession's entire lifetime -- deterministic
+        # (pid + this instance's own id(), not a random mkdtemp suffix)
+        # specifically so it's easy to find and inspect by hand while
+        # debugging ("ls /tmp/process_architect_attachments_*"), and so
+        # every turn's attachments land in the SAME place rather than a
+        # fresh path each time. Created lazily (only once a turn actually
+        # attaches a file -- see _ingest_attachments), not here, so a
+        # session that never attaches anything never touches disk for this.
+        self._attachments_directory = os.path.join(
+            tempfile.gettempdir(), f"process_architect_attachments_{os.getpid()}_{id(self):x}",
+        )
         # Set by send()/send_streaming() below, for the web service's
         # Token Usage tab -- see _extract_usage's own docstring for the
         # mapping from neuro-san's own token_accounting shape.
         self.last_usage: Optional[Dict[str, Any]] = None
+        # The web service (run_web_service, threaded=True) can dispatch two
+        # overlapping requests for the SAME session_id onto two different
+        # OS threads, both resolving to this one ChatSession instance (see
+        # _get_or_create_web_session) -- a double-click/retry on /chat, or
+        # overlapping /chat + /chat/stream calls. Without a lock, their
+        # read-modify-write of self.sly_data/self.chat_context (and
+        # _ingest_attachments' check-then-set of self.sly_data) can
+        # interleave and silently lose or clobber a turn's updates. A plain
+        # threading.Lock, not asyncio.Lock, matches _web_sessions_lock
+        # above: these are real OS threads, not one shared event loop.
+        self._lock = threading.Lock()
+        # Updated on every send()/send_streaming() call; read by the web
+        # service's idle-session eviction sweep (see _web_sessions above).
+        self.last_accessed = time.monotonic()
 
-    def send(self, text: str) -> str:
-        state = {
-            "last_chat_response": None,
-            "user_input": text,
-            "sly_data": self.sly_data,
-            "chat_context": self.chat_context or {},
-            "chat_filter": {"chat_filter_type": "MAXIMAL"},
-            "num_input": 0,
-        }
-        state = self.input_processor.process_once(state)
-        self.sly_data = state.get("sly_data")
-        self.chat_context = state.get("chat_context")
+    def _cleanup_attachments_directory(self) -> None:
+        """Removes this session's fixed attachment-staging directory
+        (self._attachments_directory, set once in __init__) from disk,
+        if it was ever created. Called only from close() -- the
+        directory is a FIXED path for this session's whole lifetime now
+        (not a fresh one per turn; see _ingest_attachments), so it only
+        needs releasing once, when the session itself ends, not between
+        turns."""
+        shutil.rmtree(self._attachments_directory, ignore_errors=True)
 
-        token_accounting = state.get("token_accounting")
-        if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-            _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
-        self.last_usage = _extract_usage(token_accounting)
+    def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+        """
+        Stages this turn's attached files (see _parse_attachments) into
+        this session's FIXED self._attachments_directory
+        (process_toolkit.ingestion.extractors.stage_attachments_to_directory
+        clears any files already there first, so a later turn's set
+        never mixes with an earlier one left behind in the same path).
 
-        return state.get("last_chat_response") or ""
+        Returns that directory path if files were staged THIS turn, or
+        None if `files` was empty. The caller (send()/send_streaming())
+        uses a non-None return to append an
+        "[ATTACHMENT DIRECTORY: <path>]" marker (see
+        ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) directly onto the user's
+        own message text -- a literal, visible string every network's
+        existing "request explicitly names a directory" handling already
+        knows how to act on, rather than a side channel (sly_data plus a
+        dedicated CodedTool) an agent has to remember to separately call
+        before anything else, every single turn.
 
-    def send_streaming(self, text: str):
+        No-op (returns None, touches nothing on disk) when `files` is
+        empty -- a turn with no NEW attachments leaves the directory's
+        existing contents (from an earlier turn) alone, so a later turn
+        can still reference something attached a few messages back by
+        name, without re-attaching it.
+
+        Raises RuntimeError if staging fails (see
+        stage_attachments_to_directory's own "ERROR" cases -- e.g. a full
+        disk) -- callers (send()/send_streaming()) already have a
+        try/except around the whole turn that turns this into a clean
+        "An internal error has occurred" response while logging the real
+        reason, which is the right outcome here: silently proceeding as
+        if nothing had been attached would make the user's actual
+        requirements vanish with zero indication anything went wrong.
+        """
+        if not files:
+            return None
+        result = stage_attachments_to_directory(files, directory=self._attachments_directory)
+        if result.get("status") != "OK":
+            _web_logger.warning(
+                "Failed to stage %d attached file(s) to disk: %s",
+                len(files), result.get("error"),
+            )
+            raise RuntimeError(f"Failed to stage attached files to disk: {result.get('error')}")
+        # WARNING, not INFO -- this project's console handler is fixed at
+        # WARNING+ regardless of LOGLEVEL (see logging_setup's own
+        # comment), so confirming a successful staging is visible
+        # on-screen immediately, not only in output/logs/cli.log and only
+        # if LOGLEVEL happens to be raised. This is the one concrete,
+        # zero-LLM-cost checkpoint for "did the attachment actually make
+        # it past the HTTP layer" -- if this line is missing from a run
+        # where a file was attached, the problem is upstream of this
+        # project's own code (the client never sent "files", or sent it
+        # somewhere _parse_attachments doesn't look).
+        _web_logger.warning(
+            "Staged %d attached file(s) to %s: %s",
+            len(result["files_written"]), result["directory"], result["files_written"],
+        )
+        return result["directory"]
+
+    def close(self) -> None:
+        """Releases this session's resources: the attachment-staging
+        directory, then the underlying neuro-san session. Called from
+        both the web service's idle-eviction sweep and its DELETE
+        /chat/<session_id> route -- centralized here so neither call
+        site can forget the staging-directory half of cleanup."""
+        self._cleanup_attachments_directory()
+        self.session.close()
+
+    def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
+        with self._lock:
+            turn_started = time.monotonic()
+            self.last_accessed = turn_started
+            try:
+                attachments_directory = self._ingest_attachments(files)
+                effective_text = _append_attachment_directory_marker(text, attachments_directory)
+                state = {
+                    "last_chat_response": None,
+                    "user_input": effective_text,
+                    "sly_data": self.sly_data,
+                    "chat_context": self.chat_context or {},
+                    "chat_filter": {"chat_filter_type": "MAXIMAL"},
+                    "num_input": 0,
+                }
+                state = self.input_processor.process_once(state)
+                self.sly_data = state.get("sly_data")
+                self.chat_context = state.get("chat_context")
+
+                token_accounting = state.get("token_accounting")
+                self.last_usage = _extract_usage(token_accounting)
+
+                # Previously only logged AT ALL when token_accounting happened
+                # to be present, and even then carried no duration or explicit
+                # outcome -- a successful turn with no accounting data left no
+                # trace whatsoever at INFO level, the level this project's own
+                # logging_setup.py defaults LOGLEVEL to.
+                if _trace_logger.isEnabledFor(logging.INFO):
+                    _trace_logger.info(
+                        "Chat turn completed: duration=%.2fs usage=%s",
+                        time.monotonic() - turn_started,
+                        json.dumps(token_accounting) if token_accounting else None,
+                    )
+
+                return state.get("last_chat_response") or ""
+            finally:
+                _release_any_leftover_pipeline_lock(self.sly_data)
+
+    def send_streaming(self, text: str, files: Optional[List[Dict[str, Any]]] = None):
         """
         Generator version of send(): yields an incremental update dict
         after EVERY message produced in the agent network's response
@@ -397,61 +675,104 @@ class ChatSession:
         caller-side 'close' method" comment in the installed neuro_san
         package).
         """
-        processor = self.input_processor.get_message_processor()
-        chat_filter = {"chat_filter_type": "MAXIMAL"}
-        chat_request = self.input_processor.formulate_chat_request(
-            text, self.sly_data, self.chat_context or {}, chat_filter
-        )
-        self.input_processor.reset()
+        # Held for this whole generator's lifetime (across every yield, not
+        # just the setup below) -- same race as send() above, but a stream
+        # is long-lived, so a second overlapping request for this session
+        # must wait for the WHOLE turn, not just this method's setup, or it
+        # could still interleave its own sly_data/chat_context read-modify-
+        # write with this turn's eventual one at the bottom. Released
+        # whenever this generator is exhausted, returns early, or is
+        # closed/GC'd (GeneratorExit also unwinds through this `with`).
+        with self._lock:
+            turn_started = time.monotonic()
+            self.last_accessed = turn_started
+            attachments_directory = self._ingest_attachments(files)
+            effective_text = _append_attachment_directory_marker(text, attachments_directory)
+            processor = self.input_processor.get_message_processor()
+            chat_filter = {"chat_filter_type": "MAXIMAL"}
+            chat_request = self.input_processor.formulate_chat_request(
+                effective_text, self.sly_data, self.chat_context or {}, chat_filter
+            )
+            self.input_processor.reset()
 
-        last_compiled_answer = None
-        try:
-            for chat_response in self.session.streaming_chat(chat_request):
-                response = chat_response.get("response") or {}
-                processor.process_message(response)
+            last_compiled_answer = None
+            try:
+                try:
+                    for chat_response in self.session.streaming_chat(chat_request):
+                        response = chat_response.get("response") or {}
+                        processor.process_message(response)
 
-                compiled_answer = processor.get_compiled_answer()
-                if compiled_answer and compiled_answer != last_compiled_answer:
-                    last_compiled_answer = compiled_answer
-                    yield {"status": "delta", "text": compiled_answer}
-                    continue
+                        compiled_answer = processor.get_compiled_answer()
+                        if compiled_answer and compiled_answer != last_compiled_answer:
+                            last_compiled_answer = compiled_answer
+                            yield {"status": "delta", "text": compiled_answer}
+                            continue
 
-                # Not an answer-text update -- surface it as a lightweight
-                # progress note instead, same heartbeat filter
-                # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
-                # message with empty text and no structure is the server's own
-                # keepalive frame, not real progress).
-                text_field = response.get("text")
-                structure = response.get("structure")
-                if not text_field and not isinstance(structure, dict):
-                    continue
-                preview = (text_field or "").strip().replace("\n", " ")
-                if not preview and isinstance(structure, dict):
-                    preview = f"<structure: {', '.join(structure.keys())}>"
-                if not preview:
-                    continue
-                if len(preview) > 160:
-                    preview = preview[:159] + "…"
-                origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
-                yield {"status": "progress", "origin": origin_str, "text": preview}
-        except asyncio.CancelledError:
-            yield {"status": "stopped", "response": last_compiled_answer or ""}
-            return
+                        # Not an answer-text update -- surface it as a lightweight
+                        # progress note instead, same heartbeat filter
+                        # LiveTraceMessageProcessor already uses (an AGENT_PROGRESS
+                        # message with empty text and no structure is the server's own
+                        # keepalive frame, not real progress).
+                        #
+                        # A message with a "structure" payload but no "text" (observed
+                        # in practice: neuro-san's own token-accounting bookkeeping
+                        # pings, which carry a {total_tokens, prompt_tokens, ...} dict)
+                        # used to fall back to a synthetic "<structure: key1, key2,
+                        # ...>" preview -- literally the dict's field NAMES, not its
+                        # values, with zero conversational meaning -- and the web
+                        # client renders every yielded "progress" event as a visible
+                        # step in the turn's "Thinking" trace, so that leaked straight
+                        # into the chat transcript as confusing noise. The real token
+                        # totals already reach the client cleanly via this method's
+                        # own "done" event ("usage", built from
+                        # processor.get_token_accounting() below) -- this stream is
+                        # only ever meant to preview genuine progress TEXT, so a
+                        # structure-only message (no text) is simply skipped, the
+                        # same as the heartbeat case.
+                        text_field = response.get("text")
+                        if not text_field:
+                            continue
+                        preview = text_field.strip().replace("\n", " ")
+                        if not preview:
+                            continue
+                        if len(preview) > 160:
+                            preview = preview[:159] + "…"
+                        origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                        yield {"status": "progress", "origin": origin_str, "text": preview}
+                except asyncio.CancelledError:
+                    if _trace_logger.isEnabledFor(logging.INFO):
+                        _trace_logger.info(
+                            "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
+                        )
+                    yield {"status": "stopped", "response": last_compiled_answer or ""}
+                    return
 
-        self.chat_context = processor.get_chat_context()
-        returned_sly_data = processor.get_sly_data()
-        if returned_sly_data is not None:
-            if self.sly_data is not None:
-                self.sly_data.update(returned_sly_data)
-            else:
-                self.sly_data = returned_sly_data.copy()
+                self.chat_context = processor.get_chat_context()
+                returned_sly_data = processor.get_sly_data()
+                if returned_sly_data is not None:
+                    if self.sly_data is not None:
+                        self.sly_data.update(returned_sly_data)
+                    else:
+                        self.sly_data = returned_sly_data.copy()
 
-        token_accounting = processor.get_token_accounting()
-        if token_accounting and _trace_logger.isEnabledFor(logging.INFO):
-            _trace_logger.info("token accounting: %s", json.dumps(token_accounting))
-        self.last_usage = _extract_usage(token_accounting)
+                token_accounting = processor.get_token_accounting()
+                self.last_usage = _extract_usage(token_accounting)
 
-        yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+                # Previously only logged AT ALL when token_accounting happened
+                # to be present, and even then carried no duration or explicit
+                # outcome -- a successful turn with no accounting data left no
+                # trace whatsoever at INFO level, the level this project's own
+                # logging_setup.py defaults LOGLEVEL to.
+                if _trace_logger.isEnabledFor(logging.INFO):
+                    _trace_logger.info(
+                        "Chat stream turn completed: duration=%.2fs usage=%s",
+                        time.monotonic() - turn_started,
+                        json.dumps(token_accounting) if token_accounting else None,
+                    )
+
+                yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+            finally:
+                _release_any_leftover_pipeline_lock(self.sly_data)
 
 
 async def handle_logical_line(
@@ -598,6 +919,36 @@ _web_sessions: Dict[str, ChatSession] = {}
 _web_sessions_lock = threading.Lock()
 WEB_SESSION_COOKIE = "process_architect_session"
 
+# A client that creates a session and never calls DELETE /chat/<session_id>
+# (closed tab, crash, forgotten cleanup) would otherwise leak its entry here
+# -- and the live neuro-san DirectAgentSession/thinking-file directory
+# under it -- for the life of the process. Entries idle longer than this
+# are swept opportunistically by _get_or_create_web_session below.
+# Generous relative to this project's own documented ~5-10 minute typical
+# turn time, so a slow-but-active session is never evicted out from under
+# a still-engaged user.
+_WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(os.environ.get("WEBSESSIONIDLETIMEOUTSECONDS", "3600"))
+# Bounds how often the sweep below actually scans _web_sessions, independent
+# of request volume -- a pure efficiency knob, not something a deployer
+# needs to tune, so it's a plain constant rather than an env var.
+_WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
+_web_sessions_last_swept = 0.0
+
+# web_session_id -> count of requests currently holding a reference to it,
+# from the moment _get_or_create_web_session resolves/creates it through
+# the moment the caller (the /chat or /chat/stream route) is fully done
+# with it -- see _release_web_session. A COUNT, not a set/bool: two
+# overlapping requests for the SAME session_id both pin it, and the sweep
+# must keep excluding it until BOTH have released, not just whichever
+# finishes first. Pinning happens in the SAME _web_sessions_lock-protected
+# block as the lookup/creation itself, which is what closes a narrower
+# race than last_accessed alone could: without it, a request could look up
+# a session, then -- before it ever calls session.send()/send_streaming()
+# (which only THEN acquires the session's own lock) -- a concurrent sweep
+# could see that same session as idle and not yet pinned, and evict (close)
+# it out from under the request about to use it.
+_active_web_sessions: Dict[str, int] = {}
+
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
@@ -608,16 +959,32 @@ WEB_SESSION_COOKIE = "process_architect_session"
 # chat API to the network.
 _web_rate_limit_lock = threading.Lock()
 _web_rate_limit_state: Dict[str, List[float]] = {}  # client key -> timestamps within the current window
+# Unlike the timestamp lists above (self-trimming on every call for a key
+# that's actually in use), a client_key that stops making requests entirely
+# keeps its dict entry forever -- distinct IPs seen even once would
+# otherwise accumulate unbounded over the process's lifetime. Swept on the
+# same opportunistic cadence as _web_sessions above.
+_WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS = 300.0
+_web_rate_limit_last_swept = 0.0
 
 
 def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
     """Fixed 60s sliding window per client_key. limit_per_minute <= 0 disables
     the check entirely (returns True unconditionally)."""
+    global _web_rate_limit_last_swept
     if limit_per_minute <= 0:
         return True
     now = time.monotonic()
     window_start = now - 60.0
     with _web_rate_limit_lock:
+        if now - _web_rate_limit_last_swept >= _WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS:
+            _web_rate_limit_last_swept = now
+            stale_keys = [
+                key for key, timestamps in _web_rate_limit_state.items()
+                if not any(t >= window_start for t in timestamps)
+            ]
+            for key in stale_keys:
+                _web_rate_limit_state.pop(key, None)
         timestamps = [t for t in _web_rate_limit_state.get(client_key, ()) if t >= window_start]
         if len(timestamps) >= limit_per_minute:
             _web_rate_limit_state[client_key] = timestamps
@@ -628,21 +995,75 @@ def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
 
 
 def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: str):
-    """Resolve a web session id to its ChatSession. If existing_session_id is
-    missing/unknown, a fresh (isolated -- see ChatSession's own docstring)
-    ChatSession is created and registered under a new web session id, which
-    is returned alongside it."""
-    if existing_session_id:
-        with _web_sessions_lock:
-            session = _web_sessions.get(existing_session_id)
-        if session is not None:
-            return existing_session_id, session
+    """Resolve a web session id to its ChatSession, PINNING it against the
+    idle-eviction sweep below in the same locked step (see
+    _active_web_sessions's own comment for why that matters) -- the
+    caller MUST call _release_web_session(web_session_id) once it is
+    fully done with the returned session, including having called
+    session.send()/send_streaming() to completion, or the session can
+    never become eligible for eviction again. If existing_session_id is
+    missing/unknown, a fresh (isolated -- see ChatSession's own
+    docstring) ChatSession is created and registered under a new web
+    session id, which is returned alongside it (also pinned)."""
+    global _web_sessions_last_swept
 
+    now = time.monotonic()
+    evicted: List[tuple] = []
+    session = None
+    with _web_sessions_lock:
+        if now - _web_sessions_last_swept >= _WEB_SESSION_SWEEP_INTERVAL_SECONDS:
+            _web_sessions_last_swept = now
+            stale_ids = [
+                sid for sid, s in _web_sessions.items()
+                if sid not in _active_web_sessions
+                and now - s.last_accessed >= _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+            ]
+            evicted = [(sid, _web_sessions.pop(sid)) for sid in stale_ids]
+        if existing_session_id:
+            session = _web_sessions.get(existing_session_id)
+            if session is not None:
+                _active_web_sessions[existing_session_id] = _active_web_sessions.get(existing_session_id, 0) + 1
+
+    for stale_id, stale_session in evicted:
+        _web_logger.info("Evicting idle web session %s after %.0fs of inactivity.",
+                          stale_id, _WEB_SESSION_IDLE_TIMEOUT_SECONDS)
+        try:
+            stale_session.close()
+        except Exception:
+            _web_logger.exception("Error closing idle neuro-san session %s during eviction sweep.", stale_id)
+
+    if session is not None:
+        return existing_session_id, session
+
+    # Constructed outside the lock -- ChatSession's own __init__ does real
+    # I/O (neuro-san session setup, thinking-file creation), which would
+    # otherwise serialize EVERY concurrent session creation (even for
+    # unrelated users) behind this one lock.
     session = ChatSession(agent_name, isolated=True)
     web_session_id = str(uuid.uuid4())
     with _web_sessions_lock:
         _web_sessions[web_session_id] = session
+        _active_web_sessions[web_session_id] = 1
     return web_session_id, session
+
+
+def _release_web_session(web_session_id: str) -> None:
+    """Unpins web_session_id -- see _get_or_create_web_session's own
+    docstring for the contract. Also refreshes last_accessed to now: a
+    turn that ran right up to (or past) _WEB_SESSION_IDLE_TIMEOUT_SECONDS
+    would otherwise still carry its turn-START timestamp (see
+    ChatSession.send/send_streaming) the instant it finishes, making it
+    look just as idle as a genuinely abandoned session to the very next
+    sweep, even though it just finished successfully."""
+    with _web_sessions_lock:
+        remaining = _active_web_sessions.get(web_session_id, 0) - 1
+        if remaining > 0:
+            _active_web_sessions[web_session_id] = remaining
+        else:
+            _active_web_sessions.pop(web_session_id, None)
+        session = _web_sessions.get(web_session_id)
+        if session is not None:
+            session.last_accessed = time.monotonic()
 
 
 def build_web_app(agent_name: str, https: bool = True):
@@ -650,12 +1071,24 @@ def build_web_app(agent_name: str, https: bool = True):
     Build (but do not run) the Flask REST app for -d/--detached --flask mode.
 
     Exposes the SAME routes/shapes as the ADK original's build_web_app:
-      POST   /chat            {"query": "...", "session_id": "..." (optional)}
+      POST   /chat            {"query": "...", "session_id": "..." (optional),
+                               "files": [{"name": "...", "mime_type": "...",
+                               "data_base64": "..."}, ...] (optional, up to
+                               ATTACHMENT_MAX_FILES entries, each up to
+                               ATTACHMENT_MAX_BYTES decoded)}
                                -> {"status": "ok", "session_id": "...",
                                    "query": "...", "response": "...",
                                    "usage": {"prompt_tokens": N,
                                    "completion_tokens": N, "total_tokens": N,
                                    "model": "..."} or null}
+                               Attached files are staged to this session's
+                               fixed on-disk directory (see
+                               _parse_attachments/stage_attachments_to_directory)
+                               and that directory's path is appended to the
+                               query text as a literal
+                               "[ATTACHMENT DIRECTORY: ...]" marker, NOT sent
+                               to the LLM as genuine multimodal content --
+                               see ATTACHMENT_MAX_FILES's own comment for why.
       POST   /chat/stream      Same request body; response is
                                text/event-stream instead -- a live
                                sequence of `data: {...}\n\n` events
@@ -701,6 +1134,10 @@ def build_web_app(agent_name: str, https: bool = True):
 
     web_app = Flask("ProcessArchitectWebServiceNS")
     web_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    # Rejects an oversized request at the WSGI layer, before Flask reads any
+    # of its body -- see MAX_REQUEST_BODY_BYTES's own comment for why this
+    # has to happen before request.get_json(), not after.
+    web_app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 
     api_key = os.environ.get("WEBAPIKEY")
     if not api_key:
@@ -759,17 +1196,30 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
 
+        web_session_id = None
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
-            response_text = session.send(query.strip())
+            response_text = session.send(query.strip(), files=files)
         except Exception:
             _web_logger.exception("Web chat error")
             return jsonify({
                 "status": "error",
                 "error": "An internal error has occurred.",
             }), 500
+        finally:
+            # Unpins the session resolved above (see
+            # _get_or_create_web_session's own docstring for the
+            # pin/release contract) regardless of how this turn ended --
+            # a leaked pin would make the session permanently ineligible
+            # for the idle-eviction sweep.
+            if web_session_id is not None:
+                _release_web_session(web_session_id)
 
         resp = make_response(jsonify({
             "status": "ok",
@@ -809,6 +1259,10 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": "Field 'query' is required and must be a non-empty string.",
             }), 400
 
+        files, files_error = _parse_attachments(payload)
+        if files_error:
+            return jsonify({"status": "error", "error": files_error}), 400
+
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
         # Resolved up front (not inside the generator below) so the
         # session id is known -- and its cookie set -- before the
@@ -817,12 +1271,23 @@ def build_web_app(agent_name: str, https: bool = True):
 
         def generate():
             try:
-                for update in session.send_streaming(query.strip()):
-                    yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
-            except Exception:
-                _web_logger.exception("Web chat stream error")
-                error_event = {"status": "error", "session_id": web_session_id, "error": "An internal error has occurred."}
-                yield f"data: {json.dumps(error_event)}\n\n"
+                try:
+                    for update in session.send_streaming(query.strip(), files=files):
+                        yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+                except Exception:
+                    _web_logger.exception("Web chat stream error")
+                    error_event = {
+                        "status": "error", "session_id": web_session_id, "error": "An internal error has occurred.",
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
+            finally:
+                # Unpins the session resolved above (see
+                # _get_or_create_web_session's own docstring for the
+                # pin/release contract) whenever this generator ends --
+                # normal completion, the in-band error event above, or the
+                # client disconnecting mid-stream (GeneratorExit unwinds
+                # through this finally the same as any other exception).
+                _release_web_session(web_session_id)
 
         resp = Response(generate(), mimetype="text/event-stream")
         resp.headers["Cache-Control"] = "no-cache"
@@ -885,10 +1350,11 @@ def build_web_app(agent_name: str, https: bool = True):
         # the underlying neuro-san DirectAgentSession holds its own
         # server-side resources (invocation context) until explicitly
         # closed, or it leaks for the life of the process across repeated
-        # create/delete cycles.
+        # create/delete cycles -- same reason ChatSession.close() also
+        # cleans up any attachment-staging directory still on disk.
         if existed:
             try:
-                session.session.close()
+                session.close()
             except Exception:
                 _web_logger.exception("Error closing neuro-san session %s", session_id)
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
@@ -1099,18 +1565,6 @@ async def run_cli() -> None:
         f"Process Architect Orchestrator (local mode, agent={args.agent})\n",
         kind="info",
     )
-
-    """ display_text(
-        f"To see the thinking involved with the agent:\n\n"
-        f"    tail -f {_THINKING_FILE}\n\n"
-        f"or see any one of the per-agent files under {_THINKING_DIR}/ for this project's own "
-        f"equivalent of the ADK original's output/logs/pipeline_*.log. Framework/application "
-        f"logging (this project's own tool/sub-agent trace at DEBUG, token accounting at INFO, "
-        f"neuro-san/langchain's own warnings) goes to {_APP_LOG_FILE} at whatever level the "
-        f"LOGLEVEL env var sets (default WARNING -- quiet). Set LOGLEVEL=DEBUG before running for "
-        f"full tracing; a WARNING+ copy always prints to this terminal regardless.",
-        kind="debug",
-    ) """
 
     if args.file:
         await process_file(args.file, args.agent)

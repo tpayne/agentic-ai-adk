@@ -23,7 +23,12 @@ from process_toolkit.loop_control import (
     reset_counter,
     load_approval_state,
 )
-from process_toolkit.run_lock import acquire_pipeline_lock, release_pipeline_lock
+from process_toolkit.run_lock import (
+    acquire_pipeline_lock,
+    release_pipeline_lock,
+    start_pipeline_lock_heartbeat,
+    stop_pipeline_lock_heartbeat,
+)
 
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
@@ -72,9 +77,21 @@ def acquire_pipeline_lock_for_turn(label: str, context) -> str:
 
     context may be None (a caller invoked directly, e.g. a test, with no
     ADK-managed context) -- falls back to a plain, non-reentrant
-    acquire_pipeline_lock call in that case."""
+    acquire_pipeline_lock call in that case.
+
+    Also (re)starts this token's background heartbeat (see
+    process_toolkit.run_lock) -- idempotent for the reentrant-reuse case
+    above, so the two calls within one turn share a single heartbeat
+    rather than each starting their own. The heartbeat, not this
+    function's own call sites, is what actually keeps a still-running
+    pipeline's lease fresh between here and release_pipeline_lock_for_turn
+    -- there is no guarantee either tool call happens again soon enough
+    on its own (e.g. during a single long generate/review phase, or a
+    pause awaiting the next piece of user input)."""
     if context is None:
-        return acquire_pipeline_lock(label)
+        token = acquire_pipeline_lock(label)
+        start_pipeline_lock_heartbeat(label, token)
+        return token
 
     current_invocation_id = context.invocation_id
     stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
@@ -87,6 +104,7 @@ def acquire_pipeline_lock_for_turn(label: str, context) -> str:
         "invocation_id": current_invocation_id,
         "token": token,
     }
+    start_pipeline_lock_heartbeat(label, token)
     return token
 
 
@@ -100,9 +118,12 @@ def release_pipeline_lock_for_turn(context) -> None:
     place, so no cross-turn confusion is possible on the release side.
     Safe to call with context=None or an empty/missing key -- that just
     means nothing was ever acquired, and release_pipeline_lock(None) is
-    itself a no-op."""
+    itself a no-op. Stops that token's heartbeat (if any) before
+    releasing the lock itself, so the heartbeat can never fire again
+    against a lock this call has already given up."""
     stored = context.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if context is not None else None
     token = stored.get("token") if isinstance(stored, dict) else None
+    stop_pipeline_lock_heartbeat(token)
     release_pipeline_lock(token)
 
 # ---------- Programmatic stop/kill-switch tool ----------
@@ -275,7 +296,14 @@ def restore_console():
     undoing silence_console's redirect once the pipeline run finishes."""
     time.sleep(float(getProperty("modelSleep")) + random.random() * 0.75)
     logger.debug("Restoring console output.")
+    previous = sys.stdout
     sys.stdout = sys.__stdout__
+    if isinstance(previous, CleanedStdout):
+        # silence_console's own file handle -- never closed otherwise, so
+        # every silence/restore cycle (one per generation pipeline run)
+        # leaked a file descriptor relying on garbage collection to
+        # eventually reclaim it instead of a deterministic close.
+        previous.close()
     print(f"{ANSI_GREEN}- Finished generation pipeline at {time.strftime('%Y-%m-%d %H:%M:%S')}...{ANSI_RESET}", end="\n")
     sys.stdout.flush()
     return "Console output restored."

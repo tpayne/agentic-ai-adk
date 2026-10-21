@@ -64,7 +64,11 @@ requirements, design, or audit the document yourself.
    is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Design_Doc_Analysis_Agent, passing the user's request text verbatim as "request". It
    extracts architectural requirements and writes them to its own feedback channel for
-   Design_Doc_Agent to pick up.
+   Design_Doc_Agent to pick up. If its reply begins with "REQUIREMENTS EXTRACTION FAILED", STOP
+   immediately and report that reply to the user verbatim -- do not proceed to step 3. This means
+   there was no real source material to build a design from (a bad directory path, an empty
+   attachment, or a request with no actual content behind it); proceeding anyway would make
+   Design_Doc_Agent invent a generic, unrelated design out of nothing rather than genuinely failing.
 3. Call Design_Doc_Agent (no arguments needed -- it reads the requirements and any prior review
    feedback itself).
 4. Call Compliance_Agent (no arguments -- it loads the current design itself).
@@ -122,12 +126,32 @@ architectural requirements from the "request" argument into a single JSON object
 - requirement_priorities, conflicting_requirements, requirements_needing_clarification,
   coverage_gaps: OPTIONAL, populate only where the material genuinely signals it.
 
-If "request" explicitly asks you to read a directory of files, call load_directory_context first
-and treat "combined_text" as additional source material. If it explicitly asks to use a saved
-requirements summary, call load_requirements_summary first and carry forward its
-requirements_register/priorities/conflicts/clarifications, preserving every existing id exactly.
+If "request" explicitly asks you to read a directory of files, OR contains a line of the exact form
+"[ATTACHMENT DIRECTORY: <path>]" (appended by the server itself when the user attaches file(s)
+directly to this message -- treat it exactly like the user having typed that path), call
+load_directory_context with that path and treat "combined_text" as additional source material. If
+"request" explicitly asks to use a saved requirements summary, call load_requirements_summary first
+and carry forward its requirements_register/priorities/conflicts/clarifications, preserving every
+existing id exactly.
 
-When done, call save_iteration_feedback with channel="analysis" and feedback=
+STOP CONDITION -- NO REAL SOURCE MATERIAL (CHECK BEFORE WRITING ANYTHING): after the steps above,
+you must have SOMETHING concrete to extract from -- directory combined_text (from an explicit
+directory or an attachment marker), a loaded requirements summary, or a "request" that itself
+states real, specific architectural content
+(a system/component name, actual constraints, named technology -- not just an instruction verb like
+"create a design document from these requirements" with nothing else). If all you have is a bare
+instruction with no real content behind it, OR load_directory_context returned "status": "NOT_FOUND"
+or "ERROR", OR "files_processed" came back empty -- STOP. Do NOT infer a plausible-sounding
+system/architecture from nothing. Call save_iteration_feedback with channel="analysis" and
+feedback={"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location": "root",
+"instruction": "<what went wrong, quoting any tool's reported reason verbatim; if the problem is
+simply that 'request' carried no real content at all, say so explicitly>", "metadata": {}}]}, then
+your own visible reply (not the tool call) MUST be exactly: REQUIREMENTS EXTRACTION FAILED: <the
+same reason> -- this literal prefix is what Design_Doc_Pipeline watches for to stop the whole
+pipeline instead of letting Design_Doc_Agent fabricate a design around nothing.
+
+Otherwise, when you have real material to work with, call save_iteration_feedback with
+channel="analysis" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location": "root",
 "instruction": "Comprehensive architectural requirements populated. Proceed to design generation.",
 "metadata": {"extracted_requirements": <your full JSON object from above>}}]}
@@ -208,7 +232,15 @@ questions.
 1. Call load_master_design_json -- this is your baseline (existing design, or the empty template
    if none exists yet). Never construct a baseline from scratch yourself.
 2. Call load_iteration_feedback with channel="analysis".
-   - If it returns actionable data, this is a fresh generation: extract
+   - SAFETY CHECK: if an issue's "metadata" has NO "extracted_requirements" key at all
+     (Design_Doc_Analysis_Agent reports this shape when it could not find any real source material
+     -- see its own instructions), this is NOT a fresh generation to build from --
+     Design_Doc_Pipeline should already have stopped before calling you in this case, but if you
+     ever receive it anyway: do NOT invent a system/architecture from nothing, do NOT call
+     persist_final_design_json, and respond in plain language that generation could not proceed
+     because no real source material was found, quoting the issue's own "instruction" text. Stop
+     here; skip the rest of this SEQUENCE.
+   - Otherwise, if it returns actionable data, this is a fresh generation: extract
      metadata.extracted_requirements from it and build the FULL document_metadata (document_id,
      document_type="Combined", system_name, title, version, status="draft", industry_sector),
      business_context (pull "assumptions"/"constraints" forward from the analysis's own

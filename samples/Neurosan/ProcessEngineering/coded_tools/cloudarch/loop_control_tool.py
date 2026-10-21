@@ -2,7 +2,7 @@ from typing import Any, Dict, Union
 
 from coded_tools.common.loop_control import LoopControlCodedTool as _SharedLoopControlCodedTool
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
-from process_toolkit.run_lock import release_pipeline_lock
+from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
 
 __all__ = ["LoopControlCodedTool"]
 
@@ -25,5 +25,7 @@ class LoopControlCodedTool(_SharedLoopControlCodedTool):
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         result = super().invoke(args, sly_data)
         if isinstance(result, dict) and result.get("verdict") == "STOP":
-            release_pipeline_lock(sly_data.get(PIPELINE_LOCK_TOKEN_KEY))
+            token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+            stop_pipeline_lock_heartbeat(token)
+            release_pipeline_lock(token)
         return result
