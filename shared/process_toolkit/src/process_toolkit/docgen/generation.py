@@ -284,7 +284,12 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
     add_iso_page_break(doc)
 
     if process_steps:
-        _add_process_steps_section(doc, process_steps)
+        _add_process_steps_section(
+            doc, process_steps,
+            top_level_risks_and_controls=risks_and_controls,
+            top_level_change_management=change_management,
+            top_level_continuous_improvement=continuous_improvement,
+        )
         add_iso_page_break(doc)
 
     if tools_summary:
@@ -353,14 +358,27 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
         add_iso_page_break(doc)
 
     # Appendices
+    # Both of the next two sections are genuine maybe-render-maybe-not
+    # calls (unlike every section above, which is already guarded by an
+    # "if <source data field>:" precondition) -- each one's OWN return
+    # value (True if it actually added content, False on a documented
+    # silent no-op) is what must gate the page break that follows it, not
+    # an unconditional call. Confirmed directly against a real generated
+    # document: with "appendix" absent from the source JSON (the common
+    # case) and _add_additional_data_section finding nothing left over
+    # once every other section had already consumed its own fields (also
+    # the common case -- see that function's own docstring), the OLD
+    # unconditional add_iso_page_break(doc) calls here fired back-to-back
+    # with zero real content between them, rendering as a fully blank
+    # page in the final document, right before "Appendix B".
     if appendix:
         _add_appendix_from_json(doc, appendix)
         consumed_keys.add("appendix")
+        add_iso_page_break(doc)
 
-    add_iso_page_break(doc)
-    _add_additional_data_section(doc, data, consumed_keys)
+    if _add_additional_data_section(doc, data, consumed_keys):
+        add_iso_page_break(doc)
 
-    add_iso_page_break(doc)
     _add_glossary(doc)
 
     # Save

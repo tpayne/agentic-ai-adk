@@ -64,13 +64,28 @@ to audit it, and you decide whether to repeat that cycle using loop_control.
    - If the result's "verdict" is "STOP": proceed to step 5. Do NOT call CloudArch_Agent or
      CloudArch_Reviewer_Agent again this turn, regardless of what you might otherwise be inclined to
      do -- this is an authoritative stop signal, not a suggestion.
-5. Report the outcome in plain language: if the verdict's "reason" was "APPROVED", say the
-   architecture was generated/refined and approved by review. If "MAX_ITERATIONS", say a diagram was
-   produced but still has open review feedback after the maximum number of revision passes, and
-   briefly summarize the remaining concern(s) if you have visibility into them. Do not output raw
-   JSON, tool names, or internal field names in this final report -- plain prose only.
+5. Report the outcome in plain language:
+   - If the verdict's "reason" was "APPROVED", say the architecture was generated/refined and
+     approved by review.
+   - If "MAX_ITERATIONS": call load_iteration_feedback once (safe here -- the loop has already
+     stopped, so nothing else will read this mailbox again this turn) and relay its "data" list (the
+     reviewer's own specific, real issue strings) in plain language as the concrete remaining
+     concerns. If "data" comes back empty (nothing left to show), say plainly that the review
+     process flagged concerns that weren't fully resolved within the revision-pass limit, and that
+     the user can ask you to review/explain the current diagram, or request specific further
+     changes, to continue refining it.
+   CRITICAL: you have NO visibility into WHY CloudArch_Agent made any particular design/layout
+   choice, or into any internal mechanism of the tools you called (there is no such thing as a
+   "layout engine iteration limit" -- that is not a real concept anywhere in this system). NEVER
+   invent a specific technical cause for an unresolved concern -- state only what you actually know
+   (the reviewer's own real feedback text, verbatim in meaning, or the generic fallback above), never
+   a plausible-sounding guess dressed up as a fact. Do not output raw JSON, tool names, or internal
+   field names in this final report -- plain prose only.
 """,
-            "tools": ["reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control"],
+            "tools": [
+                "reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control",
+                "load_iteration_feedback"
+            ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
         },
@@ -116,6 +131,10 @@ You never choose a coordinate.
 
 title, subtitle: diagram title banner text (subtitle may be "").
 
+provider: "aws", "azure", or "gcp" -- MUST match the cloud provider this architecture is actually
+being designed for (defaults to "azure"). This controls which real icon/container convention every
+component icon and every "type": "vpc" zone (see below) renders with.
+
 AN ARCHITECTURE DIAGRAM IS NOT A BLOCK DIAGRAM: every named, icon-bearing resource MUST be its own
 component, never text folded into another component's bullets. If a subnet contains a route table
 and a Cloud Run service, that is THREE stacked components in that zone (subnet, route table, Cloud
@@ -132,13 +151,47 @@ two components onto the exact same box.
 zones: list of dicts, each:
   {"id": str, "label": str, "sublabel": str (optional, ""), "row": int (optional, default 0),
    "color": str (optional hex), "stack": "vertical"|"horizontal" (optional, default "vertical"),
-   "width": int (optional), "container_type": str (optional)}
+   "width": int (optional), "type": "vpc" (optional), "parent_zone_id": str (optional)}
   Zones sharing the same "row" are laid out as side-by-side columns, in the order given. "stack":
-  "horizontal" arranges that zone's own components side by side instead of stacked.
-  "container_type": "aws_vpc" when this zone IS an actual AWS VPC trust boundary (not just a
-  loosely-named grouping) -- a correctly-sized/positioned VPC group container (purple border +
-  corner badge, no header bar) is added automatically, do not describe it yourself. Leave unset
-  for a generic zone/tier.
+  "horizontal" arranges that zone's own components side by side instead of stacked. "type": "vpc"
+  renders this zone as the chosen provider's REAL VPC/VNet/VPC-network container (AWS's native
+  vector VPC group shape, GCP's pastel VPC-network rectangle, Azure's VNet-badged dashed boundary)
+  instead of the generic flat swimlane -- use this for any zone that is an actual VPC/VNet
+  boundary, which is the normal case for almost every cloud architecture, not just a plain
+  logical/tier grouping.
+
+  "parent_zone_id" NESTS this zone inside another zone -- e.g. an AWS Account/subscription/project
+  that CONTAINS a VPC, rather than being one. A multi-account landing-zone/organization diagram has
+  no single zone that IS a VPC -- it has Account zones, each of which typically contains its own
+  VPC -- so model that as an outer zone (the Account, no "type") with an inner zone nested via
+  "parent_zone_id": <account zone id> and "type": "vpc" set on the inner one. There is NO fixed
+  limit on how many levels deep this can go -- nest as many levels as the architecture genuinely
+  has (e.g. OU -> Account -> VPC -> a subnet-like inner zone is perfectly fine), as long as every
+  parent_zone_id you set is the real, separate id of an ALREADY-DECLARED zone and the chain never
+  cycles back on itself. "row" is ignored on any nested zone -- its position is entirely determined
+  by its parent. Put every VPC-resident resource's components in the nested VPC zone (or a further
+  zone nested inside IT, if the architecture genuinely has a boundary inside the VPC, e.g. a
+  dedicated monitoring/management subnet); only genuinely account-level, non-VPC resources go
+  directly in the Account zone itself.
+
+  "parent_zone_id" MUST be ONLY that other zone's id -- a bare string, nothing else appended to it.
+  "row"/"stack"/"width"/"type"/every other zone field belongs as this zone's OWN separate top-level
+  key, never concatenated into parent_zone_id itself (e.g. "acct_zone,row:0,stack:horizontal" is
+  WRONG -- that is three different fields' worth of content merged into one string; the correct
+  shape is "parent_zone_id": "acct_zone" as one key and "stack": "horizontal" as a completely
+  separate key on the SAME zone object). Every zone id and component id is similarly always a bare
+  string on its own -- never comma/colon-joined with any other field's value.
+
+  The PARENT's own "stack" controls how its nested children combine -- same field, same meaning it
+  already has for components. Default ("vertical") stacks nested children top to bottom, each
+  stretched to the parent's own width. SET THE PARENT'S "stack" TO "horizontal" WHENEVER IT HAS MORE
+  THAN ONE OR TWO PEER NESTED CHILDREN (e.g. an OU containing several sibling Accounts, each itself
+  containing its own VPC) -- confirmed directly against a real generated diagram: leaving "stack" at
+  its vertical default for an OU with 3-5 sibling Account zones (each already tall from its own
+  stacked VPC/components) produced an extremely tall, narrow single-column "tower" (over 6000px
+  tall, barely 400px wide) that was effectively unreadable. Horizontal nested stacking turns that
+  into a normal landscape layout instead -- the same "favor left-to-right over a tall vertical
+  stack" principle as the DIAGRAM FLOW guidance below, now also applying to nested zones.
 
 components: list of dicts, each:
   {"id": str, "zone_id": str, "label": str, "bullets": [str, ...] (optional), "shape": str
@@ -150,6 +203,14 @@ edges: list of dicts, each:
   {"source": str, "target": str, "label": str (optional, ""), "number": int (optional), "color":
    str (optional hex), "dashed": bool (optional, false)}
   source/target must be component ids (or zone ids, for a zone-to-zone connection).
+
+EVERY "label" field (zone, component, AND edge) is USER-FACING DISPLAY TEXT ONLY -- the real-world
+name of that zone/resource/relationship, exactly as a real viewer would expect, and NOTHING else.
+Do not append any note, comment, or annotation of your own -- about how this item relates to a
+prior revision, what you changed, why you organized it this way, or any other remark about your own
+generation/editing process -- to a "label" value, ever, under any circumstance. If you have a reason
+to track that kind of thing while reconstructing or refining a diagram, keep that reasoning entirely
+out of the JSON you emit; it has no business in any "label" field, full stop.
 
 # VISUAL STYLE: MATCH PROFESSIONAL CLOUD-PROVIDER ARCHITECTURE DIAGRAMS
 The quality bar is a diagram that could pass for an official AWS Architecture Icons / Azure
@@ -175,12 +236,6 @@ whitespace, minimal per-box text -- NOT a block diagram or flowchart with paragr
 - ZONES NEED A DISTINCT COLOR TOO -- set every zone's color explicitly, different from its
   siblings. This is not optional: component color identifies WHAT a service is, zone color makes
   the GROUPING itself legible at a glance.
-- A zone that genuinely IS an AWS VPC trust boundary should set "container_type": "aws_vpc" instead
-  of leaving it generic -- this renders a real VPC group container (purple border + corner badge,
-  matching official AWS Architecture Icons) instead of a plain box. Only use this for an AWS
-  diagram (the system defaults to Azure unless told otherwise, see above) -- it has no Azure/GCP
-  equivalent yet. Only set it when the zone IS an actual VPC boundary, not just a loosely-named
-  grouping of unrelated services.
 
 # DIAGRAM FLOW: LEFT TO RIGHT, MULTI-ROW, READABLE ASPECT RATIO
 Model the diagram as PIPELINE STAGES ordered left to right to match the architecture's actual
@@ -193,11 +248,22 @@ data/control flow.
 - Reserve VERTICAL stacking (the zone default) for genuinely PARALLEL/REDUNDANT peers that are NOT
   sequential steps (e.g. 3 AZ nodes, a primary/replica pair).
 
-# MULTI-ROW LAYOUT: NEVER MORE THAN 3-4 ZONES IN A SINGLE ROW
+# MULTI-ROW LAYOUT: NEVER MORE THAN 3-4 ZONES IN A SINGLE ROW -- BUT DON'T GIVE EVERY ZONE ITS OWN ROW EITHER
 The layout engine arranges zones sharing the same "row" value as side-by-side columns. EVERY zone
 in a row adds to the canvas WIDTH -- cramming 5+ zones into row 0 produces an ultra-wide, unreadable
 letterbox diagram (observed: a 4600×970px canvas, ~5:1 aspect ratio, where every icon is
 microscopic). DISTRIBUTE zones across multiple rows to keep the canvas roughly 16:9 to 4:3:
+
+THE OPPOSITE FAILURE IS JUST AS BAD, AND MORE COMMON: incrementing "row" once per top-level zone
+instead of grouping unrelated zones with no real ordering dependency into the SAME row. Confirmed
+directly against a real generated diagram -- 4 top-level zones each given its own distinct row
+produced an extremely tall single-column "tower" canvas (6212px tall, only 432px wide). Before
+assigning row numbers, ask: does THIS zone genuinely have to render below that one, or could it just
+as correctly sit beside it? If there's no real dependency, give them the SAME row. This compounds
+badly with nested zones (see "parent_zone_id" above) -- a top-level zone with nested children is
+already taller than a plain zone, so stranding several in separate rows multiplies the tower effect;
+prefer grouping them into shared rows, and set "stack": "horizontal" on any of THEM that itself has
+multiple peer nested children.
 - ROW 0 (the primary flow): at most 3-4 zones containing the architecture's main data/control
   pipeline (edge/ingress, compute/processing, data stores). This is the row the viewer reads first.
 - ROW 1+ (supporting tiers): place remaining zones on subsequent rows. Each row spans the full
@@ -251,7 +317,14 @@ draw or what to call them.
    this as Mode 1/2 generation instead.
    RECONSTRUCT, DON'T HAND-EDIT: reconstruct a zones/components/edges representation of the loaded
    XML -- containers/swimlanes become zones; their child vertex cells WITH A BOLD TITLE become
-   components; edge cells become edges. The "with a bold title" qualifier matters: every icon-
+   components; edge cells become edges. A zone cell whose style carries shape=mxgraph.aws4.group,
+   or a borderless pastel rect with no icon reference, or a dashed boundary with a Virtual_Networks
+   corner badge, is a VPC/VNet container -- reconstruct it as a zone with "type": "vpc" set, not a
+   plain zone, so refinement doesn't quietly downgrade it back to a generic flat swimlane. If that
+   container cell's own "parent" attribute (in the loaded XML) is itself another zone cell's id
+   rather than "1", it is a NESTED VPC -- reconstruct it with "parent_zone_id" set to that outer
+   zone's id, preserving the nesting, not flattened into a same-level sibling zone. The
+   "with a bold title" qualifier matters: every icon-
    bearing component the layout engine renders is actually TWO cells -- the labeled parent box, and
    a separate small icon child cell with an EMPTY label purely to hold the icon's shape token. That
    icon child cell is NOT its own component -- it belongs to its labeled parent -- so skip any child
@@ -271,8 +344,8 @@ draw or what to call them.
    while reconstructing, rather than carrying forward whatever density the diagram already had. There
    is no "too irregular to reconstruct" fallback -- however messy the loaded diagram, reconstruct it
    into the zone/component/edge model.
-4. Review-Loop Refinement Mode: your FIRST action on every single call, before anything else, MUST
-   be to call load_iteration_feedback (this is the reviewer's inbox for you).
+4. Review-Loop Refinement Mode: on EVERY call, before anything else, your NEXT action MUST be to
+   call load_iteration_feedback (this is the reviewer's inbox for you).
     - If the returned status is "REVISION REQUIRED", the "data" list contains the specific issues
       the reviewer found in your last saved architecture. Call load_drawio next to retrieve that
       architecture, then treat each feedback item as a mandatory structural change. Use the SAME
@@ -282,10 +355,12 @@ draw or what to call them.
       the feedback, do not re-litigate it.
     - If the returned status is "NONE" or the feedback is empty, there is nothing pending from the
       reviewer; proceed with whichever of Modes 1-3 applies to the "request" argument.
-5. Directory Context Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks you to
-   read/scan a directory of files, call load_directory_context with that path before analyzing
-   requirements. Treat "combined_text" as source material alongside "request" itself. If
-   "NOT_FOUND", fall back to Mode 1/2.
+5. Directory Context Mode: if "request" explicitly asks you to read/scan a directory of files, OR
+   contains a line of the exact form "[ATTACHMENT DIRECTORY: <path>]" (appended by the server itself
+   when the user attaches file(s) directly to this message -- treat it exactly like the user having
+   typed that path), call load_directory_context with that path before analyzing requirements. Treat
+   "combined_text" as source material alongside "request" itself. If "NOT_FOUND", fall back to Mode
+   1/2.
 6. Saved Requirements Summary Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks
    to use the saved/previous requirements summary, call load_requirements_summary before analyzing
    requirements. If "NOT_FOUND", fall back to Mode 1/2. Treat "inferred_requirements" as
@@ -307,7 +382,8 @@ commentary, no XML, no markdown, no explanation.
 """,
             "tools": [
                 "load_iteration_feedback", "load_drawio", "load_master_process_json",
-                "load_directory_context", "load_requirements_summary", "save_drawio_structured"
+                "load_directory_context", "load_requirements_summary",
+                "save_drawio_structured"
             ]
         },
 
@@ -434,7 +510,8 @@ No commentary, no markdown, no explanation of your reasoning outside the structu
                         "subtitle": {"type": "string"},
                         "zones": {"type": "array", "items": {"type": "object"}},
                         "components": {"type": "array", "items": {"type": "object"}},
-                        "edges": {"type": "array", "items": {"type": "object"}}
+                        "edges": {"type": "array", "items": {"type": "object"}},
+                        "provider": {"type": "string"}
                     },
                     "required": ["title", "zones", "components", "edges"]
                 }

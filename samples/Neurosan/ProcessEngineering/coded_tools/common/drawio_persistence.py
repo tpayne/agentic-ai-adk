@@ -10,11 +10,14 @@ nothing for a repair pass to fix. load_drawio_xml has no such asymmetry
 via process_toolkit.drawio.persistence.
 """
 
+import logging
 import os
 import xml.etree.ElementTree as ET
 
 from process_toolkit.drawio.persistence import load_drawio_xml  # noqa: F401
 from process_toolkit.paths import output_path
+
+logger = logging.getLogger("ProcessArchitect.DrawioPersistence")
 
 DRAWIO_FILENAME = "cloudarch_drawio.xml"
 
@@ -33,7 +36,12 @@ def save_drawio_xml(xml_content: str) -> dict:
                 if existing.read().strip() == xml_content.strip():
                     return {"status": "OK", "message": f"The file {path} is unchanged."}
         except Exception:
-            pass
+            # Purely an optimization (skip an unnecessary identical
+            # rewrite) -- falling through to the unconditional write
+            # below is still correct either way, but a silently
+            # recurring failure here (e.g. a permissions issue) was
+            # previously invisible with zero trace.
+            logger.debug("Could not compare existing %s for the no-op-write check.", path, exc_info=True)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(xml_content)

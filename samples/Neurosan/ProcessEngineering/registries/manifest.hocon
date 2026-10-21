@@ -33,6 +33,7 @@
     "design_consultant.hocon": true,
     "design_scenario_tester.hocon": true,
     "design_simulation_query.hocon": true,
+    "regenerate_document.hocon": true,
     "process_architect.hocon": true,
 
     #

@@ -6,13 +6,15 @@ persists the result.
 """
 
 import asyncio
-import traceback
+import logging
 from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
 from process_toolkit.cloudarch.layout import build_structured_drawio_xml
 from coded_tools.common.drawio_persistence import save_drawio_xml
+
+logger = logging.getLogger("ProcessArchitect.SaveDrawioStructured")
 
 
 class SaveDrawioStructuredCodedTool(CodedTool):
@@ -29,8 +31,21 @@ class SaveDrawioStructuredCodedTool(CodedTool):
                 zones=args.get("zones") or [],
                 components=args.get("components") or [],
                 edges=args.get("edges") or [],
+                provider=args.get("provider") or "azure",
             )
         except Exception as e:
+            # The full traceback is logged server-side only, not
+            # returned to the caller -- it previously flowed into
+            # neuro-san's own chat/progress stream as part of this
+            # result, which the web client's "Thinking" panel renders
+            # verbatim to whoever is watching the turn (file paths,
+            # internal function/line detail, no real benefit to an
+            # agent that's already told exactly what to check below).
+            # None of the other CodedTool wrappers in this directory
+            # echo a traceback into their result either. The exception's
+            # own short message (e, not the traceback) IS still useful,
+            # actionable detail, so that stays in "error" same as before.
+            logger.exception("Failed to build the diagram from structured input.")
             return {
                 "status": "ERROR",
                 "error": (
@@ -38,9 +53,8 @@ class SaveDrawioStructuredCodedTool(CodedTool):
                     "Check that every zone id and every component id is unique across "
                     "the whole diagram, that every component's zone_id references a "
                     "real zone id, and that every edge's source/target reference real "
-                    "component or zone ids."
+                    "component or zone ids. Check logs for the full error."
                 ),
-                "trace": traceback.format_exc(),
             }
 
         return save_drawio_xml(xml_content)

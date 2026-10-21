@@ -30,6 +30,7 @@ PORTED_NETWORKS = [
     "registries/design_consultant.hocon",
     "registries/design_scenario_tester.hocon",
     "registries/design_simulation_query.hocon",
+    "registries/regenerate_document.hocon",
     "registries/process_architect.hocon",
 ]
 

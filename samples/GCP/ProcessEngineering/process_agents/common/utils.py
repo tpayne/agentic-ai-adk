@@ -581,6 +581,104 @@ def _detect_schema_type_from_disk() -> str:
     return "process"
 
 
+def _is_pid_alive(pid: int) -> bool:
+    """POSIX-only (this project targets Linux CI/Docker; see
+    process_toolkit's run_lock.py for the same convention): whether `pid`
+    is a live process this machine still has running. os.kill(pid, 0)
+    sends no actual signal -- it only performs the kernel's existence/
+    permission check."""
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Exists, just not signalable by us -- still alive, extremely
+        # unlikely for a pid this same lock file's own creator wrote
+        # moments ago, but treated as "alive" rather than risk stealing
+        # a live lock on an ambiguous read.
+        return True
+    except Exception:
+        # Any other unexpected error (e.g. a corrupt/non-numeric pid) --
+        # conservatively assume the lock is still live rather than risk
+        # two writers proceeding at once.
+        return True
+
+
+def _acquire_sentinel_lock(lock_path: str, label: str, timeout: float = 5.0) -> bool:
+    """
+    Advisory sentinel-file lock guarding a single output file against
+    concurrent writers -- shared by save_drawio (output/cloudarch_drawio.xml)
+    and _save_raw_data_to_json (process_data.json/design_data.json), which
+    each used to carry their own copy-pasted version of this exact logic.
+
+    Stale-lock-aware, unlike the two implementations this replaced: the
+    lock file's own content is the PID that created it, so a lock left
+    behind by a process that has since died (crashed, killed, exited
+    without calling the matching _release_sentinel_lock) is detected via
+    a POSIX liveness check (_is_pid_alive) and reclaimed immediately,
+    rather than blocking every future save until a human notices and
+    deletes the file by hand.
+
+    Lock creation itself uses O_CREAT|O_EXCL (atomic at the OS level,
+    unlike a separate exists-check-then-write, which has a race window
+    between the two) -- two callers can never both believe they created
+    a fresh lock. Reclaiming a confirmed-stale lock has a narrower,
+    harmless residual race: two callers can both decide the same lock is
+    stale and both remove it, but only one of them then wins the
+    following O_EXCL create; the other sees FileExistsError again and
+    correctly loops back to evaluate whatever (now-live) lock is there.
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(fd, str(os.getpid()).encode("utf-8"))
+            finally:
+                os.close(fd)
+            return True
+        except FileExistsError:
+            pass  # someone else holds it (or held it) -- evaluate below
+        except Exception as e:
+            logger.error(f"Failed to create {label} lock file: {e}")
+            time.sleep(0.1)
+            continue
+
+        holder_pid = None
+        try:
+            with open(lock_path, "r", encoding="utf-8") as lf:
+                holder_pid = int(lf.read().strip())
+        except (OSError, ValueError):
+            holder_pid = None  # unreadable/corrupt -- treated as stale below
+        if holder_pid is None or not _is_pid_alive(holder_pid):
+            logger.warning(
+                "Reclaiming stale %s lock at %s (holder pid %s is no longer running).",
+                label, lock_path, holder_pid,
+            )
+            try:
+                os.remove(lock_path)
+            except OSError:
+                pass
+            continue  # retry the atomic create immediately, no sleep needed
+
+        time.sleep(0.1)
+    logger.error(f"Timeout acquiring {label} lock.")
+    return False
+
+
+def _release_sentinel_lock(lock_path: str, label: str) -> None:
+    """Releases a lock acquired via _acquire_sentinel_lock. Unconditional
+    removal (not ownership-checked against our own pid) -- matches both
+    call sites' existing behavior, where the lock is only ever released
+    by the same call stack that just finished using it."""
+    try:
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
+    except Exception as e:
+        logger.error(f"Failed to remove {label} lock file: {e}")
+
+
 def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
     """
     Persists a validated DrawIO XML document to output/cloudarch_drawio.xml.
@@ -2090,39 +2188,11 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
         _log_agent_activity("No XML content provided to save_drawio.")
         return "INFO: No XML content provided to save_drawio, so nothing has been done."
 
-    def acquire_lock(timeout: float = 5.0) -> bool:
-        # Simple advisory file lock (a sentinel .lock file, not flock/fcntl)
-        # guarding output/cloudarch_drawio.xml against concurrent writers.
-        # Polls every 100ms for up to `timeout` seconds. NOTE: this is not
-        # stale-lock-aware -- if a process dies after creating the lock
-        # file but before release_lock() runs, the lock file is left
-        # behind and every subsequent save_drawio call will time out here
-        # until it's removed manually.
-        start = time.time()
-        while time.time() - start < timeout:
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, "w", encoding="utf-8") as lf:
-                        lf.write(str(os.getpid()))
-                    return True
-                except Exception as e:
-                    logger.error(f"Failed to create lock file: {e}")
-            time.sleep(0.1)
-        logger.error("Timeout acquiring cloudarch_drawio lock.")
-        return False
-
-    def release_lock():
-        try:
-            if os.path.exists(lock_path):
-                os.remove(lock_path)
-        except Exception as e:
-            logger.error(f"Failed to remove lock file: {e}")
-
     try:
         _log_agent_activity("Saving DrawIO XML to file...")
         os.makedirs(output_dir, exist_ok=True)
 
-        if not acquire_lock():
+        if not _acquire_sentinel_lock(lock_path, "cloudarch_drawio"):
             return "ERROR: Could not acquire lock for DrawIO persistence."
 
         raw_xml = _fix_invalid_arrays(xml_content).strip()
@@ -2198,7 +2268,7 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
         return "ERROR: Failed to save DrawIO XML due to an unexpected error. Check logs for details."
 
     finally:
-        release_lock()
+        _release_sentinel_lock(lock_path, "cloudarch_drawio")
 
 def save_drawio(xml_content) -> str:
     """
@@ -2257,6 +2327,7 @@ def save_drawio_structured(
     zones: list,
     components: list,
     edges: list,
+    provider: str = "azure",
 ) -> str:
     """
     Builds and saves a cloud architecture diagram from STRUCTURED content --
@@ -2273,6 +2344,12 @@ def save_drawio_structured(
 
     title, subtitle: diagram title banner text (subtitle may be "").
 
+    provider: "aws", "azure", or "gcp" -- MUST match the cloud provider this
+    architecture is actually being designed for (defaults to "azure"). This
+    controls which real icon/container convention every component icon and
+    every "type": "vpc" zone (see below) renders with -- getting this wrong
+    silently swaps in the wrong provider's rendering rules.
+
     EVERY zone id and every component id MUST be unique across the WHOLE
     diagram, not just within its own zone -- reusing an id for two
     different resources (e.g. naming two different "Vertex AI ..."
@@ -2286,18 +2363,47 @@ def save_drawio_structured(
       {"id": str, "label": str, "sublabel": str (optional, ""),
        "row": int (optional, default 0), "color": str (optional hex),
        "stack": "vertical"|"horizontal" (optional, default "vertical"),
-       "width": int (optional), "container_type": str (optional)}
+       "width": int (optional), "type": "vpc" (optional),
+       "parent_zone_id": str (optional)}
       Zones sharing the same "row" are laid out as side-by-side columns, in
       the order given. Higher row numbers stack as a full-width band below
       all lower rows (e.g. a governance/security strip spanning the bottom).
       "stack": "horizontal" arranges that zone's own components side by
       side instead of stacked -- use this for a full-width band of several
       peer boxes (e.g. Observability | IAM | KMS | Security Controls).
-      "container_type": "aws_vpc" when this zone IS an actual AWS VPC trust
-      boundary (not just a loosely-named grouping) -- a correctly-sized/
-      positioned VPC group container (purple border + corner badge, no
-      header bar) is added automatically, do not describe it yourselves.
-      Leave unset for a generic zone/tier.
+      "type": "vpc" renders this zone as the chosen provider's REAL VPC/
+      VNet/VPC-network container (AWS's native vector VPC group shape, GCP's
+      pastel VPC-network rectangle, Azure's VNet-badged dashed boundary)
+      instead of the generic flat swimlane -- use this for any zone that is
+      an actual VPC/VNet boundary, which is the normal case for almost
+      every cloud architecture, not just a plain logical/tier grouping.
+
+      "parent_zone_id" NESTS this zone inside another zone -- e.g. an AWS
+      Account/subscription/project that CONTAINS a VPC, rather than being
+      one. A multi-account landing-zone/organization diagram has no single
+      zone that IS a VPC -- it has Account zones, each of which typically
+      contains its own VPC -- so model that as an outer zone (the Account,
+      no "type") with an inner zone nested via "parent_zone_id": <account
+      zone id> and "type": "vpc" set on the inner one. Nesting may go as
+      many levels deep as the diagram actually needs (only a cycle -- a
+      zone that is its own ancestor -- is rejected); "row" is ignored on a
+      nested zone -- its position is entirely determined by its parent.
+
+      The PARENT's own "stack" controls how its nested children combine --
+      same field, same meaning it already has for components. Default
+      ("vertical") stacks nested children top to bottom, each stretched to
+      the parent's own width. SET THE PARENT'S "stack" TO "horizontal"
+      WHENEVER IT HAS MORE THAN ONE OR TWO PEER NESTED CHILDREN (e.g. an OU
+      containing several sibling Accounts, each itself containing its own
+      VPC) -- confirmed directly against a real generated diagram: leaving
+      "stack" at its vertical default for an OU with 3-5 sibling Account
+      zones (each already tall from its own stacked VPC/components)
+      produced an extremely tall, narrow single-column "tower" (over 6000px
+      tall, barely 400px wide) that was effectively unreadable. Horizontal
+      nested stacking turns that into a normal landscape layout instead.
+      This is exactly the same "favor left-to-right over a tall vertical
+      stack" principle as the DIAGRAM FLOW guidance below -- it now also
+      applies to nested zones, not just components and top-level zone rows.
 
     components: list of dicts, each:
       {"id": str, "zone_id": str, "label": str,
@@ -2337,6 +2443,7 @@ def save_drawio_structured(
         xml_content = build_structured_drawio_xml(
             title=title, subtitle=subtitle or None,
             zones=zones, components=components, edges=edges,
+            provider=provider,
         )
     except Exception as e:
         error_trace = traceback.format_exc()
@@ -2395,38 +2502,15 @@ def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> s
     lock_path = paths["lock_file"]
     raw_path = paths["raw_file"]
 
-    def acquire_lock(timeout: float = 5.0) -> bool:
-        # Same advisory sentinel-file locking pattern as save_drawio's
-        # acquire_lock (not stale-lock-aware -- a crashed process leaves
-        # this file behind and blocks every future save until it's removed
-        # manually), scoped to whichever schema's data file is being
-        # written (process_data.json or design_data.json).
-        start = time.time()
-        while time.time() - start < timeout:
-            if not os.path.exists(lock_path):
-                try:
-                    with open(lock_path, "w", encoding="utf-8") as lf:
-                        lf.write(str(os.getpid()))
-                    return True
-                except Exception as e:
-                    logger.error(f"Failed to create lock file: {e}")
-            time.sleep(0.1)
-        logger.error(f"Timeout acquiring {resolved_type}_data lock.")
-        return False
-
-    def release_lock():
-        try:
-            if os.path.exists(lock_path):
-                os.remove(lock_path)
-        except Exception as e:
-            logger.error(f"Failed to remove lock file: {e}")
-
     try:
         _log_agent_activity("Saving normalized JSON to file...")
         os.makedirs(output_dir, exist_ok=True)
 
-        # Acquire lock before writing
-        if not acquire_lock():
+        # Acquire lock before writing -- same shared, stale-lock-aware
+        # sentinel-file lock save_drawio_core uses, scoped to whichever
+        # schema's data file is being written (process_data.json or
+        # design_data.json).
+        if not _acquire_sentinel_lock(lock_path, f"{resolved_type}_data"):
             return "ERROR: Could not acquire lock for JSON persistence."
 
         # 1. Normalize input to string
@@ -2559,7 +2643,7 @@ def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> s
         return "ERROR: Failed to save JSON due to an unexpected error. Check logs for details."
 
     finally:
-        release_lock()
+        _release_sentinel_lock(lock_path, f"{resolved_type}_data")
 
 def _json_equal(a: dict, b: dict) -> bool:
     """Return True if two JSON objects are semantically identical."""
@@ -3122,8 +3206,6 @@ def review_messages(callback_context: CallbackContext, llm_request: LlmRequest) 
         if val:
             attrs.append(f"{attr.upper()}: {val}")
     if attrs:
-        error_code = getattr(callback_context, "error_code", None)
-        error_message = getattr(callback_context, "error_message", None)
         logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing messages with context | {' | '.join(attrs)} ---")
 
     if not llm_request or not getattr(llm_request, "contents", None):
@@ -3163,8 +3245,6 @@ def review_outputs(callback_context: CallbackContext, llm_response: LlmResponse)
         if val:
             attrs.append(f"{attr.upper()}: {val}")
     if attrs and llm_response:
-        error_code = getattr(llm_response, "error_code", None)
-        error_message = getattr(llm_response, "error_message", None)
         logger.debug(f"--- [DIAGNOSTIC] Utils: Reviewing outputs with context | {' | '.join(attrs)} {llm_response} ---")
 
     if not llm_response or not getattr(llm_response, "candidates", None):
@@ -3211,8 +3291,6 @@ class CleanedStdout:
             if isinstance(text, bytes):
                 text = text.decode("utf-8", errors="replace")
 
-            from .utils import _clean_text, _is_status_marker
-
             # Preserve status markers exactly
             if _is_status_marker(text):
                 self.file.write(text)
@@ -3229,3 +3307,6 @@ class CleanedStdout:
 
     def flush(self):
         self.file.flush()
+
+    def close(self):
+        self.file.close()

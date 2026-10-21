@@ -2,7 +2,7 @@ import unittest
 import asyncio
 from unittest.mock import patch
 
-from test_grounding_agent import _install_dependency_stubs
+from tests.test_grounding_agent import _install_dependency_stubs
 
 _install_dependency_stubs()
 from process_agents.common import agent_wrappers  # noqa: E402

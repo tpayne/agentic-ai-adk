@@ -1604,6 +1604,91 @@ button, input, textarea {
   text-align: center;
 }
 
+/* ---------- Composer attachments ---------- */
+
+.composer-attachments {
+  max-width: 760px;
+  margin: 0 auto 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.composer-attachments[hidden] {
+  display: none;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.attachment-chip.is-invalid {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.attachment-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip-size {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.attachment-chip.is-invalid .attachment-chip-size {
+  color: var(--danger);
+}
+
+.attachment-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.attachment-chip-remove:hover {
+  background: var(--border);
+  opacity: 1;
+}
+
+/* Static echo of a turn's own attachments, shown under a sent message's
+   bubble -- same chip look as the live composer list, minus the remove
+   button (that turn has already been sent; nothing to remove). */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.message-attachments .attachment-chip {
+  max-width: 260px;
+}
+
 /* ---------- Toast ---------- */
 
 #toast {

@@ -9,9 +9,12 @@ Reading back whatever was last saved has no such asymmetry, so it's
 shared here.
 """
 
+import logging
 import os
 
 from process_toolkit import paths
+
+logger = logging.getLogger("ProcessArchitect.DrawioPersistence")
 
 DRAWIO_FILENAME = "cloudarch_drawio.xml"
 
@@ -24,4 +27,9 @@ def load_drawio_xml() -> dict:
         with open(path, "r", encoding="utf-8") as f:
             return {"status": "OK", "xml": f.read()}
     except Exception as e:
+        # The caller gets the error message back in the returned dict,
+        # but that alone leaves no trace in this process's own logs --
+        # a recurring read failure (permissions, disk issues) was
+        # otherwise invisible server-side.
+        logger.error("Failed to read %s: %s", path, e, exc_info=True)
         return {"status": "ERROR", "xml": None, "error": str(e)}

@@ -60,10 +60,11 @@ import fcntl
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from contextlib import contextmanager
-from typing import Optional
+from typing import Dict, Optional
 
 from process_toolkit import paths
 
@@ -208,7 +209,25 @@ def acquire_pipeline_lock(
 
         started_at = existing.get("started_at")
         age = time.time() - started_at if isinstance(started_at, (int, float)) else None
-        if age is not None and age >= stale_after_seconds:
+        if age is None:
+            # A valid JSON dict (not caught by the `existing is None`
+            # check above) but with a missing/non-numeric "started_at" --
+            # this module always writes that field itself via
+            # _atomic_write's own payload, so the only way it's absent is
+            # external tampering or a future schema regression. There is
+            # no legitimate way to judge this lock's age, and treating
+            # "unknown age" as "never stale" would contradict this
+            # module's own documented self-healing guarantee (a bad lock
+            # could then wedge every future run forever, exactly the
+            # failure mode this module exists to prevent) -- so an
+            # unreadable age is treated the same as a confirmed-stale one.
+            logger.warning(
+                "Lock at %s has no usable 'started_at' -- treating as stale and reclaiming it.",
+                path,
+            )
+            _atomic_write(path, payload)
+            return my_token
+        if age >= stale_after_seconds:
             # Abandoned by its original owner -- safe to reclaim under
             # the mutex: no concurrent reader/writer of the real lock
             # file can observe or race this decision.
@@ -240,3 +259,91 @@ def release_pipeline_lock(token: Optional[str]) -> None:
                 os.remove(path)
             except OSError:
                 pass
+
+
+# A still-genuinely-running pipeline has no single acquire_pipeline_lock
+# call spanning its whole duration to keep the lock fresh -- between the
+# one-time reset step that acquires it and the one-time finalize step that
+# releases it, there is no guarantee ANY tool call happens often enough (or
+# at all, during a long single generate/review phase, or a pause awaiting
+# the next piece of user input) to naturally refresh started_at before
+# DEFAULT_STALE_AFTER_SECONDS elapses. A background heartbeat closes that
+# gap directly: for as long as a run holds the lock, something re-acquires
+# it with the same token well before it could ever go stale, regardless of
+# what the run's own tool-call cadence looks like.
+_HEARTBEAT_INTERVAL_SECONDS = DEFAULT_STALE_AFTER_SECONDS / 4
+
+_heartbeats: Dict[str, "_LockHeartbeat"] = {}
+_heartbeats_lock = threading.Lock()
+
+
+class _LockHeartbeat:
+    """One background daemon thread that re-acquires a single pipeline
+    lock token on a fixed interval, for as long as it's running. Not
+    meant to be constructed directly -- see start_pipeline_lock_heartbeat/
+    stop_pipeline_lock_heartbeat below."""
+
+    def __init__(self, label: str, token: str, stale_after_seconds: float):
+        self._label = label
+        self._token = token
+        self._stale_after_seconds = stale_after_seconds
+        self._stop_event = threading.Event()
+        # daemon=True: a process that exits (clean or crashed) without
+        # ever calling stop_pipeline_lock_heartbeat must not be kept alive
+        # by this thread alone -- the lock's own staleness fallback is what
+        # reclaims an abandoned run in that case, same as before this
+        # heartbeat existed.
+        self._thread = threading.Thread(
+            target=self._run, daemon=True, name=f"pipeline-lock-heartbeat-{token[:8]}",
+        )
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stop_event.wait(_HEARTBEAT_INTERVAL_SECONDS):
+            try:
+                acquire_pipeline_lock(self._label, token=self._token, stale_after_seconds=self._stale_after_seconds)
+            except PipelineLockedError:
+                # The lock on disk no longer matches this token -- e.g. it
+                # was already released and reclaimed by a different run
+                # (a bug elsewhere) between heartbeats. Nothing left to
+                # refresh; retrying on the next tick would only be noise.
+                logger.warning(
+                    "Pipeline lock heartbeat for token %s could not refresh -- stopping.", self._token,
+                )
+                return
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        self._thread.join(timeout=_HEARTBEAT_INTERVAL_SECONDS)
+
+
+def start_pipeline_lock_heartbeat(
+    label: str, token: Optional[str], stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS,
+) -> None:
+    """Starts a background thread that keeps `token`'s lease fresh until
+    stop_pipeline_lock_heartbeat(token) is called. Idempotent per token --
+    a caller that's reentrantly re-acquired the SAME token it already
+    holds (see acquire_pipeline_lock_for_turn's own reentrancy check) gets
+    a no-op here rather than a second, redundant heartbeat thread for the
+    same lock. A falsy token is also a no-op, so callers can pass whatever
+    acquire_pipeline_lock_for_turn-style helper returned without an extra
+    truthiness check of their own."""
+    if not token:
+        return
+    with _heartbeats_lock:
+        if token in _heartbeats:
+            return
+        _heartbeats[token] = _LockHeartbeat(label, token, stale_after_seconds)
+
+
+def stop_pipeline_lock_heartbeat(token: Optional[str]) -> None:
+    """Stops and forgets the heartbeat for `token`, if one is running.
+    Safe to call with token=None or a token that never had one (e.g.
+    nothing was ever acquired, or start_pipeline_lock_heartbeat was never
+    reached) -- a no-op in both cases, never an error."""
+    if not token:
+        return
+    with _heartbeats_lock:
+        heartbeat = _heartbeats.pop(token, None)
+    if heartbeat is not None:
+        heartbeat.stop()
