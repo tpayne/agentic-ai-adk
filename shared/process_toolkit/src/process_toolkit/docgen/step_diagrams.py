@@ -236,6 +236,45 @@ def generate_step_diagram_for_step(
             )
 
         fig.suptitle(step_name, fontsize=14)
+
+        # Explicit axis limits with a guaranteed minimum extent, INSTEAD
+        # OF matplotlib's own autoscale -- autoscale collapses to a
+        # near-zero-width x-range whenever every plotted node's own x
+        # coordinate is numerically identical, which happens exactly
+        # when every sub-step in a swimlane layout has its OWN distinct
+        # responsible_party (so every lane holds exactly one item, and
+        # pos[n] = (i * 4.0, ...) is x=0.0 for every single node, since i
+        # is always 0). Confirmed directly against a real generated
+        # request: 3 of 6 step diagrams for one process hit exactly this
+        # (every substep assigned a distinct responsible_party), and
+        # bbox_inches="tight" (below) became numerically unstable fitting
+        # real, fixed-size text/label artists against that near-singular
+        # data-to-display scale -- the resulting "image" was tens of
+        # thousands of inches wide (one measured at 18438in x 8.7in,
+        # 3.69 BILLION pixels at this module's own 150dpi), multiple
+        # 14MB+ files that no viewer could open, all silently "succeeding"
+        # since fig.savefig() itself never raises for this. A real,
+        # non-degenerate axis range set explicitly closes this off
+        # regardless of why autoscale collapsed -- not specific to the
+        # swimlane case, so applied unconditionally.
+        xs_all = [p[0] for p in pos.values()]
+        ys_all = [p[1] for p in pos.values()]
+        if use_swimlanes:
+            # The swimlane label text itself sits further left (xmin - 5.0
+            # above) than any plotted node.
+            xs_all.append(min(xs_all) - 5.0)
+        MIN_AXIS_EXTENT = 6.0
+        x_lo, x_hi = min(xs_all) - 3.0, max(xs_all) + 3.0
+        y_lo, y_hi = min(ys_all) - 3.0, max(ys_all) + 3.0
+        if x_hi - x_lo < MIN_AXIS_EXTENT:
+            cx = (x_lo + x_hi) / 2.0
+            x_lo, x_hi = cx - MIN_AXIS_EXTENT / 2.0, cx + MIN_AXIS_EXTENT / 2.0
+        if y_hi - y_lo < MIN_AXIS_EXTENT:
+            cy = (y_lo + y_hi) / 2.0
+            y_lo, y_hi = cy - MIN_AXIS_EXTENT / 2.0, cy + MIN_AXIS_EXTENT / 2.0
+        ax.set_xlim(x_lo, x_hi)
+        ax.set_ylim(y_lo, y_hi)
+
         # Swimlane labels are drawn via ax.text(xmin - 5.0, ...), which can
         # sit arbitrarily far left of the Axes' own data range for a long
         # responsible_party name -- fig.tight_layout()'s subplot-margin
