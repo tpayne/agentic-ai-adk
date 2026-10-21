@@ -45,7 +45,9 @@ You'll get an interactive prompt:
 [user]: exit
 ```
 
-It can also run **detached as a REST API** (`-d` flag) or in **Docker** — see [TECHNICAL_NOTES.md § Running as a Web Service](TECHNICAL_NOTES.md#running-as-a-web-service-rest-api) and [§ Docker Usage](TECHNICAL_NOTES.md#docker-usage). A ready-made browser chat UI that talks to either this or the neuro-san port is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
+It can also run **detached as a REST API** (`-d` flag) or in **Docker** — see [Running as a Web Service](TECHNICAL_NOTES.md#running-as-a-web-service-rest-api) and [Docker Usage](TECHNICAL_NOTES.md#docker-usage) for more information. 
+
+A ready-made browser chat UI that talks to either this or the neuro-san port is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
 
 ## Example prompts
 
@@ -57,7 +59,7 @@ It can also run **detached as a REST API** (`-d` flag) or in **Docker** — see 
 - "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
 - "Read the files in ./vendor-docs and create a process for onboarding new vendors."
 
-Many more, covering every capability above, are in [TECHNICAL_NOTES.md § Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
+More samples are in documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
 
 ## Status
 

@@ -44,7 +44,15 @@ You'll get an interactive prompt:
 [user]: exit
 ```
 
-Prefer neuro-san's own chat UI? `uv run ns run` starts it at `:4173`. It can also run **detached as a REST API** (`-d --flask`) or in **Docker** — see [TECHNICAL_NOTES.md § Running as a Web Service](TECHNICAL_NOTES.md#running-as-a-web-service-rest-api) and [§ Docker Usage](TECHNICAL_NOTES.md#docker-usage). A ready-made browser chat UI that talks to either this or the ADK original is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
+Prefer neuro-san's own chat UI? Then
+
+`uv run ns run` 
+
+starts it at `:4173`. 
+
+It can also run **detached as a REST API** using (`-d --flask`) or in **Docker** — see [Running as a Web Service](TECHNICAL_NOTES.md#running-as-a-web-service-rest-api) and [Docker Usage](TECHNICAL_NOTES.md#docker-usage) for more information. 
+
+A ready-made browser chat UI that talks to either this or the ADK original is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
 
 ## Example prompts
 
@@ -56,7 +64,7 @@ Prefer neuro-san's own chat UI? `uv run ns run` starts it at `:4173`. It can als
 - "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
 - "Read the files in ./vendor-docs and create a process for onboarding new vendors."
 
-Many more, covering every capability above, are in [TECHNICAL_NOTES.md § Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
+Many more samples are documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
 
 ## Status
 
