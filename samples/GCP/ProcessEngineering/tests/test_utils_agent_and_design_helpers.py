@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from test_grounding_agent import _install_dependency_stubs
+from tests.test_grounding_agent import _install_dependency_stubs
 
 _install_dependency_stubs()
 
