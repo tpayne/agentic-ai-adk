@@ -2384,10 +2384,10 @@ def save_drawio_structured(
       zone that IS a VPC -- it has Account zones, each of which typically
       contains its own VPC -- so model that as an outer zone (the Account,
       no "type") with an inner zone nested via "parent_zone_id": <account
-      zone id> and "type": "vpc" set on the inner one. ONE level of
-      nesting only (the parent zone itself must not have its own
-      parent_zone_id); "row" is ignored on a nested zone -- its position
-      is entirely determined by its parent.
+      zone id> and "type": "vpc" set on the inner one. Nesting may go as
+      many levels deep as the diagram actually needs (only a cycle -- a
+      zone that is its own ancestor -- is rejected); "row" is ignored on a
+      nested zone -- its position is entirely determined by its parent.
 
       The PARENT's own "stack" controls how its nested children combine --
       same field, same meaning it already has for components. Default

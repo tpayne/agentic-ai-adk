@@ -98,6 +98,27 @@ class TestComponentHeight:
         assert layout._component_height(component) == 174
 
 
+class TestVisibleColor:
+    def test_pale_tint_falls_back_to_default(self):
+        assert layout._visible_color("#F3E5F5", "#8C4FFF") == "#8C4FFF"
+
+    def test_vivid_brand_color_passes_through(self):
+        assert layout._visible_color("#8C4FFF", "#5F6368") == "#8C4FFF"
+
+    def test_empty_string_falls_back_to_default_like_the_existing_or_pattern(self):
+        assert layout._visible_color("", "#8C4FFF") == "#8C4FFF"
+
+    def test_none_falls_back_to_default(self):
+        assert layout._visible_color(None, "#8C4FFF") == "#8C4FFF"
+
+    def test_malformed_hex_does_not_raise_and_passes_through_unchanged(self):
+        # Not a 6-digit hex -- the luminance check can't evaluate it
+        # meaningfully (e.g. a CSS color name), so it's passed through
+        # rather than guessed at; this only targets the specific
+        # pale-hex-tint failure mode confirmed in a real diagram.
+        assert layout._visible_color("not-a-color", "#8C4FFF") == "not-a-color"
+
+
 class TestLayoutOverlap:
     """Regression coverage for the whole reason this module exists: no two
     boxes may ever overlap, regardless of how many components a zone holds
@@ -109,6 +130,7 @@ class TestLayoutOverlap:
             {"id": "z2", "label": "Zone Two", "row": 0},
             {"id": "z3", "label": "Zone Three", "row": 0, "width": 300},
             {"id": "z_gov", "label": "Governance", "row": 1, "stack": "horizontal"},
+            {"id": "z_vpc", "label": "App VPC", "row": 2, "type": "vpc"},
         ]
         components = [
             {"id": "c1", "zone_id": "z1", "label": "A", "bullets": ["x", "y"], "shape": "mxgraph.gcp2.user"},
@@ -118,6 +140,8 @@ class TestLayoutOverlap:
             {"id": "c5", "zone_id": "z3", "label": "E", "bullets": ["x", "y", "z"]},
             {"id": "c6", "zone_id": "z_gov", "label": "F", "bullets": ["x"]},
             {"id": "c7", "zone_id": "z_gov", "label": "G", "bullets": ["x", "y"]},
+            {"id": "c8", "zone_id": "z_vpc", "label": "H", "bullets": ["x"], "shape": "mxgraph.aws4.lambda"},
+            {"id": "c9", "zone_id": "z_vpc", "label": "I"},
         ]
         return zones, components
 
@@ -1350,6 +1374,32 @@ class TestBuildXml:
         style = next(c for c in root.findall(".//mxCell") if c.get("id") == "c1_icon").get("style", "")
         assert "fillColor=#E3F2FD;" not in style
         assert "fillColor=#4285F4;" in style
+
+    def test_pale_zone_and_component_colors_fall_back_to_a_visible_default(self):
+        # Regression test: confirmed against a real generated diagram -- the
+        # model chose near-white "background tint" hex values (e.g. #FCE4EC,
+        # #F3E5F5, #E3F2FD) for zone borders, component borders, and icon
+        # fills, all of which render as practically invisible against this
+        # engine's own light zone body (#F8F9FA) and white component boxes
+        # (#FFFFFF). Must fall back to a real, visible color instead.
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="",
+            zones=[{"id": "z1", "label": "Zone", "color": "#F3E5F5"}],
+            components=[{
+                "id": "c1", "zone_id": "z1", "label": "Comp", "shape": "mxgraph.aws4.lambda",
+                "color": "#FFF3E0", "icon_color": "#E3F2FD",
+            }],
+            edges=[],
+        )
+        root = ET.fromstring(xml_str)
+        cells = {c.get("id"): c.get("style", "") for c in root.findall(".//mxCell")}
+        assert "strokeColor=#F3E5F5;" not in cells["z1"]
+        assert "strokeColor=#FFF3E0;" not in cells["c1"]
+        assert "fillColor=#E3F2FD;" not in cells["c1_icon"]
+
+    def test_vivid_colors_are_left_untouched(self):
+        plain = layout._visible_color("#8C4FFF", layout.DEFAULT_ZONE_COLOR)
+        assert plain == "#8C4FFF"
 
     def test_explicit_json_null_row_does_not_crash(self):
         # Regression test: int(z.get("row", 0)) crashes with TypeError if

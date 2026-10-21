@@ -54,11 +54,13 @@
 #                                         # box grows to contain this one,
 #                                         # drawn with the parent as its
 #                                         # real container cell, not just
-#                                         # placed nearby. ONE level of
-#                                         # nesting only -- the referenced
-#                                         # parent zone must itself be
-#                                         # top-level (no parent_zone_id of
-#                                         # its own). A nested zone is NOT
+#                                         # placed nearby. Nesting may go as
+#                                         # many levels deep as the diagram
+#                                         # actually needs (only a cycle --
+#                                         # a zone that is its own ancestor --
+#                                         # is rejected); each level's box is
+#                                         # sized/positioned relative to its
+#                                         # own parent. A nested zone is NOT
 #                                         # part of the top-level row/column
 #                                         # grid -- "row" is ignored on it;
 #                                         # its position is fully determined
@@ -170,6 +172,17 @@ DEFAULT_COMPONENT_COLOR = "#5F6368"  # neutral gray -- deliberately NOT a
                         # explicitly set their own color) -- a safety net
                         # for a forgotten color, not a provider's identity
 DEFAULT_ZONE_COLOR = "#5F6368"
+MAX_VISIBLE_LUMINANCE = 0.8  # above this, a color reads as a pale/white tint
+                        # rather than a real accent -- confirmed against a
+                        # real generated diagram where the model picked
+                        # near-white "background tint" hex values (e.g.
+                        # #FCE4EC, #F3E5F5, #E3F2FD, luminance ~0.9+) for
+                        # zone borders AND icon fills, rendering both
+                        # practically invisible against this engine's own
+                        # light zone body (#F8F9FA) and white component
+                        # boxes (#FFFFFF). Real AWS/Azure/GCP brand colors
+                        # (#8C4FFF, #ED7100, #DD344C, ...) all sit well
+                        # below this threshold -- see _visible_color.
 
 # AWS4 icons confirmed (via a real draw.io-generated AWS reference file) to
 # be genuine "dedicated shapes" rendered bare -- shape=mxgraph.aws4.<name>;
@@ -210,6 +223,30 @@ ZONE_SKIP_CLAMP_HORIZONTAL = ZONE_INNER_MARGIN / 2 - 4
 SAFE_X_SEARCH_STEP = 6        # step size when _safe_x_for_vertical_span has
                                # to search away from its preferred x -- see
                                # that function's own docstring
+
+
+def _relative_luminance(hex_color: str) -> float:
+    """0 (black) to 1 (white) -- good enough to tell "too close to white to
+    read" from a real brand color, not meant to be a WCAG-exact formula."""
+    try:
+        h = hex_color.lstrip("#")
+        if len(h) != 6:
+            return 0.0
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    except ValueError:
+        return 0.0
+
+
+def _visible_color(value: Optional[str], default: str) -> str:
+    """Falls back to `default` when `value` is missing/empty OR too pale to
+    read against this engine's own light canvas (zone bodies and component
+    boxes are always a light/white fill) -- the same "guarantee by
+    construction, not by hoping the model got it right" principle this
+    module exists for (see module docstring), applied to color instead of
+    layout."""
+    color = value or default
+    return color if _relative_luminance(color) <= MAX_VISIBLE_LUMINANCE else default
 
 
 def _line_count(component: Dict[str, Any]) -> int:
@@ -2047,7 +2084,7 @@ def build_structured_drawio_xml(
         # strokeColor=None), invalid drawio styling that renders as a
         # blank/invisible fill or border. `or` catches both "absent" and
         # "explicitly null" the same way.
-        color = zone.get("color") or DEFAULT_ZONE_COLOR
+        color = _visible_color(zone.get("color"), DEFAULT_ZONE_COLOR)
         header_h = _zone_header_height(zone)
         cell = ET.SubElement(root, "mxCell", {
             "id": zone["id"], "value": value, "vertex": "1", "parent": parent_cell_id,
@@ -2114,16 +2151,16 @@ def build_structured_drawio_xml(
 
         has_icon = bool(component.get("shape"))
         spacing_top = SPACING_TOP_WITH_ICON if has_icon else SPACING_TOP_NO_ICON
-        # See the identical note on the zone's own `color` above -- `or`,
-        # not a positional .get default, so an explicit "color": null
-        # doesn't bake the literal text "None" into fillColor/strokeColor.
         # Falls back to the component's OWN ZONE's color (see
         # _effective_zone_color) rather than straight to the flat neutral
         # DEFAULT_COMPONENT_COLOR, so a diagram with no per-component
         # colors set still differentiates by zone instead of reading as
-        # entirely monochrome.
-        color = component.get("color") or _effective_zone_color(
-            zones_by_id.get(component["zone_id"]), provider
+        # entirely monochrome -- then through _visible_color, so an
+        # explicit but too-pale-to-read component color (or absent/null)
+        # is caught the same way a zone's own color already is.
+        color = _visible_color(
+            component.get("color"),
+            _effective_zone_color(zones_by_id.get(component["zone_id"]), provider),
         )
         value = _html_value(component["label"], component.get("bullets"))
 
@@ -2167,7 +2204,7 @@ def build_structured_drawio_xml(
             # "fillColor=;" style fragment instead of falling back to the
             # component's own color, which drawio renders as a solid black
             # fill rather than the intended icon color.
-            icon_color = component.get("icon_color") or color
+            icon_color = _visible_color(component.get("icon_color"), color)
             icon_cell = ET.SubElement(root, "mxCell", {
                 "id": f"{component['id']}_icon", "value": "", "vertex": "1", "parent": component["id"],
                 "style": _style_for_icon_shape(component["shape"], icon_color),

@@ -8,6 +8,7 @@ it in a unit test.
 """
 
 import asyncio
+import importlib
 import os
 import shutil
 import tempfile
@@ -19,6 +20,22 @@ from types import SimpleNamespace
 import pytest
 
 import cli
+
+
+def test_agent_tool_path_and_manifest_are_forced_to_this_project_even_if_already_set(monkeypatch):
+    # Regression test: a prior `ns chat`/`ns run` session (or another
+    # neuro-san project) can leave AGENT_TOOL_PATH/AGENT_MANIFEST_FILE
+    # exported in the same shell -- cli.py must FORCE these to its own
+    # project root rather than deferring to a stale value (setdefault would
+    # silently keep it, reproducing a real "Could not find class ... under
+    # AGENT_TOOL_PATH 'coded_tools'" failure confirmed against a real run).
+    monkeypatch.setenv("AGENT_TOOL_PATH", "/some/other/stale/path")
+    monkeypatch.setenv("AGENT_MANIFEST_FILE", "/some/other/stale/manifest.hocon")
+    importlib.reload(cli)
+    assert os.environ["AGENT_TOOL_PATH"] == os.path.join(cli._PROJECT_ROOT, "coded_tools")
+    assert os.environ["AGENT_MANIFEST_FILE"] == os.path.join(
+        cli._PROJECT_ROOT, "registries", "manifest.hocon"
+    )
 
 
 def test_is_shell_command():

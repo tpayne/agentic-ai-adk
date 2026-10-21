@@ -103,8 +103,17 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 # read already sees it. Uses this file's own directory rather than cwd,
 # so `cli.py` works the same regardless of where it's invoked from.
 _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-os.environ.setdefault("AGENT_MANIFEST_FILE", os.path.join(_PROJECT_ROOT, "registries", "manifest.hocon"))
-os.environ.setdefault("AGENT_TOOL_PATH", os.path.join(_PROJECT_ROOT, "coded_tools"))
+# Force, don't setdefault: these two identify THIS project's own manifest/
+# tools, never something a caller should override -- but a shell that
+# already ran `ns chat`/`ns run` (per this project's own README) or another
+# neuro-san project earlier in the same session leaves AGENT_MANIFEST_FILE/
+# AGENT_TOOL_PATH exported, and setdefault would silently keep that stale
+# value, reproducing the exact "Could not find class ... under
+# AGENT_TOOL_PATH 'coded_tools'" failure this whole block exists to prevent
+# (confirmed directly: a real run hit it with a stale, unset-looking
+# relative AGENT_TOOL_PATH left over from an earlier session).
+os.environ["AGENT_MANIFEST_FILE"] = os.path.join(_PROJECT_ROOT, "registries", "manifest.hocon")
+os.environ["AGENT_TOOL_PATH"] = os.path.join(_PROJECT_ROOT, "coded_tools")
 if _PROJECT_ROOT not in (os.environ.get("PYTHONPATH") or "").split(os.pathsep):
     existing_pythonpath = os.environ.get("PYTHONPATH")
     os.environ["PYTHONPATH"] = (

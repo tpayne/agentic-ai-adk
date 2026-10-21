@@ -223,6 +223,10 @@ whitespace, minimal per-box text -- NOT a block diagram or flowchart with paragr
   detailed/technical-depth diagram.
 - Edge numbering: default to NOT numbering edges. Only number them when the architecture genuinely
   depicts a sequential/ordered flow the request cares about.
+- USE FULL-SATURATION COLORS, NOT PALE TINTS -- every zone/component/icon renders on this tool's
+  own light background, so a pale/pastel hex value (e.g. a Material-style "50/100" swatch like
+  #FCE4EC, #F3E5F5, #E3F2FD, #FFF3E0) reads as PRACTICALLY INVISIBLE, not as a subtle accent. Use
+  the actual saturated brand hex values below directly -- never a lightened/diluted variant of them.
 - SERVICE-CATEGORY COLOR CODING: set every component's color/icon_color explicitly -- do not leave
   every component the same default color. AWS uses strong per-category colors (Compute ~#ED7100
   orange; Storage ~#7AA116 green; Database ~#527FFF blue; Networking ~#8C4FFF purple;
