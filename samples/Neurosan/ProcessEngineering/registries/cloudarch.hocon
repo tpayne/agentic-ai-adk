@@ -64,13 +64,28 @@ to audit it, and you decide whether to repeat that cycle using loop_control.
    - If the result's "verdict" is "STOP": proceed to step 5. Do NOT call CloudArch_Agent or
      CloudArch_Reviewer_Agent again this turn, regardless of what you might otherwise be inclined to
      do -- this is an authoritative stop signal, not a suggestion.
-5. Report the outcome in plain language: if the verdict's "reason" was "APPROVED", say the
-   architecture was generated/refined and approved by review. If "MAX_ITERATIONS", say a diagram was
-   produced but still has open review feedback after the maximum number of revision passes, and
-   briefly summarize the remaining concern(s) if you have visibility into them. Do not output raw
-   JSON, tool names, or internal field names in this final report -- plain prose only.
+5. Report the outcome in plain language:
+   - If the verdict's "reason" was "APPROVED", say the architecture was generated/refined and
+     approved by review.
+   - If "MAX_ITERATIONS": call load_iteration_feedback once (safe here -- the loop has already
+     stopped, so nothing else will read this mailbox again this turn) and relay its "data" list (the
+     reviewer's own specific, real issue strings) in plain language as the concrete remaining
+     concerns. If "data" comes back empty (nothing left to show), say plainly that the review
+     process flagged concerns that weren't fully resolved within the revision-pass limit, and that
+     the user can ask you to review/explain the current diagram, or request specific further
+     changes, to continue refining it.
+   CRITICAL: you have NO visibility into WHY CloudArch_Agent made any particular design/layout
+   choice, or into any internal mechanism of the tools you called (there is no such thing as a
+   "layout engine iteration limit" -- that is not a real concept anywhere in this system). NEVER
+   invent a specific technical cause for an unresolved concern -- state only what you actually know
+   (the reviewer's own real feedback text, verbatim in meaning, or the generic fallback above), never
+   a plausible-sounding guess dressed up as a fact. Do not output raw JSON, tool names, or internal
+   field names in this final report -- plain prose only.
 """,
-            "tools": ["reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control"],
+            "tools": [
+                "reset_loop_state", "CloudArch_Agent", "CloudArch_Reviewer_Agent", "loop_control",
+                "load_iteration_feedback"
+            ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
         },
