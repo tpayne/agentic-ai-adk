@@ -1,0 +1,213 @@
+{
+  "entry_points": [
+    {
+      "id": "cf",
+      "value": "<b>CloudFront</b>"
+    }
+  ],
+  "attack_paths": [
+    {
+      "entry_point_id": "cf",
+      "entry_point_value": "<b>CloudFront</b>",
+      "technique_category": "unauthenticated_access",
+      "reachable": [
+        {
+          "id": "alb",
+          "value": "<b>Application Load Balancer</b>"
+        },
+        {
+          "id": "r53",
+          "value": "<b>Route 53</b>"
+        }
+      ],
+      "blocked_by": [],
+      "missing_controls": [
+        "waf"
+      ],
+      "severity": "Medium"
+    },
+    {
+      "entry_point_id": "cf",
+      "entry_point_value": "<b>CloudFront</b>",
+      "technique_category": "lateral_movement",
+      "reachable": [
+        {
+          "id": "ecs",
+          "value": "<b>ECS Fargate</b><br/><font style=\"font-size:10px;color:#5f6368\">Auto-scaling Microservices</font>"
+        },
+        {
+          "id": "lambda_proc",
+          "value": "<b>Lambda Processor</b>"
+        },
+        {
+          "id": "kds",
+          "value": "<b>Kinesis Data Streams</b>"
+        },
+        {
+          "id": "opensearch",
+          "value": "<b>Amazon OpenSearch Service</b><br/><font style=\"font-size:10px;color:#5f6368\">Multi-AZ VPC Domain (3M/3D)</font>"
+        },
+        {
+          "id": "s3_backup",
+          "value": "<b>S3 Snapshot Bucket</b>"
+        },
+        {
+          "id": "apigw",
+          "value": "<b>API Gateway</b>"
+        },
+        {
+          "id": "kdf",
+          "value": "<b>Kinesis Data Firehose</b>"
+        },
+        {
+          "id": "alb",
+          "value": "<b>Application Load Balancer</b>"
+        },
+        {
+          "id": "waf",
+          "value": "<b>AWS WAF</b>"
+        },
+        {
+          "id": "cognito",
+          "value": "<b>Amazon Cognito</b><br/><font style=\"font-size:10px;color:#5f6368\">SAML SSO</font>"
+        },
+        {
+          "id": "r53",
+          "value": "<b>Route 53</b>"
+        }
+      ],
+      "blocked_by": [],
+      "missing_controls": [
+        "network_segmentation"
+      ],
+      "severity": "High"
+    },
+    {
+      "entry_point_id": "iam",
+      "entry_point_value": "<b>IAM</b>",
+      "technique_category": "privilege_escalation",
+      "reachable": [],
+      "blocked_by": [],
+      "missing_controls": [
+        "identity_mfa_sso"
+      ],
+      "severity": "Medium"
+    },
+    {
+      "entry_point_id": "cf",
+      "entry_point_value": "<b>CloudFront</b>",
+      "technique_category": "data_exfiltration",
+      "reachable": [
+        {
+          "id": "s3_backup",
+          "value": "<b>S3 Snapshot Bucket</b>"
+        }
+      ],
+      "blocked_by": [
+        {
+          "id": "waf",
+          "value": "<b>AWS WAF</b>"
+        }
+      ],
+      "missing_controls": [
+        "encryption_kms"
+      ],
+      "severity": "High"
+    },
+    {
+      "entry_point_id": "cf",
+      "entry_point_value": "<b>CloudFront</b>",
+      "technique_category": "credential_compromise",
+      "reachable": [
+        {
+          "id": "ecs",
+          "value": "<b>ECS Fargate</b><br/><font style=\"font-size:10px;color:#5f6368\">Auto-scaling Microservices</font>"
+        },
+        {
+          "id": "lambda_proc",
+          "value": "<b>Lambda Processor</b>"
+        },
+        {
+          "id": "kds",
+          "value": "<b>Kinesis Data Streams</b>"
+        },
+        {
+          "id": "opensearch",
+          "value": "<b>Amazon OpenSearch Service</b><br/><font style=\"font-size:10px;color:#5f6368\">Multi-AZ VPC Domain (3M/3D)</font>"
+        },
+        {
+          "id": "s3_backup",
+          "value": "<b>S3 Snapshot Bucket</b>"
+        },
+        {
+          "id": "apigw",
+          "value": "<b>API Gateway</b>"
+        },
+        {
+          "id": "kdf",
+          "value": "<b>Kinesis Data Firehose</b>"
+        },
+        {
+          "id": "alb",
+          "value": "<b>Application Load Balancer</b>"
+        },
+        {
+          "id": "waf",
+          "value": "<b>AWS WAF</b>"
+        },
+        {
+          "id": "cognito",
+          "value": "<b>Amazon Cognito</b><br/><font style=\"font-size:10px;color:#5f6368\">SAML SSO</font>"
+        },
+        {
+          "id": "r53",
+          "value": "<b>Route 53</b>"
+        }
+      ],
+      "blocked_by": [],
+      "missing_controls": [
+        "identity_mfa_sso"
+      ],
+      "severity": "High"
+    },
+    {
+      "entry_point_id": "iam",
+      "entry_point_value": "<b>IAM</b>",
+      "technique_category": "credential_compromise",
+      "reachable": [],
+      "blocked_by": [],
+      "missing_controls": [
+        "identity_mfa_sso"
+      ],
+      "severity": "Low"
+    }
+  ],
+  "technique_summaries": {
+    "unauthenticated_access": {
+      "flagged": true,
+      "count": 1,
+      "severity": "Medium"
+    },
+    "lateral_movement": {
+      "flagged": true,
+      "count": 1,
+      "severity": "High"
+    },
+    "privilege_escalation": {
+      "flagged": true,
+      "count": 1,
+      "severity": "Medium"
+    },
+    "data_exfiltration": {
+      "flagged": true,
+      "count": 1,
+      "severity": "High"
+    },
+    "credential_compromise": {
+      "flagged": true,
+      "count": 2,
+      "severity": "High"
+    }
+  },
+  "overall_risk_rating": "High"
+}

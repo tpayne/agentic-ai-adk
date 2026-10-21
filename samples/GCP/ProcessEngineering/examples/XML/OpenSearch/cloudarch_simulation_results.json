@@ -1,0 +1,47 @@
+{
+  "resilience": {
+    "avg_blast_radius": 0.06016666666666667,
+    "blast_radius_variance": 0.14019509114176185,
+    "critical_incident_rate": 0.0415,
+    "resilience_risk_rating": "Low",
+    "single_points_of_failure": [
+      {
+        "id": "s3_backup",
+        "value": "<b>S3 Snapshot Bucket</b>"
+      },
+      {
+        "id": "opensearch",
+        "value": "<b>Amazon OpenSearch Service</b><br/><font style=\"font-size:10px;color:#5f6368\">Multi-AZ VPC Domain (3M/3D)</font>"
+      },
+      {
+        "id": "kdf",
+        "value": "<b>Kinesis Data Firehose</b>"
+      }
+    ],
+    "component_count": 18
+  },
+  "scalability": {
+    "structural_bottlenecks": [
+      {
+        "id": "opensearch",
+        "value": "<b>Amazon OpenSearch Service</b><br/><font style=\"font-size:10px;color:#5f6368\">Multi-AZ VPC Domain (3M/3D)</font>",
+        "dependent_count": 3,
+        "elastic_technology_detected": false
+      }
+    ]
+  },
+  "latency": {
+    "deepest_dependency_chain_length": 7,
+    "deepest_dependency_chain": [
+      "<b>AWS WAF</b>",
+      "<b>API Gateway</b>",
+      "<b>Kinesis Data Streams</b>",
+      "<b>Lambda Processor</b>",
+      "<b>Kinesis Data Firehose</b>",
+      "<b>Amazon OpenSearch Service</b><br/><font style=\"font-size:10px;color:#5f6368\">Multi-AZ VPC Domain (3M/3D)</font>",
+      "<b>S3 Snapshot Bucket</b>"
+    ],
+    "latency_budget_risk": true
+  },
+  "overall_risk_rating": "Medium"
+}
