@@ -1025,7 +1025,20 @@ class TestGetOrCreateWebSessionEviction:
         )
 
     def _reset(self, monkeypatch):
-        monkeypatch.setattr(cli, "_web_sessions_last_swept", 0.0)
+        # time.monotonic()'s own baseline is platform-dependent -- on a
+        # long-uptime dev machine it's already huge, but on a freshly
+        # booted CI container it can be well under
+        # _WEB_SESSION_SWEEP_INTERVAL_SECONDS (300) itself. A hardcoded
+        # 0.0 here relies on "now - 0.0 >= 300" always being true, which
+        # is false whenever time.monotonic() < 300 at test time --
+        # confirmed directly against a real CI run, where it was ~50 --
+        # silently skipping the sweep and making eviction look broken.
+        # Anchoring relative to the current clock instead makes "last
+        # swept long enough ago to sweep again" true unconditionally.
+        monkeypatch.setattr(
+            cli, "_web_sessions_last_swept",
+            time.monotonic() - cli._WEB_SESSION_SWEEP_INTERVAL_SECONDS - 10,
+        )
         with cli._web_sessions_lock:
             cli._web_sessions.clear()
             cli._active_web_sessions.clear()
