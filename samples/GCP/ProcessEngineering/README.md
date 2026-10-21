@@ -59,7 +59,7 @@ A ready-made browser chat UI that talks to either this or the neuro-san port is 
 - "Run a simulation on the design to check for resilience, scalability, security, and latency issues."
 - "Read the files in ./vendor-docs and create a process for onboarding new vendors."
 
-More samples are in documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
+Many more samples are documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
 
 ## Status
 
