@@ -4,7 +4,7 @@ This multi-agent suite — built on [Cognizant's neuro-san](https://github.com/c
 
 Under the hood, a pipeline of specialized agents hands work off in sequence — one analyzes your requirements, one drafts the process or design, one audits it for compliance, one simulates it for bottlenecks or risks — looping back for revisions automatically until the output passes every check, then a final agent renders the Word document and diagrams.
 
-This is a neuro-san port of [`samples/GCP/ProcessEngineering`](../../GCP/ProcessEngineering/README.md) — same output, same schema, different agent framework. Because it's built on neuro-san's declarative agent networks, it can run against any LLM provider neuro-san supports (Gemini, Claude, OpenAI, Bedrock, Azure OpenAI, ...) — see [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for how to configure that.
+This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GCP/ProcessEngineering/README.md) and shares much of its core logic — document generation, diagram layout, and schema validation all come from a common `process_toolkit` package — so both produce the same output from the same schema. The real difference is the agent framework each one runs on: this version uses neuro-san's declarative agent networks, which means it can run against any LLM provider neuro-san supports (Gemini, Claude, OpenAI, Bedrock, Azure OpenAI, ...) — see [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for how to configure that.
 
 ## What it does
 
