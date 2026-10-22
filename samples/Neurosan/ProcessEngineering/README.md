@@ -15,6 +15,34 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
 
+## Agent Networks
+
+This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 21 (full detail is in [TECHNICAL_NOTES.md § Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+
+| Network | What it is | What it does | Sub-agents it uses |
+| :--- | :--- | :--- | :--- |
+| `process_architect` | Top-level router (`Process_Architect_Orchestrator`) | Routes a request to whichever network below fits it. | Every network in this table |
+| `process` | Creation pipeline (`Process_Pipeline`) | Analyzes requirements, designs, compliance-reviews, and simulates a new business process until it passes, then expands subprocesses and renders the final document. | `Analysis_Agent`, `Design_Agent`, `Compliance_Agent`, `Simulation_Agent`, `Subprocess_Driver_Agent`, `Subprocess_Generator_Agent` |
+| `process_update` | Update pipeline (`Process_Update_Pipeline`) | Same generate/review loop, applied as a delta against an existing process. | `Process_Update_Analyst`, `Design_Agent`, `Compliance_Agent`, `Simulation_Agent`, `Subprocess_Driver_Agent`, `Subprocess_Generator_Agent` |
+| `process_consultant` | Consultant (`Process_Consultant_Agent`) | Answers questions about an existing business process. | — |
+| `process_scenario_tester` | Scenario tester (`Process_Scenario_Tester`) | Tests "what-if" scenarios against an existing process. | — |
+| `process_simulation_query` | Simulation query (`Process_Simulation_Query_Agent`) | Runs a cycle-time simulation over an existing process and explains bottlenecks. | — |
+| `process_import` | Import (`Process_Import_Agent`) | Imports an already-existing business process document directly into `process_data.json`. | — |
+| `design` | Creation pipeline (`Design_Doc_Pipeline`) | Analyzes requirements, designs (HLD+LLD in one pass), compliance-reviews, and simulates a new design document, then renders the final document. | `Design_Doc_Analysis_Agent`, `Design_Doc_Agent`, `Compliance_Agent`, `Simulation_Agent` |
+| `design_update` | Update pipeline (`Design_Doc_Update_Pipeline`) | Same generate/review loop, applied as a delta against an existing design document. | `Design_Doc_Update_Analyst`, `Design_Doc_Agent`, `Compliance_Agent`, `Simulation_Agent` |
+| `design_consultant` | Consultant (`Design_Consultant_Agent`) | Answers questions about an existing design document, with license to bring in outside best practice. | — |
+| `design_scenario_tester` | Scenario tester (`Design_Scenario_Tester`) | Tests "what-if" scenarios against an existing design document. | — |
+| `design_simulation_query` | Simulation query (`Design_Architecture_Simulation_Query_Agent`) | Runs the composite resilience/scalability/security/latency simulation over an existing design document. | — |
+| `design_import` | Import (`Design_Import_Agent`) | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json`. | — |
+| `cloudarch` | Creation/refinement pipeline (`CloudArch_Pipeline`) | Generates, refines, and reviews a cloud architecture diagram until it's approved; also applies natural-language edits to an existing one. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
+| `cloudarch_consultant` | Consultant (`CloudArch_Consultant_Agent`) | Answers questions about an existing cloud architecture diagram. | — |
+| `cloudarch_simulation_query` | Simulation query (`CloudArch_Simulation_Query_Agent`) | Runs a resilience/scalability/latency simulation over an existing diagram. | — |
+| `cloudarch_attack_simulation_query` | Attack simulation (`CloudArch_Attack_Simulation_Query_Agent`) | Runs an adversarial attack-path simulation over an existing diagram. Analysis-only. | — |
+| `cloudarch_finops` | Cost estimator (`CloudArch_FinOps_Agent`) | Estimates monthly cost and recommends optimizations for an existing diagram. | — |
+| `requirements_summary` | Requirements summarizer (`Requirements_Summary_Agent`) | Reads a directory of files and saves a structured, traceable requirements summary. | — |
+| `requirements_consultant` | Requirements consultant (`Requirements_Consultant_Agent`) | Answers questions about the saved requirements summary. | — |
+| `regenerate_document` | Document regenerator (`Regenerate_Document_Agent`) | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | — |
+
 ## Outputs
 
 Every run leaves behind a set of reusable artifacts in `output/`:

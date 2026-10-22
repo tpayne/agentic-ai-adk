@@ -15,6 +15,34 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
 
+## Agent Networks
+
+This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 21 (full detail, including every internal loop/sequence wrapper, is in [TECHNICAL_NOTES.md § Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+
+| Pipeline / Agent | What it is | What it does | Sub-agents it uses |
+| :--- | :--- | :--- | :--- |
+| `Process_Architect_Orchestrator` | Top-level router | Routes a request to whichever pipeline/agent below fits it. | Every pipeline/agent in this table |
+| `Full_Design_Pipeline` | Creation pipeline | Analyzes requirements, designs, compliance-reviews, and simulates a new business process until it passes, then expands subprocesses and renders the final document. | `Analysis_Agent`, `Design_Agent`, `Compliance_Agent`, `Simulation_Optimization_Agent`, `Subprocess_Generator_Agent`, `Document_Generation_Agent` |
+| `Update_Design_Pipeline` | Update pipeline | Same generate/review loop, applied as a delta against an existing process. | `Process_Update_Analyst`, `Design_Agent`, `Compliance_Agent`, `Simulation_Optimization_Agent`, `Subprocess_Generator_Agent`, `Document_Generation_Agent` |
+| `Consultant_Agent` | Consultant | Answers questions about an existing business process. | — |
+| `Scenario_Tester` | Scenario tester | Tests "what-if" scenarios against an existing process. | — |
+| `Simulation_Optimization_Query_Agent` | Simulation query | Answers questions about an existing process's cycle-time simulation results. | — |
+| `Process_Import_Agent` | Import | Imports an already-existing business process document directly into `process_data.json`. | — |
+| `Full_Design_Doc_Pipeline` | Creation pipeline | Analyzes requirements, designs (HLD+LLD), compliance-reviews, and simulates a new design document, then renders the final document. | `Design_Doc_Analysis_Agent`, `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Document_Generation_Agent` |
+| `Update_Design_Doc_Pipeline` | Update pipeline | Same generate/review loop, applied as a delta against an existing design document. | `Design_Doc_Update_Analyst`, `Design_Doc_HLD_Agent`, `Design_Doc_LLD_Agent`, `Design_Doc_Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Document_Generation_Agent` |
+| `Design_Consultant_Agent` | Consultant | Answers questions about an existing design document, with license to bring in outside best practice. | — |
+| `Design_Scenario_Tester` | Scenario tester | Tests "what-if" scenarios against an existing design document. | — |
+| `Design_Architecture_Simulation_Query_Agent` | Simulation query | Runs the composite resilience/scalability/security/latency simulation over an existing design document. | — |
+| `Design_Import_Agent` | Import | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json`. | — |
+| `CloudArch_Pipeline` | Creation/refinement pipeline | Generates, refines, and reviews a cloud architecture diagram until it's approved; also applies natural-language edits to an existing one. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
+| `CloudArch_Consultant_Agent` | Consultant | Answers questions about an existing cloud architecture diagram. | — |
+| `CloudArch_Simulation_Query_Agent` | Simulation query | Runs a resilience/scalability/latency simulation over an existing diagram. | — |
+| `CloudArch_Attack_Simulation_Query_Agent` | Attack simulation | Runs an adversarial attack-path simulation over an existing diagram. Analysis-only. | — |
+| `CloudArch_FinOps_Agent` | Cost estimator | Estimates monthly cost and recommends optimizations for an existing diagram. | — |
+| `Requirements_Summary_Agent` | Requirements summarizer | Reads a directory of files and saves a structured, traceable requirements summary. | — |
+| `Requirements_Consultant_Agent` | Requirements consultant | Answers questions about the saved requirements summary. | — |
+| `Create_Doc_Agent` | Document regenerator | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+
 ## Outputs
 
 Every run leaves behind a set of reusable artifacts in `output/`:
