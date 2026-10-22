@@ -26,6 +26,8 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 
 ## Quick start
 
+To quickly run the utility, you can do the following.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -38,7 +40,7 @@ python -m process_agents.agent
 
 You'll get an interactive prompt:
 
-```
+```bash
 [user]: create a simple 3-step vendor onboarding process
 - Starting process pipeline. This will take some time...
 [ArchitectBot]: Successfully generated a professional ISO-formatted Word document: output/Vendor_Onboarding.docx

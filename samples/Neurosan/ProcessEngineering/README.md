@@ -37,7 +37,7 @@ uv run python cli.py
 
 You'll get an interactive prompt:
 
-```
+```bash
 [user]: create a simple 3-step vendor onboarding process
 - Starting process pipeline. This will take some time...
 [ArchitectBot]: Successfully generated a professional ISO-formatted Word document: output/Vendor_Onboarding.docx
