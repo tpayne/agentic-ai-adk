@@ -65,7 +65,7 @@ The following are a few real life outputs from the tool for Cloud architecture.
 ### Hybrid Cloud Solution
 ![Hybrid Setup](./examples/XML/Hybrid/cloudarch_drawio.jpg)
 
-More examples — including business process documents and diagrams — are in [`examples/`](examples/) and [TECHNICAL_NOTES.md § Sample Cloud Architecture Diagrams](TECHNICAL_NOTES.md#sample-cloud-architecture-diagrams).
+More examples — including business process documents and diagrams — are in [`examples/`](examples/) and [Sample Cloud Architecture Diagrams](TECHNICAL_NOTES.md#sample-cloud-architecture-diagrams).
 
 ### Browser Client
 
