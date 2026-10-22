@@ -416,6 +416,52 @@ button, input, textarea {
   color: var(--text-faint);
 }
 
+.voice-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.volume-field { gap: 4px; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sidebar-scrim {
   display: none;
 }
@@ -1550,6 +1596,18 @@ button, input, textarea {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Mic button while actively recording -- deliberately the "danger" palette
+   (not .active's accent one) plus the same pulse keyframes already used
+   for .status-pill.status-checking, so a live microphone feed reads as
+   "something is happening, click to stop" rather than a plain toggled
+   formatting button. */
+.toolbar-btn.recording {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+  animation: pulse 1.1s ease-in-out infinite;
 }
 
 .send-btn {

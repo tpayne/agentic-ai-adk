@@ -154,6 +154,11 @@
     themeToggleIcon: document.getElementById("themeToggleIcon"),
     themeToggleLabel: document.getElementById("themeToggleLabel"),
 
+    muteToggleBtn: document.getElementById("muteToggleBtn"),
+    muteToggleIcon: document.getElementById("muteToggleIcon"),
+    muteToggleLabel: document.getElementById("muteToggleLabel"),
+    volumeSlider: document.getElementById("volumeSlider"),
+
     chatScroll: document.getElementById("chatScroll"),
     chatContainer: document.getElementById("chatContainer"),
     emptyState: document.getElementById("emptyState"),
@@ -167,6 +172,7 @@
     attachFileBtn: document.getElementById("attachFileBtn"),
     attachFileInput: document.getElementById("attachFileInput"),
     composerAttachments: document.getElementById("composerAttachments"),
+    micBtn: document.getElementById("micBtn"),
 
     tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
     chatTabPanel: document.getElementById("chatTabPanel"),
@@ -254,6 +260,8 @@
     preset: "adk",
     sessionId: null,
     theme: null, // null = follow system preference
+    voiceMuted: false,
+    voiceVolume: 100,
     ...loadState(),
   };
 
@@ -345,6 +353,70 @@
     saveState({ theme: state.theme });
     applyTheme();
   });
+
+  // ---------------------------------------------------------------
+  // Voice output (speak a reply on request) -- window.speechSynthesis,
+  // built into every modern browser, so (like everything else in this
+  // file) this needs no server round trip and no external dependency.
+  // ---------------------------------------------------------------
+  const SPEECH_SUPPORTED = "speechSynthesis" in window;
+
+  function applyVoiceSettings() {
+    if (!SPEECH_SUPPORTED) {
+      el.muteToggleBtn.disabled = true;
+      el.muteToggleBtn.title = "Voice output isn't supported in this browser.";
+      el.muteToggleLabel.textContent = "Voice: unavailable";
+      el.volumeSlider.disabled = true;
+      return;
+    }
+    const muted = !!state.voiceMuted;
+    el.muteToggleIcon.textContent = muted ? "\u{1F507}" : "\u{1F50A}";
+    el.muteToggleLabel.textContent = muted ? "Voice: Off" : "Voice: On";
+    el.volumeSlider.value = state.voiceVolume != null ? state.voiceVolume : 100;
+    el.volumeSlider.disabled = muted;
+    if (muted) window.speechSynthesis.cancel();
+  }
+
+  el.muteToggleBtn.addEventListener("click", () => {
+    state.voiceMuted = !state.voiceMuted;
+    saveState({ voiceMuted: state.voiceMuted });
+    applyVoiceSettings();
+  });
+
+  el.volumeSlider.addEventListener("input", () => {
+    state.voiceVolume = Number(el.volumeSlider.value);
+    saveState({ voiceVolume: state.voiceVolume });
+  });
+
+  // Renders `markdownText` through the same markdown-lite pipeline used
+  // for display, then reads back .textContent -- cheaper and far more
+  // robust than a second, hand-written "strip markdown syntax" regex, and
+  // guarantees speech and on-screen text never drift out of sync (tables/
+  // lists/headings all collapse to sensible plain text for free).
+  function plainTextForSpeech(markdownText) {
+    const scratch = document.createElement("div");
+    scratch.innerHTML = renderMarkdownLite(markdownText || "");
+    return scratch.textContent || "";
+  }
+
+  // Speaks `text` on request (a message's own "Speak" button) -- never
+  // automatic/on-done, per the feature request. Only one reply speaks at
+  // a time: a fresh click (on this message or another) cancels whatever
+  // was already playing rather than queuing or overlapping.
+  function speakText(text) {
+    if (!SPEECH_SUPPORTED) {
+      toast("Text-to-speech isn't supported in this browser.");
+      return;
+    }
+    if (state.voiceMuted) {
+      toast("Voice output is muted — unmute it in the sidebar to hear replies.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(plainTextForSpeech(text));
+    utterance.volume = (state.voiceVolume != null ? state.voiceVolume : 100) / 100;
+    window.speechSynthesis.speak(utterance);
+  }
 
   // ---------------------------------------------------------------
   // Sidebar (mobile)
@@ -1887,6 +1959,27 @@
     state.transcript.push({ role, text, timestamp: new Date() });
   }
 
+  // Copy + (if supported) Speak buttons for an agent message's meta row --
+  // shared by addMessage and createLiveAgentMessage().finalize() below,
+  // which previously built the Copy button twice, nearly identically.
+  function addMessageActionButtons(meta, text) {
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", () => copyText(text));
+    meta.appendChild(copyBtn);
+
+    if (SPEECH_SUPPORTED) {
+      const speakBtn = document.createElement("button");
+      speakBtn.type = "button";
+      speakBtn.className = "copy-btn speak-btn";
+      speakBtn.textContent = "Speak";
+      speakBtn.addEventListener("click", () => speakText(text));
+      meta.appendChild(speakBtn);
+    }
+  }
+
   function addMessage(role, text, { isMarkdown = false, attachmentNames = [] } = {}) {
     recordTranscript(role, text);
     el.emptyState.style.display = "none";
@@ -1937,12 +2030,7 @@
     meta.appendChild(time);
 
     if (role === "agent") {
-      const copyBtn = document.createElement("button");
-      copyBtn.type = "button";
-      copyBtn.className = "copy-btn";
-      copyBtn.textContent = "Copy";
-      copyBtn.addEventListener("click", () => copyText(text));
-      meta.appendChild(copyBtn);
+      addMessageActionButtons(meta, text);
     }
     col.appendChild(meta);
 
@@ -2074,12 +2162,7 @@
           const time = document.createElement("span");
           time.textContent = formatTime(new Date());
           meta.appendChild(time);
-          const copyBtn = document.createElement("button");
-          copyBtn.type = "button";
-          copyBtn.className = "copy-btn";
-          copyBtn.textContent = "Copy";
-          copyBtn.addEventListener("click", () => copyText(text));
-          meta.appendChild(copyBtn);
+          addMessageActionButtons(meta, text);
           col.appendChild(meta);
         }
         scrollToBottom();
@@ -2376,6 +2459,8 @@
       return;
     }
 
+    stopVoiceInputIfActive();
+    if (SPEECH_SUPPORTED) window.speechSynthesis.cancel();
     addMessage("user", text, { isMarkdown: true, attachmentNames: (files || []).map((f) => f.name) });
     beginNetworkTurn(text);
     el.sendBtn.disabled = true;
@@ -2478,6 +2563,102 @@
   }
 
   el.stopBtn.addEventListener("click", stopCurrentTurn);
+
+  // ---------------------------------------------------------------
+  // Voice input -- record a prompt by speech instead of typing it.
+  // window.SpeechRecognition (Chrome/Edge only as of this writing;
+  // Firefox/Safari don't implement it) -- like speechSynthesis above,
+  // this needs no server round trip and no external dependency, so the
+  // mic button is simply disabled with an explanatory title where the
+  // API doesn't exist rather than this page needing a cloud STT fallback.
+  // ---------------------------------------------------------------
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
+
+  function setRecordingState(recording) {
+    isRecording = recording;
+    el.micBtn.classList.toggle("recording", recording);
+    el.micBtn.title = recording ? "Stop recording" : "Voice input (click to record)";
+    el.micBtn.setAttribute("aria-label", el.micBtn.title);
+  }
+
+  function stopVoiceInputIfActive() {
+    if (recognition && isRecording) recognition.stop();
+  }
+
+  function startVoiceInput() {
+    recognition = new SpeechRecognitionCtor();
+    recognition.lang = navigator.language || "en-US";
+    recognition.continuous = true;
+    // Only commit FINAL results into the composer -- interim results
+    // change word-by-word as recognition refines its guess, and
+    // inserting/removing those live would mean constantly rewriting text
+    // right where the user's caret is.
+    recognition.interimResults = false;
+
+    recognition.addEventListener("result", (event) => {
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
+      }
+      if (finalText) insertTextAtCursor(finalText);
+    });
+
+    recognition.addEventListener("error", (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        toast("Microphone access was denied.");
+      } else if (event.error !== "no-speech" && event.error !== "aborted") {
+        toast(`Voice input error: ${event.error}`);
+      }
+    });
+
+    // Fires both on an explicit stop() and if the browser's own
+    // implementation ends the session on its own (e.g. a long silence) --
+    // either way the button must fall back to its idle state rather than
+    // keep showing "recording" for a session that has actually ended.
+    // Deliberately does NOT auto-restart: a user who wants to keep
+    // dictating just clicks the mic again, which is simpler and avoids a
+    // restart loop fighting a browser that keeps ending the session.
+    recognition.addEventListener("end", () => setRecordingState(false));
+
+    recognition.start();
+    setRecordingState(true);
+  }
+
+  if (!SpeechRecognitionCtor) {
+    el.micBtn.disabled = true;
+    el.micBtn.title = "Voice input isn't supported in this browser (try Chrome or Edge).";
+  } else {
+    el.micBtn.addEventListener("click", () => {
+      if (isRecording) {
+        recognition.stop();
+      } else {
+        startVoiceInput();
+      }
+    });
+  }
+
+  // Inserts `text` at the composer's current caret position (NOT a full
+  // replace -- see setComposerPlainText below for that, used only by
+  // history recall) so dictated text can mix naturally with whatever was
+  // already typed, across one or several recording sessions.
+  function insertTextAtCursor(text) {
+    el.messageInput.focus();
+    const inserted = document.execCommand("insertText", false, text);
+    if (!inserted) {
+      // execCommand unsupported/failed (rare) -- append at the end rather
+      // than silently dropping the transcript. This path does NOT fire a
+      // native "input" event the way execCommand does, so updateEmptyState
+      // (wired below) needs an explicit call here.
+      const existing = el.messageInput.textContent;
+      if (existing && !/\s$/.test(existing)) {
+        el.messageInput.appendChild(document.createTextNode(" "));
+      }
+      el.messageInput.appendChild(document.createTextNode(text));
+      updateEmptyState();
+    }
+  }
 
   // ---------------------------------------------------------------
   // Composer -- a contenteditable div (not a <textarea>) so bold/italic/
@@ -2895,6 +3076,7 @@
   // ---------------------------------------------------------------
   function init() {
     applyTheme();
+    applyVoiceSettings();
     if (window.matchMedia) {
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
         if (!state.theme) applyTheme();

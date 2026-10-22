@@ -82,6 +82,7 @@ The message box is a rich-text editor, not a plain text field, with a small tool
 | **B** | Bold the selection (or what you type next) — `Ctrl`/`Cmd`+`B` also works. |
 | *I* | Italicize the selection — `Ctrl`/`Cmd`+`I` also works. |
 | List icon | Toggle a bullet list. Enter adds a new item while inside one; Shift+Enter still works too. |
+| Mic icon | **Voice input** — see below. |
 | Download icon | **Save chat** — see below. |
 
 The box expands automatically as you type (up to a max height, then scrolls) and supports full
@@ -110,6 +111,36 @@ Access API); in browsers without it (Firefox, Safari as of this writing) it trig
 file download instead — either way, you end up with a timestamped
 `process-architect-chat-<date>.md` file containing the transcript.
 
+## Voice input and output
+
+Both directions use the browser's own built-in Web Speech APIs — no server round trip, no
+external service, no API key, nothing to configure. Either half is simply unavailable (and its
+controls disabled, with an explanatory tooltip) in a browser that doesn't implement the
+corresponding API — as of this writing that's mainly Chromium-based browsers (Chrome, Edge) for
+input; output (speech synthesis) is far more broadly supported.
+
+**Voice input** (dictate instead of typing): click the mic icon in the composer toolbar to start
+recording — it turns red and pulses while listening. Speak, then click it again (or just stop
+talking for a while) to end that recording. Recognized speech is inserted at the cursor in the
+message box, same as typing it, so it can be mixed with typed text, edited, or dictated again
+before you actually hit Send — nothing is sent automatically just because it was recognized.
+Starting a new recording session appends to whatever's already there rather than replacing it.
+Sending a message (or starting a new one while a recording is still active) stops that recording
+first.
+
+**Voice output** (hear a reply instead of reading it): every agent reply gets a small **Speak**
+button next to **Copy** in its meta row (same hover-to-reveal behavior as Copy). Clicking it reads
+that reply aloud via the browser's built-in text-to-speech — reusing the same markdown-lite
+renderer used to display the reply first, so formatting syntax (`**bold**`, bullets, table
+pipes, …) is never read aloud literally. Only one reply speaks at a time: clicking Speak on a
+different message (or sending a new one) cancels whatever was already playing rather than queuing
+it. Nothing is spoken automatically — this is strictly on request, per reply.
+
+**Mute and volume**, in the sidebar footer (same spot as the light/dark theme toggle): the
+speaker button mutes/unmutes voice output entirely (muting instantly cancels anything currently
+speaking), and the slider sets playback volume from 0–100%. Both settings persist in this
+browser's `localStorage`, the same way the connection settings and theme choice do.
+
 ## Streaming
 
 Every turn is sent to `POST /chat/stream` first — the same endpoint both backends' CLIs now
@@ -128,7 +159,7 @@ events arrive:
   in-progress fragment (e.g. an unclosed &#96;&#96;&#96;code block&#96;&#96;&#96;), and parsing
   that as markdown mid-stream renders broken HTML far more often than it renders anything useful.
 - **`done`** finalizes the reply: the complete text is rendered through the real markdown-lite
-  renderer exactly once, and the copy button/timestamp are added.
+  renderer exactly once, and the copy/speak buttons and timestamp are added.
 
 While a turn is streaming, the composer's **Send** button is replaced by a red **Stop** button.
 Clicking it calls `POST /chat/<session_id>/stop` on the connected backend — a **real** cancellation
