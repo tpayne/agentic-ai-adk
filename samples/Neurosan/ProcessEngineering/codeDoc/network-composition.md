@@ -97,7 +97,7 @@ flowchart TB
   `load_master_design_json`/`load_drawio`, `load_requirements_summary`, and -- for the two
   simulation-query agents -- `simulate_process_performance`/`simulate_design_architecture`/
   `simulate_cloudarch_architecture`). None of them write state back or loop.
-- Unlike the ADK original's `SequentialAgent`/`LoopAgent` composition (a real Python object tree
+- Unlike the ADK version's `SequentialAgent`/`LoopAgent` composition (a real Python object tree
   constructed once at startup), every arrow above is a *convention a front-man's own instructions
   follow*, re-evaluated by the LLM on every turn -- there is no object that enforces the sequence
   at runtime beyond `loop_control`'s own hard iteration-count backstop. See the main README's "Why

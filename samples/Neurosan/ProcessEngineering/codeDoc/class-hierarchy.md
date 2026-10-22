@@ -107,6 +107,6 @@ classDiagram
 - R09/R10 share a name but are declared independently in different modules -- see
   [class-inventory.md](class-inventory.md)'s note on why.
 - No `@dataclass` declarations or enum subclasses were found under this project's own code (unlike
-  the ADK original's pydantic schema cluster, which doesn't exist here -- `CodedTool.invoke()`
+  the ADK version's pydantic schema cluster, which doesn't exist here -- `CodedTool.invoke()`
   takes/returns plain `Dict[str, Any]`, validated procedurally in `coded_tools/common/process_json.py`
   and `design_json.py` rather than via typed schema classes).

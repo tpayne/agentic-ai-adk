@@ -1,7 +1,7 @@
 # Application class diagram
 
 This is the application-only view: all 34 classes from
-[class-inventory.md](class-inventory.md), test fixtures omitted. Unlike the ADK original's
+[class-inventory.md](class-inventory.md), test fixtures omitted. Unlike the ADK version's
 equivalent diagram (13 classes with a real composition tree -- pydantic schema nesting, ADK
 `SequentialAgent` construction), 30 of the 34 classes here are direct, sibling subclasses of the
 same external base (`neuro_san.interfaces.coded_tool.CodedTool`) with essentially the same shape:

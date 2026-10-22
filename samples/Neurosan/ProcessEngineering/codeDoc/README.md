@@ -1,4 +1,4 @@
-# ProcessEngineering (neuro-san port) -- structure diagrams
+# ProcessEngineering (neuro-san) -- structure diagrams
 
 These diagrams document the Python declarations under `coded_tools/`, `cli.py`, and `tests/`, and
 this project's declarative HOCON network composition under `registries/`:
@@ -18,7 +18,7 @@ each node. Composition edges are included only where construction or typed field
 relationship; agent/tool names alone are not treated as class relationships.
 
 This project's own class inventory (34 classes, scoped to exclude the neuro-san-studio scaffolding
-this project didn't write) is considerably flatter than the ADK original's (61 classes across a
+this project didn't write) is considerably flatter than the ADK version's (61 classes across a
 real `LlmAgent`/`BaseAgent`/pydantic-schema hierarchy): neuro-san's `CodedTool` interface is a
 single-method entry point (`invoke(args, sly_data)`), so 30 of the 34 are direct, sibling
 subclasses of the same external base with essentially identical shape. The Mermaid diagrams render
@@ -71,7 +71,7 @@ genuine asymmetries, both now fixed:
    Documentation" sample-prompt category promising exactly that. Fixed by adding the same two tools
    to `process_update.hocon` (plus their own thin re-export modules under
    `coded_tools/process_update/`, mirroring `coded_tools/design_update/`'s existing pattern).
-2. **No subprocess regeneration.** The ADK original's own `Update_Design_Pipeline` also re-runs
+2. **No subprocess regeneration.** The ADK version's own `Update_Design_Pipeline` also re-runs
    subprocess regeneration (`Subprocess_Driver_Agent`) before rebuilding artifacts on an update
    (confirmed directly in `samples/GCP/ProcessEngineering/process_agents/process/update_process_agent.py`).
    `process_update.hocon` had no `Subprocess_Driver_Agent`, `Subprocess_Generator_Agent`,
