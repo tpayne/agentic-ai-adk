@@ -55,36 +55,3 @@ the LLM itself, re-evaluating those instructions on every turn. There is no runt
 object the way ADK's `SequentialAgent`/`LoopAgent` was; `loop_control`'s own hard iteration-count
 check is the only enforcement mechanism beyond the model actually following its instructions (see
 the main README's "Why neuro-san needed a different design for the generate/review loop").
-
-## Two real gaps found (and fixed) while building these diagrams
-
-Cross-checking `process_update.hocon`'s own front-man `"tools"` list against `design_update.hocon`'s
-(to draw [the two update sequence diagrams](sequence-process-update.png) consistently) surfaced two
-genuine asymmetries, both now fixed:
-
-1. **No document regeneration.** `Design_Doc_Update_Pipeline` correctly ends with
-   `generate_design_flow_diagram`/`generate_design_document` (regenerating the Word document and
-   diagram after every update, unconditionally), but `Process_Update_Pipeline`'s own tool list had
-   **no** `generate_process_flow_diagram`/`generate_process_document` at all -- an update to an
-   existing process was never followed by document regeneration, only a plain-language outcome
-   report, despite the main README's own "Applying Updates to Existing Processes & Regenerating the
-   Documentation" sample-prompt category promising exactly that. Fixed by adding the same two tools
-   to `process_update.hocon` (plus their own thin re-export modules under
-   `coded_tools/process_update/`, mirroring `coded_tools/design_update/`'s existing pattern).
-2. **No subprocess regeneration.** The ADK version's own `Update_Design_Pipeline` also re-runs
-   subprocess regeneration (`Subprocess_Driver_Agent`) before rebuilding artifacts on an update
-   (confirmed directly in `samples/GCP/ProcessEngineering/process_agents/process/update_process_agent.py`).
-   `process_update.hocon` had no `Subprocess_Driver_Agent`, `Subprocess_Generator_Agent`,
-   `load_process_steps`, or `save_subprocess_flow` at all -- updating an existing process never
-   re-expanded its per-step subprocesses, even when the update changed which steps exist. Fixed by
-   duplicating `Subprocess_Driver_Agent`/`Subprocess_Generator_Agent` verbatim from `process.hocon`
-   (the same "duplicated, not cross-referenced" pattern `process_update.hocon`'s own header comment
-   already explains for `Design_Agent`/`Compliance_Agent`/`Simulation_Agent`), plus a new
-   `coded_tools/process_update/subprocess_tool.py` re-export.
-
-Both confirmed end-to-end, not just "the HOCON parses": `GenerateProcessFlowDiagramCodedTool`/
-`GenerateProcessDocumentCodedTool` actually produce a real diagram and `.docx`, and a subprocess
-saved via `SaveSubprocessFlowCodedTool` actually shows up in the regenerated document's body text.
-Locked in by `tests/test_process_update_regenerates_documents.py` (7 tests covering both fixes).
-[`sequence-process-update.png`](sequence-process-update.png) now matches
-[`sequence-process-create.png`](sequence-process-create.png)'s shape exactly, as it should.
