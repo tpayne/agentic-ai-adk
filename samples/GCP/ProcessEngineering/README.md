@@ -1,6 +1,6 @@
 # ADK Business Process Architect
 
-Give it a rough, plain-language brief and this multi-agent suite (built on the Google Agent Development Kit) will design, test, and document a full end-to-end business process — or a full architectural design document (HLD/LLD/Combined) — producing a professional, ISO-aligned Word document plus diagrams. Built for architects, consultants, and engineering leads who need defensible, standards-aligned documentation fast, without hand-crafting it themselves.
+This multi-agent suite (built on the Google Agent Development Kit) turns a rough, plain-language brief into a fully designed, tested, and documented business process, or a full architectural design document (HLD/LLD/Combined), complete with a professional, ISO-aligned Word document and diagrams. Built for architects, consultants, and engineering leads who need defensible, standards-aligned documentation fast, without hand-crafting it themselves.
 
 Under the hood, a pipeline of specialized agents hands work off in sequence — one analyzes your requirements, one drafts the process or design, one audits it for compliance, one simulates it for bottlenecks or risks — looping back for revisions automatically until the output passes every check, then a final agent renders the Word document and diagrams.
 
