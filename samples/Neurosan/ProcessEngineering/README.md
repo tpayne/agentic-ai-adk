@@ -26,6 +26,8 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 
 ## Quick start
 
+To quickly run the utility, you can do the following.
+
 ```bash
 uv sync
 
