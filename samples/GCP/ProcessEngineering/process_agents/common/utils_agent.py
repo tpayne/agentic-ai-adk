@@ -126,6 +126,59 @@ def release_pipeline_lock_for_turn(context) -> None:
     stop_pipeline_lock_heartbeat(token)
     release_pipeline_lock(token)
 
+
+# context.state key (scoped to the whole chat session, same as
+# PIPELINE_LOCK_TOKEN_STATE_KEY above) marking that THIS session has
+# already touched the cloud-architecture subsystem at least once. See
+# claim_cloudarch_drawio_for_session's own docstring.
+CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY = "_cloudarch_drawio_session_owned"
+
+
+def claim_cloudarch_drawio_for_session(context) -> bool:
+    """Returns True only the first time this is called for the current
+    chat session, and marks the session as having claimed
+    output/cloudarch_drawio.xml from then on (every later call in the
+    same session returns False). context may be None (a direct/test
+    call with no ADK-managed context) -- always returns False in that
+    case, since there is no session to gate on.
+
+    Two different CloudArch-family entry points call this on a session's
+    first touch, with different consequences for whatever is currently
+    on disk:
+      - cloudarch_pipeline_agent._reset_cloudarch_approval_state (the
+        generate/refine pipeline's own reset step): if this call returns
+        True, any existing diagram could only be a stale leftover from a
+        different, unrelated session (this one has never touched it
+        before), so the caller deletes it before generation/refinement
+        starts.
+      - the read-only query agents' own before_agent_callback
+        (see claim_cloudarch_drawio_readonly below): if this call
+        returns True, the caller does NOT delete anything -- a read-only
+        question must never destroy data just because the session
+        hasn't looked at it yet; it simply adopts whatever is on disk as
+        this session's own.
+
+    Whichever of the two runs first in a given session wins -- this is a
+    per-session one-shot regardless of which CloudArch-family agent
+    makes the call first."""
+    if context is None or context.state.get(CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY):
+        return False
+    context.state[CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY] = True
+    return True
+
+
+def claim_cloudarch_drawio_readonly(callback_context=None) -> None:
+    """before_agent_callback for the read-only CloudArch query agents
+    (Consultant/Simulation/Attack-Simulation/FinOps): claims this
+    session's ownership of the cloud-architecture diagram the same way
+    claim_cloudarch_drawio_for_session does, but only for that side
+    effect -- always returns None (never short-circuits the agent),
+    since a read-only question must never be blocked or have its
+    response substituted just because this happens to be the session's
+    first touch."""
+    claim_cloudarch_drawio_for_session(callback_context)
+    return None
+
 # ---------- Programmatic stop/kill-switch tool ----------
 def _contains_marker(obj: Any, needle: str) -> bool:
     """Recursive search for case-insensitive needle in dict/list/str."""

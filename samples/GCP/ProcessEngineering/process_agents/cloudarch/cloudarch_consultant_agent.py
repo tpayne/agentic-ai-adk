@@ -15,6 +15,7 @@ logger = logging.getLogger("ProcessArchitect.ConsultantCloudArch")
 # the exact XML content in a long-running session -- same reasoning as why
 # cloudarch_reviewer_agent.py always reloads it rather than trusting recall.
 from ..common.utils import load_drawio, load_master_process_json, load_requirements_summary
+from ..common.utils_agent import claim_cloudarch_drawio_readonly
 
 
 def load_cloudarch_context(schema_type: Optional[str] = None) -> Union[dict, None]:
@@ -40,4 +41,5 @@ consultant_cloudarch_agent = ProcessLlmAgent(
     description="Use this for questions about an EXISTING cloud architecture diagram. It cannot create or modify one.",
     instruction_file="cloudarch/cloudarch_consultant_agent.txt",
     tools=[load_drawio, load_cloudarch_context, load_requirements_summary],
+    before_agent_callback=claim_cloudarch_drawio_readonly,
 )

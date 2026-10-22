@@ -1,3 +1,3 @@
-from coded_tools.cloudarch.reset_loop_state_tool import ResetLoopStateCodedTool
+from coded_tools.common.reset_loop_state_base import ResetLoopStateCodedTool
 
 __all__ = ["ResetLoopStateCodedTool"]

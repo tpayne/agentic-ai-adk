@@ -209,6 +209,103 @@ def test_process_pipeline_releases_its_lock_once_the_document_is_generated(monke
     acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
 
 
+def _write_stale_drawio(content: str = "stale-content") -> str:
+    from process_toolkit.drawio.persistence import DRAWIO_FILENAME
+
+    path = paths.output_path(DRAWIO_FILENAME)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return path
+
+
+def test_cloudarch_reset_clears_a_stale_drawio_file_on_a_sessions_first_touch():
+    # The actual bug this guards against: a brand-new chat session's very
+    # first "generate a cloud architecture" request must not silently be
+    # treated as a refinement of a diagram some OTHER, unrelated session
+    # left behind on disk.
+    from process_agents.cloudarch.cloudarch_pipeline_agent import _reset_cloudarch_approval_state
+
+    path = _write_stale_drawio()
+    assert _reset_cloudarch_approval_state(_fake_context()) is None
+    assert not os.path.exists(path)
+
+
+def test_cloudarch_reset_leaves_a_same_session_diagram_untouched_on_a_later_touch():
+    # The legitimate counterpart: a SECOND turn in the SAME session (e.g.
+    # "now refine that architecture to add a cache layer") must not have
+    # the diagram it's being asked to refine wiped out from under it.
+    from process_agents.cloudarch.cloudarch_pipeline_agent import (
+        _reset_cloudarch_approval_state,
+        _release_cloudarch_pipeline_lock,
+    )
+
+    shared_session_state = {}
+    first_turn_ctx = _fake_context(state=shared_session_state)
+    assert _reset_cloudarch_approval_state(first_turn_ctx) is None
+
+    # Simulates cloudarch_agent saving a diagram during this first turn,
+    # then the first turn's pipeline finishing (releasing its lock) --
+    # otherwise the second call below would correctly conflict on the
+    # lock itself, for reasons unrelated to what this test is checking.
+    path = _write_stale_drawio("this-sessions-own-diagram")
+    _release_cloudarch_pipeline_lock(first_turn_ctx)
+
+    second_turn_ctx = _fake_context(state=shared_session_state)
+    assert _reset_cloudarch_approval_state(second_turn_ctx) is None
+    assert os.path.exists(path)
+    with open(path, encoding="utf-8") as f:
+        assert f.read() == "this-sessions-own-diagram"
+
+
+def test_cloudarch_readonly_query_claims_the_session_without_deleting_the_drawio_file():
+    # A read-only question (e.g. "what are the security risks of our
+    # architecture") must never destroy a diagram just because this
+    # session hasn't looked at it yet -- unlike the generate/refine
+    # pipeline's own reset step, it must adopt what's there, not wipe it.
+    from process_agents.common.utils_agent import claim_cloudarch_drawio_readonly
+
+    path = _write_stale_drawio("someone-elses-diagram")
+    assert claim_cloudarch_drawio_readonly(_fake_context()) is None
+    assert os.path.exists(path)
+
+
+def test_a_readonly_query_before_a_refine_request_in_the_same_session_preserves_the_diagram():
+    # Regression test for the ordering trap: if a read-only query runs
+    # FIRST in a session (claiming ownership non-destructively) and the
+    # user THEN asks to refine that same diagram, the pipeline's own
+    # reset step must see the session as already "owned" and must NOT
+    # retroactively delete the file the query just presented.
+    from process_agents.common.utils_agent import claim_cloudarch_drawio_readonly
+    from process_agents.cloudarch.cloudarch_pipeline_agent import _reset_cloudarch_approval_state
+
+    shared_session_state = {}
+    path = _write_stale_drawio("asked-about-this-one")
+
+    query_ctx = _fake_context(state=shared_session_state)
+    assert claim_cloudarch_drawio_readonly(query_ctx) is None
+    assert os.path.exists(path)
+
+    refine_ctx = _fake_context(state=shared_session_state)
+    assert _reset_cloudarch_approval_state(refine_ctx) is None
+    assert os.path.exists(path)
+
+
+def test_cloudarch_readonly_agents_are_wired_to_claim_the_session():
+    from process_agents.common.utils_agent import claim_cloudarch_drawio_readonly
+    from process_agents.cloudarch.cloudarch_consultant_agent import consultant_cloudarch_agent
+    from process_agents.cloudarch.cloudarch_finops_agent import cloudarch_finops_query_agent
+    from process_agents.cloudarch.cloudarch_simulation_agent import cloudarch_simulation_query_agent
+    from process_agents.cloudarch.cloudarch_attack_simulation_agent import cloudarch_attack_simulation_query_agent
+
+    for agent in (
+        consultant_cloudarch_agent,
+        cloudarch_finops_query_agent,
+        cloudarch_simulation_query_agent,
+        cloudarch_attack_simulation_query_agent,
+    ):
+        assert agent.before_agent_callback is claim_cloudarch_drawio_readonly
+
+
 def test_two_different_pipelines_cannot_run_concurrently():
     # The actual risk this guards against: one pipeline's own first reset
     # call locks out a second, different pipeline's own first reset call

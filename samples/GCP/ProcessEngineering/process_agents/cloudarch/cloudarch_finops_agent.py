@@ -10,6 +10,7 @@ from google.genai import types
 from process_toolkit.cloudarch.finops import estimate_cloudarch_finops
 
 from ..common.utils import load_drawio, load_requirements_summary
+from ..common.utils_agent import claim_cloudarch_drawio_readonly
 from ..common.agent_wrappers import ProcessLlmAgent
 
 
@@ -36,4 +37,5 @@ cloudarch_finops_query_agent = ProcessLlmAgent(
         top_p=1,
     ),
     instruction_file="cloudarch/cloudarch_finops_agent.txt",
+    before_agent_callback=claim_cloudarch_drawio_readonly,
 )

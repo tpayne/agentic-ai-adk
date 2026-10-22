@@ -12,6 +12,7 @@ from google.genai import types
 from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack
 
 from ..common.utils import load_drawio, load_requirements_summary
+from ..common.utils_agent import claim_cloudarch_drawio_readonly
 from ..common.agent_wrappers import ProcessLlmAgent
 
 # ============================================================
@@ -41,4 +42,5 @@ cloudarch_attack_simulation_query_agent = ProcessLlmAgent(
         top_p=1,
     ),
     instruction_file="cloudarch/cloudarch_attack_simulation_query_agent.txt",
+    before_agent_callback=claim_cloudarch_drawio_readonly,
 )
