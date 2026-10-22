@@ -665,6 +665,31 @@ class TestSafeRouting:
             for p1, p2 in zip(full_path, full_path[1:]):
                 assert not _segment_crosses_box(p1, p2, box)
 
+    def test_cross_row_edge_with_no_zone_at_all_in_the_skipped_row_number_does_not_raise(self):
+        # Regression test: confirmed against a real generated diagram --
+        # zones declared at "row": 0 and "row": 2 with NO zone at
+        # "row": 1 at all (not merely a row with nothing routed through
+        # it, as in test_cross_row_edge_skipping_an_entire_row_does_not_
+        # cut_through_it above, where "wide" IS a real row-1 zone).
+        # row_bottoms is keyed only by rows that actually have a zone, so
+        # anchoring the channel to the literal "lower_row - 1" key raised
+        # a bare KeyError the instant row numbering wasn't contiguous.
+        zones = [
+            {"id": "top", "label": "Top", "row": 0},
+            {"id": "bottom", "label": "Bottom", "row": 2},
+        ]
+        components = [
+            {"id": "t1", "zone_id": "top", "label": "T1"},
+            {"id": "b1", "zone_id": "bottom", "label": "B1"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        row_bottoms = {zb.row: zb.bottom for zb in zone_boxes.values()}
+        all_boxes = {**comp_boxes, **zone_boxes}
+        waypoints, _, _ = layout._route_edge(
+            {"source": "t1", "target": "b1"}, comp_boxes["t1"], comp_boxes["b1"], 0, row_bottoms, all_boxes,
+        )
+        assert waypoints
+
     def test_cross_row_edge_from_a_component_with_siblings_below_it_does_not_cut_through_them(self):
         # w1 is the FIRST (topmost) of three stacked components in "wide"
         # -- routing it down to row 2 must not cut through w2/w3 below it.

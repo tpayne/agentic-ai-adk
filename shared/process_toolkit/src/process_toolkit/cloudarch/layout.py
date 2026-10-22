@@ -1581,7 +1581,18 @@ def _route_edge(
     going_down = src.row < tgt.row
     exit_side, entry_side = ("bottom", "top") if going_down else ("top", "bottom")
     lower_row = max(src.row, tgt.row)
-    channel_y = row_bottoms[lower_row - 1] + ROW_GAP / 2 + _stagger_offset(
+    # `lower_row - 1` is only guaranteed to be a real, populated row when
+    # row numbers are contiguous from 0 -- but nothing requires that of
+    # the input: a real request declared zones at "row": 0 and "row": 2
+    # with no zone at "row": 1 at all, which raised a bare KeyError here
+    # (row_bottoms is keyed only by rows that actually have a zone).
+    # Anchoring to the bottom of the NEAREST row that actually exists
+    # below lower_row, rather than assuming lower_row - 1 is that row,
+    # tolerates any gap in the row numbering while keeping the same
+    # single-reserved-channel invariant the comment above describes.
+    rows_below = [r for r in row_bottoms if r < lower_row]
+    anchor_bottom = row_bottoms[max(rows_below)] if rows_below else 0.0
+    channel_y = anchor_bottom + ROW_GAP / 2 + _stagger_offset(
         channel_slot,
         _channel_stagger_step(channel_slot_total, ROW_GAP_STAGGER_CLAMP, STAGGER_STEP_ROW_GAP),
         clamp=ROW_GAP_STAGGER_CLAMP,
