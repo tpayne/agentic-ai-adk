@@ -1004,6 +1004,60 @@ input[type="range"]:disabled {
   white-space: nowrap;
 }
 
+/* ---------- Cloud Architecture tab ---------- */
+/* Reuses .network-canvas-wrap/.network-svg/.network-zoom-controls/
+   .zoom-btn/.empty-state verbatim (see the Agent Network tab's own rules
+   above) -- only the empty-state centering override (keyed per-panel,
+   same as .network-panel/.artifacts-panel/.usage-panel's own copies) and
+   the diagram's own shape/edge/label styling are new. */
+
+.cloudarch-panel .empty-state {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+}
+
+/* Permanently visible (not just in the empty state, which disappears
+   once a diagram loads) -- the caveat applies just as much to an
+   actively-displayed diagram as to the "nothing loaded yet" state. */
+.cloudarch-disclaimer {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.cloudarch-arrow { fill: var(--text-faint); }
+
+.cloudarch-edge {
+  stroke-width: 1.6;
+  fill: none;
+}
+
+/* Matches .net-node-label (Agent Network tab) exactly, for consistency
+   with the rest of the app's label text -- a previous version used a
+   thick text-stroke "halo" (paint-order:stroke + a wide stroke-width) to
+   read over connecting lines, which instead rendered as distorted,
+   embossed-looking glyphs. */
+.cloudarch-edge-label {
+  font-size: 10.5px;
+  font-weight: 650;
+  fill: var(--text);
+}
+
+.cloudarch-cell-label {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  font-family: inherit;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
 /* ---------- Token Usage tab ---------- */
 
 .usage-toolbar {
@@ -1443,6 +1497,18 @@ input[type="range"]:disabled {
 
 .message-row:hover .copy-btn { opacity: 1; }
 .copy-btn:hover { color: var(--accent); }
+
+/* While a reply is actively being spoken, its Speak button becomes a
+   Cancel button -- stays visible regardless of hover (unlike .copy-btn's
+   own hover-to-reveal default) so it's still reachable to stop the
+   audio after the mouse has moved away, and uses the "danger" palette
+   to signal that clicking it now stops something in progress, the same
+   way the composer's Send/Stop button pair does. */
+.speak-btn.speaking {
+  opacity: 1;
+  color: var(--danger);
+}
+.speak-btn.speaking:hover { color: var(--danger); }
 
 .typing-indicator {
   display: inline-flex;

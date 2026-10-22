@@ -158,6 +158,7 @@
     muteToggleIcon: document.getElementById("muteToggleIcon"),
     muteToggleLabel: document.getElementById("muteToggleLabel"),
     volumeSlider: document.getElementById("volumeSlider"),
+    faviconLink: document.getElementById("faviconLink"),
 
     chatScroll: document.getElementById("chatScroll"),
     chatContainer: document.getElementById("chatContainer"),
@@ -206,6 +207,17 @@
     artifactDetailContext: document.getElementById("artifactDetailContext"),
     artifactDetailList: document.getElementById("artifactDetailList"),
     artifactDetailCloseBtn: document.getElementById("artifactDetailCloseBtn"),
+
+    cloudarchTabPanel: document.getElementById("cloudarchTabPanel"),
+    cloudarchRefreshBtn: document.getElementById("cloudarchRefreshBtn"),
+    cloudarchExportBtn: document.getElementById("cloudarchExportBtn"),
+    cloudarchStatus: document.getElementById("cloudarchStatus"),
+    cloudarchCanvasWrap: document.getElementById("cloudarchCanvasWrap"),
+    cloudarchEmpty: document.getElementById("cloudarchEmpty"),
+    cloudarchSvg: document.getElementById("cloudarchSvg"),
+    cloudarchZoomInBtn: document.getElementById("cloudarchZoomInBtn"),
+    cloudarchZoomOutBtn: document.getElementById("cloudarchZoomOutBtn"),
+    cloudarchResetViewBtn: document.getElementById("cloudarchResetViewBtn"),
 
     usageTabPanel: document.getElementById("usageTabPanel"),
     usageModelValue: document.getElementById("usageModelValue"),
@@ -314,6 +326,25 @@
     error: null,
   };
 
+  // The Cloud Architecture tab's data -- the connected backend's current
+  // output/cloudarch_drawio.xml (GET /artifacts/cloudarch), rendered as an
+  // actual diagram (see renderCloudArchDiagram). Runtime only, same as
+  // dataExplorer above; `raw` holds the XML text itself, not a parsed
+  // DOM -- re-parsed fresh on every render so a resize/zoom/pan never
+  // needs to re-fetch.
+  state.cloudarch = {
+    raw: null,
+    loading: false,
+    error: null,
+    view: { x: 0, y: 0, scale: 1 },
+    autoFit: true,
+    // The full diagram's own native pixel size (independent of the
+    // current on-screen zoom/pan) -- set by renderCloudArchDiagram,
+    // used by exportCloudArchPng.
+    contentWidth: null,
+    contentHeight: null,
+  };
+
   // The Token Usage tab's data -- one entry per completed turn that
   // reported a "usage" field (see recordUsageTurn, called from
   // sendMessage's "done" handling). Runtime only, like transcript/network
@@ -374,7 +405,7 @@
     el.muteToggleLabel.textContent = muted ? "Voice: Off" : "Voice: On";
     el.volumeSlider.value = state.voiceVolume != null ? state.voiceVolume : 100;
     el.volumeSlider.disabled = muted;
-    if (muted) window.speechSynthesis.cancel();
+    if (muted) stopSpeaking();
   }
 
   el.muteToggleBtn.addEventListener("click", () => {
@@ -388,22 +419,63 @@
     saveState({ voiceVolume: state.voiceVolume });
   });
 
-  // Renders `markdownText` through the same markdown-lite pipeline used
-  // for display, then reads back .textContent -- cheaper and far more
-  // robust than a second, hand-written "strip markdown syntax" regex, and
-  // guarantees speech and on-screen text never drift out of sync (tables/
-  // lists/headings all collapse to sensible plain text for free).
-  function plainTextForSpeech(markdownText) {
+  // Renders `html` into a detached element and reads back .textContent --
+  // a cheap, robust way to get the plain-text reading of a string that's
+  // actually (or might contain) HTML, without a second hand-written
+  // "strip tags" regex. Used below both for speech (via renderMarkdownLite
+  // first) and for the Cloud Architecture tab's edge labels (which are
+  // already plain HTML straight out of the diagram XML, no markdown step
+  // needed).
+  function htmlToText(html) {
     const scratch = document.createElement("div");
-    scratch.innerHTML = renderMarkdownLite(markdownText || "");
+    scratch.innerHTML = html || "";
     return scratch.textContent || "";
   }
 
-  // Speaks `text` on request (a message's own "Speak" button) -- never
-  // automatic/on-done, per the feature request. Only one reply speaks at
-  // a time: a fresh click (on this message or another) cancels whatever
-  // was already playing rather than queuing or overlapping.
-  function speakText(text) {
+  // Renders `markdownText` through the same markdown-lite pipeline used
+  // for display, then strips it to plain text via htmlToText -- cheaper
+  // and far more robust than a second, hand-written "strip markdown
+  // syntax" regex, and guarantees speech and on-screen text never drift
+  // out of sync (tables/lists/headings all collapse to sensible plain
+  // text for free).
+  function plainTextForSpeech(markdownText) {
+    return htmlToText(renderMarkdownLite(markdownText || ""));
+  }
+
+  // The message-action button (if any) currently showing "Cancel" --
+  // only one utterance ever plays at a time, so at most one button is
+  // ever in this state. See speakText/stopSpeaking below.
+  let activeSpeakBtn = null;
+
+  function setSpeakButtonIdle(btn) {
+    btn.textContent = "Speak";
+    btn.classList.remove("speaking");
+  }
+
+  // Stops whatever is currently speaking (if anything) and reverts
+  // whichever button was showing "Cancel" back to "Speak". Safe to call
+  // unconditionally, speaking or not -- every other place speech can
+  // stop (muting, sending a new message, clicking the active Cancel
+  // button itself) goes through this one function, so the button label
+  // can never drift out of sync with whether anything is actually
+  // playing.
+  function stopSpeaking() {
+    if (!SPEECH_SUPPORTED) return;
+    window.speechSynthesis.cancel();
+    if (activeSpeakBtn) {
+      setSpeakButtonIdle(activeSpeakBtn);
+      activeSpeakBtn = null;
+    }
+  }
+
+  // Speaks `text` on request (a message's own "Speak" button, which
+  // becomes a "Cancel" button -- `btn` -- for as long as this utterance
+  // is playing) -- never automatic/on-done, per the feature request.
+  // Only one reply speaks at a time: a fresh click (on this message or
+  // another) cancels whatever was already playing rather than queuing
+  // or overlapping. Clicking the SAME button again while it's the one
+  // currently playing cancels it instead of restarting it.
+  function speakText(text, btn) {
     if (!SPEECH_SUPPORTED) {
       toast("Text-to-speech isn't supported in this browser.");
       return;
@@ -412,10 +484,150 @@
       toast("Voice output is muted — unmute it in the sidebar to hear replies.");
       return;
     }
-    window.speechSynthesis.cancel();
+    if (activeSpeakBtn === btn) {
+      stopSpeaking();
+      return;
+    }
+
+    stopSpeaking(); // reverts whichever OTHER button was mid-speech, if any
     const utterance = new SpeechSynthesisUtterance(plainTextForSpeech(text));
     utterance.volume = (state.voiceVolume != null ? state.voiceVolume : 100) / 100;
+    // Covers both a natural finish and a genuine synthesis error -- either
+    // way this utterance is done, and the button must not stay stuck
+    // showing "Cancel" for speech that isn't actually playing anymore.
+    // Guarded on `activeSpeakBtn === btn` since stopSpeaking() (a NEWER
+    // click, elsewhere) may already have reverted and cleared this one.
+    utterance.onend = utterance.onerror = () => {
+      if (activeSpeakBtn === btn) {
+        setSpeakButtonIdle(btn);
+        activeSpeakBtn = null;
+      }
+    };
     window.speechSynthesis.speak(utterance);
+
+    activeSpeakBtn = btn;
+    btn.textContent = "Cancel";
+    btn.classList.add("speaking");
+  }
+
+  // ---------------------------------------------------------------
+  // Turn-completion notification -- gated on the SAME voice on/off
+  // toggle as speech output (state.voiceMuted): an audible chime always
+  // plays when a turn finishes, and -- only if this tab isn't the one
+  // currently focused -- a desktop notification fires and the favicon/
+  // title get a small "reply's ready" badge until the tab regains focus.
+  //
+  // A page has no access to the OS's own actual notification sound or to
+  // a real dock-icon bounce/taskbar-flash (those are OS/browser-chrome
+  // capabilities, not something web content can trigger directly) --
+  // this is the closest cross-platform equivalent achievable from a
+  // browser tab: Web Audio for the chime (every modern browser, every
+  // OS), the Notification API for an OS-native notification banner/toast
+  // (which on most desktop OSes IS the thing that draws attention to the
+  // app/tab -- e.g. bouncing/badging the dock icon on macOS, a toast on
+  // Windows, a desktop notification on Linux -- entirely up to that OS's
+  // own notification settings, not something this page controls), and a
+  // favicon/title swap as a visible fallback wherever notifications are
+  // denied or unsupported.
+  // ---------------------------------------------------------------
+  function playCompletionChime() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      const peak = ((state.voiceVolume != null ? state.voiceVolume : 100) / 100) * 0.2; // deliberately subtle, scaled by the user's own volume setting
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+
+      // A short two-note rising chime -- the standard shape for a
+      // pleasant, unobtrusive "done" cue.
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        const start = now + i * 0.12;
+        osc.start(start);
+        osc.stop(start + 0.22);
+      });
+      setTimeout(() => ctx.close(), 600);
+    } catch {
+      // Best-effort -- a chime failure must never affect the actual turn.
+    }
+  }
+
+  const DEFAULT_PAGE_TITLE = document.title;
+  let completionBadgeActive = false;
+  let notificationPermissionRequested = false;
+
+  // Minimal inline SVG, no bundled image asset -- mirrors the sidebar's
+  // own "PA" brand mark. `badge` adds a small red dot, the tab-icon
+  // equivalent of a bounced dock icon / flashed taskbar entry.
+  function faviconDataUri(badge) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`
+      + `<rect width="64" height="64" rx="14" fill="#4285F4"/>`
+      + `<text x="32" y="43" font-family="system-ui,sans-serif" font-size="27" font-weight="700" `
+      + `text-anchor="middle" fill="#ffffff">PA</text>`
+      + (badge ? `<circle cx="50" cy="14" r="11" fill="#ea4335" stroke="#ffffff" stroke-width="2"/>` : "")
+      + `</svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
+
+  function setCompletionBadge(active) {
+    completionBadgeActive = active;
+    el.faviconLink.setAttribute("href", faviconDataUri(active));
+    document.title = active ? `🔔 Reply ready — ${DEFAULT_PAGE_TITLE}` : DEFAULT_PAGE_TITLE;
+  }
+
+  function clearCompletionBadge() {
+    if (completionBadgeActive) setCompletionBadge(false);
+  }
+
+  // Clears the badge the moment the user actually looks at the tab again
+  // -- covers both switching back to this tab (visibilitychange) and
+  // this window/tab regaining OS focus while already the visible one
+  // (e.g. alt-tab back on a single-monitor setup where it was never
+  // technically "hidden").
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) clearCompletionBadge();
+  });
+  window.addEventListener("focus", clearCompletionBadge);
+
+  function showTurnCompleteNotification() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      try {
+        const n = new Notification("Process Architect", { body: "Your reply is ready." });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch {
+        // Best-effort -- e.g. some browsers refuse this without a service
+        // worker in certain contexts; the favicon/title badge still covers it.
+      }
+    } else if (Notification.permission !== "denied" && !notificationPermissionRequested) {
+      // Requested lazily here (the FIRST time it would actually matter),
+      // never on page load -- asking before the user has seen any reason
+      // to want it is the kind of upfront permission prompt most people
+      // reflexively deny, after which a browser won't ask again.
+      notificationPermissionRequested = true;
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") showTurnCompleteNotification();
+      });
+    }
+  }
+
+  // Called once per turn, regardless of outcome (done/stopped/error) --
+  // see sendMessage's own finally block below.
+  function notifyTurnComplete() {
+    if (state.voiceMuted) return;
+    playCompletionChime();
+    if (document.hidden || !document.hasFocus()) {
+      setCompletionBadge(true);
+      showTurnCompleteNotification();
+    }
   }
 
   // ---------------------------------------------------------------
@@ -758,6 +970,7 @@
     el.chatTabPanel.hidden = name !== "chat";
     el.networkTabPanel.hidden = name !== "network";
     el.artifactsTabPanel.hidden = name !== "artifacts";
+    el.cloudarchTabPanel.hidden = name !== "cloudarch";
     el.usageTabPanel.hidden = name !== "usage";
 
     if (name !== "network") closeNodeDetail();
@@ -776,6 +989,16 @@
       // as the Agent Network tab doesn't need an explicit "load" step.
       if (state.dataExplorer.raw === null && !state.dataExplorer.loading && !state.dataExplorer.error) {
         loadArtifact(state.dataExplorer.artifact);
+      }
+    } else if (name === "cloudarch") {
+      // Same "first open auto-loads" convention as the artifacts tab
+      // above, and same "SVG was sized 0x0 while hidden" re-render need
+      // as the network tab if a diagram was already loaded before this
+      // tab was last switched away from.
+      if (state.cloudarch.raw === null && !state.cloudarch.loading && !state.cloudarch.error) {
+        loadCloudArchDiagram();
+      } else if (state.cloudarch.raw !== null) {
+        renderCloudArchDiagram();
       }
     } else if (name === "usage") {
       // Same reason as the network tab above -- the SVG was sized 0x0
@@ -1521,6 +1744,754 @@
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // ---------------------------------------------------------------
+  // Cloud Architecture tab -- renders output/cloudarch_drawio.xml (GET
+  // /artifacts/cloudarch) as an actual diagram: real positions/sizes/
+  // colors parsed straight out of the mxGraph XML's own <mxCell>/
+  // <mxGeometry> elements, unlike the Agent Network tab's graph (which has
+  // no real diagram to draw from and lays itself out from scratch). Real
+  // AWS/Azure/GCP provider icons are NOT rendered -- no stencil library is
+  // bundled, consistent with this page's own no-external-dependency rule
+  // (see the top of this file) -- each icon cell instead draws as a small
+  // neutral placeholder in its own already-correct reserved slot, so box
+  // proportions and overall layout still look right even without the
+  // exact glyph.
+  // ---------------------------------------------------------------
+
+  // Parses a semicolon-separated mxGraph style string ("rounded=1;
+  // fillColor=#FFFFFF;...") into a plain object. A bare token with no
+  // "=value" (e.g. "swimlane") maps to `true`.
+  function parseMxStyle(styleStr) {
+    const out = {};
+    (styleStr || "").split(";").forEach((part) => {
+      if (!part) return;
+      const eq = part.indexOf("=");
+      if (eq === -1) out[part] = true;
+      else out[part.slice(0, eq)] = part.slice(eq + 1);
+    });
+    return out;
+  }
+
+  // Parses the raw mxGraph XML text into { vertices, edges }, each
+  // carrying its own ABSOLUTE page position -- resolved by walking up its
+  // "parent" chain and summing offsets, since this project's own layout
+  // engine (process_toolkit.cloudarch.layout) parents zones-in-zones,
+  // components-in-zones, and icons-in-components with geometry relative
+  // to THEIR OWN parent cell's origin (standard mxGraph container
+  // nesting), not flat/absolute coordinates throughout.
+  function parseDrawioXml(xmlText) {
+    const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+    if (doc.querySelector("parsererror")) {
+      throw new Error("Could not parse the diagram XML.");
+    }
+
+    const cellsById = new Map();
+    doc.querySelectorAll("mxCell").forEach((cellEl) => {
+      const id = cellEl.getAttribute("id");
+      if (id == null) return;
+      const geomEl = cellEl.querySelector("mxGeometry");
+      const offsetEl = geomEl ? geomEl.querySelector('mxPoint[as="offset"]') : null;
+      cellsById.set(id, {
+        id,
+        parent: cellEl.getAttribute("parent"),
+        value: cellEl.getAttribute("value") || "",
+        style: parseMxStyle(cellEl.getAttribute("style")),
+        isVertex: cellEl.getAttribute("vertex") === "1",
+        isEdge: cellEl.getAttribute("edge") === "1",
+        source: cellEl.getAttribute("source"),
+        target: cellEl.getAttribute("target"),
+        x: geomEl ? Number(geomEl.getAttribute("x") || 0) : 0,
+        y: geomEl ? Number(geomEl.getAttribute("y") || 0) : 0,
+        width: geomEl ? Number(geomEl.getAttribute("width") || 0) : 0,
+        height: geomEl ? Number(geomEl.getAttribute("height") || 0) : 0,
+        points: geomEl
+          ? Array.from(geomEl.querySelectorAll('Array[as="points"] > mxPoint')).map((p) => ({
+              x: Number(p.getAttribute("x") || 0),
+              y: Number(p.getAttribute("y") || 0),
+            }))
+          : [],
+        offset: offsetEl
+          ? { x: Number(offsetEl.getAttribute("x") || 0), y: Number(offsetEl.getAttribute("y") || 0) }
+          : null,
+      });
+    });
+
+    const absoluteCache = new Map();
+    function absolutePosition(cell) {
+      if (!cell) return { x: 0, y: 0 };
+      if (absoluteCache.has(cell.id)) return absoluteCache.get(cell.id);
+      const parentId = cell.parent;
+      const parentCell = parentId && parentId !== "0" && parentId !== "1" ? cellsById.get(parentId) : null;
+      const base = parentCell ? absolutePosition(parentCell) : { x: 0, y: 0 };
+      const resolved = { x: base.x + cell.x, y: base.y + cell.y };
+      absoluteCache.set(cell.id, resolved);
+      return resolved;
+    }
+
+    const vertices = [];
+    const edges = [];
+    cellsById.forEach((cell) => {
+      if (cell.id === "0" || cell.id === "1") return; // the two bookkeeping root cells, no real geometry
+      if (cell.isVertex) {
+        const abs = absolutePosition(cell);
+        vertices.push({ ...cell, absX: abs.x, absY: abs.y });
+      } else if (cell.isEdge) {
+        edges.push(cell);
+      }
+    });
+    return { vertices, edges };
+  }
+
+  // Resolves an edge's connection point on `vertex`'s own box, from its
+  // style's exitX/exitY (or entryX/entryY) fraction -- mirrors exactly
+  // how process_toolkit.cloudarch.layout computed and set those same
+  // style keys when it generated this XML. Falls back to the box's
+  // center (0.5, 0.5) if the style doesn't pin an explicit point.
+  function mxEdgeAnchor(vertex, style, xKey, yKey) {
+    const fx = style[xKey] != null ? Number(style[xKey]) : 0.5;
+    const fy = style[yKey] != null ? Number(style[yKey]) : 0.5;
+    return { x: vertex.absX + fx * vertex.width, y: vertex.absY + fy * vertex.height };
+  }
+
+  // A component's own icon child cell carries a drawio stencil reference
+  // in its style -- no stencil library is bundled (see this tab's own
+  // README section), so the exact provider pictogram can't be drawn.
+  // Instead, classify the REAL service token into a small set of generic
+  // SERVICE-CATEGORY glyphs (compute, database, storage, ...) that are at
+  // least visually distinct and recognizable, rather than every service
+  // rendering as an identical flat colored box. Order matters -- more
+  // specific patterns are checked before generic catch-alls (e.g.
+  // "gateway" is checked after "api_gateway"-style patterns so an API
+  // Gateway doesn't get misclassified as a generic network gateway).
+  //
+  // The token to classify is resIcon if present, else shape (see
+  // classifyShapeToken's own docstring) -- confirmed directly against a
+  // real generated AWS diagram's icon cells, e.g.
+  // style="...shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.aurora;"
+  // -- using `shape` there would classify EVERY AWS4 icon as the same
+  // generic "resourceIcon" wrapper token, never the real service
+  // (confirmed: that diagram's waf/alb/ec2/aurora/kms/etc. icons all
+  // share that one wrapper shape; only resIcon actually varies).
+  const CLOUDARCH_ICON_CATEGORIES = [
+    // Leading \b only, deliberately never trailing -- the real AWS4 icon
+    // set uses numbered variants for many icons (confirmed directly:
+    // "endpoint_2" in a real generated diagram), and "_" counts as a
+    // \w word character, so a trailing \b (e.g. \bkms\b) would silently
+    // never match "kms_2" or similar. Leading \b is kept so these short,
+    // easily-coincidental substrings (ec2, s3, iam, ...) don't also match
+    // inside an unrelated longer word.
+    { test: /lambda|cloud_functions|cloud_run|app_engine|azure_functions|logic_apps|function/, key: "function" },
+    { test: /\bec2|compute_engine|virtual_machines|\binstance|app_service|container_instances/, key: "compute" },
+    {
+      test: /\brds|cloud_sql|sql_database|dynamodb|bigtable|cosmos_db|firestore|\baurora|elasticache|redshift|documentdb|database/,
+      key: "database",
+    },
+    { test: /\bs3|cloud_storage|blob_storage|\bstorage/, key: "storage" },
+    { test: /load_balanc|application_gateway/, key: "loadbalancer" },
+    { test: /\bsqs|\bsns|pubsub|pub_sub|service_bus|event_hub|\bqueue|\btopic/, key: "queue" },
+    { test: /api_gateway|\bapim|api_management/, key: "gateway" },
+    { test: /cloudwatch|\bmonitor|\binsights/, key: "monitoring" },
+    { test: /secrets_manager|\bsecret|\bvault|firewall|security|\bwaf|key_vault|\bkms|\biam/, key: "security" },
+    { test: /cloudfront|\bcdn|front_door|\binternet/, key: "cdn" },
+    { test: /route53|cloud_dns|\bdns/, key: "dns" },
+    { test: /\bvpc|virtual_network|\bvnet|\bendpoint|\bnetwork|\bvpn/, key: "network" },
+    { test: /kubernetes|\beks|\bgke|\baks|container/, key: "container" },
+    { test: /\buser|\bclient|browser|mobile|person/, key: "user" },
+    { test: /gateway/, key: "gateway" },
+  ];
+
+  // Prefers resIcon over shape -- see CLOUDARCH_ICON_CATEGORIES's own
+  // comment on why.
+  function classifyShapeToken(style) {
+    const lower = (style.resIcon || style.shape || "").toLowerCase();
+    const match = CLOUDARCH_ICON_CATEGORIES.find((c) => c.test.test(lower));
+    return match ? match.key : "generic";
+  }
+
+  // Draws one glyph into `g` (an already-positioned/sized SVG <g>), scaled
+  // to the icon cell's own square box (`size` x `size` -- ICON_SIZE in the
+  // generator, always square by construction) and colored with the
+  // REAL icon_color the generator chose for this specific component.
+  // Deliberately built from only circle/ellipse/rect/line/polygon (no
+  // hand-computed bezier/arc paths) -- simple primitives whose rendering
+  // can't go subtly wrong the way a mistyped arc-flag or control point
+  // could, which matters here since this couldn't be visually test-driven
+  // in a real browser while writing it.
+  function appendCloudArchGlyph(g, category, size, color) {
+    const s = size;
+    const cx = s / 2;
+    const cy = s / 2;
+    g.setAttribute("fill", "none");
+    g.setAttribute("stroke", color);
+    g.setAttribute("stroke-width", String(Math.max(1.5, s * 0.055)));
+    g.setAttribute("stroke-linecap", "round");
+    g.setAttribute("stroke-linejoin", "round");
+
+    function shape(tag, attrs) {
+      const node = document.createElementNS(SVG_NS, tag);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, String(v)));
+      g.appendChild(node);
+    }
+
+    switch (category) {
+      case "compute":
+        [0, 1, 2].forEach((i) => {
+          const y = s * 0.18 + i * s * 0.24;
+          shape("rect", { x: s * 0.18, y, width: s * 0.64, height: s * 0.16, rx: s * 0.03 });
+          shape("circle", { cx: s * 0.26, cy: y + s * 0.08, r: s * 0.02, fill: color, stroke: "none" });
+        });
+        break;
+      case "database":
+        shape("ellipse", { cx, cy: s * 0.26, rx: s * 0.3, ry: s * 0.11 });
+        shape("ellipse", { cx, cy: s * 0.74, rx: s * 0.3, ry: s * 0.11 });
+        shape("line", { x1: cx - s * 0.3, y1: s * 0.26, x2: cx - s * 0.3, y2: s * 0.74 });
+        shape("line", { x1: cx + s * 0.3, y1: s * 0.26, x2: cx + s * 0.3, y2: s * 0.74 });
+        break;
+      case "storage":
+        shape("polygon", {
+          points: `${s * 0.2},${s * 0.3} ${s * 0.8},${s * 0.3} ${s * 0.7},${s * 0.78} ${s * 0.3},${s * 0.78}`,
+        });
+        shape("line", { x1: s * 0.32, y1: s * 0.3, x2: s * 0.32, y2: s * 0.2 });
+        shape("line", { x1: s * 0.68, y1: s * 0.3, x2: s * 0.68, y2: s * 0.2 });
+        break;
+      case "function":
+        shape("polygon", {
+          points: `${s * 0.56},${s * 0.14} ${s * 0.3},${s * 0.56} ${s * 0.46},${s * 0.56} ` +
+            `${s * 0.4},${s * 0.86} ${s * 0.7},${s * 0.42} ${s * 0.52},${s * 0.42}`,
+          fill: color, stroke: "none",
+        });
+        break;
+      case "loadbalancer":
+        shape("circle", { cx, cy, r: s * 0.09, fill: color, stroke: "none" });
+        [[s * 0.2, s * 0.2], [s * 0.8, s * 0.2], [s * 0.2, s * 0.8], [s * 0.8, s * 0.8]].forEach(([x, y]) => {
+          shape("line", { x1: cx, y1: cy, x2: x, y2: y });
+          shape("circle", { cx: x, cy: y, r: s * 0.06 });
+        });
+        break;
+      case "queue":
+        [0, 1, 2].forEach((i) => {
+          shape("rect", { x: s * 0.16 + i * s * 0.1, y: s * 0.3, width: s * 0.48, height: s * 0.4, rx: s * 0.04 });
+        });
+        break;
+      case "gateway":
+        shape("line", { x1: s * 0.3, y1: s * 0.18, x2: s * 0.3, y2: s * 0.82 });
+        shape("line", { x1: s * 0.7, y1: s * 0.18, x2: s * 0.7, y2: s * 0.82 });
+        shape("line", { x1: s * 0.15, y1: cy, x2: s * 0.78, y2: cy });
+        shape("polygon", {
+          points: `${s * 0.7},${s * 0.4} ${s * 0.86},${cy} ${s * 0.7},${s * 0.6}`,
+          fill: color, stroke: "none",
+        });
+        break;
+      case "network":
+        [[cx, s * 0.2], [s * 0.22, s * 0.68], [s * 0.78, s * 0.68]].forEach(([x, y]) => {
+          shape("circle", { cx: x, cy: y, r: s * 0.09 });
+        });
+        shape("line", { x1: cx, y1: s * 0.2, x2: s * 0.22, y2: s * 0.68 });
+        shape("line", { x1: cx, y1: s * 0.2, x2: s * 0.78, y2: s * 0.68 });
+        shape("line", { x1: s * 0.22, y1: s * 0.68, x2: s * 0.78, y2: s * 0.68 });
+        break;
+      case "container":
+        shape("polygon", {
+          points: [[0.5, 0.12], [0.85, 0.3], [0.85, 0.7], [0.5, 0.88], [0.15, 0.7], [0.15, 0.3]]
+            .map(([x, y]) => `${s * x},${s * y}`).join(" "),
+        });
+        break;
+      case "security":
+        shape("polygon", {
+          points: [[0.5, 0.13], [0.82, 0.26], [0.82, 0.55], [0.5, 0.88], [0.18, 0.55], [0.18, 0.26]]
+            .map(([x, y]) => `${s * x},${s * y}`).join(" "),
+        });
+        break;
+      case "cdn":
+        shape("circle", { cx, cy, r: s * 0.32 });
+        shape("ellipse", { cx, cy, rx: s * 0.14, ry: s * 0.32 });
+        shape("line", { x1: cx - s * 0.32, y1: cy, x2: cx + s * 0.32, y2: cy });
+        break;
+      case "dns":
+        shape("circle", { cx, cy, r: s * 0.32 });
+        shape("line", { x1: cx - s * 0.3, y1: cy - s * 0.1, x2: cx + s * 0.3, y2: cy - s * 0.1 });
+        shape("line", { x1: cx - s * 0.3, y1: cy + s * 0.1, x2: cx + s * 0.3, y2: cy + s * 0.1 });
+        break;
+      case "user":
+        shape("circle", { cx, cy: s * 0.32, r: s * 0.16 });
+        shape("polygon", {
+          points: `${s * 0.22},${s * 0.84} ${s * 0.78},${s * 0.84} ${s * 0.68},${s * 0.58} ${s * 0.32},${s * 0.58}`,
+        });
+        break;
+      case "monitoring":
+        [0.25, 0.45, 0.65].forEach((h, i) => {
+          shape("rect", { x: s * (0.22 + i * 0.2), y: s * (0.82 - h), width: s * 0.12, height: s * h });
+        });
+        break;
+      default: // generic cloud -- three overlapping circles approximate a cloud silhouette
+        shape("circle", { cx: s * 0.38, cy: s * 0.56, r: s * 0.2 });
+        shape("circle", { cx: s * 0.6, cy: s * 0.46, r: s * 0.24 });
+        shape("circle", { cx: s * 0.76, cy: s * 0.58, r: s * 0.16 });
+    }
+  }
+
+  function renderCloudArchDiagram() {
+    const { loading, raw } = state.cloudarch;
+    // A parse failure is folded into the same "error" bucket as a fetch
+    // failure (both cleared on the next successful load/parse) --
+    // discovered here rather than in loadCloudArchDiagram itself, since
+    // the XML only actually gets parsed at render time (re-parsed fresh
+    // on every render -- see state.cloudarch's own comment).
+    let error = state.cloudarch.error;
+    let vertices = [];
+    let edges = [];
+    if (!error && !loading && raw !== null) {
+      try {
+        ({ vertices, edges } = parseDrawioXml(raw));
+      } catch (err) {
+        error = (err && err.message) || "Could not parse the diagram.";
+      }
+    }
+
+    if (loading) {
+      el.cloudarchStatus.textContent = "Loading…";
+    } else if (error) {
+      el.cloudarchStatus.textContent = "Error";
+    } else if (raw !== null) {
+      el.cloudarchStatus.textContent = `${vertices.length} shape${vertices.length === 1 ? "" : "s"}, ` +
+        `${edges.length} connection${edges.length === 1 ? "" : "s"}`;
+    } else {
+      el.cloudarchStatus.textContent = "Not loaded";
+    }
+
+    const hasData = raw !== null && !loading && !error && vertices.length > 0;
+    el.cloudarchSvg.toggleAttribute("hidden", !hasData);
+    el.cloudarchEmpty.style.display = hasData ? "none" : "";
+
+    if (!hasData) {
+      state.cloudarch.contentWidth = null;
+      state.cloudarch.contentHeight = null;
+      el.cloudarchSvg.innerHTML = "";
+      const heading = el.cloudarchEmpty.querySelector("h2");
+      const body = el.cloudarchEmpty.querySelector("p");
+      if (loading) {
+        heading.textContent = "Loading…";
+        body.textContent = "Fetching the current cloud architecture diagram from the connected backend…";
+      } else if (error) {
+        heading.textContent = "Couldn't load the diagram";
+        body.textContent = error;
+      } else if (raw !== null && vertices.length === 0) {
+        heading.textContent = "Diagram is empty";
+        body.textContent = "output/cloudarch_drawio.xml exists but contains no shapes.";
+      } else {
+        heading.textContent = "No diagram loaded";
+        body.textContent = "Click the refresh icon to load the connected backend's current " +
+          "output/cloudarch_drawio.xml cloud architecture diagram.";
+      }
+      return;
+    }
+
+    const byId = new Map(vertices.map((v) => [v.id, v]));
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    vertices.forEach((v) => {
+      minX = Math.min(minX, v.absX);
+      minY = Math.min(minY, v.absY);
+      maxX = Math.max(maxX, v.absX + v.width);
+      maxY = Math.max(maxY, v.absY + v.height);
+    });
+    const contentWidth = Math.max(1, maxX - minX);
+    const contentHeight = Math.max(1, maxY - minY);
+    // Stashed for Export PNG, which renders the FULL diagram at its own
+    // native size regardless of whatever zoom/pan the on-screen view
+    // currently has -- see exportCloudArchPng.
+    state.cloudarch.contentWidth = contentWidth;
+    state.cloudarch.contentHeight = contentHeight;
+
+    const wrapWidth = el.cloudarchCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.cloudarchCanvasWrap.clientHeight || 400;
+    el.cloudarchSvg.setAttribute("viewBox", `0 0 ${wrapWidth} ${wrapHeight}`);
+    el.cloudarchSvg.innerHTML = "";
+
+    const defs = document.createElementNS(SVG_NS, "defs");
+    defs.innerHTML = `
+      <marker id="cloudarchArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 Z" class="cloudarch-arrow"></path>
+      </marker>
+    `;
+    el.cloudarchSvg.appendChild(defs);
+
+    const viewport = document.createElementNS(SVG_NS, "g");
+    viewport.setAttribute("id", "cloudarchViewport");
+
+    // Vertices BEFORE edges -- matches real mxGraph z-order: a cell's
+    // children paint on top of it, and edges (always parent="1", always
+    // emitted LAST in the generator's own document order -- see
+    // process_toolkit.cloudarch.layout's own edge-emitting loop, which
+    // runs after every zone/component loop) are therefore always the
+    // topmost layer, over every zone/component regardless of nesting
+    // depth. Getting this backwards (edges first, as an earlier version
+    // of this function did) looked fine for a cross-zone edge crossing
+    // open space, but any edge fully CONTAINED within one zone's own
+    // bounding box -- i.e. exactly what "an internal connection between
+    // two things in the same zone" looks like -- was then completely
+    // painted over by that zone's own opaque background rect, which
+    // renders as part of the vertex pass; confirmed directly against a
+    // real generated diagram where every such same-zone edge (e.g. an
+    // EC2 instance to its own NAT Gateway, both inside one Availability
+    // Zone swimlane) was invisible for exactly this reason.
+    const vertexGroup = document.createElementNS(SVG_NS, "g");
+    vertices.forEach((v) => {
+      const style = v.style;
+      const g = document.createElementNS(SVG_NS, "g");
+      g.setAttribute("class", "cloudarch-node");
+      g.setAttribute("transform", `translate(${v.absX - minX}, ${v.absY - minY})`);
+
+      // A component's own icon child cell (style="shape=mxgraph.<provider>.
+      // <name>;fillColor=...;...") -- draw a recognizable service-category
+      // glyph instead of a flat colored box; see appendCloudArchGlyph's own
+      // docstring. Gated on an EMPTY value, not just style.shape alone --
+      // a real VPC/VNet zone container also sets shape (e.g.
+      // "shape=mxgraph.aws4.group") but carries a real label ("<b>AWS
+      // VPC</b>") and a full zone-sized box, confirmed against a real
+      // generated diagram -- routing that into the icon-glyph branch
+      // would draw one giant, wrongly-scaled glyph instead of the zone's
+      // own border+label. An icon cell's own value is always "" (also
+      // confirmed directly), so this reliably tells the two apart.
+      if (style.shape && !v.value) {
+        appendCloudArchGlyph(g, classifyShapeToken(style), Math.min(v.width, v.height), style.fillColor || "#5f6368");
+        vertexGroup.appendChild(g);
+        return;
+      }
+
+      const isImagePlaceholder = style.image != null; // the rare Azure VNet "badge" cell -- no fillColor/strokeColor of its own
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute("width", String(v.width));
+      rect.setAttribute("height", String(v.height));
+      const arcSize = style.arcSize ? Number(style.arcSize) : 4;
+      rect.setAttribute("rx", style.rounded === "1" ? String(Math.min(v.width, v.height) * arcSize / 100) : "0");
+      rect.setAttribute("fill", isImagePlaceholder ? "var(--accent-soft)" : (style.fillColor || "#ffffff"));
+      rect.setAttribute("stroke", isImagePlaceholder ? "var(--accent)" : (style.strokeColor || "#9aa0a6"));
+      rect.setAttribute("stroke-width", style.strokeWidth || "1");
+      if (style.dashed === "1") rect.setAttribute("stroke-dasharray", "4,3");
+      g.appendChild(rect);
+
+      const isSwimlane = !!style.swimlane;
+      const headerHeight = isSwimlane ? Number(style.startSize || 20) : v.height;
+      if (isSwimlane && v.height > headerHeight) {
+        const divider = document.createElementNS(SVG_NS, "line");
+        divider.setAttribute("x1", "0");
+        divider.setAttribute("x2", String(v.width));
+        divider.setAttribute("y1", String(headerHeight));
+        divider.setAttribute("y2", String(headerHeight));
+        divider.setAttribute("stroke", style.strokeColor || "#9aa0a6");
+        g.appendChild(divider);
+      }
+
+      // The cell's own `value` is this project's own layout-engine-authored
+      // HTML ("<b>Title</b><br/>bullet one<br/>bullet two") -- the exact
+      // same trust tier as an agent reply's markdown-lite HTML, which this
+      // file already renders via innerHTML elsewhere (see addMessage/
+      // renderMarkdownLite) -- so a foreignObject + innerHTML here is
+      // consistent with that existing precedent, not a new risk class.
+      // (Contrast the Process/Design tree viewer and Agent Network graph,
+      // which render arbitrary JSON/identifier DATA and deliberately stick
+      // to textContent -- there is no such HTML-label convention there.)
+      if (v.value && v.width > 4 && headerHeight > 4) {
+        // spacingTop/spacingLeft -- how far the generator pushed this
+        // label's own text away from the box's top/left edge (e.g. 74px
+        // for a component WITH an icon, reserving exactly the icon's own
+        // slot so the two don't overlap -- see
+        // process_toolkit.cloudarch.layout.SPACING_TOP_WITH_ICON). Ignoring
+        // these previously meant every label started right at the box's
+        // top edge regardless, overlapping any icon drawn there.
+        const spacingTop = Math.min(headerHeight - 4, Number(style.spacingTop || 0));
+        const spacingLeft = Math.min(v.width - 4, Number(style.spacingLeft || 0));
+        const fo = document.createElementNS(SVG_NS, "foreignObject");
+        fo.setAttribute("x", String(2 + spacingLeft));
+        fo.setAttribute("y", String(2 + spacingTop));
+        fo.setAttribute("width", String(Math.max(0, v.width - 4 - spacingLeft)));
+        fo.setAttribute("height", String(Math.max(0, headerHeight - 4 - spacingTop)));
+        const label = document.createElement("div");
+        label.className = "cloudarch-cell-label";
+        label.style.textAlign = style.align === "left" ? "left" : style.align === "right" ? "right" : "center";
+        label.style.justifyContent = style.verticalAlign === "top" ? "flex-start" : "center";
+        label.style.color = style.fontColor || "#202124";
+        label.style.fontSize = `${style.fontSize || 11}px`;
+        label.innerHTML = v.value;
+        fo.appendChild(label);
+        g.appendChild(fo);
+      }
+
+      vertexGroup.appendChild(g);
+    });
+    viewport.appendChild(vertexGroup);
+
+    const edgeGroup = document.createElementNS(SVG_NS, "g");
+    edges.forEach((edge) => {
+      const src = byId.get(edge.source);
+      const tgt = byId.get(edge.target);
+      if (!src || !tgt) return; // dangling reference -- skip rather than draw a broken edge
+
+      const exit = mxEdgeAnchor(src, edge.style, "exitX", "exitY");
+      const entry = mxEdgeAnchor(tgt, edge.style, "entryX", "entryY");
+      const pathPts = [exit, ...edge.points, entry];
+
+      const polyline = document.createElementNS(SVG_NS, "polyline");
+      polyline.setAttribute("points", pathPts.map((p) => `${p.x - minX},${p.y - minY}`).join(" "));
+      polyline.setAttribute("class", "cloudarch-edge");
+      polyline.setAttribute("stroke", edge.style.strokeColor || "#5f6368");
+      if (edge.style.dashed === "1") polyline.setAttribute("stroke-dasharray", "5,4");
+      polyline.setAttribute("marker-end", "url(#cloudarchArrow)");
+      edgeGroup.appendChild(polyline);
+
+      const labelText = htmlToText(edge.value);
+      if (labelText) {
+        // The generator's own label placement (a fraction along the path,
+        // plus a collision-avoidance pixel offset -- see
+        // process_toolkit.cloudarch.layout's own edge-emitting code) isn't
+        // reconstructed here; the path's own midpoint is a close enough
+        // stand-in for a readable rendering.
+        const mid = pathPts[Math.floor(pathPts.length / 2)];
+        const label = document.createElementNS(SVG_NS, "text");
+        label.setAttribute("x", String(mid.x - minX));
+        label.setAttribute("y", String(mid.y - minY - 4));
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("class", "cloudarch-edge-label");
+        label.textContent = labelText;
+        edgeGroup.appendChild(label);
+      }
+    });
+    viewport.appendChild(edgeGroup);
+
+    el.cloudarchSvg.appendChild(viewport);
+
+    if (state.cloudarch.autoFit) {
+      computeCloudArchFitView(contentWidth, contentHeight, wrapWidth, wrapHeight);
+    }
+    applyCloudArchTransform();
+  }
+
+  async function loadCloudArchDiagram() {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      toast("Set a Base URL and click Connect first.");
+      return;
+    }
+    state.cloudarch.loading = true;
+    state.cloudarch.error = null;
+    renderCloudArchDiagram();
+    try {
+      const res = await fetch(`${baseUrl}/artifacts/cloudarch`, {
+        method: "GET",
+        headers: { ...authHeaders() },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error || `Request failed (${res.status}).`);
+      }
+      state.cloudarch.raw = body.data;
+      state.cloudarch.autoFit = true;
+    } catch (err) {
+      state.cloudarch.raw = null;
+      state.cloudarch.error = (err && err.message) || String(err);
+    } finally {
+      state.cloudarch.loading = false;
+      renderCloudArchDiagram();
+    }
+  }
+
+  el.cloudarchRefreshBtn.addEventListener("click", loadCloudArchDiagram);
+
+  const CLOUDARCH_EXPORT_SCALE = 2; // 2x pixel density, so exported text/icons stay crisp rather than blown up from a small on-screen view
+
+  // The exported SVG is serialized into a STANDALONE document with no
+  // access to this page's own stylesheet/CSS variables, so the handful
+  // of classes/variables the live rendering actually depends on
+  // (cloudarch-edge/-arrow/-edge-label/-cell-label; var(--text-faint)
+  // etc.) need their CURRENT resolved values inlined explicitly.
+  function cloudArchExportStyle() {
+    const cs = getComputedStyle(document.documentElement);
+    const textFaint = cs.getPropertyValue("--text-faint").trim() || "#8a8f98";
+    const text = cs.getPropertyValue("--text").trim() || "#1b1f24";
+    const fontFamily = cs.getPropertyValue("--font").trim() || "sans-serif";
+    return `
+      .cloudarch-edge { stroke-width: 1.6; fill: none; }
+      .cloudarch-arrow { fill: ${textFaint}; }
+      .cloudarch-edge-label { font-size: 10.5px; font-weight: 650; fill: ${text}; }
+      .cloudarch-cell-label {
+        width: 100%; height: 100%; display: flex; flex-direction: column;
+        justify-content: center; overflow: hidden; line-height: 1.3; font-family: ${fontFamily};
+      }
+    `;
+  }
+
+  // Exports the FULL diagram (not whatever's currently zoomed/panned
+  // into view) as a PNG, at CLOUDARCH_EXPORT_SCALE x its own native
+  // pixel size so text/icons stay legible rather than scaling up a tiny
+  // on-screen thumbnail. Clones the live SVG rather than re-rendering
+  // from scratch, so the export always matches exactly what's on screen
+  // (minus zoom/pan) with zero duplicated drawing logic.
+  async function exportCloudArchPng() {
+    const { contentWidth, contentHeight } = state.cloudarch;
+    if (!contentWidth || !contentHeight || el.cloudarchSvg.hasAttribute("hidden")) {
+      toast("Load a diagram first.");
+      return;
+    }
+
+    const clone = el.cloudarchSvg.cloneNode(true);
+    clone.removeAttribute("hidden");
+    clone.setAttribute("viewBox", `0 0 ${contentWidth} ${contentHeight}`);
+    clone.setAttribute("width", String(contentWidth));
+    clone.setAttribute("height", String(contentHeight));
+
+    // Reset to the FULL, un-zoomed/un-panned view -- an export should
+    // show the whole diagram, not whatever crop/zoom level the user
+    // happens to be looking at right now.
+    const viewport = clone.querySelector("#cloudarchViewport");
+    if (viewport) viewport.setAttribute("transform", "translate(0, 0) scale(1)");
+
+    // A solid white background (matching the diagram XML's own
+    // background="#FFFFFF" -- see process_toolkit.cloudarch.layout --
+    // rather than this page's current theme) since the live on-screen
+    // SVG has no background of its own (it relies on its CSS canvas
+    // wrapper) and a transparent PNG background looks broken in most
+    // viewers.
+    const bg = document.createElementNS(SVG_NS, "rect");
+    bg.setAttribute("width", String(contentWidth));
+    bg.setAttribute("height", String(contentHeight));
+    bg.setAttribute("fill", "#ffffff");
+    clone.insertBefore(bg, clone.firstChild);
+
+    const styleEl = document.createElementNS(SVG_NS, "style");
+    styleEl.textContent = cloudArchExportStyle();
+    clone.insertBefore(styleEl, clone.firstChild);
+
+    const svgText = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    try {
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error("Could not render the diagram for export."));
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+      });
+    } catch (err) {
+      toast((err && err.message) || "Export failed.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(contentWidth * CLOUDARCH_EXPORT_SCALE);
+    canvas.height = Math.round(contentHeight * CLOUDARCH_EXPORT_SCALE);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        toast("Export failed.");
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const filename = `cloud-architecture-${stamp}.png`;
+      const result = await saveFile(blob, filename, { description: "PNG image", accept: { "image/png": [".png"] } });
+      if (result === "picker") toast("Diagram exported.");
+      else if (result === "download") toast("Diagram downloaded.");
+    }, "image/png");
+  }
+
+  el.cloudarchExportBtn.addEventListener("click", exportCloudArchPng);
+
+  // Zoom / pan -- identical mechanics to the Agent Network tab's own
+  // section further up (state.cloudarch.view instead of state.network.view,
+  // #cloudarchViewport instead of #networkViewport); duplicated rather than
+  // shared, the same way the Token Usage tab's own copy of this exact
+  // pattern already is in this file.
+  function computeCloudArchFitView(contentWidth, contentHeight, wrapWidth, wrapHeight) {
+    const padding = 32;
+    const scale = Math.min(
+      1.15,
+      Math.max(MIN_SCALE, Math.min(
+        (wrapWidth - padding * 2) / contentWidth,
+        (wrapHeight - padding * 2) / contentHeight,
+      )),
+    );
+    state.cloudarch.view = {
+      scale,
+      x: (wrapWidth - contentWidth * scale) / 2,
+      y: (wrapHeight - contentHeight * scale) / 2,
+    };
+  }
+
+  function applyCloudArchTransform() {
+    const viewport = document.getElementById("cloudarchViewport");
+    if (!viewport) return;
+    const { x, y, scale } = state.cloudarch.view;
+    viewport.setAttribute("transform", `translate(${x}, ${y}) scale(${scale})`);
+  }
+
+  function zoomCloudArchBy(factor) {
+    if (state.cloudarch.raw === null) return;
+    const wrapWidth = el.cloudarchCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.cloudarchCanvasWrap.clientHeight || 400;
+    const view = state.cloudarch.view;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor));
+    const cx = wrapWidth / 2;
+    const cy = wrapHeight / 2;
+    const contentCx = (cx - view.x) / view.scale;
+    const contentCy = (cy - view.y) / view.scale;
+    state.cloudarch.view = {
+      scale: newScale,
+      x: cx - contentCx * newScale,
+      y: cy - contentCy * newScale,
+    };
+    state.cloudarch.autoFit = false;
+    applyCloudArchTransform();
+  }
+
+  function resetCloudArchView() {
+    state.cloudarch.autoFit = true;
+    renderCloudArchDiagram();
+  }
+
+  el.cloudarchZoomInBtn.addEventListener("click", () => zoomCloudArchBy(ZOOM_STEP));
+  el.cloudarchZoomOutBtn.addEventListener("click", () => zoomCloudArchBy(1 / ZOOM_STEP));
+  el.cloudarchResetViewBtn.addEventListener("click", resetCloudArchView);
+
+  el.cloudarchCanvasWrap.addEventListener("wheel", (event) => {
+    if (state.cloudarch.raw === null) return;
+    event.preventDefault();
+    zoomCloudArchBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+
+  let cloudarchPanPointerId = null;
+  let cloudarchPanStart = null;
+
+  el.cloudarchSvg.addEventListener("pointerdown", (event) => {
+    if (state.cloudarch.raw === null) return;
+    cloudarchPanPointerId = event.pointerId;
+    cloudarchPanStart = {
+      clientX: event.clientX, clientY: event.clientY,
+      viewX: state.cloudarch.view.x, viewY: state.cloudarch.view.y,
+    };
+    el.cloudarchSvg.setPointerCapture(event.pointerId);
+    el.cloudarchSvg.classList.add("panning");
+  });
+  el.cloudarchSvg.addEventListener("pointermove", (event) => {
+    if (cloudarchPanPointerId !== event.pointerId || !cloudarchPanStart) return;
+    state.cloudarch.view = {
+      ...state.cloudarch.view,
+      x: cloudarchPanStart.viewX + (event.clientX - cloudarchPanStart.clientX),
+      y: cloudarchPanStart.viewY + (event.clientY - cloudarchPanStart.clientY),
+    };
+    state.cloudarch.autoFit = false;
+    applyCloudArchTransform();
+  });
+  function endCloudArchPan(event) {
+    if (cloudarchPanPointerId !== event.pointerId) return;
+    cloudarchPanPointerId = null;
+    cloudarchPanStart = null;
+    el.cloudarchSvg.classList.remove("panning");
+  }
+  el.cloudarchSvg.addEventListener("pointerup", endCloudArchPan);
+  el.cloudarchSvg.addEventListener("pointercancel", endCloudArchPan);
+
+  // ---------------------------------------------------------------
   // Token Usage tab -- one bar per completed turn that reported a "usage"
   // field (see recordUsageTurn, called from sendMessage's "done" handling
   // for both the streaming and non-streaming-fallback paths). Bar height
@@ -1975,7 +2946,7 @@
       speakBtn.type = "button";
       speakBtn.className = "copy-btn speak-btn";
       speakBtn.textContent = "Speak";
-      speakBtn.addEventListener("click", () => speakText(text));
+      speakBtn.addEventListener("click", () => speakText(text, speakBtn));
       meta.appendChild(speakBtn);
     }
   }
@@ -2460,7 +3431,7 @@
     }
 
     stopVoiceInputIfActive();
-    if (SPEECH_SUPPORTED) window.speechSynthesis.cancel();
+    stopSpeaking();
     addMessage("user", text, { isMarkdown: true, attachmentNames: (files || []).map((f) => f.name) });
     beginNetworkTurn(text);
     el.sendBtn.disabled = true;
@@ -2536,6 +3507,7 @@
       el.stopBtn.hidden = true;
       el.messageInput.contentEditable = "true";
       el.messageInput.focus();
+      notifyTurnComplete();
     }
   }
 
@@ -3025,6 +3997,43 @@
     return lines.join("\n");
   }
 
+  // Shared by Save Chat and the Cloud Architecture tab's Export PNG --
+  // tries a real "Save As" dialog (File System Access API) first, then
+  // falls back to a plain browser download where that API doesn't exist
+  // (Firefox, Safari as of this writing) or is blocked. Returns which
+  // path actually saved the file ("picker"/"download"), or null if the
+  // user cancelled the picker, so callers can show their own
+  // appropriately-worded toast.
+  async function saveFile(blob, filename, { description, accept } = {}) {
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: description && accept ? [{ description, accept }] : undefined,
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return "picker";
+      } catch (err) {
+        if (err && err.name === "AbortError") return null; // user cancelled the dialog
+        // Fall through to the download fallback below (e.g. a security
+        // policy blocked the picker) rather than leaving the user with
+        // no way to save at all.
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return "download";
+  }
+
   async function saveChat() {
     if (state.transcript.length === 0) {
       toast("Nothing to save yet.");
@@ -3034,39 +4043,13 @@
     const markdown = buildTranscriptMarkdown();
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const filename = `process-architect-chat-${stamp}.md`;
-
-    if (window.showSaveFilePicker) {
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: filename,
-          types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(markdown);
-        await writable.close();
-        toast("Chat saved.");
-        return;
-      } catch (err) {
-        if (err && err.name === "AbortError") return; // user cancelled the dialog
-        // Fall through to the download fallback below (e.g. a security
-        // policy blocked the picker) rather than leaving the user with
-        // no way to save at all.
-      }
-    }
-
-    // Fallback for browsers without the File System Access API (Firefox,
-    // Safari as of this writing) -- triggers a normal browser download
-    // rather than a true "Save As" dialog, but gets the file saved either way.
     const blob = new Blob([markdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    toast("Chat downloaded.");
+
+    const result = await saveFile(blob, filename, {
+      description: "Markdown", accept: { "text/markdown": [".md"] },
+    });
+    if (result === "picker") toast("Chat saved.");
+    else if (result === "download") toast("Chat downloaded.");
   }
 
   el.saveChatBtn.addEventListener("click", saveChat);
@@ -3077,6 +4060,7 @@
   function init() {
     applyTheme();
     applyVoiceSettings();
+    el.faviconLink.setAttribute("href", faviconDataUri(false));
     if (window.matchMedia) {
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
         if (!state.theme) applyTheme();

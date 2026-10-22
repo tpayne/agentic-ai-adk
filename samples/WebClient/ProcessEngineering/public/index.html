@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Process Architect</title>
+<link rel="icon" id="faviconLink">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -71,7 +72,7 @@
       </button>
       <div class="voice-controls">
         <button id="muteToggleBtn" type="button" class="btn btn-ghost btn-block"
-                title="Mute/unmute spoken replies" aria-label="Toggle voice output">
+                title="Mute/unmute spoken replies and turn-completion sounds" aria-label="Toggle voice output">
           <span id="muteToggleIcon">&#128266;</span>
           <span id="muteToggleLabel">Voice: On</span>
         </button>
@@ -107,6 +108,7 @@
         <span class="tab-badge" id="networkTabBadge" hidden>0</span>
       </button>
       <button type="button" class="tab-btn" data-tab="artifacts" role="tab" aria-selected="false">Process / Design</button>
+      <button type="button" class="tab-btn" data-tab="cloudarch" role="tab" aria-selected="false">Cloud Architecture</button>
       <button type="button" class="tab-btn" data-tab="usage" role="tab" aria-selected="false">Token Usage</button>
     </nav>
 
@@ -279,6 +281,62 @@
           <div class="node-detail-context" id="artifactDetailContext"></div>
           <div class="node-detail-list" id="artifactDetailList"></div>
         </aside>
+      </div>
+    </div>
+
+    <div class="tab-panel cloudarch-panel" id="cloudarchTabPanel" role="tabpanel" hidden>
+      <div class="artifacts-toolbar">
+        <button type="button" class="icon-btn" id="cloudarchRefreshBtn" title="Refresh" aria-label="Refresh">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"></path>
+            <path d="M13.5 2.3v3.3h-3.3"></path>
+          </svg>
+        </button>
+        <button type="button" class="icon-btn" id="cloudarchExportBtn" title="Export as PNG" aria-label="Export as PNG">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path>
+            <path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
+          </svg>
+        </button>
+        <span class="artifacts-status" id="cloudarchStatus">Not loaded</span>
+      </div>
+      <p class="cloudarch-disclaimer">
+        Summary rendering only — approximates the real diagram and may not render everything a
+        true drawio client would.
+      </p>
+      <div class="network-canvas-wrap" id="cloudarchCanvasWrap">
+        <div class="empty-state" id="cloudarchEmpty">
+          <div class="empty-state-mark">PA</div>
+          <h2>No diagram loaded</h2>
+          <p>
+            Click the refresh icon to load the connected backend's current
+            <code>output/cloudarch_drawio.xml</code> cloud architecture diagram.
+          </p>
+        </div>
+        <svg id="cloudarchSvg" class="network-svg" hidden xmlns="http://www.w3.org/2000/svg"></svg>
+
+        <div class="network-zoom-controls" id="cloudarchZoomControls">
+          <button type="button" class="zoom-btn" id="cloudarchZoomInBtn" title="Zoom in" aria-label="Zoom in">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="8" y1="2" x2="8" y2="14"></line>
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="cloudarchZoomOutBtn" title="Zoom out" aria-label="Zoom out">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="2" y1="8" x2="14" y2="8"></line>
+            </svg>
+          </button>
+          <button type="button" class="zoom-btn" id="cloudarchResetViewBtn" title="Reset view" aria-label="Reset view">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 5V2h3"></path>
+              <path d="M14 5V2h-3"></path>
+              <path d="M2 11v3h3"></path>
+              <path d="M14 11v3h-3"></path>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 

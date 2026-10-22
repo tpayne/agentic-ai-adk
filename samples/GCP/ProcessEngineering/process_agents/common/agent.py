@@ -1366,9 +1366,10 @@ def build_web_app(https: bool = True):
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):
         """
-        Read-only access to this project's own output/process_data.json or
-        output/design_data.json, for the web client's "Process / Design"
-        tab -- a hierarchical viewer of whichever pipeline's current
+        Read-only access to this project's own output/process_data.json,
+        output/design_data.json, or output/cloudarch_drawio.xml, for the
+        web client's "Process / Design" and "Cloud Architecture" tabs --
+        a hierarchical/diagram viewer of whichever pipeline's current
         artifact, not something a chat turn's response text would
         otherwise expose. Both backends serve this the same way (the
         neuro-san port's build_web_app has an identical route) and both
@@ -1382,15 +1383,23 @@ def build_web_app(https: bool = True):
         for a debugging viewer that needs to tell "genuinely not generated
         yet" apart from "here's an empty template"), so this reports a
         real 404 instead.
+
+        "cloudarch" returns `data` as the raw XML STRING (not JSON-parsed)
+        -- the client's own mxGraph-XML renderer parses it directly, the
+        same way it already does for a saved .drawio file.
         """
         from .utils_agent import PROJECT_ROOT
 
-        filenames = {"process": "process_data.json", "design": "design_data.json"}
+        filenames = {
+            "process": "process_data.json",
+            "design": "design_data.json",
+            "cloudarch": "cloudarch_drawio.xml",
+        }
         filename = filenames.get(name)
         if filename is None:
             return jsonify({
                 "status": "error",
-                "error": f"Unknown artifact '{name}' -- use 'process' or 'design'.",
+                "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'cloudarch'.",
             }), 400
 
         path = os.path.join(PROJECT_ROOT, "output", filename)
@@ -1402,7 +1411,7 @@ def build_web_app(https: bool = True):
 
         try:
             with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                data = f.read() if name == "cloudarch" else json.load(f)
         except Exception:
             logger.exception("Failed to read/parse %s", filename)
             return jsonify({
