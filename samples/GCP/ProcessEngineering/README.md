@@ -52,6 +52,34 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - The underlying structured data (`process_data.json` / `design_data.json`) — versionable, queryable, and reusable as input for later updates, scenarios, or simulations.
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 
+## Sample Outputs
+
+The following are a few real life outputs from the tool for Cloud architecture.
+
+### Central Backup Solution
+![Central Backup Solution](./examples/XML/BackupSolution/cloudarch_drawio.jpg)
+
+### Data Processing Solution
+![Data Processing](./examples/XML/DataProcessing/cloudarch_drawio.jpg)
+
+### Hybrid Cloud Solution
+![Hybrid Setup](./examples/XML/Hybrid/cloudarch_drawio.jpg)
+
+More examples — including business process documents and diagrams — are in [`examples/`](examples/) and [TECHNICAL_NOTES.md § Sample Cloud Architecture Diagrams](TECHNICAL_NOTES.md#sample-cloud-architecture-diagrams).
+
+### Browser Client
+
+A few views from [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md), the browser chat UI that talks to either this or the neuro-san backend:
+
+**Agent Network** — a live graph of which agents were invoked this turn; click any node for its own invocation history and per-call token/cost detail.
+![Agent Network tab](../../Neurosan/ProcessEngineering/images/WebClient/Image005.png)
+
+**Process / Design** — the generated process or design JSON, browsable as a collapsible tree.
+![Process / Design tab](../../Neurosan/ProcessEngineering/images/WebClient/Image006.png)
+
+**Token Usage** — per-turn token counts and estimated session cost.
+![Token Usage tab](../../Neurosan/ProcessEngineering/images/WebClient/Image007.png)
+
 ## Quick start
 
 To quickly run the utility, you can do the following.
