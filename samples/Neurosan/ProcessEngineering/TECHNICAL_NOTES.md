@@ -21,8 +21,7 @@ All twenty-one agent networks that make up this project are wired and verified e
 ## Known issues
 
 The following are a list of known issues: -
-- Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally, especially with very long step/component names. You can often improve the visualization by shortening the offending name in the process JSON and regenerating the diagram.
-- Agent "Chattiness": While agents are instructed to remain quiet, LLMs may occasionally disregard these constraints and output unnecessary JSON or tooling commentary. In most cases, these outputs can be safely ignored.
+- Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally, especially with very long step/component names. You can often improve the visualization by shortening the offending name in the process JSON and regenerating the diagram. This applies to process related documents only.
 - Per-session artifact isolation is not implemented. `ns run` serves multiple concurrent chat sessions, but this project's own state (`process_data.json`/`design_data.json`, `cloudarch_drawio.xml`, `approval.json`, every feedback mailbox) lives in one project-wide `output/` directory, not scoped per session — two people driving the same network at once will read and overwrite each other's artifacts. Safe for one requester at a time. Only `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over the shared on-disk file; nothing else does yet.
 - No built-in auth/rate-limiting on `ns run`. `ns run`'s own server has neither; put an authenticating reverse proxy / rate limiter in front of it before exposing it beyond localhost. `cli.py -d --flask` (see [Running as a Web Service](#running-as-a-web-service-rest-api) below) is the alternative that DOES have both built in, if that's what you need instead of `ns run`'s own UI.
 
