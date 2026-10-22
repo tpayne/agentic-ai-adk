@@ -9,7 +9,7 @@ from google.genai import types
 
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture
 
-from ..common.utils import load_drawio, load_master_process_json, load_requirements_summary
+from ..common.utils import load_drawio, load_requirements_summary
 from ..common.agent_wrappers import ProcessLlmAgent
 
 # ============================================================
@@ -28,7 +28,6 @@ cloudarch_simulation_query_agent = ProcessLlmAgent(
     ),
     tools=[
         load_drawio,
-        load_master_process_json,
         load_requirements_summary,
         simulate_cloudarch_architecture,
     ],

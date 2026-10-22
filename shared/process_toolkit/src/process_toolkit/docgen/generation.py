@@ -316,7 +316,7 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
         _add_system_requirements(doc, system_requirements)
         add_iso_page_break(doc)
 
-    _add_flowchart_section(doc, name, generate_diagram=True)
+    _add_flowchart_section(doc, name, generate_diagram=True, schema_type="process")
     add_iso_page_break(doc)
 
     # Simulation results
@@ -599,6 +599,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
             "architecture and the flow between its major components."
         ),
         generate_diagram=True,
+        schema_type="design",
     )
 
     if quality_attributes:

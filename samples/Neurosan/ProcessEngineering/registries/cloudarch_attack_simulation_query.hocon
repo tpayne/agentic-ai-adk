@@ -85,25 +85,12 @@ CloudArch_Pipeline respectively).
 
 Do not re-run the simulation or mention tool names in your final narrative.
 """,
-            "tools": ["load_drawio", "load_master_process_json", "load_requirements_summary", "simulate_cloudarch_attack"]
+            "tools": ["load_drawio", "load_requirements_summary", "simulate_cloudarch_attack"]
         },
         {
             "name": "load_drawio",
             "function": {"description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."},
             "class": "load_drawio_tool.LoadDrawioCodedTool"
-        },
-        {
-            "name": "load_master_process_json",
-            "function": {
-                "description": "Loads the process or design document for supporting context. Pass schema_type=\"process\"/\"design\" if you already know which one is relevant; omit it to auto-detect by most-recent modification.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "schema_type": {"type": "string", "description": "Optional: \"process\" or \"design\" if already known."}
-                    }
-                }
-            },
-            "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
         },
         {
             "name": "load_requirements_summary",

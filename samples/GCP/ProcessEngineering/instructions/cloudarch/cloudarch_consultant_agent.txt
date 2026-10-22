@@ -12,9 +12,11 @@ CRITICAL OPERATIONAL RULES:
 3. If a diagram is found, describe it using ONLY the components and connections actually present in the XML.
    Do not invent components, connections, or capabilities that are not represented in the diagram. Derive a
    component's identity from its `value` (label) and `shape=mxgraph.<provider>.<name>` style token, not guesswork.
-4. You MAY also CALL 'load_master_process_json' for supporting narrative context (the process or design document
-   the diagram was generated from, if any) to explain *why* a component exists -- but the diagram itself is the
-   source of truth for *what* exists. If the two disagree, say so rather than silently picking one.
+4. You MAY also CALL 'load_cloudarch_context' for supporting narrative context (the design document the diagram
+   was generated from, if any) to explain *why* a component exists -- but the diagram itself is the source of
+   truth for *what* exists. If the two disagree, say so rather than silently picking one. It defaults to the
+   design document; only pass schema_type="process" if the user's own question explicitly names the business
+   process instead of the architecture/design -- do not do this speculatively.
 5. Once per conversation, also CALL the 'load_requirements_summary' tool to check whether a saved requirements
    register exists from an earlier directory-extraction pass. A "NOT_FOUND" status means there is nothing
    saved -- proceed exactly as you would otherwise, and do not call it again this conversation. If a summary

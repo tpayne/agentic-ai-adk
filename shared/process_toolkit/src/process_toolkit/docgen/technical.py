@@ -199,17 +199,26 @@ def _add_flowchart_section(
     doc: docx.Document, process_name: str, heading: str = "10.0 Process Flow Diagram",
     caption: str = "The following diagram provides a high-level visualization of the process flow.",
     generate_diagram: bool = False,
+    schema_type: str | None = None,
 ) -> bool:
     """Generate the current flow diagram and embed it in the document.
 
     When ``generate_diagram`` is true, document generation does not rely on
     the model having called the separate diagram tool first; doing that
     could leave a successful DOCX with no image or a stale diagram.
+
+    schema_type: pass "process"/"design" -- the caller (a specific
+    document builder for one schema or the other) always knows which one
+    it's building. Omitting it falls back to disk-based guessing, which
+    always resolves to "process" whenever BOTH process_data.json and
+    design_data.json exist -- confirmed directly to silently regenerate a
+    PROCESS diagram into what's supposed to be a DESIGN document's own
+    flowchart section whenever an unrelated process document also exists.
     """
     success_prefix = "Diagram successfully generated at "
     diag_file = None
     if generate_diagram:
-        result = generate_clean_diagram()
+        result = generate_clean_diagram(schema_type=schema_type)
         if not result.startswith(success_prefix):
             raise RuntimeError(f"Could not generate process flow diagram: {result}")
         # generate_clean_diagram() derives its OWN output filename from the
@@ -232,7 +241,7 @@ def _add_flowchart_section(
         # specific filename from (e.g. document_metadata/components missing
         # or unreadable at that moment). A hardcoded "process_flow.png"
         # here would never match that fallback for a design document.
-        default_name = "design_flow.png" if detect_schema_type_from_disk() == "design" else "process_flow.png"
+        default_name = "design_flow.png" if (schema_type or detect_schema_type_from_disk()) == "design" else "process_flow.png"
         diag_file = paths.output_path(default_name)
     if not os.path.isfile(diag_file):
         if generate_diagram:

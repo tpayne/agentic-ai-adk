@@ -257,7 +257,7 @@ full_design_doc_pipeline = SequentialAgent(
         design_doc_analysis_agent,            # Stage 1: Architectural Requirements Analysis
         design_doc_review_loop,               # Stage 2: HLD/LLD Generation & Governance Audit
         design_doc_json_normalization_loop,   # Stage 3: Normalize & Persist Schema JSON
-        build_doc_creation_agent("CreateDoc"),# Stage 4: Artifact Document Build
+        build_doc_creation_agent("CreateDoc", schema_type="design"),# Stage 4: Artifact Document Build
         unmute_agent_instance                          # Stage 5: Restore console output
     ]
 )

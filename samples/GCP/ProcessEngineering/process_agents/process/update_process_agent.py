@@ -254,7 +254,7 @@ update_design_pipeline = SequentialAgent(
         review_update_loop,                  # Step 2: Re-Design & Audit
         json_update_normalization_loop,      # Step 3: Stabilization
         subprocess_inst,                     # Step 4: Subprocess Regeneration
-        build_doc_creation_agent("Update"),  # Stage 5: Artifact Build
+        build_doc_creation_agent("Update", schema_type="process"),  # Stage 5: Artifact Build
         unmute_agent_instance,               # Unmute console output
     ],
 )

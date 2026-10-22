@@ -11,7 +11,7 @@ import os
 import docx
 
 from coded_tools.common import paths
-from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
+from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME, PROCESS_JSON_FILENAME
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from coded_tools.design.edge_inference_tool import GenerateDesignFlowDiagramCodedTool
@@ -292,6 +292,31 @@ def test_generate_design_flow_diagram_coded_tool_invoke():
     tool = GenerateDesignFlowDiagramCodedTool()
     result = tool.invoke({}, {})
     assert "Diagram successfully generated at" in result
+
+
+def test_generate_design_flow_diagram_coded_tool_ignores_a_coexisting_process_document():
+    # Regression test for the actual bug report: "a request to do a cloud
+    # architecture gets contaminated with the process json" -- the same
+    # root cause also silently broke design.hocon's own pipeline, not
+    # just cloudarch. GenerateDesignFlowDiagramCodedTool previously called
+    # generate_clean_diagram() with no schema_type, which resolves via
+    # detect_schema_type_from_disk() -- a FIXED rule that always prefers
+    # "process" whenever both process_data.json and design_data.json
+    # exist. So the design pipeline's own final diagram step was silently
+    # rendering a stale PROCESS diagram instead of the design document it
+    # had just built, any time an unrelated process_data.json also
+    # existed in output/. Confirmed directly: this test fails against the
+    # unpinned code (produces "vendor_onboarding_flow.png", a process-
+    # schema filename, not the design one).
+    _write_sample_design_json()
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({"process_name": "Vendor Onboarding", "process_steps": []}, f)
+
+    result = GenerateDesignFlowDiagramCodedTool().invoke({}, {})
+
+    assert "Diagram successfully generated at" in result
+    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "checkout_combined_design_flow.png"))
+    assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
 
 
 def test_generate_design_document_coded_tool_invoke():

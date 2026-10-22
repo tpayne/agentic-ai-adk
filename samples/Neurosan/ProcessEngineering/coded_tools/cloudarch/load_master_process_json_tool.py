@@ -13,12 +13,17 @@ class LoadMasterProcessJsonCodedTool(CodedTool):
     actually exists in it.
 
     Pass {"schema_type": "process"|"design"} when the caller already knows
-    which document it wants. With no argument (the common case), the more
-    recently modified of the two files wins when both exist, rather than
-    always preferring one -- see load_master_json's own docstring."""
+    which document it wants (e.g. the user's own question names "the
+    process" specifically). With no argument, defaults to "design" --
+    cloud-architecture context is normally about the design document that
+    drove it, and NOT "whichever of the two files was modified most
+    recently" (load_master_json's own schema_type=None behavior): that
+    mtime tie-break silently grounds an answer in an unrelated process
+    document whenever one happens to exist and was touched more recently,
+    confirmed directly against a real session where it was."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        return load_master_json(schema_type=args.get("schema_type"))
+        return load_master_json(schema_type=args.get("schema_type") or "design")
 
     async def async_invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return await asyncio.to_thread(self.invoke, args, sly_data)

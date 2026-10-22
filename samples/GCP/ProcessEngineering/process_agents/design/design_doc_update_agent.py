@@ -288,7 +288,7 @@ update_design_doc_pipeline = SequentialAgent(
         update_design_doc_analysis_agent,    # Step 1: Context Loading & Merging
         review_update_loop,                  # Step 2: HLD/LLD Re-Design & Audit Loop
         json_update_normalization_loop,      # Step 3: Stabilization
-        build_doc_creation_agent("UpdateDoc"),# Stage 4: Artifact Build
+        build_doc_creation_agent("UpdateDoc", schema_type="design"),# Stage 4: Artifact Build
         unmute_agent_instance,               # Unmute console output
     ],
 )

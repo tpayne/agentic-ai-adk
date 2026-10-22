@@ -168,7 +168,7 @@ full_design_pipeline = SequentialAgent(
         review_loop,             # Stage 2: Iterative design + compliance loop
         json_normalization_loop, # Stage 3: Stabilize and persist process JSON
         subprocess_stage,        # Stage 4: Generate per-step subprocess artifacts
-        build_doc_creation_agent("Create"),  # Stage 5: Produce deliverables/documentation
+        build_doc_creation_agent("Create", schema_type="process"),  # Stage 5: Produce deliverables/documentation
         unmute_agent             # Restore console output
     ]
 )

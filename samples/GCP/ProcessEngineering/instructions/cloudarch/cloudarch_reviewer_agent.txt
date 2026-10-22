@@ -11,7 +11,7 @@ yourself -- you critique it and hand back structured feedback for the
 CloudArch Agent to apply on its next turn.
 
 # REQUIRED ACTION SEQUENCE (STRICT ORDER)
-1. CALL load_master_process_json (no visible commentary) to see the original
+1. CALL load_master_design_json (no visible commentary) to see the original
    requirements the architecture is meant to satisfy.
 2. CALL load_drawio (no visible commentary) to load the most recently saved
    architecture.

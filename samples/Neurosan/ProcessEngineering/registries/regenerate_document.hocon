@@ -12,10 +12,15 @@
 #
 # Domain-agnostic by design, matching the ADK original's own single
 # Create_Doc_Agent (its own router sends BOTH "regenerate the process
-# document" and "regenerate the design document" here, auto-detecting
-# which applies from whichever JSON file is actually on disk) -- see
-# generate_clean_diagram/create_standard_doc_from_file's own
-# detect_schema_type_from_disk auto-detection.
+# document" and "regenerate the design document" here). When the user's
+# own request names which one they mean, Regenerate_Document_Agent passes
+# that through explicitly as schema_type -- only a genuinely generic
+# "regenerate the document" falls back to auto-detecting from whichever
+# JSON file is actually on disk (generate_clean_diagram/
+# create_standard_doc_from_file's own detect_schema_type_from_disk),
+# which is correct only when at most one of the two files exists: it
+# always resolves to "process" whenever both do, confirmed directly to
+# silently regenerate the wrong document otherwise.
 {
     include "config/llm_config.hocon",
 
@@ -55,17 +60,28 @@ or design JSON is already saved on disk. You NEVER re-run analysis, design gener
 review, or simulation, and you NEVER modify the saved JSON itself -- that is every other network's
 job, on a separate request.
 
+# DETERMINE schema_type FIRST
+Before calling either tool, check whether "inquiry" itself names a domain:
+- If it explicitly says "process" / "process document" / "the process", schema_type = "process".
+- If it explicitly says "design" / "design document" / "HLD" / "LLD" / "architecture document" /
+  "the design", schema_type = "design".
+- Otherwise (a generic "regenerate the document" with no domain named), leave schema_type unset --
+  do NOT guess. This case falls back to whichever single file actually exists on disk; if BOTH a
+  process and a design document exist and the request is this generic, that is a genuinely
+  ambiguous request -- regenerate whichever the most recent turns in this conversation were about,
+  or if that's unclear too, ask the user to say "the process document" or "the design document".
+
 # SEQUENCE
-1. Call regenerate_flow_diagram (no arguments -- it auto-detects whichever of process_data.json /
-   design_data.json is actually on disk itself). ALWAYS produces some diagram, even a minimal
-   placeholder when nothing real is saved yet -- so its own result alone does NOT tell you whether a
+1. Call regenerate_flow_diagram, passing {"schema_type": ...} if you determined one above (omit the
+   argument entirely otherwise). ALWAYS produces some diagram, even a minimal placeholder when
+   nothing real is saved yet for that domain -- so its own result alone does NOT tell you whether a
    real document exists to regenerate. Always proceed to step 2 regardless of what this returns.
-2. Call regenerate_document (no "process_name" argument needed -- the saved JSON's own name/title
-   takes precedence over the fallback). This is the real check: if its result starts with "ERROR",
-   there is no actual saved process or design document yet -- reply that there is nothing to
-   regenerate, and that they should create one first (e.g. "create a process for ..." / "create a
-   design document for ..."). If it starts with "SUCCESS", report that the flow diagram and Word
-   document were both regenerated from the current saved content.
+2. Call regenerate_document with the SAME schema_type determination (no "process_name" argument
+   needed -- the saved JSON's own name/title takes precedence over the fallback). This is the real
+   check: if its result starts with "ERROR", there is no actual saved document of that type yet --
+   reply that there is nothing to regenerate, and that they should create one first (e.g. "create a
+   process for ..." / "create a design document for ..."). If it starts with "SUCCESS", report that
+   the flow diagram and Word document were both regenerated from the current saved content.
 
 Plain prose only in your final reply -- no raw JSON, tool names, or internal field names.
 """,
@@ -75,17 +91,32 @@ Plain prose only in your final reply -- no raw JSON, tool names, or internal fie
         {
             "name": "regenerate_flow_diagram",
             "function": {
-                "description": "Regenerates the flow/architecture diagram from whichever process/design JSON is already saved on disk -- auto-detects which one applies. Takes no meaningful arguments."
+                "description": "Regenerates the flow/architecture diagram from whichever process/design JSON is already saved on disk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["process", "design"],
+                            "description": "Pass this when the user's own request names which document they mean. Omit it only for a genuinely generic request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
+                        }
+                    }
+                }
             },
             "class": "edge_inference_tool.RegenerateFlowDiagramCodedTool"
         },
         {
             "name": "regenerate_document",
             "function": {
-                "description": "Regenerates the final Word document from whichever process/design JSON is already saved on disk -- auto-detects which one applies.",
+                "description": "Regenerates the final Word document from whichever process/design JSON is already saved on disk.",
                 "parameters": {
                     "type": "object",
                     "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["process", "design"],
+                            "description": "Pass this when the user's own request names which document they mean. Omit it only for a genuinely generic request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
+                        },
                         "process_name": {
                             "type": "string",
                             "description": "Optional fallback document title, used only if the saved JSON itself has no name/title."
