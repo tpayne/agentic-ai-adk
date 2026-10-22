@@ -17,7 +17,7 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 
 ## Agent Networks
 
-This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 21 (full detail is in [TECHNICAL_NOTES.md § Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 21 (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
 | Network | What it is | What it does | Sub-agents it uses |
 | :--- | :--- | :--- | :--- |

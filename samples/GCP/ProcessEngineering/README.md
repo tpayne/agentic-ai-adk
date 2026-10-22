@@ -17,7 +17,7 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 
 ## Agent Networks
 
-This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 21 (full detail, including every internal loop/sequence wrapper, is in [TECHNICAL_NOTES.md § Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 21 (full detail, including every internal loop/sequence wrapper, is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
 | Pipeline / Agent | What it is | What it does | Sub-agents it uses |
 | :--- | :--- | :--- | :--- |
