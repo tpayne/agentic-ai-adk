@@ -6,7 +6,9 @@ Under the hood, a pipeline of specialized agents hands work off in sequence — 
 
 This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GCP/ProcessEngineering/README.md) and shares much of its core logic — document generation, diagram layout, and schema validation all come from a common `process_toolkit` package — so both produce the same output from the same schema. The real difference is the agent framework each one runs on: this version uses neuro-san's declarative agent networks, which means it can run against any LLM provider neuro-san supports (Gemini, Claude, OpenAI, Bedrock, Azure OpenAI, ...) — see [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for how to configure that.
 
-## What it does
+---
+
+## ✨ What it does
 
 - Turns a plain-language brief into a fully designed, reviewed, and documented **business process**.
 - Does the same for **architecture design documents** (High-Level, Low-Level, or Combined design).
@@ -15,7 +17,9 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
 
-## Agent Networks
+---
+
+## 🕸️ Agent Networks
 
 This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 21 (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
@@ -43,7 +47,9 @@ This suite is built from a set of neuro-san agent networks — each one invocabl
 | `requirements_consultant` | Requirements consultant (`Requirements_Consultant_Agent`) | Answers questions about the saved requirements summary. | — |
 | `regenerate_document` | Document regenerator (`Regenerate_Document_Agent`) | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | — |
 
-## Outputs
+---
+
+## 📦 Outputs
 
 Every run leaves behind a set of reusable artifacts in `output/`:
 
@@ -52,7 +58,9 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - The underlying structured data (`process_data.json` / `design_data.json`) — versionable, queryable, and reusable as input for later updates, scenarios, or simulations.
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 
-## Sample Outputs
+---
+
+## 🖼️ Sample Outputs
 
 The following are a few real life outputs from the tool for Cloud architecture.
 
@@ -80,7 +88,9 @@ A few views from [`samples/WebClient/ProcessEngineering`](../../WebClient/Proces
 **Token Usage** — per-turn token counts and estimated session cost.
 ![Token Usage tab](./images/WebClient/Image007.png)
 
-## Quick start
+---
+
+## 🚀 Quick start
 
 To quickly run the utility, you can do the following.
 
@@ -112,7 +122,9 @@ It can also run **detached as a REST API** using (`-d --flask`) or in **Docker**
 
 A ready-made browser chat UI that talks to either this or the ADK version is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
 
-## Example prompts
+---
+
+## 💬 Example prompts
 
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 - "What roles are needed for a sprint planning session?"
@@ -124,7 +136,9 @@ A ready-made browser chat UI that talks to either this or the ADK version is at 
 
 Many more samples are documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
 
-## Status
+---
+
+## 🧪 Status
 
 **BETA.** Tested and generally stable, but LLM output can be unpredictable — always verify a generated process/design before relying on it. This sample is for demo purposes; NO WARRANTY OR GUARANTEE OF FUNCTIONALITY IS PROVIDED — see [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE).
 

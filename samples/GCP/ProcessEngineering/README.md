@@ -6,7 +6,9 @@ Under the hood, a pipeline of specialized agents hands work off in sequence — 
 
 It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it at Gemini, Claude, or other model providers — see [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for how.
 
-## What it does
+---
+
+## ✨ What it does
 
 - Turns a plain-language brief into a fully designed, reviewed, and documented **business process**.
 - Does the same for **architecture design documents** (High-Level, Low-Level, or Combined design).
@@ -15,7 +17,9 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
 
-## Agent Networks
+---
+
+## 🕸️ Agent Networks
 
 This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 21 (full detail, including every internal loop/sequence wrapper, is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
@@ -43,7 +47,9 @@ This suite is built from a set of ADK agent pipelines — each one a focused pip
 | `Requirements_Consultant_Agent` | Requirements consultant | Answers questions about the saved requirements summary. | — |
 | `Create_Doc_Agent` | Document regenerator | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
 
-## Outputs
+---
+
+## 📦 Outputs
 
 Every run leaves behind a set of reusable artifacts in `output/`:
 
@@ -52,7 +58,9 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - The underlying structured data (`process_data.json` / `design_data.json`) — versionable, queryable, and reusable as input for later updates, scenarios, or simulations.
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 
-## Sample Outputs
+---
+
+## 🖼️ Sample Outputs
 
 The following are a few real life outputs from the tool for Cloud architecture.
 
@@ -80,7 +88,9 @@ A few views from [`samples/WebClient/ProcessEngineering`](../../WebClient/Proces
 **Token Usage** — per-turn token counts and estimated session cost.
 ![Token Usage tab](../../Neurosan/ProcessEngineering/images/WebClient/Image007.png)
 
-## Quick start
+---
+
+## 🚀 Quick start
 
 To quickly run the utility, you can do the following.
 
@@ -107,7 +117,9 @@ It can also run **detached as a REST API** (`-d` flag) or in **Docker** — see 
 
 A ready-made browser chat UI that talks to either this or the neuro-san port is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
 
-## Example prompts
+---
+
+## 💬 Example prompts
 
 - "Create an SDLC and release process for a WebDev application with microservices using an Agile Scrum base."
 - "What roles are needed for a sprint planning session?"
@@ -119,7 +131,9 @@ A ready-made browser chat UI that talks to either this or the neuro-san port is 
 
 Many more samples are documented in [Sample Prompts](TECHNICAL_NOTES.md#sample-prompts).
 
-## Status
+---
+
+## 🧪 Status
 
 **BETA.** Tested and generally stable, but LLM output can be unpredictable — always verify a generated process/design before relying on it. This sample is for demo purposes; NO WARRANTY OR GUARANTEE OF FUNCTIONALITY IS PROVIDED — see [LICENSE](https://github.com/tpayne/agentic-ai-adk/blob/main/LICENSE).
 
