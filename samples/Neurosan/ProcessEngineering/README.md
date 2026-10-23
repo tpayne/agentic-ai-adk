@@ -116,11 +116,20 @@ Prefer neuro-san's own chat UI? Then
 
 `uv run ns run` 
 
-starts it at `:4173`. 
+starts it at `:4173`.  This will run the agent UI as shown
+below
+
+[NS run](images/NS01.png)
 
 It can also run **detached as a REST API** using (`-d --flask`) or in **Docker** — see [Running as a Web Service](TECHNICAL_NOTES.md#running-as-a-web-service-rest-api) and [Docker Usage](TECHNICAL_NOTES.md#docker-usage) for more information. 
 
 A ready-made browser chat UI that talks to either this or the ADK version is at [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md).
+
+[Client](images/WebClient/Image005.png)
+
+[Client](images/WebClient/Image006.png)
+
+[Client](images/WebClient/Image007.png)
 
 ---
 
