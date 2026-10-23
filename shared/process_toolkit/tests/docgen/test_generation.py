@@ -13,10 +13,35 @@ from docx.oxml.ns import qn
 from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
+from process_toolkit.docgen.structure import add_iso_page_break
 
 
 def _has_page_break(p_elem) -> bool:
     return any(br.get(qn("w:type")) == "page" for br in p_elem.findall(".//" + qn("w:br")))
+
+
+def test_add_iso_page_break_inserts_exactly_one_new_paragraph():
+    # Regression test: an earlier version of this function ALSO inserted
+    # a separate, empty "spacer" paragraph immediately before the real
+    # page-break paragraph. When the PRECEDING section's own content
+    # already filled the current page right to its bottom edge, that
+    # spacer paragraph would itself overflow onto a fresh page (plain
+    # text-wrap, no break needed for that alone), and the explicit break
+    # right after it then forced ANOTHER page turn -- leaving one page
+    # with nothing on it but that lone spacer. Confirmed directly
+    # against a real generated design document built from a user's own
+    # data: 3 of 19 forced breaks landed on exactly this edge case, each
+    # rendering as a fully blank page. Asserting exactly one new
+    # paragraph here is what rules out that double-page-turn.
+    doc = docx.Document()
+    doc.add_paragraph("Some content.")
+    before = len(doc.paragraphs)
+
+    add_iso_page_break(doc)
+
+    after = doc.paragraphs
+    assert len(after) == before + 1
+    assert _has_page_break(after[-1]._p)
 
 
 def _has_image(p_elem) -> bool:

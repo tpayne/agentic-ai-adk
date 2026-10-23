@@ -25,7 +25,8 @@ from ..common.grounding_agent import grounding_agent
 from ..common.utils_agent import (
     mute_agent,
     unmute_agent,
-    stop_controller_agent
+    stop_controller_agent,
+    release_pipeline_lock_after_run,
 )
 from ..common.agent_wrappers import ProcessLlmAgent, ProcessAgent
 
@@ -291,4 +292,8 @@ update_design_doc_pipeline = SequentialAgent(
         build_doc_creation_agent("UpdateDoc", schema_type="design"),# Stage 4: Artifact Build
         unmute_agent_instance,               # Unmute console output
     ],
+    # Releases this turn's pipeline lock unconditionally once the WHOLE
+    # pipeline run ends -- see release_pipeline_lock_after_run's own
+    # docstring for the exact gap this closes.
+    after_agent_callback=release_pipeline_lock_after_run,
 )

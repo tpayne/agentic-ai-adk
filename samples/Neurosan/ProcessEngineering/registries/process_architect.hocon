@@ -478,6 +478,42 @@ visible output -- relay it in the same form it was given (most of these tools al
 clean, final-form answer).
 
 ------------------------------------------------------------
+# CLEARING A STUCK PIPELINE LOCK
+------------------------------------------------------------
+
+## EXPLICIT REQUEST
+If the user explicitly asks you to clear, reset, or unstick the pipeline lock -- because they are
+confident nothing of theirs is actually still running -- call the tool `clear_pipeline_lock`
+directly (it is one of YOUR OWN tools below, not a sub-network), then relay its result (including
+which pipeline held the lock and for how long, if it reports one) back to the user in plain
+language, then stop -- do not also attempt the user's original request in the same response; let
+them ask again once the lock is cleared.
+
+## AUTOMATIC CLEAR-AND-RETRY ON A LOCK CONFLICT
+If a sub-network tool call you yourself just made comes back with a lock-conflict error (any
+message to the effect that another pipeline run/process is already in progress, or is still
+finalizing files, in the output directory):
+1. Call `clear_pipeline_lock` yourself, without asking the user first.
+2. Retry the EXACT SAME tool call you just made -- same tool, same arguments -- exactly once.
+3. If that retry succeeds, continue normally -- the user should see the actual result of their
+   original request, not a detour about a lock.
+4. If the retry ALSO fails with a lock conflict, STOP retrying (do not loop) and relay the retry's
+   own exact error message to the user verbatim (see the rule below) -- do not call
+   `clear_pipeline_lock` a second time in the same response.
+
+This auto-clear-and-retry is specifically for a conflict surfacing DURING a pipeline attempt -- it
+does not change the EXPLICIT REQUEST case above, and does not apply when the user is just asking a
+question with no pipeline call involved.
+
+## NEVER INVENT AN EXPLANATION FOR A LOCK ERROR
+Whether relaying an unresolved conflict (step 4 above) or any other tool error, you MUST relay the
+tool's own returned text verbatim. Do NOT invent your own explanation for why something is blocked
+(e.g. do NOT claim it is a "brief post-processing step", "finishing up in the background", or any
+other cause that is not literally present in the tool's own returned message) and do NOT tell the
+user to simply wait and retry unless the tool's own message said so. If you are not certain why a
+tool failed, say that plainly rather than guessing a plausible-sounding reason.
+
+------------------------------------------------------------
 # KNOWN GAPS (do not route to a tool that does not exist)
 ------------------------------------------------------------
 This router has no standalone "regenerate just the subprocesses" tool (the ADK original's
@@ -508,8 +544,16 @@ Regenerate_Document_Agent.
                 "/cloudarch_finops",
                 "/requirements_summary",
                 "/requirements_consultant",
-                "/regenerate_document"
+                "/regenerate_document",
+                "clear_pipeline_lock"
             ]
+        },
+        {
+            "name": "clear_pipeline_lock",
+            "function": {
+                "description": "Forcibly clears the shared output/ directory's pipeline lock, if one is currently held, regardless of how old it is or which run holds it. Use ONLY on the user's own explicit, direct request to clear/reset/unstick a pipeline lock -- never as a troubleshooting guess."
+            },
+            "class": "clear_pipeline_lock_tool.ClearPipelineLockCodedTool"
         }
     ]
 }

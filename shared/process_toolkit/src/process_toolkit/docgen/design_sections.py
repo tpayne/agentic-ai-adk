@@ -74,7 +74,15 @@ def _add_requirements_table(doc: docx.Document, items, include_category: bool) -
     for item in items:
         row = table.add_row().cells
         col = 0
-        row[col].text = str(item.get("id", "")); col += 1
+        # "or" (not a positional .get default) so a present-but-empty
+        # string also falls through to "N/A" -- design_document_schema.json
+        # marks "id" required for both functional and non-functional
+        # requirements, but validate_design_json didn't enforce that
+        # (confirmed directly against a real generated design document
+        # whose non_functional_requirements were missing it entirely) --
+        # that gap is now closed there too, but this still needs its own
+        # fallback for documents persisted before that fix existed.
+        row[col].text = str(item.get("id") or "N/A"); col += 1
         row[col].text = str(item.get("priority", "")).replace("_", " ").title(); col += 1
 
         if include_category:

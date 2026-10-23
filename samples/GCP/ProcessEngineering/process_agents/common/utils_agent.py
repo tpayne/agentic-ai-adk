@@ -28,6 +28,7 @@ from process_toolkit.run_lock import (
     release_pipeline_lock,
     start_pipeline_lock_heartbeat,
     stop_pipeline_lock_heartbeat,
+    force_clear_pipeline_lock,
 )
 
 from ..process.design_agent import design_agent
@@ -125,6 +126,79 @@ def release_pipeline_lock_for_turn(context) -> None:
     token = stored.get("token") if isinstance(stored, dict) else None
     stop_pipeline_lock_heartbeat(token)
     release_pipeline_lock(token)
+
+
+def release_pipeline_lock_after_run(callback_context=None) -> None:
+    """after_agent_callback for each create/update pipeline's own
+    top-level SequentialAgent (process/design, create/update -- all
+    four) -- releases this turn's pipeline lock once the WHOLE
+    pipeline's run ends, for ANY reason, closing a real gap: each
+    pipeline's own finalize step (create_standard_doc_from_file, in
+    doc_generation_agent.py) only releases the lock when it is actually
+    reached AND returns a "SUCCESS:" result. Confirmed directly: a run
+    that stops after Stage 1 -- e.g. the agent asks a clarifying
+    question in plain text instead of proceeding, with no further tool
+    calls that turn -- left the lock held indefinitely, refusing every
+    later run against the same output/ directory ("Another pipeline run
+    ... is already in progress") until the server process itself
+    restarted. The lock's own staleness fallback (process_toolkit.
+    run_lock.DEFAULT_STALE_AFTER_SECONDS) can't help here: the
+    background heartbeat that same module starts keeps re-acquiring the
+    same token every few minutes for as long as this process keeps
+    running, so an unreleased lock never actually goes stale on its own
+    -- only a process restart ages it out.
+
+    ADK fires after_agent_callback on a SequentialAgent exactly the same
+    way it does on CloudArch_Pipeline's own LoopAgent (see
+    cloudarch_pipeline_agent.py's before/after pair) -- this is not
+    LoopAgent-specific machinery, confirmed directly against ADK's own
+    BaseAgent/SequentialAgent source. It fires on normal completion
+    (including a plain-text final response with no more tool calls,
+    which does not set ctx.end_invocation) -- precisely the case that
+    was previously unhandled.
+
+    Safe to call even when the pipeline's own finalize step already
+    released this same token moments earlier -- release_pipeline_lock
+    only removes the lock file if its token still matches what's
+    recorded there (a no-op otherwise), and stop_pipeline_lock_heartbeat
+    is a no-op for a token with no running heartbeat -- so this is never
+    a SECOND, conflicting release, only a harmless no-op in the already-
+    released case and the actual fix in the previously-unreleased one.
+    Also safe when this run's own analysis stage never got far enough to
+    acquire a lock at all (release_pipeline_lock_for_turn's own
+    docstring: context=None or an empty/missing key is itself a no-op).
+    """
+    release_pipeline_lock_for_turn(callback_context)
+
+
+def clear_pipeline_lock() -> str:
+    """Forcibly clears the shared output/ directory's pipeline lock, if
+    one is currently held -- regardless of how old it is or which run
+    holds it.
+
+    Call this ONLY when the user explicitly asks to clear, reset, or
+    unstick a pipeline lock -- e.g. they saw "Another pipeline run ...
+    is already in progress" and are confident nothing is actually still
+    running. NEVER call this as your own troubleshooting guess, and
+    never in response to a request that is just a normal pipeline run
+    (that always goes through the real pipeline tools, not this one).
+    Forcibly clearing a lock a genuinely still-running pipeline holds
+    can let two runs interleave their writes to the same output/
+    directory and corrupt it -- that judgment call belongs to the user,
+    since only they know whether another request of theirs is actually
+    still in flight elsewhere.
+    """
+    cleared = force_clear_pipeline_lock()
+    if cleared is None:
+        return "No pipeline lock is currently held -- there was nothing to clear."
+
+    label = cleared.get("label", "an unknown pipeline")
+    started_at = cleared.get("started_at")
+    age_str = ""
+    if isinstance(started_at, (int, float)):
+        age_minutes = (time.time() - started_at) / 60
+        age_str = f", held for about {age_minutes:.1f} minute{'s' if abs(age_minutes - 1) > 0.05 else ''}"
+    return f"SUCCESS: Cleared the pipeline lock (was held by '{label}'{age_str}). You can retry your request now."
 
 
 # context.state key (scoped to the whole chat session, same as

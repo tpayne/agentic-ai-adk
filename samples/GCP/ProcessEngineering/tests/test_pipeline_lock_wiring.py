@@ -323,3 +323,88 @@ def test_two_different_pipelines_cannot_run_concurrently():
     second = design_reset("Payments", 2, tool_context=_fake_context())
     assert second.startswith("ERROR:")
     assert "the process pipeline" in second
+
+
+# ---------------------------------------------------------------
+# Regression coverage for the actual reported bug: a create/update
+# pipeline whose turn stops after Stage 1 (the agent asks a clarifying
+# question in plain text, with no further tool calls that turn) left
+# its pipeline lock held indefinitely -- the lock's own staleness
+# fallback can't help while the server process keeps running (a
+# background heartbeat keeps refreshing it), so every later run against
+# the same output/ directory was refused until a process restart.
+# Fixed via release_pipeline_lock_after_run, wired as the
+# after_agent_callback on each pipeline's own top-level SequentialAgent
+# -- ADK fires that regardless of how the run ends, closing the gap
+# left by the pipeline's own finalize step (create_standard_doc_from_file)
+# only releasing on a reached, successful doc-generation call.
+# ---------------------------------------------------------------
+def test_release_pipeline_lock_after_run_releases_a_held_lock():
+    from process_agents.common.utils_agent import (
+        acquire_pipeline_lock_for_turn,
+        release_pipeline_lock_after_run,
+    )
+
+    ctx = _fake_context()
+    acquire_pipeline_lock_for_turn("the design document pipeline", ctx)
+
+    release_pipeline_lock_after_run(ctx)
+
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released
+
+
+def test_release_pipeline_lock_after_run_is_a_safe_noop_when_nothing_was_acquired():
+    from process_agents.common.utils_agent import release_pipeline_lock_after_run
+
+    release_pipeline_lock_after_run(_fake_context())  # must not raise
+    release_pipeline_lock_after_run(None)  # must not raise
+
+
+def test_release_pipeline_lock_after_run_is_safe_to_call_twice():
+    # The pipeline's own finalize step (create_standard_doc_from_file)
+    # may ALSO release the same token on a genuinely successful run --
+    # this must be a harmless no-op, not a conflicting second release.
+    from process_agents.common.utils_agent import (
+        acquire_pipeline_lock_for_turn,
+        release_pipeline_lock_after_run,
+    )
+
+    ctx = _fake_context()
+    acquire_pipeline_lock_for_turn("the process pipeline", ctx)
+    release_pipeline_lock_after_run(ctx)
+    release_pipeline_lock_after_run(ctx)  # must not raise
+
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released
+
+
+def test_design_doc_create_pipeline_releases_its_lock_even_when_stopped_after_stage_1():
+    # The exact reported bug, reproduced directly: Stage 1 (analysis)
+    # acquires the lock, same as a real turn; the run then stops right
+    # there (simulating the agent asking a clarifying question with no
+    # further tool calls) -- ADK still fires the pipeline's own
+    # after_agent_callback, which must release it.
+    from process_agents.design.design_doc_analysis_agent import log_analysis_metadata
+    from process_agents.design.design_doc_create_agent import full_design_doc_pipeline
+
+    ctx = _fake_context()
+    assert not log_analysis_metadata("Payments", 2, tool_context=ctx).startswith("ERROR:")
+
+    full_design_doc_pipeline.after_agent_callback(ctx)
+
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- released
+
+
+def test_all_four_create_update_pipelines_are_wired_to_release_on_after_agent_callback():
+    from process_agents.common.utils_agent import release_pipeline_lock_after_run
+    from process_agents.process.create_process_agent import full_design_pipeline
+    from process_agents.process.update_process_agent import update_design_pipeline
+    from process_agents.design.design_doc_create_agent import full_design_doc_pipeline
+    from process_agents.design.design_doc_update_agent import update_design_doc_pipeline
+
+    for pipeline in (
+        full_design_pipeline,
+        update_design_pipeline,
+        full_design_doc_pipeline,
+        update_design_doc_pipeline,
+    ):
+        assert pipeline.after_agent_callback is release_pipeline_lock_after_run

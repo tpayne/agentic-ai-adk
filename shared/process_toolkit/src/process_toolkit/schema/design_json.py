@@ -306,6 +306,19 @@ def validate_design_json(json_content: Any) -> Dict[str, Any]:
             for index, item in enumerate(items):
                 if not isinstance(item, dict):
                     continue
+                # design_document_schema.json's own "requirement"/
+                # "nonFunctionalRequirement" defs both list "id" as
+                # required ("e.g. FR-001"/"e.g. NFR-001" respectively),
+                # but nothing here actually enforced that until now --
+                # confirmed directly against a real generated design
+                # document whose non_functional_requirements were
+                # missing it entirely, with nothing catching it before
+                # persistence.
+                if not str(item.get("id") or "").strip():
+                    issues.append({
+                        "location": f"requirements.{requirement_type}[{index}].id",
+                        "issue": "A stable identifier is required, e.g. 'FR-001' or 'NFR-001'",
+                    })
                 criteria = item.get("acceptance_criteria")
                 if not isinstance(criteria, list) or not any(
                     isinstance(criterion, str) and criterion.strip() for criterion in criteria

@@ -248,12 +248,22 @@ def apply_iso_table_formatting(table: docx.table.Table, document: docx.Document)
 
 def add_iso_page_break(doc: docx.Document) -> None:
     """
-    Insert a page break with controlled spacing so we don't accumulate
-    random blank lines between sections.
+    Insert a single page break between sections.
+
+    Deliberately just the ONE new paragraph doc.add_page_break() itself
+    creates (carrying the actual <w:br type="page"/> run) -- an earlier
+    version of this function also inserted a separate, empty "spacer"
+    paragraph immediately before it. When the PRECEDING section's own
+    content already filled the current page right to its bottom edge,
+    that spacer paragraph would itself overflow onto a fresh page
+    (ordinary text-wrap, no break needed for that alone), and this
+    function's own explicit break then forced ANOTHER page turn right
+    after it -- leaving one page with nothing on it but that lone
+    spacer. Confirmed directly against a real generated design
+    document: 3 of 19 forced breaks landed on exactly this edge case,
+    each producing one fully blank page.
     """
     try:
-        p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(0)
         doc.add_page_break()
     except Exception:
         logger.exception("Section rendering failed; section was skipped.")

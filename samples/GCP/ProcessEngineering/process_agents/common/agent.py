@@ -250,12 +250,14 @@ signal.signal(signal.SIGTERM, handler)
 # ROOT AGENT
 # ---------------------------------------------------------
 from .agent_wrappers import ProcessLlmAgent  # DefaultLlmAgent shortcut
+from .utils_agent import clear_pipeline_lock
 
 root_agent = ProcessLlmAgent(
     name="Process_Architect_Orchestrator",
     instruction_file="common/agent.txt",
     before_model_callback=None,  # Disable before callback for root agent
     after_model_callback=None,   # Disable after callback for root agent
+    tools=[clear_pipeline_lock],
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
