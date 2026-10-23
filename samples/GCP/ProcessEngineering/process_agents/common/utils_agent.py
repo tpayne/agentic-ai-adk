@@ -28,6 +28,7 @@ from process_toolkit.run_lock import (
     release_pipeline_lock,
     start_pipeline_lock_heartbeat,
     stop_pipeline_lock_heartbeat,
+    force_clear_pipeline_lock,
 )
 
 from ..process.design_agent import design_agent
@@ -125,6 +126,132 @@ def release_pipeline_lock_for_turn(context) -> None:
     token = stored.get("token") if isinstance(stored, dict) else None
     stop_pipeline_lock_heartbeat(token)
     release_pipeline_lock(token)
+
+
+def release_pipeline_lock_after_run(callback_context=None) -> None:
+    """after_agent_callback for each create/update pipeline's own
+    top-level SequentialAgent (process/design, create/update -- all
+    four) -- releases this turn's pipeline lock once the WHOLE
+    pipeline's run ends, for ANY reason, closing a real gap: each
+    pipeline's own finalize step (create_standard_doc_from_file, in
+    doc_generation_agent.py) only releases the lock when it is actually
+    reached AND returns a "SUCCESS:" result. Confirmed directly: a run
+    that stops after Stage 1 -- e.g. the agent asks a clarifying
+    question in plain text instead of proceeding, with no further tool
+    calls that turn -- left the lock held indefinitely, refusing every
+    later run against the same output/ directory ("Another pipeline run
+    ... is already in progress") until the server process itself
+    restarted. The lock's own staleness fallback (process_toolkit.
+    run_lock.DEFAULT_STALE_AFTER_SECONDS) can't help here: the
+    background heartbeat that same module starts keeps re-acquiring the
+    same token every few minutes for as long as this process keeps
+    running, so an unreleased lock never actually goes stale on its own
+    -- only a process restart ages it out.
+
+    ADK fires after_agent_callback on a SequentialAgent exactly the same
+    way it does on CloudArch_Pipeline's own LoopAgent (see
+    cloudarch_pipeline_agent.py's before/after pair) -- this is not
+    LoopAgent-specific machinery, confirmed directly against ADK's own
+    BaseAgent/SequentialAgent source. It fires on normal completion
+    (including a plain-text final response with no more tool calls,
+    which does not set ctx.end_invocation) -- precisely the case that
+    was previously unhandled.
+
+    Safe to call even when the pipeline's own finalize step already
+    released this same token moments earlier -- release_pipeline_lock
+    only removes the lock file if its token still matches what's
+    recorded there (a no-op otherwise), and stop_pipeline_lock_heartbeat
+    is a no-op for a token with no running heartbeat -- so this is never
+    a SECOND, conflicting release, only a harmless no-op in the already-
+    released case and the actual fix in the previously-unreleased one.
+    Also safe when this run's own analysis stage never got far enough to
+    acquire a lock at all (release_pipeline_lock_for_turn's own
+    docstring: context=None or an empty/missing key is itself a no-op).
+    """
+    release_pipeline_lock_for_turn(callback_context)
+
+
+def clear_pipeline_lock() -> str:
+    """Forcibly clears the shared output/ directory's pipeline lock, if
+    one is currently held -- regardless of how old it is or which run
+    holds it.
+
+    Call this ONLY when the user explicitly asks to clear, reset, or
+    unstick a pipeline lock -- e.g. they saw "Another pipeline run ...
+    is already in progress" and are confident nothing is actually still
+    running. NEVER call this as your own troubleshooting guess, and
+    never in response to a request that is just a normal pipeline run
+    (that always goes through the real pipeline tools, not this one).
+    Forcibly clearing a lock a genuinely still-running pipeline holds
+    can let two runs interleave their writes to the same output/
+    directory and corrupt it -- that judgment call belongs to the user,
+    since only they know whether another request of theirs is actually
+    still in flight elsewhere.
+    """
+    cleared = force_clear_pipeline_lock()
+    if cleared is None:
+        return "No pipeline lock is currently held -- there was nothing to clear."
+
+    label = cleared.get("label", "an unknown pipeline")
+    started_at = cleared.get("started_at")
+    age_str = ""
+    if isinstance(started_at, (int, float)):
+        age_minutes = (time.time() - started_at) / 60
+        age_str = f", held for about {age_minutes:.1f} minute{'s' if abs(age_minutes - 1) > 0.05 else ''}"
+    return f"SUCCESS: Cleared the pipeline lock (was held by '{label}'{age_str}). You can retry your request now."
+
+
+# context.state key (scoped to the whole chat session, same as
+# PIPELINE_LOCK_TOKEN_STATE_KEY above) marking that THIS session has
+# already touched the cloud-architecture subsystem at least once. See
+# claim_cloudarch_drawio_for_session's own docstring.
+CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY = "_cloudarch_drawio_session_owned"
+
+
+def claim_cloudarch_drawio_for_session(context) -> bool:
+    """Returns True only the first time this is called for the current
+    chat session, and marks the session as having claimed
+    output/cloudarch_drawio.xml from then on (every later call in the
+    same session returns False). context may be None (a direct/test
+    call with no ADK-managed context) -- always returns False in that
+    case, since there is no session to gate on.
+
+    Two different CloudArch-family entry points call this on a session's
+    first touch, with different consequences for whatever is currently
+    on disk:
+      - cloudarch_pipeline_agent._reset_cloudarch_approval_state (the
+        generate/refine pipeline's own reset step): if this call returns
+        True, any existing diagram could only be a stale leftover from a
+        different, unrelated session (this one has never touched it
+        before), so the caller deletes it before generation/refinement
+        starts.
+      - the read-only query agents' own before_agent_callback
+        (see claim_cloudarch_drawio_readonly below): if this call
+        returns True, the caller does NOT delete anything -- a read-only
+        question must never destroy data just because the session
+        hasn't looked at it yet; it simply adopts whatever is on disk as
+        this session's own.
+
+    Whichever of the two runs first in a given session wins -- this is a
+    per-session one-shot regardless of which CloudArch-family agent
+    makes the call first."""
+    if context is None or context.state.get(CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY):
+        return False
+    context.state[CLOUDARCH_DRAWIO_SESSION_OWNED_STATE_KEY] = True
+    return True
+
+
+def claim_cloudarch_drawio_readonly(callback_context=None) -> None:
+    """before_agent_callback for the read-only CloudArch query agents
+    (Consultant/Simulation/Attack-Simulation/FinOps): claims this
+    session's ownership of the cloud-architecture diagram the same way
+    claim_cloudarch_drawio_for_session does, but only for that side
+    effect -- always returns None (never short-circuits the agent),
+    since a read-only question must never be blocked or have its
+    response substituted just because this happens to be the session's
+    first touch."""
+    claim_cloudarch_drawio_for_session(callback_context)
+    return None
 
 # ---------- Programmatic stop/kill-switch tool ----------
 def _contains_marker(obj: Any, needle: str) -> bool:

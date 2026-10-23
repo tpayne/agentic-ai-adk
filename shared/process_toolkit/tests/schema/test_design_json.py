@@ -101,6 +101,42 @@ def test_validate_requires_acceptance_criteria_for_each_requirement():
     )
 
 
+def test_validate_requires_an_id_for_each_requirement():
+    # Regression test: design_document_schema.json's own "requirement"/
+    # "nonFunctionalRequirement" defs both list "id" as required, but
+    # nothing here actually enforced that -- confirmed directly against
+    # a real generated design document whose non_functional_requirements
+    # were missing it entirely, with nothing catching it before
+    # persistence (it rendered as a blank ID column in the generated
+    # Word document instead).
+    doc = {
+        "document_metadata": {
+            "document_id": "D-1", "document_type": "HLD", "system_name": "X",
+            "title": "X Design", "version": "1.0", "status": "draft",
+        },
+        "high_level_design": {},
+        "requirements": {
+            "functional_requirements": [
+                {"description": "Create a backup.", "acceptance_criteria": ["A backup exists."]},
+            ],
+            "non_functional_requirements": [
+                {"description": "Backups are encrypted.",
+                 "acceptance_criteria": ["A restore-point audit confirms encryption."]},
+            ],
+        },
+    }
+
+    result = validate_design_json(doc)
+
+    assert not result["valid"]
+    assert any(
+        issue["location"] == "requirements.functional_requirements[0].id" for issue in result["issues"]
+    )
+    assert any(
+        issue["location"] == "requirements.non_functional_requirements[0].id" for issue in result["issues"]
+    )
+
+
 def test_persist_then_load_round_trips():
     doc = {
         "document_metadata": {

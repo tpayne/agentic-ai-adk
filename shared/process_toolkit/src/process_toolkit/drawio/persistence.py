@@ -17,6 +17,12 @@ from process_toolkit import paths
 logger = logging.getLogger("ProcessArchitect.DrawioPersistence")
 
 DRAWIO_FILENAME = "cloudarch_drawio.xml"
+# ADK-only siblings (concurrency lock + malformed-XML debug dumps -- see
+# this module's own docstring on why the write side isn't shared); the
+# neuro-san port never creates them, so removing them there is always a
+# harmless no-op.
+DRAWIO_LOCK_FILENAME = ".cloudarch_drawio.lock"
+DRAWIO_RAW_FILENAMES = ("cloudarch_drawio_raw.xml", "cloudarch_drawio_mapped_raw.xml")
 
 
 def load_drawio_xml() -> dict:
@@ -33,3 +39,22 @@ def load_drawio_xml() -> dict:
         # otherwise invisible server-side.
         logger.error("Failed to read %s: %s", path, e, exc_info=True)
         return {"status": "ERROR", "xml": None, "error": str(e)}
+
+
+def reset_drawio_xml() -> None:
+    """Removes any existing cloud-architecture diagram, plus its
+    concurrency-lock and malformed-XML debug-dump siblings. Callers use
+    this to guarantee a chat session's first touch of the cloud
+    architecture subsystem never silently inherits a diagram a
+    different, unrelated session left behind on disk -- see
+    process_agents.cloudarch.cloudarch_pipeline_agent (ADK) /
+    coded_tools.cloudarch.reset_loop_state_tool (neuro-san), and
+    coded_tools.cloudarch.load_drawio_tool for why a read-only query must
+    NOT call this."""
+    for name in (DRAWIO_FILENAME, DRAWIO_LOCK_FILENAME, *DRAWIO_RAW_FILENAMES):
+        path = paths.output_path(name)
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception as e:
+            logger.warning("Failed to remove stale %s: %s", path, e, exc_info=True)

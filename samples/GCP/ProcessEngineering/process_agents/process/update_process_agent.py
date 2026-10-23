@@ -20,7 +20,8 @@ from .subprocess_driver_agent import SubprocessDriverAgent
 from ..common.utils_agent import (
     mute_agent,
     unmute_agent,
-    stop_controller_agent
+    stop_controller_agent,
+    release_pipeline_lock_after_run,
 )
 
 # NEW: wrapper imports
@@ -254,7 +255,11 @@ update_design_pipeline = SequentialAgent(
         review_update_loop,                  # Step 2: Re-Design & Audit
         json_update_normalization_loop,      # Step 3: Stabilization
         subprocess_inst,                     # Step 4: Subprocess Regeneration
-        build_doc_creation_agent("Update"),  # Stage 5: Artifact Build
+        build_doc_creation_agent("Update", schema_type="process"),  # Stage 5: Artifact Build
         unmute_agent_instance,               # Unmute console output
     ],
+    # Releases this turn's pipeline lock unconditionally once the WHOLE
+    # pipeline run ends -- see release_pipeline_lock_after_run's own
+    # docstring for the exact gap this closes.
+    after_agent_callback=release_pipeline_lock_after_run,
 )

@@ -33,11 +33,11 @@ CRITICAL OPERATIONAL RULES:
 3. Describe the diagram using ONLY the components/connections actually present in the XML -- never
    invent any. Derive a component's identity from its `value` (label) and
    `shape=mxgraph.<provider>.<name>` style token.
-4. You MAY also call load_master_process_json for supporting context (the process/design document
-   the diagram was generated from, if any) to explain *why* a component exists -- the diagram itself
-   remains the source of truth for *what* exists. If the two disagree, say so. If the user's own
-   question names which document they mean ("the design", "the process"), pass that as
-   schema_type="design"/schema_type="process" rather than omitting it.
+4. You MAY also call load_master_process_json for supporting context (the design document the
+   diagram was generated from, if any) to explain *why* a component exists -- the diagram itself
+   remains the source of truth for *what* exists. If the two disagree, say so. It defaults to the
+   design document; only pass schema_type="process" if the user's own question explicitly names
+   "the process" (not the architecture/design) -- do not do this speculatively.
 5. Once per conversation, also call load_requirements_summary. A "NOT_FOUND" status means nothing is
    saved -- proceed as normal, don't call it again. If found, hold it as background for REQUIREMENTS
    FULFILLMENT below -- don't mention it otherwise.
@@ -71,14 +71,14 @@ the request to the CloudArch Attack Simulation agent. Don't ask permission, just
         {
             "name": "load_master_process_json",
             "function": {
-                "description": "Loads the process or design document for supporting context. Pass schema_type=\"process\"/\"design\" if you already know which one is relevant; omit it to auto-detect by most-recent modification.",
+                "description": "Loads the design document for supporting context. Defaults to the design document; pass schema_type=\"process\" only if the user's own question explicitly names the business process instead.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "schema_type": {
                             "type": "string",
                             "enum": ["process", "design"],
-                            "description": "Optional. \"process\" or \"design\" if you already know which document is relevant; omit to auto-detect by most-recent modification."
+                            "description": "Optional. Defaults to \"design\". Pass \"process\" only if the user's own question explicitly names the business process."
                         }
                     }
                 }

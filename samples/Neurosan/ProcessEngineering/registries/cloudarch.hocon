@@ -299,17 +299,17 @@ draw or what to call them.
 # YOUR TOOLS
 - load_iteration_feedback: the reviewer's inbox for you -- see Mode 4 below.
 - load_drawio: loads the most recently saved diagram.
-- load_master_process_json: loads a process/design document, if one exists, for supporting context.
-  If you already know which one is relevant (e.g. the user's own request names "the design" or
-  "the process" specifically), pass schema_type="design" or schema_type="process" rather than
-  omitting it -- otherwise it just returns whichever of the two was modified most recently.
+- load_master_design_json: loads the existing design document, if one exists, for supporting
+  context (what requirements/components this architecture is meant to satisfy). Pinned to the
+  design document only -- a cloud architecture is never grounded in an unrelated business process
+  document, even if one happens to exist in output/ from an earlier, different request.
 - load_directory_context: reads a directory of source files -- see Mode 5.
 - load_requirements_summary: loads a previously-saved requirements summary -- see Mode 6.
 - save_drawio_structured: saves the architecture -- see above.
 
 # INPUT MODES & HANDLING
-1. Default Mode: if the "request" argument is empty or generic, call load_master_process_json to
-   look for an existing process/design document to ground the architecture in.
+1. Default Mode: if the "request" argument is empty or generic, call load_master_design_json to
+   look for an existing design document to ground the architecture in.
 2. Ad-hoc Generation Mode: if "request" describes specific criteria (virtual networks, firewalls,
    subnets, north-south inspection, east-west filtering, etc.), architect directly to match those.
 3. Refinement Mode: if "request" asks for updates/modifications to a previously defined architecture,
@@ -381,7 +381,7 @@ Your only visible output must be exactly one of those two literal strings, nothi
 commentary, no XML, no markdown, no explanation.
 """,
             "tools": [
-                "load_iteration_feedback", "load_drawio", "load_master_process_json",
+                "load_iteration_feedback", "load_drawio", "load_master_design_json",
                 "load_directory_context", "load_requirements_summary",
                 "save_drawio_structured"
             ]
@@ -404,7 +404,7 @@ provider the architecture targets). You do not design or redraw the architecture
 critique it and hand back structured feedback for CloudArch_Agent to apply on its next turn.
 
 # REQUIRED ACTION SEQUENCE (STRICT ORDER)
-1. Call load_master_process_json to see the original requirements the architecture is meant to
+1. Call load_master_design_json to see the original requirements the architecture is meant to
    satisfy, if any exist.
 2. Call load_drawio to load the most recently saved architecture.
    - If it returns status "NOT_FOUND", there is nothing yet to review. Treat this as REVISION
@@ -432,7 +432,7 @@ critique it and hand back structured feedback for CloudArch_Agent to apply on it
     REVISION REQUIRED
 No commentary, no markdown, no explanation of your reasoning outside the structured feedback call.
 """,
-            "tools": ["load_master_process_json", "load_drawio", "save_iteration_feedback"]
+            "tools": ["load_master_design_json", "load_drawio", "save_iteration_feedback"]
         },
 
         {
@@ -520,21 +520,11 @@ No commentary, no markdown, no explanation of your reasoning outside the structu
         },
 
         {
-            "name": "load_master_process_json",
+            "name": "load_master_design_json",
             "function": {
-                "description": "Loads the process or design document for supporting context. If you already know which one is relevant (e.g. the conversation has been about a design document specifically, or the user says so), pass schema_type to get exactly that one -- otherwise omit it and the most recently modified of the two (if both exist) is returned.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "schema_type": {
-                            "type": "string",
-                            "enum": ["process", "design"],
-                            "description": "Optional. \"process\" or \"design\" if you already know which document is relevant; omit to auto-detect by most-recent modification."
-                        }
-                    }
-                }
+                "description": "Loads the existing design document, if one exists, for supporting context. Pinned to the design schema only -- never returns a business process document."
             },
-            "class": "load_master_process_json_tool.LoadMasterProcessJsonCodedTool"
+            "class": "load_master_design_json_tool.LoadMasterDesignJsonCodedTool"
         },
 
         {

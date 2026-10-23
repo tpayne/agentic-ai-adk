@@ -8,7 +8,7 @@ import random
 logger = logging.getLogger("ProcessArchitect.CloudArchReviewer")
 
 from ..common.utils import (
-    load_master_process_json,
+    load_master_design_json,
     load_drawio,
     getProperty,
     save_iteration_feedback,
@@ -29,7 +29,7 @@ cloudarch_reviewer_agent = ProcessLlmAgent(
     description='Reviews a generated cloud architecture against security, cost, observability, and resiliency best practices, and returns feedback for the CloudArch Agent to apply.',
     instruction_file="cloudarch/cloudarch_reviewer_agent.txt",
     tools=[
-        load_master_process_json,
+        load_master_design_json,
         load_drawio,
         log_cloudarch_reviewer_metadata,
         save_iteration_feedback,

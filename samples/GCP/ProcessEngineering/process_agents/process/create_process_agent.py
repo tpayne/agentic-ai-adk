@@ -29,7 +29,8 @@ from ..common.utils import (
 from ..common.utils_agent import (
     mute_agent,
     unmute_agent,
-    stop_controller_agent
+    stop_controller_agent,
+    release_pipeline_lock_after_run,
 )
 
 # Wrapper classes that adapt LLM agents into the process pipeline
@@ -168,7 +169,13 @@ full_design_pipeline = SequentialAgent(
         review_loop,             # Stage 2: Iterative design + compliance loop
         json_normalization_loop, # Stage 3: Stabilize and persist process JSON
         subprocess_stage,        # Stage 4: Generate per-step subprocess artifacts
-        build_doc_creation_agent("Create"),  # Stage 5: Produce deliverables/documentation
+        build_doc_creation_agent("Create", schema_type="process"),  # Stage 5: Produce deliverables/documentation
         unmute_agent             # Restore console output
-    ]
+    ],
+    # Releases this turn's pipeline lock unconditionally once the WHOLE
+    # pipeline run ends -- see release_pipeline_lock_after_run's own
+    # docstring for the exact gap this closes (a run that stops after
+    # Stage 1, e.g. the agent asking a clarifying question with no
+    # further tool calls, otherwise left the lock held indefinitely).
+    after_agent_callback=release_pipeline_lock_after_run,
 )

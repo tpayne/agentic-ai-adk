@@ -347,3 +347,53 @@ def stop_pipeline_lock_heartbeat(token: Optional[str]) -> None:
         heartbeat = _heartbeats.pop(token, None)
     if heartbeat is not None:
         heartbeat.stop()
+
+
+def peek_pipeline_lock() -> Optional[dict]:
+    """Read-only: returns the current lock's raw info (label/token/
+    started_at/pid) if output/ currently has one, or None if it
+    doesn't. Never acquires, releases, or otherwise changes anything."""
+    return _read_lock(_lock_path())
+
+
+def force_clear_pipeline_lock() -> Optional[dict]:
+    """Unconditionally removes the current pipeline lock (if any) and
+    stops its background heartbeat, regardless of which token holds it
+    or how old it is. Unlike every other function in this module, this
+    does NOT check ownership first.
+
+    Exists for an operator -- or an agent acting on an explicit, direct
+    user request -- to recover from a lock that's stuck for a reason
+    this module's own self-healing (DEFAULT_STALE_AFTER_SECONDS) hasn't
+    caught: a still-running server process whose own background
+    heartbeat (start_pipeline_lock_heartbeat) keeps re-acquiring the
+    lock every few minutes for as long as that process keeps running,
+    which keeps it looking fresh forever if its own release call never
+    ran (e.g. a pipeline run that stopped early -- see
+    process_agents.common.utils_agent.release_pipeline_lock_after_run's
+    own docstring for a confirmed real case of exactly this).
+
+    Returns the lock's info (whatever peek_pipeline_lock would have
+    returned) if one was actually cleared, or None if there was nothing
+    to clear -- callers should surface that info (label, age) back to
+    the user, so clearing a lock is never a silent, invisible action.
+
+    SAFETY: this does NOT check whether a pipeline genuinely still has
+    an active run in flight against this lock -- that judgment call
+    belongs to whoever invokes this (ultimately the user, on their own
+    explicit request), not to this function. Clearing a lock a
+    genuinely still-running pipeline holds can let two runs interleave
+    their writes to the same output/ directory, exactly the corruption
+    this module's own locking exists to prevent in the first place.
+    """
+    path = _lock_path()
+    with _mutex_guard(path):
+        existing = _read_lock(path)
+        if existing is None:
+            return None
+        stop_pipeline_lock_heartbeat(existing.get("token"))
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return existing

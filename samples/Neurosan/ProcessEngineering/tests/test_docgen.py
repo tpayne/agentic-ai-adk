@@ -69,6 +69,23 @@ def test_generate_clean_diagram_falls_back_when_no_process_json_exists():
     assert "Diagram successfully generated at" in result
 
 
+def test_generate_process_flow_diagram_coded_tool_ignores_a_coexisting_design_document():
+    # Regression test (the actual bug report): process.hocon's own
+    # GenerateProcessFlowDiagramCodedTool must render the PROCESS diagram
+    # even when an unrelated design_data.json also exists in output/ --
+    # it must not fall through to generate_clean_diagram()'s own
+    # schema_type=None disk-guessing, which could pick either file.
+    _write_sample_process_json()
+    with open(paths.output_path("design_data.json"), "w", encoding="utf-8") as f:
+        json.dump({"document_metadata": {"title": "Unrelated Design", "system_name": "Unrelated"}}, f)
+
+    result = GenerateProcessFlowDiagramCodedTool().invoke({}, {})
+
+    assert "Diagram successfully generated at" in result
+    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
+    assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Unrelated_Design_flow.png"))
+
+
 def test_create_standard_doc_from_file_builds_a_real_docx_with_expected_sections():
     _write_sample_process_json()
 

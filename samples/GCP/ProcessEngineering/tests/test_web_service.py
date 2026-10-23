@@ -923,6 +923,15 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["data"], {"doc": True})
 
+    def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self):
+        self._write("cloudarch_drawio.xml", "<mxfile><diagram>stuff</diagram></mxfile>")
+        response = self.client.get("/artifacts/cloudarch", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {"status": "ok", "name": "cloudarch", "data": "<mxfile><diagram>stuff</diagram></mxfile>"},
+        )
+
     def test_404_when_the_file_has_not_been_generated_yet(self):
         response = self.client.get("/artifacts/process", headers=self._authorized_headers())
         self.assertEqual(response.status_code, 404)

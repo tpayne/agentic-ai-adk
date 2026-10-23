@@ -33,9 +33,17 @@ def test_front_man_has_both_regenerate_tools():
     assert "regenerate_document" in front_man_tools
 
 
-def test_edge_inference_tool_re_exports_the_real_class():
-    from coded_tools.process.edge_inference_tool import GenerateProcessFlowDiagramCodedTool as Original
-    assert RegenerateFlowDiagramCodedTool is Original
+def test_edge_inference_tool_is_not_the_pinned_process_class():
+    # Regression test: this USED to be a re-export of
+    # coded_tools.process.edge_inference_tool.GenerateProcessFlowDiagramCodedTool
+    # -- fine while that class had no opinion on schema_type, but it was
+    # later pinned to schema_type="process" (process.hocon's own pipeline
+    # only ever means "process"), which would have silently broken this
+    # network's own "regenerate the DESIGN document" case by reusing the
+    # exact same pinned class. This is now a genuinely separate
+    # implementation -- see this module's own docstring.
+    from coded_tools.process.edge_inference_tool import GenerateProcessFlowDiagramCodedTool as PinnedProcessOnly
+    assert RegenerateFlowDiagramCodedTool is not PinnedProcessOnly
 
 
 def test_router_mentions_the_new_network():
@@ -78,17 +86,52 @@ class TestRegenerateDocumentCodedTool:
         doc_result = RegenerateDocumentCodedTool().invoke({}, {})
         assert doc_result.startswith("SUCCESS:")
 
-    def test_process_data_takes_precedence_when_both_exist(self):
+    def test_process_data_takes_precedence_when_both_exist_and_schema_type_is_unspecified(self):
         # detect_schema_type_from_disk's own documented rule: "design"
         # only when design_data.json exists AND process_data.json does
         # NOT -- every other case (including both present) resolves to
-        # "process".
+        # "process". Only correct for a genuinely generic "regenerate the
+        # document" request with no domain named -- see the explicit
+        # schema_type tests below for the actual fix.
         with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
             json.dump({"process_name": "Vendor Onboarding", "process_steps": []}, f)
         with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
             json.dump({"document_metadata": {"system_name": "Checkout Service"}}, f)
 
         doc_result = RegenerateDocumentCodedTool().invoke({}, {})
+        assert doc_result.startswith("SUCCESS:")
+        out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Onboarding.docx")
+        assert os.path.exists(out_path)
+
+    def test_explicit_schema_type_design_wins_over_a_newer_process_document(self):
+        # The actual bug report this fixes: an unrelated process document
+        # (even one that exists/was touched more recently) must NOT
+        # contaminate an explicit "regenerate the DESIGN document"
+        # request -- Regenerate_Document_Agent's own instructions resolve
+        # "design" from wording like this and pass it through explicitly.
+        with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({"document_metadata": {"system_name": "Checkout Service", "title": "Checkout Service"}}, f)
+        with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({"process_name": "Vendor Onboarding", "process_steps": []}, f)
+
+        doc_result = RegenerateDocumentCodedTool().invoke({"schema_type": "design"}, {})
+        assert doc_result.startswith("SUCCESS:")
+        out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Service.docx")
+        assert os.path.exists(out_path), f"expected the DESIGN document, not the process one -- {out_path} missing"
+
+        diagram_result = RegenerateFlowDiagramCodedTool().invoke({"schema_type": "design"}, {})
+        assert "Diagram successfully generated at" in diagram_result
+        assert "design" in diagram_result.lower() or "checkout" in diagram_result.lower() or os.path.exists(
+            paths.output_path("Checkout_Service_flow.png")
+        )
+
+    def test_explicit_schema_type_process_still_works_when_design_is_newer(self):
+        with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({"document_metadata": {"system_name": "Checkout Service"}}, f)
+        with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({"process_name": "Vendor Onboarding", "process_steps": []}, f)
+
+        doc_result = RegenerateDocumentCodedTool().invoke({"schema_type": "process"}, {})
         assert doc_result.startswith("SUCCESS:")
         out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Onboarding.docx")
         assert os.path.exists(out_path)

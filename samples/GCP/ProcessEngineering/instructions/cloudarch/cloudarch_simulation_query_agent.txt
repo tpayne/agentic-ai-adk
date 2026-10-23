@@ -26,7 +26,6 @@ These constraints apply only to the final narrative output. Tool calls may conta
 
 # AVAILABLE TOOLS
 - load_drawio
-- load_master_process_json
 - load_requirements_summary
 - simulate_cloudarch_architecture
 

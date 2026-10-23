@@ -1,6 +1,26 @@
 import types
 
+import docx
+
 from process_toolkit.docgen import design_sections
+
+
+def test_requirements_table_shows_na_for_a_missing_id():
+    # Regression test: a requirement record missing "id" (confirmed
+    # directly against a real generated design document whose
+    # non_functional_requirements were missing it entirely) previously
+    # rendered as a BLANK cell in the generated Word document's ID
+    # column -- indistinguishable from a rendering bug -- rather than
+    # something that's clearly intentional/notable.
+    doc = docx.Document()
+    design_sections._add_requirements_table(
+        doc,
+        [{"description": "Backups are encrypted.", "priority": "high", "acceptance_criteria": ["x"]}],
+        include_category=False,
+    )
+
+    table = doc.tables[0]
+    assert table.rows[1].cells[0].text == "N/A"
 
 
 def test_priority_and_natural_sort_keys():

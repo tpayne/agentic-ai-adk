@@ -10,8 +10,13 @@ from .cloudarch_agent import cloudarch_agent
 from .cloudarch_reviewer_agent import cloudarch_reviewer_agent
 from ..common.utils_agent import stop_controller_agent, status_logger, cloudarch_stop_if_ready
 from ..common.agent_wrappers import ProcessAgent
-from ..common.utils_agent import acquire_pipeline_lock_for_turn, release_pipeline_lock_for_turn
+from ..common.utils_agent import (
+    acquire_pipeline_lock_for_turn,
+    release_pipeline_lock_for_turn,
+    claim_cloudarch_drawio_for_session,
+)
 from process_toolkit.run_lock import PipelineLockedError
+from process_toolkit.drawio.persistence import reset_drawio_xml
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
@@ -59,6 +64,18 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
     every loop iteration and a reset there would erase cloudarch_status right
     after cloudarch_reviewer_agent writes it on iteration 1, breaking the
     approval check on iteration 2 for any run that needs more than one pass.
+
+    Also claims this chat session's ownership of output/cloudarch_drawio.xml
+    (see claim_cloudarch_drawio_for_session's own docstring): on this
+    session's FIRST touch of the cloud architecture subsystem, any diagram
+    already on disk could only be a stale leftover from a different,
+    unrelated session, so it's deleted here before generation/refinement
+    starts -- otherwise a brand-new session's very first "generate a cloud
+    architecture" request could silently be treated as a refinement of
+    someone else's diagram. A later touch in the SAME session (a genuine
+    refinement request, or a read-only query that ran first and already
+    claimed ownership -- see claim_cloudarch_drawio_readonly) leaves the
+    file untouched, exactly as before this change.
     """
     try:
         acquire_pipeline_lock_for_turn("the cloud architecture pipeline", callback_context)
@@ -72,6 +89,9 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
                 os.remove(path)
         except Exception:
             pass
+
+    if claim_cloudarch_drawio_for_session(callback_context):
+        reset_drawio_xml()
     return None
 
 

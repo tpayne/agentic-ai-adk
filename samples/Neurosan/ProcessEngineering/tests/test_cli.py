@@ -979,6 +979,16 @@ class TestArtifactRoute:
         assert resp.status_code == 200
         assert resp.get_json()["data"] == {"doc": True}
 
+    def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile><diagram>stuff</diagram></mxfile>"}
+        )
+        resp = client.get("/artifacts/cloudarch")
+        assert resp.status_code == 200
+        assert resp.get_json() == {
+            "status": "ok", "name": "cloudarch", "data": "<mxfile><diagram>stuff</diagram></mxfile>",
+        }
+
     def test_404_when_the_file_has_not_been_generated_yet(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
         resp = client.get("/artifacts/process")

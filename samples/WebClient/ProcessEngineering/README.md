@@ -26,8 +26,10 @@ POST   /chat                    {"query": "...", "session_id": "..." (optional)}
 POST   /chat/stream              same body; text/event-stream of progress/delta/done events instead
 DELETE /chat/<session_id>       -> {"status": "ok", "session_id": "...", "cleared": true|false}
 GET    /artifacts/<name>        "process" or "design" -> {"status": "ok", "name": "...",
-                                 "data": {...the parsed output/<name>_data.json...}}, or 404 if
-                                 that pipeline hasn't produced one yet
+                                 "data": {...the parsed output/<name>_data.json...}}; "cloudarch"
+                                 -> same envelope, but "data" is the raw output/cloudarch_drawio.xml
+                                 TEXT instead of parsed JSON; 404 if that pipeline hasn't produced
+                                 an artifact yet
 ```
 
 Same request/response shapes, same `Authorization: Bearer <key>` / `X-API-Key` auth header
@@ -82,6 +84,7 @@ The message box is a rich-text editor, not a plain text field, with a small tool
 | **B** | Bold the selection (or what you type next) — `Ctrl`/`Cmd`+`B` also works. |
 | *I* | Italicize the selection — `Ctrl`/`Cmd`+`I` also works. |
 | List icon | Toggle a bullet list. Enter adds a new item while inside one; Shift+Enter still works too. |
+| Mic icon | **Voice input** — see below. |
 | Download icon | **Save chat** — see below. |
 
 The box expands automatically as you type (up to a max height, then scrolls) and supports full
@@ -110,6 +113,58 @@ Access API); in browsers without it (Firefox, Safari as of this writing) it trig
 file download instead — either way, you end up with a timestamped
 `process-architect-chat-<date>.md` file containing the transcript.
 
+## Voice input and output
+
+Both directions use the browser's own built-in Web Speech APIs — no server round trip, no
+external service, no API key, nothing to configure. Either half is simply unavailable (and its
+controls disabled, with an explanatory tooltip) in a browser that doesn't implement the
+corresponding API — as of this writing that's mainly Chromium-based browsers (Chrome, Edge) for
+input; output (speech synthesis) is far more broadly supported.
+
+**Voice input** (dictate instead of typing): click the mic icon in the composer toolbar to start
+recording — it turns red and pulses while listening. Speak, then click it again (or just stop
+talking for a while) to end that recording. Recognized speech is inserted at the cursor in the
+message box, same as typing it, so it can be mixed with typed text, edited, or dictated again
+before you actually hit Send — nothing is sent automatically just because it was recognized.
+Starting a new recording session appends to whatever's already there rather than replacing it.
+Sending a message (or starting a new one while a recording is still active) stops that recording
+first.
+
+**Voice output** (hear a reply instead of reading it): every agent reply gets a small **Speak**
+button next to **Copy** in its meta row (same hover-to-reveal behavior as Copy). Clicking it reads
+that reply aloud via the browser's built-in text-to-speech — reusing the same markdown-lite
+renderer used to display the reply first, so formatting syntax (`**bold**`, bullets, table
+pipes, …) is never read aloud literally. While that reply is playing, its button becomes
+**Cancel** (staying visible even after the mouse moves away, unlike Copy) — click it to stop
+partway through. Only one reply speaks at a time: clicking Speak on a different message (or
+sending a new one) cancels whatever was already playing, reverting its button back to Speak,
+rather than queuing or overlapping. Nothing is spoken automatically — this is strictly on request,
+per reply.
+
+**Mute and volume**, in the sidebar footer (same spot as the light/dark theme toggle): the
+speaker button mutes/unmutes voice output entirely (muting instantly cancels anything currently
+speaking), and the slider sets playback volume from 0–100%. Both settings persist in this
+browser's `localStorage`, the same way the connection settings and theme choice do. This same
+toggle also gates the turn-completion chime/notification below — "voice off" means both.
+
+## Turn-completion notification
+
+When a turn finishes (however it finishes — a normal reply, a stopped turn, or an error) and
+voice isn't muted (see **Mute and volume** above), this page plays a short chime — generated on
+the fly via the Web Audio API, no sound file bundled — scaled by the same volume slider as speech
+output.
+
+If this tab isn't the one you're currently looking at, it also asks the browser for permission
+(the first time it would matter, never on page load) to show a real OS-level desktop
+notification, and gives the tab's favicon a small red badge plus a "🔔 Reply ready" prefix on the
+title until you switch back to it. A web page can't literally bounce a dock icon or flash a
+taskbar entry itself — those are OS/browser-chrome capabilities, not something page content can
+trigger directly — but a desktop notification is usually the thing that actually DOES draw that
+attention on your OS (showing a banner, badging/bouncing the app icon, etc., entirely according to
+however your own OS and browser have notifications configured), and the favicon/title badge is a
+reliable fallback wherever notifications are denied or unsupported, visible in any taskbar/dock
+preview of the tab regardless.
+
 ## Streaming
 
 Every turn is sent to `POST /chat/stream` first — the same endpoint both backends' CLIs now
@@ -128,7 +183,7 @@ events arrive:
   in-progress fragment (e.g. an unclosed &#96;&#96;&#96;code block&#96;&#96;&#96;), and parsing
   that as markdown mid-stream renders broken HTML far more often than it renders anything useful.
 - **`done`** finalizes the reply: the complete text is rendered through the real markdown-lite
-  renderer exactly once, and the copy button/timestamp are added.
+  renderer exactly once, and the copy/speak buttons and timestamp are added.
 
 While a turn is streaming, the composer's **Send** button is replaced by a red **Stop** button.
 Clicking it calls `POST /chat/<session_id>/stop` on the connected backend — a **real** cancellation
@@ -215,6 +270,51 @@ generated yet" apart from "here's an empty template".
 - Built the same way as the Agent Network graph: DOM nodes via `document.createElement`/
   `.textContent`, never `innerHTML` string concatenation, since the JSON being rendered is arbitrary
   backend output and could contain HTML-like strings.
+
+## Cloud Architecture tab
+
+The **Cloud Architecture** tab (next to **Process / Design**) renders the connected backend's
+current `output/cloudarch_drawio.xml` — fetched via the same `GET /artifacts/<name>` endpoint as
+the Process/Design tab (`name=cloudarch`), which returns the raw XML text instead of parsed JSON
+for this one name.
+
+**This is a summary rendering, not a full drawio client.** It's built from scratch, by this page,
+specifically for this project's own generated diagrams — it does not aim to (and will not)
+faithfully render arbitrary drawio files the way a real drawio editor/viewer would. See the
+specific gaps called out below (icons, edge-label placement); treat anything this tab shows as a
+useful at-a-glance summary, not a substitute for opening the actual file in a real drawio client
+if you need the exact, complete picture.
+
+Unlike the Agent Network graph (which has no real diagram to draw from and lays itself out from
+scratch), this tab parses the actual mxGraph/drawio XML and draws it as a real diagram: every
+shape's position, size, fill/border color, and label come straight out of that XML's own
+`<mxCell>`/`<mxGeometry>` elements — the same file a real drawio editor would open. **Real
+AWS/Azure/GCP provider icons are not rendered** — no stencil/icon library is bundled, consistent
+with this page's own no-external-dependency rule. Instead, each icon cell's `shape=mxgraph.<...>`
+style token is classified into one of a small set of generic SERVICE-CATEGORY glyphs (compute,
+database, storage, load balancer, queue, API gateway, network, container, security, CDN, DNS,
+user, or a generic cloud outline as the fallback) — hand-drawn inline SVG, colored with whichever
+icon color the generator actually chose for that component — so a database at least looks like a
+database rather than every service rendering as an identical flat box; it's a recognizable
+approximation, not the literal official pictogram. Edge labels are placed at the connecting line's
+geometric midpoint rather than the generator's own exact collision-avoided position — close
+enough for a readable diagram, not a pixel-perfect reproduction.
+
+- Click the refresh icon (same spot as Process/Design's own) to (re-)load the current diagram —
+  this tab never auto-refreshes, for the same reason Process/Design doesn't: the file only changes
+  when the CloudArch pipeline finishes a run, not on any predictable schedule.
+- **Export PNG** (the download icon next to refresh, same icon as **Save chat**) exports the
+  *entire* diagram as a PNG — at its own full native size regardless of whatever zoom/pan level
+  you're currently looking at, and rendered at 2x pixel density so labels and icons stay legible
+  rather than looking blown up from a small on-screen view. Tries a real **Save As** dialog first
+  (same File System Access API behavior as Save Chat), falling back to a plain download where
+  that's unavailable.
+- **Zoom and pan** are identical in every respect to the Agent Network tab's own controls: the
+  **+**/**−**/reset-view buttons in the bottom-right corner, the mouse wheel, and click-and-drag all
+  work the same way, and the view auto-fits the whole diagram by default until you manually zoom or
+  drag, at which point Reset snaps back to auto-fitting.
+- If no diagram has been generated yet, or the file can't be parsed, the panel shows the same
+  "nothing here yet" empty state (with the reason) that every other data-driven tab uses.
 
 ## Token Usage tab
 
@@ -307,3 +407,13 @@ credential being carried cross-origin for a permissive CORS policy to leak.
 - The markdown-lite renderer intentionally only covers the common constructs the agents' own
   responses actually use (see above) — it is not a full CommonMark implementation (no tables,
   nested blockquotes, etc.).
+- The Cloud Architecture tab renders real positions/sizes/colors from the diagram XML, but not the
+  literal AWS/Azure/GCP provider icons (generic service-category glyphs instead, no bundled
+  stencil library — see that tab's own section above) or the generator's exact edge-label
+  placement (midpoint approximation instead).
+- Voice input (dictation) requires `SpeechRecognition` support, which as of this writing is
+  Chromium-based browsers only (Chrome, Edge) — the mic button is disabled elsewhere. Voice output
+  (speech synthesis) is far more broadly supported.
+- The turn-completion notification can't literally bounce a dock icon or flash a taskbar entry —
+  no web page can trigger those OS/browser-chrome behaviors directly (see that section above for
+  what it does instead, and why that's usually close enough in practice).

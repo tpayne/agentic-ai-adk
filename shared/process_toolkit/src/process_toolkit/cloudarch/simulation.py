@@ -216,7 +216,15 @@ def simulate_cloudarch_architecture(xml_content: Any = None) -> str:
         graph = parse_drawio_graph(xml_content)
         vertices, edges = graph["vertices"], graph["edges"]
 
-        risk_items = _gather_risk_items(load_master_json())
+        # Pinned to "design" deliberately -- _gather_risk_items only ever reads
+        # design-schema fields (high_level_design.risks_and_mitigations,
+        # risk_register). With no schema_type, load_master_json() falls back to
+        # "whichever of process_data.json/design_data.json was modified most
+        # recently" -- an unrelated process_data.json left over from an earlier,
+        # different request can win that race, silently handing back {} (no
+        # matching keys) instead of the real design document's risk register,
+        # so the simulation runs with zero risk items with no error or warning.
+        risk_items = _gather_risk_items(load_master_json(schema_type="design"))
 
         resilience = _run_core_simulation(vertices, edges, risk_items, iterations=2000)
         impacts = _build_impacts_graph(vertices, edges)

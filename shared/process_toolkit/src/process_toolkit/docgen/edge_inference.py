@@ -488,11 +488,19 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
 #  EDGE INFERENCE -- DISPATCHER (BOTH SCHEMAS)
 # ============================================================
 
-def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[str, str], Dict[str, str]]:
+def _infer_edges_from_json(schema_type: str | None = None) -> Tuple[str | None, List[Tuple[str, str]], Dict[str, str], Dict[str, str]]:
     """Schema-aware dispatcher: picks between the process-schema and
-    design-document-schema edge inference logic based on which normalized
-    JSON file is actually on disk (detect_schema_type_from_disk)."""
-    if detect_schema_type_from_disk() == "design":
+    design-document-schema edge inference logic.
+
+    schema_type: pass "process"/"design" whenever the caller already knows
+    which document it's rendering for (every real caller does -- see
+    generate_clean_diagram's own docstring for why this matters). Only
+    omit it to fall back to detect_schema_type_from_disk(), which picks a
+    FIXED preference (always "process") whenever both process_data.json
+    and design_data.json exist -- not a real disambiguation, just a
+    last-resort guess for callers with no other signal."""
+    resolved = schema_type or detect_schema_type_from_disk()
+    if resolved == "design":
         return _infer_edges_from_design_json()
     return _infer_edges_from_process_json()
 
@@ -501,20 +509,33 @@ def _infer_edges_from_json() -> Tuple[str | None, List[Tuple[str, str]], Dict[st
 #  DIAGRAM GENERATION (ALWAYS PRODUCES SOMETHING, BOTH SCHEMAS)
 # ============================================================
 
-def generate_clean_diagram() -> str:
+def generate_clean_diagram(schema_type: str | None = None) -> str:
     """
     Generates a refined flow diagram as a PNG, for EITHER a business
     process (BPMN-style swimlane diagram) or an architectural design
-    document (component/integration diagram), depending on which
-    normalized JSON file is present in output/. Saved to
+    document (component/integration diagram). Saved to
     output/<name>_flow.png. Returns a message indicating success/failure.
+
+    schema_type: pass "process" or "design" whenever the caller already
+    knows which one it means -- e.g. the process pipeline's own diagram
+    step always means "process", the design pipeline's own diagram step
+    always means "design", regardless of what else happens to exist in
+    output/. Confirmed directly against a real session: omitting this
+    (the previous, only, behavior) falls back to
+    detect_schema_type_from_disk(), which always resolves to "process"
+    whenever BOTH files exist -- so the design pipeline's own diagram step
+    silently rendered a stale PROCESS diagram instead of the design
+    document it had just built, every time an unrelated process_data.json
+    also happened to be sitting in output/. Only genuinely domain-agnostic
+    callers (e.g. "regenerate whichever document already exists") should
+    omit this and accept the disk-based guess.
     """
     logger.debug("Generating flow diagram...")
 
     try:
-        is_design = detect_schema_type_from_disk() == "design"
+        is_design = (schema_type or detect_schema_type_from_disk()) == "design"
 
-        result = _infer_edges_from_json()
+        result = _infer_edges_from_json(schema_type)
         if not result:
             if is_design:
                 return "ERROR: Could not infer edges. Ensure output/design_data.json exists."

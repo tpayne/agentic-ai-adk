@@ -15,6 +15,8 @@ from process_toolkit.run_lock import (
     release_pipeline_lock,
     start_pipeline_lock_heartbeat,
     stop_pipeline_lock_heartbeat,
+    peek_pipeline_lock,
+    force_clear_pipeline_lock,
     PipelineLockedError,
 )
 
@@ -233,3 +235,58 @@ def test_stop_heartbeat_is_a_safe_noop_for_none_or_unknown_token():
 def test_start_heartbeat_is_a_safe_noop_for_a_falsy_token():
     start_pipeline_lock_heartbeat("a pipeline", None)  # must not raise
     assert None not in run_lock._heartbeats
+
+
+# ---------------------------------------------------------------
+# peek_pipeline_lock / force_clear_pipeline_lock -- the escape hatch for
+# a lock that's stuck for a reason the staleness fallback above hasn't
+# caught yet (e.g. a still-running process whose own heartbeat keeps
+# re-acquiring it forever because its release call never ran -- see
+# process_agents.common.utils_agent.release_pipeline_lock_after_run's
+# own docstring for a confirmed real case of exactly this).
+# ---------------------------------------------------------------
+def test_peek_returns_none_when_nothing_is_held():
+    assert peek_pipeline_lock() is None
+
+
+def test_peek_returns_the_held_locks_info_without_releasing_it():
+    acquire_pipeline_lock("a pipeline")
+    info = peek_pipeline_lock()
+    assert info["label"] == "a pipeline"
+    # Still held -- peek must not have released it.
+    with pytest.raises(PipelineLockedError):
+        acquire_pipeline_lock("a different pipeline")
+
+
+def test_force_clear_removes_a_held_lock_and_returns_its_info():
+    acquire_pipeline_lock("a stuck pipeline")
+
+    cleared = force_clear_pipeline_lock()
+
+    assert cleared["label"] == "a stuck pipeline"
+    acquire_pipeline_lock("a different pipeline")  # must not raise -- genuinely released
+
+
+def test_force_clear_is_a_safe_noop_when_nothing_is_held():
+    assert force_clear_pipeline_lock() is None
+
+
+def test_force_clear_also_stops_the_lock_heartbeat():
+    token = acquire_pipeline_lock("a pipeline")
+    start_pipeline_lock_heartbeat("a pipeline", token)
+    assert token in run_lock._heartbeats
+
+    force_clear_pipeline_lock()
+
+    assert token not in run_lock._heartbeats
+
+
+def test_force_clear_does_not_check_which_token_holds_it():
+    # Unlike release_pipeline_lock (ownership-gated), force_clear removes
+    # whatever is currently held regardless of token -- that's the whole
+    # point of this being the operator/explicit-user-request escape
+    # hatch, not a second release_pipeline_lock-style primitive.
+    acquire_pipeline_lock("someone else's pipeline")
+    cleared = force_clear_pipeline_lock()
+    assert cleared["label"] == "someone else's pipeline"
+    assert peek_pipeline_lock() is None

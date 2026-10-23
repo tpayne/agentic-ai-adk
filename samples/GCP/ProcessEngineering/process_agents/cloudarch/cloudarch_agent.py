@@ -10,7 +10,7 @@ import shutil
 logger = logging.getLogger("ProcessArchitect.CloudArch")
 
 from ..common.utils import (
-    load_master_process_json,
+    load_master_design_json,
     getProperty,
     save_drawio,
     save_drawio_structured,
@@ -39,7 +39,7 @@ def log_cloudarch_metadata(status: str):
 # pipeline's unattended runs. Diagram XML is still generated and persisted
 # locally via save_drawio either way; this only improves icon accuracy.
 _cloudarch_tools = [
-    load_master_process_json,
+    load_master_design_json,
     load_iteration_feedback,
     load_directory_context,
     load_requirements_summary,

@@ -8,10 +8,32 @@
 import json
 import os
 import sys
+from typing import Optional
 
-from process_toolkit.docgen.edge_inference import _infer_edges_from_json, generate_clean_diagram
+from process_toolkit.docgen.edge_inference import (
+    _infer_edges_from_json,
+    generate_clean_diagram as _shared_generate_clean_diagram,
+)
 
 from .agent_wrappers import ProcessAgent
+
+
+def generate_clean_diagram(schema_type: Optional[str] = None) -> str:
+    """Same contract as process_toolkit.docgen.edge_inference's own function
+    of this name (kept under the identical name so this module's own
+    instruction file, which tells the LLM to call "generate_clean_diagram"
+    by that exact name, keeps working unchanged).
+
+    schema_type: pass "process"/"design" if (and only if) the user's own
+    request for this turn explicitly names which document it means; omit
+    it otherwise. Only relevant when this agent is running as part of
+    Create_Doc_Agent's own domain-agnostic "regenerate whichever document
+    applies" flow -- every OTHER caller of this agent (the process
+    pipeline's own Edge_Inference_Agent_Instance, the design pipeline's
+    own) has this parameter bound/overridden to its own fixed domain by
+    build_edge_inference_instance, so passing it there has no effect."""
+    return _shared_generate_clean_diagram(schema_type=schema_type)
+
 
 edge_inference_agent = ProcessAgent(
     name="Edge_Inference_Agent",
