@@ -12,3 +12,8 @@ logs/
 # operator following this project's own README would actually create one
 # in, and credentials must never land in git regardless of belt-or-braces.
 .env
+
+# Local neuro-san-studio runtime database (chat sessions, pipeline state) --
+# regenerated on every run, not source. Was accidentally committed once
+# (322ab4a); untracked here so it can't happen again.
+nss_local.db
