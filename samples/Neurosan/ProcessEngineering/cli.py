@@ -1134,6 +1134,23 @@ def _build_agent_instructions_index() -> Dict[str, Dict[str, Any]]:
     description, source_file}} map covering every agent defined anywhere
     in the project, regardless of which file or how deeply nested.
 
+    ALSO indexes every file's own front-man (its first top-level "tools"
+    entry -- this project's registries each have exactly one, per
+    TECHNICAL_NOTES.md's own "Complete registry inventory") under
+    "__<file-basename>" (e.g. "__cloudarch_simulation_query"), aliased to
+    that SAME front-man entry already indexed under its own real name.
+    This is neuro-san's own internal naming for a same-server external
+    agent reference (a "/network_name" entry in another network's own
+    "tools" list, e.g. process_architect.hocon's "/cloudarch_simulation_
+    query") -- confirmed directly in neuro_san's own
+    ExternalAgentParsing.get_safe_agent_name: "__" + the reference path,
+    "/" replaced with "__" for a nested reference. Without this, a node
+    in the web client's Agent Network tab for any CROSS-NETWORK call
+    (routed through the top-level process_architect.hocon orchestrator,
+    i.e. nearly every pipeline this project has) carries this "__"-
+    prefixed safe-name, not the real agent name the plain index above is
+    keyed by, and every hover on it 404s.
+
     A single bad/unparseable file is skipped (logged, not fatal) rather
     than failing the whole index -- one malformed registry must not take
     down the "show instructions on hover" feature for every OTHER
@@ -1154,8 +1171,15 @@ def _build_agent_instructions_index() -> Dict[str, Dict[str, Any]]:
             _web_logger.warning("Could not parse %s for the agent-instructions index -- skipping.", rel_path)
             continue
         tools = config.get("tools") if isinstance(config, dict) else None
-        if isinstance(tools, list):
-            _collect_agent_instructions(tools, rel_path, index)
+        if not isinstance(tools, list):
+            continue
+        _collect_agent_instructions(tools, rel_path, index)
+
+        front_man = next((t for t in tools if isinstance(t, dict) and t.get("name") and t.get("instructions")), None)
+        front_man_entry = index.get(front_man["name"]) if front_man is not None else None
+        if front_man_entry is not None:
+            file_basename = os.path.splitext(basename)[0]
+            index.setdefault(f"__{file_basename}", front_man_entry)
     return index
 
 

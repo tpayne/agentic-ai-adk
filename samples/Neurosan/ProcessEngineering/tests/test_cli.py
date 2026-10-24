@@ -1050,6 +1050,14 @@ class TestAgentInstructionsRoute:
     def _build_client(self, monkeypatch, tmp_path, hocon_files=None):
         monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
         monkeypatch.setattr(cli, "_agent_instructions_index", None)
+        # _web_rate_limit_state is module-level and otherwise never cleared
+        # between tests in this file -- this class alone makes enough
+        # requests, on top of every other test here sharing the same
+        # process, to trip WEBRATELIMITPERMINUTE's default of 30/minute by
+        # sheer accumulated count, producing a spurious 429 unrelated to
+        # whatever a given test is actually checking.
+        with cli._web_rate_limit_lock:
+            cli._web_rate_limit_state.clear()
         registries_dir = tmp_path / "registries"
         registries_dir.mkdir()
         for rel_name, content in (hocon_files or {}).items():
@@ -1115,6 +1123,32 @@ class TestAgentInstructionsRoute:
         client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
         resp = client.get("/agents/Front_Man/instructions")
         assert resp.status_code == 401
+
+    def test_double_underscore_file_alias_resolves_to_the_files_own_front_man(self, monkeypatch, tmp_path):
+        # neuro-san's own naming for a same-server external agent reference
+        # (e.g. process_architect.hocon's "/sample") -- ExternalAgentParsing.
+        # get_safe_agent_name prepends "__" to the reference path, so a
+        # network/graph node for a CROSS-NETWORK call carries this name, not
+        # the real front-man name the plain index is keyed by. Confirmed
+        # directly against a real hover-over-node 404 in the web client.
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/__sample/instructions")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["name"] == "__sample"
+        assert body["instructions"] == "You are the front man."
+        assert body["source_file"] == os.path.join("registries", "sample.hocon")
+
+    def test_double_underscore_alias_is_skipped_for_a_file_with_no_real_front_man(self, monkeypatch, tmp_path):
+        # A file with no agent carrying both "name" and "instructions" (e.g.
+        # only non-network fragment-style content) has no front-man to alias
+        # at all -- must not raise, just leave that file's "__" alias absent.
+        client = self._build_client(monkeypatch, tmp_path, {
+            "sample.hocon": self._SAMPLE_NETWORK,
+            "empty.hocon": '{"tools": []}',
+        })
+        resp = client.get("/agents/__empty/instructions")
+        assert resp.status_code == 404
 
 
 class TestGetOrCreateWebSessionEviction:
