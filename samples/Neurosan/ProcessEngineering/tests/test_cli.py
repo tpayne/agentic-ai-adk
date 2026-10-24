@@ -215,7 +215,7 @@ class TestLiveTraceMessageProcessor:
 class TestExtractUsage:
     """_extract_usage -- maps neuro-san's own token_accounting shape onto
     the {prompt_tokens, completion_tokens, total_tokens, model} shape the
-    web client's Token Usage tab expects (same keys the ADK original's own
+    web client's Token Usage tab expects (same keys the ADK port's own
     usage field uses)."""
 
     def test_none_or_empty_accounting_maps_to_none(self):
@@ -1016,6 +1016,105 @@ class TestArtifactRoute:
         client = self._build_client(monkeypatch, tmp_path)
         resp = client.get("/status")
         assert resp.status_code == 200
+
+
+class TestAgentInstructionsRoute:
+    """GET /agents/<name>/instructions -- read-only lookup of an agent's
+    real HOCON "instructions" text, for the web client's Agent Network tab
+    hover feature. _PROJECT_ROOT is monkeypatched to an isolated tmp_path,
+    same as TestArtifactRoute above -- and the module-level instructions
+    index cache is explicitly reset before each test, since it's built
+    ONCE per process and would otherwise still hold whichever OTHER
+    test's tmp_path registries happened to populate it first."""
+
+    _SAMPLE_NETWORK = """
+    {
+        "tools": [
+            {
+                "name": "Front_Man",
+                "function": {"description": "Entry point."},
+                "instructions": "You are the front man.",
+                "tools": [
+                    {
+                        "name": "Nested_Agent",
+                        "function": {"description": "A nested helper."},
+                        "instructions": "You are the nested helper."
+                    },
+                    "coded_tool_name"
+                ]
+            }
+        ]
+    }
+    """
+
+    def _build_client(self, monkeypatch, tmp_path, hocon_files=None):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(cli, "_agent_instructions_index", None)
+        registries_dir = tmp_path / "registries"
+        registries_dir.mkdir()
+        for rel_name, content in (hocon_files or {}).items():
+            path = registries_dir / rel_name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_returns_instructions_and_description_for_a_top_level_agent(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/Front_Man/instructions")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "ok"
+        assert body["name"] == "Front_Man"
+        assert body["instructions"] == "You are the front man."
+        assert body["description"] == "Entry point."
+        assert body["source_file"] == os.path.join("registries", "sample.hocon")
+
+    def test_returns_instructions_for_an_agent_nested_in_another_agents_own_tools_list(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/Nested_Agent/instructions")
+        assert resp.status_code == 200
+        assert resp.get_json()["instructions"] == "You are the nested helper."
+
+    def test_404_for_an_unknown_agent_name(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/Nonexistent_Agent/instructions")
+        assert resp.status_code == 404
+        assert resp.get_json()["status"] == "error"
+
+    def test_404_for_a_bare_string_entry_a_coded_tool_or_external_agent_reference(self, monkeypatch, tmp_path):
+        # "coded_tool_name" appears in the sample network's own tools list,
+        # but as a bare string (a coded tool/external-agent reference, not
+        # an agent definition with its own "instructions") -- must not be
+        # indexed as if it were a real agent.
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/coded_tool_name/instructions")
+        assert resp.status_code == 404
+
+    def test_non_network_fragment_files_are_skipped_without_breaking_the_scan(self, monkeypatch, tmp_path):
+        # Neither of these parses as a real agent network -- confirms the
+        # scan skips them (by filename prefix) rather than choking.
+        client = self._build_client(monkeypatch, tmp_path, {
+            "sample.hocon": self._SAMPLE_NETWORK,
+            "aaosa.hocon": '{"aaosa_instructions": "..."}',
+            "manifest.hocon": '{"registries/sample.hocon": true}',
+        })
+        resp = client.get("/agents/Front_Man/instructions")
+        assert resp.status_code == 200
+
+    def test_index_is_built_once_and_reused_across_requests(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        client.get("/agents/Front_Man/instructions")
+        built_index = cli._agent_instructions_index
+        assert built_index is not None
+        client.get("/agents/Front_Man/instructions")
+        assert cli._agent_instructions_index is built_index  # same object -- not rebuilt
+
+    def test_requires_auth_when_configured(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, tmp_path, {"sample.hocon": self._SAMPLE_NETWORK})
+        resp = client.get("/agents/Front_Man/instructions")
+        assert resp.status_code == 401
 
 
 class TestGetOrCreateWebSessionEviction:

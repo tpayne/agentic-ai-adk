@@ -9,7 +9,7 @@
 # design-document diagrams, applied here to the codebase's own structure
 # instead of a generated document's content. The shared drawing primitives
 # below are adapted from samples/GCP/ProcessEngineering/codeDoc/generate_diagrams.py
-# (the ADK original's own equivalent script) -- they're generic matplotlib
+# (the ADK port's own equivalent script) -- they're generic matplotlib
 # utility code with nothing ADK-specific in them.
 #
 # Re-run after a structural change (a new CodedTool class, a changed

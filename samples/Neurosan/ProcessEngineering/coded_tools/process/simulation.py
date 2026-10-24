@@ -1,8 +1,9 @@
 """PERT-style Monte Carlo process-cycle-time simulation.
 
-Ported near-verbatim from the ADK sample's process/simulation_agent.py
-(_run_core_simulation, _detect_cycles, simulate_process_performance,
-perform_sensitivity_analysis) -- pure Python, nothing ADK-specific.
+Shares its core math near-verbatim with the ADK port's own
+process/simulation_agent.py (_run_core_simulation, _detect_cycles,
+simulate_process_performance, perform_sensitivity_analysis) -- pure
+Python, nothing ADK-specific, so the two stay in sync by construction.
 """
 
 import json

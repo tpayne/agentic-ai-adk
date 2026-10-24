@@ -1,7 +1,7 @@
 """Regression test for the five pipeline front-men's summarization
 middleware (config/llm_config.hocon's "pipeline_middleware", referenced via
 ${pipeline_middleware} on each front-man) -- this project's equivalent of
-the ADK original's events_compaction_config.
+the ADK port's events_compaction_config.
 
 Catches two distinct ways this could silently break:
 1. HOCON substitution regressing (a front-man losing its "middleware" key,

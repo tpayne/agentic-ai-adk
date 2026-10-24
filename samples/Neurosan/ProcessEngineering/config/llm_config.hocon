@@ -31,7 +31,7 @@
     # neuro-san's own summarization middleware condense older messages
     # once a front-man's own history crosses this threshold, keeping only
     # the most recent few for continuity -- the direct equivalent of the
-    # ADK original's events_compaction_config (same token-threshold-based
+    # ADK port's events_compaction_config (same token-threshold-based
     # trigger, same "safe because nothing re-reads old history" reasoning
     # -- see the ADK sample's own agent.py for that original comment).
     # Defined once here, referenced via ${pipeline_middleware} on each of

@@ -487,6 +487,52 @@ def _validate_required_fields(zones: List[Dict[str, Any]], components: List[Dict
         )
 
 
+def _validate_component_bullets(components: List[Dict[str, Any]]) -> None:
+    """
+    Every component's "bullets" (if given at all) must be a list of plain
+    strings. Confirmed directly against a real generated request: the
+    model emitted "bullets": [{"description": "..."}] -- an object per
+    bullet, not a plain string -- for EVERY component in an entire
+    diagram, and nothing caught it: _html_value's own f-string
+    interpolation silently stringifies anything via Python's own
+    str()/repr(), so the final rendered diagram built WITHOUT error but
+    showed the literal text "{'description': 'Account Management'}" under
+    every single component's title instead of just "Account Management".
+    A diagram that builds successfully but reads as broken garbage text
+    throughout is worse than one that fails loudly up front naming
+    exactly which bullet is wrong -- which this does, including a
+    ready-to-use fix when the mistake is this exact, confirmed pattern
+    (an object with its own "description" string).
+    """
+    problems: List[str] = []
+    for c in components:
+        cid = c.get("id") or "<missing id>"
+        bullets = c.get("bullets")
+        if bullets is None:
+            continue
+        if not isinstance(bullets, list):
+            problems.append(f"component '{cid}' has 'bullets' set to a {type(bullets).__name__}, not a list")
+            continue
+        for i, bullet in enumerate(bullets):
+            if isinstance(bullet, str):
+                continue
+            if isinstance(bullet, dict) and isinstance(bullet.get("description"), str):
+                problems.append(
+                    f"component '{cid}' has bullets[{i}] set to an object "
+                    f"{{\"description\": \"{bullet['description']}\"}} instead of a plain string -- "
+                    f"use \"{bullet['description']}\" directly"
+                )
+            else:
+                problems.append(f"component '{cid}' has bullets[{i}] set to a {type(bullet).__name__}, not a string")
+    if problems:
+        raise ValueError(
+            "Every component's 'bullets' entry must be a plain string, not an object -- "
+            + "; ".join(problems) + ". Each bullet is rendered as exactly one line of "
+            "caption text, as-is -- replace any {\"description\": \"...\"}-shaped (or "
+            "otherwise non-string) bullet with just its own \"...\" string and retry."
+        )
+
+
 def _validate_unique_ids(zones: List[Dict[str, Any]], components: List[Dict[str, Any]]) -> None:
     """
     Every zone id and every component id must be unique across the WHOLE
@@ -962,6 +1008,7 @@ def _layout_zones_and_components(
     the "wasted space" this was rewritten to fix.
     """
     _validate_required_fields(zones, components)
+    _validate_component_bullets(components)
     _validate_unique_ids(zones, components)
     _validate_zone_nesting(zones)
     _validate_component_zone_ids(zones, components)
@@ -1159,7 +1206,23 @@ def _layout_zones_and_components(
     return zone_boxes, component_boxes, canvas_width, canvas_height
 
 
-def _same_row_zones_adjacent(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> bool:
+def _top_level_zone_id(zone_id: Optional[str], zone_parent_of: Dict[str, Optional[str]]) -> Optional[str]:
+    """Walks zone_id up its "parent_zone_id" chain to its own top-level
+    (unnested) ancestor -- itself already, if it's already top-level."""
+    if zone_id is None:
+        return None
+    current = zone_id
+    parent = zone_parent_of.get(current)
+    while parent is not None:
+        current = parent
+        parent = zone_parent_of.get(current)
+    return current
+
+
+def _same_row_zones_adjacent(
+    src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"],
+    zone_parent_of: Optional[Dict[str, Optional[str]]] = None,
+) -> bool:
     """
     Whether src's and tgt's own zones are immediate neighbors within their
     shared row -- True trivially if they're the same zone. Shared by
@@ -1167,15 +1230,51 @@ def _same_row_zones_adjacent(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"])
     that end up sharing the SAME physical channel because they're routed
     the same way -- see _route_edge -- also share a stagger channel, and
     don't coincidentally land on top of each other instead).
+
+    Resolves src/tgt's own zone up to its TOP-LEVEL ancestor before
+    checking adjacency -- and filters `row_zones` to real top-level zones
+    only (no "parent_zone_id") -- rather than comparing/sorting src.zone_id/
+    tgt.zone_id directly. Without this, an edge between a component in a
+    genuine top-level zone (e.g. an Edge Layer with no nesting) and a
+    component nested several levels deep inside a DIFFERENT top-level zone
+    (e.g. a Subnet nested in an Availability Zone nested in a VPC) --
+    confirmed directly against a real generated diagram to be the single
+    most common edge shape in any VPC-centric diagram, since most real
+    connections run from an outside/edge component INTO the nested VPC
+    internals -- had BOTH its raw zone ids found directly in `row_zones`
+    (every nested zone shares its top-level ancestor's own "row" number
+    unchanged -- see _layout_parent_zone), with their adjacency then
+    decided by essentially ACCIDENTAL index position in a list mixing
+    every nesting depth at once, rather than the real top-level column
+    grid this function is meant to answer about.
+
+    src.zone_id/tgt.zone_id sharing the same top-level ancestor (e.g. two
+    components nested under the SAME VPC) is deliberately treated as
+    "not adjacent" here (returns False) rather than guessed at via this
+    function's own top-level-grid model -- that case is for
+    _nested_sibling_adjacency (checked earlier in both callers) to answer
+    precisely, by routing through the real gap between the actual nested
+    siblings; if that returned None (not a clean, immediate nested-sibling
+    pair -- e.g. another sibling zone sits between them), the safest
+    fallback is the existing below-row channel, not a second, less
+    precise guess at adjacency here.
     """
     if src.zone_id == tgt.zone_id:
         return True
+    zone_parent_of = zone_parent_of or {}
+    src_top = _top_level_zone_id(src.zone_id, zone_parent_of)
+    tgt_top = _top_level_zone_id(tgt.zone_id, zone_parent_of)
+    if src_top == tgt_top:
+        return False
     row_zones = sorted(
-        (b for b in all_boxes.values() if b.zone_id is None and b.row == src.row),
+        (
+            b for b in all_boxes.values()
+            if b.zone_id is None and b.row == src.row and zone_parent_of.get(b.id) is None
+        ),
         key=lambda z: z.x,
     )
-    src_zone = next((z for z in row_zones if z.id == src.zone_id), None)
-    tgt_zone = next((z for z in row_zones if z.id == tgt.zone_id), None)
+    src_zone = next((z for z in row_zones if z.id == src_top), None)
+    tgt_zone = next((z for z in row_zones if z.id == tgt_top), None)
     if src_zone is None or tgt_zone is None:
         return True
     left_z, right_z = (src_zone, tgt_zone) if src_zone.x < tgt_zone.x else (tgt_zone, src_zone)
@@ -1219,7 +1318,156 @@ def _facing_corridor_clear(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -
     return True
 
 
-def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[str, Any]:
+def _ancestor_chain(zone_id: str, zone_parent_of: Dict[str, Optional[str]]) -> List[str]:
+    """[zone_id, its parent, its grandparent, ..., its top-level ancestor]."""
+    chain = [zone_id]
+    current = zone_parent_of.get(zone_id)
+    while current is not None:
+        chain.append(current)
+        current = zone_parent_of.get(current)
+    return chain
+
+
+def _nested_sibling_branches(
+    src_zone_id: str, tgt_zone_id: str, zone_parent_of: Dict[str, Optional[str]],
+) -> Optional[Tuple[str, str]]:
+    """
+    Finds the lowest nested ancestor zone src_zone_id and tgt_zone_id
+    have in common (via "parent_zone_id"), and the two zones immediately
+    below it that each one actually descends through -- e.g. for an edge
+    between a component in Availability-Zone-A's Data Subnet and one in
+    Availability-Zone-B's Data Subnet, this is (AZ-A, AZ-B) themselves,
+    NOT the two Subnets (which have different parents and are never
+    siblings of each other at all, however identically named/positioned
+    they are). Returns None when src_zone_id/tgt_zone_id share no nested
+    ancestor at all -- either genuinely unrelated top-level zones (the
+    existing row/column-grid logic already covers that case) or one zone
+    IS the other's ancestor (not a lateral "gap between two boxes" case
+    to begin with).
+    """
+    if src_zone_id == tgt_zone_id:
+        return None
+    src_chain = _ancestor_chain(src_zone_id, zone_parent_of)
+    tgt_chain = _ancestor_chain(tgt_zone_id, zone_parent_of)
+    tgt_set = set(tgt_chain)
+    lca = next((z for z in src_chain if z in tgt_set), None)
+    if lca is None:
+        return None
+    src_i = src_chain.index(lca)
+    tgt_i = tgt_chain.index(lca)
+    if src_i == 0 or tgt_i == 0:
+        return None
+    return (src_chain[src_i - 1], tgt_chain[tgt_i - 1])
+
+
+def _nested_sibling_adjacency(
+    src_zone_id: str, tgt_zone_id: str,
+    zone_parent_of: Dict[str, Optional[str]], all_boxes: Dict[str, "_Box"],
+) -> Optional[Tuple[str, str]]:
+    """
+    (exit_side, entry_side) for routing an edge straight through the
+    reserved ZONE_GAP strip between src_zone_id's and tgt_zone_id's own
+    _nested_sibling_branches, when those branches are immediate stacking
+    neighbors under their shared nested parent -- shared by _route_edge
+    (to compute the actual waypoints) and _channel_key (to group edges
+    that land in this same physical gap for staggering), so the two can
+    never disagree about which edges this applies to, the same
+    requirement _channel_key's own docstring already states for the
+    existing "v" row-gap channel.
+
+    Without this, two zones nested under a shared ancestor (the common
+    real-world case -- sibling Availability Zones, sibling Accounts,
+    sibling Subnets) share their TOP-LEVEL ancestor's own "row" number
+    (inherited unchanged through every nesting level -- see
+    _layout_parent_zone), making them indistinguishable, to the plain
+    row/column-grid logic below, from genuine top-level row/column-grid
+    zones -- confirmed directly against a real generated diagram (a
+    nested VPC > Availability-Zone > Subnet hierarchy): an edge between
+    two such zones' own components was routed through the top-level
+    below-row channel, which does not physically exist at this nesting
+    depth, producing a path that overshot past the target box and
+    re-entered it from the wrong side -- reading as "an arrow passing
+    straight through a box with no real connection" rather than a clean
+    line into it.
+
+    Returns None (the caller falls through to its existing handling,
+    unchanged) when the two zones share no nested ancestor, when one
+    nests inside the other, or when another sibling zone sits between
+    the two branches (not a clean, obstacle-free gap).
+    """
+    branches = _nested_sibling_branches(src_zone_id, tgt_zone_id, zone_parent_of)
+    if branches is None:
+        return None
+    src_branch_id, tgt_branch_id = branches
+    if src_branch_id == tgt_branch_id:
+        return None
+    parent_id = zone_parent_of[src_branch_id]
+    siblings = [zid for zid, pid in zone_parent_of.items() if pid == parent_id and zid in all_boxes]
+    src_branch, tgt_branch = all_boxes[src_branch_id], all_boxes[tgt_branch_id]
+    vertical = abs(src_branch.cy - tgt_branch.cy) >= abs(src_branch.cx - tgt_branch.cx)
+    ordered = sorted(siblings, key=lambda zid: all_boxes[zid].y if vertical else all_boxes[zid].x)
+    i_src, i_tgt = ordered.index(src_branch_id), ordered.index(tgt_branch_id)
+    if abs(i_src - i_tgt) != 1:
+        return None  # another sibling zone sits between them -- not a clean gap
+    if vertical:
+        return ("bottom", "top") if src_branch.cy < tgt_branch.cy else ("top", "bottom")
+    return ("right", "left") if src_branch.cx < tgt_branch.cx else ("left", "right")
+
+
+def _route_nested_sibling_edge(
+    src: _Box, tgt: _Box, channel_slot: int,
+    zone_parent_of: Dict[str, Optional[str]], all_boxes: Dict[str, "_Box"],
+) -> Optional[Tuple[List[Tuple[float, float]], str, str]]:
+    """
+    The actual waypoints for a _nested_sibling_adjacency-eligible edge --
+    a straight channel through the gap between the two branch zones,
+    with each end's leg verified clear of every OTHER component via
+    _safe_x_for_vertical_span / _safe_y_for_horizontal_span, exactly the
+    same pattern the existing below-row-channel branches use. Returns
+    None when _nested_sibling_adjacency doesn't apply (see its own
+    docstring) -- the caller falls through to its existing handling.
+    """
+    sides = _nested_sibling_adjacency(src.zone_id, tgt.zone_id, zone_parent_of, all_boxes)
+    if sides is None:
+        return None
+    exit_side, entry_side = sides
+    src_branch_id, tgt_branch_id = _nested_sibling_branches(src.zone_id, tgt.zone_id, zone_parent_of)
+    src_branch, tgt_branch = all_boxes[src_branch_id], all_boxes[tgt_branch_id]
+
+    if exit_side in ("bottom", "top"):
+        gap_lo, gap_hi = (
+            (src_branch.bottom, tgt_branch.y) if exit_side == "bottom" else (tgt_branch.bottom, src_branch.y)
+        )
+        channel_y = (gap_lo + gap_hi) / 2 + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
+        exit_x = _safe_x_for_vertical_span(
+            src.cx, min(src.cy, channel_y), max(src.cy, channel_y), (src.id, tgt.id), all_boxes
+        )
+        entry_x = _safe_x_for_vertical_span(
+            tgt.cx, min(tgt.cy, channel_y), max(tgt.cy, channel_y), (src.id, tgt.id), all_boxes
+        )
+        if exit_x == entry_x:
+            return [(exit_x, channel_y)], exit_side, entry_side
+        return [(exit_x, channel_y), (entry_x, channel_y)], exit_side, entry_side
+
+    gap_lo, gap_hi = (
+        (src_branch.right, tgt_branch.x) if exit_side == "right" else (tgt_branch.right, src_branch.x)
+    )
+    channel_x = (gap_lo + gap_hi) / 2 + _stagger_offset(channel_slot, STAGGER_STEP_ZONE_GAP)
+    exit_y = _safe_y_for_horizontal_span(
+        src.cy, min(src.cx, channel_x), max(src.cx, channel_x), (src.id, tgt.id), all_boxes
+    )
+    entry_y = _safe_y_for_horizontal_span(
+        tgt.cy, min(tgt.cx, channel_x), max(tgt.cx, channel_x), (src.id, tgt.id), all_boxes
+    )
+    if exit_y == entry_y:
+        return [(channel_x, exit_y)], exit_side, entry_side
+    return [(channel_x, exit_y), (channel_x, entry_y)], exit_side, entry_side
+
+
+def _channel_key(
+    src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"],
+    zone_parent_of: Optional[Dict[str, Optional[str]]] = None,
+) -> Tuple[str, Any]:
     """
     Identifies which shared routing channel an edge falls into. Two edges
     with the same key will draw through the exact same reserved space (the
@@ -1234,6 +1482,7 @@ def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[st
     gap, but computing DIFFERENT channel keys, got no stagger coordination
     at all and rendered as overlapping lines.
     """
+    zone_parent_of = zone_parent_of or {}
     # zone_id is None for zone-level boxes (a zone-to-zone edge), so the
     # None-vs-None case is excluded -- two DIFFERENT zones in the same row
     # must not be misread as "the same zone".
@@ -1249,8 +1498,24 @@ def _channel_key(src: _Box, tgt: _Box, all_boxes: Dict[str, "_Box"]) -> Tuple[st
         # specific pair -- grouped by zone so they still fan out from
         # each other rather than overlapping by coincidence.
         return ("zone_skip", src.zone_id)
+    if src.zone_id != tgt.zone_id:
+        # Checked BEFORE the top-level "same row" grid logic below --
+        # see _nested_sibling_adjacency's own docstring for why nested
+        # zones (which inherit their top-level ancestor's "row" number
+        # unchanged) would otherwise be misread as top-level row/column-
+        # grid members. MUST match _route_nested_sibling_edge's own
+        # eligibility check exactly (same underlying helper), same
+        # "key must match actual routing choice" requirement as "h"/"v"
+        # above.
+        sides = _nested_sibling_adjacency(src.zone_id, tgt.zone_id, zone_parent_of, all_boxes)
+        if sides is not None:
+            branches = _nested_sibling_branches(src.zone_id, tgt.zone_id, zone_parent_of)
+            return ("nested_sibling", frozenset(branches))
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
+        if (
+            _same_row_zones_adjacent(src, tgt, all_boxes, zone_parent_of)
+            and _facing_corridor_clear(src, tgt, all_boxes)
+        ):
             return ("h", frozenset({src.zone_id, tgt.zone_id}))
         # Either genuinely non-adjacent zones, OR adjacent zones whose
         # facing corridor is blocked by an intervening component (see
@@ -1346,6 +1611,40 @@ def _safe_x_for_vertical_span(
     return preferred_x  # exhausted the search -- fall back rather than loop forever
 
 
+def _safe_y_for_horizontal_span(
+    preferred_y: float,
+    x_lo: float,
+    x_hi: float,
+    exclude_ids: Tuple[str, str],
+    all_boxes: Dict[str, "_Box"],
+) -> float:
+    """
+    Horizontal-axis transpose of _safe_x_for_vertical_span above: a
+    y-coordinate, as close to `preferred_y` as possible, that no
+    component occupies anywhere across the horizontal span [x_lo, x_hi].
+    Used by the nested-sibling-zone routing below for a HORIZONTAL gap
+    channel (branch zones stacked side by side, e.g. several sibling
+    Accounts) -- the vertical-gap case (the common one -- zones stacked
+    "vertical", the default) reuses _safe_x_for_vertical_span directly,
+    same as the existing below-row-channel branches already do.
+    """
+    def blocked(y: float) -> bool:
+        for box_id, box in all_boxes.items():
+            if box_id in exclude_ids or box.zone_id is None:
+                continue  # zone containers aren't obstacles, only components
+            if box.y <= y <= box.bottom and box.x < x_hi and box.right > x_lo:
+                return True
+        return False
+
+    if not blocked(preferred_y):
+        return preferred_y
+    for step in range(1, 300):
+        for candidate in (preferred_y - step * SAFE_X_SEARCH_STEP, preferred_y + step * SAFE_X_SEARCH_STEP):
+            if not blocked(candidate):
+                return candidate
+    return preferred_y  # exhausted the search -- fall back rather than loop forever
+
+
 def _safe_jog_y(
     x: float, near_y: float, far_y: float, exclude_ids: Tuple[str, str], all_boxes: Dict[str, "_Box"],
 ) -> float:
@@ -1392,6 +1691,7 @@ def _route_edge(
     channel_slot: int,
     row_bottoms: Dict[int, float],
     all_boxes: Dict[str, "_Box"],
+    zone_parent_of: Optional[Dict[str, Optional[str]]] = None,
     channel_slot_total: int = 1,
 ) -> Tuple[List[Tuple[float, float]], str, str]:
     """
@@ -1441,6 +1741,7 @@ def _route_edge(
     OTHER component, not just the ones src/tgt's own zone or row would
     suggest.
     """
+    zone_parent_of = zone_parent_of or {}
     # zone_id is None for zone-level boxes themselves (a zone-to-zone
     # edge), so the None-vs-None check below must be excluded explicitly --
     # otherwise two DIFFERENT zones in the same row would be misread as
@@ -1486,8 +1787,19 @@ def _route_edge(
         margin_x = src.x - COMPONENT_H_MARGIN / 2 + offset
         return [(margin_x, src.cy), (margin_x, tgt.cy)], "left", "left"
 
+    if src.zone_id != tgt.zone_id:
+        # Checked BEFORE the top-level "same row" grid logic below -- see
+        # _nested_sibling_adjacency's own docstring. MUST stay in sync
+        # with _channel_key's matching check (same underlying helper).
+        nested_route = _route_nested_sibling_edge(src, tgt, channel_slot, zone_parent_of, all_boxes)
+        if nested_route is not None:
+            return nested_route
+
     if src.row == tgt.row:
-        if _same_row_zones_adjacent(src, tgt, all_boxes) and _facing_corridor_clear(src, tgt, all_boxes):
+        if (
+            _same_row_zones_adjacent(src, tgt, all_boxes, zone_parent_of)
+            and _facing_corridor_clear(src, tgt, all_boxes)
+        ):
             # Different zones, same row, immediate neighbors WITH a clear
             # facing corridor: route through the horizontal gap between the
             # two zone columns -- the x midway between whichever pair of
@@ -1638,6 +1950,7 @@ def _assign_connection_slots(
     all_boxes: Dict[str, "_Box"],
     row_bottoms: Dict[int, float],
     channel_slots: List[int],
+    zone_parent_of: Optional[Dict[str, Optional[str]]] = None,
     channel_totals: Optional[List[int]] = None,
 ) -> List[Optional[Dict[str, Any]]]:
     """
@@ -1665,7 +1978,7 @@ def _assign_connection_slots(
             continue
         total = channel_totals[i] if channel_totals is not None else 1
         waypoints, exit_side, entry_side = _route_edge(
-            edge, src, tgt, channel_slots[i], row_bottoms, all_boxes, channel_slot_total=total
+            edge, src, tgt, channel_slots[i], row_bottoms, all_boxes, zone_parent_of, channel_slot_total=total
         )
         raw.append({
             "waypoints": waypoints,
@@ -2230,6 +2543,10 @@ def build_structured_drawio_xml(
     row_bottoms: Dict[int, float] = {}
     for zbox in zone_boxes.values():
         row_bottoms[zbox.row] = max(row_bottoms.get(zbox.row, 0.0), zbox.bottom)
+    # zone id -> its own "parent_zone_id" (None for a top-level zone) --
+    # lets the routing below tell a NESTED zone apart from a genuine
+    # top-level row/column-grid zone; see _nested_sibling_adjacency.
+    zone_parent_of: Dict[str, Optional[str]] = {z["id"]: z.get("parent_zone_id") for z in zones}
 
     # Assign each edge a slot number (0, 1, 2, ...) local to the channel it
     # shares with other edges, so edges converging on the same gap/band/pair
@@ -2247,7 +2564,7 @@ def build_structured_drawio_xml(
             channel_slots.append(0)
             channel_keys.append(None)
             continue
-        key = _channel_key(src, tgt, all_boxes)
+        key = _channel_key(src, tgt, all_boxes, zone_parent_of)
         slot = channel_slot_counts.get(key, 0)
         channel_slot_counts[key] = slot + 1
         channel_slots.append(slot)
@@ -2267,7 +2584,9 @@ def build_structured_drawio_xml(
     # Pin exact connection points instead of letting drawio float them, and
     # spread multiple edges sharing a box+side across that side -- see
     # _assign_connection_slots's own docstring for why.
-    edge_plans = _assign_connection_slots(edges, all_boxes, row_bottoms, channel_slots, channel_totals)
+    edge_plans = _assign_connection_slots(
+        edges, all_boxes, row_bottoms, channel_slots, zone_parent_of, channel_totals
+    )
 
     # Compute every edge's absolute label point UP FRONT, across all edges,
     # so collisions BETWEEN unrelated edges (not just within one edge's own

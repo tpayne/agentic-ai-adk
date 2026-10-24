@@ -1,10 +1,10 @@
 """Standalone "regenerate just the document" action (registries/
-regenerate_document.hocon) -- ports the ADK original's Create_Doc_Agent.
+regenerate_document.hocon) -- ports the ADK port's Create_Doc_Agent.
 Before this, a bare "please regenerate the process document" request had
 no matching tool and fell under process_architect.hocon's own Rule 10
 ("ask a clarification question") -- confirmed directly: the router would
 ask the user to supply requirements/a directory instead of just
-re-rendering what was already saved, which is what the ADK original did.
+re-rendering what was already saved, which is what the ADK port did.
 """
 
 import json

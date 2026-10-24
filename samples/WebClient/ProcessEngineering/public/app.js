@@ -180,9 +180,11 @@
     networkTabPanel: document.getElementById("networkTabPanel"),
     networkTabBadge: document.getElementById("networkTabBadge"),
     networkCount: document.getElementById("networkCount"),
+    networkExportBtn: document.getElementById("networkExportBtn"),
     networkCanvasWrap: document.getElementById("networkCanvasWrap"),
     networkEmpty: document.getElementById("networkEmpty"),
     networkSvg: document.getElementById("networkSvg"),
+    netHoverTooltip: document.getElementById("netHoverTooltip"),
     networkZoomInBtn: document.getElementById("networkZoomInBtn"),
     networkZoomOutBtn: document.getElementById("networkZoomOutBtn"),
     networkResetViewBtn: document.getElementById("networkResetViewBtn"),
@@ -557,6 +559,42 @@
       setTimeout(() => ctx.close(), 600);
     } catch {
       // Best-effort -- a chime failure must never affect the actual turn.
+    }
+  }
+
+  // Mic-start cue -- a short, single-tone beep when voice input actually
+  // starts listening, so pressing the mic button gives the same kind of
+  // immediate audible confirmation a voice assistant's "I'm listening"
+  // beep gives. Deliberately NOT gated on state.voiceMuted -- that toggle
+  // only governs whether AGENT REPLIES are spoken aloud (voice OUTPUT),
+  // an unrelated setting from whether the user's own mic is now active
+  // (voice INPUT) -- but still scaled by state.voiceVolume for the same
+  // "respects the user's general app volume" consistency every other
+  // sound on this page has. Deliberately a SINGLE short tone, not
+  // playCompletionChime's two-note rising shape just above, so the two
+  // are never confused for each other.
+  function playMicStartChime() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      const peak = ((state.voiceVolume != null ? state.voiceVolume : 100) / 100) * 0.2;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = 1100;
+      osc.connect(gain);
+      osc.start(now);
+      osc.stop(now + 0.15);
+      setTimeout(() => ctx.close(), 300);
+    } catch {
+      // Best-effort -- a chime failure must never block recording from starting.
     }
   }
 
@@ -1136,11 +1174,26 @@
       const y = depths.length === 1 ? height / 2 : marginY + depth * levelHeight;
       rowNodes.forEach((n, i) => {
         const radius = Math.min(26, 15 + Math.log2(n.count + 1) * 4);
-        positioned.push({ ...n, x: startX + i * nodeSpacing, y, radius });
+        // A node the user has dragged (see startNodeDrag/moveNodeDrag
+        // further down) keeps its own last-dropped position instead of
+        // the computed grid slot -- recomputed every render regardless,
+        // so a newly-grown graph's own layout doesn't fight a dragged
+        // node's placement, it's just skipped for any node already moved.
+        const x = n.manualX != null ? n.manualX : startX + i * nodeSpacing;
+        const finalY = n.manualY != null ? n.manualY : y;
+        positioned.push({ ...n, x, y: finalY, radius });
       });
     });
 
-    return { nodes: positioned, width, height };
+    // The real content bounds, which a dragged node can extend past the
+    // natural grid's own width/height -- zoom-to-fit and PNG export both
+    // need this, or a node dragged further out than the grid would be
+    // clipped/cropped by both.
+    const labelPadding = 28; // room below each node for its own label text
+    const contentWidth = Math.max(width, ...positioned.map((n) => n.x + n.radius + marginX));
+    const contentHeight = Math.max(height, ...positioned.map((n) => n.y + n.radius + labelPadding + marginY));
+
+    return { nodes: positioned, width: contentWidth, height: contentHeight };
   }
 
   function truncateLabel(label, max = 24) {
@@ -1180,6 +1233,11 @@
 
     const { nodes, width, height } = computeNetworkLayout();
     const byId = new Map(nodes.map((n) => [n.id, n]));
+    // Stashed for Export PNG, same pattern as state.cloudarch.contentWidth/
+    // contentHeight -- the FULL graph's own natural (now drag-aware) size,
+    // not whatever's currently zoomed/panned into view.
+    state.network.contentWidth = width;
+    state.network.contentHeight = height;
 
     // The SVG's own viewBox is pinned 1:1 to the canvas wrap's actual
     // pixel size -- NOT the graph content's size -- so the zoom/pan
@@ -1237,7 +1295,14 @@
       g.setAttribute("tabindex", "0");
       g.setAttribute("role", "button");
       g.setAttribute("aria-label", `${node.label}, invoked ${node.count} time${node.count === 1 ? "" : "s"}`);
-      g.addEventListener("click", () => showNodeDetail(node.id));
+      // Drag-to-reposition AND click-to-open-details share the same
+      // pointerdown -- see startNodeDrag's own docstring for why this
+      // replaces a plain "click" listener entirely rather than living
+      // alongside one.
+      g.addEventListener("pointerdown", (event) => startNodeDrag(event, node));
+      g.addEventListener("pointerenter", (event) => scheduleInstructionsHover(node, event.clientX, event.clientY));
+      g.addEventListener("pointermove", (event) => repositionHoverTooltipIfShowing(node, event.clientX, event.clientY));
+      g.addEventListener("pointerleave", () => cancelInstructionsHover(node.id));
       g.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -1356,6 +1421,100 @@
   el.networkZoomOutBtn.addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
   el.networkResetViewBtn.addEventListener("click", resetNetworkView);
 
+  const NETWORK_EXPORT_SCALE = 2; // 2x pixel density, matching the Cloud Architecture tab's own export
+
+  // Deliberately LIGHT-THEME LITERALS, not this page's current resolved
+  // CSS variables -- same reasoning as the Cloud Architecture tab's own
+  // cloudArchExportStyle (see its comment): the background painted below
+  // is a fixed light color regardless of theme, so text/line colors must
+  // match that fixed background unconditionally too, not whatever the
+  // live theme (e.g. dark mode, where --text resolves to near-white)
+  // happens to currently be.
+  function networkExportStyle() {
+    const fontFamily = getComputedStyle(document.documentElement).getPropertyValue("--font").trim() || "sans-serif";
+    return `
+      .net-edge { stroke-width: 1.6; fill: none; }
+      .net-edge-hierarchy { stroke: #4f5eff; opacity: 0.6; }
+      .net-edge-flow { stroke: #9299a8; stroke-dasharray: 4 4; }
+      .net-arrow-hierarchy { fill: #4f5eff; }
+      .net-arrow-flow { fill: #9299a8; }
+      .net-node-circle { fill: #ffffff; stroke: #d2d5dc; stroke-width: 1.6; }
+      .net-node.net-node-active .net-node-circle { stroke: #4f5eff; fill: #eef0ff; }
+      .net-node.net-node-selected .net-node-circle { stroke: #4f5eff; stroke-width: 2.4; }
+      .net-node-pulse { display: none; } /* a live "currently active" animation has no meaning in a static export */
+      .net-node-label { font-size: 10.5px; font-weight: 650; fill: #1b1d22; font-family: ${fontFamily}; }
+      .net-node-count { font-size: 9px; font-weight: 700; fill: #ffffff; font-family: ${fontFamily}; }
+    `;
+  }
+
+  // Exports the FULL graph (not whatever's currently zoomed/panned into
+  // view, and including any manually dragged node positions -- see
+  // computeNetworkLayout's own content-bounds comment) as a PNG. Mirrors
+  // exportCloudArchPng further down exactly -- clones the live SVG rather
+  // than re-rendering from scratch, so the export always matches what's
+  // on screen (minus zoom/pan) with zero duplicated drawing logic.
+  async function exportNetworkPng() {
+    const { contentWidth, contentHeight } = state.network;
+    if (!contentWidth || !contentHeight || el.networkSvg.hasAttribute("hidden")) {
+      toast("No agents invoked yet.");
+      return;
+    }
+
+    const clone = el.networkSvg.cloneNode(true);
+    clone.removeAttribute("hidden");
+    clone.setAttribute("viewBox", `0 0 ${contentWidth} ${contentHeight}`);
+    clone.setAttribute("width", String(contentWidth));
+    clone.setAttribute("height", String(contentHeight));
+
+    const viewport = clone.querySelector("#networkViewport");
+    if (viewport) viewport.setAttribute("transform", "translate(0, 0) scale(1)");
+
+    const bg = document.createElementNS(SVG_NS, "rect");
+    bg.setAttribute("width", String(contentWidth));
+    bg.setAttribute("height", String(contentHeight));
+    bg.setAttribute("fill", "#f5f6f8");
+    clone.insertBefore(bg, clone.firstChild);
+
+    const styleEl = document.createElementNS(SVG_NS, "style");
+    styleEl.textContent = networkExportStyle();
+    clone.insertBefore(styleEl, clone.firstChild);
+
+    const svgText = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    try {
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error("Could not render the graph for export."));
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+      });
+    } catch (err) {
+      toast((err && err.message) || "Export failed.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(contentWidth * NETWORK_EXPORT_SCALE);
+    canvas.height = Math.round(contentHeight * NETWORK_EXPORT_SCALE);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#f5f6f8";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        toast("Export failed.");
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const filename = `agent-network-${stamp}.png`;
+      const result = await saveFile(blob, filename, { description: "PNG image", accept: { "image/png": [".png"] } });
+      if (result === "picker") toast("Graph exported.");
+      else if (result === "download") toast("Graph downloaded.");
+    }, "image/png");
+  }
+
+  el.networkExportBtn.addEventListener("click", exportNetworkPng);
+
   el.networkCanvasWrap.addEventListener("wheel", (event) => {
     if (state.network.nodes.size === 0) return;
     event.preventDefault();
@@ -1366,7 +1525,7 @@
   let panStart = null;
 
   el.networkSvg.addEventListener("pointerdown", (event) => {
-    if (event.target.closest(".net-node")) return; // let node clicks through, not a pan start
+    if (event.target.closest(".net-node")) return; // let node drags through, not a pan start
     if (state.network.nodes.size === 0) return;
     panPointerId = event.pointerId;
     panStart = { clientX: event.clientX, clientY: event.clientY, viewX: state.network.view.x, viewY: state.network.view.y };
@@ -1374,6 +1533,10 @@
     el.networkSvg.classList.add("panning");
   });
   el.networkSvg.addEventListener("pointermove", (event) => {
+    if (nodeDrag && nodeDrag.pointerId === event.pointerId) {
+      moveNodeDrag(event);
+      return;
+    }
     if (panPointerId !== event.pointerId || !panStart) return;
     state.network.view = {
       ...state.network.view,
@@ -1384,6 +1547,10 @@
     applyNetworkTransform();
   });
   function endPan(event) {
+    if (nodeDrag && nodeDrag.pointerId === event.pointerId) {
+      endNodeDrag(event);
+      return;
+    }
     if (panPointerId !== event.pointerId) return;
     panPointerId = null;
     panStart = null;
@@ -1391,6 +1558,208 @@
   }
   el.networkSvg.addEventListener("pointerup", endPan);
   el.networkSvg.addEventListener("pointercancel", endPan);
+
+  // ---------------------------------------------------------------
+  // Drag-to-reposition a node. Shares #networkSvg's OWN pointer capture
+  // (set on that stable element, never torn down/recreated) rather than
+  // capturing on the node's own <g> -- renderNetwork() rebuilds every <g>
+  // from scratch on each call (including the ones triggered mid-drag by
+  // moveNodeDrag below), so a capture held by the <g> itself would be
+  // silently released the instant that element gets replaced, cutting the
+  // drag off mid-gesture. #networkSvg's existing pan pointermove/pointerup
+  // listeners just above dispatch into this instead of their own pan logic
+  // whenever a node drag is in progress (see both functions' own checks),
+  // so there's exactly one pointer-capture owner at a time, never both.
+  //
+  // Doubles as click-to-open-details: a pointerdown+pointerup with no real
+  // movement (see the MOVE_THRESHOLD check in moveNodeDrag) opens the node
+  // detail drawer instead of having left a dragged position -- this
+  // replaces the plain "click" listener a node's <g> used to have, since a
+  // browser's native click fires on ANY pointerdown+pointerup pair landing
+  // on the same element regardless of how far the pointer traveled in
+  // between, which would have also fired after a genuine drag.
+  // ---------------------------------------------------------------
+  const NODE_DRAG_MOVE_THRESHOLD = 3; // px, in content space -- below this, treat as a click, not a drag
+  let nodeDrag = null;
+
+  function startNodeDrag(event, node) {
+    event.stopPropagation(); // never let #networkSvg's own pointerdown listener also start a pan
+    cancelInstructionsHover(node.id); // a tooltip mid-drag would just be visual noise
+    nodeDrag = {
+      pointerId: event.pointerId, nodeId: node.id,
+      startClientX: event.clientX, startClientY: event.clientY,
+      startX: node.x, startY: node.y, moved: false,
+    };
+    el.networkSvg.setPointerCapture(event.pointerId);
+  }
+
+  function moveNodeDrag(event) {
+    const scale = state.network.view.scale || 1;
+    const dx = (event.clientX - nodeDrag.startClientX) / scale;
+    const dy = (event.clientY - nodeDrag.startClientY) / scale;
+    if (!nodeDrag.moved && (Math.abs(dx) > NODE_DRAG_MOVE_THRESHOLD || Math.abs(dy) > NODE_DRAG_MOVE_THRESHOLD)) {
+      nodeDrag.moved = true;
+      state.network.autoFit = false; // a re-fit mid-drag would fight the user's own drag with a competing view change
+    }
+    if (!nodeDrag.moved) return;
+    const stored = state.network.nodes.get(nodeDrag.nodeId);
+    if (!stored) return;
+    const minCoord = 40; // keeps a dragged node from crossing into negative content-space coordinates, which this SVG's own 0,0-anchored canvas has no way to render
+    stored.manualX = Math.max(minCoord, nodeDrag.startX + dx);
+    stored.manualY = Math.max(minCoord, nodeDrag.startY + dy);
+    renderNetwork();
+  }
+
+  function endNodeDrag(event) {
+    el.networkSvg.releasePointerCapture(event.pointerId);
+    const wasMoved = nodeDrag.moved;
+    const nodeId = nodeDrag.nodeId;
+    nodeDrag = null;
+    if (wasMoved) {
+      renderNetwork(); // final settle, in case the triggering move event's own render was superseded by a later one
+    } else {
+      showNodeDetail(nodeId);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Hover-to-preview a node's real agent instructions (its HOCON/ADK
+  // system prompt) -- GET /agents/<name>/instructions, backed by this
+  // project's own cli.py Flask route, which resolves the name against
+  // every registries/*.hocon file. `node.label` (the LAST segment of a
+  // node's dotted id, e.g. "CloudArch_Agent" out of
+  // "CloudArch_Pipeline.CloudArch_Agent") is what that route expects --
+  // agent names are unique across this project's own registries, so the
+  // short name alone is enough, no need to resolve the full dotted path.
+  //
+  // Results are cached by name for the rest of this page's lifetime --
+  // an agent's own instructions don't change while this tab is open, so
+  // re-fetching on every single hover of the same node would be wasted
+  // work. A short hover-intent delay (HOVER_DELAY_MS) avoids firing a
+  // fetch for every node the pointer merely passes over while moving
+  // toward somewhere else on the canvas.
+  // ---------------------------------------------------------------
+  const HOVER_DELAY_MS = 250;
+  const agentInstructionsCache = new Map(); // name -> {status: "ok"|"error", instructions, description, sourceFile, error}
+  let hoverTimer = null;
+  let hoveredNodeId = null;
+
+  function scheduleInstructionsHover(node, clientX, clientY) {
+    if (nodeDrag) return; // mid-drag -- a tooltip popping up would just be noise
+    hoveredNodeId = node.id;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => showInstructionsTooltip(node, clientX, clientY), HOVER_DELAY_MS);
+  }
+
+  function repositionHoverTooltipIfShowing(node, clientX, clientY) {
+    if (hoveredNodeId !== node.id || el.netHoverTooltip.hidden) return;
+    positionHoverTooltip(clientX, clientY);
+  }
+
+  function cancelInstructionsHover(nodeId) {
+    if (nodeId != null && hoveredNodeId !== nodeId) return; // a stale leave from a node that isn't the current one
+    hoveredNodeId = null;
+    clearTimeout(hoverTimer);
+    el.netHoverTooltip.hidden = true;
+    el.netHoverTooltip.removeAttribute("data-node-label");
+  }
+
+  function positionHoverTooltip(clientX, clientY) {
+    const tooltip = el.netHoverTooltip;
+    const margin = 14;
+    let left = clientX + margin;
+    let top = clientY + margin;
+    const maxLeft = window.innerWidth - tooltip.offsetWidth - margin;
+    const maxTop = window.innerHeight - tooltip.offsetHeight - margin;
+    if (left > maxLeft) left = Math.max(margin, clientX - tooltip.offsetWidth - margin);
+    if (top > maxTop) top = Math.max(margin, maxTop);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function renderHoverTooltipContent(name, result) {
+    const tooltip = el.netHoverTooltip;
+    const nameEl = document.createElement("div");
+    nameEl.className = "net-hover-tooltip-name";
+    nameEl.textContent = name;
+    tooltip.innerHTML = "";
+    tooltip.appendChild(nameEl);
+
+    if (result.status === "loading") {
+      const body = document.createElement("div");
+      body.className = "net-hover-tooltip-body";
+      body.textContent = "Loading instructions…";
+      tooltip.appendChild(body);
+      return;
+    }
+    if (result.status === "error") {
+      const body = document.createElement("div");
+      body.className = "net-hover-tooltip-body net-hover-tooltip-error";
+      body.textContent = result.error;
+      tooltip.appendChild(body);
+      return;
+    }
+    if (result.description) {
+      const desc = document.createElement("div");
+      desc.className = "net-hover-tooltip-desc";
+      desc.textContent = result.description;
+      tooltip.appendChild(desc);
+    }
+    const body = document.createElement("div");
+    body.className = "net-hover-tooltip-body";
+    body.textContent = result.instructions;
+    tooltip.appendChild(body);
+
+    if (result.sourceFile) {
+      const meta = document.createElement("div");
+      meta.className = "net-hover-tooltip-meta";
+      meta.textContent = result.sourceFile;
+      tooltip.appendChild(meta);
+    }
+  }
+
+  async function showInstructionsTooltip(node, clientX, clientY) {
+    if (hoveredNodeId !== node.id) return; // moved on before the hover-intent delay elapsed
+    el.netHoverTooltip.dataset.nodeLabel = node.label;
+    el.netHoverTooltip.hidden = false;
+
+    const cached = agentInstructionsCache.get(node.label);
+    if (cached) {
+      renderHoverTooltipContent(node.label, cached);
+      positionHoverTooltip(clientX, clientY);
+      return;
+    }
+
+    renderHoverTooltipContent(node.label, { status: "loading" });
+    positionHoverTooltip(clientX, clientY);
+
+    const baseUrl = currentBaseUrl();
+    let result;
+    if (!baseUrl) {
+      result = { status: "error", error: "Set a Base URL and click Connect first." };
+    } else {
+      try {
+        const res = await fetch(`${baseUrl}/agents/${encodeURIComponent(node.label)}/instructions`, {
+          method: "GET",
+          headers: { ...authHeaders() },
+        });
+        const body = await res.json().catch(() => ({}));
+        result = res.ok
+          ? { status: "ok", instructions: body.instructions, description: body.description, sourceFile: body.source_file }
+          : { status: "error", error: body.error || `Request failed (${res.status}).` };
+      } catch (err) {
+        result = { status: "error", error: (err && err.message) || String(err) };
+      }
+    }
+    agentInstructionsCache.set(node.label, result);
+    // Only paint this result if the pointer is still over the SAME node --
+    // a fast mouse could have already moved to a different node, or off
+    // the graph entirely, before this resolved.
+    if (el.netHoverTooltip.dataset.nodeLabel === node.label && hoveredNodeId === node.id) {
+      renderHoverTooltipContent(node.label, result);
+      positionHoverTooltip(clientX, clientY);
+    }
+  }
 
   // ---------------------------------------------------------------
   // Node detail drawer -- "what did this agent/pipeline/tool actually do
@@ -2301,13 +2670,23 @@
 
   // The exported SVG is serialized into a STANDALONE document with no
   // access to this page's own stylesheet/CSS variables, so the handful
-  // of classes/variables the live rendering actually depends on
-  // (cloudarch-edge/-arrow/-edge-label/-cell-label; var(--text-faint)
-  // etc.) need their CURRENT resolved values inlined explicitly.
+  // of classes the live rendering actually depends on (cloudarch-edge/
+  // -arrow/-edge-label/-cell-label) need their values inlined explicitly.
+  //
+  // Deliberately LIGHT-THEME LITERALS, not this page's CURRENT resolved
+  // --text/--text-faint (the previous version's approach) -- the export
+  // canvas below always paints a solid #ffffff background regardless of
+  // theme (see exportCloudArchPng's own comment on why), so text colors
+  // must match that fixed white background unconditionally too. Reading
+  // the live theme's CSS variables instead was confirmed to produce a
+  // genuinely unreadable export: in dark mode, --text/--text-faint
+  // resolve to near-white (#eceef3 / #6b7082), rendered straight onto
+  // this always-white background -- exactly a real report of edge/arrow
+  // labels being "white on white" in an exported PNG.
   function cloudArchExportStyle() {
     const cs = getComputedStyle(document.documentElement);
-    const textFaint = cs.getPropertyValue("--text-faint").trim() || "#8a8f98";
-    const text = cs.getPropertyValue("--text").trim() || "#1b1f24";
+    const textFaint = "#9299a8"; // light theme's own --text-faint (style.css :root)
+    const text = "#1b1d22"; // light theme's own --text (style.css :root)
     const fontFamily = cs.getPropertyValue("--font").trim() || "sans-serif";
     return `
       .cloudarch-edge { stroke-width: 1.6; fill: none; }
@@ -3596,6 +3975,7 @@
 
     recognition.start();
     setRecordingState(true);
+    playMicStartChime();
   }
 
   if (!SpeechRecognitionCtor) {

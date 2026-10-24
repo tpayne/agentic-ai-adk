@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: CloudArch_Consultant_Agent.
+# Developed in tandem with samples/GCP/ProcessEngineering's own CloudArch_Consultant_Agent.
 {
     include "config/llm_config.hocon",
 

@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Requirements_Summary_Agent
+# Developed in tandem with samples/GCP/ProcessEngineering's own Requirements_Summary_Agent
 # (process_agents/common/requirements_summary_agent.py +
 # instructions/common/requirements_summary_agent.txt). Reads a directory of
 # source files, synthesizes a structured requirements register, and

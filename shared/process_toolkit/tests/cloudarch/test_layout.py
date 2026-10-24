@@ -80,6 +80,56 @@ def _segment_crosses_box(p1, p2, box, pad=0.01):
     return False
 
 
+class TestComponentBulletValidation:
+    """Coverage for _validate_component_bullets -- confirmed directly
+    against a real generated diagram (an AWS multi-account org diagram)
+    where the model emitted "bullets": [{"description": "..."}] for every
+    single component, which rendered as the literal text
+    "{'description': '...'}" under every component's title instead of
+    just "...", since _html_value's own f-string silently stringifies
+    whatever it's given."""
+
+    def _zones_and_component(self, bullets):
+        return (
+            [{"id": "z", "label": "Z"}],
+            [{"id": "c", "label": "AWS Organizations", "zone_id": "z", "bullets": bullets}],
+        )
+
+    def test_plain_string_bullets_are_accepted(self):
+        zones, components = self._zones_and_component(["Account Management"])
+        layout._layout_zones_and_components(zones, components)  # must not raise
+
+    def test_no_bullets_at_all_is_accepted(self):
+        zones, components = self._zones_and_component(None)
+        layout._layout_zones_and_components(zones, components)  # must not raise
+
+    def test_description_object_bullet_raises_with_the_fix_inline(self):
+        zones, components = self._zones_and_component([{"description": "Account Management"}])
+        with pytest.raises(ValueError, match=r'use "Account Management" directly'):
+            layout._layout_zones_and_components(zones, components)
+
+    def test_non_string_non_description_bullet_raises(self):
+        zones, components = self._zones_and_component([42])
+        with pytest.raises(ValueError, match=r"bullets\[0\] set to a int, not a string"):
+            layout._layout_zones_and_components(zones, components)
+
+    def test_bullets_not_a_list_at_all_raises(self):
+        zones, components = self._zones_and_component("Account Management")
+        with pytest.raises(ValueError, match=r"'bullets' set to a str, not a list"):
+            layout._layout_zones_and_components(zones, components)
+
+    def test_build_xml_catches_a_dict_bullet_before_producing_garbage_text(self):
+        zones = [{"id": "z", "label": "Z"}]
+        components = [{
+            "id": "c", "label": "AWS Organizations", "zone_id": "z",
+            "bullets": [{"description": "Account Management"}],
+        }]
+        with pytest.raises(ValueError, match="plain string"):
+            layout.build_structured_drawio_xml(
+                title="T", subtitle="", zones=zones, components=components, edges=[], provider="aws",
+            )
+
+
 class TestComponentHeight:
     def test_height_scales_with_bullet_count(self):
         no_bullets = layout._component_height({"label": "X"})
@@ -2294,3 +2344,207 @@ class TestHorizontalNestedZones:
         assert a0.x == a1.x == a2.x
         assert a1.y > a0.bottom
         assert a2.y > a1.bottom
+
+
+class TestNestedSiblingEdgeRouting:
+    """Coverage for edges between components whose zones are nested under a
+    SHARED ancestor (e.g. two Availability Zones, each with its own Subnet
+    tiers, under one VPC) -- confirmed, via a direct reproduction against a
+    real generated "VPC > AZ > Subnet" diagram, to be mis-routed before this
+    class's own fix: every nested zone inherits its TOP-LEVEL ancestor's own
+    "row" number unchanged (see _layout_parent_zone), which made two such
+    zones indistinguishable, to the existing top-level row/column-grid
+    logic, from genuine top-level row/column-grid zones. The edge was routed
+    through the top-level below-row channel -- which doesn't physically
+    exist at this nesting depth -- producing a path that overshot past the
+    target box and re-entered it from the wrong side: visually, a line
+    passing straight through a box with no real connection, matching a real
+    bug report of arrows that "start and end nowhere" in a nested VPC/AZ/
+    Subnet diagram."""
+
+    def _two_azs_with_subnets(self):
+        zones = [
+            {"id": "vpc", "label": "Production VPC", "row": 0, "type": "vpc"},
+            {"id": "az_a", "label": "AZ A", "parent_zone_id": "vpc"},
+            {"id": "az_b", "label": "AZ B", "parent_zone_id": "vpc"},
+            {"id": "data_a", "label": "Private Data Subnet A", "parent_zone_id": "az_a"},
+            {"id": "data_b", "label": "Private Data Subnet B", "parent_zone_id": "az_b"},
+        ]
+        components = [
+            {"id": "aurora_p", "label": "Aurora Primary", "zone_id": "data_a", "shape": "mxgraph.aws4.aurora"},
+            {"id": "aurora_r", "label": "Aurora Replica", "zone_id": "data_b", "shape": "mxgraph.aws4.aurora"},
+        ]
+        edges = [{"source": "aurora_p", "target": "aurora_r", "label": "Replication"}]
+        return zones, components, edges
+
+    def test_edge_between_components_in_sibling_nested_zones_is_monotonic_not_overshooting(self):
+        zones, components, edges = self._two_azs_with_subnets()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        row_bottoms = {zb.row: zb.bottom for zb in zone_boxes.values()}
+        src, tgt = comp_boxes["aurora_p"], comp_boxes["aurora_r"]
+
+        waypoints, exit_side, entry_side = layout._route_edge(
+            edges[0], src, tgt, 0, row_bottoms, all_boxes, zone_parent_of,
+        )
+
+        assert exit_side == "bottom"
+        assert entry_side == "top"
+        # The full path (exit -> waypoints -> entry) must be monotonically
+        # increasing in y -- never dropping BELOW the target's own top edge
+        # before "arriving", which is exactly the overshoot-and-backtrack
+        # shape the bug produced (a waypoint at y=850 when the target's own
+        # top edge was already at y=641).
+        full_path_y = [src.bottom] + [wy for _, wy in waypoints] + [tgt.y]
+        assert full_path_y == sorted(full_path_y)
+        for _, wy in waypoints:
+            assert src.bottom <= wy <= tgt.y
+
+    def test_edge_between_sibling_nested_zones_shares_a_channel_key_with_itself_reversed(self):
+        zones, components, edges = self._two_azs_with_subnets()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        src, tgt = comp_boxes["aurora_p"], comp_boxes["aurora_r"]
+
+        assert (
+            layout._channel_key(src, tgt, all_boxes, zone_parent_of)
+            == layout._channel_key(tgt, src, all_boxes, zone_parent_of)
+        )
+
+    def test_build_xml_for_sibling_nested_zones_does_not_crash_and_sets_sane_connection_points(self):
+        zones, components, edges = self._two_azs_with_subnets()
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components, edges=edges, provider="aws",
+        )
+        root = ET.fromstring(xml_str)
+        edge_cell = next(c for c in root.findall(".//mxCell") if c.get("edge") == "1")
+        style = dict(part.split("=", 1) for part in edge_cell.get("style").split(";") if "=" in part)
+        assert style["exitY"] == "1.0"  # exits the source's BOTTOM edge
+        assert style["entryY"] == "0.0"  # enters the target's TOP edge -- not its bottom
+
+    def test_cousin_zones_with_a_sibling_in_between_fall_back_to_existing_handling(self):
+        # Three Availability Zones stacked vertically under one VPC; an edge
+        # between AZ A's and AZ C's own subnets has AZ B sitting directly
+        # between their branches -- not a clean, obstacle-free gap, so this
+        # must NOT take the direct nested-sibling shortcut (the shared
+        # fixture's own _nested_sibling_adjacency returns None), falling
+        # through to the existing (pre-existing-behavior, unchanged by this
+        # fix) row/column-grid handling instead of raising or looping.
+        zones = [
+            {"id": "vpc", "label": "VPC", "row": 0, "type": "vpc"},
+            {"id": "az_a", "label": "AZ A", "parent_zone_id": "vpc"},
+            {"id": "az_b", "label": "AZ B", "parent_zone_id": "vpc"},
+            {"id": "az_c", "label": "AZ C", "parent_zone_id": "vpc"},
+        ]
+        components = [
+            {"id": "a", "label": "A", "zone_id": "az_a"},
+            {"id": "c", "label": "C", "zone_id": "az_c"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(
+            zones,
+            components + [{"id": "b", "label": "B", "zone_id": "az_b"}],
+        )
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        assert layout._nested_sibling_adjacency("az_a", "az_c", zone_parent_of, all_boxes) is None
+
+        # The full pipeline must still produce a valid, non-crashing route
+        # for this pair (falling through to the existing row-gap handling).
+        xml_str = layout.build_structured_drawio_xml(
+            title="T", subtitle="", zones=zones, components=components,
+            edges=[{"source": "a", "target": "c"}], provider="aws",
+        )
+        assert "<mxCell" in xml_str
+
+
+class TestTopLevelToNestedEdgeRouting:
+    """Coverage for an edge between a component in a genuine TOP-LEVEL zone
+    (no nesting at all -- e.g. an Edge Layer) and a component nested several
+    levels deep inside a DIFFERENT top-level zone (e.g. a Subnet nested in
+    an Availability Zone nested in a VPC) -- confirmed, via a direct
+    reproduction against a real generated AWS reference diagram, to be the
+    single most common edge shape in any VPC-centric diagram (most real
+    connections run from an outside/edge component INTO the nested VPC
+    internals), and to be mis-routed before this class's own fix:
+    _same_row_zones_adjacent found BOTH the top-level zone's raw id and the
+    deeply-nested zone's raw id directly in its own `row_zones` list (every
+    nested zone shares its top-level ancestor's own "row" number unchanged),
+    with adjacency then decided by their essentially ACCIDENTAL index
+    position in a list mixing every nesting depth at once -- producing
+    edges that, depending on how many unrelated nested zones happened to
+    sort between them, cramped into the wrong routing channel and rendered
+    with wildly overlapping labels, matching a real bug report."""
+
+    def _edge_layer_into_nested_vpc(self):
+        zones = [
+            {"id": "edge", "label": "Edge Layer", "row": 0},
+            {"id": "vpc", "label": "Production VPC", "row": 0, "type": "vpc"},
+            {"id": "az_a", "label": "AZ A", "parent_zone_id": "vpc"},
+            {"id": "pub_a", "label": "Public Subnet", "parent_zone_id": "az_a"},
+            {"id": "app_a", "label": "Private App Subnet", "parent_zone_id": "az_a"},
+        ]
+        components = [
+            {"id": "apigw", "label": "Amazon API Gateway", "zone_id": "edge"},
+            {"id": "nat", "label": "NAT Gateway", "zone_id": "pub_a"},
+            {"id": "tx", "label": "Transaction Service", "zone_id": "app_a", "shape": "mxgraph.aws4.ec2"},
+        ]
+        edges = [
+            {"source": "apigw", "target": "nat", "label": "Route API Calls"},
+            {"source": "apigw", "target": "tx", "label": "Forward Request"},
+        ]
+        return zones, components, edges
+
+    def test_top_level_zone_is_adjacent_to_the_vpc_zone_it_actually_sits_next_to(self):
+        zones, components, edges = self._edge_layer_into_nested_vpc()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        apigw, nat = comp_boxes["apigw"], comp_boxes["nat"]
+
+        assert layout._same_row_zones_adjacent(apigw, nat, all_boxes, zone_parent_of) is True
+
+    def test_edge_from_top_level_zone_into_a_nested_component_is_a_simple_two_point_path(self):
+        zones, components, edges = self._edge_layer_into_nested_vpc()
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        row_bottoms = {zb.row: zb.bottom for zb in zone_boxes.values()}
+
+        for edge in edges:
+            src, tgt = comp_boxes[edge["source"]], comp_boxes[edge["target"]]
+            waypoints, exit_side, entry_side = layout._route_edge(
+                edge, src, tgt, 0, row_bottoms, all_boxes, zone_parent_of,
+            )
+            assert exit_side == "right"
+            assert entry_side == "left"
+            # A clean gap-route: at most 2 waypoints (the vertical jog at
+            # the shared gap x), never the degenerate duplicate-point or
+            # far-below-canvas shape the below-row-channel misroute
+            # produced (see TestNestedSiblingEdgeRouting's own docstring
+            # for that failure shape).
+            assert len(waypoints) <= 2
+            for wx, _ in waypoints:
+                assert src.right < wx < tgt.x  # strictly within the real gap between the two zones
+
+    def test_components_sharing_the_same_top_level_vpc_ancestor_are_not_misread_as_grid_adjacent(self):
+        # Two components nested under the SAME top-level VPC (different
+        # Availability Zones) must NOT be routed via this top-level
+        # adjacency check at all -- that precise case belongs to
+        # _nested_sibling_adjacency (checked earlier in both callers).
+        zones = [
+            {"id": "vpc", "label": "VPC", "row": 0, "type": "vpc"},
+            {"id": "az_a", "label": "AZ A", "parent_zone_id": "vpc"},
+            {"id": "az_b", "label": "AZ B", "parent_zone_id": "vpc"},
+        ]
+        components = [
+            {"id": "a", "label": "A", "zone_id": "az_a"},
+            {"id": "b", "label": "B", "zone_id": "az_b"},
+        ]
+        zone_boxes, comp_boxes, _, _ = layout._layout_zones_and_components(zones, components)
+        all_boxes = {**comp_boxes, **zone_boxes}
+        zone_parent_of = {z["id"]: z.get("parent_zone_id") for z in zones}
+        a, b = comp_boxes["a"], comp_boxes["b"]
+
+        assert layout._same_row_zones_adjacent(a, b, all_boxes, zone_parent_of) is False

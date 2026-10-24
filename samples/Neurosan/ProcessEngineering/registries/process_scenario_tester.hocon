@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Scenario_Tester.
+# Developed in tandem with samples/GCP/ProcessEngineering's own Scenario_Tester.
 {
     include "config/llm_config.hocon",
 

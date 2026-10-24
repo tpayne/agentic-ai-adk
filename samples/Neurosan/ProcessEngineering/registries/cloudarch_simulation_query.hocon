@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: CloudArch_Simulation_Query_Agent.
+# Developed in tandem with samples/GCP/ProcessEngineering's own CloudArch_Simulation_Query_Agent.
 {
     include "config/llm_config.hocon",
 

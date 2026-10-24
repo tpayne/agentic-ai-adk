@@ -2,7 +2,7 @@
 
 save_drawio_xml is deliberately simplified for the structured-engine-only
 path this port defaults to: the heavy freehand-XML repair/shape-mapping
-passes and the lock-file concurrency guard the ADK original's save side
+passes and the lock-file concurrency guard the ADK port's save side
 has are dropped since build_structured_drawio_xml always emits
 already-valid, already-correctly-styled XML by construction -- there is
 nothing for a repair pass to fix. load_drawio_xml has no such asymmetry

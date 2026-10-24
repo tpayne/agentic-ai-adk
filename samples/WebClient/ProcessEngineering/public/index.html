@@ -192,11 +192,19 @@
         <div class="network-legend">
           <span class="legend-item"><span class="legend-swatch legend-hierarchy"></span>Calls into</span>
           <span class="legend-item"><span class="legend-swatch legend-flow"></span>Handed off to</span>
-          <span class="legend-item legend-hint">Click a node for details</span>
+          <span class="legend-item legend-hint">Click a node for details &middot; drag to reposition &middot; hover for instructions</span>
         </div>
         <span class="network-count" id="networkCount">No agents invoked yet</span>
+        <button type="button" class="icon-btn" id="networkExportBtn" title="Export as PNG" aria-label="Export as PNG">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path>
+            <path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
+          </svg>
+        </button>
       </div>
       <div class="network-canvas-wrap" id="networkCanvasWrap">
+        <div class="net-hover-tooltip" id="netHoverTooltip" hidden></div>
         <div class="empty-state" id="networkEmpty">
           <div class="empty-state-mark">PA</div>
           <h2>No agents invoked yet</h2>

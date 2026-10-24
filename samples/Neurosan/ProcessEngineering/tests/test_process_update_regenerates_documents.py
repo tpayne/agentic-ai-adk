@@ -12,7 +12,7 @@ network composition (see codeDoc/README.md):
    their own re-export modules under coded_tools/process_update/, mirroring
    coded_tools/design_update/'s existing pattern) to process_update.hocon.
 
-2. The ADK original's own Update_Design_Pipeline also re-runs subprocess
+2. The ADK port's own Update_Design_Pipeline also re-runs subprocess
    regeneration (process_agents/process/update_process_agent.py) before
    rebuilding artifacts on an update, but process_update.hocon had no
    Subprocess_Driver_Agent/Subprocess_Generator_Agent/load_process_steps/

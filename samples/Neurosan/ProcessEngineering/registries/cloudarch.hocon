@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: CloudArch_Pipeline (ADK LoopAgent
+# Developed in tandem with samples/GCP/ProcessEngineering's own CloudArch_Pipeline (ADK LoopAgent
 # wrapping CloudArch_Agent + CloudArch_Reviewer_Agent + a stop controller).
 # neuro-san has no LoopAgent/escalate primitive, so the front-man's own
 # instructions below drive the generate -> review -> loop_control ->

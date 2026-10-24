@@ -1,9 +1,9 @@
 """Design-document analogue of coded_tools/process/simulation.py's Monte
-Carlo process simulation. Ported near-verbatim from the ADK sample's
-process_agents/design/design_simulation_agent.py (the pure-Python
-functions only -- the ADK LlmAgent definitions at the bottom of that file
-are replaced by this project's design.hocon/design_simulation_query.hocon
-front-men).
+Carlo process simulation. Shares its core math near-verbatim with the ADK
+port's own process_agents/design/design_simulation_agent.py (the
+pure-Python functions only -- the ADK LlmAgent definitions at the bottom
+of that file are replaced here by this project's design.hocon/
+design_simulation_query.hocon front-men).
 
 The process schema gives a real numeric quantity to simulate
 (process_steps[].estimated_duration + dependencies -> cycle time). The

@@ -1,8 +1,9 @@
-"""Standalone "regenerate just the document" support -- ports the ADK
-original's Create_Doc_Agent (process_agents/common/doc_creation_agent.py):
-re-render the flow diagram and final Word document from whatever
-process/design JSON is ALREADY saved on disk, with no re-analysis, no
-design regeneration, and no compliance/simulation review.
+"""Standalone "regenerate just the document" support -- developed in
+tandem with the ADK port's own Create_Doc_Agent
+(process_agents/common/doc_creation_agent.py): re-render the flow diagram
+and final Word document from whatever process/design JSON is ALREADY
+saved on disk, with no re-analysis, no design regeneration, and no
+compliance/simulation review.
 
 Unlike coded_tools/process/doc_generation_tool.py and
 coded_tools/design/doc_generation_tool.py -- which each hardcode their own

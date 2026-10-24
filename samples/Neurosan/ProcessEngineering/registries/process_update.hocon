@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Update_Design_Pipeline (the
+# Developed in tandem with samples/GCP/ProcessEngineering's own Update_Design_Pipeline (the
 # process-update mirror of Full_Design_Pipeline/process.hocon). Only
 # Process_Update_Analyst differs in substance from process.hocon's
 # Analysis_Agent -- it diffs a change request against the EXISTING baseline
@@ -8,7 +8,7 @@
 # duplicated into this separate file (not cross-network-referenced) because
 # neuro-san's same-server external-agent references only reach another
 # network's FRONT-MAN, not its internal sub-agents -- this mirrors why the
-# ADK original itself clones these same three agents for its own Update
+# ADK port itself clones these same three agents for its own Update
 # pipeline, just for a different underlying reason (there, an agent can
 # only have one parent in the ADK agent tree).
 {
@@ -207,7 +207,7 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
         # Subprocess_Driver_Agent/Subprocess_Generator_Agent, duplicated verbatim from
         # process.hocon (not cross-network-referenced -- see this file's own header comment on why)
         # so that an update which adds/removes/changes steps re-expands their subprocesses too,
-        # the same way the ADK original's own Update_Design_Pipeline re-runs subprocess
+        # the same way the ADK port's own Update_Design_Pipeline re-runs subprocess
         # regeneration on every update (process_agents/process/update_process_agent.py).
         {
             "name": "Subprocess_Driver_Agent",

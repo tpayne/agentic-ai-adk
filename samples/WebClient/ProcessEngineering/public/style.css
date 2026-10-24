@@ -728,6 +728,7 @@ input[type="range"]:disabled {
 }
 
 .net-node { cursor: pointer; }
+.net-node.net-node-dragging { cursor: grabbing; }
 
 .net-node.net-node-selected .net-node-circle {
   stroke: var(--accent);
@@ -737,6 +738,60 @@ input[type="range"]:disabled {
 .legend-hint {
   color: var(--text-faint);
   font-style: italic;
+}
+
+/* ---------- Node hover tooltip (agent instructions) ---------- */
+
+.net-hover-tooltip {
+  position: fixed;
+  z-index: 50;
+  width: min(420px, calc(100vw - 28px));
+  max-height: min(360px, calc(100vh - 28px));
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  pointer-events: none; /* sits on top of the canvas -- must never itself
+                            intercept the hover it's reporting on */
+}
+
+.net-hover-tooltip[hidden] { display: none; }
+
+.net-hover-tooltip-name {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.net-hover-tooltip-desc {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.net-hover-tooltip-body {
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+}
+
+.net-hover-tooltip-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+.net-hover-tooltip-error {
+  color: var(--danger);
 }
 
 /* ---------- Node detail drawer ---------- */

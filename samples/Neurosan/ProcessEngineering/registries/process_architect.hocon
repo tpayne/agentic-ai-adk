@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Process_Architect_Orchestrator
+# Developed in tandem with samples/GCP/ProcessEngineering's own Process_Architect_Orchestrator
 # (the top-level, flat LLM-driven router -- ADK's agent-transfer mechanism
 # re-expressed as neuro-san's AAOSA delegation, which is exactly what it's
 # built for). References every other network in this project as a
@@ -552,7 +552,7 @@ tool failed, say that plainly rather than guessing a plausible-sounding reason.
 ------------------------------------------------------------
 # KNOWN GAPS (do not route to a tool that does not exist)
 ------------------------------------------------------------
-This router has no standalone "regenerate just the subprocesses" tool (the ADK original's
+This router has no standalone "regenerate just the subprocesses" tool (the ADK port's
 Subprocess_Driver_Agent_Main has no port here yet) -- a request like "regenerate the subprocesses"
 without any other creation/modification intent falls under Rule 10 (ask a clarification question),
 since no tool does exactly that standalone action. Do not force it into

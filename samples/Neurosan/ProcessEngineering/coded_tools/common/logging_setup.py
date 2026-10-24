@@ -1,4 +1,4 @@
-"""Central logging configuration, matching the ADK original's own
+"""Central logging configuration, matching the ADK port's own
 process_agents/common/agent.py setup exactly: a dedicated "ProcessArchitect"
 logger (not the root logger -- this scopes capture to this project's own
 ProcessArchitect.* child loggers, not every third-party library's noise)
@@ -34,7 +34,7 @@ def _resolve_log_level() -> str:
     """Reads LOGLEVEL from the environment, falling back to INFO -- not
     WARNING -- when it's unset or not one of the five recognized values.
 
-    The ADK original ships its own equivalent default as DEBUG in
+    The ADK port ships its own equivalent default as DEBUG in
     properties/agentapp.properties (that code's own WARNING fallback only
     applies if that file is ever missing/misread), so its turn-completion/
     outcome logs are visible out of the box. This project has no

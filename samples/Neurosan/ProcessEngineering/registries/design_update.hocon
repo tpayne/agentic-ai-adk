@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Update_Design_Doc_Pipeline (the
+# Developed in tandem with samples/GCP/ProcessEngineering's own Update_Design_Doc_Pipeline (the
 # design-document mirror of Full_Design_Doc_Pipeline/design.hocon). Only
 # Design_Doc_Update_Analyst differs in substance from design.hocon's
 # Design_Doc_Analysis_Agent -- it diffs a change request against the

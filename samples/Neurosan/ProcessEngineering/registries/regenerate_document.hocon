@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Create_Doc_Agent
+# Developed in tandem with samples/GCP/ProcessEngineering's own Create_Doc_Agent
 # (process_agents/common/doc_creation_agent.py), a standalone 2-stage
 # action -- regenerate the flow/architecture diagram, then the final Word
 # document -- from whatever process or design JSON is ALREADY saved on
@@ -10,7 +10,7 @@
 # regenerate" request through either of them would re-run the full
 # generate/review cycle, exactly what this network exists to avoid.
 #
-# Domain-agnostic by design, matching the ADK original's own single
+# Domain-agnostic by design, matching the ADK port's own single
 # Create_Doc_Agent (its own router sends BOTH "regenerate the process
 # document" and "regenerate the design document" here). When the user's
 # own request names which one they mean, Regenerate_Document_Agent passes

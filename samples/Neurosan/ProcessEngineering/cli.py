@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Reinstates the ADK original's CLI surface
+"""Reinstates the ADK port's CLI surface
 (samples/GCP/ProcessEngineering/process_agents/common/agent.py) against this
 neuro-san port, talking to the top-level front-man (`process_architect` by
 default) via neuro-san's own DIRECT (in-process) agent session -- no server
 needs to be running for the default interactive/-i/-f modes.
 
-Same flags as the ADK original:
+Same flags as the ADK port:
     (no flags)         interactive chat REPL
     -i/--input TEXT    send one prompt, print the response, exit
     -f/--file PATH     submit each line of a file as a turn, in order
@@ -13,7 +13,7 @@ Same flags as the ADK original:
     --flask            with -d, run the Flask REST API below instead of `ns run`
     --http / -p/--port modify -d/--detached's listening port
 
-Logging mirrors the ADK original's own pipeline_*.log exactly: standard
+Logging mirrors the ADK port's own pipeline_*.log exactly: standard
 Python `logging`, a `LOGLEVEL` env var (same name, same five values --
 DEBUG/INFO/WARNING/ERROR/CRITICAL, default WARNING), a file handler under
 output/logs/ that follows LOGLEVEL, and a console handler fixed at
@@ -37,7 +37,7 @@ instead: the same POST /chat, DELETE /chat/<session_id>, GET /status
 contract (request/response JSON shapes, Authorization/X-API-Key auth,
 WEBAPIKEY/WEBRATELIMITPERMINUTE/HOST/SSLCERTFILE/SSLKEYFILE/
 ALLOWINSECUREWEBSERVICE env vars, loopback-only-unless-authenticated
-refusal to start) as the ADK original's own -d mode -- see build_web_app's
+refusal to start) as the ADK port's own -d mode -- see build_web_app's
 docstring below. This exists so a single browser client (see
 samples/WebClient/ProcessEngineering) can talk to EITHER backend
 interchangeably, not to replace `ns run` as the default.
@@ -51,6 +51,7 @@ import argparse
 import asyncio
 import base64
 import binascii
+import glob
 import hmac
 import json
 import logging
@@ -121,7 +122,7 @@ if _PROJECT_ROOT not in (os.environ.get("PYTHONPATH") or "").split(os.pathsep):
     )
 
 # Alongside output/ (process_data.json, cloudarch_drawio.xml, generated
-# *.docx, ...), this is this project's answer to the ADK original's own
+# *.docx, ...), this is this project's answer to the ADK port's own
 # output/logs/pipeline_*.log: real, inspectable records of a run, not just
 # whatever scrolled past in the terminal.
 _LOGS_DIR = os.path.join(_PROJECT_ROOT, "output", "logs")
@@ -135,7 +136,7 @@ _APP_LOG_FILE = os.path.join(_LOGS_DIR, "cli.log")
 # logging setup whatsoever) -- that module is guaranteed to run before any
 # CodedTool loads, including as a side effect of the very next import
 # below, so it must be told the filename cli.py wants BEFORE that import
-# happens, not after. Mirrors the ADK original's own agent.py logging
+# happens, not after. Mirrors the ADK port's own agent.py logging
 # setup: a dedicated "ProcessArchitect" logger (not root), a LOGLEVEL env
 # var (same name, same five values) controlling the file handler, and a
 # console handler fixed at WARNING+ regardless of LOGLEVEL -- so raising
@@ -149,6 +150,7 @@ import coded_tools  # noqa: E402,F401 -- triggers configure_logging() above
 
 from neuro_san.client.agent_session_factory import AgentSessionFactory  # noqa: E402
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor  # noqa: E402
+from neuro_san.internals.graph.persistence.agent_network_restorer import AgentNetworkRestorer  # noqa: E402
 from neuro_san.internals.journals.origination import Origination  # noqa: E402
 from neuro_san.message.processors.message_processor import MessageProcessor  # noqa: E402
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
@@ -271,7 +273,7 @@ class LiveTraceMessageProcessor(MessageProcessor):
 def is_shell_command(text: Optional[str]) -> bool:
     """A leading "$" is this CLI's escape convention for running a raw
     shell command instead of sending the line to the agent -- same
-    convention as the ADK original."""
+    convention as the ADK port."""
     return bool(text) and text.strip().startswith("$")
 
 
@@ -360,10 +362,10 @@ def _extract_usage(token_accounting: Optional[Dict[str, Any]]) -> Optional[Dict[
     {total_tokens, prompt_tokens, completion_tokens, ...}}} nested dict)
     onto the {prompt_tokens, completion_tokens, total_tokens, model} shape
     the web client's Token Usage tab expects -- the exact same keys the ADK
-    original's own usage field uses, so the client doesn't need to know
+    port's own usage field uses, so the client doesn't need to know
     which backend it's talking to.
 
-    Unlike the ADK original (one single statically-configured model,
+    Unlike the ADK port (one single statically-configured model,
     applied uniformly), neuro-san can genuinely invoke more than one
     distinct model within a single turn, so "model" here is every distinct
     model name actually seen this turn, joined with " + " -- real,
@@ -430,7 +432,7 @@ class ChatSession:
     plus the request/response state (chat_context, sly_data) that must be
     threaded from one turn to the next for the conversation to actually
     continue rather than looking like a fresh request every time. Mirrors
-    the role of the ADK original's Runner+session_id pair -- "clear"
+    the role of the ADK port's Runner+session_id pair -- "clear"
     replaces one of these wholesale, exactly like the ADK's
     init_session_and_runner did.
     """
@@ -787,7 +789,7 @@ async def handle_logical_line(
     terminal already echoed what was typed, so repeating it is redundant.
     process_file passes True: there's no terminal echo for lines read from
     a file, so without this nothing shows what's actually being submitted
-    -- matching the ADK original's own file-mode-only echo.
+    -- matching the ADK port's own file-mode-only echo.
     """
     if not line:
         return False
@@ -900,14 +902,14 @@ async def start_local_chat(agent_name: str) -> None:
 # ---------------------------------------------------------
 # WEB SERVICE MODE (Flask REST API, -d/--detached --flask)
 # ---------------------------------------------------------
-# Deliberately the SAME REST contract as the ADK original's own Flask web
+# Deliberately the SAME REST contract as the ADK port's own Flask web
 # service (samples/GCP/ProcessEngineering/process_agents/common/agent.py's
 # build_web_app/run_web_service) -- same routes, same request/response JSON
 # shapes, same auth header conventions, same cookie name -- so a single web
 # client (see samples/WebClient/ProcessEngineering) can talk to EITHER
 # backend interchangeably. Plain -d/--detached (no --flask) still launches
 # neuro-san's own `ns run` server/UI unchanged -- --flask selects this REST
-# layer INSTEAD, for parity with the ADK original, not as a replacement.
+# layer INSTEAD, for parity with the ADK port, not as a replacement.
 #
 # Session continuity works differently here than on the ADK side: instead
 # of mapping a web session id to an (user_id, session_id) pair replayed
@@ -952,7 +954,7 @@ _active_web_sessions: Dict[str, int] = {}
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
-# Same opt-in posture as the ADK original: --flask defaults to HTTPS on
+# Same opt-in posture as the ADK port: --flask defaults to HTTPS on
 # 127.0.0.1 (loopback-only, see run_web_service) -- widening HOST beyond
 # loopback with no WEBAPIKEY configured makes run_web_service refuse to
 # start rather than silently exposing an unauthenticated, model-backed
@@ -1066,11 +1068,115 @@ def _release_web_session(web_session_id: str) -> None:
             session.last_accessed = time.monotonic()
 
 
+_agent_instructions_index: Optional[Dict[str, Dict[str, Any]]] = None
+_agent_instructions_index_lock = threading.Lock()
+
+# These registries/*.hocon files are NOT agent networks (each file's own
+# header comment says so explicitly) -- plain key/value substitution
+# fragments (aaosa*.hocon's aaosa_instructions/aaosa_call, shared across
+# whichever files still use the older AAOSA pattern -- this project's own
+# networks don't, see TECHNICAL_NOTES.md) or the "what's served" manifest
+# itself. AgentNetworkRestorer expects a real network shape (a top-level
+# "tools" list), so attempting to restore one of these as one is a
+# guaranteed, pointless failure -- skipped up front rather than caught
+# per-file, so it doesn't also spam a "cannot include" warning to stderr
+# for every server start.
+_NON_NETWORK_HOCON_PREFIXES = ("aaosa", "manifest")
+
+
+def _collect_agent_instructions(tools: List[Any], source_file: str, index: Dict[str, Dict[str, Any]]) -> None:
+    """
+    Recursively walks one network's "tools" list, indexing every entry
+    that is an actual AGENT definition (a dict with both "name" and
+    "instructions" -- a bare string entry is an external "/network"
+    reference or a coded-tool name, and a dict entry with no
+    "instructions" is a coded tool's own spec, neither of which this is
+    for) under its own name. Recurses into each entry's own nested
+    "tools" list too -- sub-agents defined inline within another agent's
+    own "tools" array (e.g. process.hocon's Subprocess_Driver_Agent ->
+    Subprocess_Generator_Agent) are exactly as real an agent as a
+    top-level one, just not directly reachable from the network's own
+    top-level list.
+
+    First definition of a given name wins (does not overwrite) -- agent
+    names are expected to be unique across this project's own registries,
+    but a silent overwrite on an unexpected collision would make the
+    SAME node name resolve to a different agent's instructions than
+    whichever one the running conversation actually invoked, which is
+    worse than just keeping whichever one was found first.
+    """
+    for entry in tools or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        instructions = entry.get("instructions")
+        if name and instructions and name not in index:
+            function_spec = entry.get("function")
+            index[name] = {
+                "instructions": instructions,
+                "description": function_spec.get("description") if isinstance(function_spec, dict) else None,
+                "source_file": source_file,
+            }
+        nested_tools = entry.get("tools")
+        if isinstance(nested_tools, list):
+            _collect_agent_instructions(nested_tools, source_file, index)
+
+
+def _build_agent_instructions_index() -> Dict[str, Dict[str, Any]]:
+    """
+    Scans every registries/**/*.hocon file (skipping the non-network
+    fragment files -- see _NON_NETWORK_HOCON_PREFIXES), parsing each with
+    neuro-san's own AgentNetworkRestorer (the same loader `ns validate`
+    and the real server use, so "include" directives and ${...}
+    substitutions resolve exactly the way they do for a real run rather
+    than via a bare pyhocon parse that doesn't know this project's own
+    include conventions), and returns a flat {agent_name: {instructions,
+    description, source_file}} map covering every agent defined anywhere
+    in the project, regardless of which file or how deeply nested.
+
+    A single bad/unparseable file is skipped (logged, not fatal) rather
+    than failing the whole index -- one malformed registry must not take
+    down the "show instructions on hover" feature for every OTHER
+    network's own, perfectly valid agents.
+    """
+    index: Dict[str, Dict[str, Any]] = {}
+    pattern = os.path.join(_PROJECT_ROOT, "registries", "**", "*.hocon")
+    for abs_path in sorted(glob.glob(pattern, recursive=True)):
+        basename = os.path.basename(abs_path)
+        if basename.startswith(_NON_NETWORK_HOCON_PREFIXES):
+            continue
+        rel_path = os.path.relpath(abs_path, _PROJECT_ROOT)
+        try:
+            restorer = AgentNetworkRestorer(registry_dir=None)
+            agent_network = restorer.restore(file_reference=abs_path)
+            config = agent_network.get_config()
+        except Exception:  # pylint: disable=broad-except
+            _web_logger.warning("Could not parse %s for the agent-instructions index -- skipping.", rel_path)
+            continue
+        tools = config.get("tools") if isinstance(config, dict) else None
+        if isinstance(tools, list):
+            _collect_agent_instructions(tools, rel_path, index)
+    return index
+
+
+def _get_agent_instructions_index() -> Dict[str, Dict[str, Any]]:
+    """Lazily builds _build_agent_instructions_index's result ONCE per
+    server process and reuses it -- the registries on disk don't change
+    during a single server run, and re-parsing ~30 HOCON files on every
+    single hover in the web client's Agent Network tab would be wasted
+    work for an answer that's already known."""
+    global _agent_instructions_index
+    with _agent_instructions_index_lock:
+        if _agent_instructions_index is None:
+            _agent_instructions_index = _build_agent_instructions_index()
+        return _agent_instructions_index
+
+
 def build_web_app(agent_name: str, https: bool = True):
     """
     Build (but do not run) the Flask REST app for -d/--detached --flask mode.
 
-    Exposes the SAME routes/shapes as the ADK original's build_web_app:
+    Exposes the SAME routes/shapes as the ADK port's build_web_app:
       POST   /chat            {"query": "...", "session_id": "..." (optional),
                                "files": [{"name": "...", "mime_type": "...",
                                "data_base64": "..."}, ...] (optional, up to
@@ -1105,7 +1211,14 @@ def build_web_app(agent_name: str, https: bool = True):
                                "name": "...", "data": {...the parsed
                                output/<name>_data.json...}}, or 404 if
                                that pipeline hasn't produced one yet.
-      GET    /status           Liveness probe. Unlike the ADK original,
+      GET    /agents/<name>/instructions  `name` is an agent's own short
+                               name (e.g. "CloudArch_Agent") -> {"status":
+                               "ok", "name": "...", "instructions": "...",
+                               "description": "..." or null, "source_file":
+                               "registries/..."}, or 404 if no agent by
+                               that name is defined anywhere in this
+                               project's own registries/*.hocon files.
+      GET    /status           Liveness probe. Unlike the ADK port,
                                does NOT report a model name -- neuro-san
                                can genuinely invoke different models per
                                turn (see "usage.model" above), so there is
@@ -1366,7 +1479,7 @@ def build_web_app(agent_name: str, https: bool = True):
         output/design_data.json, or output/cloudarch_drawio.xml, for the
         web client's "Process / Design" and "Cloud Architecture" tabs --
         a hierarchical/diagram viewer of whichever pipeline's current
-        artifact. The ADK original's build_web_app has an identical
+        artifact. The ADK port's build_web_app has an identical
         route, and both keep these files at the identical relative path,
         so the client's fetch logic doesn't need to know which backend
         it's talking to.
@@ -1413,6 +1526,42 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 500
 
         return jsonify({"status": "ok", "name": name, "data": data})
+
+    @web_app.route("/agents/<name>/instructions", methods=["GET"])
+    def agent_instructions(name):
+        """
+        Read-only lookup of one agent's real "instructions" (system
+        prompt) text from this project's own registries/*.hocon files --
+        for the web client's Agent Network tab, which otherwise only ever
+        sees what's OBSERVABLE from the chat stream itself (an agent's
+        dotted invocation path, how many times it's been called, its past
+        queries/responses), never the actual prompt driving it.
+
+        `name` is just the agent's own short name (the Agent Network
+        tab's node "label" -- the LAST segment of a node's dotted id, e.g.
+        "CloudArch_Agent" out of "CloudArch_Pipeline.CloudArch_Agent"),
+        not the full dotted path -- agent names are unique across this
+        project's own registries, and resolving a full dotted path back
+        to a specific file/agent would also have to account for
+        same-server external-agent references ("/network_name") crossing
+        from one registry file into another, which this project's own
+        node ids don't preserve enough information to reverse uniquely.
+        A bare short name is both simpler and sufficient.
+        """
+        index = _get_agent_instructions_index()
+        entry = index.get(name)
+        if entry is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No agent named '{name}' found in this project's own registries.",
+            }), 404
+        return jsonify({
+            "status": "ok",
+            "name": name,
+            "instructions": entry["instructions"],
+            "description": entry["description"],
+            "source_file": entry["source_file"],
+        })
 
     @web_app.route("/status", methods=["GET"])
     def status():
@@ -1491,10 +1640,10 @@ def run_web_service(agent_name: str, port: Optional[int], use_https: bool) -> No
 def run_detached(port: Optional[int], use_http: bool) -> None:
     """-d/--detached: launches neuro-san's own server + nsflow UI (`ns
     run`) -- see module docstring for why this doesn't reimplement the
-    ADK original's Flask layer."""
+    ADK port's Flask layer."""
     display_text(
         "-d/--detached runs this project's native serving layer (`ns run`) -- neuro-san's own "
-        "HTTP server + nsflow chat UI -- instead of the ADK original's custom Flask REST API. "
+        "HTTP server + nsflow chat UI -- instead of the ADK port's custom Flask REST API. "
         "See README.md's 'Deliberate simplifications' for why that layer was not ported.",
         kind="warning",
     )
@@ -1525,19 +1674,19 @@ def build_parser() -> argparse.ArgumentParser:
         dest="detached", action="store_true",
         help="Run this project's native serving layer (`ns run`: HTTP server + nsflow UI) instead "
              "of the interactive/file/single-prompt CLI. Add --flask to run this project's own "
-             "Flask REST API (same contract as the ADK original) instead. See --http and --port.",
+             "Flask REST API (same contract as the ADK port) instead. See --http and --port.",
     )
     parser.add_argument(
         "--flask", dest="flask", action="store_true",
         help="With --detached, run this project's own Flask REST API (POST /chat, "
-             "DELETE /chat/<session_id>, GET /status -- same contract as the ADK original's "
+             "DELETE /chat/<session_id>, GET /status -- same contract as the ADK port's "
              "-d mode) instead of `ns run`. See samples/WebClient/ProcessEngineering for a "
              "browser client that talks to this. Only valid with --detached.",
     )
     parser.add_argument(
         "--http", dest="http", action="store_true",
         help="With --detached --flask, serve plain HTTP on port 8080 instead of the default "
-             "HTTPS on port 443 (matching the ADK original's own --http). With plain "
+             "HTTPS on port 443 (matching the ADK port's own --http). With plain "
              "--detached (no --flask), --port overrides the agent server's HTTP port instead "
              "of the nsflow UI's port.",
     )

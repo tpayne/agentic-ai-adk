@@ -1,6 +1,6 @@
 """The most important test in this suite: loop_control.py replaces ADK's
 tool_context.actions.escalate, and its ordering (approval checked BEFORE
-max-iterations) is exactly what the ADK original's own docstring calls out
+max-iterations) is exactly what the ADK port's own docstring calls out
 as load-bearing -- a genuine approval on the final allowed iteration must
 report as approved, not exhausted."""
 
@@ -56,9 +56,9 @@ def test_hard_stop_env_var_overrides_everything(monkeypatch):
 
 def test_independent_runs_do_not_leak_iteration_count():
     """loop_control's own STOP only resets the iteration counter, matching
-    the ADK original's _reset_stop_counter exactly -- clearing approval
+    the ADK port's _reset_stop_counter exactly -- clearing approval
     state itself is a separate, front-man-level concern (reset_loop_state /
-    the ADK original's _remove_previous_approval_logs), run once at the
+    the ADK port's _remove_previous_approval_logs), run once at the
     start of a genuinely NEW top-level request, not by loop_control itself
     on every stop. So a fresh "run" here must reset approval state too."""
     from process_toolkit.feedback.iteration_feedback import reset_approval_state

@@ -1,8 +1,8 @@
 """CodedTool: build + persist a cloud architecture diagram from structured
 content (zones/components/edges, no coordinates) via the deterministic
-layout engine. Ported from the ADK sample's save_drawio_structured
-(utils.py), which itself just calls build_structured_drawio_xml then
-persists the result.
+layout engine. Developed in tandem with the ADK port's own
+save_drawio_structured (utils.py), which itself just calls
+build_structured_drawio_xml then persists the result.
 """
 
 import asyncio

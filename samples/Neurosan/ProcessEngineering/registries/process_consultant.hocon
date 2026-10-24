@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Consultant_Agent.
+# Developed in tandem with samples/GCP/ProcessEngineering's own Consultant_Agent.
 {
     include "config/llm_config.hocon",
 

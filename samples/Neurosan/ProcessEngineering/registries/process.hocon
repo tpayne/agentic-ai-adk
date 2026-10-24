@@ -1,9 +1,9 @@
-# Ported from samples/GCP/ProcessEngineering: Full_Design_Pipeline (the
+# Developed in tandem with samples/GCP/ProcessEngineering's own Full_Design_Pipeline (the
 # process-generation half of it -- Analysis -> Design -> Compliance ->
 # Simulation -> persist). The subprocess-driver and document-generation
 # stages are separate, later ports (see the project README).
 #
-# Structural simplification vs. the ADK original: the ADK pipeline ran a
+# Structural simplification vs. the ADK port: the ADK pipeline ran a
 # SequentialAgent with a dedicated "refinement clone" agent immediately
 # after EACH reviewer (compliance review -> refine -> simulation review ->
 # refine), because its single shared feedback mailbox file would otherwise

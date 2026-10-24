@@ -1,20 +1,20 @@
-# Ported from samples/GCP/ProcessEngineering: Full_Design_Doc_Pipeline (the
+# Developed in tandem with samples/GCP/ProcessEngineering's own Full_Design_Doc_Pipeline (the
 # design-document generation half of it -- Analysis -> Design (HLD+LLD in
 # one pass) -> Compliance -> Simulation -> persist -> diagram -> docx).
 #
-# Structural simplifications vs. the ADK original, mirroring the same
+# Structural simplifications vs. the ADK port, mirroring the same
 # simplifications process.hocon already makes for the process schema:
 #   - ONE generator agent (Design_Doc_Agent) produces HLD+LLD in a single
-#     pass, instead of the ADK original's separate HLD_Agent -> LLD_Agent
+#     pass, instead of the ADK port's separate HLD_Agent -> LLD_Agent
 #     stages (each its own LLM call) followed by three more clones of a
 #     third "Combined" generator reused as the post-compliance/post-
 #     simulation refinement step. A single generator that reads whichever
 #     reviewer feedback channels are non-empty on each pass covers the
 #     same ground.
-#   - The ADK original's separate JSON-normalization loop is absorbed into
+#   - The ADK port's separate JSON-normalization loop is absorbed into
 #     Design_Doc_Agent's own validate->persist steps, same as process.hocon.
 #   - The optional grounding stage (gated off by default in the ADK
-#     original, enableGroundingAgent=false) is dropped entirely.
+#     port, enableGroundingAgent=false) is dropped entirely.
 #   - Compliance_Agent and Simulation_Agent write to their OWN mailbox
 #     channels (see coded_tools/common/iteration_feedback.py's channel
 #     support); Design_Doc_Agent reads both together on its next call.

@@ -1,4 +1,4 @@
-# Ported from samples/GCP/ProcessEngineering: Requirements_Consultant_Agent
+# Developed in tandem with samples/GCP/ProcessEngineering's own Requirements_Consultant_Agent
 # (process_agents/common/requirements_consultant_agent.py +
 # instructions/common/requirements_consultant_agent.txt). Answers questions
 # about a previously-saved requirements summary.
