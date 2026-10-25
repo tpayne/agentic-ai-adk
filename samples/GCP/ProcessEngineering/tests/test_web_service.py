@@ -952,6 +952,32 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         response = self.client.get("/artifacts/process")
         self.assertEqual(response.status_code, 401)
 
+    def test_a_session_scoped_file_is_found_via_the_session_id_query_param(self):
+        # Regression test: the web client tracks its own session id in JS
+        # state and passes it explicitly as a query parameter on every GET
+        # /artifacts/* request (it does not rely on the session cookie at
+        # all -- this server's own CORS handling never sets
+        # Access-Control-Allow-Credentials, so a cross-origin fetch(), the
+        # web client's typical deployment, never sends or receives it
+        # regardless). A file written under a session's own
+        # output/<session_id>/ directory must be reachable via
+        # ?session_id=<id>, not just the (unreliable, for this client)
+        # cookie. Same contract as the neuro-san port's own identical test.
+        with toolkit_paths.use_session("a-session-id"):
+            session_output_dir = os.path.join(self.output_dir, "a-session-id")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "process_data.json"), "w", encoding="utf-8") as f:
+                f.write('{"process_name": "Vendor Onboarding"}')
+
+        response_without = self.client.get("/artifacts/process", headers=self._authorized_headers())
+        self.assertEqual(response_without.status_code, 404)
+
+        response_with = self.client.get(
+            "/artifacts/process?session_id=a-session-id", headers=self._authorized_headers()
+        )
+        self.assertEqual(response_with.status_code, 200)
+        self.assertEqual(response_with.get_json()["data"], {"process_name": "Vendor Onboarding"})
+
 
 class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
     """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
@@ -1087,6 +1113,38 @@ class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
             self.client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code, 401
         )
         self.assertEqual(self.client.get("/artifacts/cloudarch/download").status_code, 401)
+
+    def test_list_and_download_resolve_a_session_scoped_document_via_query_param(self):
+        # Regression test -- see WebServiceArtifactRouteTest's identically-
+        # named test for the full rationale (the web client passes
+        # session_id as a query param, not via the cookie, on every GET
+        # /artifacts/* call). Same contract as the neuro-san port's own
+        # identical test.
+        with toolkit_paths.use_session("doc-session"):
+            session_output_dir = os.path.join(self.output_dir, "doc-session")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "Vendor_Onboarding.docx"), "wb") as f:
+                f.write(b"session-scoped docx bytes")
+
+        listed_without = self.client.get("/artifacts/documents", headers=self._authorized_headers())
+        self.assertEqual(listed_without.get_json()["documents"], [])
+
+        listed_with = self.client.get(
+            "/artifacts/documents?session_id=doc-session", headers=self._authorized_headers()
+        )
+        self.assertEqual([d["filename"] for d in listed_with.get_json()["documents"]], ["Vendor_Onboarding.docx"])
+
+        download_without = self.client.get(
+            "/artifacts/documents/Vendor_Onboarding.docx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(download_without.status_code, 404)
+
+        download_with = self.client.get(
+            "/artifacts/documents/Vendor_Onboarding.docx/download?session_id=doc-session",
+            headers=self._authorized_headers(),
+        )
+        self.assertEqual(download_with.status_code, 200)
+        self.assertEqual(download_with.data, b"session-scoped docx bytes")
 
 
 class WebServiceSessionOutputIsolationTest(unittest.TestCase):

@@ -1410,6 +1410,24 @@ def build_web_app(agent_name: str, https: bool = True):
         # network.
         return isinstance(candidate, str) and hmac.compare_digest(candidate, api_key)
 
+    def _web_session_id_for_get_request() -> Optional[str]:
+        """Resolves the requesting web session's own id for a plain GET
+        route (the /artifacts/* routes below) -- these have no JSON body
+        of their own the way POST /chat does, so a `session_id` QUERY
+        parameter is checked first. That's what the web client actually
+        sends (it tracks its own session id in JS state and passes it
+        explicitly on every request, the same as the POST routes' own
+        `payload.get("session_id")`) rather than relying on this cookie
+        at all -- this server's own CORS handling above reflects back
+        whatever Origin a browser sends, but never sets
+        Access-Control-Allow-Credentials, so a cross-origin fetch() (the
+        web client's own default deployment: a static page served from a
+        different origin than this API) never actually sends OR receives
+        this cookie, regardless of `secure`/`samesite`. The cookie is
+        still checked second, for any OTHER same-origin caller that
+        never passes the query parameter explicitly."""
+        return request.args.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+
     @web_app.after_request
     def _add_cors_headers(response):
         origin = request.headers.get("Origin")
@@ -1641,11 +1659,13 @@ def build_web_app(agent_name: str, https: bool = True):
         """
         Read-only access to this web session's own output/<session_id>/
         process_data.json, design_data.json, or cloudarch_drawio.xml (or
-        flat output/ for a caller with no session cookie at all -- e.g. a
+        flat output/ for a caller with no session id at all -- e.g. a
         direct API caller that never went through POST /chat first),
-        resolved the same way /chat does -- via WEB_SESSION_COOKIE, since
-        a plain GET has no JSON body of its own to carry a session_id in.
-        Powers the web client's "Process / Design" and "Cloud
+        resolved via a `session_id` query parameter (see
+        _web_session_id_for_get_request's own docstring for why a query
+        parameter, not just the session cookie, matters here) -- a plain
+        GET has no JSON body of its own to carry a session_id in the way
+        POST /chat does. Powers the web client's "Process / Design" and "Cloud
         Architecture" tabs -- a hierarchical/diagram viewer of whichever
         pipeline's current artifact. The ADK port's build_web_app has an
         identical route, and both keep these files at the identical
@@ -1676,7 +1696,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'cloudarch'.",
             }), 400
 
-        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+        with paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(paths.output_dir(), filename)
             if not os.path.exists(path):
                 return jsonify({
@@ -1701,12 +1721,12 @@ def build_web_app(agent_name: str, https: bool = True):
         """
         Every generated .docx currently in this web session's own
         output/<session_id>/ (or flat output/ for a caller with no
-        session cookie), for the web client's own download picker -- see
+        session id), for the web client's own download picker -- see
         list_output_documents's own docstring for why this has to be a
         directory listing rather than a fixed, known filename the way
         process/design/cloudarch above are.
         """
-        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+        with paths.use_session(_web_session_id_for_get_request()):
             documents = list_output_documents()
         return jsonify({"status": "ok", "documents": documents})
 
@@ -1719,7 +1739,7 @@ def build_web_app(agent_name: str, https: bool = True):
         resolved to a concrete absolute string up front, so send_file's
         own (possibly deferred) streaming below doesn't depend on the
         session context still being active."""
-        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+        with paths.use_session(_web_session_id_for_get_request()):
             path = safe_output_file_path(filename)
         if path is None or not filename.lower().endswith(".docx"):
             return jsonify({
@@ -1737,11 +1757,11 @@ def build_web_app(agent_name: str, https: bool = True):
     def download_cloudarch():
         """Downloads this web session's own output/<session_id>/
         cloudarch_drawio.xml (or flat output/ for a caller with no
-        session cookie) as a real file attachment (as opposed to GET
+        session id) as a real file attachment (as opposed to GET
         /artifacts/cloudarch above, which returns it JSON-wrapped as a
         string for the client's own mxGraph-XML renderer) -- for opening
         directly in a real draw.io client, or just keeping a copy."""
-        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+        with paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(paths.output_dir(), "cloudarch_drawio.xml")
             exists = os.path.isfile(path)
         if not exists:

@@ -1193,6 +1193,44 @@ class TestArtifactRoute:
         resp = client.get("/status")
         assert resp.status_code == 200
 
+    def test_a_session_scoped_file_is_found_via_the_session_id_query_param(self, monkeypatch, tmp_path):
+        # Regression test: the web client tracks its own session id in JS
+        # state and passes it explicitly as a query parameter on every GET
+        # /artifacts/* request (it does not rely on the session cookie at
+        # all -- this server's own CORS handling never sets
+        # Access-Control-Allow-Credentials, so a cross-origin fetch(), the
+        # web client's typical deployment, never sends or receives it
+        # regardless). A file written under a session's own
+        # output/<session_id>/ directory must be reachable via
+        # ?session_id=<id>, not just the (unreliable, for this client)
+        # cookie.
+        client = self._build_client(monkeypatch, tmp_path)
+        with paths.use_session("a-session-id"):
+            session_output_dir = os.path.join(paths.OUTPUT_DIR, "a-session-id")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "process_data.json"), "w", encoding="utf-8") as f:
+                f.write('{"process_name": "Vendor Onboarding"}')
+
+        resp_without = client.get("/artifacts/process")
+        assert resp_without.status_code == 404  # not found via flat output/ -- it's session-scoped
+
+        resp_with = client.get("/artifacts/process?session_id=a-session-id")
+        assert resp_with.status_code == 200
+        assert resp_with.get_json()["data"] == {"process_name": "Vendor Onboarding"}
+
+    def test_session_id_query_param_is_preferred_over_the_cookie(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        with paths.use_session("query-param-session"):
+            session_output_dir = os.path.join(paths.OUTPUT_DIR, "query-param-session")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "process_data.json"), "w", encoding="utf-8") as f:
+                f.write('{"process_name": "Via Query Param"}')
+
+        client.set_cookie("process_architect_session", "a-different-cookie-session")
+        resp = client.get("/artifacts/process?session_id=query-param-session")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"process_name": "Via Query Param"}
+
 
 class TestDocumentDownloadRoutes:
     """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
@@ -1279,6 +1317,28 @@ class TestDocumentDownloadRoutes:
         assert client.get("/artifacts/documents").status_code == 401
         assert client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code == 401
         assert client.get("/artifacts/cloudarch/download").status_code == 401
+
+    def test_list_and_download_resolve_a_session_scoped_document_via_query_param(self, monkeypatch, tmp_path):
+        # Regression test -- see TestArtifactRoute's identically-named test
+        # for the full rationale (the web client passes session_id as a
+        # query param, not via the cookie, on every GET /artifacts/* call).
+        client = self._build_client(monkeypatch, tmp_path)
+        with paths.use_session("doc-session"):
+            session_output_dir = os.path.join(paths.OUTPUT_DIR, "doc-session")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "Vendor_Onboarding.docx"), "wb") as f:
+                f.write(b"session-scoped docx bytes")
+
+        assert client.get("/artifacts/documents").get_json()["documents"] == []
+
+        listed = client.get("/artifacts/documents?session_id=doc-session").get_json()["documents"]
+        assert [d["filename"] for d in listed] == ["Vendor_Onboarding.docx"]
+
+        assert client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code == 404
+
+        resp = client.get("/artifacts/documents/Vendor_Onboarding.docx/download?session_id=doc-session")
+        assert resp.status_code == 200
+        assert resp.data == b"session-scoped docx bytes"
 
 
 class TestAgentInstructionsRoute:

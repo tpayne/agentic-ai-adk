@@ -733,6 +733,25 @@
     return { Authorization: `Bearer ${key}` };
   }
 
+  // GET /artifacts/* routes (viewing/downloading process/design/cloudarch
+  // data, generated documents) have no JSON body of their own the way
+  // POST /chat does, so the session id this client tracks in state.sessionId
+  // (set from POST /chat's own response -- see setSessionId) has to travel
+  // as a query parameter instead. The backend's own session cookie is NOT
+  // a reliable fallback here: this client is typically served from a
+  // different origin than the backend API, and a cross-origin fetch()
+  // never sends or receives cookies unless BOTH sides opt into
+  // credentials -- this client doesn't, and deliberately so (see either
+  // backend's own _add_cors_headers). A URL with no active session yet
+  // (state.sessionId is null before the first chat turn) is returned
+  // unchanged -- the backend then falls back to flat output/, exactly as
+  // it did before per-session isolation existed.
+  function withSessionIdParam(url) {
+    if (!state.sessionId) return url;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}session_id=${encodeURIComponent(state.sessionId)}`;
+  }
+
   function setStatusPill(pillEl, kind, text) {
     pillEl.classList.remove("status-unknown", "status-connected", "status-error", "status-checking");
     pillEl.classList.add(`status-${kind}`);
@@ -1909,7 +1928,7 @@
     closeArtifactDetail();
     renderArtifactsPanel();
     try {
-      const res = await fetch(`${baseUrl}/artifacts/${name}`, {
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/${name}`), {
         method: "GET",
         headers: { ...authHeaders() },
       });
@@ -2157,7 +2176,7 @@
       return null;
     }
     try {
-      const res = await fetch(`${baseUrl}${path}`, { method: "GET", headers: { ...authHeaders() } });
+      const res = await fetch(withSessionIdParam(`${baseUrl}${path}`), { method: "GET", headers: { ...authHeaders() } });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast(body.error || `Download failed (${res.status}).`);
@@ -2250,7 +2269,7 @@
       return;
     }
     try {
-      const res = await fetch(`${baseUrl}/artifacts/documents`, { method: "GET", headers: { ...authHeaders() } });
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/documents`), { method: "GET", headers: { ...authHeaders() } });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Request failed (${res.status}).`);
       renderDocumentsPopover(body.documents || []);
@@ -2826,7 +2845,7 @@
     state.cloudarch.error = null;
     renderCloudArchDiagram();
     try {
-      const res = await fetch(`${baseUrl}/artifacts/cloudarch`, {
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/cloudarch`), {
         method: "GET",
         headers: { ...authHeaders() },
       });
