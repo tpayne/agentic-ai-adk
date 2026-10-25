@@ -209,10 +209,15 @@
     artifactDetailContext: document.getElementById("artifactDetailContext"),
     artifactDetailList: document.getElementById("artifactDetailList"),
     artifactDetailCloseBtn: document.getElementById("artifactDetailCloseBtn"),
+    documentsBtn: document.getElementById("documentsBtn"),
+    documentsPopover: document.getElementById("documentsPopover"),
+    documentsPopoverCloseBtn: document.getElementById("documentsPopoverCloseBtn"),
+    documentsPopoverList: document.getElementById("documentsPopoverList"),
 
     cloudarchTabPanel: document.getElementById("cloudarchTabPanel"),
     cloudarchRefreshBtn: document.getElementById("cloudarchRefreshBtn"),
     cloudarchExportBtn: document.getElementById("cloudarchExportBtn"),
+    cloudarchDownloadXmlBtn: document.getElementById("cloudarchDownloadXmlBtn"),
     cloudarchStatus: document.getElementById("cloudarchStatus"),
     cloudarchCanvasWrap: document.getElementById("cloudarchCanvasWrap"),
     cloudarchEmpty: document.getElementById("cloudarchEmpty"),
@@ -2113,6 +2118,182 @@
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // ---------------------------------------------------------------
+  // Generated documents download popover -- GET /artifacts/documents
+  // lists every .docx currently in output/ (there's no fixed filename
+  // for these: each one is named after whatever process/design was
+  // actually generated, see cli.py's own _list_output_documents), and
+  // each row's download button fetches the real bytes via GET
+  // /artifacts/documents/<filename>/download and hands them to
+  // saveFile -- a plain <a download> wouldn't carry the Authorization/
+  // X-API-Key header a configured backend requires, so the bytes have
+  // to come through fetch() like every other authenticated call this
+  // page makes, not a direct browser navigation.
+  // ---------------------------------------------------------------
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatRelativeTime(isoString) {
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return `${Math.round(diffHr / 24)}d ago`;
+  }
+
+  // Fetches `path` (e.g. "/artifacts/documents/Foo.docx/download") as a
+  // Blob, surfacing the backend's own JSON {"error": "..."} on a non-2xx
+  // response instead of a generic failure -- shared by every download
+  // button on this page (documents popover + the CloudArch tab's own
+  // "Download XML" button below).
+  async function fetchArtifactBlob(path) {
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      toast("Set a Base URL and click Connect first.");
+      return null;
+    }
+    try {
+      const res = await fetch(`${baseUrl}${path}`, { method: "GET", headers: { ...authHeaders() } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast(body.error || `Download failed (${res.status}).`);
+        return null;
+      }
+      return await res.blob();
+    } catch (err) {
+      toast((err && err.message) || "Download failed.");
+      return null;
+    }
+  }
+
+  async function downloadDocument(filename) {
+    const blob = await fetchArtifactBlob(`/artifacts/documents/${encodeURIComponent(filename)}/download`);
+    if (!blob) return;
+    const result = await saveFile(blob, filename, {
+      description: "Word document",
+      accept: { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] },
+    });
+    if (result === "picker") toast("Document saved.");
+    else if (result === "download") toast("Document downloaded.");
+  }
+
+  function renderDocumentsPopover(documents) {
+    el.documentsPopoverList.innerHTML = "";
+    if (documents.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "documents-popover-empty";
+      empty.textContent = "No generated documents yet.";
+      el.documentsPopoverList.appendChild(empty);
+      return;
+    }
+    documents.forEach((doc) => {
+      const row = document.createElement("div");
+      row.className = "document-row";
+
+      const icon = document.createElement("div");
+      icon.className = "document-row-icon";
+      icon.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 1.5h5.5L12.5 4.5V14.5h-8.5z"></path><path d="M9.5 1.5V4.5H12.5"></path>
+      </svg>`;
+
+      const info = document.createElement("div");
+      info.className = "document-row-info";
+      const name = document.createElement("div");
+      name.className = "document-row-name";
+      name.textContent = doc.filename;
+      name.title = doc.filename;
+      const meta = document.createElement("div");
+      meta.className = "document-row-meta";
+      meta.textContent = `${formatBytes(doc.size_bytes)} · ${formatRelativeTime(doc.modified)}`;
+      info.append(name, meta);
+
+      const downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "document-row-download";
+      downloadBtn.title = `Download ${doc.filename}`;
+      downloadBtn.setAttribute("aria-label", `Download ${doc.filename}`);
+      downloadBtn.innerHTML = `<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path><path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
+      </svg>`;
+      downloadBtn.addEventListener("click", async () => {
+        downloadBtn.disabled = true;
+        try {
+          await downloadDocument(doc.filename);
+        } finally {
+          downloadBtn.disabled = false;
+        }
+      });
+
+      row.append(icon, info, downloadBtn);
+      el.documentsPopoverList.appendChild(row);
+    });
+  }
+
+  async function loadDocumentsPopover() {
+    el.documentsPopoverList.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.className = "documents-popover-empty";
+    loading.textContent = "Loading…";
+    el.documentsPopoverList.appendChild(loading);
+
+    const baseUrl = currentBaseUrl();
+    if (!baseUrl) {
+      el.documentsPopoverList.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.className = "documents-popover-empty";
+      empty.textContent = "Set a Base URL and click Connect first.";
+      el.documentsPopoverList.appendChild(empty);
+      return;
+    }
+    try {
+      const res = await fetch(`${baseUrl}/artifacts/documents`, { method: "GET", headers: { ...authHeaders() } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Request failed (${res.status}).`);
+      renderDocumentsPopover(body.documents || []);
+    } catch (err) {
+      el.documentsPopoverList.innerHTML = "";
+      const errorEl = document.createElement("div");
+      errorEl.className = "documents-popover-empty";
+      errorEl.textContent = (err && err.message) || "Could not load documents.";
+      el.documentsPopoverList.appendChild(errorEl);
+    }
+  }
+
+  function openDocumentsPopover() {
+    el.documentsPopover.hidden = false;
+    el.documentsBtn.setAttribute("aria-expanded", "true");
+    loadDocumentsPopover();
+    document.addEventListener("pointerdown", onDocumentsPopoverOutsideClick);
+    document.addEventListener("keydown", onDocumentsPopoverEscape);
+  }
+
+  function closeDocumentsPopover() {
+    el.documentsPopover.hidden = true;
+    el.documentsBtn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", onDocumentsPopoverOutsideClick);
+    document.removeEventListener("keydown", onDocumentsPopoverEscape);
+  }
+
+  function onDocumentsPopoverOutsideClick(event) {
+    if (el.documentsPopover.contains(event.target) || el.documentsBtn.contains(event.target)) return;
+    closeDocumentsPopover();
+  }
+
+  function onDocumentsPopoverEscape(event) {
+    if (event.key === "Escape") closeDocumentsPopover();
+  }
+
+  el.documentsBtn.addEventListener("click", () => {
+    if (el.documentsPopover.hidden) openDocumentsPopover();
+    else closeDocumentsPopover();
+  });
+  el.documentsPopoverCloseBtn.addEventListener("click", closeDocumentsPopover);
+
+  // ---------------------------------------------------------------
   // Cloud Architecture tab -- renders output/cloudarch_drawio.xml (GET
   // /artifacts/cloudarch) as an actual diagram: real positions/sizes/
   // colors parsed straight out of the mxGraph XML's own <mxCell>/
@@ -2775,6 +2956,21 @@
   }
 
   el.cloudarchExportBtn.addEventListener("click", exportCloudArchPng);
+
+  // Downloads the real output/cloudarch_drawio.xml file (vs. the on-screen
+  // SVG re-rendering exportCloudArchPng above draws from) -- for opening
+  // directly in a real draw.io client, not just a PNG snapshot of this
+  // page's own best-effort approximation (see this tab's own disclaimer).
+  async function downloadCloudArchXml() {
+    const blob = await fetchArtifactBlob("/artifacts/cloudarch/download");
+    if (!blob) return;
+    const result = await saveFile(blob, "cloudarch_drawio.xml", {
+      description: "XML file", accept: { "application/xml": [".xml"] },
+    });
+    if (result === "picker") toast("Diagram XML saved.");
+    else if (result === "download") toast("Diagram XML downloaded.");
+  }
+  el.cloudarchDownloadXmlBtn.addEventListener("click", downloadCloudArchXml);
 
   // Zoom / pan -- identical mechanics to the Agent Network tab's own
   // section further up (state.cloudarch.view instead of state.network.view,

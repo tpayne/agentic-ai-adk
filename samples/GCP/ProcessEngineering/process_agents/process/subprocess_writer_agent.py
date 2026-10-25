@@ -14,6 +14,8 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 
+from werkzeug.utils import safe_join
+
 from ..common.utils import getProperty, safe_filename_component
 
 logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
@@ -72,15 +74,18 @@ class SubprocessWriterAgent(BaseAgent):
         # argument to os.path.join discards the first outright) and
         # overwrite an arbitrary .json file writable by this process.
         # safe_filename_component collapses it to a single safe path
-        # component (strips "/", "..", and other separators); the resolved
-        # path is then double-checked to still be inside output_dir before
-        # ever being opened for writing.
+        # component (strips "/", "..", and other separators); werkzeug's
+        # safe_join (the library sanitizer CodeQL's path-injection query
+        # actually recognizes as a barrier) then rejects any escape before
+        # a path is ever built, and the resolved path is still
+        # double-checked to be inside output_dir as defense in depth
+        # before ever being opened for writing.
         step_name = safe_filename_component(raw_step_name)
-        output_path = os.path.join(output_dir, f"{step_name}.json")
+        output_path = safe_join(output_dir, f"{step_name}.json")
 
         resolved_dir = os.path.realpath(output_dir)
-        resolved_path = os.path.realpath(output_path)
-        if os.path.commonpath([resolved_dir, resolved_path]) != resolved_dir:
+        resolved_path = os.path.realpath(output_path) if output_path is not None else None
+        if resolved_path is None or (resolved_path != resolved_dir and not resolved_path.startswith(resolved_dir + os.sep)):
             logger.error(
                 f"[{self.name}] Refusing to write outside {output_dir}: "
                 f"step_name={raw_step_name!r} resolved to {resolved_path!r}"

@@ -30,6 +30,12 @@ from process_toolkit.run_lock import (
     stop_pipeline_lock_heartbeat,
     force_clear_pipeline_lock,
 )
+from .artifact_downloads import (
+    cloudarch_diagram_exists,
+    copy_artifact_to_destination,
+    list_output_documents,
+    resolve_artifact_target,
+)
 
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
@@ -199,6 +205,63 @@ def clear_pipeline_lock() -> str:
         age_minutes = (time.time() - started_at) / 60
         age_str = f", held for about {age_minutes:.1f} minute{'s' if abs(age_minutes - 1) > 0.05 else ''}"
     return f"SUCCESS: Cleared the pipeline lock (was held by '{label}'{age_str}). You can retry your request now."
+
+
+def download_artifact(target: str = "", destination: str = "") -> str:
+    """Saves a copy of a generated artifact (the cloud architecture
+    diagram, or a generated Word document) to a local filesystem path on
+    the machine this agent process is running on.
+
+    Call this when the user explicitly asks to download/save/export/copy
+    a generated artifact to a specific location (e.g. "download the cloud
+    architecture diagram to /tmp", "save the design doc to my Desktop").
+    Do NOT call this just because a document/diagram was generated --
+    only on an explicit request to save a copy somewhere.
+
+    IMPORTANT: this writes a file to the filesystem of whatever machine is
+    actually running this agent process. On a purely local CLI session
+    that's the user's own machine, exactly as if they'd copied the file
+    themselves. If this agent is ever served remotely (e.g. via -d) to a
+    client that is NOT the same person operating the server, this tool
+    would write to the SERVER's own filesystem at a remote user's
+    request -- a meaningfully different trust boundary. Do not widen this
+    agent's remote exposure without reconsidering this tool's own access
+    first.
+
+    Args:
+        target: Which artifact to save -- a phrase containing
+            "cloudarch"/"diagram"/"architecture" for the cloud
+            architecture diagram; an exact generated document filename if
+            the user named one; or leave empty to mean whichever document
+            was generated most recently (use this for a vague "the
+            document"/"it" when context makes it unambiguous).
+        destination: The local filesystem path to save it to -- a
+            directory (the file keeps its own name) or a full target file
+            path. Required.
+
+    Returns:
+        A plain-language result: "SUCCESS: ..." naming where the file was
+        saved, or "ERROR: ..." naming what's actually available when the
+        target couldn't be resolved.
+    """
+    if not destination:
+        return "ERROR: A destination path is required -- ask the user where to save it."
+
+    filename = resolve_artifact_target(target)
+    if filename is None:
+        available = [doc["filename"] for doc in list_output_documents()]
+        if cloudarch_diagram_exists():
+            available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
+        listing = ", ".join(available) if available else "nothing has been generated yet"
+        target_desc = f"'{target}'" if target else "(no target specified)"
+        return f"ERROR: Could not find a generated artifact matching {target_desc}. Available: {listing}."
+
+    try:
+        dest_path = copy_artifact_to_destination(filename, destination)
+    except (ValueError, OSError) as e:
+        return f"ERROR: Could not save '{filename}' to '{destination}': {e}"
+
+    return f"SUCCESS: Saved '{filename}' to {dest_path}."
 
 
 # context.state key (scoped to the whole chat session, same as

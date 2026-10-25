@@ -22,6 +22,21 @@ import pytest
 import cli
 
 
+@pytest.fixture(autouse=True)
+def _reset_web_rate_limit_state():
+    # cli._web_rate_limit_state is module-level and otherwise never
+    # cleared between tests -- every Flask-route test in this file shares
+    # the same client_key (Flask's test client always uses the same fake
+    # remote_addr), so without this, enough tests accumulated across a
+    # full run of this file trip WEBRATELIMITPERMINUTE's default of
+    # 30/minute by sheer count, producing a spurious 429 in whichever
+    # test happens to be running when the threshold is crossed -- unrelated
+    # to what that test is actually checking.
+    with cli._web_rate_limit_lock:
+        cli._web_rate_limit_state.clear()
+    yield
+
+
 def test_agent_tool_path_and_manifest_are_forced_to_this_project_even_if_already_set(monkeypatch):
     # Regression test: a prior `ns chat`/`ns run` session (or another
     # neuro-san project) can leave AGENT_TOOL_PATH/AGENT_MANIFEST_FILE
@@ -130,6 +145,90 @@ def test_handle_logical_line_ordinary_text_is_sent_to_the_agent():
     should_stop = asyncio.run(cli.handle_logical_line("design a vendor onboarding process", holder, "process_architect"))
     assert should_stop is False
     assert holder[0].sent == ["design a vendor onboarding process"]
+
+
+class TestListAndDownloadControlLines:
+    """"list"/"ls" and "download <filename> [destination]" -- neither
+    hits the agent at all (a plain local directory listing / file copy
+    against this project's own output/, since the interactive/-f CLI
+    already runs in-process on this filesystem -- no server round trip
+    needed, unlike the web client's own download buttons)."""
+
+    def test_list_does_not_hit_the_agent(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        holder = [_StubSession()]
+        should_stop = asyncio.run(cli.handle_logical_line("list", holder, "process_architect"))
+        assert should_stop is False
+        assert holder[0].sent == []
+
+    def test_list_reports_no_documents_yet_when_output_is_empty(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        asyncio.run(cli.handle_logical_line("list", [_StubSession()], "process_architect"))
+        assert "No generated documents yet" in capsys.readouterr().out
+
+    def test_list_shows_generated_docx_and_cloudarch_xml(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx")
+        (output_dir / "cloudarch_drawio.xml").write_text("<mxfile></mxfile>", encoding="utf-8")
+        asyncio.run(cli.handle_logical_line("list", [_StubSession()], "process_architect"))
+        out = capsys.readouterr().out
+        assert "Vendor_Onboarding.docx" in out
+        assert "cloudarch_drawio.xml" in out
+
+    def test_download_copies_the_file_to_the_given_destination(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx bytes")
+        dest_dir = tmp_path / "downloads"
+        dest_dir.mkdir()
+        holder = [_StubSession()]
+
+        should_stop = asyncio.run(
+            cli.handle_logical_line(f"download Vendor_Onboarding.docx {dest_dir}", holder, "process_architect")
+        )
+
+        assert should_stop is False
+        assert holder[0].sent == []  # never reached the agent
+        copied = dest_dir / "Vendor_Onboarding.docx"
+        assert copied.read_bytes() == b"fake docx bytes"
+        assert "Downloaded" in capsys.readouterr().out
+
+    def test_download_defaults_to_the_current_working_directory(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx bytes")
+        cwd_dir = tmp_path / "cwd"
+        cwd_dir.mkdir()
+        monkeypatch.chdir(cwd_dir)
+
+        asyncio.run(cli.handle_logical_line("download Vendor_Onboarding.docx", [_StubSession()], "process_architect"))
+
+        assert (cwd_dir / "Vendor_Onboarding.docx").read_bytes() == b"fake docx bytes"
+
+    def test_download_reports_an_error_for_an_unknown_filename(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        (tmp_path / "output").mkdir()
+        asyncio.run(cli.handle_logical_line("download nonexistent.docx", [_StubSession()], "process_architect"))
+        assert "No generated file named 'nonexistent.docx'" in capsys.readouterr().out
+
+    def test_download_rejects_a_path_traversal_attempt(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        (tmp_path / "output").mkdir()
+        (tmp_path / "secret.txt").write_text("do not leak me", encoding="utf-8")
+        asyncio.run(
+            cli.handle_logical_line("download ../secret.txt", [_StubSession()], "process_architect")
+        )
+        out = capsys.readouterr().out
+        assert "No generated file named" in out
+
+    def test_download_with_no_filename_shows_usage(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        asyncio.run(cli.handle_logical_line("download", [_StubSession()], "process_architect"))
+        assert "Usage: download" in capsys.readouterr().out
 
 
 def test_handle_logical_line_clear_replaces_the_session(monkeypatch):
@@ -1018,6 +1117,93 @@ class TestArtifactRoute:
         assert resp.status_code == 200
 
 
+class TestDocumentDownloadRoutes:
+    """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
+    download, and GET /artifacts/cloudarch/download -- real file downloads
+    for the web client's download buttons, as opposed to TestArtifactRoute's
+    JSON-wrapped reads above. _PROJECT_ROOT is monkeypatched to an isolated
+    tmp_path, same pattern as TestArtifactRoute."""
+
+    def _build_client(self, monkeypatch, tmp_path, output_files=None):
+        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        for name, content in (output_files or {}).items():
+            path = output_dir / name
+            if isinstance(content, bytes):
+                path.write_bytes(content)
+            else:
+                path.write_text(content, encoding="utf-8")
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_list_documents_returns_only_docx_files(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {
+            "Vendor_Onboarding.docx": b"fake docx",
+            "process_data.json": "{}",
+            "cloudarch_drawio.xml": "<mxfile></mxfile>",
+        })
+        resp = client.get("/artifacts/documents")
+        assert resp.status_code == 200
+        docs = resp.get_json()["documents"]
+        assert [d["filename"] for d in docs] == ["Vendor_Onboarding.docx"]
+        assert docs[0]["size_bytes"] == len(b"fake docx")
+
+    def test_list_documents_is_empty_list_not_error_when_none_exist(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/documents")
+        assert resp.status_code == 200
+        assert resp.get_json()["documents"] == []
+
+    def test_download_document_returns_the_real_bytes_as_an_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"Vendor_Onboarding.docx": b"fake docx bytes"})
+        resp = client.get("/artifacts/documents/Vendor_Onboarding.docx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"fake docx bytes"
+        assert "Vendor_Onboarding.docx" in resp.headers.get("Content-Disposition", "")
+
+    def test_download_document_404s_for_an_unknown_filename(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/documents/Nonexistent.docx/download")
+        assert resp.status_code == 404
+
+    def test_download_document_rejects_a_path_traversal_attempt(self, monkeypatch, tmp_path):
+        # A secret file OUTSIDE output/ (a sibling of it) must never be
+        # reachable through this route, regardless of how the traversal
+        # is encoded in the URL.
+        secret = tmp_path / "secret.txt"
+        secret.write_text("do not leak me", encoding="utf-8")
+        client = self._build_client(monkeypatch, tmp_path, {"real.docx": b"ok"})
+        resp = client.get("/artifacts/documents/..%2Fsecret.txt/download")
+        assert resp.status_code == 404
+
+    def test_download_document_rejects_a_non_docx_file_even_if_present_in_output(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": "{}"})
+        resp = client.get("/artifacts/documents/process_data.json/download")
+        assert resp.status_code == 404
+
+    def test_download_cloudarch_returns_the_real_xml_bytes(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile>hi</mxfile>"})
+        resp = client.get("/artifacts/cloudarch/download")
+        assert resp.status_code == 200
+        assert resp.data == b"<mxfile>hi</mxfile>"
+        assert "cloudarch_drawio.xml" in resp.headers.get("Content-Disposition", "")
+
+    def test_download_cloudarch_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/cloudarch/download")
+        assert resp.status_code == 404
+
+    def test_downloads_require_auth_when_configured(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, tmp_path, {
+            "Vendor_Onboarding.docx": b"ok", "cloudarch_drawio.xml": "<mxfile></mxfile>",
+        })
+        assert client.get("/artifacts/documents").status_code == 401
+        assert client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code == 401
+        assert client.get("/artifacts/cloudarch/download").status_code == 401
+
+
 class TestAgentInstructionsRoute:
     """GET /agents/<name>/instructions -- read-only lookup of an agent's
     real HOCON "instructions" text, for the web client's Agent Network tab
@@ -1050,14 +1236,6 @@ class TestAgentInstructionsRoute:
     def _build_client(self, monkeypatch, tmp_path, hocon_files=None):
         monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
         monkeypatch.setattr(cli, "_agent_instructions_index", None)
-        # _web_rate_limit_state is module-level and otherwise never cleared
-        # between tests in this file -- this class alone makes enough
-        # requests, on top of every other test here sharing the same
-        # process, to trip WEBRATELIMITPERMINUTE's default of 30/minute by
-        # sheer accumulated count, producing a spurious 429 unrelated to
-        # whatever a given test is actually checking.
-        with cli._web_rate_limit_lock:
-            cli._web_rate_limit_state.clear()
         registries_dir = tmp_path / "registries"
         registries_dir.mkdir()
         for rel_name, content in (hocon_files or {}).items():

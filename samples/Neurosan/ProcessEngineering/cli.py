@@ -65,9 +65,11 @@ import tempfile
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
+from werkzeug.utils import safe_join
 
 # Loads a project-root .env file (if any) into os.environ, same as `ns
 # chat`/`ns run` already do for this project's LLM provider API keys (see
@@ -814,6 +816,12 @@ async def handle_logical_line(
     if is_shell_command(line):
         run_shell_command(line)
         return False
+    if lowered in ("list", "list documents", "ls"):
+        _display_output_document_listing()
+        return False
+    if lowered == "download" or lowered.startswith("download "):
+        _handle_download_control_line(line)
+        return False
 
     if echo_input:
         display_text(f"[user-file]: {line}")
@@ -823,6 +831,58 @@ async def handle_logical_line(
     except Exception as e:
         display_text(f"An error occurred: {e}", kind="error")
     return False
+
+
+def _display_output_document_listing() -> None:
+    """"list"/"ls" control line -- shows every generated .docx plus the
+    cloud architecture diagram (if either exists), so "download <name>"
+    has something concrete to copy from without the user having to go
+    look inside output/ themselves."""
+    lines: List[str] = []
+    for doc in _list_output_documents():
+        lines.append(f"  {doc['filename']}  ({doc['size_bytes']:,} bytes, modified {doc['modified']})")
+    cloudarch_path = os.path.join(_PROJECT_ROOT, "output", "cloudarch_drawio.xml")
+    if os.path.isfile(cloudarch_path):
+        stat = os.stat(cloudarch_path)
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")
+    if lines:
+        display_text("[Action]: Generated documents in output/:\n" + "\n".join(lines))
+    else:
+        display_text("[Action]: No generated documents yet.")
+
+
+def _handle_download_control_line(line: str) -> None:
+    """"download <filename> [destination]" control line -- a plain local
+    file copy, since the interactive/-f CLI modes already run in-process
+    against this project's own filesystem (no server round trip needed,
+    unlike the web client's own download buttons, which DO need the
+    /artifacts/.../download Flask routes below since a browser has no
+    direct filesystem access). `filename` is whatever "list" just showed
+    (a generated .docx, or "cloudarch_drawio.xml"); `destination`
+    defaults to the current working directory, and may itself be either
+    a directory (the file is copied in under its own name) or a full
+    target file path."""
+    parts = line.split(maxsplit=2)
+    if len(parts) < 2:
+        display_text("Usage: download <filename> [destination]", kind="error")
+        return
+    filename = parts[1]
+    destination = os.path.expanduser(parts[2]) if len(parts) > 2 else "."
+
+    source_path = _safe_output_file_path(filename)
+    if source_path is None:
+        display_text(
+            f"No generated file named '{filename}' in output/. Use 'list' to see what's available.",
+            kind="error",
+        )
+        return
+    dest_path = os.path.join(destination, os.path.basename(source_path)) if os.path.isdir(destination) else destination
+    try:
+        shutil.copy2(source_path, dest_path)
+        display_text(f"[Action]: Downloaded '{os.path.basename(source_path)}' to {dest_path}")
+    except OSError as e:
+        display_text(f"Could not copy '{filename}' to '{destination}': {e}", kind="error")
 
 
 async def process_file(file_path: str, agent_name: str) -> None:
@@ -1068,6 +1128,74 @@ def _release_web_session(web_session_id: str) -> None:
             session.last_accessed = time.monotonic()
 
 
+# ---------------------------------------------------------
+# Downloading generated artifacts (Word documents + the cloud architecture
+# diagram) -- shared by both the Flask routes below (for the web client)
+# and the "list"/"download" control lines in handle_logical_line above
+# (for the interactive/-f CLI), so there's exactly one place that knows
+# how a filename is resolved safely against output/, not two that could
+# drift apart.
+# ---------------------------------------------------------
+def _list_output_documents() -> List[Dict[str, Any]]:
+    """
+    Every generated .docx currently sitting in output/. Unlike
+    process_data.json/design_data.json/cloudarch_drawio.xml (fixed,
+    singular filenames), a generated document's filename is derived from
+    whatever process/design name was actually used (see docgen/
+    generation.py's own safe_filename_component(name) + ".docx") -- there
+    is no single predictable path, so "what documents exist" has to be an
+    actual directory listing. Sorted most-recently-modified first -- the
+    document someone just generated is the one they're most likely
+    asking about next.
+    """
+    output_dir = os.path.join(_PROJECT_ROOT, "output")
+    if not os.path.isdir(output_dir):
+        return []
+    entries: List[Dict[str, Any]] = []
+    for name in os.listdir(output_dir):
+        full_path = os.path.join(output_dir, name)
+        if not name.lower().endswith(".docx") or not os.path.isfile(full_path):
+            continue
+        stat = os.stat(full_path)
+        entries.append({
+            "filename": name,
+            "size_bytes": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        })
+    entries.sort(key=lambda e: e["modified"], reverse=True)
+    return entries
+
+
+def _safe_output_file_path(filename: str) -> Optional[str]:
+    """
+    Resolves `filename` (a bare basename -- a URL path segment from the
+    download route, or the first word after "download " on a CLI control
+    line) to a real file strictly INSIDE output/, or None if it doesn't
+    exist or would resolve outside output/.
+
+    werkzeug's own safe_join (the library sanitizer CodeQL's path-injection
+    query actually recognizes as a barrier, unlike a hand-rolled
+    os.path.commonpath/startswith comparison) rejects any ".."/absolute-
+    path escape before a path is ever built; the realpath + prefix
+    containment check after it is still kept as defense in depth against
+    a symlink planted inside output/ pointing elsewhere. The trailing
+    os.sep on the prefix matters: without it, an output_dir of "/x/out"
+    would wrongly accept a sibling like "/x/output_other".
+    """
+    if not filename:
+        return None
+    output_dir = os.path.realpath(os.path.join(_PROJECT_ROOT, "output"))
+    joined = safe_join(output_dir, os.path.basename(filename))
+    if joined is None:
+        return None
+    candidate = os.path.realpath(joined)
+    if candidate != output_dir and not candidate.startswith(output_dir + os.sep):
+        return None
+    if not os.path.isfile(candidate):
+        return None
+    return candidate
+
+
 _agent_instructions_index: Optional[Dict[str, Dict[str, Any]]] = None
 _agent_instructions_index_lock = threading.Lock()
 
@@ -1235,6 +1363,19 @@ def build_web_app(agent_name: str, https: bool = True):
                                "name": "...", "data": {...the parsed
                                output/<name>_data.json...}}, or 404 if
                                that pipeline hasn't produced one yet.
+      GET    /artifacts/documents  Every generated .docx currently in
+                               output/ -> {"status": "ok", "documents":
+                               [{"filename": "...", "size_bytes": N,
+                               "modified": "<ISO8601>"}, ...]}.
+      GET    /artifacts/documents/<filename>/download  Downloads one
+                               generated .docx (filename exactly as
+                               returned above) as a real file attachment,
+                               or 404 if no such file exists in output/.
+      GET    /artifacts/cloudarch/download  Downloads
+                               output/cloudarch_drawio.xml as a real file
+                               attachment (vs. GET /artifacts/cloudarch's
+                               JSON-wrapped string, for the client's own
+                               renderer), or 404 if none exists yet.
       GET    /agents/<name>/instructions  `name` is an agent's own short
                                name (e.g. "CloudArch_Agent") -> {"status":
                                "ok", "name": "...", "instructions": "...",
@@ -1267,7 +1408,7 @@ def build_web_app(agent_name: str, https: bool = True):
     cross-origin cookie, so this doesn't widen the actual exposure beyond
     what WEBAPIKEY/rate-limiting already gate.
     """
-    from flask import Flask, request, jsonify, make_response, Response
+    from flask import Flask, request, jsonify, make_response, Response, send_file
 
     web_app = Flask("ProcessArchitectWebServiceNS")
     web_app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -1550,6 +1691,51 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 500
 
         return jsonify({"status": "ok", "name": name, "data": data})
+
+    @web_app.route("/artifacts/documents", methods=["GET"])
+    def list_documents():
+        """
+        Every generated .docx currently in output/, for the web client's
+        own download picker -- see _list_output_documents's own
+        docstring for why this has to be a directory listing rather than
+        a fixed, known filename the way process/design/cloudarch above
+        are.
+        """
+        return jsonify({"status": "ok", "documents": _list_output_documents()})
+
+    @web_app.route("/artifacts/documents/<filename>/download", methods=["GET"])
+    def download_document(filename):
+        """Downloads one generated .docx by its own filename (exactly as
+        returned by GET /artifacts/documents) as a real file attachment,
+        for the web client's download button -- see _safe_output_file_path
+        for how `filename` is kept from escaping output/."""
+        path = _safe_output_file_path(filename)
+        if path is None or not filename.lower().endswith(".docx"):
+            return jsonify({
+                "status": "error",
+                "error": f"No generated document named '{filename}' in output/.",
+            }), 404
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=os.path.basename(path),
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+    @web_app.route("/artifacts/cloudarch/download", methods=["GET"])
+    def download_cloudarch():
+        """Downloads output/cloudarch_drawio.xml as a real file attachment
+        (as opposed to GET /artifacts/cloudarch above, which returns it
+        JSON-wrapped as a string for the client's own mxGraph-XML
+        renderer) -- for opening directly in a real draw.io client, or
+        just keeping a copy."""
+        path = os.path.join(_PROJECT_ROOT, "output", "cloudarch_drawio.xml")
+        if not os.path.isfile(path):
+            return jsonify({
+                "status": "error",
+                "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
 
     @web_app.route("/agents/<name>/instructions", methods=["GET"])
     def agent_instructions(name):

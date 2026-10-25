@@ -597,6 +597,27 @@ If you are not certain why a tool failed, say that plainly rather than
 guessing a plausible-sounding reason.
 
 ------------------------------------------------------------
+
+## 13. DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
+If the user explicitly asks to download/save/export/copy a generated artifact
+(the cloud architecture diagram, or a generated Word document) to a specific
+local location (e.g. "download the cloud architecture diagram to /tmp", "save
+the design doc to my Desktop", "export it to ~/Downloads/report.docx"), call
+the tool `download_artifact` directly (no sub-agent transfer; this is your own
+tool) with:
+  - `destination` set to the path they gave, exactly as they gave it.
+  - `target` describing which artifact -- a phrase containing
+    "cloudarch"/"diagram"/"architecture" for the cloud architecture diagram,
+    the exact filename if they named one, or left empty for a vague "the
+    document"/"it" (resolves to whichever was generated most recently).
+This is DIFFERENT from a request to just generate/update a diagram or document
+(which goes through the normal pipeline tools, and saves to this project's own
+output/ directory, not a user-chosen path) -- only call `download_artifact`
+when the user is asking for a COPY somewhere else. If the tool reports it
+could not find a matching artifact, relay its own message verbatim (it already
+lists what IS available) rather than guessing which file they meant.
+
+------------------------------------------------------------
 # DATA INTEGRITY & PARAMETER RULES
 ------------------------------------------------------------
 

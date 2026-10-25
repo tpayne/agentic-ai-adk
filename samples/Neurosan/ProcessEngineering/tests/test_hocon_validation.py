@@ -31,6 +31,7 @@ PORTED_NETWORKS = [
     "registries/design_scenario_tester.hocon",
     "registries/design_simulation_query.hocon",
     "registries/regenerate_document.hocon",
+    "registries/process_subprocess_regenerate.hocon",
     "registries/process_architect.hocon",
 ]
 

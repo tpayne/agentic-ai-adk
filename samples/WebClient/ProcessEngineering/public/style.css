@@ -968,6 +968,130 @@ input[type="range"]:disabled {
   text-overflow: ellipsis;
 }
 
+/* ---------- Generated documents download popover ---------- */
+
+.documents-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.documents-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  overflow: hidden;
+}
+
+.documents-popover[hidden] { display: none; }
+
+.documents-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.documents-popover-header h4 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.documents-popover-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.documents-popover-empty {
+  padding: 18px 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.document-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+
+.document-row:hover {
+  background: var(--accent-soft);
+}
+
+.document-row-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.document-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.document-row-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.document-row-meta {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+.document-row-download {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.document-row-download:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.document-row-download[disabled] {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
 .artifacts-canvas-wrap {
   flex: 1;
   position: relative;
