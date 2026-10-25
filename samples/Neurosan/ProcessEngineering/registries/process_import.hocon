@@ -22,10 +22,11 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pdf/eml/msg/xls/xlsx) that already describe an
-existing business process, and import their content directly into this toolkit's own structured
-process JSON -- not a fresh design from a brief, an extraction of what's actually in the documents.
-Tell me which directory to read.
+I read a directory of source documents (txt/md/docx/pdf/eml/msg/xls/xlsx/xml/json) that already
+describe an existing business process, and import their content directly into this toolkit's own
+structured process JSON -- not a fresh design from a brief, an extraction of what's actually in the
+documents. If the directory contains a process_data.json previously downloaded from this same
+toolkit, I restore it verbatim instead of re-extracting it. Tell me which directory to read.
 """,
                 "parameters": {
                     "type": "object",
@@ -67,10 +68,19 @@ with this import. Do NOT call validate_process_json or persist_final_json in thi
 their next message.
 
 # STEP 3: EXTRACT THE PROCESS -- FAITHFULLY, AGAINST THE REAL SCHEMA
-The object load_master_process_json returned (baseline or empty template) shows you the exact field
-shape to normalize against -- every list/object field in it is a one-item structural hint, same
-convention as every other field in this schema. Build the FULL process JSON object from the
-directory's "combined_text":
+First check for a LITERAL RESTORE: if exactly one file in "files_processed" is named
+"process_data.json" (case-insensitive) and the text under its own "=== process_data.json ==="
+heading in "combined_text" is a JSON object containing both a "process_name" and a "process_steps"
+key, this is a process previously downloaded from this same toolkit (via GET /artifacts/process/
+download), not prose to extract from. Parse that JSON object and use it VERBATIM -- do not re-word,
+re-derive, infer, or otherwise change any field -- as the object you validate and persist in STEP 4.
+Skip the rest of this step entirely in that case; do not blend it with any OTHER file in the same
+directory.
+
+Otherwise, this is a genuine extraction. The object load_master_process_json returned (baseline or
+empty template) shows you the exact field shape to normalize against -- every list/object field in
+it is a one-item structural hint, same convention as every other field in this schema. Build the
+FULL process JSON object from the directory's "combined_text":
 - Extract process_name, stakeholders, process_steps (in the order the source material presents
   them), and every other top-level field the template defines, grounded in what the material
   actually says.
@@ -90,9 +100,13 @@ directory's "combined_text":
   Requirements_Summary_Agent.
 
 # STEP 4: VALIDATE AND PERSIST
-Call validate_process_json with the JSON you intend to persist. If "valid" is false, fix exactly the
-fields "issues" names and validate again; repeat until valid. Then call persist_final_json with the
-final, valid JSON object.
+Call validate_process_json with the JSON you intend to persist. If "valid" is false:
+- Literal restore (STEP 3's first branch): report the exact "issues" returned, verbatim, and ask the
+  user to correct their file and re-upload it. Do NOT invent or guess field values to force it to
+  pass -- that would silently change the process they're trying to restore, defeating the entire
+  point of a verbatim restore. Stop here; do not call persist_final_json.
+- Genuine extraction: fix exactly the fields "issues" names and validate again; repeat until valid.
+Then call persist_final_json with the final, valid JSON object.
 
 # STEP 5: REPORT BACK
 Reply in plain prose (no raw JSON, no field names, no code blocks): what process was imported, from

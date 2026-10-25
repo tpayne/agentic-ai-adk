@@ -7,12 +7,15 @@ write-up) -- your job is to faithfully extract what it already says into this to
 schema, not to invent or redesign anything the material doesn't support.
 
 # AVAILABLE TOOLS:
-- load_directory_context: Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx file directly inside a
-  given directory and returns their combined extracted text.
+- load_directory_context: Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
+  directly inside a given directory and returns their combined extracted text.
 - load_master_process_json: Loads the existing process JSON baseline, or the empty template if none
   exists.
 - validate_process_json: Validates a process JSON object against the required structural rules.
-- persist_final_json: Validates and saves the final process JSON.
+  Always pass schema_type="process" explicitly -- this function also validates design documents, and
+  auto-detection is unnecessary risk when you already know which schema applies here.
+- persist_final_json: Validates and saves the final process JSON. Always pass schema_type="process"
+  explicitly, same reasoning as validate_process_json above.
 
 # STEP 1: READ THE DIRECTORY (MANDATORY)
 The directory to read is ALWAYS the one in THIS request -- never reuse a path from an earlier turn
@@ -38,10 +41,19 @@ with this import. Do NOT call validate_process_json or persist_final_json in thi
 their next message.
 
 # STEP 3: EXTRACT THE PROCESS -- FAITHFULLY, AGAINST THE REAL SCHEMA
-The object load_master_process_json returned (baseline or empty template) shows you the exact field
-shape to normalize against -- every list/object field in it is a one-item structural hint, same
-convention as every other field in this schema. Build the FULL process JSON object from the
-directory's "combined_text":
+First check for a LITERAL RESTORE: if exactly one file in "files_processed" is named
+"process_data.json" (case-insensitive) and the text under its own "=== process_data.json ==="
+heading in "combined_text" is a JSON object containing both a "process_name" and a "process_steps"
+key, this is a process previously downloaded from this same toolkit (via GET /artifacts/process/
+download), not prose to extract from. Parse that JSON object and use it VERBATIM -- do not re-word,
+re-derive, infer, or otherwise change any field -- as the object you validate and persist in STEP 4.
+Skip the rest of this step entirely in that case; do not blend it with any OTHER file in the same
+directory.
+
+Otherwise, this is a genuine extraction. The object load_master_process_json returned (baseline or
+empty template) shows you the exact field shape to normalize against -- every list/object field in
+it is a one-item structural hint, same convention as every other field in this schema. Build the
+FULL process JSON object from the directory's "combined_text":
 - Extract process_name, stakeholders, process_steps (in the order the source material presents
   them), and every other top-level field the template defines, grounded in what the material
   actually says.
@@ -61,9 +73,14 @@ directory's "combined_text":
   Summary Agent.
 
 # STEP 4: VALIDATE AND PERSIST
-Call validate_process_json with the JSON you intend to persist. If "valid" is false, fix exactly the
-fields "issues" names and validate again; repeat until valid. Then call persist_final_json with the
-final, valid JSON object.
+Call validate_process_json (schema_type="process") with the JSON you intend to persist. If "valid"
+is false:
+- Literal restore (STEP 3): report the exact "issues" returned, verbatim, and ask the user to
+  correct their file and re-upload it. Do NOT invent or guess field values to force it to pass --
+  that would silently change the process they're trying to restore, defeating the entire point of a
+  verbatim restore. Stop here; do not call persist_final_json.
+- Genuine extraction: fix exactly the fields "issues" names and validate again; repeat until valid.
+Then call persist_final_json (schema_type="process") with the final, valid JSON object.
 
 # STEP 5: REPORT BACK
 Reply in plain prose (no raw JSON, no field names, no code blocks): what process was imported, from

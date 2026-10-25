@@ -979,6 +979,92 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.assertEqual(response_with.get_json()["data"], {"process_name": "Vendor Onboarding"})
 
 
+class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
+    """GET /artifacts/process/download and GET /artifacts/design/download --
+    real raw-file downloads of process_data.json/design_data.json (as
+    opposed to WebServiceArtifactRouteTest's JSON-wrapped reads above), so a
+    user can save their current process/design and later re-attach the
+    exact same file to resume work -- see Process_Import_Agent/
+    Design_Import_Agent's own instructions for the upload side. Mirrors
+    download_cloudarch's own existing test coverage. Same contract as the
+    neuro-san port's own identical test class."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.output_dir = os.path.join(self.tmp_dir.name, "output")
+        os.makedirs(self.output_dir)
+        self.project_root_patch = patch.object(toolkit_paths, "OUTPUT_DIR", self.output_dir)
+        self.project_root_patch.start()
+        self.addCleanup(self.project_root_patch.stop)
+
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    def _write(self, filename, content):
+        with open(os.path.join(self.output_dir, filename), "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_downloads_process_data_json_as_a_real_attachment(self):
+        self._write("process_data.json", '{"process_name": "Vendor Onboarding"}')
+        response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b'{"process_name": "Vendor Onboarding"}')
+        self.assertIn("process_data.json", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_design_data_json_as_a_real_attachment(self):
+        self._write("design_data.json", '{"document_metadata": {}}')
+        response = self.client.get("/artifacts/design/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b'{"document_metadata": {}}')
+        self.assertIn("design_data.json", response.headers.get("Content-Disposition", ""))
+
+    def test_404s_when_not_yet_generated(self):
+        response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 404)
+
+    def test_400_for_an_unrecognized_artifact_name(self):
+        response = self.client.get("/artifacts/bogus/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 400)
+
+    def test_cloudarch_download_still_resolves_correctly_alongside_the_new_route(self):
+        self._write("cloudarch_drawio.xml", "<mxfile></mxfile>")
+        response = self.client.get("/artifacts/cloudarch/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"<mxfile></mxfile>")
+
+    def test_requires_a_configured_api_key(self):
+        self._write("process_data.json", "{}")
+        response = self.client.get("/artifacts/process/download")
+        self.assertEqual(response.status_code, 401)
+
+
 class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
     """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
     download, and GET /artifacts/cloudarch/download -- real file downloads

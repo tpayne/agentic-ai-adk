@@ -200,6 +200,7 @@
     artifactsTabPanel: document.getElementById("artifactsTabPanel"),
     artifactToggleBtns: Array.from(document.querySelectorAll(".artifacts-toggle .preset-btn")),
     artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
+    artifactDownloadJsonBtn: document.getElementById("artifactDownloadJsonBtn"),
     artifactsStatus: document.getElementById("artifactsStatus"),
     artifactsEmpty: document.getElementById("artifactsEmpty"),
     artifactTree: document.getElementById("artifactTree"),
@@ -2136,6 +2137,27 @@
 
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
+  // Downloads the real process_data.json/design_data.json file (vs. the
+  // tree view loadArtifact above renders from) -- re-attaching this exact
+  // file to a later chat turn (the composer's own "attach file" button)
+  // restores it verbatim as the active process/design, without re-running
+  // the pipeline -- see both backends' Process_Import_Agent/
+  // Design_Import_Agent for how a re-uploaded process_data.json/
+  // design_data.json is recognized by name and restored rather than
+  // re-extracted.
+  async function downloadArtifactJson() {
+    const artifact = state.dataExplorer.artifact; // "process" or "design"
+    const blob = await fetchArtifactBlob(`/artifacts/${artifact}/download`);
+    if (!blob) return;
+    const filename = `${artifact}_data.json`;
+    const result = await saveFile(blob, filename, {
+      description: "JSON file", accept: { "application/json": [".json"] },
+    });
+    if (result === "picker") toast(`${filename} saved.`);
+    else if (result === "download") toast(`${filename} downloaded.`);
+  }
+  el.artifactDownloadJsonBtn.addEventListener("click", downloadArtifactJson);
+
   // ---------------------------------------------------------------
   // Generated documents download popover -- GET /artifacts/documents
   // lists every .docx currently in output/ (there's no fixed filename
@@ -3830,6 +3852,7 @@
       pdf: "application/pdf",
       docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       xml: "application/xml",
+      json: "application/json",
     };
     return byExt[ext] || "application/octet-stream";
   }

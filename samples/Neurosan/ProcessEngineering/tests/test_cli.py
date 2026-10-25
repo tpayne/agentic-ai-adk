@@ -1232,6 +1232,79 @@ class TestArtifactRoute:
         assert resp.get_json()["data"] == {"process_name": "Via Query Param"}
 
 
+class TestProcessDesignJsonDownloadRoutes:
+    """GET /artifacts/process/download and GET /artifacts/design/download --
+    real raw-file downloads of process_data.json/design_data.json (as
+    opposed to TestArtifactRoute's JSON-wrapped reads above), so a user can
+    save their current process/design and later re-attach the exact same
+    file to resume work -- see Process_Import_Agent/Design_Import_Agent's
+    own instructions for the upload side. Mirrors download_cloudarch's own
+    existing test coverage."""
+
+    def _build_client(self, monkeypatch, tmp_path, files=None):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        for name, content in (files or {}).items():
+            (output_dir / name).write_text(content, encoding="utf-8")
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_downloads_process_data_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": '{"process_name": "Vendor Onboarding"}'})
+        resp = client.get("/artifacts/process/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"process_name": "Vendor Onboarding"}'
+        assert "process_data.json" in resp.headers.get("Content-Disposition", "")
+        assert resp.mimetype == "application/json"
+
+    def test_downloads_design_data_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"design_data.json": '{"document_metadata": {}}'})
+        resp = client.get("/artifacts/design/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"document_metadata": {}}'
+        assert "design_data.json" in resp.headers.get("Content-Disposition", "")
+
+    def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        assert client.get("/artifacts/process/download").status_code == 404
+        assert client.get("/artifacts/design/download").status_code == 404
+
+    def test_400_for_an_unrecognized_artifact_name(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        resp = client.get("/artifacts/bogus/download")
+        assert resp.status_code == 400
+
+    def test_cloudarch_download_still_resolves_correctly_alongside_the_new_route(self, monkeypatch, tmp_path):
+        # Regression guard: /artifacts/<name>/download (new, variable segment)
+        # must not shadow /artifacts/cloudarch/download (existing, literal
+        # segment) -- Flask/Werkzeug should prefer the more specific static
+        # route, but this proves it rather than assuming it.
+        client = self._build_client(monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile></mxfile>"})
+        resp = client.get("/artifacts/cloudarch/download")
+        assert resp.status_code == 200
+        assert resp.data == b"<mxfile></mxfile>"
+
+    def test_requires_auth_when_configured(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("WEBAPIKEY", "secret")
+        client = self._build_client(monkeypatch, tmp_path, {"process_data.json": "{}"})
+        resp = client.get("/artifacts/process/download")
+        assert resp.status_code == 401
+
+    def test_resolves_a_session_scoped_file_via_the_session_id_query_param(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        with paths.use_session("resume-session"):
+            session_output_dir = os.path.join(paths.OUTPUT_DIR, "resume-session")
+            os.makedirs(session_output_dir, exist_ok=True)
+            with open(os.path.join(session_output_dir, "process_data.json"), "w", encoding="utf-8") as f:
+                f.write('{"process_name": "Session Scoped"}')
+
+        assert client.get("/artifacts/process/download").status_code == 404
+        resp = client.get("/artifacts/process/download?session_id=resume-session")
+        assert resp.status_code == 200
+        assert resp.data == b'{"process_name": "Session Scoped"}'
+
+
 class TestDocumentDownloadRoutes:
     """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
     download, and GET /artifacts/cloudarch/download -- real file downloads

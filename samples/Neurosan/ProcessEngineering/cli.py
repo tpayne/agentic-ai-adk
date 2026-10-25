@@ -1771,6 +1771,36 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 404
         return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
 
+    @web_app.route("/artifacts/<name>/download", methods=["GET"])
+    def download_process_or_design_json(name):
+        """Downloads this web session's own output/<session_id>/
+        process_data.json or design_data.json as a real file attachment
+        (as opposed to GET /artifacts/<name> above, which returns it
+        JSON-wrapped for the client's own data-explorer viewer) --
+        structurally identical to download_cloudarch above, just for the
+        other two artifact kinds. The downloaded file can later be
+        re-attached to a chat turn to resume working on it -- see
+        Process_Import_Agent/Design_Import_Agent's own instructions for
+        how an attachment literally named process_data.json/
+        design_data.json is recognized and restored verbatim rather than
+        re-extracted."""
+        filenames = {"process": "process_data.json", "design": "design_data.json"}
+        filename = filenames.get(name)
+        if filename is None:
+            return jsonify({
+                "status": "error",
+                "error": f"Unknown artifact '{name}' -- use 'process' or 'design'.",
+            }), 400
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), filename)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name=filename, mimetype="application/json")
+
     @web_app.route("/agents/<name>/instructions", methods=["GET"])
     def agent_instructions(name):
         """

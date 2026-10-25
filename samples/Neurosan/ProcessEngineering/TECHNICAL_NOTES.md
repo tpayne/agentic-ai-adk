@@ -77,7 +77,7 @@ This neuro-san network suite provides:
   - **Security** — a control-coverage checklist, compliance-standard status tally, security-tagged risks, and an externally-exposed-without-full-controls check.
   - **Latency** — declared performance/latency targets cross-checked against the deepest dependency chain in the architecture, flagging undeclared latency budgets on long request paths.
 - **Design Consultant & Scenario Testing**: `design_consultant`'s `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while `design_scenario_tester`'s `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation network for any quantitative estimate.
-- **File-Based Requirements Extraction (opt-in)**: Any process, design-document, or cloud-architecture creation/refinement request can source its requirements from a directory of files instead of (or alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a process for onboarding new vendors."* `load_directory_context` extracts and combines text from every `.txt`/`.md`/`.docx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx`/`.xml` file directly inside the given directory using pure-Python extractors (no system binaries required). This is strictly opt-in — absent that explicit phrasing, no network ever reads a directory on its own.
+- **File-Based Requirements Extraction (opt-in)**: Any process, design-document, or cloud-architecture creation/refinement request can source its requirements from a directory of files instead of (or alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a process for onboarding new vendors."* `load_directory_context` extracts and combines text from every `.txt`/`.md`/`.docx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx`/`.xml`/`.json` file directly inside the given directory using pure-Python extractors (no system binaries required). This is strictly opt-in — absent that explicit phrasing, no network ever reads a directory on its own.
 - **Standalone Requirements Summarization & Consultation**: `requirements_summary`'s `Requirements_Summary_Agent` can read a directory of files on its own — without running a full creation pipeline — synthesize a structured requirements summary, report it in plain language in chat, and save it to `output/requirements_summary.json` for later reuse (e.g. *"read the files in ./vendor-docs and summarize the requirements"*). `requirements_consultant`'s `Requirements_Consultant_Agent` then lets you ask follow-up questions about that saved summary at any time (e.g. *"what's in the saved requirements summary?"*), and any later process/design/architecture creation request can reuse it instead of re-reading the original documents by saying so explicitly (e.g. *"create a process using the saved requirements summary"*).
 - **Importing Already-Existing Process/Design Documents**: Distinct from the directory-based requirements extraction above (which treats a directory's contents as *background* for a *new* process/design the user describes in the same request), `process_import`/`design_import` treat the directory's contents as an **already-finished** process or design document to faithfully extract and persist as-is — no brief, no fresh design decisions. Point either network at a directory (e.g. *"import the process documented in ./legacy-sops as a process document"*, *"load the design in ./old-hld-doc and bring it into the toolkit"*) and it reads every supported file, normalizes the content against the real `process_data.json`/`design_data.json` schema (inferring only what the material clearly implies, never inventing steps/components it doesn't support), determines the design document's type (HLD/LLD/Combined) when relevant, validates against the same structural rules every other generator uses, and persists the result — asking first if doing so would overwrite an existing baseline. Once imported, the document is immediately available to every other process/design network (consultant, scenario testing, simulation, updates) exactly as if it had been generated from scratch.
 - **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
@@ -448,6 +448,7 @@ The service exposes:
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
 | `GET` | `/artifacts/<name>` | `name` is `process` or `design` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/<name>/download` | `name` is `process` or `design` -- download the raw `process_data.json`/`design_data.json` as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read above, for the web client's own data-explorer viewer). Re-attaching this exact file to a later chat turn restores it verbatim -- see [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |
 | `GET` | `/artifacts/cloudarch/download` | Download `output/cloudarch_drawio.xml` as a real file attachment (vs. `GET /artifacts/cloudarch`'s JSON-wrapped string, for the web client's own renderer). |
@@ -623,6 +624,8 @@ GET /artifacts/documents
 
 GET /artifacts/documents/<filename>/download   # the real .docx bytes, as an attachment
 GET /artifacts/cloudarch/download               # the real cloudarch_drawio.xml bytes, as an attachment
+GET /artifacts/process/download                 # the real process_data.json bytes, as an attachment
+GET /artifacts/design/download                  # the real design_data.json bytes, as an attachment
 ```
 
 A generated document's filename is never fixed -- each one is named after whatever process/design
@@ -631,6 +634,18 @@ several at once and "what documents exist" has to be a directory listing, not a 
 `<filename>/download` validates the name stays strictly inside `output/` (realpath + containment
 check, not just a string pattern) before serving it. Subject to the same auth/rate-limiting as every
 other route except `/status`.
+
+**Saving/resuming a process or design (download then re-upload)** -- `GET /artifacts/process/
+download`/`GET /artifacts/design/download` (web client: the **Process / Design** tab's own
+"Download JSON" button) save the exact, current `process_data.json`/`design_data.json`. Re-attaching
+that exact file to a later chat turn -- the composer's existing "attach file(s)" button, the same
+mechanism as any other upload, no separate UI -- resumes work on it: `Process_Import_Agent`/
+`Design_Import_Agent` recognize an attachment literally named `process_data.json`/`design_data.json`
+and restore it **verbatim** (no LLM re-derivation of its fields) rather than running it through their
+normal prose-extraction flow, after the same overwrite-confirmation step a fresh import already asks
+for. If the uploaded file fails schema validation (e.g. hand-edited into an invalid shape), the
+agent reports the exact issues and asks for a corrected re-upload rather than guessing field values
+to force it to pass.
 
 ### Per-session output isolation
 
@@ -1018,8 +1033,8 @@ networks out of the box.
 | :--- | :--- | :--- | :--- |
 | `requirements_summary.hocon` | Reads a directory of files and produces/saves a structured, traceable requirements summary. | `Requirements_Summary_Agent` | — |
 | `requirements_consultant.hocon` | Answers questions about the saved requirements summary. | `Requirements_Consultant_Agent` | — |
-| `process_import.hocon` | Imports an already-existing business process document directly into `process_data.json`. | `Process_Import_Agent` | — |
-| `design_import.hocon` | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json`. | `Design_Import_Agent` | — |
+| `process_import.hocon` | Imports an already-existing business process document directly into `process_data.json` -- or, if the uploaded file is literally a previously-downloaded `process_data.json`, restores it verbatim instead of re-extracting it. | `Process_Import_Agent` | — |
+| `design_import.hocon` | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json` -- or, if the uploaded file is literally a previously-downloaded `design_data.json`, restores it verbatim instead of re-extracting it. | `Design_Import_Agent` | — |
 | `cloudarch.hocon` | Generates/refines a cloud architecture diagram via a deterministic layout engine, audited by a reviewer agent. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
 | `cloudarch_consultant.hocon` | Answers questions about an existing cloud architecture diagram. | `CloudArch_Consultant_Agent` | — |
 | `cloudarch_simulation_query.hocon` | Runs a resilience/scalability/latency simulation over an existing diagram. | `CloudArch_Simulation_Query_Agent` | — |

@@ -26,6 +26,28 @@ def _extract_xml_file(path: str) -> str:
     return _extract_txt_file(path)
 
 
+def _extract_json_file(path: str) -> str:
+    # Unlike .txt/.xml above, this DOES parse (json.loads, not a raw read)
+    # -- the two things a .json upload is for here are (a) a previously
+    # downloaded process_data.json/design_data.json being re-attached to
+    # resume work (see both ports' Process_Import_Agent/Design_Import_Agent
+    # instructions, which look for an exact filename + shape match in this
+    # extracted text to restore it verbatim rather than re-deriving it),
+    # and (b) generic structured source material. Either way, a syntax
+    # error is worth surfacing as a clear "failed to read" skip reason
+    # (load_directory_context's own except-and-skip handling already does
+    # this for any extractor that raises) rather than silently passing
+    # malformed text through. Re-serialized with indent=2 so formatting is
+    # consistent regardless of how the original file was minified/pretty-
+    # printed -- the content, not the original byte-for-byte text, is what
+    # matters here.
+    import json
+
+    with open(path, "r", encoding="utf-8-sig") as f:
+        parsed = json.load(f)
+    return json.dumps(parsed, indent=2, ensure_ascii=False)
+
+
 def _extract_docx_file(path: str) -> str:
     import docx
     doc = docx.Document(path)
@@ -125,6 +147,7 @@ DIRECTORY_CONTEXT_EXTRACTORS = {
     ".xls": _extract_excel_file,
     ".xlsx": _extract_excel_file,
     ".xml": _extract_xml_file,
+    ".json": _extract_json_file,
 }
 
 

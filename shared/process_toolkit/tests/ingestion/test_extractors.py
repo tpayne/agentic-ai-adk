@@ -115,6 +115,34 @@ def test_xml_file_is_extracted_as_raw_markup():
     assert "<step>Receive PO</step>" in result["combined_text"]
 
 
+def test_json_file_is_extracted_as_pretty_printed_text():
+    import json
+
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "process_data.json").write_text(
+            json.dumps({"process_name": "Vendor Onboarding", "process_steps": []})
+        )
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == ["process_data.json"]
+    assert '"process_name": "Vendor Onboarding"' in result["combined_text"]
+
+
+def test_malformed_json_file_is_skipped_not_fatal():
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "broken.json").write_text("{not valid json")
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == []
+    skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
+    assert "broken.json" in skipped
+    assert "failed to read" in skipped["broken.json"]
+
+
 def test_unsupported_extension_is_skipped_not_fatal():
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "readme.txt").write_text("real content")
@@ -280,6 +308,29 @@ class TestStageAttachmentsToDirectory:
         assert sorted(read_result["files_processed"]) == ["process.xml", "stakeholders.docx"]
         assert "Procurement Lead" in read_result["combined_text"]
         assert "<step>Receive PO</step>" in read_result["combined_text"]
+
+    def test_staged_process_data_json_round_trips_with_the_exact_heading_the_import_agents_key_off(self):
+        # Both ports' Process_Import_Agent/Design_Import_Agent instructions
+        # recognize a literal restore by looking for an exact
+        # '=== process_data.json ===' (or design_data.json) heading in
+        # combined_text -- this proves that heading is actually produced,
+        # verbatim, for a re-attached download of this exact file.
+        import json
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            stage_result = stage_attachments_to_directory(
+                [{
+                    "name": "process_data.json",
+                    "data": json.dumps({"process_name": "Vendor Onboarding", "process_steps": []}).encode("utf-8"),
+                }],
+                base_dir=base_dir,
+            )
+            read_result = load_directory_context(stage_result["directory"])
+
+        assert read_result["status"] == "OK"
+        assert read_result["files_processed"] == ["process_data.json"]
+        assert "=== process_data.json ===" in read_result["combined_text"]
+        assert '"process_name": "Vendor Onboarding"' in read_result["combined_text"]
 
     def test_multiple_files_are_all_staged(self):
         with tempfile.TemporaryDirectory() as base_dir:
