@@ -26,6 +26,8 @@ import threading
 import time
 from typing import Callable, List, Optional
 
+from werkzeug.utils import safe_join
+
 from process_toolkit import paths
 
 logger = logging.getLogger("ProcessArchitect.SessionPurge")
@@ -104,8 +106,25 @@ def purge_session(session_id: str) -> bool:
     regardless of its own staleness -- for an explicit "drop this
     session" action (e.g. DELETE /chat/<session_id>) rather than waiting
     for the next scheduled sweep. Returns whether a directory actually
-    existed to remove."""
-    session_dir = os.path.join(paths.OUTPUT_DIR, paths.sanitize_session_id(session_id))
+    existed to remove.
+
+    sanitize_session_id's own regex check still runs first (raises
+    ValueError on a genuinely malformed id, same contract callers already
+    rely on), but the actual join below goes through werkzeug's own
+    safe_join -- the library sanitizer CodeQL's path-injection query
+    actually recognizes as a barrier, unlike a hand-rolled regex
+    validation -- with a realpath + prefix containment check after it as
+    defense in depth, matching the pattern both ports' own
+    safe_output_file_path functions already use.
+    """
+    sanitized = paths.sanitize_session_id(session_id)
+    output_dir = os.path.realpath(paths.OUTPUT_DIR)
+    joined = safe_join(output_dir, sanitized)
+    if joined is None:
+        return False
+    session_dir = os.path.realpath(joined)
+    if session_dir != output_dir and not session_dir.startswith(output_dir + os.sep):
+        return False
     if not os.path.isdir(session_dir):
         return False
     try:

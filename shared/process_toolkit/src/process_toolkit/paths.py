@@ -34,6 +34,8 @@ import uuid
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
+from werkzeug.utils import safe_join
+
 OUTPUT_DIR = "output"
 
 SESSION_META_FILENAME = ".session_meta.json"
@@ -57,11 +59,31 @@ def sanitize_session_id(session_id: str) -> str:
     return session_id
 
 
+def _session_dir_for(session_id: str) -> str:
+    """OUTPUT_DIR/<session_id>, as a single resolve shared by every call
+    site that needs it. sanitize_session_id's own regex check runs first
+    (the actual guarantee -- it only ever allows a bare alnum/./-/_
+    token, no separators, so this can't actually escape OUTPUT_DIR), but
+    the join itself still goes through werkzeug's own safe_join -- the
+    library sanitizer CodeQL's path-injection query actually recognizes
+    as a barrier, unlike a hand-rolled regex check -- so a `None` return
+    here (safe_join's own signal for "would have escaped") is not
+    expected to ever actually happen once sanitize_session_id has already
+    passed, but is still handled rather than silently producing an
+    unjoined path.
+    """
+    sanitized = sanitize_session_id(session_id)
+    joined = safe_join(OUTPUT_DIR, sanitized)
+    if joined is None:
+        raise ValueError(f"Refusing to use {session_id!r} as a session directory name.")
+    return joined
+
+
 def _current_session_dir() -> Optional[str]:
     session_id = _session_id_var.get()
     if session_id is None:
         return None
-    return os.path.join(OUTPUT_DIR, sanitize_session_id(session_id))
+    return _session_dir_for(session_id)
 
 
 def _atomic_write_json(path: str, payload: dict) -> None:
@@ -111,7 +133,7 @@ def use_session(session_id: Optional[str]) -> Iterator[None]:
     if session_id is None:
         yield
         return
-    _touch_session_metadata(os.path.join(OUTPUT_DIR, sanitize_session_id(session_id)))
+    _touch_session_metadata(_session_dir_for(session_id))
     token = _session_id_var.set(session_id)
     try:
         yield
