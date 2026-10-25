@@ -1217,34 +1217,49 @@ def _collect_agent_instructions(tools: List[Any], source_file: str, index: Dict[
     Recursively walks one network's "tools" list, indexing every entry
     that is an actual AGENT definition (a dict with both "name" and
     "instructions" -- a bare string entry is an external "/network"
-    reference or a coded-tool name, and a dict entry with no
-    "instructions" is a coded tool's own spec, neither of which this is
-    for) under its own name. Recurses into each entry's own nested
-    "tools" list too -- sub-agents defined inline within another agent's
-    own "tools" array (e.g. process.hocon's Subprocess_Driver_Agent ->
-    Subprocess_Generator_Agent) are exactly as real an agent as a
-    top-level one, just not directly reachable from the network's own
-    top-level list.
+    reference or a coded-tool name) under its own name, WITH the
+    "instructions" text that actually drives it. Recurses into each
+    entry's own nested "tools" list too -- sub-agents defined inline
+    within another agent's own "tools" array (e.g. process.hocon's
+    Subprocess_Driver_Agent -> Subprocess_Generator_Agent) are exactly as
+    real an agent as a top-level one, just not directly reachable from
+    the network's own top-level list.
 
-    First definition of a given name wins (does not overwrite) -- agent
-    names are expected to be unique across this project's own registries,
-    but a silent overwrite on an unexpected collision would make the
-    SAME node name resolve to a different agent's instructions than
-    whichever one the running conversation actually invoked, which is
-    worse than just keeping whichever one was found first.
+    A dict entry with a "class" instead of "instructions" is a CodedTool
+    (a plain Python class, e.g. download_artifact) -- it has no
+    natural-language "instructions" at all, so its own function.
+    description (the text the LLM actually sees describing when/how to
+    call it) is indexed as the closest equivalent. Without this, every
+    tool node in the web client's Agent Network tab -- not just every
+    sub-agent node -- 404s on hover instead of showing something useful.
+
+    First definition of a given name wins (does not overwrite) -- agent/
+    tool names are expected to be unique across this project's own
+    registries, but a silent overwrite on an unexpected collision would
+    make the SAME node name resolve to different text than whichever one
+    the running conversation actually invoked, which is worse than just
+    keeping whichever one was found first.
     """
     for entry in tools or []:
         if not isinstance(entry, dict):
             continue
         name = entry.get("name")
-        instructions = entry.get("instructions")
-        if name and instructions and name not in index:
+        if name and name not in index:
+            instructions = entry.get("instructions")
             function_spec = entry.get("function")
-            index[name] = {
-                "instructions": instructions,
-                "description": function_spec.get("description") if isinstance(function_spec, dict) else None,
-                "source_file": source_file,
-            }
+            function_description = function_spec.get("description") if isinstance(function_spec, dict) else None
+            if instructions:
+                index[name] = {
+                    "instructions": instructions,
+                    "description": function_description,
+                    "source_file": source_file,
+                }
+            elif entry.get("class") and function_description:
+                index[name] = {
+                    "instructions": function_description,
+                    "description": None,
+                    "source_file": source_file,
+                }
         nested_tools = entry.get("tools")
         if isinstance(nested_tools, list):
             _collect_agent_instructions(nested_tools, source_file, index)

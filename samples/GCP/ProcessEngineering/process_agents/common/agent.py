@@ -9,6 +9,7 @@ import secrets
 import threading
 import time
 import hmac
+import inspect
 import json
 import queue
 import base64
@@ -299,6 +300,14 @@ root_agent = ProcessLlmAgent(
 # how deep a SequentialAgent/LoopAgent wrapper nests it; a pure
 # orchestration wrapper has no .instruction of its own, so it's skipped
 # automatically rather than needing to be filtered out by type.
+#
+# Also walks each node's own .tools -- plain Python functions (e.g.
+# download_artifact), not LlmAgents, so they have no .instruction either.
+# Without this, every tool node in the web client's Agent Network tab
+# (any plain function call, not just a sub-agent call) 404s on hover
+# instead of showing the thing closest to that tool's own "instructions":
+# its docstring, which is also the literal text the LLM sees describing
+# when/how to call it.
 _agent_instructions_index: Optional[Dict[str, str]] = None
 
 
@@ -314,6 +323,11 @@ def _build_agent_instructions_index() -> Dict[str, str]:
         instruction = getattr(node, "instruction", None)
         if name and isinstance(instruction, str) and instruction.strip():
             index.setdefault(name, instruction)
+        for tool in getattr(node, "tools", None) or []:
+            tool_name = getattr(tool, "__name__", None)
+            doc = inspect.getdoc(tool)
+            if tool_name and doc:
+                index.setdefault(tool_name, doc)
         for child in getattr(node, "sub_agents", None) or []:
             visit(child)
 
