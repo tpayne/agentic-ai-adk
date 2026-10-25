@@ -1,13 +1,10 @@
 import asyncio
-import os
 from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit import paths
-
 from coded_tools.common.artifact_downloads import (
-    CLOUDARCH_FILENAME,
+    cloudarch_exists,
     copy_artifact_to_destination,
     list_output_documents,
     resolve_artifact_target,
@@ -63,7 +60,7 @@ class DownloadArtifactCodedTool(CodedTool):
 
     def _not_found_message(self, target: Any) -> str:
         available = [doc["filename"] for doc in list_output_documents()]
-        if os.path.isfile(os.path.join(paths.output_dir(), CLOUDARCH_FILENAME)):
+        if cloudarch_exists():
             available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
         listing = ", ".join(available) if available else "nothing has been generated yet"
         target_desc = f"'{target}'" if target else "(no target specified)"

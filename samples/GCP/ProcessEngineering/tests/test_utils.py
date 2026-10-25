@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sys
 import tempfile
@@ -59,6 +60,7 @@ def _install_google_stubs():
 
 _install_google_stubs()
 from process_agents.common import utils  # noqa: E402
+from process_toolkit import paths as toolkit_paths  # noqa: E402
 
 
 def valid_process():
@@ -242,6 +244,18 @@ class UtilsPersistenceTests(unittest.TestCase):
         self.root_patch = patch.object(utils, "PROJECT_ROOT", self.temp_dir.name)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
+        # _paths_for_schema's own output_dir now resolves via
+        # process_toolkit.paths.output_dir(), not PROJECT_ROOT -- patch
+        # that too, to the SAME self.temp_dir.name/output this class's own
+        # fixtures below already write under (matching the old PROJECT_ROOT/
+        # output layout exactly, so none of those fixture paths need to
+        # change), so utils.load_master_process_json() etc. look in the
+        # right place.
+        self.output_dir_patch = patch.object(
+            toolkit_paths, "OUTPUT_DIR", os.path.join(self.temp_dir.name, "output")
+        )
+        self.output_dir_patch.start()
+        self.addCleanup(self.output_dir_patch.stop)
 
     def test_load_master_process_json_uses_template_when_master_missing(self):
         template = Path(self.temp_dir.name) / "template.json"
@@ -325,6 +339,16 @@ class SaveDrawioShapeMappingTests(unittest.TestCase):
         self.root_patch = patch.object(utils, "PROJECT_ROOT", self.temp_dir.name)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
+        # save_drawio's own output_dir now resolves via
+        # process_toolkit.paths.output_dir(), not PROJECT_ROOT -- patch
+        # that too, to the SAME self.temp_dir.name/output _save_and_load's
+        # own read-back below already expects (matching the old
+        # PROJECT_ROOT/output layout), so it finds what save_drawio wrote.
+        self.output_dir_patch = patch.object(
+            toolkit_paths, "OUTPUT_DIR", os.path.join(self.temp_dir.name, "output")
+        )
+        self.output_dir_patch.start()
+        self.addCleanup(self.output_dir_patch.stop)
 
     def _save_and_load(self, xml_content):
         result = utils.save_drawio(xml_content)

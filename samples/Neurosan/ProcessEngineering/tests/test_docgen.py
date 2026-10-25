@@ -11,7 +11,7 @@ import os
 import docx
 import pytest
 
-from coded_tools.common import paths
+from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.generation import create_standard_doc_from_file

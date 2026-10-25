@@ -25,6 +25,8 @@ from google.adk.agents import callback_context
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 
+from process_toolkit import paths as toolkit_paths
+
 logger = logging.getLogger("ProcessArchitect.Utils")
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -537,7 +539,7 @@ def _paths_for_schema(schema_type: str) -> dict:
     separately. "process" paths are exactly the pre-existing hardcoded
     paths, unchanged, to preserve default behavior.
     """
-    output_dir = os.path.join(PROJECT_ROOT, "output")
+    output_dir = toolkit_paths.output_dir()
     if schema_type == "design":
         return {
             "data_file": os.path.join(output_dir, "design_data.json"),
@@ -2175,7 +2177,7 @@ def _save_drawio_core(xml_content, run_shape_mapping: bool = True) -> str:
 
         return tree, notes
 
-    output_dir = os.path.join(PROJECT_ROOT, "output")
+    output_dir = toolkit_paths.output_dir()
     path = os.path.join(output_dir, "cloudarch_drawio.xml")
     lock_path = os.path.join(output_dir, ".cloudarch_drawio.lock")
 
@@ -2497,7 +2499,7 @@ def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> s
 
     validator = _validator_for_schema(resolved_type)
     paths = _paths_for_schema(resolved_type)
-    output_dir = os.path.join(PROJECT_ROOT, "output")
+    output_dir = toolkit_paths.output_dir()
     path = paths["data_file"]
     lock_path = paths["lock_file"]
     raw_path = paths["raw_file"]
@@ -2800,7 +2802,7 @@ def load_full_process_context(schema_type: Optional[str] = None) -> dict:
             logger.exception("Failed to load master process context from %s", master_path)
             context["system_status"] = "ERROR"
     if resolved_type == "process":
-        sub_dir = os.path.join(PROJECT_ROOT, "output", "subprocesses")
+        sub_dir = toolkit_paths.output_dir("subprocesses")
         if os.path.exists(sub_dir):
             for file_path in glob.glob(os.path.join(sub_dir, "*.json")):
                 try:

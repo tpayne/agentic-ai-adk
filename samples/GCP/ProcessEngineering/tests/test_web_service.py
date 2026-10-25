@@ -10,6 +10,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call, patch
 
+from process_toolkit import paths as toolkit_paths
+
 
 class WebServiceSessionDeleteTest(unittest.TestCase):
     """Covers the DELETE /chat/<session_id> endpoint.
@@ -862,9 +864,9 @@ class WebServiceChatStopTest(unittest.TestCase):
 class WebServiceArtifactRouteTest(unittest.TestCase):
     """GET /artifacts/<name> -- read-only access to output/process_data.json
     /output/design_data.json for the web client's "Process / Design" tab.
-    utils_agent.PROJECT_ROOT is patched to an isolated tmp dir for every
-    test here so these don't depend on (or disturb) this checkout's own
-    real output/ directory, whose contents vary run to run."""
+    process_toolkit.paths.OUTPUT_DIR is patched to an isolated tmp dir for
+    every test here so these don't depend on (or disturb) this checkout's
+    own real output/ directory, whose contents vary run to run."""
 
     API_KEY = "test-web-api-key"
 
@@ -872,7 +874,6 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
     def setUpClass(cls):
         os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
         cls.agent = importlib.import_module("process_agents.common.agent")
-        cls.utils_agent = importlib.import_module("process_agents.common.utils_agent")
 
     def setUp(self):
         self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
@@ -896,7 +897,7 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.addCleanup(self.tmp_dir.cleanup)
         self.output_dir = os.path.join(self.tmp_dir.name, "output")
         os.makedirs(self.output_dir)
-        self.project_root_patch = patch.object(self.utils_agent, "PROJECT_ROOT", self.tmp_dir.name)
+        self.project_root_patch = patch.object(toolkit_paths, "OUTPUT_DIR", self.output_dir)
         self.project_root_patch.start()
         self.addCleanup(self.project_root_patch.stop)
 
@@ -959,12 +960,11 @@ class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
     WebServiceArtifactRouteTest's JSON-wrapped reads above. Developed in
     tandem with the neuro-san port's own TestDocumentDownloadRoutes.
 
-    Both .utils_agent.PROJECT_ROOT (download_cloudarch's own import) AND
-    .artifact_downloads.PROJECT_ROOT (list_documents/download_document,
-    and download_artifact's own tool -- see that module's own docstring
-    on why it computes PROJECT_ROOT independently rather than importing
-    it from .utils_agent) are patched to the SAME isolated tmp dir, so
-    both routes agree on where output/ actually is."""
+    download_cloudarch, list_documents/download_document, and
+    download_artifact's own tool all now resolve output/ the same way --
+    via process_toolkit.paths.output_dir() -- so one patch of
+    toolkit_paths.OUTPUT_DIR to an isolated tmp dir is enough for every
+    route in this class to agree on where output/ actually is."""
 
     API_KEY = "test-web-api-key"
 
@@ -972,8 +972,6 @@ class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
     def setUpClass(cls):
         os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
         cls.agent = importlib.import_module("process_agents.common.agent")
-        cls.utils_agent = importlib.import_module("process_agents.common.utils_agent")
-        cls.artifact_downloads = importlib.import_module("process_agents.common.artifact_downloads")
 
     def setUp(self):
         self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
@@ -998,12 +996,9 @@ class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
         self.output_dir = os.path.join(self.tmp_dir.name, "output")
         os.makedirs(self.output_dir)
 
-        self.project_root_patch = patch.object(self.utils_agent, "PROJECT_ROOT", self.tmp_dir.name)
+        self.project_root_patch = patch.object(toolkit_paths, "OUTPUT_DIR", self.output_dir)
         self.project_root_patch.start()
         self.addCleanup(self.project_root_patch.stop)
-        self.artifact_root_patch = patch.object(self.artifact_downloads, "PROJECT_ROOT", self.tmp_dir.name)
-        self.artifact_root_patch.start()
-        self.addCleanup(self.artifact_root_patch.stop)
 
         self.client = self.agent.build_web_app(https=False).test_client()
 
@@ -1092,6 +1087,168 @@ class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
             self.client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code, 401
         )
         self.assertEqual(self.client.get("/artifacts/cloudarch/download").status_code, 401)
+
+
+class WebServiceSessionOutputIsolationTest(unittest.TestCase):
+    """Multi-session output isolation: _run_chat_turn (POST /chat) and
+    chat_stream's own run() (POST /chat/stream) must each scope every file
+    a turn writes to that session's own output/<session_id>/ directory via
+    paths.use_session(), and DELETE /chat/<session_id> must remove that
+    directory immediately rather than waiting for the next purge sweep.
+
+    Exercises _run_chat_turn/chat_stream's ACTUAL bodies (not a mock that
+    bypasses them, as WebServiceRequestControlsTest/WebServiceChatStreamTest
+    do for routing-focused tests) by faking only _web_runner.run_async
+    itself -- the lowest-level seam -- with a fake turn that performs a
+    real file write via process_toolkit.paths, exactly as a real pipeline
+    tool would."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+        with self.agent._web_sessions_lock:
+            self.agent._web_sessions.clear()
+            self.agent._active_web_sessions.clear()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    @staticmethod
+    def _final_event(text):
+        return SimpleNamespace(
+            partial=False,
+            usage_metadata=None,
+            content=SimpleNamespace(parts=[SimpleNamespace(text=text)]),
+            is_final_response=lambda: True,
+        )
+
+    def _fake_get_or_create_web_session(self, ids_by_call):
+        calls = {"n": 0}
+
+        async def _fake(existing_session_id):
+            web_session_id, user_id, adk_session_id = ids_by_call[calls["n"]]
+            calls["n"] += 1
+            return web_session_id, user_id, adk_session_id
+
+        return _fake
+
+    def test_two_chat_sessions_write_to_different_output_directories(self):
+        async def fake_run_async(user_id, session_id, new_message, run_config):
+            # Writes a real file through process_toolkit.paths, exactly
+            # like a real pipeline tool does -- this only lands under the
+            # right session_id if _run_chat_turn's own use_session()
+            # wrapping is actually active while this runs.
+            path = toolkit_paths.output_path("process_data.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(f"data for {session_id}")
+            yield self._final_event(path)
+
+        get_session = self._fake_get_or_create_web_session([
+            ("web-session-a", "user-a", "adk-session-a"),
+            ("web-session-b", "user-b", "adk-session-b"),
+        ])
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_web_runner", SimpleNamespace(run_async=fake_run_async)
+        ):
+            client_a = self.agent.build_web_app(https=False).test_client()
+            client_b = self.agent.build_web_app(https=False).test_client()
+            resp_a = client_a.post("/chat", json={"query": "q"}, headers=self._authorized_headers())
+            resp_b = client_b.post("/chat", json={"query": "q"}, headers=self._authorized_headers())
+
+        self.assertEqual(resp_a.status_code, 200)
+        self.assertEqual(resp_b.status_code, 200)
+        path_a = resp_a.get_json()["response"]
+        path_b = resp_b.get_json()["response"]
+        self.assertNotEqual(path_a, path_b)
+        self.assertIn("web-session-a", path_a)
+        self.assertIn("web-session-b", path_b)
+        with open(path_a, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "data for adk-session-a")
+        with open(path_b, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "data for adk-session-b")
+
+    def test_chat_stream_turn_writes_under_the_correct_session_despite_the_bare_thread(self):
+        # Regression test for the confirmed bare-threading.Thread context-
+        # propagation gap in chat_stream's own generate()/run(): a bare
+        # thread does NOT copy the caller's contextvars.Context the way
+        # asyncio.to_thread/loop.create_task do, so use_session() must be
+        # entered explicitly inside run() itself (see agent.py's own
+        # comment at that call site). This would fail with the file
+        # landing in flat output/ instead if that fix were ever reverted.
+        async def fake_run_async(user_id, session_id, new_message, run_config):
+            path = toolkit_paths.output_path("process_data.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("streamed data")
+            yield SimpleNamespace(
+                partial=False,
+                usage_metadata=None,
+                content=SimpleNamespace(parts=[SimpleNamespace(text=None, function_call=None)]),
+                is_final_response=lambda: True,
+                author="root_agent",
+                get_function_calls=lambda: [],
+            )
+
+        get_session = AsyncMock(return_value=("web-session-stream", "user-1", "adk-session-1"))
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_web_runner", SimpleNamespace(run_async=fake_run_async)
+        ):
+            client = self.agent.build_web_app(https=False).test_client()
+            response = client.post(
+                "/chat/stream", json={"query": "q"}, headers=self._authorized_headers()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        response.get_data()  # drains generate(), waiting for the background thread to finish
+
+        expected_path = os.path.join(toolkit_paths.OUTPUT_DIR, "web-session-stream", "process_data.json")
+        self.assertTrue(os.path.isfile(expected_path), f"expected {expected_path} to exist")
+        with open(expected_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "streamed data")
+
+    def test_delete_removes_the_sessions_output_directory_immediately(self):
+        async def fake_run_async(user_id, session_id, new_message, run_config):
+            with open(toolkit_paths.output_path("process_data.json"), "w", encoding="utf-8") as f:
+                f.write("will be deleted")
+            yield self._final_event("ok")
+
+        get_session = self._fake_get_or_create_web_session([("web-session-del", "user-1", "adk-session-1")])
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_web_runner", SimpleNamespace(run_async=fake_run_async)
+        ):
+            client = self.agent.build_web_app(https=False).test_client()
+            resp = client.post("/chat", json={"query": "q"}, headers=self._authorized_headers())
+
+        self.assertEqual(resp.status_code, 200)
+        session_dir = os.path.join(toolkit_paths.OUTPUT_DIR, "web-session-del")
+        self.assertTrue(os.path.isdir(session_dir))
+
+        client.delete("/chat/web-session-del", headers=self._authorized_headers())
+
+        self.assertFalse(os.path.isdir(session_dir))
 
 
 class WebServiceAgentInstructionsRouteTest(unittest.TestCase):

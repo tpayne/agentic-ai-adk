@@ -16,6 +16,7 @@ from ..common.utils import (
 )
 from ..common.utils_agent import acquire_pipeline_lock_for_turn
 from process_toolkit.run_lock import PipelineLockedError
+from process_toolkit import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.DesignDocAnalysis")
 
@@ -37,8 +38,8 @@ def _remove_previous_approval_logs(tool_context: Optional[ToolContext] = None):
     except PipelineLockedError as e:
         return f"ERROR: {e}"
 
-    approvalLog = "output/approval.json"
-    counterLog = "output/stop_counter.json"
+    approvalLog = toolkit_paths.output_path("approval.json")
+    counterLog = toolkit_paths.output_path("stop_counter.json")
     try:
         if os.path.exists(approvalLog):
             os.remove(approvalLog)

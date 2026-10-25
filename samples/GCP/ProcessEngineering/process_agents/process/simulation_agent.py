@@ -15,14 +15,12 @@ from ..common.utils import (
     save_iteration_feedback,
     getProperty,
 )
+from process_toolkit import paths as toolkit_paths
 
 import time
 import random
 
 logger = logging.getLogger("ProcessArchitect.Simulation")
-
-SIM_RESULTS_PATH = "output/simulation_results.json"
-PROCESS_JSON = "output/process_data.json"
 
 # ============================================================
 # JSON EXTRACTION + REPAIR + VALIDATION
@@ -342,22 +340,20 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
 
 def _persist_simulation_metrics(metrics: Dict[str, Any]) -> None:
     try:
-        import os
-        os.makedirs("output", exist_ok=True)
-        with open(SIM_RESULTS_PATH, "w", encoding="utf-8") as f:
+        sim_results_path = toolkit_paths.output_path("simulation_results.json")
+        with open(sim_results_path, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2, ensure_ascii=False)
-        logger.debug(f"Simulation metrics saved to {SIM_RESULTS_PATH}")
+        logger.debug(f"Simulation metrics saved to {sim_results_path}")
     except Exception:
         logger.exception("Failed to persist simulation metrics.")
 
 
 def _persist_process_data(data: Dict[str, Any]) -> None:
     try:
-        import os
-        os.makedirs("output", exist_ok=True)
-        with open(PROCESS_JSON, "w", encoding="utf-8") as f:
+        process_json_path = toolkit_paths.output_path("process_data.json")
+        with open(process_json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.debug(f"Process data saved to {PROCESS_JSON}")
+        logger.debug(f"Process data saved to {process_json_path}")
     except Exception:
         logger.exception("Failed to persist process data.")
 

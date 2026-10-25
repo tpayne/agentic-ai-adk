@@ -9,23 +9,11 @@ import os
 import pytest
 
 from process_agents.common import artifact_downloads
-
-
-@pytest.fixture(autouse=True)
-def isolated_output_dir(tmp_path, monkeypatch):
-    """artifact_downloads.PROJECT_ROOT (not process_toolkit.paths'
-    OUTPUT_DIR) drives every path in this module -- see its own docstring
-    for why it computes this independently rather than importing it from
-    .utils_agent. Isolated the same way test_pipeline_lock_wiring.py
-    isolates process_toolkit's own OUTPUT_DIR: per-file, not via a shared
-    conftest.py (this project has none)."""
-    monkeypatch.setattr(artifact_downloads, "PROJECT_ROOT", str(tmp_path))
-    yield tmp_path
+from process_toolkit import paths
 
 
 def _write_output_file(name: str, content: bytes = b"content") -> str:
-    output_dir = os.path.join(artifact_downloads.PROJECT_ROOT, "output")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = paths.output_dir()
     path = os.path.join(output_dir, name)
     with open(path, "wb") as f:
         f.write(content)
@@ -71,8 +59,15 @@ class TestSafeOutputFilePath:
         assert artifact_downloads.safe_output_file_path("") is None
         assert artifact_downloads.safe_output_file_path(None) is None
 
-    def test_path_traversal_attempt_is_rejected(self, tmp_path):
-        secret = os.path.join(tmp_path, "secret.txt")
+    def test_path_traversal_attempt_is_rejected(self, tmp_path_factory):
+        # A genuinely SEPARATE directory from OUTPUT_DIR (which the
+        # autouse isolated_output_dir fixture already points at this
+        # test's own tmp_path) -- using tmp_path directly here would put
+        # "secret.txt" INSIDE output/ instead of outside it, since
+        # OUTPUT_DIR is now the output directory itself, not a parent
+        # "project root" with output/ nested a level below.
+        secret_dir = tmp_path_factory.mktemp("secret")
+        secret = os.path.join(secret_dir, "secret.txt")
         with open(secret, "w", encoding="utf-8") as f:
             f.write("do not leak me")
         assert artifact_downloads.safe_output_file_path("../secret.txt") is None

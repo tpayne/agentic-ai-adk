@@ -841,7 +841,9 @@ an unauthenticated, model-backed chat API reachable from anywhere the port
 is open — set `allowInsecureWebService = True` instead if you specifically
 want that (e.g. a trusted internal network with no key). Every route is also
 capped at `webRateLimitPerMinute` requests/minute per source IP (default 30;
-`<= 0` disables it).
+`<= 0` disables it). `sessionMaxAgeDays`/`sessionPurgeIntervalSeconds` (see
+[Per-session output isolation](#per-session-output-isolation) below) follow
+this same properties-file-or-env-var convention.
 
 ### REST API
 
@@ -1049,6 +1051,30 @@ several at once and "what documents exist" has to be a directory listing, not a 
 `<filename>/download` validates the name stays strictly inside `output/` (realpath + containment
 check, not just a string pattern) before serving it. Subject to the same auth/rate-limiting as every
 other route except `/status`.
+
+### Per-session output isolation
+
+Every file a turn generates (`process_data.json`/`design_data.json`, `cloudarch_drawio.xml`,
+generated `.docx` documents, `pipeline.lock`, everything resolved through `process_toolkit.paths`) is
+written under `output/<session_id>/` instead of flat `output/` under `-d` mode, where `<session_id>`
+is the same server-minted id already returned as `"session_id"` in every `/chat`/`/chat/stream`
+response and set as the `process_architect_session` cookie -- two concurrent web sessions can no
+longer read or overwrite each other's artifacts. `GET /artifacts/*` and the download routes above
+resolve the same way, via that same cookie; a caller with no session cookie at all (e.g. a direct API
+client that never called `/chat` first) falls back to flat `output/`, unchanged from before this
+existed. Same contract as the neuro-san port's own `cli.py -d --flask`.
+
+The interactive/`-f`/plain CLI modes are unaffected -- they never serve more than one session at a
+time, so there was no cross-session collision to fix there, and they still write straight to flat
+`output/`.
+
+A background thread sweeps `output/` for session directories untouched for `sessionMaxAgeDays`
+(property/env var, default `3`), checking every `sessionPurgeIntervalSeconds` (property/env var,
+default `3600`, hourly) -- started once when `-d` boots, following this port's own `getProperty`
+convention (properties file, falling back to `SESSIONMAXAGEDAYS`/`SESSIONPURGEINTERVALSECONDS`). A
+session directory with a request currently in flight is never purged regardless of how stale it
+looks. `DELETE /chat/<session_id>` also removes that session's directory immediately, rather than
+waiting for the next sweep.
 
 ### Browser client
 

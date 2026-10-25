@@ -69,7 +69,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from werkzeug.utils import safe_join
 
 # Loads a project-root .env file (if any) into os.environ, same as `ns
 # chat`/`ns run` already do for this project's LLM provider API keys (see
@@ -158,8 +157,15 @@ from neuro_san.message.processors.message_processor import MessageProcessor  # n
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
+from process_toolkit import paths  # noqa: E402
 from process_toolkit.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
 from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
+from process_toolkit.session_purge import purge_session, start_session_purge_thread  # noqa: E402
+from coded_tools.common.artifact_downloads import (  # noqa: E402
+    cloudarch_exists,
+    list_output_documents,
+    safe_output_file_path,
+)
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
@@ -839,10 +845,10 @@ def _display_output_document_listing() -> None:
     has something concrete to copy from without the user having to go
     look inside output/ themselves."""
     lines: List[str] = []
-    for doc in _list_output_documents():
+    for doc in list_output_documents():
         lines.append(f"  {doc['filename']}  ({doc['size_bytes']:,} bytes, modified {doc['modified']})")
-    cloudarch_path = os.path.join(_PROJECT_ROOT, "output", "cloudarch_drawio.xml")
-    if os.path.isfile(cloudarch_path):
+    if cloudarch_exists():
+        cloudarch_path = os.path.join(paths.output_dir(), "cloudarch_drawio.xml")
         stat = os.stat(cloudarch_path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
         lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")
@@ -870,7 +876,7 @@ def _handle_download_control_line(line: str) -> None:
     filename = parts[1]
     destination = os.path.expanduser(parts[2]) if len(parts) > 2 else "."
 
-    source_path = _safe_output_file_path(filename)
+    source_path = safe_output_file_path(filename)
     if source_path is None:
         display_text(
             f"No generated file named '{filename}' in output/. Use 'list' to see what's available.",
@@ -1011,6 +1017,16 @@ _web_sessions_last_swept = 0.0
 # it out from under the request about to use it.
 _active_web_sessions: Dict[str, int] = {}
 
+# Each web session's own output/<session_id>/ directory (see
+# process_toolkit.paths' own use_session() docstring) is swept by a
+# background thread for as long as -d --flask is running -- a directory
+# whose own SESSION_META_FILENAME hasn't been touched in SESSIONMAXAGEDAYS
+# is removed, unless _active_web_sessions (above) says a request is
+# currently in flight for it. Same naming convention as every other
+# web-service env var here (WEBAPIKEY, WEBRATELIMITPERMINUTE, ...).
+_SESSION_MAX_AGE_SECONDS = float(os.environ.get("SESSIONMAXAGEDAYS", "3")) * 86400.0
+_SESSION_PURGE_INTERVAL_SECONDS = float(os.environ.get("SESSIONPURGEINTERVALSECONDS", "3600"))
+
 # ---------------------------------------------------------
 # WEB SERVICE: AUTH + RATE LIMITING
 # ---------------------------------------------------------
@@ -1130,70 +1146,14 @@ def _release_web_session(web_session_id: str) -> None:
 
 # ---------------------------------------------------------
 # Downloading generated artifacts (Word documents + the cloud architecture
-# diagram) -- shared by both the Flask routes below (for the web client)
-# and the "list"/"download" control lines in handle_logical_line above
-# (for the interactive/-f CLI), so there's exactly one place that knows
-# how a filename is resolved safely against output/, not two that could
-# drift apart.
+# diagram) -- both the Flask routes below (for the web client) and the
+# "list"/"download" control lines in handle_logical_line above (for the
+# interactive/-f CLI) delegate to coded_tools.common.artifact_downloads,
+# the single canonical implementation also used by the LLM-invokable
+# download_artifact tool -- not a second copy of this logic, so a
+# filename always resolves against whichever output/ directory (flat, or
+# a web session's own output/<session_id>/) is actually active.
 # ---------------------------------------------------------
-def _list_output_documents() -> List[Dict[str, Any]]:
-    """
-    Every generated .docx currently sitting in output/. Unlike
-    process_data.json/design_data.json/cloudarch_drawio.xml (fixed,
-    singular filenames), a generated document's filename is derived from
-    whatever process/design name was actually used (see docgen/
-    generation.py's own safe_filename_component(name) + ".docx") -- there
-    is no single predictable path, so "what documents exist" has to be an
-    actual directory listing. Sorted most-recently-modified first -- the
-    document someone just generated is the one they're most likely
-    asking about next.
-    """
-    output_dir = os.path.join(_PROJECT_ROOT, "output")
-    if not os.path.isdir(output_dir):
-        return []
-    entries: List[Dict[str, Any]] = []
-    for name in os.listdir(output_dir):
-        full_path = os.path.join(output_dir, name)
-        if not name.lower().endswith(".docx") or not os.path.isfile(full_path):
-            continue
-        stat = os.stat(full_path)
-        entries.append({
-            "filename": name,
-            "size_bytes": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-        })
-    entries.sort(key=lambda e: e["modified"], reverse=True)
-    return entries
-
-
-def _safe_output_file_path(filename: str) -> Optional[str]:
-    """
-    Resolves `filename` (a bare basename -- a URL path segment from the
-    download route, or the first word after "download " on a CLI control
-    line) to a real file strictly INSIDE output/, or None if it doesn't
-    exist or would resolve outside output/.
-
-    werkzeug's own safe_join (the library sanitizer CodeQL's path-injection
-    query actually recognizes as a barrier, unlike a hand-rolled
-    os.path.commonpath/startswith comparison) rejects any ".."/absolute-
-    path escape before a path is ever built; the realpath + prefix
-    containment check after it is still kept as defense in depth against
-    a symlink planted inside output/ pointing elsewhere. The trailing
-    os.sep on the prefix matters: without it, an output_dir of "/x/out"
-    would wrongly accept a sibling like "/x/output_other".
-    """
-    if not filename:
-        return None
-    output_dir = os.path.realpath(os.path.join(_PROJECT_ROOT, "output"))
-    joined = safe_join(output_dir, os.path.basename(filename))
-    if joined is None:
-        return None
-    candidate = os.path.realpath(joined)
-    if candidate != output_dir and not candidate.startswith(output_dir + os.sep):
-        return None
-    if not os.path.isfile(candidate):
-        return None
-    return candidate
 
 
 _agent_instructions_index: Optional[Dict[str, Dict[str, Any]]] = None
@@ -1498,7 +1458,8 @@ def build_web_app(agent_name: str, https: bool = True):
         web_session_id = None
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
-            response_text = session.send(query.strip(), files=files)
+            with paths.use_session(web_session_id):
+                response_text = session.send(query.strip(), files=files)
         except Exception:
             _web_logger.exception("Web chat error")
             return jsonify({
@@ -1563,10 +1524,25 @@ def build_web_app(agent_name: str, https: bool = True):
         web_session_id, session = _get_or_create_web_session(session_id, agent_name)
 
         def generate():
+            # paths.use_session wraps this whole generator body rather than
+            # each individual tool call inside it -- safe ONLY because
+            # Werkzeug's threaded=True (run_web_service) gives every
+            # concurrent request its own brand-new OS thread (Python's
+            # ThreadingMixIn never reuses/pools threads mid-request), and
+            # each new thread starts with its own default contextvars
+            # context. A plain (non-async) generator does NOT get its own
+            # isolated context the way an asyncio Task does -- two
+            # DIFFERENT generators' next() calls genuinely interleaved on
+            # the SAME OS thread (confirmed empirically) would stomp on
+            # each other's session id. That interleaving can't happen
+            # under this server's own threading model; it WOULD become
+            # possible under a cooperative/greenlet-based WSGI server
+            # (gevent/eventlet), which this project does not use.
             try:
                 try:
-                    for update in session.send_streaming(query.strip(), files=files):
-                        yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+                    with paths.use_session(web_session_id):
+                        for update in session.send_streaming(query.strip(), files=files):
+                            yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
                 except Exception:
                     _web_logger.exception("Web chat stream error")
                     error_event = {
@@ -1650,19 +1626,31 @@ def build_web_app(agent_name: str, https: bool = True):
                 session.close()
             except Exception:
                 _web_logger.exception("Error closing neuro-san session %s", session_id)
+        # Removes this session's own output/<session_id>/ directory right
+        # now rather than waiting for the next purge sweep -- an explicit
+        # "drop this session" request is as clear a signal as it gets that
+        # nothing will need those files again.
+        try:
+            purge_session(session_id)
+        except ValueError:
+            pass  # session_id didn't look like a real session directory name -- nothing to remove
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
 
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):
         """
-        Read-only access to this project's own output/process_data.json,
-        output/design_data.json, or output/cloudarch_drawio.xml, for the
-        web client's "Process / Design" and "Cloud Architecture" tabs --
-        a hierarchical/diagram viewer of whichever pipeline's current
-        artifact. The ADK port's build_web_app has an identical
-        route, and both keep these files at the identical relative path,
-        so the client's fetch logic doesn't need to know which backend
-        it's talking to.
+        Read-only access to this web session's own output/<session_id>/
+        process_data.json, design_data.json, or cloudarch_drawio.xml (or
+        flat output/ for a caller with no session cookie at all -- e.g. a
+        direct API caller that never went through POST /chat first),
+        resolved the same way /chat does -- via WEB_SESSION_COOKIE, since
+        a plain GET has no JSON body of its own to carry a session_id in.
+        Powers the web client's "Process / Design" and "Cloud
+        Architecture" tabs -- a hierarchical/diagram viewer of whichever
+        pipeline's current artifact. The ADK port's build_web_app has an
+        identical route, and both keep these files at the identical
+        relative path, so the client's fetch logic doesn't need to know
+        which backend it's talking to.
 
         Deliberately a raw file read, NOT the existing
         load_master_process_json/load_master_design_json CodedTool
@@ -1688,43 +1676,51 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'cloudarch'.",
             }), 400
 
-        path = os.path.join(_PROJECT_ROOT, "output", filename)
-        if not os.path.exists(path):
-            return jsonify({
-                "status": "error",
-                "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
-            }), 404
+        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+            path = os.path.join(paths.output_dir(), filename)
+            if not os.path.exists(path):
+                return jsonify({
+                    "status": "error",
+                    "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+                }), 404
 
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = f.read() if name == "cloudarch" else json.load(f)
-        except Exception:
-            _web_logger.exception("Failed to read/parse %s", filename)
-            return jsonify({
-                "status": "error",
-                "error": f"Could not read {filename} -- see server logs.",
-            }), 500
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = f.read() if name == "cloudarch" else json.load(f)
+            except Exception:
+                _web_logger.exception("Failed to read/parse %s", filename)
+                return jsonify({
+                    "status": "error",
+                    "error": f"Could not read {filename} -- see server logs.",
+                }), 500
 
         return jsonify({"status": "ok", "name": name, "data": data})
 
     @web_app.route("/artifacts/documents", methods=["GET"])
     def list_documents():
         """
-        Every generated .docx currently in output/, for the web client's
-        own download picker -- see _list_output_documents's own
-        docstring for why this has to be a directory listing rather than
-        a fixed, known filename the way process/design/cloudarch above
-        are.
+        Every generated .docx currently in this web session's own
+        output/<session_id>/ (or flat output/ for a caller with no
+        session cookie), for the web client's own download picker -- see
+        list_output_documents's own docstring for why this has to be a
+        directory listing rather than a fixed, known filename the way
+        process/design/cloudarch above are.
         """
-        return jsonify({"status": "ok", "documents": _list_output_documents()})
+        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+            documents = list_output_documents()
+        return jsonify({"status": "ok", "documents": documents})
 
     @web_app.route("/artifacts/documents/<filename>/download", methods=["GET"])
     def download_document(filename):
         """Downloads one generated .docx by its own filename (exactly as
         returned by GET /artifacts/documents) as a real file attachment,
-        for the web client's download button -- see _safe_output_file_path
-        for how `filename` is kept from escaping output/."""
-        path = _safe_output_file_path(filename)
+        for the web client's download button -- see safe_output_file_path
+        for how `filename` is kept from escaping output/. `path` is
+        resolved to a concrete absolute string up front, so send_file's
+        own (possibly deferred) streaming below doesn't depend on the
+        session context still being active."""
+        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+            path = safe_output_file_path(filename)
         if path is None or not filename.lower().endswith(".docx"):
             return jsonify({
                 "status": "error",
@@ -1739,13 +1735,16 @@ def build_web_app(agent_name: str, https: bool = True):
 
     @web_app.route("/artifacts/cloudarch/download", methods=["GET"])
     def download_cloudarch():
-        """Downloads output/cloudarch_drawio.xml as a real file attachment
-        (as opposed to GET /artifacts/cloudarch above, which returns it
-        JSON-wrapped as a string for the client's own mxGraph-XML
-        renderer) -- for opening directly in a real draw.io client, or
-        just keeping a copy."""
-        path = os.path.join(_PROJECT_ROOT, "output", "cloudarch_drawio.xml")
-        if not os.path.isfile(path):
+        """Downloads this web session's own output/<session_id>/
+        cloudarch_drawio.xml (or flat output/ for a caller with no
+        session cookie) as a real file attachment (as opposed to GET
+        /artifacts/cloudarch above, which returns it JSON-wrapped as a
+        string for the client's own mxGraph-XML renderer) -- for opening
+        directly in a real draw.io client, or just keeping a copy."""
+        with paths.use_session(request.cookies.get(WEB_SESSION_COOKIE)):
+            path = os.path.join(paths.output_dir(), "cloudarch_drawio.xml")
+            exists = os.path.isfile(path)
+        if not exists:
             return jsonify({
                 "status": "error",
                 "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
@@ -1815,6 +1814,17 @@ def run_web_service(agent_name: str, port: Optional[int], use_https: bool) -> No
         sys.exit(1)
 
     web_app = build_web_app(agent_name, https=use_https)
+
+    # One purge sweep thread for the life of this process -- see
+    # process_toolkit.session_purge's own docstring. _active_web_sessions
+    # (not a second on-disk flag) is what keeps a session currently
+    # mid-request from being purged out from under it, regardless of how
+    # stale its own last-activity timestamp looks.
+    start_session_purge_thread(
+        _SESSION_PURGE_INTERVAL_SECONDS,
+        _SESSION_MAX_AGE_SECONDS,
+        is_session_active=lambda session_id: session_id in _active_web_sessions,
+    )
 
     listen_port = port if port is not None else (443 if use_https else 8080)
 

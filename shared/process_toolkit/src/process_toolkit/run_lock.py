@@ -5,12 +5,19 @@ Both backends' generate/review pipelines share plain files in output/
 (approval.json, stop_counter.json, iteration_feedback*.json,
 process_data.json/design_data.json) across many separate tool calls spread
 over several LLM turns -- there is no single Python call spanning a whole
-run that an in-process lock could wrap. Two pipelines running concurrently
-against the same output/ directory (e.g. two ADK web sessions, or an ADK
-and a neuro-san process pointed at the same directory) can interleave
-their reads/writes of that shared state: one run's stop decision can read
-another's approval marker, one run's feedback mailbox can get drained by
-the wrong generator, one run's final JSON can overwrite another's.
+run that an in-process lock could wrap. Two pipeline runs sharing the same
+output/ directory can interleave their reads/writes of that shared state:
+one run's stop decision can read another's approval marker, one run's
+feedback mailbox can get drained by the wrong generator, one run's final
+JSON can overwrite another's.
+
+Each `-d`/detached web session now gets its own output/<session_id>/
+directory (see paths.py's own docstring for use_session()), which rules
+out the original motivating case here -- two DIFFERENT web sessions can no
+longer share a directory at all. What's left for this lock to guard is
+narrower but still real: concurrent runs WITHIN one session (e.g. a
+double-submitted request, or a retried tool call racing the first attempt
+that's still in flight) against that one session's own directory.
 
 This makes that fail loudly instead of silently corrupting data: every
 pipeline's existing "clear stale state" step (already called once, at the

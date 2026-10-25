@@ -22,7 +22,7 @@ All twenty-one agent networks that make up this project are wired and verified e
 
 The following are a list of known issues: -
 - Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally, especially with very long step/component names. You can often improve the visualization by shortening the offending name in the process JSON and regenerating the diagram. This applies to process related documents only.
-- Per-session artifact isolation is not implemented. `ns run` serves multiple concurrent chat sessions, but this project's own state (`process_data.json`/`design_data.json`, `cloudarch_drawio.xml`, `approval.json`, every feedback mailbox) lives in one project-wide `output/` directory, not scoped per session — two people driving the same network at once will read and overwrite each other's artifacts. Safe for one requester at a time. Only `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over the shared on-disk file; nothing else does yet.
+- Per-session artifact isolation only exists under `cli.py -d --flask` (this project's own Flask REST API — see [Per-session output isolation](#per-session-output-isolation) below): each web session's files live under its own `output/<session_id>/` directory, automatically purged after a few days of inactivity. **Plain `ns run`** (neuro-san's own built-in multi-session server/UI, still the default for `-d`/`--detached`) has no equivalent — it's neuro-san's own library code, not something this project's own session-scoping can reach into. `ns run` still serves multiple concurrent chat sessions against one project-wide `output/` directory, not scoped per session — two people driving the same network at once through `ns run` will read and overwrite each other's artifacts. If that matters, use `-d --flask` instead. Only `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over the shared on-disk file under `ns run`; nothing else does.
 - No built-in auth/rate-limiting on `ns run`. `ns run`'s own server has neither; put an authenticating reverse proxy / rate limiter in front of it before exposing it beyond localhost. `cli.py -d --flask` (see [Running as a Web Service](#running-as-a-web-service-rest-api) below) is the alternative that DOES have both built in, if that's what you need instead of `ns run`'s own UI.
 - The chat-driven `download_artifact` tool (see [Downloading generated artifacts](#downloading-generated-artifacts)) writes a file to the filesystem of whatever machine is running the agent process, at a path the requester provides. On a local CLI session that's the same trust boundary as copying the file yourself. If this agent is ever served remotely (`cli.py -d --flask`, or `ns run`) to a client that is NOT the same person operating the server, a remote user could direct this tool to write anywhere on the SERVER's own filesystem that the process has permission to reach — reconsider or restrict this tool's own access (e.g. a fixed safe destination directory) before widening this agent's exposure beyond local/trusted use.
 
@@ -433,7 +433,9 @@ that (e.g. a trusted internal network with no key). Every route is also capped a
 `WEBRATELIMITPERMINUTE` requests/minute per source IP (default 30; `<= 0` disables it). Configured
 entirely via environment variables (this project has no properties-file config layer — put these in
 this project's own `.env` file so they persist across runs): `WEBAPIKEY`, `WEBRATELIMITPERMINUTE`,
-`HOST`, `SSLCERTFILE`/`SSLKEYFILE`, `ALLOWINSECUREWEBSERVICE`, `FLASK_SECRET_KEY`.
+`HOST`, `SSLCERTFILE`/`SSLKEYFILE`, `ALLOWINSECUREWEBSERVICE`, `FLASK_SECRET_KEY`, `SESSIONMAXAGEDAYS`,
+`SESSIONPURGEINTERVALSECONDS` (see [Per-session output isolation](#per-session-output-isolation)
+below).
 
 ### REST API
 
@@ -629,6 +631,28 @@ several at once and "what documents exist" has to be a directory listing, not a 
 `<filename>/download` validates the name stays strictly inside `output/` (realpath + containment
 check, not just a string pattern) before serving it. Subject to the same auth/rate-limiting as every
 other route except `/status`.
+
+### Per-session output isolation
+
+`-d --flask` only (not plain `ns run` -- see [Known issues](#known-issues)). Every file a turn
+generates (`process_data.json`/`design_data.json`, `cloudarch_drawio.xml`, generated `.docx`
+documents, `pipeline.lock`, everything under `process_toolkit.paths`) is written under
+`output/<session_id>/` instead of flat `output/`, where `<session_id>` is the same server-minted id
+already returned as `"session_id"` in every `/chat`/`/chat/stream` response and set as the
+`process_architect_session` cookie -- two concurrent web sessions can no longer read or overwrite
+each other's artifacts. `GET /artifacts/*` and the download routes above resolve the same way, via
+that same cookie; a caller with no session cookie at all (e.g. a direct API client that never called
+`/chat` first) falls back to flat `output/`, unchanged from before this existed.
+
+The interactive/`-f`/plain CLI modes are unaffected -- they never had more than one `ChatSession`
+alive at a time, so there was no cross-session collision to fix there, and they still write straight
+to flat `output/`.
+
+A background thread sweeps `output/` for session directories untouched for `SESSIONMAXAGEDAYS` (env
+var, default `3`), checking every `SESSIONPURGEINTERVALSECONDS` (env var, default `3600`, hourly) --
+started once when `-d --flask` boots. A session directory with a request currently in flight is never
+purged regardless of how stale it looks. `DELETE /chat/<session_id>` also removes that session's
+directory immediately, rather than waiting for the next sweep.
 
 ### Browser client
 
@@ -1069,9 +1093,9 @@ both implementations simultaneously and they stay byte-for-byte equivalent in th
 - Plain `-d`/`--detached` still defaults to `ns run`'s own server/UI, which has no built-in auth/
   rate-limiting (see [Known issues](#known-issues) above) — `-d --flask` is the opt-in alternative
   that has both, matching the ADK version's own `-d` mode exactly.
-- Per-session artifact isolation is not implemented (see Known issues above) — only
-  `output/requirements_summary.json` prefers a session's own save (via neuro-san's `sly_data`) over
-  the shared on-disk file; nothing else does yet.
+- Per-session artifact isolation exists only under `-d --flask` (see [Per-session output
+  isolation](#per-session-output-isolation) and Known issues above) — plain `ns run` has no
+  equivalent, since that's neuro-san's own server, not this project's code.
 - `cloudarch`'s diagram generation always uses the structured, deterministic layout engine; there's
   no free-hand/hand-written-XML path.
 - Document theming always applies the single built-in "Corporate Standard" theme — there's no

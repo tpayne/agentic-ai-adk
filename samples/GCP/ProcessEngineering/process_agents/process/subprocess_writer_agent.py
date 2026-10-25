@@ -17,11 +17,10 @@ from typing_extensions import override
 from werkzeug.utils import safe_join
 
 from ..common.utils import getProperty, safe_filename_component
+from process_toolkit import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 
-SUBPROCESS_DIR = "output/subprocesses"
-os.makedirs(SUBPROCESS_DIR, exist_ok=True)
 
 class SubprocessWriterAgent(BaseAgent):
     """
@@ -64,8 +63,7 @@ class SubprocessWriterAgent(BaseAgent):
         step = ctx.session.state.get("current_process_step", {})
         raw_step_name = step.get("step_name", "unnamed_step")
 
-        output_dir = SUBPROCESS_DIR
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir = toolkit_paths.output_dir("subprocesses")
 
         # step_name is LLM-generated content, not a trusted filename. A bare
         # .replace(" ", "_") leaves "/" and ".." untouched, so a step named

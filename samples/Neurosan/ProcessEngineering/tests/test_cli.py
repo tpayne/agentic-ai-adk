@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 import cli
+from process_toolkit import paths
 
 
 @pytest.fixture(autouse=True)
@@ -155,19 +156,19 @@ class TestListAndDownloadControlLines:
     needed, unlike the web client's own download buttons)."""
 
     def test_list_does_not_hit_the_agent(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         holder = [_StubSession()]
         should_stop = asyncio.run(cli.handle_logical_line("list", holder, "process_architect"))
         assert should_stop is False
         assert holder[0].sent == []
 
     def test_list_reports_no_documents_yet_when_output_is_empty(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         asyncio.run(cli.handle_logical_line("list", [_StubSession()], "process_architect"))
         assert "No generated documents yet" in capsys.readouterr().out
 
     def test_list_shows_generated_docx_and_cloudarch_xml(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx")
@@ -178,7 +179,7 @@ class TestListAndDownloadControlLines:
         assert "cloudarch_drawio.xml" in out
 
     def test_download_copies_the_file_to_the_given_destination(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx bytes")
@@ -197,7 +198,7 @@ class TestListAndDownloadControlLines:
         assert "Downloaded" in capsys.readouterr().out
 
     def test_download_defaults_to_the_current_working_directory(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx bytes")
@@ -210,13 +211,13 @@ class TestListAndDownloadControlLines:
         assert (cwd_dir / "Vendor_Onboarding.docx").read_bytes() == b"fake docx bytes"
 
     def test_download_reports_an_error_for_an_unknown_filename(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         (tmp_path / "output").mkdir()
         asyncio.run(cli.handle_logical_line("download nonexistent.docx", [_StubSession()], "process_architect"))
         assert "No generated file named 'nonexistent.docx'" in capsys.readouterr().out
 
     def test_download_rejects_a_path_traversal_attempt(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         (tmp_path / "output").mkdir()
         (tmp_path / "secret.txt").write_text("do not leak me", encoding="utf-8")
         asyncio.run(
@@ -226,7 +227,7 @@ class TestListAndDownloadControlLines:
         assert "No generated file named" in out
 
     def test_download_with_no_filename_shows_usage(self, monkeypatch, tmp_path, capsys):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         asyncio.run(cli.handle_logical_line("download", [_StubSession()], "process_architect"))
         assert "Usage: download" in capsys.readouterr().out
 
@@ -981,6 +982,82 @@ class TestChatDeleteRoute:
         assert resp.get_json() == {"status": "ok", "session_id": "known-session", "cleared": True}
 
 
+class TestChatSessionOutputIsolation:
+    """Multi-session output isolation: two concurrent /chat sessions must
+    never write into (or be able to read) each other's output/<session_id>/
+    files, and DELETE /chat/<session_id> must remove that session's own
+    directory immediately rather than waiting for the next purge sweep."""
+
+    def _build_client(self, monkeypatch):
+        """Returns the built Flask app (not a test_client()) -- callers
+        that need multiple independent cookie jars call .test_client()
+        themselves, once per simulated "browser"."""
+
+        class _StubChatSession:
+            """Stands in for a real ChatSession whose underlying pipeline
+            tools write real files via process_toolkit.paths -- send()
+            here does the same, so this test exercises the ACTUAL
+            paths.use_session() wiring in cli.py's own chat()/chat_stream(),
+            not just a mock that bypasses it entirely."""
+
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+                self.last_usage = None
+
+            def send(self, text, files=None):
+                path = paths.output_path("process_data.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                return path
+
+        monkeypatch.setattr(cli, "ChatSession", _StubChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            cli._active_web_sessions.clear()
+        return cli.build_web_app("process_architect", https=False)
+
+    def test_two_sessions_write_to_different_output_directories(self, monkeypatch):
+        app = self._build_client(monkeypatch)
+        # Two SEPARATE test_client() instances -- each has its own
+        # independent cookie jar, so neither resends the other's
+        # Set-Cookie session id, unlike reusing one client for both calls
+        # (Flask's test client persists cookies across requests on the
+        # SAME client, which would make the second call reuse the first
+        # call's session -- confirmed by this test initially failing that
+        # way).
+        client_a = app.test_client()
+        client_b = app.test_client()
+
+        resp_a = client_a.post("/chat", json={"query": "session A's data"})
+        session_a = resp_a.get_json()["session_id"]
+        path_a = resp_a.get_json()["response"]
+
+        resp_b = client_b.post("/chat", json={"query": "session B's data"})
+        session_b = resp_b.get_json()["session_id"]
+        path_b = resp_b.get_json()["response"]
+
+        assert session_a != session_b
+        assert path_a != path_b
+        assert session_a in path_a
+        assert session_b in path_b
+        with open(path_a, encoding="utf-8") as f:
+            assert f.read() == "session A's data"
+        with open(path_b, encoding="utf-8") as f:
+            assert f.read() == "session B's data"
+
+    def test_delete_removes_the_sessions_output_directory_immediately(self, monkeypatch):
+        client = self._build_client(monkeypatch).test_client()
+
+        resp = client.post("/chat", json={"query": "will be deleted"})
+        session_id = resp.get_json()["session_id"]
+        session_dir = os.path.join(paths.OUTPUT_DIR, session_id)
+        assert os.path.isdir(session_dir)
+
+        client.delete(f"/chat/{session_id}")
+
+        assert not os.path.isdir(session_dir)
+
+
 class TestChatStopRoute:
     """POST /chat/<session_id>/stop -- cancels an in-flight turn by
     reaching into the underlying DirectAgentSession's own AsyncioExecutor
@@ -1058,7 +1135,7 @@ class TestArtifactRoute:
     output/ directory, whose contents vary run to run."""
 
     def _build_client(self, monkeypatch, tmp_path, files=None):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         for name, content in (files or {}).items():
@@ -1125,7 +1202,7 @@ class TestDocumentDownloadRoutes:
     tmp_path, same pattern as TestArtifactRoute."""
 
     def _build_client(self, monkeypatch, tmp_path, output_files=None):
-        monkeypatch.setattr(cli, "_PROJECT_ROOT", str(tmp_path))
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         for name, content in (output_files or {}).items():

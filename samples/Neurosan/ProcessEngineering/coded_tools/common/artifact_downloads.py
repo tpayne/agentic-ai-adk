@@ -1,14 +1,14 @@
 """Resolving and copying a generated artifact (the cloud architecture
 diagram, or a generated Word document) to a local filesystem path.
 
-Shared by the "list"/"download" control lines in cli.py's own interactive/
--f CLI (which duplicate this logic rather than import it -- cli.py resolves
-paths against its own absolute _PROJECT_ROOT, not process_toolkit.paths'
-CWD-relative convention every other coded_tool here already uses, and
-unifying the two would mean changing one of two already-tested, already-
-working implementations for no behavior change) and
-DownloadArtifactCodedTool below (for the LLM-invokable "download X to Y"
-natural-language path).
+The single, canonical implementation -- shared by the "list"/"download"
+control lines in cli.py's own interactive/-f CLI AND the Flask artifact
+routes in build_web_app (cli.py used to keep its own second,
+_PROJECT_ROOT-based copy of this logic; that duplication stopped being
+harmless once output/ became session-scoped, since only functions that go
+through process_toolkit.paths resolve a request's own session directory
+correctly) and DownloadArtifactCodedTool below (for the LLM-invokable
+"download X to Y" natural-language path).
 """
 
 import os
@@ -21,6 +21,15 @@ from werkzeug.utils import safe_join
 from process_toolkit import paths
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
+
+
+def cloudarch_exists() -> bool:
+    """Whether output/cloudarch_drawio.xml has been generated yet -- for
+    callers (the "list" control line, download_artifact's own "nothing
+    matched" message) that need to know this without reaching into
+    resolve_artifact_target's own private check. Matches the ADK port's
+    own identically-named artifact_downloads.cloudarch_diagram_exists."""
+    return os.path.isfile(os.path.join(paths.output_dir(), CLOUDARCH_FILENAME))
 
 
 def list_output_documents() -> List[Dict[str, Any]]:
@@ -98,8 +107,7 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     """
     normalized = (target or "").strip().lower()
     if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
-        cloudarch_path = os.path.join(paths.output_dir(), CLOUDARCH_FILENAME)
-        return CLOUDARCH_FILENAME if os.path.isfile(cloudarch_path) else None
+        return CLOUDARCH_FILENAME if cloudarch_exists() else None
 
     docs = list_output_documents()
     if not normalized:
