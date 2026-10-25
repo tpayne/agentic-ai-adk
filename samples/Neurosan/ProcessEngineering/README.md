@@ -6,6 +6,8 @@ Under the hood, a pipeline of specialized agents hands work off in sequence — 
 
 This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GCP/ProcessEngineering/README.md) and shares much of its core logic — document generation, diagram layout, and schema validation all come from a common `process_toolkit` package — so both produce the same output from the same schema. The real difference is the agent framework each one runs on: this version uses neuro-san's declarative agent networks, which means it can run against any LLM provider neuro-san supports (Gemini, Claude, OpenAI, Bedrock, Azure OpenAI, ...) — see [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) for how to configure that.
 
+**Note - All examples provided are fictional and do not use any organizational's processes or information unless it is freely available.**
+
 ---
 
 ## ✨ What it does
