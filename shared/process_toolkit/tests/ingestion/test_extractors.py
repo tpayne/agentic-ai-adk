@@ -102,6 +102,19 @@ def test_docx_table_text_is_extracted_not_silently_dropped():
     assert "Encrypt data at rest" in result["combined_text"]
 
 
+def test_xml_file_is_extracted_as_raw_markup():
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "process.xml").write_text(
+            "<process><step>Receive PO</step><step>Validate budget</step></process>"
+        )
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == ["process.xml"]
+    assert "<step>Receive PO</step>" in result["combined_text"]
+
+
 def test_unsupported_extension_is_skipped_not_fatal():
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "readme.txt").write_text("real content")
@@ -237,6 +250,36 @@ class TestStageAttachmentsToDirectory:
         assert read_result["status"] == "OK"
         assert read_result["files_processed"] == ["notes.txt"]
         assert "KYC within 5 days" in read_result["combined_text"]
+
+    def test_staged_docx_and_xml_attachments_round_trip_through_load_directory_context(self):
+        # Regression test: an uploaded .docx or .xml file must be
+        # extractable the same way a .txt attachment already is -- .docx
+        # extraction already existed server-side (only the web client's
+        # own <input accept> list blocked the upload before it ever
+        # reached here); .xml extraction is new.
+        import docx
+
+        with tempfile.TemporaryDirectory() as source_dir:
+            doc = docx.Document()
+            doc.add_paragraph("Stakeholders: Procurement Lead, Compliance Officer.")
+            docx_path = Path(source_dir) / "stakeholders.docx"
+            doc.save(str(docx_path))
+            docx_bytes = docx_path.read_bytes()
+
+        with tempfile.TemporaryDirectory() as base_dir:
+            stage_result = stage_attachments_to_directory(
+                [
+                    {"name": "stakeholders.docx", "data": docx_bytes},
+                    {"name": "process.xml", "data": b"<process><step>Receive PO</step></process>"},
+                ],
+                base_dir=base_dir,
+            )
+            read_result = load_directory_context(stage_result["directory"])
+
+        assert read_result["status"] == "OK"
+        assert sorted(read_result["files_processed"]) == ["process.xml", "stakeholders.docx"]
+        assert "Procurement Lead" in read_result["combined_text"]
+        assert "<step>Receive PO</step>" in read_result["combined_text"]
 
     def test_multiple_files_are_all_staged(self):
         with tempfile.TemporaryDirectory() as base_dir:

@@ -3823,7 +3823,14 @@
   function guessMimeType(file) {
     if (file.type) return file.type;
     const ext = (file.name.split(".").pop() || "").toLowerCase();
-    const byExt = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
+    const byExt = {
+      md: "text/markdown",
+      markdown: "text/markdown",
+      txt: "text/plain",
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xml: "application/xml",
+    };
     return byExt[ext] || "application/octet-stream";
   }
 

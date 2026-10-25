@@ -14,6 +14,18 @@ def _extract_txt_file(path: str) -> str:
         return f.read()
 
 
+def _extract_xml_file(path: str) -> str:
+    # Read as raw markup, not parsed/re-serialized -- an uploaded XML file
+    # here is typically a structured process/architecture export (a BPMN
+    # process definition, a drawio/mxGraph diagram, a Visio export) being
+    # offered as source material, and an LLM generally understands XML
+    # structure directly from the raw tags at least as well as from any
+    # text this module could derive from it, so this is the same
+    # read-as-text approach as _extract_txt_file above, not a dedicated
+    # parser.
+    return _extract_txt_file(path)
+
+
 def _extract_docx_file(path: str) -> str:
     import docx
     doc = docx.Document(path)
@@ -112,6 +124,7 @@ DIRECTORY_CONTEXT_EXTRACTORS = {
     ".msg": _extract_msg_file,
     ".xls": _extract_excel_file,
     ".xlsx": _extract_excel_file,
+    ".xml": _extract_xml_file,
 }
 
 
