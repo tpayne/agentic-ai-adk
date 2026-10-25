@@ -69,6 +69,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
+from werkzeug.utils import safe_join
 
 # Loads a project-root .env file (if any) into os.environ, same as `ns
 # chat`/`ns run` already do for this project's LLM provider API keys (see
@@ -1172,20 +1173,22 @@ def _safe_output_file_path(filename: str) -> Optional[str]:
     line) to a real file strictly INSIDE output/, or None if it doesn't
     exist or would resolve outside output/.
 
-    os.path.basename() alone (discarding any directory component the
-    caller supplied, e.g. "../../etc/passwd" -> "passwd") handles the
-    common case, but the REAL guarantee here is the realpath + prefix
-    containment check after it -- that's what actually rules out
-    anything cleverer (a symlink inside output/ pointing elsewhere, odd
-    path encodings) rather than trusting a single string transform to
-    have covered every case. The trailing os.sep on the prefix matters:
-    without it, an output_dir of "/x/out" would wrongly accept a sibling
-    like "/x/output_other".
+    werkzeug's own safe_join (the library sanitizer CodeQL's path-injection
+    query actually recognizes as a barrier, unlike a hand-rolled
+    os.path.commonpath/startswith comparison) rejects any ".."/absolute-
+    path escape before a path is ever built; the realpath + prefix
+    containment check after it is still kept as defense in depth against
+    a symlink planted inside output/ pointing elsewhere. The trailing
+    os.sep on the prefix matters: without it, an output_dir of "/x/out"
+    would wrongly accept a sibling like "/x/output_other".
     """
     if not filename:
         return None
     output_dir = os.path.realpath(os.path.join(_PROJECT_ROOT, "output"))
-    candidate = os.path.realpath(os.path.join(output_dir, os.path.basename(filename)))
+    joined = safe_join(output_dir, os.path.basename(filename))
+    if joined is None:
+        return None
+    candidate = os.path.realpath(joined)
     if candidate != output_dir and not candidate.startswith(output_dir + os.sep):
         return None
     if not os.path.isfile(candidate):
