@@ -80,7 +80,7 @@ class SubprocessWriterAgent(BaseAgent):
 
         resolved_dir = os.path.realpath(output_dir)
         resolved_path = os.path.realpath(output_path)
-        if os.path.commonpath([resolved_dir, resolved_path]) != resolved_dir:
+        if resolved_path != resolved_dir and not resolved_path.startswith(resolved_dir + os.sep):
             logger.error(
                 f"[{self.name}] Refusing to write outside {output_dir}: "
                 f"step_name={raw_step_name!r} resolved to {resolved_path!r}"

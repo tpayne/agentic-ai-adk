@@ -69,16 +69,18 @@ def safe_output_file_path(filename: str) -> Optional[str]:
     Resolves `filename` (a bare basename) to a real file strictly INSIDE
     output/, or None if it doesn't exist or would resolve outside
     output/ -- os.path.basename() discards any directory component the
-    caller supplied, and the realpath + commonpath containment check
-    after it is what actually rules out anything cleverer (a symlink
-    inside output/ pointing elsewhere, odd path encodings) rather than
-    trusting a single string transform to have covered every case.
+    caller supplied, and the realpath + prefix containment check after
+    it is what actually rules out anything cleverer (a symlink inside
+    output/ pointing elsewhere, odd path encodings) rather than trusting
+    a single string transform to have covered every case. The trailing
+    os.sep on the prefix matters: without it, an output_dir of "/x/out"
+    would wrongly accept a sibling like "/x/output_other".
     """
     if not filename:
         return None
     output_dir = os.path.realpath(_output_dir())
     candidate = os.path.realpath(os.path.join(output_dir, os.path.basename(filename)))
-    if os.path.commonpath([output_dir, candidate]) != output_dir:
+    if candidate != output_dir and not candidate.startswith(output_dir + os.sep):
         return None
     if not os.path.isfile(candidate):
         return None
