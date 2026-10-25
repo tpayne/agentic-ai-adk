@@ -265,6 +265,22 @@
           </svg>
         </button>
         <span class="artifacts-status" id="artifactsStatus">Not loaded</span>
+        <div class="documents-menu">
+          <button type="button" class="icon-btn" id="documentsBtn" title="Download generated documents" aria-label="Download generated documents" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 1.5h5.5L12.5 4.5V14.5h-8.5z"></path>
+              <path d="M9.5 1.5V4.5H12.5"></path>
+              <path d="M6 9.5v3M6 12.5 4.5 11M6 12.5 7.5 11"></path>
+            </svg>
+          </button>
+          <div class="documents-popover" id="documentsPopover" hidden>
+            <div class="documents-popover-header">
+              <h4>Generated Documents</h4>
+              <button type="button" class="icon-btn" id="documentsPopoverCloseBtn" title="Close" aria-label="Close">&times;</button>
+            </div>
+            <div class="documents-popover-list" id="documentsPopoverList"></div>
+          </div>
+        </div>
       </div>
       <div class="artifacts-canvas-wrap" id="artifactsCanvasWrap">
         <div class="empty-state" id="artifactsEmpty">
@@ -305,6 +321,13 @@
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M10 3v10M10 13l-4-4M10 13l4-4"></path>
             <path d="M4 15.5v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1"></path>
+          </svg>
+        </button>
+        <button type="button" class="icon-btn" id="cloudarchDownloadXmlBtn" title="Download XML" aria-label="Download XML">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 1.5h5.5L12.5 4.5V14.5h-8.5z"></path>
+            <path d="M9.5 1.5V4.5H12.5"></path>
+            <path d="M6 9.5v3M6 12.5 4.5 11M6 12.5 7.5 11"></path>
           </svg>
         </button>
         <span class="artifacts-status" id="cloudarchStatus">Not loaded</span>

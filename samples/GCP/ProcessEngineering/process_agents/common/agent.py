@@ -14,7 +14,7 @@ import queue
 import base64
 import binascii
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 import pkgutil
 import google
@@ -250,14 +250,14 @@ signal.signal(signal.SIGTERM, handler)
 # ROOT AGENT
 # ---------------------------------------------------------
 from .agent_wrappers import ProcessLlmAgent  # DefaultLlmAgent shortcut
-from .utils_agent import clear_pipeline_lock
+from .utils_agent import clear_pipeline_lock, download_artifact
 
 root_agent = ProcessLlmAgent(
     name="Process_Architect_Orchestrator",
     instruction_file="common/agent.txt",
     before_model_callback=None,  # Disable before callback for root agent
     after_model_callback=None,   # Disable after callback for root agent
-    tools=[clear_pipeline_lock],
+    tools=[clear_pipeline_lock, download_artifact],
     sub_agents=[
         full_design_pipeline,
         consultant_agent,
@@ -282,6 +282,56 @@ root_agent = ProcessLlmAgent(
         design_import_agent,
     ],
 )
+
+# ---------------------------------------------------------
+# AGENT INSTRUCTIONS INDEX
+# ---------------------------------------------------------
+# Developed in tandem with the neuro-san port's own cli.py
+# _build_agent_instructions_index -- same purpose (the web client's Agent
+# Network tab hover tooltip, which otherwise only ever sees what's
+# OBSERVABLE from the chat stream itself: an agent's dotted invocation
+# path, how many times it's been called, never the actual prompt driving
+# it), much simpler to build here: an ADK agent is a plain (pydantic)
+# object with a real .instruction attribute already in memory, not HOCON
+# text to parse from disk. Walking root_agent's own .sub_agents tree
+# (every ADK BaseAgent subclass -- LlmAgent, SequentialAgent, LoopAgent --
+# exposes this) naturally finds every real LLM-backed agent regardless of
+# how deep a SequentialAgent/LoopAgent wrapper nests it; a pure
+# orchestration wrapper has no .instruction of its own, so it's skipped
+# automatically rather than needing to be filtered out by type.
+_agent_instructions_index: Optional[Dict[str, str]] = None
+
+
+def _build_agent_instructions_index() -> Dict[str, str]:
+    index: Dict[str, str] = {}
+    seen_ids = set()
+
+    def visit(node) -> None:
+        if node is None or id(node) in seen_ids:
+            return
+        seen_ids.add(id(node))
+        name = getattr(node, "name", None)
+        instruction = getattr(node, "instruction", None)
+        if name and isinstance(instruction, str) and instruction.strip():
+            index.setdefault(name, instruction)
+        for child in getattr(node, "sub_agents", None) or []:
+            visit(child)
+
+    visit(root_agent)
+    return index
+
+
+def _get_agent_instructions_index() -> Dict[str, str]:
+    """Lazily builds _build_agent_instructions_index's result ONCE per
+    process and reuses it -- root_agent's own tree is a fixed, fully-
+    built object graph by the time this module finishes importing, so
+    re-walking it on every single hover in the web client's Agent Network
+    tab would be wasted work for an answer that never changes."""
+    global _agent_instructions_index
+    if _agent_instructions_index is None:
+        _agent_instructions_index = _build_agent_instructions_index()
+    return _agent_instructions_index
+
 
 # ---------------------------------------------------------
 # LOCAL CHAT LOOP SUPPORT
@@ -1083,7 +1133,7 @@ def build_web_app(https: bool = True):
     samples/WebClient/ProcessEngineering (a static page with no backend
     of its own) call this API directly from a browser.
     """
-    from flask import Flask, request, jsonify, make_response, Response
+    from flask import Flask, request, jsonify, make_response, Response, send_file
 
     web_app = Flask("ProcessArchitectWebService")
     web_app.secret_key = getProperty("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -1423,6 +1473,79 @@ def build_web_app(https: bool = True):
 
         return jsonify({"status": "ok", "name": name, "data": data})
 
+    @web_app.route("/artifacts/documents", methods=["GET"])
+    def list_documents():
+        """
+        Every generated .docx currently in output/, for the web client's
+        own download picker -- see .artifact_downloads.list_output_
+        documents's own docstring for why this has to be a directory
+        listing rather than a fixed, known filename the way process/
+        design/cloudarch above are. Same contract as the neuro-san port's
+        own identical route.
+        """
+        from .artifact_downloads import list_output_documents
+
+        return jsonify({"status": "ok", "documents": list_output_documents()})
+
+    @web_app.route("/artifacts/documents/<filename>/download", methods=["GET"])
+    def download_document(filename):
+        """Downloads one generated .docx by its own filename (exactly as
+        returned by GET /artifacts/documents) as a real file attachment,
+        for the web client's download button -- see .artifact_downloads.
+        safe_output_file_path for how `filename` is kept from escaping
+        output/."""
+        from .artifact_downloads import safe_output_file_path
+
+        path = safe_output_file_path(filename)
+        if path is None or not filename.lower().endswith(".docx"):
+            return jsonify({
+                "status": "error",
+                "error": f"No generated document named '{filename}' in output/.",
+            }), 404
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=os.path.basename(path),
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+    @web_app.route("/artifacts/cloudarch/download", methods=["GET"])
+    def download_cloudarch():
+        """Downloads output/cloudarch_drawio.xml as a real file attachment
+        (as opposed to GET /artifacts/cloudarch above, which returns it
+        JSON-wrapped as a string for the client's own mxGraph-XML
+        renderer) -- for opening directly in a real draw.io client, or
+        just keeping a copy."""
+        from .utils_agent import PROJECT_ROOT
+
+        path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
+        if not os.path.isfile(path):
+            return jsonify({
+                "status": "error",
+                "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
+
+    @web_app.route("/agents/<name>/instructions", methods=["GET"])
+    def agent_instructions(name):
+        """
+        Read-only lookup of one agent's real "instruction" (system
+        prompt) text from root_agent's own live object tree -- for the
+        web client's Agent Network tab, which otherwise only ever sees
+        what's OBSERVABLE from the chat stream itself (an agent's dotted
+        invocation path, how many times it's been called, its past
+        queries/responses), never the actual prompt driving it. Same
+        contract as the neuro-san port's own identical route.
+        """
+        index = _get_agent_instructions_index()
+        instruction = index.get(name)
+        if instruction is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No agent named '{name}' found in this project's own agent tree.",
+            }), 404
+        return jsonify({"status": "ok", "name": name, "instructions": instruction, "description": None, "source_file": None})
+
     @web_app.route("/status", methods=["GET"])
     def status():
         return jsonify({"status": "live", "model": MODEL})
@@ -1484,6 +1607,70 @@ def run_web_service(port: Optional[int], use_https: bool):
 
 
 # ---------------------------------------------------------
+# LOCAL "list"/"download" CONTROL LINES
+# ---------------------------------------------------------
+# Developed in tandem with the neuro-san port's own cli.py
+# _display_output_document_listing/_handle_download_control_line -- same
+# two control lines, same local-filesystem-copy semantics (no server
+# round trip needed: the interactive/-f CLI already runs in-process on
+# this project's own filesystem), shared by both start_local_chat (the
+# REPL) and process_file (-f batch mode) below.
+def _display_output_document_listing() -> None:
+    """"list"/"ls" control line -- shows every generated .docx plus the
+    cloud architecture diagram (if either exists), so "download <name>"
+    has something concrete to copy from without the user having to go
+    look inside output/ themselves."""
+    from .artifact_downloads import PROJECT_ROOT, list_output_documents
+
+    lines = []
+    for doc in list_output_documents():
+        lines.append(f"  {doc['filename']}  ({doc['size_bytes']:,} bytes, modified {doc['modified']})")
+    cloudarch_path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
+    if os.path.isfile(cloudarch_path):
+        stat = os.stat(cloudarch_path)
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")
+    if lines:
+        display_text("[Action]: Generated documents in output/:\n" + "\n".join(lines))
+    else:
+        display_text("[Action]: No generated documents yet.")
+
+
+def _handle_download_control_line(line: str) -> None:
+    """"download <filename> [destination]" control line -- a plain local
+    file copy, since the interactive/-f CLI modes already run in-process
+    against this project's own filesystem (no server round trip needed,
+    unlike the web client's own download buttons, which DO need the
+    /artifacts/.../download Flask routes above since a browser has no
+    direct filesystem access). `filename` is whatever "list" just showed
+    (a generated .docx, or "cloudarch_drawio.xml"); `destination`
+    defaults to the current working directory, and may itself be either
+    a directory (the file is copied in under its own name) or a full
+    target file path."""
+    from .artifact_downloads import copy_artifact_to_destination
+
+    parts = line.split(maxsplit=2)
+    if len(parts) < 2:
+        display_text("Usage: download <filename> [destination]", type="error")
+        return
+    filename = parts[1]
+    destination = parts[2] if len(parts) > 2 else "."
+
+    try:
+        dest_path = copy_artifact_to_destination(filename, destination)
+    except ValueError:
+        display_text(
+            f"No generated file named '{filename}' in output/. Use 'list' to see what's available.",
+            type="error",
+        )
+        return
+    except OSError as e:
+        display_text(f"Could not copy '{filename}' to '{destination}': {e}", type="error")
+        return
+    display_text(f"[Action]: Downloaded '{filename}' to {dest_path}")
+
+
+# ---------------------------------------------------------
 # FILE MODE
 # ---------------------------------------------------------
 async def process_file(file_path: str):
@@ -1533,6 +1720,12 @@ async def process_file(file_path: str):
         elif is_shell_command(line):
             await run_shell_command(line)
             await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            return False
+        elif line.lower() in ("list", "list documents", "ls"):
+            _display_output_document_listing()
+            return False
+        elif line.lower() == "download" or line.lower().startswith("download "):
+            _handle_download_control_line(line)
             return False
 
         display_text(f"[user-file]: {line}")
@@ -1700,6 +1893,12 @@ async def start_local_chat():
         elif is_shell_command(user_input):
             await run_shell_command(user_input)
             await asyncio.sleep(float(getProperty("modelSleep", default=0.25)))
+            continue
+        elif user_input.lower() in ("list", "list documents", "ls"):
+            _display_output_document_listing()
+            continue
+        elif user_input.lower() == "download" or user_input.lower().startswith("download "):
+            _handle_download_control_line(user_input)
             continue
 
         try:

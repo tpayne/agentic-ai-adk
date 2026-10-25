@@ -550,15 +550,36 @@ user to simply wait and retry unless the tool's own message said so. If you are 
 tool failed, say that plainly rather than guessing a plausible-sounding reason.
 
 ------------------------------------------------------------
-# KNOWN GAPS (do not route to a tool that does not exist)
+# DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
 ------------------------------------------------------------
-This router has no standalone "regenerate just the subprocesses" tool (the ADK port's
-Subprocess_Driver_Agent_Main has no port here yet) -- a request like "regenerate the subprocesses"
-without any other creation/modification intent falls under Rule 10 (ask a clarification question),
-since no tool does exactly that standalone action. Do not force it into
-Process_Pipeline/Process_Update_Pipeline (which would re-run the full generate/review cycle, not
-just regenerate the subprocesses). "Regenerate just the document" IS supported -- see Section 9,
-Regenerate_Document_Agent.
+If the user explicitly asks to download/save/export/copy a generated artifact (the cloud
+architecture diagram, or a generated Word document) to a specific local location (e.g. "download
+the cloud architecture diagram to /tmp", "save the design doc to my Desktop", "export it to
+~/Downloads/report.docx"), call the tool `download_artifact` directly (it is one of YOUR OWN tools
+below, not a sub-network) with:
+  - "destination" set to the path they gave, exactly as they gave it.
+  - "target" describing which artifact -- a phrase containing "cloudarch"/"diagram"/"architecture"
+    for the cloud architecture diagram, the exact filename if they named one, or omitted entirely
+    for a vague "the document"/"it" (resolves to whichever was generated most recently).
+This is DIFFERENT from a request to just generate/update a diagram or document (which goes through
+the normal pipeline tools above, and saves to this project's own output/ directory, not a
+user-chosen path) -- only call `download_artifact` when the user is asking for a COPY somewhere
+else. If the tool reports it could not find a matching artifact, relay its own message verbatim
+(it already lists what IS available) rather than guessing which file they meant.
+
+------------------------------------------------------------
+# SUBPROCESS REGENERATION
+------------------------------------------------------------
+If the user asks to regenerate or generate the subprocesses (e.g. "please regenerate the
+subprocesses", "regenerate the subprocesses for the vendor onboarding process") with NO other
+creation/modification intent in the same request, call `/process_subprocess_regenerate` directly.
+It expands every top-level step of whatever process is ALREADY saved on disk into its own detailed
+level-2/3 subprocess -- it does NOT re-run analysis, process design, compliance, or simulation, and
+does NOT modify the saved process_data.json itself. Do NOT force this request into
+Process_Pipeline/Process_Update_Pipeline instead (which would re-run the full generate/review
+cycle, not just regenerate the subprocesses) -- this is the ONLY tool that does exactly that
+standalone action. "Regenerate just the document" is a DIFFERENT request -- see the Regenerate_Document_Agent
+section above.
 """,
             "tools": [
                 "/process",
@@ -567,6 +588,7 @@ Regenerate_Document_Agent.
                 "/process_consultant",
                 "/process_scenario_tester",
                 "/process_simulation_query",
+                "/process_subprocess_regenerate",
                 "/design",
                 "/design_import",
                 "/design_update",
@@ -581,7 +603,8 @@ Regenerate_Document_Agent.
                 "/requirements_summary",
                 "/requirements_consultant",
                 "/regenerate_document",
-                "clear_pipeline_lock"
+                "clear_pipeline_lock",
+                "download_artifact"
             ]
         },
         {
@@ -590,6 +613,27 @@ Regenerate_Document_Agent.
                 "description": "Forcibly clears the shared output/ directory's pipeline lock, if one is currently held, regardless of how old it is or which run holds it. Use ONLY on the user's own explicit, direct request to clear/reset/unstick a pipeline lock -- never as a troubleshooting guess."
             },
             "class": "clear_pipeline_lock_tool.ClearPipelineLockCodedTool"
+        },
+        {
+            "name": "download_artifact",
+            "function": {
+                "description": "Saves a copy of a generated artifact (the cloud architecture diagram, or a generated Word document) to a local filesystem path on the machine this agent is running on. Use ONLY on the user's own explicit request to download/save/export/copy a generated artifact to a specific location.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Which artifact to save: a phrase containing 'cloudarch'/'diagram'/'architecture' for the cloud architecture diagram; an exact generated document filename if the user named one; or omit entirely to mean whichever document was generated most recently (use this for a vague 'the document'/'it' when context makes it unambiguous)."
+                        },
+                        "destination": {
+                            "type": "string",
+                            "description": "The local filesystem path to save it to -- a directory (the file keeps its own name) or a full target file path."
+                        }
+                    },
+                    "required": ["destination"]
+                }
+            },
+            "class": "download_artifact_tool.DownloadArtifactCodedTool"
         }
     ]
 }

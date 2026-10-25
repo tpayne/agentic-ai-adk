@@ -952,6 +952,214 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
 
+class WebServiceDocumentDownloadRouteTest(unittest.TestCase):
+    """GET /artifacts/documents (list), GET /artifacts/documents/<filename>/
+    download, and GET /artifacts/cloudarch/download -- real file downloads
+    for the web client's download buttons, as opposed to
+    WebServiceArtifactRouteTest's JSON-wrapped reads above. Developed in
+    tandem with the neuro-san port's own TestDocumentDownloadRoutes.
+
+    Both .utils_agent.PROJECT_ROOT (download_cloudarch's own import) AND
+    .artifact_downloads.PROJECT_ROOT (list_documents/download_document,
+    and download_artifact's own tool -- see that module's own docstring
+    on why it computes PROJECT_ROOT independently rather than importing
+    it from .utils_agent) are patched to the SAME isolated tmp dir, so
+    both routes agree on where output/ actually is."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+        cls.utils_agent = importlib.import_module("process_agents.common.utils_agent")
+        cls.artifact_downloads = importlib.import_module("process_agents.common.artifact_downloads")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.output_dir = os.path.join(self.tmp_dir.name, "output")
+        os.makedirs(self.output_dir)
+
+        self.project_root_patch = patch.object(self.utils_agent, "PROJECT_ROOT", self.tmp_dir.name)
+        self.project_root_patch.start()
+        self.addCleanup(self.project_root_patch.stop)
+        self.artifact_root_patch = patch.object(self.artifact_downloads, "PROJECT_ROOT", self.tmp_dir.name)
+        self.artifact_root_patch.start()
+        self.addCleanup(self.artifact_root_patch.stop)
+
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    def _write(self, filename, content):
+        path = os.path.join(self.output_dir, filename)
+        if isinstance(content, bytes):
+            with open(path, "wb") as f:
+                f.write(content)
+        else:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+    def test_list_documents_returns_only_docx_files(self):
+        self._write("Vendor_Onboarding.docx", b"fake docx")
+        self._write("process_data.json", "{}")
+        self._write("cloudarch_drawio.xml", "<mxfile></mxfile>")
+
+        response = self.client.get("/artifacts/documents", headers=self._authorized_headers())
+
+        self.assertEqual(response.status_code, 200)
+        docs = response.get_json()["documents"]
+        self.assertEqual([d["filename"] for d in docs], ["Vendor_Onboarding.docx"])
+        self.assertEqual(docs[0]["size_bytes"], len(b"fake docx"))
+
+    def test_list_documents_is_empty_list_not_error_when_none_exist(self):
+        response = self.client.get("/artifacts/documents", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["documents"], [])
+
+    def test_download_document_returns_the_real_bytes_as_an_attachment(self):
+        self._write("Vendor_Onboarding.docx", b"fake docx bytes")
+
+        response = self.client.get(
+            "/artifacts/documents/Vendor_Onboarding.docx/download", headers=self._authorized_headers()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"fake docx bytes")
+        self.assertIn("Vendor_Onboarding.docx", response.headers.get("Content-Disposition", ""))
+
+    def test_download_document_404s_for_an_unknown_filename(self):
+        response = self.client.get(
+            "/artifacts/documents/Nonexistent.docx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_document_rejects_a_path_traversal_attempt(self):
+        secret = os.path.join(self.tmp_dir.name, "secret.txt")
+        with open(secret, "w", encoding="utf-8") as f:
+            f.write("do not leak me")
+        self._write("real.docx", b"ok")
+
+        response = self.client.get(
+            "/artifacts/documents/..%2Fsecret.txt/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_document_rejects_a_non_docx_file_even_if_present_in_output(self):
+        self._write("process_data.json", "{}")
+        response = self.client.get(
+            "/artifacts/documents/process_data.json/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_cloudarch_returns_the_real_xml_bytes(self):
+        self._write("cloudarch_drawio.xml", "<mxfile>hi</mxfile>")
+
+        response = self.client.get("/artifacts/cloudarch/download", headers=self._authorized_headers())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"<mxfile>hi</mxfile>")
+        self.assertIn("cloudarch_drawio.xml", response.headers.get("Content-Disposition", ""))
+
+    def test_download_cloudarch_404s_when_not_yet_generated(self):
+        response = self.client.get("/artifacts/cloudarch/download", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 404)
+
+    def test_downloads_require_a_configured_api_key(self):
+        self._write("Vendor_Onboarding.docx", b"ok")
+        self._write("cloudarch_drawio.xml", "<mxfile></mxfile>")
+        self.assertEqual(self.client.get("/artifacts/documents").status_code, 401)
+        self.assertEqual(
+            self.client.get("/artifacts/documents/Vendor_Onboarding.docx/download").status_code, 401
+        )
+        self.assertEqual(self.client.get("/artifacts/cloudarch/download").status_code, 401)
+
+
+class WebServiceAgentInstructionsRouteTest(unittest.TestCase):
+    """GET /agents/<name>/instructions -- read-only lookup of an agent's
+    real ADK "instruction" text from root_agent's own live object tree,
+    for the web client's Agent Network tab hover feature. Developed in
+    tandem with the neuro-san port's own TestAgentInstructionsRoute."""
+
+    API_KEY = "test-web-api-key"
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": self.API_KEY, "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda name, section="SETTINGS", default=None: self.properties.get(
+                name, default
+            ),
+        )
+        self.property_patch.start()
+        self.addCleanup(self.property_patch.stop)
+        self.display_patch = patch.object(self.agent, "display_text")
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
+
+        with self.agent._web_rate_limit_lock:
+            self.agent._web_rate_limit_state.clear()
+
+        self.client = self.agent.build_web_app(https=False).test_client()
+
+    def _authorized_headers(self):
+        return {"X-API-Key": self.API_KEY}
+
+    def test_returns_the_root_orchestrators_own_instructions(self):
+        response = self.client.get(
+            "/agents/Process_Architect_Orchestrator/instructions", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["name"], "Process_Architect_Orchestrator")
+        self.assertIsInstance(body["instructions"], str)
+        self.assertGreater(len(body["instructions"]), 0)
+
+    def test_returns_a_nested_pipeline_agents_own_instructions(self):
+        response = self.client.get(
+            "/agents/Analysis_Agent/instructions", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["name"], "Analysis_Agent")
+
+    def test_404_for_an_unknown_agent_name(self):
+        response = self.client.get(
+            "/agents/Nonexistent_Agent/instructions", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["status"], "error")
+
+    def test_requires_a_configured_api_key(self):
+        response = self.client.get("/agents/Process_Architect_Orchestrator/instructions")
+        self.assertEqual(response.status_code, 401)
+
+
 class UsageAccumulationTest(unittest.TestCase):
     """_accumulate_event_usage -- the Token Usage tab's per-turn token
     accounting. Callers (_run_chat_turn/_stream_chat_turn) only invoke this

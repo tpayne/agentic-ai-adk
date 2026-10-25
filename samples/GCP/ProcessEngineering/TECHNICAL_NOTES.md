@@ -20,6 +20,7 @@ Treat this ADK sample as a BETA. While current Large Language Models (LLMs) are 
 The following are a list of known issues: -
 - Diagram Layouts: Generated diagrams may occasionally be clipped or laid out sub-optimally. You can often improve the visualization by modifying the process JSON and regenerating the diagram.
 - Agent "Chattiness": While agents are instructed to remain quiet, LLMs may occasionally disregard these constraints and output unnecessary JSON or tooling commentary. In most cases, these outputs can be safely ignored.
+- The chat-driven `download_artifact` tool (see [Downloading generated artifacts](#downloading-generated-artifacts)) writes a file to the filesystem of whatever machine is running the agent process, at a path the requester provides. On a local CLI session that's the same trust boundary as copying the file yourself. If this agent is ever served remotely (`-d` web service mode) to a client that is NOT the same person operating the server, a remote user could direct this tool to write anywhere on the SERVER's own filesystem that the process has permission to reach -- reconsider or restrict this tool's own access (e.g. a fixed safe destination directory) before widening this agent's exposure beyond local/trusted use.
 
 ---
 
@@ -77,6 +78,7 @@ The ADK pipeline provides:
 - **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
 - **Requirement Traceability Register**: Every atomic requirement identified during analysis gets a stable id (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which source file it came from, and one or more concrete acceptance criteria. For the design-document pipeline, this register is mapped directly into `design_document_schema.json`'s `requirements.functional_requirements`/`requirements.non_functional_requirements`/`requirements.traceability_matrix` sections — closing a gap where the HLD/Combined generator previously never populated that part of the schema — giving every generated design document real, ISO/IEC/IEEE 29148-style requirement traceability.
 - **Requirements-Aware Consultation & Simulation**: Every consultant, scenario-tester, and simulation-query agent (`Consultant_Agent`, `Design_Consultant_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_Attack_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Simulation_Optimization_Query_Agent`) also checks once per conversation for a saved requirements summary (`load_requirements_summary`) alongside the process/design/diagram it's actually answering about. A `NOT_FOUND` status changes nothing. If a summary exists and the question is specifically about requirement fulfillment, coverage, or a gap (e.g. *"does this diagram satisfy the encryption-at-rest requirement?"*, *"would this what-if scenario breach our SLA?"*), the agent cross-checks the stated requirement against the actual process/design/diagram data and says plainly whether it's met, partially met, at risk, or not addressed — naming the responsible component or step. For any other question it stays silent on the subject; it never volunteers the requirements summary unprompted. The three pipeline-internal auto-revision gates (`Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Simulation_Optimization_Agent`) are deliberately excluded, since they run automatically mid-creation with no user turn to ask a fulfillment question against.
+- **Downloading Generated Artifacts**: Save a copy of the cloud architecture diagram or any generated Word document to a local path — three ways. In chat, just ask (e.g. *"download the cloud architecture diagram to /tmp"*, *"save the design doc to my Desktop"*): the root orchestrator's `download_artifact` tool resolves which artifact you mean (an exact filename, a phrase like "diagram"/"architecture" for the cloud architecture diagram, or whichever document was generated most recently if you just say "it") and copies it to the path you gave. The interactive/`-f` CLI has the same capability as plain control lines — `list` shows what's in `output/`, `download <filename> [destination]` copies one out — with no agent/LLM call involved. The web client's **Process / Design** and **Cloud Architecture** tabs expose the same capability as download buttons (`GET /artifacts/documents`, see [Downloading generated artifacts](#downloading-generated-artifacts) below). See [Known issues](#known-issues) for a caveat on exposing the chat-driven download tool beyond local use. Developed in tandem with the neuro-san port's own identical feature.
 
 ---
 
@@ -852,6 +854,10 @@ The service exposes:
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
 | `GET` | `/artifacts/<name>` | `name` is `process` or `design` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
+| `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |
+| `GET` | `/artifacts/cloudarch/download` | Download `output/cloudarch_drawio.xml` as a real file attachment (vs. `GET /artifacts/cloudarch`'s JSON-wrapped string, for the web client's own renderer). |
+| `GET` | `/agents/<name>/instructions` | A given agent's own real ADK `instruction` text, by its `.name` -- powers the web client's Agent Network tab hover feature. |
 | `GET` | `/status` | Liveness probe -- also reports the configured model, `{"status": "live", "model": "..."}`. |
 
 `POST /chat` takes a JSON body with a `query` field, and an optional
@@ -1000,6 +1006,49 @@ the file is missing (fine for a pipeline about to populate one, wrong for a debu
 endpoint that needs to tell "genuinely not generated yet" apart from "here's an empty template").
 Subject to the same auth/rate-limiting as every other route except `/status`. The web client's
 **Process / Design** tab (below) is what actually consumes this.
+
+### Downloading generated artifacts
+
+Three ways to get a local copy of a generated Word document or the cloud architecture diagram,
+sharing the same underlying resolution/copy logic
+(`process_agents/common/artifact_downloads.py`):
+
+**In chat (natural language)** -- the root orchestrator's `download_artifact` tool. Just ask,
+e.g. *"download the cloud architecture diagram to /tmp"*, *"save the design doc to my Desktop"*,
+*"export it to ~/Downloads/report.docx"*. `target` is resolved from what you said: a phrase
+containing "cloudarch"/"diagram"/"architecture" means the diagram; an exact or partial filename
+match means that document; omitted/vague ("the document"/"it") means whichever document was
+generated most recently. If nothing matches, the tool reports exactly what IS available rather than
+guessing. **This writes a file to the filesystem of whatever machine is running the agent process**
+-- on a local CLI session that's your own machine, no different from copying the file yourself; see
+[Known issues](#known-issues) for why this needs reconsidering before this agent is ever served to
+a remote client that isn't also the person operating the server.
+
+**CLI control lines** (interactive/`-f` modes only -- see [Using the Agent Locally](#using-the-agent-locally)) --
+`list` (or `ls`) shows every generated document plus the cloud architecture diagram, with size and
+modified time; `download <filename> [destination]` copies one out, `destination` defaulting to the
+current working directory. `filename` is exactly what `list` just printed (documents have no fixed
+name -- see below). Neither touches the agent; both are plain local file operations handled before
+anything would be sent to the LLM.
+
+**REST API** (for the web client's own download buttons) --
+
+```
+GET /artifacts/documents
+{"status": "ok", "documents": [
+  {"filename": "Vendor_Onboarding.docx", "size_bytes": 48213, "modified": "2026-10-24T21:46:38Z"}
+]}
+
+GET /artifacts/documents/<filename>/download   # the real .docx bytes, as an attachment
+GET /artifacts/cloudarch/download               # the real cloudarch_drawio.xml bytes, as an attachment
+```
+
+A generated document's filename is never fixed -- each one is named after whatever process/design
+name was actually generated (`safe_filename_component(name) + ".docx"`), so `output/` can hold
+several at once and "what documents exist" has to be a directory listing, not a known path.
+`<filename>/download` validates the name stays strictly inside `output/` (realpath + containment
+check, not just a string pattern) before serving it. Subject to the same auth/rate-limiting as every
+other route except `/status`.
 
 ### Browser client
 
