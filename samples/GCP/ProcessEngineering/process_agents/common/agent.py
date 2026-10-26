@@ -224,6 +224,7 @@ from .agent_registry import (
     requirements_consultant_agent,
     process_import_agent,
     design_import_agent,
+    cloudarch_import_agent,
 )
 
 # Signal handler for abnormal errors
@@ -281,6 +282,7 @@ root_agent = ProcessLlmAgent(
         requirements_consultant_agent,
         process_import_agent,
         design_import_agent,
+        cloudarch_import_agent,
     ],
 )
 

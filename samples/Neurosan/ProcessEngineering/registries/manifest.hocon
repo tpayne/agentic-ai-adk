@@ -23,6 +23,7 @@
     "process_scenario_tester.hocon": true,
     "process_simulation_query.hocon": true,
     "cloudarch_consultant.hocon": true,
+    "cloudarch_import.hocon": true,
     "cloudarch_simulation_query.hocon": true,
     "cloudarch_attack_simulation_query.hocon": true,
     "cloudarch_finops.hocon": true,

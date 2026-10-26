@@ -2461,6 +2461,30 @@ def save_drawio_structured(
     return _save_drawio_core(xml_content, run_shape_mapping=False)
 
 
+def restore_drawio_xml(xml_content: str) -> str:
+    """
+    Persists an already-complete drawio/mxGraph XML document VERBATIM as
+    output/cloudarch_drawio.xml -- for CloudArch_Import_Agent's own
+    literal-restore case (e.g. a cloudarch_drawio.xml previously
+    downloaded from this same toolkit, re-attached to resume work on it).
+
+    Like save_drawio_structured, skips the fuzzy icon/container
+    remapping pass (run_shape_mapping=False) -- that pass is designed to
+    reinterpret freehand LLM-guessed XML and misfires on XML that's
+    already correct, which is exactly what a verbatim restore's input
+    always is. Unlike save_drawio_structured, there is no layout engine
+    call here at all: xml_content IS the diagram, not a structured
+    description to build one from.
+
+    xml_content: the complete, already-valid drawio/mxGraph XML to save,
+    exactly as read from the source file -- do not reformat, re-generate,
+    or otherwise alter it before calling this.
+    """
+    if not isinstance(xml_content, str) or not xml_content.strip():
+        return "ERROR: xml_content is required and must be a non-empty string."
+    return _save_drawio_core(xml_content, run_shape_mapping=False)
+
+
 def _save_raw_data_to_json(json_content, schema_type: Optional[str] = None) -> str:
     """
     Saves the finalized JSON to output/process_data.json (or
