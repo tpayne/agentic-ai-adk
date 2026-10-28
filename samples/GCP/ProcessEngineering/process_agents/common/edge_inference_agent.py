@@ -14,6 +14,7 @@ from process_toolkit.docgen.edge_inference import (
     _infer_edges_from_json,
     generate_clean_diagram as _shared_generate_clean_diagram,
 )
+from process_toolkit import paths as toolkit_paths
 
 from .agent_wrappers import ProcessAgent
 
@@ -70,8 +71,7 @@ if __name__ == "__main__":
         print(f"ERROR: Failed to parse JSON: {e}")
         sys.exit(1)
 
-    os.makedirs("output", exist_ok=True)
-    target_path = "output/design_data.json" if schema_arg == "design" else "output/process_data.json"
+    target_path = toolkit_paths.output_path("design_data.json" if schema_arg == "design" else "process_data.json")
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     print(f"Loaded JSON and wrote to {target_path}")

@@ -296,12 +296,17 @@ def test_cloudarch_readonly_agents_are_wired_to_claim_the_session():
     from process_agents.cloudarch.cloudarch_finops_agent import cloudarch_finops_query_agent
     from process_agents.cloudarch.cloudarch_simulation_agent import cloudarch_simulation_query_agent
     from process_agents.cloudarch.cloudarch_attack_simulation_agent import cloudarch_attack_simulation_query_agent
+    # Design_Doc_Analysis_Agent joined this group once it gained its own
+    # (opt-in, explicitly-requested) load_drawio read -- see
+    # test_design_cloudarch_grounding.py for why.
+    from process_agents.design.design_doc_analysis_agent import design_doc_analysis_agent
 
     for agent in (
         consultant_cloudarch_agent,
         cloudarch_finops_query_agent,
         cloudarch_simulation_query_agent,
         cloudarch_attack_simulation_query_agent,
+        design_doc_analysis_agent,
     ):
         assert agent.before_agent_callback is claim_cloudarch_drawio_readonly
 

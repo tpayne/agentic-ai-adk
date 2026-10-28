@@ -48,7 +48,8 @@ flowchart TB
         direction LR
         DC["Design_Doc_Pipeline"]:::app --> DC0["reset_loop_state"]:::tool
         DC0 --> DCA["Design_Doc_Analysis_Agent"]:::app
-        DCA --> DCL["Design_Doc_Agent -> Compliance_Agent<br/>-> Simulation_Agent -> loop_control<br/>repeat on CONTINUE, max 2x"]:::loop
+        DCA --> DCH["Design_Doc_HLD_Agent -> Design_Doc_LLD_Agent<br/>(initial build, two stages)"]:::app
+        DCH --> DCL["Design_Doc_Agent (revision only) -> Compliance_Agent<br/>-> Simulation_Agent -> loop_control<br/>repeat on CONTINUE, max 2x"]:::loop
         DCL --> DCD1["generate_design_flow_diagram"]:::tool
         DCD1 --> DCD2["generate_design_document"]:::tool
     end

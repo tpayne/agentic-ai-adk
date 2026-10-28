@@ -79,18 +79,40 @@ all. Step 7 MUST fully complete (its result message received) before you call st
      both reviewers' feedback itself from their own channels, you do not need to relay it.
    - If "verdict" is "STOP": proceed to step 7. Do NOT call Design_Agent, Compliance_Agent, or
      Simulation_Agent again this turn -- this is an authoritative stop signal.
+
+MANDATORY, NO EXCEPTIONS: steps 7, 8, and 9 below ALWAYS run once "verdict" is "STOP", for EVERY
+stop reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". Design_Agent has
+already persisted a real process by this point -- an open compliance/simulation item is feedback
+for a FUTURE revision, not a reason to withhold subprocess expansion, the diagram, or the document
+for the process that exists RIGHT NOW. This mirrors a real production bug confirmed on the sibling
+design.hocon pipeline: an orchestrator that skipped straight to its final report instead of calling
+the diagram/document steps once it hit max_iterations, even though both succeed unconditionally on
+whatever is currently on disk. Call all three now, regardless of "reason".
 7. Call Subprocess_Driver_Agent once (no arguments) to expand every top-level process step into
    its own detailed subprocess. Do this UNCONDITIONALLY -- regardless of whether step 6 stopped
    because of approval or because the revision limit was reached.
 8. Call generate_process_flow_diagram once (no arguments) to render a swimlane flow diagram of
    the current design.
 9. Call generate_process_document once, passing the design's own process name as "process_name",
-   to produce the final ISO-formatted Word document.
+   to produce the final ISO-formatted Word document. Its result is a plain string starting with
+   either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
 10. Report the outcome in plain language: if "reason" was "APPROVED", say the process design was
     created/updated and passed compliance and simulation review. If "MAX_ITERATIONS", say a design
     was produced but still has open review feedback after the maximum number of revision passes.
-    Mention that detailed subprocesses were generated for each step, and that a Word document and
-    flow diagram were produced, either way.
+    Mention that detailed subprocesses and a flow diagram were generated. Only say a Word document
+    was produced if step 9's own result actually started with "SUCCESS:" -- if it started with
+    "ERROR:" instead, say plainly that the Word document could not be generated and why (using the
+    error's own text), even though the process, subprocesses, and diagram were produced. NEVER
+    claim a document was produced "either way" when the tool itself reported otherwise.
+    NEVER describe the process's own content -- steps, stakeholders, industry -- from your own
+    general knowledge, guess, or what would sound plausible. You have not read the process JSON
+    yourself; you only know what reason/step 9's own tool result actually said. If step 9 reported
+    a missing design (e.g. any NOT_FOUND/ERROR about the process data itself, as opposed to a
+    downstream compliance/simulation complaint), this means NO process was actually produced this
+    run, regardless of anything Design_Agent/Compliance_Agent/Simulation_Agent said internally --
+    say so plainly ("a process could not be completed and saved this time; please try again")
+    rather than inventing or repeating a plausible-sounding process description you cannot verify
+    is real.
     Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
@@ -212,11 +234,19 @@ based on the industry sector rather than asking questions.
      industry/process from nothing, do NOT call persist_final_json, and respond in plain language
      that generation could not proceed because no real source material was found, quoting the
      issue's own "instruction" text. Stop here; skip the rest of this SEQUENCE.
-   - Otherwise, if it returns actionable data, this is a fresh generation: extract
+   - Otherwise, if it returns actionable data, this is a fresh generation. Build and persist a
+     MINIMAL SKELETON FIRST, as your next tool call, before elaborating anything else: just
+     {"process_name": <a real name from the requirements>, "process_steps": []} (this alone
+     satisfies validate_process_json's structural minimum -- confirmed directly against its own
+     code). Call persist_final_json with JUST this skeleton now -- cheap insurance so a real,
+     correctable draft exists even if the rest of this turn runs long (mirrors a real production
+     bug confirmed on the sibling design.hocon pipeline, where a single-pass generator sometimes
+     never completed a build before ever calling persist). THEN extract
      metadata.extracted_requirements from it and build the FULL process_steps/stakeholders/etc.
      against the baseline/template, normalizing every field the template defines (empty string/
      array only where no reasonable inference is possible). Every 'responsible_party' must match a
-     real stakeholder. 'dependencies' must form a DAG -- no cycles.
+     real stakeholder. 'dependencies' must form a DAG -- no cycles. Call persist_final_json again
+     once this is complete.
      - REQUIREMENTS-QUALITY AWARENESS: if the extracted requirements include
        requirement_priorities/conflicting_requirements/requirements_needing_clarification/
        coverage_gaps, prefer higher-priority requirements when two compete, and record any

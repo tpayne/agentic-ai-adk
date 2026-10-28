@@ -1,0 +1,135 @@
+# Imports an EXISTING cloud architecture diagram (an already-exported
+# drawio/mxGraph XML file -- most commonly one previously downloaded from
+# this same toolkit via GET /artifacts/cloudarch/download, re-attached to
+# resume work on it) directly into output/cloudarch_drawio.xml, VERBATIM --
+# no re-derivation, no LLM re-interpretation. Mirrors process_import.hocon/
+# design_import.hocon's own reasoning (standalone network, same STEP
+# structure), but simpler: unlike a process/design document, there is no
+# meaningful "extract a diagram from prose" case worth supporting here --
+# drawio/mxGraph XML is either already a real diagram to restore as-is, or
+# it isn't a diagram at all. A request to BUILD a new diagram from a
+# directory of background material (network docs, a written description)
+# is a DIFFERENT, already-existing capability -- see process_architect's
+# own Section 6 (CloudArch_Pipeline's directory-context path) -- not this
+# network.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML export, typically one previously downloaded from this toolkit) verbatim as the active diagram, ready for use by every other cloud-architecture network.",
+        "tags": ["cloudarch", "process-engineering-port", "import"],
+        "sample_queries": [
+            "Use this architectural diagram for further questions.",
+            "Import the cloud architecture diagram in ./old-diagrams as the current one."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "CloudArch_Import_Agent",
+
+            "function": {
+                "description": """
+I restore an already-existing cloud architecture diagram -- a drawio/mxGraph XML file, typically one
+previously downloaded from this same toolkit -- as the active diagram, VERBATIM, with no
+re-interpretation. Not for building a new diagram from a written description (that's the regular
+cloud-architecture generation path). Tell me which directory to read.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, including the directory path to read."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are performing a literal RESTORE of an already-existing cloud architecture diagram, not
+generating or redesigning one. The directory you're given contains a real drawio/mxGraph XML export
+-- your only job is to find it and persist it exactly as-is.
+
+# STEP 1: READ THE DIRECTORY (MANDATORY)
+The directory to read is ALWAYS the one in THIS request -- never reuse a path from an earlier turn
+or invent one.
+- If the request has no directory path, do not call any tool -- ask for the path and stop.
+- Call load_directory_context with that path.
+- "status": "NOT_FOUND" -> report the directory could not be found and stop. Do not fabricate.
+- "status": "ERROR" -> report the error and stop. Do not fabricate.
+- "status": "OK" but "files_processed" is EMPTY -> report that no usable content was found (list
+  "files_skipped" reasons if any) and stop. Do not fabricate, do not persist anything.
+
+# STEP 2: IDENTIFY THE DIAGRAM FILE
+Look through "files_processed" for a file whose own content -- the text under its "===
+<filename> ===" heading in "combined_text" -- IS drawio/mxGraph XML: it starts with "<mxfile" or
+contains "<mxGraphModel" or "<mxCell". That is the diagram to restore.
+- If no file's content matches, report that none of the uploaded/read files look like a drawio/
+  mxGraph diagram export and stop. Do not fabricate, do not persist anything.
+- If more than one file matches, ask the user which one they mean rather than guessing. Do not
+  blend content from more than one file.
+- If exactly one matches, that file's content -- from immediately after its own "===
+  <filename> ===" heading up to the next such heading or the end of combined_text -- is the XML to
+  restore in STEP 4. Copy it EXACTLY; do not reformat, re-indent, or alter a single character.
+
+# STEP 3: CHECK FOR AN EXISTING DIAGRAM (OVERWRITE SAFETY)
+Call load_drawio. If it returns "status": "OK" with a non-empty "xml" (an actual existing diagram),
+this import would overwrite it. Unless the user's OWN request in THIS turn already explicitly says
+to overwrite/replace/proceed anyway (e.g. "overwrite the existing diagram", "replace it", "import
+anyway", or this is a follow-up turn where you already asked and the user just confirmed), STOP
+here: tell the user a cloud architecture diagram already exists and ask whether to overwrite it with
+this import. Do NOT call restore_drawio_xml in that case -- wait for their next message.
+
+# STEP 4: RESTORE VERBATIM
+Call restore_drawio_xml with xml_content set to EXACTLY the text identified in STEP 2 -- byte for
+byte, no re-generation, no re-formatting, no added/removed whitespace. If it returns an error (the
+content wasn't actually well-formed XML despite looking like it), report that error to the user
+verbatim and stop -- do not attempt to fix or guess at the XML yourself.
+
+# STEP 5: REPORT BACK
+Reply in plain prose (no raw XML, no code blocks): which file was restored as the cloud architecture
+diagram. Close by noting it's now the active diagram, available to every other cloud-architecture
+tool (consultant, simulation, attack simulation, cost estimation) -- and that if they want it
+reviewed the way a freshly-generated diagram is, they can ask to update/regenerate it next.
+
+Do not output the XML as chat text -- it belongs only inside tool calls.
+""",
+            "tools": ["load_directory_context", "load_drawio", "restore_drawio_xml"]
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "load_drawio",
+            "function": {
+                "description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."
+            },
+            "class": "load_drawio_tool.LoadDrawioCodedTool"
+        },
+        {
+            "name": "restore_drawio_xml",
+            "function": {
+                "description": "Persists an already-complete drawio/mxGraph XML document verbatim as the active cloud architecture diagram.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "xml_content": {"type": "string", "description": "The complete, already-valid drawio/mxGraph XML to save, exactly as read from the source file."}
+                    },
+                    "required": ["xml_content"]
+                }
+            },
+            "class": "restore_drawio_xml_tool.RestoreDrawioXmlCodedTool"
+        }
+    ]
+}

@@ -40,8 +40,6 @@ from .artifact_downloads import (
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
 # tool_context.state / callback_context.state key for threading a
 # process_toolkit.run_lock token between a pipeline's own reset step
 # (which acquires the lock) and its own finalize step (which releases

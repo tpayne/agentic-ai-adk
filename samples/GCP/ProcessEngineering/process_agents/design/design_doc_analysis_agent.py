@@ -12,10 +12,12 @@ from ..common.utils import (
     save_iteration_feedback,
     load_directory_context,
     load_requirements_summary,
+    load_drawio,
     getProperty,
 )
-from ..common.utils_agent import acquire_pipeline_lock_for_turn
+from ..common.utils_agent import acquire_pipeline_lock_for_turn, claim_cloudarch_drawio_readonly
 from process_toolkit.run_lock import PipelineLockedError
+from process_toolkit import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.DesignDocAnalysis")
 
@@ -37,8 +39,8 @@ def _remove_previous_approval_logs(tool_context: Optional[ToolContext] = None):
     except PipelineLockedError as e:
         return f"ERROR: {e}"
 
-    approvalLog = "output/approval.json"
-    counterLog = "output/stop_counter.json"
+    approvalLog = toolkit_paths.output_path("approval.json")
+    counterLog = toolkit_paths.output_path("stop_counter.json")
     try:
         if os.path.exists(approvalLog):
             os.remove(approvalLog)
@@ -80,6 +82,14 @@ design_doc_analysis_agent = ProcessLlmAgent(
         log_analysis_metadata,
         load_directory_context,
         load_requirements_summary,
+        load_drawio,
         save_iteration_feedback,
     ],
+    # Same read-only session-ownership claim as CloudArch_Consultant_Agent/
+    # etc. (see claim_cloudarch_drawio_readonly's own docstring) -- this
+    # agent only ever READS an existing diagram via load_drawio, never
+    # resets/deletes it, so claiming it must never be blocking or
+    # destructive just because this happens to be the session's first
+    # touch of the cloud-architecture subsystem.
+    before_agent_callback=claim_cloudarch_drawio_readonly,
 )

@@ -63,6 +63,10 @@
         <code id="sessionIdLabel" class="session-id">none</code>
       </div>
       <button id="newChatBtn" type="button" class="btn btn-secondary btn-block">+ New chat</button>
+      <button id="deleteSessionBtn" type="button" class="btn btn-danger btn-block" disabled
+              title="Delete this session's chat history and generated files from the server">
+        Delete session
+      </button>
     </section>
 
     <div class="sidebar-footer">
@@ -124,6 +128,13 @@
             </p>
           </div>
         </div>
+        <button type="button" class="jump-to-latest-btn" id="jumpToLatestBtn" title="Jump to latest message"
+                aria-label="Jump to latest message" hidden>
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 8l5 5 5-5"></path>
+          </svg>
+        </button>
       </div>
 
       <form class="composer" id="composerForm">
@@ -147,7 +158,7 @@
             </svg>
           </button>
           <input type="file" id="attachFileInput" multiple hidden
-                 accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.md,.markdown" />
+                 accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.md,.markdown,.docx,.xml,.json" />
           <button type="button" class="toolbar-btn" id="micBtn" title="Voice input (click to record)" aria-label="Start voice input">
             <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"
                  stroke-linecap="round" stroke-linejoin="round">
@@ -262,6 +273,13 @@
           <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"></path>
             <path d="M13.5 2.3v3.3h-3.3"></path>
+          </svg>
+        </button>
+        <button type="button" class="icon-btn" id="artifactDownloadJsonBtn" title="Download JSON" aria-label="Download JSON">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 1.5h5.5L12.5 4.5V14.5h-8.5z"></path>
+            <path d="M9.5 1.5V4.5H12.5"></path>
+            <path d="M6 9.5v3M6 12.5 4.5 11M6 12.5 7.5 11"></path>
           </svg>
         </button>
         <span class="artifacts-status" id="artifactsStatus">Not loaded</span>

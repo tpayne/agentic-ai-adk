@@ -21,6 +21,7 @@ from ..cloudarch.cloudarch_pipeline_agent import (
 from ..process.create_process_agent import full_design_pipeline
 from ..process.import_agent import process_import_agent
 from ..design.import_agent import design_import_agent
+from ..cloudarch.import_agent import cloudarch_import_agent
 from .doc_creation_agent import build_doc_creation_agent
 from .grounding_agent import grounding_agent
 from .json_normalizer_agent import json_normalizer_agent

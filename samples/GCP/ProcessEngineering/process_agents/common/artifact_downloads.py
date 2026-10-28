@@ -3,15 +3,17 @@ diagram, or a generated Word document) to a local filesystem path.
 
 Developed in tandem with the neuro-san port's own
 coded_tools/common/artifact_downloads.py -- same contract, same
-resolution rules, adapted to this port's own PROJECT_ROOT/output/
-convention instead of process_toolkit.paths' CWD-relative one.
+resolution rules, both now resolved through process_toolkit.paths (this
+port used to keep its own independent PROJECT_ROOT/output/ convention;
+that stopped being harmless once output/ became session-scoped, since
+only functions that go through process_toolkit.paths resolve a request's
+own session directory correctly -- see paths.py's own use_session()
+docstring).
 
 Shared by this project's own "list"/"download" control lines
 (start_local_chat/process_file in .agent) and download_artifact in
 .utils_agent (the LLM-invokable natural-language path, registered as a
-root_agent tool). PROJECT_ROOT is computed independently here (not
-imported from .utils_agent) so utils_agent can import FROM this module
-(for download_artifact) without the two forming an import cycle.
+root_agent tool).
 """
 
 import os
@@ -21,22 +23,17 @@ from typing import Any, Dict, List, Optional
 
 from werkzeug.utils import safe_join
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+from process_toolkit import paths as toolkit_paths
+
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
-
-
-def _output_dir() -> str:
-    path = os.path.join(PROJECT_ROOT, "output")
-    os.makedirs(path, exist_ok=True)
-    return path
 
 
 def cloudarch_diagram_exists() -> bool:
     """Whether output/cloudarch_drawio.xml has been generated yet -- for
     callers (download_artifact's own "nothing matched" message) that need
-    to know this without reaching into this module's own private
-    _output_dir()."""
-    return os.path.isfile(os.path.join(_output_dir(), CLOUDARCH_FILENAME))
+    to know this without reaching into toolkit_paths.output_dir()
+    themselves."""
+    return os.path.isfile(os.path.join(toolkit_paths.output_dir(), CLOUDARCH_FILENAME))
 
 
 def list_output_documents() -> List[Dict[str, Any]]:
@@ -50,7 +47,7 @@ def list_output_documents() -> List[Dict[str, Any]]:
     just generated is the one a vague "the document"/"it" reference is
     almost always asking about.
     """
-    output_dir = _output_dir()
+    output_dir = toolkit_paths.output_dir()
     entries: List[Dict[str, Any]] = []
     for name in os.listdir(output_dir):
         full_path = os.path.join(output_dir, name)
@@ -79,7 +76,7 @@ def safe_output_file_path(filename: str) -> Optional[str]:
     """
     if not filename:
         return None
-    output_dir = os.path.realpath(_output_dir())
+    output_dir = os.path.realpath(toolkit_paths.output_dir())
     joined = safe_join(output_dir, os.path.basename(filename))
     if joined is None:
         return None
@@ -115,8 +112,7 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     """
     normalized = (target or "").strip().lower()
     if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
-        cloudarch_path = os.path.join(_output_dir(), CLOUDARCH_FILENAME)
-        return CLOUDARCH_FILENAME if os.path.isfile(cloudarch_path) else None
+        return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
 
     docs = list_output_documents()
     if not normalized:

@@ -4,7 +4,6 @@ from google.genai import types
 import logging
 import time
 import random
-import os
 import shutil
 
 logger = logging.getLogger("ProcessArchitect.CloudArch")
@@ -19,8 +18,6 @@ from ..common.utils import (
     load_directory_context,
     load_requirements_summary,
 )
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 def log_cloudarch_metadata(status: str):
     """Internal tool to report status."""

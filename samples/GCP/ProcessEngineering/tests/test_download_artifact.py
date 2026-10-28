@@ -8,29 +8,23 @@ import os
 
 import pytest
 
-from process_agents.common import artifact_downloads
 from process_agents.common.utils_agent import download_artifact
-
-
-@pytest.fixture(autouse=True)
-def isolated_output_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(artifact_downloads, "PROJECT_ROOT", str(tmp_path))
-    yield tmp_path
+from process_toolkit import paths
 
 
 def _write_output_file(name: str, content: bytes = b"content") -> None:
-    output_dir = os.path.join(artifact_downloads.PROJECT_ROOT, "output")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = paths.output_dir()
     with open(os.path.join(output_dir, name), "wb") as f:
         f.write(content)
 
 
 @pytest.fixture
 def dest_dir(tmp_path):
-    # Distinct from tmp_path itself, which the autouse fixture above
-    # already points PROJECT_ROOT at -- using tmp_path directly as a
-    # download destination would make source and destination the same
-    # directory (shutil.copy2 raising SameFileError).
+    # Distinct from tmp_path itself, which conftest.py's own autouse
+    # isolated_output_dir fixture already points paths.OUTPUT_DIR at --
+    # using tmp_path directly as a download destination would make source
+    # and destination the same directory (shutil.copy2 raising
+    # SameFileError).
     path = tmp_path / "downloads"
     path.mkdir()
     return path

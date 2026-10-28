@@ -10,7 +10,7 @@ import os
 
 import docx
 
-from coded_tools.common import paths
+from process_toolkit import paths
 from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME, PROCESS_JSON_FILENAME
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.generation import create_standard_doc_from_file

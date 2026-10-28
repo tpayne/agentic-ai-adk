@@ -345,6 +345,16 @@ button, input, textarea {
 
 .btn-ghost:hover { border-color: var(--border-strong); color: var(--text); }
 
+.btn-danger {
+  background: var(--bg-elevated);
+  border-color: var(--danger-soft);
+  color: var(--danger);
+}
+
+.btn-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1359,9 +1369,46 @@ input[type="range"]:disabled {
 }
 
 .chat-scroll {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   scroll-behavior: smooth;
+}
+
+/* Copilot/Teams-style floating "jump to latest message" button -- shown
+   only once the user has scrolled away from the bottom of the chat
+   transcript. Positioned absolute within #chatScroll (now position:
+   relative) so it stays pinned over the visible viewport of the
+   scrollable area -- as a position:absolute child of the scroll
+   container itself rather than its scrolled content, it does not move
+   as #chatContainer scrolls underneath it. */
+.jump-to-latest-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+}
+
+.jump-to-latest-btn:hover {
+  border-color: var(--accent);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.jump-to-latest-btn[hidden] {
+  display: none;
 }
 
 .chat-container {

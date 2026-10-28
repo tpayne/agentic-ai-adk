@@ -42,10 +42,9 @@ from ..common.utils import (
     save_iteration_feedback,
     getProperty,
 )
+from process_toolkit import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.DesignSimulation")
-
-DESIGN_SIM_RESULTS_PATH = "output/design_simulation_results.json"
 
 # ============================================================
 # JSON EXTRACTION + REPAIR (mirrors simulation_agent.py's helpers)
@@ -410,11 +409,10 @@ def _run_core_design_simulation(
 
 def _persist_design_simulation_metrics(metrics: Dict[str, Any]) -> None:
     try:
-        import os
-        os.makedirs("output", exist_ok=True)
-        with open(DESIGN_SIM_RESULTS_PATH, "w", encoding="utf-8") as f:
+        design_sim_results_path = toolkit_paths.output_path("design_simulation_results.json")
+        with open(design_sim_results_path, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2, ensure_ascii=False)
-        logger.debug(f"Design simulation metrics saved to {DESIGN_SIM_RESULTS_PATH}")
+        logger.debug(f"Design simulation metrics saved to {design_sim_results_path}")
     except Exception:
         logger.exception("Failed to persist design simulation metrics.")
 

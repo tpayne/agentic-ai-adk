@@ -14,6 +14,7 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 from ..common.utils import getProperty
+from process_toolkit import paths as toolkit_paths
 
 import logging
 
@@ -62,7 +63,7 @@ class SubprocessDriverAgent(BaseAgent):
     # Load process steps directly from the final JSON file
     # ---------------------------------------------------------
     def _load_process_steps(self) -> List[Dict[str, Any]]:
-        path = "output/process_data.json"
+        path = toolkit_paths.output_path("process_data.json")
 
         if not os.path.exists(path):
             raise FileNotFoundError(

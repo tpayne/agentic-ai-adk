@@ -13,7 +13,7 @@ import os
 import docx
 import pytest
 
-from coded_tools.common import paths
+from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, DESIGN_JSON_FILENAME
 from coded_tools.regenerate_document.edge_inference_tool import RegenerateFlowDiagramCodedTool
 from coded_tools.regenerate_document.doc_generation_tool import RegenerateDocumentCodedTool

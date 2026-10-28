@@ -87,14 +87,39 @@ class ImportAgentsWiringTest(unittest.TestCase):
         for name in ("load_directory_context", "load_master_design_json", "validate_design_json", "persist_final_design_json"):
             self.assertIn(name, text, f"design/import_agent.txt does not mention {name}")
 
-    def test_both_import_agents_are_registered_with_the_root_router(self):
+    def test_cloudarch_import_agent_tools_and_instructions(self):
+        # Regression coverage: an uploaded cloudarch_drawio.xml with a
+        # request like "use this architectural diagram for further
+        # questions" was being routed to Design_Import_Agent (re-deriving
+        # a whole new design document from it via LLM extraction) instead
+        # of being restored verbatim, since the router had no cloud-
+        # architecture option in its "import an already-existing
+        # document" decision at all. See cloudarch/import_agent.py.
+        module = _import_module("process_agents.cloudarch.import_agent")
+        from process_agents.common.utils import load_directory_context, load_drawio, restore_drawio_xml
+
+        agent = module.cloudarch_import_agent
+        self.assertEqual(agent.name, "CloudArch_Import_Agent")
+        for tool in (load_directory_context, load_drawio, restore_drawio_xml):
+            self.assertIn(
+                tool, agent.tools,
+                f"CloudArch_Import_Agent is missing {tool.__name__} in its tools list",
+            )
+
+        text = _instruction_text("cloudarch/import_agent.txt")
+        for name in ("load_directory_context", "load_drawio", "restore_drawio_xml"):
+            self.assertIn(name, text, f"cloudarch/import_agent.txt does not mention {name}")
+
+    def test_all_three_import_agents_are_registered_with_the_root_router(self):
         module = _import_module("process_agents.common.agent_registry")
         self.assertEqual(module.process_import_agent.name, "Process_Import_Agent")
         self.assertEqual(module.design_import_agent.name, "Design_Import_Agent")
+        self.assertEqual(module.cloudarch_import_agent.name, "CloudArch_Import_Agent")
 
         router_text = _instruction_text("common/agent.txt")
         self.assertIn("Process_Import_Agent", router_text)
         self.assertIn("Design_Import_Agent", router_text)
+        self.assertIn("CloudArch_Import_Agent", router_text)
 
 
 if __name__ == "__main__":

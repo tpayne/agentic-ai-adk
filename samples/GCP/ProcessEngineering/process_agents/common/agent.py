@@ -224,6 +224,7 @@ from .agent_registry import (
     requirements_consultant_agent,
     process_import_agent,
     design_import_agent,
+    cloudarch_import_agent,
 )
 
 # Signal handler for abnormal errors
@@ -281,6 +282,7 @@ root_agent = ProcessLlmAgent(
         requirements_consultant_agent,
         process_import_agent,
         design_import_agent,
+        cloudarch_import_agent,
     ],
 )
 
@@ -495,8 +497,9 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
     # count that makes *this* session's loop escalate after too few
     # iterations. Since this always runs at the start of a fresh session
     # (including "clear"), reset it here unconditionally too.
-    from .utils_agent import _reset_stop_counter, PROJECT_ROOT
-    _reset_stop_counter(os.path.join(PROJECT_ROOT, "output", "stop_counter.json"))
+    from .utils_agent import _reset_stop_counter
+    from process_toolkit import paths as toolkit_paths
+    _reset_stop_counter(toolkit_paths.output_path("stop_counter.json"))
 
     user_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
@@ -932,28 +935,35 @@ async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> 
 
 async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):
     """Resolve/create the web session, then run one query through it."""
+    from process_toolkit import paths as toolkit_paths
+
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
     _mark_web_session_active(web_session_id)
-    try:
-        content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
-        final_response = None
-        usage_totals = _new_usage_totals()
-        async for event in _web_runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-            run_config=RUN_CONFIG,
-        ):
-            if not event.partial:
-                _accumulate_event_usage(event, usage_totals)
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+    with toolkit_paths.use_session(web_session_id):
+        try:
+            content = types.Content(role="user", parts=_content_parts_for_turn(query, files))
+            final_response = None
+            usage_totals = _new_usage_totals()
+            async for event in _web_runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=content,
+                run_config=RUN_CONFIG,
+            ):
+                if not event.partial:
+                    _accumulate_event_usage(event, usage_totals)
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
 
-        usage = {**usage_totals, "model": MODEL}
-        return web_session_id, (final_response or ""), usage
-    finally:
-        await _release_any_leftover_pipeline_lock(user_id, session_id)
-        _mark_web_session_inactive(web_session_id)
+            usage = {**usage_totals, "model": MODEL}
+            return web_session_id, (final_response or ""), usage
+        finally:
+            # release_pipeline_lock/stop_pipeline_lock_heartbeat below
+            # resolve this session's own lock file via process_toolkit.paths
+            # too -- must run INSIDE this same use_session() block, not
+            # after it exits, or they'd resolve the wrong (flat) lock path.
+            await _release_any_leftover_pipeline_lock(user_id, session_id)
+            _mark_web_session_inactive(web_session_id)
 
 
 async def _stream_chat_turn(
@@ -1173,6 +1183,24 @@ def build_web_app(https: bool = True):
         # (if slow) way to brute-force a shared secret over the network.
         return isinstance(candidate, str) and hmac.compare_digest(candidate, api_key)
 
+    def _web_session_id_for_get_request() -> Optional[str]:
+        """Resolves the requesting web session's own id for a plain GET
+        route (the /artifacts/* routes below) -- these have no JSON body
+        of their own the way POST /chat does, so a `session_id` QUERY
+        parameter is checked first. That's what the web client actually
+        sends (it tracks its own session id in JS state and passes it
+        explicitly on every request, the same as the POST routes' own
+        `payload.get("session_id")`) rather than relying on this cookie
+        at all -- _add_cors_headers below reflects back whatever Origin a
+        browser sends but (deliberately, see its own comment) never sets
+        Access-Control-Allow-Credentials, so a cross-origin fetch() (the
+        web client's own default deployment: a static page served from a
+        different origin than this API) never actually sends OR receives
+        this cookie, regardless of `secure`/`samesite`. The cookie is
+        still checked second, for any OTHER same-origin caller that
+        never passes the query parameter explicitly."""
+        return request.args.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+
     @web_app.after_request
     def _add_cors_headers(response):
         # Reflects whatever Origin the browser sends (no credentials
@@ -1317,54 +1345,69 @@ def build_web_app(https: bool = True):
                 # registering them in _active_stream_tasks, is what lets
                 # POST /chat/<session_id>/stop actually reach in and cancel
                 # this specific turn from a different request's thread.
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                task = None
-                try:
-                    # Constructing the coroutine (evaluating/binding
-                    # _stream_chat_turn's own arguments) happens eagerly,
-                    # synchronously, right here -- a bad argument (e.g. a
-                    # signature mismatch) raises immediately, before
-                    # loop.create_task even runs, let alone the coroutine
-                    # body itself. Keeping that construction INSIDE this
-                    # try (not before it, as this used to be written)
-                    # matters: _stream_chat_turn's own finally (below in
-                    # that function) is what reliably pushes event_queue's
-                    # terminating None, but that finally can only run once
-                    # the coroutine body has actually started -- an
-                    # exception here, before that ever happens, previously
-                    # left event_queue with no sentinel at all, and
-                    # generate()'s consumer loop below blocks on
-                    # event_queue.get() forever as a result: a silent hang,
-                    # not a clean error. Confirmed directly: a transient
-                    # files= keyword-argument mismatch during development
-                    # hit exactly this path.
-                    task = loop.create_task(
-                        _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue, files=files)
-                    )
-                    with _active_stream_tasks_lock:
-                        _active_stream_tasks[web_session_id] = (loop, task)
-                    loop.run_until_complete(task)
-                except asyncio.CancelledError:
-                    pass  # _stream_chat_turn's own "stopped" event already queued
-                except Exception:
-                    # Reached only when the coroutine never started running
-                    # at all (see the comment above) -- _stream_chat_turn's
-                    # own error handling never got a chance to push
-                    # anything, so this is the only place that still can.
-                    logger.exception("Web chat stream setup error")
-                    event_queue.put({"status": "error", "error": "An internal error has occurred."})
-                    event_queue.put(None)
-                finally:
-                    with _active_stream_tasks_lock:
-                        # Only remove OUR OWN entry -- guards against a race
-                        # where a brand new turn for the same session has
-                        # already registered its own (loop, task) pair by
-                        # the time this cleanup runs.
-                        if task is not None and _active_stream_tasks.get(web_session_id) == (loop, task):
-                            _active_stream_tasks.pop(web_session_id, None)
-                    loop.close()
-                    _mark_web_session_inactive(web_session_id)
+                #
+                # use_session() is entered explicitly here, inside this
+                # bare threading.Thread's own target function, rather than
+                # relying on it propagating in from the outer Flask request
+                # thread -- confirmed empirically that it would NOT: a bare
+                # threading.Thread (unlike asyncio.to_thread/loop.create_task)
+                # does not copy the caller's contextvars.Context. Entering it
+                # before loop.create_task() below is what matters -- that
+                # call snapshots whatever context is active at that moment,
+                # which _stream_chat_turn's entire Task (including its own
+                # finally block's pipeline-lock release, which also resolves
+                # this session's own output/ directory) then runs under.
+                from process_toolkit import paths as toolkit_paths
+
+                with toolkit_paths.use_session(web_session_id):
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    task = None
+                    try:
+                        # Constructing the coroutine (evaluating/binding
+                        # _stream_chat_turn's own arguments) happens eagerly,
+                        # synchronously, right here -- a bad argument (e.g. a
+                        # signature mismatch) raises immediately, before
+                        # loop.create_task even runs, let alone the coroutine
+                        # body itself. Keeping that construction INSIDE this
+                        # try (not before it, as this used to be written)
+                        # matters: _stream_chat_turn's own finally (below in
+                        # that function) is what reliably pushes event_queue's
+                        # terminating None, but that finally can only run once
+                        # the coroutine body has actually started -- an
+                        # exception here, before that ever happens, previously
+                        # left event_queue with no sentinel at all, and
+                        # generate()'s consumer loop below blocks on
+                        # event_queue.get() forever as a result: a silent hang,
+                        # not a clean error. Confirmed directly: a transient
+                        # files= keyword-argument mismatch during development
+                        # hit exactly this path.
+                        task = loop.create_task(
+                            _stream_chat_turn(user_id, adk_session_id, query.strip(), event_queue, files=files)
+                        )
+                        with _active_stream_tasks_lock:
+                            _active_stream_tasks[web_session_id] = (loop, task)
+                        loop.run_until_complete(task)
+                    except asyncio.CancelledError:
+                        pass  # _stream_chat_turn's own "stopped" event already queued
+                    except Exception:
+                        # Reached only when the coroutine never started running
+                        # at all (see the comment above) -- _stream_chat_turn's
+                        # own error handling never got a chance to push
+                        # anything, so this is the only place that still can.
+                        logger.exception("Web chat stream setup error")
+                        event_queue.put({"status": "error", "error": "An internal error has occurred."})
+                        event_queue.put(None)
+                    finally:
+                        with _active_stream_tasks_lock:
+                            # Only remove OUR OWN entry -- guards against a race
+                            # where a brand new turn for the same session has
+                            # already registered its own (loop, task) pair by
+                            # the time this cleanup runs.
+                            if task is not None and _active_stream_tasks.get(web_session_id) == (loop, task):
+                                _active_stream_tasks.pop(web_session_id, None)
+                        loop.close()
+                        _mark_web_session_inactive(web_session_id)
 
             thread = threading.Thread(target=run, daemon=True)
             thread.start()
@@ -1427,20 +1470,36 @@ def build_web_app(https: bool = True):
                     session_id=entry["session_id"],
                 )
             )
+        # Removes this session's own output/<session_id>/ directory right
+        # now rather than waiting for the next purge sweep -- an explicit
+        # "drop this session" request is as clear a signal as it gets that
+        # nothing will need those files again.
+        from process_toolkit.session_purge import purge_session
+
+        try:
+            purge_session(session_id)
+        except ValueError:
+            pass  # session_id didn't look like a real session directory name -- nothing to remove
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
 
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):
         """
-        Read-only access to this project's own output/process_data.json,
-        output/design_data.json, or output/cloudarch_drawio.xml, for the
-        web client's "Process / Design" and "Cloud Architecture" tabs --
-        a hierarchical/diagram viewer of whichever pipeline's current
-        artifact, not something a chat turn's response text would
-        otherwise expose. Both backends serve this the same way (the
-        neuro-san port's build_web_app has an identical route) and both
-        keep these files at an identical path, so the client's fetch
-        logic doesn't need to know which backend it's talking to.
+        Read-only access to this web session's own output/<session_id>/
+        process_data.json, design_data.json, or cloudarch_drawio.xml (or
+        flat output/ for a caller with no session id at all -- e.g. a
+        direct API caller that never went through POST /chat first),
+        resolved via a `session_id` query parameter (see
+        _web_session_id_for_get_request's own docstring for why a query
+        parameter, not just the session cookie, matters here) -- a plain
+        GET has no JSON body of its own to carry a session_id in the way
+        POST /chat does. Powers the web client's "Process / Design" and "Cloud
+        Architecture" tabs -- a hierarchical/diagram viewer of whichever
+        pipeline's current artifact. Both backends serve this the same
+        way (the neuro-san port's build_web_app has an identical route)
+        and both keep these files at an identical relative path, so the
+        client's fetch logic doesn't need to know which backend it's
+        talking to.
 
         Deliberately a raw file read, NOT the existing
         load_master_process_json/load_master_design_json helpers in
@@ -1454,7 +1513,7 @@ def build_web_app(https: bool = True):
         -- the client's own mxGraph-XML renderer parses it directly, the
         same way it already does for a saved .drawio file.
         """
-        from .utils_agent import PROJECT_ROOT
+        from process_toolkit import paths as toolkit_paths
 
         filenames = {
             "process": "process_data.json",
@@ -1468,38 +1527,43 @@ def build_web_app(https: bool = True):
                 "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'cloudarch'.",
             }), 400
 
-        path = os.path.join(PROJECT_ROOT, "output", filename)
-        if not os.path.exists(path):
-            return jsonify({
-                "status": "error",
-                "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
-            }), 404
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), filename)
+            if not os.path.exists(path):
+                return jsonify({
+                    "status": "error",
+                    "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+                }), 404
 
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = f.read() if name == "cloudarch" else json.load(f)
-        except Exception:
-            logger.exception("Failed to read/parse %s", filename)
-            return jsonify({
-                "status": "error",
-                "error": f"Could not read {filename} -- see server logs.",
-            }), 500
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = f.read() if name == "cloudarch" else json.load(f)
+            except Exception:
+                logger.exception("Failed to read/parse %s", filename)
+                return jsonify({
+                    "status": "error",
+                    "error": f"Could not read {filename} -- see server logs.",
+                }), 500
 
         return jsonify({"status": "ok", "name": name, "data": data})
 
     @web_app.route("/artifacts/documents", methods=["GET"])
     def list_documents():
         """
-        Every generated .docx currently in output/, for the web client's
-        own download picker -- see .artifact_downloads.list_output_
-        documents's own docstring for why this has to be a directory
-        listing rather than a fixed, known filename the way process/
-        design/cloudarch above are. Same contract as the neuro-san port's
-        own identical route.
+        Every generated .docx currently in this web session's own
+        output/<session_id>/ (or flat output/ for a caller with no
+        session id), for the web client's own download picker -- see
+        .artifact_downloads.list_output_documents's own docstring for why
+        this has to be a directory listing rather than a fixed, known
+        filename the way process/design/cloudarch above are. Same
+        contract as the neuro-san port's own identical route.
         """
+        from process_toolkit import paths as toolkit_paths
         from .artifact_downloads import list_output_documents
 
-        return jsonify({"status": "ok", "documents": list_output_documents()})
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            documents = list_output_documents()
+        return jsonify({"status": "ok", "documents": documents})
 
     @web_app.route("/artifacts/documents/<filename>/download", methods=["GET"])
     def download_document(filename):
@@ -1507,10 +1571,14 @@ def build_web_app(https: bool = True):
         returned by GET /artifacts/documents) as a real file attachment,
         for the web client's download button -- see .artifact_downloads.
         safe_output_file_path for how `filename` is kept from escaping
-        output/."""
+        output/. `path` is resolved to a concrete absolute string up
+        front, so send_file's own (possibly deferred) streaming below
+        doesn't depend on the session context still being active."""
+        from process_toolkit import paths as toolkit_paths
         from .artifact_downloads import safe_output_file_path
 
-        path = safe_output_file_path(filename)
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = safe_output_file_path(filename)
         if path is None or not filename.lower().endswith(".docx"):
             return jsonify({
                 "status": "error",
@@ -1525,20 +1593,55 @@ def build_web_app(https: bool = True):
 
     @web_app.route("/artifacts/cloudarch/download", methods=["GET"])
     def download_cloudarch():
-        """Downloads output/cloudarch_drawio.xml as a real file attachment
-        (as opposed to GET /artifacts/cloudarch above, which returns it
-        JSON-wrapped as a string for the client's own mxGraph-XML
-        renderer) -- for opening directly in a real draw.io client, or
-        just keeping a copy."""
-        from .utils_agent import PROJECT_ROOT
+        """Downloads this web session's own output/<session_id>/
+        cloudarch_drawio.xml (or flat output/ for a caller with no
+        session id) as a real file attachment (as opposed to GET
+        /artifacts/cloudarch above, which returns it JSON-wrapped as a
+        string for the client's own mxGraph-XML renderer) -- for opening
+        directly in a real draw.io client, or just keeping a copy."""
+        from process_toolkit import paths as toolkit_paths
 
-        path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
-        if not os.path.isfile(path):
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), "cloudarch_drawio.xml")
+            exists = os.path.isfile(path)
+        if not exists:
             return jsonify({
                 "status": "error",
                 "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
             }), 404
         return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
+
+    @web_app.route("/artifacts/<name>/download", methods=["GET"])
+    def download_process_or_design_json(name):
+        """Downloads this web session's own output/<session_id>/
+        process_data.json or design_data.json as a real file attachment
+        (as opposed to GET /artifacts/<name> above, which returns it
+        JSON-wrapped for the client's own data-explorer viewer) --
+        structurally identical to download_cloudarch above, just for the
+        other two artifact kinds. Same contract as the neuro-san port's
+        own identical route. The downloaded file can later be re-attached
+        to a chat turn to resume working on it -- see Process_Import_Agent/
+        Design_Import_Agent's own instructions for how an attachment
+        literally named process_data.json/design_data.json is recognized
+        and restored verbatim rather than re-extracted."""
+        from process_toolkit import paths as toolkit_paths
+
+        filenames = {"process": "process_data.json", "design": "design_data.json"}
+        filename = filenames.get(name)
+        if filename is None:
+            return jsonify({
+                "status": "error",
+                "error": f"Unknown artifact '{name}' -- use 'process' or 'design'.",
+            }), 400
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), filename)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name=filename, mimetype="application/json")
 
     @web_app.route("/agents/<name>/instructions", methods=["GET"])
     def agent_instructions(name):
@@ -1615,6 +1718,25 @@ def run_web_service(port: Optional[int], use_https: bool):
                 )
                 sys.exit(1)
 
+    # One purge sweep thread for the life of this process -- see
+    # process_toolkit.session_purge's own docstring. _active_web_sessions
+    # (not a second on-disk flag) is what keeps a session currently
+    # mid-request from being purged out from under it, regardless of how
+    # stale its own last-activity timestamp looks. sessionMaxAgeDays/
+    # sessionPurgeIntervalSeconds follow this port's own getProperty
+    # convention (properties file, falling back to the SESSIONMAXAGEDAYS/
+    # SESSIONPURGEINTERVALSECONDS env vars) -- same names the neuro-san
+    # port's own cli.py reads directly as env vars.
+    from process_toolkit.session_purge import start_session_purge_thread
+
+    session_max_age_seconds = float(getProperty("sessionMaxAgeDays", default=3)) * 86400.0
+    session_purge_interval_seconds = float(getProperty("sessionPurgeIntervalSeconds", default=3600))
+    start_session_purge_thread(
+        session_purge_interval_seconds,
+        session_max_age_seconds,
+        is_session_active=lambda session_id: session_id in _active_web_sessions,
+    )
+
     scheme = "https" if use_https else "http"
     display_text(f"- Starting Process Architect web service on {scheme}://{host}:{listen_port} (POST /chat)...")
     web_app.run(host=host, port=listen_port, ssl_context=ssl_context, threaded=True, debug=False)
@@ -1634,13 +1756,14 @@ def _display_output_document_listing() -> None:
     cloud architecture diagram (if either exists), so "download <name>"
     has something concrete to copy from without the user having to go
     look inside output/ themselves."""
-    from .artifact_downloads import PROJECT_ROOT, list_output_documents
+    from process_toolkit import paths as toolkit_paths
+    from .artifact_downloads import cloudarch_diagram_exists, list_output_documents
 
     lines = []
     for doc in list_output_documents():
         lines.append(f"  {doc['filename']}  ({doc['size_bytes']:,} bytes, modified {doc['modified']})")
-    cloudarch_path = os.path.join(PROJECT_ROOT, "output", "cloudarch_drawio.xml")
-    if os.path.isfile(cloudarch_path):
+    if cloudarch_diagram_exists():
+        cloudarch_path = os.path.join(toolkit_paths.output_dir(), "cloudarch_drawio.xml")
         stat = os.stat(cloudarch_path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
         lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")

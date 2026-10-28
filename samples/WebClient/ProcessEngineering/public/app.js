@@ -149,6 +149,7 @@
 
     sessionIdLabel: document.getElementById("sessionIdLabel"),
     newChatBtn: document.getElementById("newChatBtn"),
+    deleteSessionBtn: document.getElementById("deleteSessionBtn"),
 
     themeToggleBtn: document.getElementById("themeToggleBtn"),
     themeToggleIcon: document.getElementById("themeToggleIcon"),
@@ -163,6 +164,7 @@
     chatScroll: document.getElementById("chatScroll"),
     chatContainer: document.getElementById("chatContainer"),
     emptyState: document.getElementById("emptyState"),
+    jumpToLatestBtn: document.getElementById("jumpToLatestBtn"),
 
     composerForm: document.getElementById("composerForm"),
     messageInput: document.getElementById("messageInput"),
@@ -200,6 +202,7 @@
     artifactsTabPanel: document.getElementById("artifactsTabPanel"),
     artifactToggleBtns: Array.from(document.querySelectorAll(".artifacts-toggle .preset-btn")),
     artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
+    artifactDownloadJsonBtn: document.getElementById("artifactDownloadJsonBtn"),
     artifactsStatus: document.getElementById("artifactsStatus"),
     artifactsEmpty: document.getElementById("artifactsEmpty"),
     artifactTree: document.getElementById("artifactTree"),
@@ -733,6 +736,25 @@
     return { Authorization: `Bearer ${key}` };
   }
 
+  // GET /artifacts/* routes (viewing/downloading process/design/cloudarch
+  // data, generated documents) have no JSON body of their own the way
+  // POST /chat does, so the session id this client tracks in state.sessionId
+  // (set from POST /chat's own response -- see setSessionId) has to travel
+  // as a query parameter instead. The backend's own session cookie is NOT
+  // a reliable fallback here: this client is typically served from a
+  // different origin than the backend API, and a cross-origin fetch()
+  // never sends or receives cookies unless BOTH sides opt into
+  // credentials -- this client doesn't, and deliberately so (see either
+  // backend's own _add_cors_headers). A URL with no active session yet
+  // (state.sessionId is null before the first chat turn) is returned
+  // unchanged -- the backend then falls back to flat output/, exactly as
+  // it did before per-session isolation existed.
+  function withSessionIdParam(url) {
+    if (!state.sessionId) return url;
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}session_id=${encodeURIComponent(state.sessionId)}`;
+  }
+
   function setStatusPill(pillEl, kind, text) {
     pillEl.classList.remove("status-unknown", "status-connected", "status-error", "status-checking");
     pillEl.classList.add(`status-${kind}`);
@@ -781,7 +803,22 @@
   function setSessionId(id) {
     state.sessionId = id || null;
     el.sessionIdLabel.textContent = id || "none";
+    el.deleteSessionBtn.disabled = !state.sessionId;
     saveState({ sessionId: state.sessionId });
+  }
+
+  // Shared by newChat/deleteSession below -- clears everything runtime-only
+  // and local to THIS client (transcript, network graph, usage history),
+  // never persisted across a reload anyway (see loadState/saveState). Does
+  // NOT touch the server; callers are responsible for that first.
+  function clearLocalChatState() {
+    setSessionId(null);
+    el.chatContainer.innerHTML = "";
+    el.chatContainer.appendChild(el.emptyState);
+    el.emptyState.style.display = "";
+    state.transcript = [];
+    resetNetwork();
+    resetUsage();
   }
 
   async function newChat() {
@@ -798,17 +835,48 @@
         // the client forgets it below.
       }
     }
-    setSessionId(null);
-    el.chatContainer.innerHTML = "";
-    el.chatContainer.appendChild(el.emptyState);
-    el.emptyState.style.display = "";
-    state.transcript = [];
-    resetNetwork();
-    resetUsage();
+    clearLocalChatState();
     toast("Started a new chat.");
   }
 
   el.newChatBtn.addEventListener("click", newChat);
+
+  // Explicit "Delete session" -- unlike newChat's best-effort cleanup (the
+  // user's goal there is just to start over; a failed server-side delete
+  // is a harmless, self-healing non-issue since it'll age out on its own),
+  // the whole point of this action IS the server-side delete, so a failure
+  // here is reported rather than silently swallowed.
+  async function deleteSession() {
+    if (!state.sessionId) return;
+    const confirmed = window.confirm(
+      "Delete this session's chat history and every file it generated on the server? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    const baseUrl = currentBaseUrl();
+    const sessionId = state.sessionId;
+    if (!baseUrl) {
+      toast("Set a backend Base URL first.");
+      return;
+    }
+    el.deleteSessionBtn.disabled = true;
+    try {
+      const response = await fetch(`${baseUrl}/chat/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        headers: { ...authHeaders() },
+      });
+      if (!response.ok) {
+        throw new Error(`Server responded ${response.status}`);
+      }
+      clearLocalChatState();
+      toast("Session deleted.");
+    } catch (err) {
+      toast(`Could not delete session: ${err.message || err}`);
+      el.deleteSessionBtn.disabled = !state.sessionId;
+    }
+  }
+
+  el.deleteSessionBtn.addEventListener("click", deleteSession);
 
   // ---------------------------------------------------------------
   // Markdown-lite rendering (no external dependency)
@@ -868,13 +936,52 @@
     const lines = text.split("\n");
     const html = [];
     let i = 0;
-    let listBuffer = null; // { type: 'ul'|'ol', items: [] }
+
+    // Stack of currently-open lists, outermost first -- each frame is
+    // { indent, type: 'ul'|'ol', items: [htmlSoFar, ...] }. A deeper
+    // indent than the current top opens a NESTED list inside the top
+    // frame's own last item (a real <ol>/<ul> nested inside that <li>'s
+    // own content) rather than closing the outer list -- the earlier,
+    // flat-buffer version treated every indented sub-bullet as "end the
+    // current list, start an unrelated one," which silently split one
+    // numbered list into several single-item <ol>s (each rendering "1."
+    // via the browser's own per-list auto-numbering) the moment any
+    // numbered item had an indented sub-bullet under it.
+    let listStack = [];
+
+    function lineIndent(line) {
+      const match = line.match(/^(\s*)/);
+      return match ? match[1].length : 0;
+    }
+
+    function closeListFramesDeeperThanOrEqualTo(indent, type) {
+      while (
+        listStack.length &&
+        (listStack[listStack.length - 1].indent > indent ||
+          (listStack[listStack.length - 1].indent === indent && listStack[listStack.length - 1].type !== type))
+      ) {
+        const finished = listStack.pop();
+        const finishedHtml = `<${finished.type}>${finished.items.map((it) => `<li>${it}</li>`).join("")}</${finished.type}>`;
+        if (listStack.length) {
+          const parent = listStack[listStack.length - 1];
+          parent.items[parent.items.length - 1] += finishedHtml;
+        } else {
+          html.push(finishedHtml);
+        }
+      }
+    }
 
     function flushList() {
-      if (!listBuffer) return;
-      const tag = listBuffer.type;
-      html.push(`<${tag}>` + listBuffer.items.map((it) => `<li>${renderInline(it)}</li>`).join("") + `</${tag}>`);
-      listBuffer = null;
+      closeListFramesDeeperThanOrEqualTo(-1, null);
+    }
+
+    function pushListItem(type, indent, itemText) {
+      closeListFramesDeeperThanOrEqualTo(indent, type);
+      const top = listStack[listStack.length - 1];
+      if (!top || top.indent < indent) {
+        listStack.push({ indent, type, items: [] });
+      }
+      listStack[listStack.length - 1].items.push(renderInline(itemText));
     }
 
     while (i < lines.length) {
@@ -907,11 +1014,7 @@
       // Unordered list item.
       const ul = line.match(/^\s*[-*]\s+(.*)$/);
       if (ul) {
-        if (!listBuffer || listBuffer.type !== "ul") {
-          flushList();
-          listBuffer = { type: "ul", items: [] };
-        }
-        listBuffer.items.push(ul[1]);
+        pushListItem("ul", lineIndent(line), ul[1]);
         i += 1;
         continue;
       }
@@ -919,11 +1022,7 @@
       // Ordered list item.
       const ol = line.match(/^\s*\d+\.\s+(.*)$/);
       if (ol) {
-        if (!listBuffer || listBuffer.type !== "ol") {
-          flushList();
-          listBuffer = { type: "ol", items: [] };
-        }
-        listBuffer.items.push(ol[1]);
+        pushListItem("ol", lineIndent(line), ol[1]);
         i += 1;
         continue;
       }
@@ -958,13 +1057,28 @@
         continue;
       }
 
-      flushList();
-
-      // Blank line -- paragraph separator, nothing to emit.
+      // Blank line -- paragraph separator, UNLESS a blank line (or run of
+      // blank lines) sits between two sibling list items ("loose list"
+      // spacing, e.g. an LLM response with a blank line after every
+      // numbered item). Peek past the blank run; if the next real line
+      // still starts a list item, swallow the blank line(s) and keep the
+      // list open rather than closing it -- otherwise one 4-item <ol>
+      // would split into four single-item <ol>s, each restarting its own
+      // "1." (the exact symptom reported: every item showing as "1.").
       if (line.trim() === "") {
+        let j = i + 1;
+        while (j < lines.length && lines[j].trim() === "") j += 1;
+        const nextLine = j < lines.length ? lines[j] : "";
+        const nextContinuesList =
+          listStack.length > 0 && (/^\s*[-*]\s+/.test(nextLine) || /^\s*\d+\.\s+/.test(nextLine));
+        if (!nextContinuesList) {
+          flushList();
+        }
         i += 1;
         continue;
       }
+
+      flushList();
 
       // Paragraph: gather consecutive non-blank, non-special lines. A
       // line ending in two or more trailing spaces is the standard
@@ -1909,7 +2023,7 @@
     closeArtifactDetail();
     renderArtifactsPanel();
     try {
-      const res = await fetch(`${baseUrl}/artifacts/${name}`, {
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/${name}`), {
         method: "GET",
         headers: { ...authHeaders() },
       });
@@ -2117,6 +2231,27 @@
 
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
+  // Downloads the real process_data.json/design_data.json file (vs. the
+  // tree view loadArtifact above renders from) -- re-attaching this exact
+  // file to a later chat turn (the composer's own "attach file" button)
+  // restores it verbatim as the active process/design, without re-running
+  // the pipeline -- see both backends' Process_Import_Agent/
+  // Design_Import_Agent for how a re-uploaded process_data.json/
+  // design_data.json is recognized by name and restored rather than
+  // re-extracted.
+  async function downloadArtifactJson() {
+    const artifact = state.dataExplorer.artifact; // "process" or "design"
+    const blob = await fetchArtifactBlob(`/artifacts/${artifact}/download`);
+    if (!blob) return;
+    const filename = `${artifact}_data.json`;
+    const result = await saveFile(blob, filename, {
+      description: "JSON file", accept: { "application/json": [".json"] },
+    });
+    if (result === "picker") toast(`${filename} saved.`);
+    else if (result === "download") toast(`${filename} downloaded.`);
+  }
+  el.artifactDownloadJsonBtn.addEventListener("click", downloadArtifactJson);
+
   // ---------------------------------------------------------------
   // Generated documents download popover -- GET /artifacts/documents
   // lists every .docx currently in output/ (there's no fixed filename
@@ -2157,7 +2292,7 @@
       return null;
     }
     try {
-      const res = await fetch(`${baseUrl}${path}`, { method: "GET", headers: { ...authHeaders() } });
+      const res = await fetch(withSessionIdParam(`${baseUrl}${path}`), { method: "GET", headers: { ...authHeaders() } });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast(body.error || `Download failed (${res.status}).`);
@@ -2250,7 +2385,7 @@
       return;
     }
     try {
-      const res = await fetch(`${baseUrl}/artifacts/documents`, { method: "GET", headers: { ...authHeaders() } });
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/documents`), { method: "GET", headers: { ...authHeaders() } });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Request failed (${res.status}).`);
       renderDocumentsPopover(body.documents || []);
@@ -2826,7 +2961,7 @@
     state.cloudarch.error = null;
     renderCloudArchDiagram();
     try {
-      const res = await fetch(`${baseUrl}/artifacts/cloudarch`, {
+      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/cloudarch`), {
         method: "GET",
         headers: { ...authHeaders() },
       });
@@ -3493,6 +3628,43 @@
     el.chatScroll.scrollTop = el.chatScroll.scrollHeight;
   }
 
+  // Copilot/Teams-style floating "jump to latest message" button -- shown
+  // once the user has scrolled up away from the bottom of the transcript,
+  // so they can skip straight back down without manually scrolling.
+  const JUMP_TO_LATEST_THRESHOLD_PX = 80;
+
+  function isNearChatBottom() {
+    const { scrollTop, scrollHeight, clientHeight } = el.chatScroll;
+    return scrollHeight - scrollTop - clientHeight <= JUMP_TO_LATEST_THRESHOLD_PX;
+  }
+
+  function updateJumpToLatestVisibility() {
+    el.jumpToLatestBtn.hidden = isNearChatBottom();
+  }
+
+  // Auto-follow helper, MS Teams "New messages" style: callers capture
+  // `isNearChatBottom()` BEFORE mutating the DOM (growing scrollHeight),
+  // then pass that snapshot in here AFTER the mutation. Only scrolls if
+  // the user was already following the bottom -- someone who has
+  // scrolled up to read earlier history does not get yanked back down
+  // by the next streamed delta; they just see the floating button light
+  // up instead. Without this, every setProgress/setText/finalize call
+  // during an active turn force-scrolled unconditionally, so scrolling
+  // away mid-stream was immediately overridden by the next delta --
+  // which made the button effectively impossible to trigger.
+  function finishScrollUpdate(wasNearBottom) {
+    if (wasNearBottom) {
+      scrollToBottom();
+    }
+    updateJumpToLatestVisibility();
+  }
+
+  el.chatScroll.addEventListener("scroll", updateJumpToLatestVisibility);
+  el.jumpToLatestBtn.addEventListener("click", () => {
+    scrollToBottom();
+    updateJumpToLatestVisibility();
+  });
+
   function formatTime(date) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
@@ -3580,9 +3752,13 @@
     }
     col.appendChild(meta);
 
+    // Sending your own message always jumps you to it (matches Teams/
+    // Copilot) -- everything else only auto-follows if you were already
+    // at the bottom, so scrolling up to read history doesn't get undone.
+    const wasNearBottom = role === "user" || isNearChatBottom();
     row.appendChild(col);
     el.chatContainer.appendChild(row);
-    scrollToBottom();
+    finishScrollUpdate(wasNearBottom);
     return row;
   }
 
@@ -3615,9 +3791,10 @@
     bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
     col.appendChild(bubble);
 
+    const wasNearBottomOnOpen = isNearChatBottom();
     row.appendChild(col);
     el.chatContainer.appendChild(row);
-    scrollToBottom();
+    finishScrollUpdate(wasNearBottomOnOpen);
 
     let metaAdded = false;
 
@@ -3680,10 +3857,11 @@
       row,
 
       setProgress(origin, text) {
+        const wasNearBottom = isNearChatBottom();
         thinkingSteps.push({ origin, text });
         progressNote.hidden = false;
         progressNote.textContent = origin ? `${origin} — ${text}` : text;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       // Plain text, deliberately NOT markdown-rendered -- a delta is an
@@ -3692,12 +3870,14 @@
       // more often than it renders anything useful. finalize() below
       // applies the real rendering once, to the complete text.
       setText(text) {
+        const wasNearBottom = isNearChatBottom();
         progressNote.hidden = true;
         bubble.textContent = text;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       finalize(text) {
+        const wasNearBottom = isNearChatBottom();
         recordTranscript("agent", text);
         replaceProgressNoteWithThinking();
         bubble.innerHTML = renderMarkdownLite(text);
@@ -3711,15 +3891,16 @@
           addMessageActionButtons(meta, text);
           col.appendChild(meta);
         }
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       showError(message) {
+        const wasNearBottom = isNearChatBottom();
         replaceProgressNoteWithThinking();
         row.classList.add("error");
         const hasText = bubble.textContent && bubble.textContent.trim().length > 0;
         bubble.textContent = hasText ? `${bubble.textContent}\n\n⚠ ${message}` : message;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       // User-initiated stop (see stopCurrentTurn) -- NOT an error, so
@@ -3728,6 +3909,7 @@
       // is kept and rendered normally, just with a small "Stopped" badge
       // instead of the usual timestamp/copy row.
       showStopped(text) {
+        const wasNearBottom = isNearChatBottom();
         recordTranscript("agent", text || "(stopped before generating a response)");
         replaceProgressNoteWithThinking();
         row.classList.add("stopped");
@@ -3750,7 +3932,7 @@
           meta.appendChild(time);
           col.appendChild(meta);
         }
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
     };
   }
@@ -3804,7 +3986,15 @@
   function guessMimeType(file) {
     if (file.type) return file.type;
     const ext = (file.name.split(".").pop() || "").toLowerCase();
-    const byExt = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", pdf: "application/pdf" };
+    const byExt = {
+      md: "text/markdown",
+      markdown: "text/markdown",
+      txt: "text/plain",
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xml: "application/xml",
+      json: "application/json",
+    };
     return byExt[ext] || "application/octet-stream";
   }
 

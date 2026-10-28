@@ -17,6 +17,7 @@ from ..common.utils_agent import (
 )
 from process_toolkit.run_lock import PipelineLockedError
 from process_toolkit.drawio.persistence import reset_drawio_xml
+from process_toolkit import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")
 
@@ -83,7 +84,7 @@ def _reset_cloudarch_approval_state(callback_context=None) -> "types.Content | N
         return types.Content(role="model", parts=[types.Part(text=str(e))])
 
     for name in ("approval.json", "stop_counter.json"):
-        path = os.path.join("output", name)
+        path = toolkit_paths.output_path(name)
         try:
             if os.path.exists(path):
                 os.remove(path)

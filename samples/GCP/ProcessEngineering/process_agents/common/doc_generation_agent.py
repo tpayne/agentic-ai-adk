@@ -55,7 +55,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         input_path = sys.argv[1]
     else:
-        input_path = "output/process_data.json"
+        from process_toolkit import paths as toolkit_paths
+
+        input_path = toolkit_paths.output_path("process_data.json")
 
     try:
         result = _shared_create_standard_doc_from_file(input_path)
