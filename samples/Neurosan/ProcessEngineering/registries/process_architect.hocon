@@ -109,6 +109,21 @@ ARCHITECTURE DIAGRAM domain when there is no competing PROCESS signal naming wha
 actually of. An explicit disclaimer like "not a cloud implementation" always confirms the PROCESS
 domain.
 
+ATTACHED-FILE OVERRIDE (check this BEFORE applying the word-based signals above): an attachment
+literally named "cloudarch_drawio.xml" (or any file whose own content is recognizably drawio/
+mxGraph XML -- starts with "<mxfile", or contains "<mxGraphModel"/"<mxCell") is ALWAYS a CLOUD
+ARCHITECTURE DIAGRAM domain signal, even when the request's own prose uses only bare "architecture"
+with no "cloud"/"diagram"/"drawio" anywhere in it. Confirmed as a real production bug: a request
+phrased as "review this architecture for me and tell me what it does, keep it for future use in
+the session" -- with a cloudarch_drawio.xml attachment, but no "cloud"/"diagram"/"drawio" word in
+the text itself -- fell through to the bare-"architecture" default above and routed to the DESIGN
+DOCUMENT domain, which built an entirely new design document from the diagram's content instead of
+simply restoring/explaining the diagram itself. The diagram was never persisted as this session's
+own cloudarch_drawio.xml, so every subsequent cloud-architecture-specific command (consultant,
+simulation, attack simulation, cost estimation) then failed for lack of a diagram. The attached
+file's own identity is strong, unambiguous evidence of intent that text-only signal-word matching
+cannot see -- always weigh it first.
+
 A CLOUD PROVIDER NAME (AWS, Azure, GCP, ...) MENTIONED ON ITS OWN -- with no diagram-specific word
 (see above) anywhere in the request -- is NOT a CLOUD ARCHITECTURE DIAGRAM signal and MUST NOT
 route there or trigger an additional CloudArch_* call alongside another domain's pipeline. Naming a
@@ -180,26 +195,42 @@ Examples:
 - "Produce a combined HLD/LLD design document for..."
 - "Scan the documents in ./architecture-notes and design a system for..."
 
+This rule requires an actual CREATION verb (create/design/build/generate/produce/draft) naming a
+design document/HLD/LLD as the thing to be produced. An attached cloud architecture diagram plus
+bare "architecture" wording, with the user only asking to REVIEW, EXPLAIN, or KEEP/SAVE it (no
+creation verb at all), is NOT this rule -- see the ATTACHED-FILE OVERRIDE above and Section 1c's
+cloud-architecture-diagram case; do not build a brand-new design document just because a diagram
+was attached and the word "architecture" appears somewhere in the request.
+
 You MUST NOT outline or describe the process or design yourself, in either case.
 
 ### 1c. IMPORTING/RESTORING AN ALREADY-EXISTING PROCESS, DESIGN DOCUMENT, OR CLOUD ARCHITECTURE DIAGRAM
-Trigger when the user wants to IMPORT, LOAD, INGEST, BRING IN, RESTORE, USE, or CONVERT a directory
-of files that ALREADY CONTAIN a finished business process, design document, OR cloud architecture
-diagram -- the directory is not background context for something NEW the user is describing, it IS
-the artifact, already written/exported, and the user wants it brought into the toolkit as-is. Signal
-words: "import", "ingest", "restore", "load this as the process/design/diagram", "use this
-[process/design/diagram/architecture] for further [work/questions]" (not "background for"/"context
-for"), "bring this into the toolkit", "convert this document into a process/design".
+Trigger when the user wants to IMPORT, LOAD, INGEST, BRING IN, RESTORE, USE, KEEP, or CONVERT a
+directory of files (or a direct attachment) that ALREADY CONTAIN a finished business process,
+design document, OR cloud architecture diagram -- it is not background context for something NEW
+the user is describing, it IS the artifact, already written/exported, and the user wants it
+brought into (or kept in) the toolkit as-is. Signal words: "import", "ingest", "restore", "load
+this as the process/design/diagram", "use this [process/design/diagram/architecture] for further
+[work/questions]" (not "background for"/"context for"), "bring this into the toolkit", "convert
+this document into a process/design", "keep/save/retain this [diagram/architecture] for future
+use/reference" -- that last phrasing is equivalent import intent even without the literal word
+"import" anywhere in the request.
 
 A cloud architecture diagram is a DIFFERENT shape of import than a process/design document: there is
 no prose to extract from, only an already-exported drawio/mxGraph XML file (most commonly one
 previously downloaded via the "download the diagram" capability in Section [DOWNLOADING A GENERATED
 ARTIFACT TO A LOCAL PATH] below, now being re-attached) to restore VERBATIM. An attachment literally
 named "cloudarch_drawio.xml", or a request mentioning "diagram"/"architecture" alongside
-import/restore/use language, is the cloud-architecture case -- route it to CloudArch_Import_Agent,
+import/restore/use/keep language, is the cloud-architecture case -- route it to CloudArch_Import_Agent,
 NOT Design_Import_Agent, even though an architecture diagram and a design DOCUMENT sound similar.
 Design_Import_Agent is for a WRITTEN design document (HLD/LLD narrative text, specs, requirements),
-not a diagram export.
+not a diagram export. This ALSO covers a request that combines "explain/review it" with "keep it
+for future use" (e.g. "review this architecture for me and tell me what it does, keep it for future
+use in the session", attached as cloudarch_drawio.xml) -- the "keep for future use" clause makes
+this an import/restore request (CloudArch_Import_Agent), not a Section 4c read-only explanation
+(CloudArch_Consultant_Agent can only explain a diagram that already exists in THIS session; a freshly
+attached one must be restored first). CloudArch_Import_Agent's own final report already describes
+what it restored, so this single call satisfies both halves of the request.
 
 -> Call: Process_Import_Agent (business process), Design_Import_Agent (written design document), or
 CloudArch_Import_Agent (drawio/mxGraph diagram XML) -- determine which per the Domain Disambiguation
@@ -213,6 +244,11 @@ Examples:
   CloudArch_Import_Agent.
 - "Import the cloud architecture diagram in ./old-diagrams as the current one." ->
   CloudArch_Import_Agent.
+- "Review this architecture for me and tell me what it does. Keep it for future use in the
+  session." (with an attached cloudarch_drawio.xml file) -> CloudArch_Import_Agent -- the attached
+  file is a cloud architecture diagram export (ATTACHED-FILE OVERRIDE above) and "keep it for
+  future use" is import intent, even though neither "cloud"/"diagram"/"drawio" nor "import" appears
+  anywhere in the sentence itself.
 
 Contrast with 1a/1b/Section 6's own directory-context case: "Read the files in ./vendor-docs and
 create a process for onboarding new vendors" treats the directory as SUPPLEMENTARY background for a

@@ -27,6 +27,9 @@
   "use strict";
 
   const STORAGE_KEY = "processArchitect.webClient.v1";
+  const SESSION_HISTORY_KEY = "processArchitect.webClient.sessionHistory.v1";
+  const SESSION_HISTORY_MAX_ENTRIES = 50;
+  const SESSION_PURGE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days, matches the server's own default purge window
   const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
   const MAX_RETRIES = 2;
   const RETRY_BASE_DELAY_MS = 600;
@@ -150,6 +153,9 @@
     sessionIdLabel: document.getElementById("sessionIdLabel"),
     newChatBtn: document.getElementById("newChatBtn"),
     deleteSessionBtn: document.getElementById("deleteSessionBtn"),
+    sessionHistoryList: document.getElementById("sessionHistoryList"),
+    sessionHistoryEmpty: document.getElementById("sessionHistoryEmpty"),
+    purgeOldSessionsBtn: document.getElementById("purgeOldSessionsBtn"),
 
     themeToggleBtn: document.getElementById("themeToggleBtn"),
     themeToggleIcon: document.getElementById("themeToggleIcon"),
@@ -800,9 +806,16 @@
   // ---------------------------------------------------------------
   // Session
   // ---------------------------------------------------------------
+  // Deliberately does NOT sync to session history itself -- it's called
+  // from several places (including restoring a session on page load,
+  // BEFORE that session's saved transcript has been replayed back into
+  // state.transcript) where syncing here would overwrite a real history
+  // entry with an empty one. recordTranscript's own sync call (on every
+  // finalized turn) is what actually keeps history current.
   function setSessionId(id) {
     state.sessionId = id || null;
     el.sessionIdLabel.textContent = id || "none";
+    el.sessionIdLabel.title = id ? summarizeSessionForTooltip(state.transcript) : "";
     el.deleteSessionBtn.disabled = !state.sessionId;
     saveState({ sessionId: state.sessionId });
   }
@@ -821,31 +834,21 @@
     resetUsage();
   }
 
-  async function newChat() {
-    const baseUrl = currentBaseUrl();
-    if (state.sessionId && baseUrl) {
-      try {
-        await fetch(`${baseUrl}/chat/${encodeURIComponent(state.sessionId)}`, {
-          method: "DELETE",
-          headers: { ...authHeaders() },
-        });
-      } catch {
-        // Best-effort -- the server-side session will simply age out /
-        // stay around until process restart if this fails; either way
-        // the client forgets it below.
-      }
-    }
+  // "+ New chat" deliberately does NOT delete the old session anymore --
+  // it stays alive server-side and in the sidebar history list below, so
+  // it can be reopened later. Only the explicit "Delete session" button,
+  // or "Clear chats older than 3 days", ever removes a session.
+  function newChat() {
     clearLocalChatState();
+    renderSessionHistoryList();
     toast("Started a new chat.");
   }
 
   el.newChatBtn.addEventListener("click", newChat);
 
-  // Explicit "Delete session" -- unlike newChat's best-effort cleanup (the
-  // user's goal there is just to start over; a failed server-side delete
-  // is a harmless, self-healing non-issue since it'll age out on its own),
-  // the whole point of this action IS the server-side delete, so a failure
-  // here is reported rather than silently swallowed.
+  // Explicit "Delete session" -- the whole point of this action IS the
+  // server-side delete (unlike newChat above), so a failure here is
+  // reported rather than silently swallowed.
   async function deleteSession() {
     if (!state.sessionId) return;
     const confirmed = window.confirm(
@@ -868,6 +871,7 @@
       if (!response.ok) {
         throw new Error(`Server responded ${response.status}`);
       }
+      removeSessionHistoryEntry(sessionId);
       clearLocalChatState();
       toast("Session deleted.");
     } catch (err) {
@@ -877,6 +881,237 @@
   }
 
   el.deleteSessionBtn.addEventListener("click", deleteSession);
+
+  // ---------------------------------------------------------------
+  // Session history -- a sidebar list of past chats kept client-side
+  // (localStorage) so a chat that "+ New chat" no longer deletes can be
+  // reopened later, with its transcript actually re-rendered rather than
+  // just resumed blind. Separate storage key from the small settings blob
+  // above (STORAGE_KEY) since this one can grow meaningfully larger.
+  // ---------------------------------------------------------------
+  function loadSessionHistory() {
+    try {
+      const raw = localStorage.getItem(SESSION_HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSessionHistory(sessions) {
+    // Keep only the most recently active N entries -- bounds localStorage
+    // usage regardless of how many chats accumulate over time.
+    const trimmed = [...sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, SESSION_HISTORY_MAX_ENTRIES);
+    try {
+      localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(trimmed));
+    } catch {
+      // Quota exceeded or unavailable -- drop the older half and retry
+      // once; otherwise give up silently, same philosophy as saveState.
+      try {
+        localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(trimmed.slice(0, Math.ceil(trimmed.length / 2))));
+      } catch {
+        /* history just won't persist this time */
+      }
+    }
+    return trimmed;
+  }
+
+  function truncateText(text, maxLen) {
+    const clean = (text || "").replace(/\s+/g, " ").trim();
+    return clean.length > maxLen ? `${clean.slice(0, maxLen - 1)}…` : clean;
+  }
+
+  // Hover-tooltip summary for a session: its opening request plus a
+  // snippet of the first reply -- a few sentences on what the chat is
+  // about, derived purely from the transcript already on hand.
+  function summarizeSessionForTooltip(transcript) {
+    const firstUser = (transcript || []).find((t) => t.role === "user");
+    const firstAgent = (transcript || []).find((t) => t.role === "agent");
+    const parts = [];
+    if (firstUser) parts.push(truncateText(firstUser.text, 320));
+    if (firstAgent) parts.push(truncateText(firstAgent.text, 220));
+    return parts.join(" — ") || "No messages yet.";
+  }
+
+  // Keeps the CURRENTLY active session's history entry (title/transcript/
+  // lastActiveAt) up to date -- called from recordTranscript (every
+  // finalized turn) and setSessionId (the moment a session id becomes
+  // known, which for a brand-new chat happens slightly AFTER the first
+  // user message is already recorded).
+  function syncCurrentSessionToHistory() {
+    if (!state.sessionId) return;
+    const sessions = loadSessionHistory();
+    const existing = sessions.find((s) => s.sessionId === state.sessionId);
+    const firstUser = state.transcript.find((t) => t.role === "user");
+    const entry = {
+      sessionId: state.sessionId,
+      title: firstUser ? truncateText(firstUser.text, 60) : (existing && existing.title) || "New chat",
+      createdAt: (existing && existing.createdAt) || Date.now(),
+      lastActiveAt: Date.now(),
+      transcript: state.transcript.map((t) => ({ role: t.role, text: t.text, timestamp: t.timestamp })),
+    };
+    const next = sessions.filter((s) => s.sessionId !== state.sessionId);
+    next.push(entry);
+    saveSessionHistory(next);
+    renderSessionHistoryList();
+  }
+
+  function removeSessionHistoryEntry(sessionId) {
+    saveSessionHistory(loadSessionHistory().filter((s) => s.sessionId !== sessionId));
+    renderSessionHistoryList();
+  }
+
+  // Named distinctly from the existing formatRelativeTime(isoString) below
+  // (different signature -- epoch ms, not an ISO string -- and this one
+  // adds an absolute-date fallback past 7 days) to avoid colliding with
+  // it: two function declarations sharing a name in the same scope would
+  // silently let whichever is defined later in the file win for ALL
+  // callers of that name, which is exactly the kind of bug that's invisible
+  // until something quietly calls the wrong one.
+  function formatSessionRelativeTime(epochMs) {
+    const diffMs = Date.now() - epochMs;
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diffMs < minute) return "just now";
+    if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+    if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+    if (diffMs < 7 * day) return `${Math.floor(diffMs / day)}d ago`;
+    return new Date(epochMs).toLocaleDateString();
+  }
+
+  function renderSessionHistoryList() {
+    const sessions = loadSessionHistory().sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    el.sessionHistoryList.querySelectorAll(".session-history-item").forEach((node) => node.remove());
+    el.sessionHistoryEmpty.hidden = sessions.length > 0;
+
+    sessions.forEach((entry) => {
+      // A plain div, not a <button> -- it contains its OWN delete
+      // <button>, and nesting a button inside a button is invalid HTML
+      // (browsers silently mangle/auto-close it). role="button" +
+      // tabIndex + the keydown handler below keep it keyboard-accessible
+      // without that nesting.
+      const item = document.createElement("div");
+      item.setAttribute("role", "button");
+      item.tabIndex = 0;
+      item.className = "session-history-item" + (entry.sessionId === state.sessionId ? " active" : "");
+      item.title = summarizeSessionForTooltip(entry.transcript || []);
+
+      const main = document.createElement("span");
+      main.className = "session-history-item-main";
+      const title = document.createElement("span");
+      title.className = "session-history-item-title";
+      title.textContent = entry.title || "New chat";
+      const time = document.createElement("span");
+      time.className = "session-history-item-time";
+      time.textContent = formatSessionRelativeTime(entry.lastActiveAt);
+      main.appendChild(title);
+      main.appendChild(time);
+      item.appendChild(main);
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "session-history-item-delete";
+      del.title = "Remove from history";
+      del.setAttribute("aria-label", "Remove from history");
+      del.textContent = "✕";
+      del.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        removeSessionHistoryEntry(entry.sessionId);
+      });
+      item.appendChild(del);
+
+      item.addEventListener("click", () => switchToSession(entry.sessionId));
+      item.addEventListener("keydown", (evt) => {
+        if (evt.key === "Enter" || evt.key === " ") {
+          evt.preventDefault();
+          switchToSession(entry.sessionId);
+        }
+      });
+      el.sessionHistoryList.appendChild(item);
+    });
+  }
+
+  // Shared by switchToSession/restoreSessionOnLoad below: replays a saved
+  // transcript into the (already-cleared) chat view, then sets
+  // state.transcript directly, with ORIGINAL timestamps preserved, rather
+  // than letting addMessage's own recordTranscript stamp each one with
+  // "now" (skipRecord=true on every call below avoids double-appending).
+  function replayTranscriptIntoView(transcript) {
+    if (!transcript || transcript.length === 0) return;
+    el.emptyState.style.display = "none";
+    transcript.forEach((turn) => {
+      addMessage(turn.role, turn.text, { isMarkdown: turn.role === "agent", skipRecord: true });
+    });
+    state.transcript = transcript.map((t) => ({ role: t.role, text: t.text, timestamp: new Date(t.timestamp) }));
+    // setSessionId (called just before this, by both callers) already set
+    // the hover tooltip -- but from the EMPTY transcript at that point,
+    // before this replay populated it. Refresh it now with the real one.
+    el.sessionIdLabel.title = summarizeSessionForTooltip(state.transcript);
+  }
+
+  // Reopens a past chat: restores its session id (so new messages
+  // continue that same server-side conversation) and replays its saved
+  // transcript back into the chat view.
+  function switchToSession(sessionId) {
+    if (sessionId === state.sessionId) return;
+    const entry = loadSessionHistory().find((s) => s.sessionId === sessionId);
+    if (!entry) return;
+
+    clearLocalChatState();
+    setSessionId(sessionId);
+    replayTranscriptIntoView(entry.transcript || []);
+    renderSessionHistoryList();
+  }
+
+  // Called once at startup (see init() below) when a session id survived
+  // a page reload (state.sessionId is restored from the small settings
+  // blob, but the transcript itself never is -- that lives only in the
+  // session-history store keyed by id). Mirrors switchToSession's replay
+  // but without its "already on this session" early-return, since at
+  // init time state.sessionId is already set to this same id (loadState()
+  // merged it in before setSessionId is ever called).
+  function restoreSessionOnLoad(sessionId) {
+    const entry = loadSessionHistory().find((s) => s.sessionId === sessionId);
+    setSessionId(sessionId);
+    if (entry) {
+      replayTranscriptIntoView(entry.transcript || []);
+    }
+    renderSessionHistoryList();
+  }
+
+  // "Clear chats older than 3 days" -- matches the server's own default
+  // session-purge window (SESSIONMAXAGEDAYS). Removes matching entries
+  // from the local history list and best-effort deletes them server-side
+  // too, same "don't block on this" philosophy as newChat's old cleanup.
+  function purgeOldSessions() {
+    const cutoff = Date.now() - SESSION_PURGE_MAX_AGE_MS;
+    const sessions = loadSessionHistory();
+    const stale = sessions.filter((s) => s.lastActiveAt < cutoff && s.sessionId !== state.sessionId);
+    if (stale.length === 0) {
+      toast("No chats older than 3 days to clear.");
+      return;
+    }
+
+    const staleIds = new Set(stale.map((s) => s.sessionId));
+    saveSessionHistory(sessions.filter((s) => !staleIds.has(s.sessionId)));
+    renderSessionHistoryList();
+
+    const baseUrl = currentBaseUrl();
+    if (baseUrl) {
+      stale.forEach((entry) => {
+        fetch(`${baseUrl}/chat/${encodeURIComponent(entry.sessionId)}`, {
+          method: "DELETE",
+          headers: { ...authHeaders() },
+        }).catch(() => {});
+      });
+    }
+    toast(`Cleared ${stale.length} chat${stale.length === 1 ? "" : "s"} older than 3 days.`);
+  }
+
+  el.purgeOldSessionsBtn.addEventListener("click", purgeOldSessions);
 
   // ---------------------------------------------------------------
   // Markdown-lite rendering (no external dependency)
@@ -3672,9 +3907,12 @@
   // For "Save chat" -- records the FINAL text of a turn (never a partial
   // streaming delta) so the exported transcript reads the same whether a
   // turn streamed live or came back in one shot via the non-streaming
-  // fallback.
+  // fallback. Also keeps this session's entry in the sidebar history list
+  // up to date, so a chat is accurately listed even before "+ New chat"
+  // is ever clicked.
   function recordTranscript(role, text) {
     state.transcript.push({ role, text, timestamp: new Date() });
+    syncCurrentSessionToHistory();
   }
 
   // Copy + (if supported) Speak buttons for an agent message's meta row --
@@ -3698,8 +3936,14 @@
     }
   }
 
-  function addMessage(role, text, { isMarkdown = false, attachmentNames = [] } = {}) {
-    recordTranscript(role, text);
+  function addMessage(role, text, { isMarkdown = false, attachmentNames = [], skipRecord = false } = {}) {
+    // skipRecord: true when replaying a past session's saved transcript
+    // (see switchToSession) -- the caller restores state.transcript
+    // directly afterward, with original timestamps preserved, instead of
+    // re-recording each replayed turn as if it just happened now.
+    if (!skipRecord) {
+      recordTranscript(role, text);
+    }
     el.emptyState.style.display = "none";
 
     const row = document.createElement("div");
@@ -4837,7 +5081,9 @@
     el.apiKeyInput.value = state.apiKey || "";
     setPreset(state.preset && (PRESETS[state.preset] || state.preset === "custom") ? state.preset : "adk");
     if (state.sessionId) {
-      setSessionId(state.sessionId);
+      restoreSessionOnLoad(state.sessionId);
+    } else {
+      renderSessionHistoryList();
     }
 
     setStatus("unknown", "Not connected");
