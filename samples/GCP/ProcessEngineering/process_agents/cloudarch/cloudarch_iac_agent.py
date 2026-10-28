@@ -8,6 +8,8 @@ logger = logging.getLogger("ProcessArchitect.CloudArchIac")
 from ..common.utils import (
     load_drawio,
     load_iteration_feedback,
+    load_directory_context,
+    restore_drawio_xml,
     save_iac_files,
 )
 
@@ -22,6 +24,8 @@ cloudarch_iac_agent = ProcessLlmAgent(
     tools=[
         load_drawio,
         load_iteration_feedback,
+        load_directory_context,
+        restore_drawio_xml,
         save_iac_files,
     ],
     generate_content_config=types.GenerateContentConfig(

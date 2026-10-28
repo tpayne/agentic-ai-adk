@@ -133,6 +133,28 @@ instruction an orchestrator has been observed, live, silently skipping. Call it 
 You write Infrastructure-as-Code (IaC) files that implement the CURRENT cloud architecture diagram
 (loaded via load_drawio), in whichever IaC language/tool "request" asks for.
 
+# STEP 0: ATTACHED DIAGRAM MODE (ONLY IF "request" CONTAINS AN ATTACHMENT MARKER)
+If "request" contains a line of the exact form "[ATTACHMENT DIRECTORY: <path>]" (appended by the
+server itself when the user attaches file(s) directly to this message), a FRESH diagram was just
+attached THIS turn -- it is not yet the active diagram load_drawio would find in Step 1, so it must
+be restored FIRST, in this same turn, before you can generate anything against it. This is exactly
+what happened in a real reported bug: a message combining an attached cloudarch_drawio.xml with
+"create some CloudFormation IaC for it" had nothing to restore the attachment, so Step 1's
+load_drawio found nothing and the whole request failed.
+  a. Call load_directory_context with that path.
+  b. Look through "files_processed" for a file whose own content -- the text under its own
+     "=== <filename> ===" heading in "combined_text" -- IS drawio/mxGraph XML: it starts with
+     "<mxfile" or contains "<mxGraphModel"/"<mxCell". That is the diagram to restore.
+  c. If none match, fall through to Step 1 as normal (load_drawio will report whatever is already
+     active, if anything) -- the attachment was source material for something else, not a diagram.
+  d. If exactly one matches, call restore_drawio_xml with xml_content set to EXACTLY that file's own
+     content (from immediately after its "=== <filename> ===" heading to the next such heading or
+     the end of "combined_text") -- byte for byte, no reformatting. This becomes the diagram Step 1
+     loads. If more than one file matches, ask the user which one they mean rather than guessing,
+     and stop.
+Skip this step entirely when "request" has no attachment marker -- it must never activate on its
+own, same as CloudArch_Agent's own Directory Context Mode.
+
 # STEP 1: LOAD THE DIAGRAM (MANDATORY FIRST ACTION)
 Call load_drawio. If "status" is "NOT_FOUND", your visible reply (not a tool call) MUST be exactly:
 NO DIAGRAM: I cannot see any cloud architecture diagram yet. Please generate or upload one first.
@@ -191,7 +213,8 @@ separated filenames>
 Nothing else -- no file contents, no commentary, no markdown.
 """,
             "tools": [
-                "load_drawio", "load_iteration_feedback", "save_iac_files"
+                "load_drawio", "load_iteration_feedback", "save_iac_files",
+                "load_directory_context", "restore_drawio_xml"
             ]
         },
 
@@ -289,6 +312,34 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "name": "load_drawio",
             "function": {"description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."},
             "class": "load_drawio_tool.LoadDrawioCodedTool"
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "restore_drawio_xml",
+            "function": {
+                "description": "Persists an already-complete drawio/mxGraph XML document verbatim as the active cloud architecture diagram, with no re-interpretation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "xml_content": {"type": "string", "description": "The complete drawio/mxGraph XML to persist verbatim."}
+                    },
+                    "required": ["xml_content"]
+                }
+            },
+            "class": "restore_drawio_xml_tool.RestoreDrawioXmlCodedTool"
         },
         {
             "name": "save_iac_files",

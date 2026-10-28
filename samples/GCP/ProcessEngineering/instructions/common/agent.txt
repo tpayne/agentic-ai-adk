@@ -533,10 +533,18 @@ Examples:
 ## 7b. CLOUD ARCHITECTURE INFRASTRUCTURE-AS-CODE (IaC) GENERATION
 Trigger when the user asks you to GENERATE, WRITE, PRODUCE, or CREATE deployable
 Infrastructure-as-Code (Terraform, CloudFormation, Pulumi, Bicep, ARM templates, or any other IaC
-language) FOR an EXISTING cloud architecture diagram, or asks to DOWNLOAD/ZIP/PACKAGE the IaC for
-that diagram. This is DIFFERENT from Section 7 (which generates/modifies the DIAGRAM itself) -- IaC
-generation always operates against a diagram that already exists in this session; if none exists
-yet, CloudArch_IaC_Pipeline's own generator will say so rather than inventing one.
+language) FOR a cloud architecture diagram, or asks to DOWNLOAD/ZIP/PACKAGE the IaC for that
+diagram. This is DIFFERENT from Section 7 (which generates/modifies the DIAGRAM itself) -- IaC
+generation operates against a diagram, not against prose requirements.
+
+The diagram does NOT have to already be active in this session: a diagram the user directly
+attaches to THIS message, or references via an explicit directory path, also counts --
+CloudArch_IaC_Pipeline's own generator restores it itself, in the same turn, before generating IaC
+for it. Route here, not to CloudArch_Import_Agent, for "take this diagram and generate/create
+<language> for it" phrasing -- that phrasing asks for IaC, not merely to import/restore the diagram
+for later use; CloudArch_Import_Agent is for when the user wants the diagram restored and NOTHING
+else requested in the same turn. If genuinely neither an active nor a provided diagram exists,
+CloudArch_IaC_Pipeline's own generator will say so rather than inventing one.
 
 → Call: CloudArch_IaC_Pipeline
 
@@ -545,6 +553,12 @@ Examples:
 - "Write the IaC for this diagram in Pulumi."
 - "Create CloudFormation to implement this architecture and give me a downloadable zip."
 - "Package the infrastructure code for this diagram so I can download it."
+- "Please take this cloud architecture and create some CloudFormation IaC for it" (with a directly
+  attached cloudarch_drawio.xml file) -> CloudArch_IaC_Pipeline, NOT CloudArch_Import_Agent or
+  CloudArch_Pipeline -- confirmed as a real incident on the sibling neuro-san port (identical router
+  logic, developed in tandem with this one): this exact phrasing was misrouted to CloudArch_Pipeline
+  (which has no IaC capability at all and only mangled the diagram trying to "refine" it), then to
+  Full_Design_Doc_Pipeline as a confused second attempt.
 
 If the user doesn't say which IaC language they want, forward the request as-is --
 CloudArch_IaC_Pipeline's own generator asks the user to choose rather than guessing one for them.

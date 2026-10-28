@@ -32,6 +32,12 @@ from coded_tools.cloudarch.save_iteration_feedback_tool import (
 from coded_tools.process_architect.download_artifact_tool import (
     DownloadArtifactCodedTool as CanonicalDownloadArtifact,
 )
+from coded_tools.cloudarch_import.restore_drawio_xml_tool import (
+    RestoreDrawioXmlCodedTool as CanonicalRestoreDrawioXml,
+)
+from coded_tools.requirements_summary.load_directory_context_tool import (
+    LoadDirectoryContextCodedTool as CanonicalLoadDirectoryContext,
+)
 
 from coded_tools.cloudarch_iac.reset_loop_state_tool import ResetLoopStateCodedTool
 from coded_tools.cloudarch_iac.loop_control_tool import LoopControlCodedTool
@@ -39,6 +45,8 @@ from coded_tools.cloudarch_iac.load_drawio_tool import LoadDrawioCodedTool
 from coded_tools.cloudarch_iac.load_iteration_feedback_tool import LoadIterationFeedbackCodedTool
 from coded_tools.cloudarch_iac.save_iteration_feedback_tool import SaveIterationFeedbackCodedTool
 from coded_tools.cloudarch_iac.download_artifact_tool import DownloadArtifactCodedTool
+from coded_tools.cloudarch_iac.restore_drawio_xml_tool import RestoreDrawioXmlCodedTool
+from coded_tools.cloudarch_iac.load_directory_context_tool import LoadDirectoryContextCodedTool
 from coded_tools.cloudarch_iac.iac_tool import (
     SaveIacFilesCodedTool,
     ValidateIacFilesCodedTool,
@@ -55,11 +63,32 @@ def test_cloudarch_iac_shims_reexport_the_canonical_classes():
     assert LoadIterationFeedbackCodedTool is CanonicalLoadIterationFeedback
     assert SaveIterationFeedbackCodedTool is CanonicalSaveIterationFeedback
     assert DownloadArtifactCodedTool is CanonicalDownloadArtifact
+    assert RestoreDrawioXmlCodedTool is CanonicalRestoreDrawioXml
+    assert LoadDirectoryContextCodedTool is CanonicalLoadDirectoryContext
+
+
+def test_cloudarch_iac_agent_handles_an_attached_diagram_before_generating():
+    # Regression test for a real incident: a message combining an attached
+    # cloudarch_drawio.xml with "create some CloudFormation IaC for it" had
+    # nothing to restore the attachment, so load_drawio found nothing and
+    # the whole request was misrouted elsewhere. CloudArch_IaC_Agent must
+    # restore an attached diagram itself before Step 1's load_drawio call.
+    text = (PROJECT_ROOT / "registries" / "cloudarch_iac.hocon").read_text(encoding="utf-8")
+    assert "STEP 0: ATTACHED DIAGRAM MODE" in text
+    assert "[ATTACHMENT DIRECTORY:" in text
+    assert "restore_drawio_xml" in text
 
 
 def test_router_references_the_cloudarch_iac_network():
     router_text = (PROJECT_ROOT / "registries" / "process_architect.hocon").read_text(encoding="utf-8")
     assert "CloudArch_IaC_Pipeline" in router_text
+    # Regression test: an attached diagram + an IaC-generation request must
+    # route here, not to CloudArch_Import_Agent (import-only) or
+    # CloudArch_Pipeline (no IaC capability at all) -- see the module
+    # docstring of test_cloudarch_iac_agent_handles_an_attached_diagram_
+    # before_generating above for the real incident this guards against.
+    assert "diagram ATTACHED directly to THIS" in router_text
+    assert "NOT CloudArch_Import_Agent or CloudArch_Pipeline" in router_text
     assert '"/cloudarch_iac"' in router_text
 
 
