@@ -1460,20 +1460,40 @@ input[type="range"]:disabled {
   stroke-width: 1;
 }
 
-.chat-scroll {
+/* Non-scrolling wrapper around #chatScroll, sized to exactly match it
+   (flex: 1 in the same column). Exists SOLELY so the floating "jump to
+   latest" button below has a position:relative containing block that
+   does NOT itself scroll -- confirmed via a real headless-browser test
+   (Playwright, both WebKit and Chromium) that a position:absolute child
+   of #chatScroll itself moves with #chatScroll's own scroll offset (it
+   does NOT stay pinned to the visible viewport the way a bare CSS read
+   of the spec suggests it should -- an absolutely positioned element's
+   containing block is still part of that same element's own scrolled
+   content area when they're the same element). Confirmed in the same
+   test that moving the button here, one level up, fixes it: its
+   on-screen position no longer changes as #chatScroll is scrolled.
+   A previous version of this file had the button as a plain
+   #chatTabPanel child instead -- wrong for a different reason (anchored
+   to the bottom of the WHOLE tab panel, including the composer, not the
+   chat viewport specifically). This wrapper is the minimal fix: same
+   size as the chat viewport, but never scrolls itself. */
+.chat-scroll-wrap {
   position: relative;
   flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.chat-scroll {
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
 }
 
 /* Copilot/Teams-style floating "jump to latest message" button -- shown
    only once the user has scrolled away from the bottom of the chat
-   transcript. Positioned absolute within #chatScroll (now position:
-   relative) so it stays pinned over the visible viewport of the
-   scrollable area -- as a position:absolute child of the scroll
-   container itself rather than its scrolled content, it does not move
-   as #chatContainer scrolls underneath it. */
+   transcript. */
 .jump-to-latest-btn {
   position: absolute;
   left: 50%;
