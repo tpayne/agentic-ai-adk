@@ -345,6 +345,16 @@ button, input, textarea {
 
 .btn-ghost:hover { border-color: var(--border-strong); color: var(--text); }
 
+.btn-danger {
+  background: var(--bg-elevated);
+  border-color: var(--danger-soft);
+  color: var(--danger);
+}
+
+.btn-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .status-pill {
   display: inline-flex;
   align-items: center;

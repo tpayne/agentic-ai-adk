@@ -149,6 +149,7 @@
 
     sessionIdLabel: document.getElementById("sessionIdLabel"),
     newChatBtn: document.getElementById("newChatBtn"),
+    deleteSessionBtn: document.getElementById("deleteSessionBtn"),
 
     themeToggleBtn: document.getElementById("themeToggleBtn"),
     themeToggleIcon: document.getElementById("themeToggleIcon"),
@@ -802,7 +803,22 @@
   function setSessionId(id) {
     state.sessionId = id || null;
     el.sessionIdLabel.textContent = id || "none";
+    el.deleteSessionBtn.disabled = !state.sessionId;
     saveState({ sessionId: state.sessionId });
+  }
+
+  // Shared by newChat/deleteSession below -- clears everything runtime-only
+  // and local to THIS client (transcript, network graph, usage history),
+  // never persisted across a reload anyway (see loadState/saveState). Does
+  // NOT touch the server; callers are responsible for that first.
+  function clearLocalChatState() {
+    setSessionId(null);
+    el.chatContainer.innerHTML = "";
+    el.chatContainer.appendChild(el.emptyState);
+    el.emptyState.style.display = "";
+    state.transcript = [];
+    resetNetwork();
+    resetUsage();
   }
 
   async function newChat() {
@@ -819,17 +835,48 @@
         // the client forgets it below.
       }
     }
-    setSessionId(null);
-    el.chatContainer.innerHTML = "";
-    el.chatContainer.appendChild(el.emptyState);
-    el.emptyState.style.display = "";
-    state.transcript = [];
-    resetNetwork();
-    resetUsage();
+    clearLocalChatState();
     toast("Started a new chat.");
   }
 
   el.newChatBtn.addEventListener("click", newChat);
+
+  // Explicit "Delete session" -- unlike newChat's best-effort cleanup (the
+  // user's goal there is just to start over; a failed server-side delete
+  // is a harmless, self-healing non-issue since it'll age out on its own),
+  // the whole point of this action IS the server-side delete, so a failure
+  // here is reported rather than silently swallowed.
+  async function deleteSession() {
+    if (!state.sessionId) return;
+    const confirmed = window.confirm(
+      "Delete this session's chat history and every file it generated on the server? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    const baseUrl = currentBaseUrl();
+    const sessionId = state.sessionId;
+    if (!baseUrl) {
+      toast("Set a backend Base URL first.");
+      return;
+    }
+    el.deleteSessionBtn.disabled = true;
+    try {
+      const response = await fetch(`${baseUrl}/chat/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        headers: { ...authHeaders() },
+      });
+      if (!response.ok) {
+        throw new Error(`Server responded ${response.status}`);
+      }
+      clearLocalChatState();
+      toast("Session deleted.");
+    } catch (err) {
+      toast(`Could not delete session: ${err.message || err}`);
+      el.deleteSessionBtn.disabled = !state.sessionId;
+    }
+  }
+
+  el.deleteSessionBtn.addEventListener("click", deleteSession);
 
   // ---------------------------------------------------------------
   // Markdown-lite rendering (no external dependency)
@@ -3595,6 +3642,23 @@
     el.jumpToLatestBtn.hidden = isNearChatBottom();
   }
 
+  // Auto-follow helper, MS Teams "New messages" style: callers capture
+  // `isNearChatBottom()` BEFORE mutating the DOM (growing scrollHeight),
+  // then pass that snapshot in here AFTER the mutation. Only scrolls if
+  // the user was already following the bottom -- someone who has
+  // scrolled up to read earlier history does not get yanked back down
+  // by the next streamed delta; they just see the floating button light
+  // up instead. Without this, every setProgress/setText/finalize call
+  // during an active turn force-scrolled unconditionally, so scrolling
+  // away mid-stream was immediately overridden by the next delta --
+  // which made the button effectively impossible to trigger.
+  function finishScrollUpdate(wasNearBottom) {
+    if (wasNearBottom) {
+      scrollToBottom();
+    }
+    updateJumpToLatestVisibility();
+  }
+
   el.chatScroll.addEventListener("scroll", updateJumpToLatestVisibility);
   el.jumpToLatestBtn.addEventListener("click", () => {
     scrollToBottom();
@@ -3688,9 +3752,13 @@
     }
     col.appendChild(meta);
 
+    // Sending your own message always jumps you to it (matches Teams/
+    // Copilot) -- everything else only auto-follows if you were already
+    // at the bottom, so scrolling up to read history doesn't get undone.
+    const wasNearBottom = role === "user" || isNearChatBottom();
     row.appendChild(col);
     el.chatContainer.appendChild(row);
-    scrollToBottom();
+    finishScrollUpdate(wasNearBottom);
     return row;
   }
 
@@ -3723,9 +3791,10 @@
     bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
     col.appendChild(bubble);
 
+    const wasNearBottomOnOpen = isNearChatBottom();
     row.appendChild(col);
     el.chatContainer.appendChild(row);
-    scrollToBottom();
+    finishScrollUpdate(wasNearBottomOnOpen);
 
     let metaAdded = false;
 
@@ -3788,10 +3857,11 @@
       row,
 
       setProgress(origin, text) {
+        const wasNearBottom = isNearChatBottom();
         thinkingSteps.push({ origin, text });
         progressNote.hidden = false;
         progressNote.textContent = origin ? `${origin} — ${text}` : text;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       // Plain text, deliberately NOT markdown-rendered -- a delta is an
@@ -3800,12 +3870,14 @@
       // more often than it renders anything useful. finalize() below
       // applies the real rendering once, to the complete text.
       setText(text) {
+        const wasNearBottom = isNearChatBottom();
         progressNote.hidden = true;
         bubble.textContent = text;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       finalize(text) {
+        const wasNearBottom = isNearChatBottom();
         recordTranscript("agent", text);
         replaceProgressNoteWithThinking();
         bubble.innerHTML = renderMarkdownLite(text);
@@ -3819,15 +3891,16 @@
           addMessageActionButtons(meta, text);
           col.appendChild(meta);
         }
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       showError(message) {
+        const wasNearBottom = isNearChatBottom();
         replaceProgressNoteWithThinking();
         row.classList.add("error");
         const hasText = bubble.textContent && bubble.textContent.trim().length > 0;
         bubble.textContent = hasText ? `${bubble.textContent}\n\n⚠ ${message}` : message;
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
 
       // User-initiated stop (see stopCurrentTurn) -- NOT an error, so
@@ -3836,6 +3909,7 @@
       // is kept and rendered normally, just with a small "Stopped" badge
       // instead of the usual timestamp/copy row.
       showStopped(text) {
+        const wasNearBottom = isNearChatBottom();
         recordTranscript("agent", text || "(stopped before generating a response)");
         replaceProgressNoteWithThinking();
         row.classList.add("stopped");
@@ -3858,7 +3932,7 @@
           meta.appendChild(time);
           col.appendChild(meta);
         }
-        scrollToBottom();
+        finishScrollUpdate(wasNearBottom);
       },
     };
   }
