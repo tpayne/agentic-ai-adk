@@ -7,9 +7,12 @@ ADK tool-function wrappers around process_toolkit.iac.
 
 import os
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # process_agents.common.agent validates model-provider credentials at
 # import time (configure_model_provider) -- the two tests below that reach
@@ -99,6 +102,33 @@ def test_iac_pipeline_is_registered_on_root_agent():
 
     names = [a.name for a in root_agent.sub_agents]
     assert "CloudArch_IaC_Pipeline" in names
+
+
+def test_iac_agent_is_wired_to_restore_an_attached_or_referenced_diagram():
+    # Regression test for a real incident: a message combining a directly
+    # attached cloudarch_drawio.xml with "create some CloudFormation IaC
+    # for it" had nothing to restore the attachment, so load_drawio found
+    # nothing and the whole request was misrouted elsewhere.
+    # CloudArch_IaC_Agent must be able to restore a provided diagram
+    # itself before its own load_drawio call.
+    from process_agents.cloudarch.cloudarch_iac_agent import cloudarch_iac_agent
+    from process_agents.common.utils import load_directory_context, restore_drawio_xml
+
+    assert restore_drawio_xml in cloudarch_iac_agent.tools
+    assert load_directory_context in cloudarch_iac_agent.tools
+
+    instructions_path = (
+        PROJECT_ROOT / "instructions" / "cloudarch" / "cloudarch_iac_agent.txt"
+    )
+    text = instructions_path.read_text(encoding="utf-8")
+    assert "STEP 0: ATTACHED DIAGRAM MODE" in text
+    assert "restore_drawio_xml" in text
+
+
+def test_router_has_a_misroute_guard_for_attached_diagram_plus_iac_requests():
+    router_text = (PROJECT_ROOT / "instructions" / "common" / "agent.txt").read_text(encoding="utf-8")
+    assert "diagram the user directly" in router_text
+    assert "NOT CloudArch_Import_Agent or" in router_text
 
 
 def test_save_validate_zip_round_trip():
