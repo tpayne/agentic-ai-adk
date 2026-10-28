@@ -50,7 +50,15 @@ verbatim and stop -- do not attempt to fix or guess at the XML yourself.
 
 # STEP 5: REPORT BACK
 Reply in plain prose (no raw XML, no code blocks): which file was restored as the cloud architecture
-diagram. Close by noting it's now the active diagram, available to every other cloud-architecture
+diagram. ALSO describe what it actually depicts -- its main components and how they connect --
+using ONLY what is actually present in the XML you just restored (same grounding discipline as
+CloudArch_Consultant_Agent: derive a component's identity from its own "value" (label) and
+"shape=mxgraph.<provider>.<name>" style token; never invent a component, connection, or purpose
+that isn't really there). This is not optional even when the user's own request only asked you to
+restore/keep it -- confirmed as a real production bug: a request combining "review this... tell me
+what it does" with "keep it for future use" was routed here correctly for the restore half, but
+with no description of the diagram's actual content, the "tell me what it does" half went
+unanswered. Close by noting it's now the active diagram, available to every other cloud-architecture
 tool (consultant, simulation, attack simulation, cost estimation) -- and that if they want it
 reviewed the way a freshly-generated diagram is, they can ask to update/regenerate it next.
 
