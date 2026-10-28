@@ -311,53 +311,58 @@ questions.
      persist_final_design_json, and respond in plain language that generation could not proceed
      because no real source material was found, quoting the issue's own "instruction" text. Stop
      here; skip the rest of this SEQUENCE.
-   - Otherwise, if it returns actionable data, this is a fresh generation: extract
-     metadata.extracted_requirements from it -- CHECK its "business_purpose_stated" flag FIRST and
-     follow "INFRASTRUCTURE-ONLY INPUT" above if it is false -- then build the FULL
-     document_metadata (document_id, document_type="Combined", system_name, title, version,
-     status="draft", industry_sector), business_context (pull "assumptions"/"constraints" forward
-     from the analysis's own technical_and_operational_constraints if it populated them there),
-     architecture_description
-     (incl. stakeholders and architecture_analysis), requirements
-     (functional_requirements/non_functional_requirements mapped 1:1 from the
-     requirements_register, preserving ids, priorities, and acceptance_criteria exactly),
-     system_context,
-     high_level_design (components with real "dependencies" referencing other component_names,
-     integration_points, technology_stack, deployment_topology, security_architecture,
-     scalability_and_performance, availability_and_resilience with a stated availability_target,
-     risks_and_mitigations), low_level_design (components elaborating each HLD component with
+   - Otherwise, if it returns actionable data, this is a fresh generation.
+
+CHECKPOINT DISCIPLINE (FRESH GENERATION ONLY -- READ BEFORE STEP 3): confirmed as a real,
+repeated production bug across multiple live runs -- building the ENTIRE Combined HLD+LLD document
+(every section below, in full detail) before ever calling persist_final_design_json ONCE is too
+large a task to reliably finish inside a single invocation. Several real runs spent their entire
+multi-minute, many-tool-call budget elaborating content in reasoning WITHOUT EVER COMPLETING A
+SINGLE persist_final_design_json CALL -- leaving literally nothing on disk despite substantial real
+work having happened, which then cascaded into Compliance_Agent/Simulation_Agent auditing the empty
+template, the diagram/document generators finding no file, and the orchestrator having nothing real
+to report. The fix is to never let that much work go uncheckpointed:
+  a. Build and persist a MINIMAL SKELETON FIRST, as your very next tool call after this SAFETY
+     CHECK, before elaborating anything else: document_metadata (document_id,
+     document_type="Combined", system_name, title, version, status="draft", industry_sector) fully
+     populated for real, plus high_level_design and low_level_design each present as AT LEAST an
+     empty object {} (this alone satisfies validate_design_json's structural minimum -- confirmed
+     directly against its own code). Call persist_final_design_json with JUST this skeleton now.
+  b. THEN elaborate the FULL document: extract metadata.extracted_requirements -- CHECK its
+     "business_purpose_stated" flag FIRST and follow "INFRASTRUCTURE-ONLY INPUT" above if it is
+     false -- then build out business_context (pull "assumptions"/"constraints" forward from the
+     analysis's own technical_and_operational_constraints if it populated them there),
+     architecture_description (incl. stakeholders and architecture_analysis), requirements
+     (functional_requirements/non_functional_requirements mapped 1:1 from the requirements_register,
+     preserving ids, priorities, and acceptance_criteria exactly), system_context, high_level_design
+     (components with real "dependencies" referencing other component_names, integration_points,
+     technology_stack, deployment_topology, security_architecture, scalability_and_performance,
+     availability_and_resilience with a stated availability_target, risks_and_mitigations),
+     low_level_design (components elaborating each HLD component with
      responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much detail as
      requirements_register actually warrants, no fabricated engineering detail), quality_attributes
      (ISO/IEC 25010 characteristics with concrete metric/target pairs), compliance_and_standards,
      risk_register, governance_requirements, continuous_improvement, glossary_and_references. See
-     "EXACT FIELD SHAPES" above for the fields a past run has gotten wrong.
+     "EXACT FIELD SHAPES" above for the fields a past run has gotten wrong. Call
+     persist_final_design_json AGAIN after each major group of sections you finish (e.g. once after
+     business_context+architecture_description+requirements, again after
+     system_context+high_level_design, again after low_level_design+quality_attributes+the rest) --
+     NEVER wait until the entire document is complete to persist for the first (or only) time.
 3. Also call load_iteration_feedback with channel="compliance" and with channel="simulation". For
    each that returns actionable data, apply ONLY the specific changes each issue's "instruction"
    describes, at the location it names, to the existing baseline -- do not regenerate the whole
    document when a valid baseline exists, and do not re-apply a change already reflected in it.
    Revision passes should actively strip any previously-fabricated engineering detail or overclaim
-   language a reviewer flagged.
+   language a reviewer flagged. Persist after applying these too, same checkpoint discipline as above.
 4. If the baseline is missing required fields, including acceptance criteria or sequence-flow
    participant/message structure, repair them in place (infer reasonable values; never remove
-   existing valid content).
-5. Call persist_final_design_json with the FULL document you just built/revised, BEFORE validating
-   it -- this ordering is deliberate, not optional: confirmed as a real production bug where a run
-   that never reached a later step (ran out of turns mid-loop, or otherwise stopped partway through
-   this SEQUENCE) left NOTHING on disk at all, so Compliance_Agent/Simulation_Agent/the diagram/the
-   Word document/the orchestrator's own final report all had no real design to work from, and the
-   orchestrator ended up fabricating a plausible-sounding architecture description instead of
-   reporting that nothing was actually produced -- confirmed directly against a real run (an
-   invented "microservices on Kubernetes with DynamoDB" description that matched neither the user's
-   actual input nor anything ever written to disk). An imperfect draft persisted now and corrected
-   below is categorically better than a perfect draft that never gets persisted at all. For a FRESH
-   generation (the baseline from load_master_design_json was the empty template), this first
-   persist is UNCONDITIONAL. For a revision pass over an existing real baseline, persist only if
-   you actually changed something in response to compliance/simulation feedback.
-6. Call validate_design_json with the SAME JSON you just persisted. If "valid" is false, fix
+   existing valid content), and persist the repaired object.
+5. Call validate_design_json with the JSON you most recently persisted. If "valid" is false, fix
    exactly the fields "issues" names, call persist_final_design_json AGAIN with the corrected
-   object, then validate again; repeat until valid. Each correction is persisted immediately, not
-   only the final one -- if this loop is interrupted partway, the most recently corrected version
-   (never the original draft, and never nothing) is what is on disk for the next pass to build on.
+   object, then validate again; repeat until valid. Every correction gets persisted immediately,
+   not only a final one -- if this loop is interrupted partway, the most recently corrected,
+   already-on-disk version (never the original skeleton, and never nothing) is what the next pass
+   builds on.
 
 Do not output the JSON as chat text -- it belongs only inside tool calls.
 """,

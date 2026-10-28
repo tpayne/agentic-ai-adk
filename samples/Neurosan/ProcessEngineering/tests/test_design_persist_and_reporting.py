@@ -64,6 +64,28 @@ leaves a real, correctable draft on disk instead of nothing; (b) the
 orchestrator's step 9 now explicitly forbids describing the design's own
 content from guesswork -- if step 7/8 reported a missing design, it must
 say so plainly instead of inventing specifics.
+
+A FIFTH bug, found by actually reading persist_final_design_json's own
+source (shared/process_toolkit/src/process_toolkit/schema/design_json.py):
+it runs validate_design_json INTERNALLY and silently refuses to write
+anything that fails -- so fix (a) above, reordering WHEN Design_Doc_Agent
+calls persist relative to its OWN separate validate_design_json call,
+could never have helped; persist's internal gate blocks either way. Ruled
+out as the actual cause here too, though: grep-ing cli.log for
+persist_final_design_json's own "failed validation, nothing persisted"
+warning across every recent failing run found NONE -- meaning the tool was
+never even CALLED, not called-and-rejected. The real failure mode: asking
+Design_Doc_Agent to build the ENTIRE Combined HLD+LLD document (every
+section, in full detail) before EVER calling persist_final_design_json
+once is too large a task to reliably finish in one invocation -- confirmed
+across multiple live runs burning their full multi-minute, many-tool-call
+budget on reasoning without ever completing a single persist call. Fixed
+by checkpoint discipline: persist a MINIMAL SKELETON (document_metadata +
+empty {} high_level_design/low_level_design -- confirmed directly against
+validate_design_json's own code that this alone passes) as the very next
+action after confirming a fresh generation, before elaborating anything
+else, then persist again after each major group of sections completed --
+never let a single uncheckpointed pass span the whole document.
 """
 
 from pathlib import Path
@@ -72,18 +94,45 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DESIGN_HOCON = PROJECT_ROOT / "registries" / "design.hocon"
 
 
-def test_design_doc_agent_persists_unconditionally_on_a_fresh_generation():
+def test_design_doc_agent_persists_a_minimal_skeleton_before_elaborating():
+    # The actual fix for the "never produced a design json" bug: a
+    # trivial, structurally-valid skeleton gets built and persisted as
+    # the very first action for a fresh generation, before the agent
+    # attempts the much larger task of elaborating every section -- so
+    # an interrupted pass still leaves something real and correctable on
+    # disk instead of nothing.
     text = DESIGN_HOCON.read_text(encoding="utf-8")
-    assert "this first\n   persist is UNCONDITIONAL" in text
+    assert "CHECKPOINT DISCIPLINE" in text
+    assert "Build and persist a MINIMAL SKELETON FIRST" in text
+    assert "NEVER wait until the entire document is complete to persist" in text
 
 
-def test_design_doc_agent_persists_before_validating_not_only_after():
-    # The actual root cause of the "never produced a design json" bug:
-    # the old ordering (validate-until-valid, THEN persist) meant an
-    # interrupted pass left nothing on disk at all. Persisting first
-    # guarantees a real, correctable draft always exists.
+def test_minimal_skeleton_actually_passes_validation():
+    # Confirms the skeleton the instructions describe is not just
+    # plausible-sounding -- it genuinely satisfies validate_design_json's
+    # real structural checks (document_metadata fields + high_level_design/
+    # low_level_design merely needing to be dicts, empty or not).
+    from process_toolkit.schema.design_json import validate_design_json
+
+    skeleton = {
+        "document_metadata": {
+            "document_id": "ARCH-001",
+            "document_type": "Combined",
+            "system_name": "Test",
+            "title": "Test Design",
+            "version": "1.0",
+            "status": "draft",
+            "industry_sector": "Technology",
+        },
+        "high_level_design": {},
+        "low_level_design": {},
+    }
+    result = validate_design_json(skeleton)
+    assert result["valid"] is True, result["issues"]
+
+
+def test_design_doc_agent_keeps_persisting_after_each_major_group_of_sections():
     text = DESIGN_HOCON.read_text(encoding="utf-8")
-    assert "BEFORE validating\n   it" in text
     assert "call persist_final_design_json AGAIN with the corrected" in text
 
 
