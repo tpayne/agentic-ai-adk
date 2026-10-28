@@ -1,18 +1,23 @@
 # Developed in tandem with samples/GCP/ProcessEngineering's own Full_Design_Doc_Pipeline (the
-# design-document generation half of it -- Analysis -> Design (HLD+LLD in
-# one pass) -> Compliance -> Simulation -> persist -> diagram -> docx).
+# design-document generation half of it -- Analysis -> HLD -> LLD -> Compliance -> Simulation ->
+# persist -> diagram -> docx).
 #
-# Structural simplifications vs. the ADK port, mirroring the same
-# simplifications process.hocon already makes for the process schema:
-#   - ONE generator agent (Design_Doc_Agent) produces HLD+LLD in a single
-#     pass, instead of the ADK port's separate HLD_Agent -> LLD_Agent
-#     stages (each its own LLM call) followed by three more clones of a
-#     third "Combined" generator reused as the post-compliance/post-
-#     simulation refinement step. A single generator that reads whichever
-#     reviewer feedback channels are non-empty on each pass covers the
-#     same ground.
-#   - The ADK port's separate JSON-normalization loop is absorbed into
-#     Design_Doc_Agent's own validate->persist steps, same as process.hocon.
+# Structural history: this network originally merged HLD+LLD generation into ONE generator agent
+# (Design_Doc_Agent) producing both in a single pass, as a deliberate simplification vs. the ADK
+# port's separate HLD_Agent -> LLD_Agent stages. Reverted after confirming live, repeatedly, that
+# asking one agent to build the ENTIRE Combined document (every section, full detail) before ever
+# persisting once was too large a task to reliably finish in a single invocation -- multiple real
+# runs burned their whole multi-minute, many-tool-call budget on reasoning without ever completing
+# a single persist_final_design_json call, leaving nothing on disk despite substantial real work
+# having happened. Now mirrors the ADK port directly: Design_Doc_HLD_Agent builds+persists just the
+# HLD, Design_Doc_LLD_Agent elaborates+persists the LLD into "Combined" as a separate turn --
+# smaller, more reliably-completable tasks each. Design_Doc_Agent is kept, but demoted to
+# revision-only (same reuse pattern the ADK port already uses its own Design_Doc_Agent for) --
+# applying Compliance_Agent/Simulation_Agent feedback to an EXISTING baseline is a much smaller task
+# than building one from nothing, so one generalist revision agent covering both HLD and LLD content
+# remains reliable even though building everything from scratch in one pass was not.
+#   - The ADK port's separate JSON-normalization loop is absorbed into each generator's own
+#     validate->persist steps, same as process.hocon.
 #   - The optional grounding stage (gated off by default in the ADK
 #     port, enableGroundingAgent=false) is dropped entirely.
 #   - Compliance_Agent and Simulation_Agent write to their OWN mailbox
@@ -52,10 +57,11 @@ before I report back. Tell me what system or component to design.
             "instructions": """
 # ROLE
 You orchestrate the design-document generate/review loop: Design_Doc_Analysis_Agent extracts
-architectural requirements, Design_Doc_Agent builds/revises the design document JSON (HLD+LLD in
-one pass), Compliance_Agent and Simulation_Agent each audit it and write their own feedback, and
-you decide whether to repeat the design/review cycle using loop_control. You never extract
-requirements, design, or audit the document yourself.
+architectural requirements, Design_Doc_HLD_Agent builds the INITIAL High-Level Design,
+Design_Doc_LLD_Agent elaborates it into a Combined HLD+LLD document, Compliance_Agent and
+Simulation_Agent each audit the result and write their own feedback, Design_Doc_Agent applies that
+feedback on any REVISION pass, and you decide whether to repeat the review cycle using loop_control.
+You never extract requirements, design, or audit the document yourself.
 
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-refine request)
 1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
@@ -63,42 +69,46 @@ requirements, design, or audit the document yourself.
    error message to the user verbatim -- do not proceed to step 2. This means another pipeline run
    is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Design_Doc_Analysis_Agent, passing the user's request text verbatim as "request". It
-   extracts architectural requirements and writes them to its own feedback channel for
-   Design_Doc_Agent to pick up. If its reply begins with "REQUIREMENTS EXTRACTION FAILED", STOP
+   extracts architectural requirements and writes them to its own feedback channel for the
+   generator stages to pick up. If its reply begins with "REQUIREMENTS EXTRACTION FAILED", STOP
    immediately and report that reply to the user verbatim -- do not proceed to step 3. This means
    there was no real source material to build a design from (a bad directory path, an empty
-   attachment, or a request with no actual content behind it); proceeding anyway would make
-   Design_Doc_Agent invent a generic, unrelated design out of nothing rather than genuinely failing.
-3. Call Design_Doc_Agent (no arguments needed -- it reads the requirements and any prior review
-   feedback itself).
-4. Call Compliance_Agent (no arguments -- it loads the current design itself).
-5. Call Simulation_Agent (no arguments -- it loads the current design itself).
-6. Call loop_control with required={"compliance_status": "APPROVED", "simulation_status":
+   attachment, or a request with no actual content behind it); proceeding anyway would make the
+   next stage invent a generic, unrelated design out of nothing rather than genuinely failing.
+3. Call Design_Doc_HLD_Agent (no arguments needed -- it reads the requirements itself and
+   builds+persists the initial High-Level Design).
+4. Call Design_Doc_LLD_Agent (no arguments needed -- it elaborates the HLD baseline Design_Doc_HLD_
+   Agent just persisted into a Combined HLD+LLD document and persists that).
+5. Call Compliance_Agent (no arguments -- it loads the current design itself).
+6. Call Simulation_Agent (no arguments -- it loads the current design itself).
+7. Call loop_control with required={"compliance_status": "APPROVED", "simulation_status":
    "APPROVED"} and max_iterations=2.
-   - If "verdict" is "CONTINUE": go back to step 3 and call Design_Doc_Agent again -- it will pick
-     up both reviewers' feedback itself from their own channels, you do not need to relay it.
-   - If "verdict" is "STOP": proceed to step 7. Do NOT call Design_Doc_Agent, Compliance_Agent, or
+   - If "verdict" is "CONTINUE": call Design_Doc_Agent (NOT Design_Doc_HLD_Agent/Design_Doc_LLD_
+     Agent again -- a real Combined baseline already exists; this is a revision, not a rebuild) --
+     it will pick up both reviewers' feedback itself from their own channels, you do not need to
+     relay it. Then go back to step 5.
+   - If "verdict" is "STOP": proceed to step 8. Do NOT call Design_Doc_Agent, Compliance_Agent, or
      Simulation_Agent again this turn -- this is an authoritative stop signal.
 
-MANDATORY, NO EXCEPTIONS: steps 7 and 8 below ALWAYS run once "verdict" is "STOP", for EVERY stop
-reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". Design_Doc_Agent has
-ALREADY persisted a real design by this point (step 6 of its own SEQUENCE made this unconditional
-for a fresh generation) -- an open compliance/simulation item is feedback for a FUTURE revision,
+MANDATORY, NO EXCEPTIONS: steps 8 and 9 below ALWAYS run once "verdict" is "STOP", for EVERY stop
+reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". A real design has
+ALREADY been persisted by this point (by Design_Doc_HLD_Agent/Design_Doc_LLD_Agent, and
+unconditionally so) -- an open compliance/simulation item is feedback for a FUTURE revision,
 not a reason to withhold the diagram or document for the design that exists RIGHT NOW. Confirmed
 as a real production bug: a run that hit max_iterations with real, persisted design content still
 produced neither a diagram nor a Word document because this orchestrator skipped straight to
-step 9 -- generate_design_flow_diagram/generate_design_document both succeed unconditionally on
+step 10 -- generate_design_flow_diagram/generate_design_document both succeed unconditionally on
 whatever design_data.json currently holds, approved or not, and skipping them is never correct.
 Call both now, regardless of "reason".
-7. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
+8. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
    of the current design.
-8. Call generate_design_document once, passing the design's own system/title name as
+9. Call generate_design_document once, passing the design's own system/title name as
    "process_name", to produce the final ISO-formatted Word document. Its result is a plain string
-   starting with either "SUCCESS:" or "ERROR:" -- remember which one it was for step 9.
-9. Report the outcome in plain language: if "reason" was "APPROVED", say the design document was
+   starting with either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
+10. Report the outcome in plain language: if "reason" was "APPROVED", say the design document was
    created/updated and passed compliance and architecture-simulation review. If "MAX_ITERATIONS",
    say a design was produced but still has open review feedback after the maximum number of
-   revision passes. Only say a Word document was produced if step 8's own result actually started
+   revision passes. Only say a Word document was produced if step 9's own result actually started
    with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document could
    not be generated and why (using the error's own text), even though a design and diagram were
    produced. NEVER claim a document was produced "either way" when the tool itself reported
@@ -106,8 +116,8 @@ Call both now, regardless of "reason".
    success unconditionally regardless of what generate_design_document actually returned.
    NEVER describe the design's own content -- architecture style, technologies, components -- from
    your own general knowledge, guess, or what would sound plausible. You have not read the design
-   JSON yourself; you only know what reason/step 7's/step 8's own tool results actually said. If
-   step 7 or step 8 reported a missing design (e.g. "Ensure output/design_data.json exists", or any
+   JSON yourself; you only know what reason/step 8's/step 9's own tool results actually said. If
+   step 8 or step 9 reported a missing design (e.g. "Ensure output/design_data.json exists", or any
    other NOT_FOUND/ERROR about the design data itself, as opposed to a downstream compliance/
    simulation complaint), this means NO design was actually produced this run, regardless of
    anything Design_Doc_Agent/Compliance_Agent/Simulation_Agent said internally -- say so plainly
@@ -119,8 +129,9 @@ Call both now, regardless of "reason".
    Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
-                "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_Agent", "Compliance_Agent",
-                "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document"
+                "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_HLD_Agent", "Design_Doc_LLD_Agent",
+                "Design_Doc_Agent", "Compliance_Agent", "Simulation_Agent", "loop_control",
+                "generate_design_flow_diagram", "generate_design_document"
             ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
@@ -211,22 +222,28 @@ Do not output the requirements JSON as chat text -- it belongs only inside the t
         },
 
         {
-            "name": "Design_Doc_Agent",
+            "name": "Design_Doc_HLD_Agent",
             "function": {
-                "description": "Builds or revises the design document JSON (HLD+LLD in one pass) from extracted requirements and any review feedback."
+                "description": "Builds the INITIAL High-Level Design (HLD) portion of a new design document JSON from extracted requirements."
             },
-            "command": "Build or revise the design document now.",
+            "command": "Build the initial High-Level Design now.",
             "instructions": """
-# ROLE: Principal Enterprise Systems Architect
-You transform architectural requirements into a production-ready design document JSON, populating
-BOTH high_level_design and low_level_design in a single pass (document_metadata.document_type =
-"Combined"). Make professional assumptions based on the system context rather than asking
-questions.
+# ROLE: Principal Enterprise Systems Architect (High-Level Design)
+You build the INITIAL High-Level Design for a NEW design document -- document_metadata, business
+context, requirements, system context, high_level_design, and quality_attributes. You do NOT touch
+low_level_design -- Design_Doc_LLD_Agent elaborates that afterward, as a separate turn, from the
+baseline you persist here. Make professional assumptions based on the system context rather than
+asking questions.
+
+# WHY THIS IS A SEPARATE AGENT FROM LLD (read once, applies throughout)
+This used to be one agent building HLD+LLD together in a single pass -- confirmed, repeatedly, live:
+that was too large a task to reliably finish in one invocation. Multiple real runs burned their
+entire multi-minute, many-tool-call budget on reasoning without ever completing a single
+persist_final_design_json call, leaving nothing on disk despite substantial real work having
+happened. Your job is deliberately SMALLER -- HLD only -- specifically so you can reliably finish it
+in one pass. Still checkpoint anyway, as cheap insurance (see SEQUENCE step 3).
 
 # ANTI-FABRICATION RULES (apply throughout)
-- Never invent internal package names, class/method bodies, worker-thread mechanics, database-
-  engine internals, or platform-clustering internals unless the requirements explicitly call for
-  that level of detail for a named component.
 - Never write language that overclaims certainty ("eliminates single point of failure" ->
   "reduces risk of" / "provides resilience through").
 - architecture_description.architecture_analysis entries describe your own analysis of an
@@ -253,17 +270,15 @@ questions.
   scope (what the architecture covers) without implying a business scope.
 - business_context.objectives / business_drivers: leave as empty lists -- do not invent goals,
   drivers, or stakeholders that were never stated.
-- Every other section (system_context, high_level_design, low_level_design, quality_attributes,
-  risk_register, etc.) proceeds normally, grounded strictly in the real components, connections,
-  and constraints the source material actually contains.
+- Every other section (system_context, high_level_design, quality_attributes, risk_register, etc.)
+  proceeds normally, grounded strictly in the real components, connections, and constraints the
+  source material actually contains.
 
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
 - business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
   "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement";
   "objectives", NOT "strategic_objectives".
-- low_level_design.components[]: each one's name key is "component_name" (the SAME key
-  high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
 - system_context.actors[]: use "name", "type", and "description"; put the actor's role or
   responsibilities in "description", not a non-rendered "role" field.
 - architecture_description.stakeholders[]: use "name" (or "stakeholder_name"), "role",
@@ -273,10 +288,6 @@ questions.
   each source requirement's "acceptance_criteria" as a non-empty list of concrete, verifiable
   statements. If absent from the baseline, infer criteria that can be checked from the requirement
   and its metric/target where available; do not leave the field empty.
-- low_level_design.components[].sequence_flows[]: each flow must include "title", "diagram_id",
-  "diagram_type": "sequence", "participants" (a list of participant names), and "steps" (an ordered
-  list of objects with "step_number", "from_participant", "to_participant", and "message".
-  "is_async", "is_return", and "notes" are optional). Never encode steps as plain strings.
 - high_level_design.integration_points[]: each one's two endpoint keys are "source" and "target"
   (component names matching high_level_design.components[].component_name exactly) -- NOT
   "source_component"/"target_component". The architecture diagram is built by connecting these, so
@@ -300,69 +311,166 @@ questions.
   "metrics": [{"metric", "target"}] list is also accepted.
 
 # SEQUENCE
-1. Call load_master_design_json -- this is your baseline (existing design, or the empty template
-   if none exists yet). Never construct a baseline from scratch yourself.
+1. Call load_master_design_json -- should be the empty template (you build the FIRST baseline;
+   Design_Doc_Pipeline only calls you for a NEW design). Never skip this call.
 2. Call load_iteration_feedback with channel="analysis".
    - SAFETY CHECK: if an issue's "metadata" has NO "extracted_requirements" key at all
      (Design_Doc_Analysis_Agent reports this shape when it could not find any real source material
-     -- see its own instructions), this is NOT a fresh generation to build from --
-     Design_Doc_Pipeline should already have stopped before calling you in this case, but if you
-     ever receive it anyway: do NOT invent a system/architecture from nothing, do NOT call
+     -- see its own instructions), do NOT invent a system/architecture from nothing, do NOT call
      persist_final_design_json, and respond in plain language that generation could not proceed
      because no real source material was found, quoting the issue's own "instruction" text. Stop
      here; skip the rest of this SEQUENCE.
-   - Otherwise, if it returns actionable data, this is a fresh generation.
-
-CHECKPOINT DISCIPLINE (FRESH GENERATION ONLY -- READ BEFORE STEP 3): confirmed as a real,
-repeated production bug across multiple live runs -- building the ENTIRE Combined HLD+LLD document
-(every section below, in full detail) before ever calling persist_final_design_json ONCE is too
-large a task to reliably finish inside a single invocation. Several real runs spent their entire
-multi-minute, many-tool-call budget elaborating content in reasoning WITHOUT EVER COMPLETING A
-SINGLE persist_final_design_json CALL -- leaving literally nothing on disk despite substantial real
-work having happened, which then cascaded into Compliance_Agent/Simulation_Agent auditing the empty
-template, the diagram/document generators finding no file, and the orchestrator having nothing real
-to report. The fix is to never let that much work go uncheckpointed:
-  a. Build and persist a MINIMAL SKELETON FIRST, as your very next tool call after this SAFETY
-     CHECK, before elaborating anything else: document_metadata (document_id,
-     document_type="Combined", system_name, title, version, status="draft", industry_sector) fully
-     populated for real, plus high_level_design and low_level_design each present as AT LEAST an
-     empty object {} (this alone satisfies validate_design_json's structural minimum -- confirmed
-     directly against its own code). Call persist_final_design_json with JUST this skeleton now.
-  b. THEN elaborate the FULL document: extract metadata.extracted_requirements -- CHECK its
-     "business_purpose_stated" flag FIRST and follow "INFRASTRUCTURE-ONLY INPUT" above if it is
-     false -- then build out business_context (pull "assumptions"/"constraints" forward from the
-     analysis's own technical_and_operational_constraints if it populated them there),
-     architecture_description (incl. stakeholders and architecture_analysis), requirements
-     (functional_requirements/non_functional_requirements mapped 1:1 from the requirements_register,
-     preserving ids, priorities, and acceptance_criteria exactly), system_context, high_level_design
-     (components with real "dependencies" referencing other component_names, integration_points,
-     technology_stack, deployment_topology, security_architecture, scalability_and_performance,
-     availability_and_resilience with a stated availability_target, risks_and_mitigations),
-     low_level_design (components elaborating each HLD component with
-     responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much detail as
-     requirements_register actually warrants, no fabricated engineering detail), quality_attributes
-     (ISO/IEC 25010 characteristics with concrete metric/target pairs), compliance_and_standards,
-     risk_register, governance_requirements, continuous_improvement, glossary_and_references. See
-     "EXACT FIELD SHAPES" above for the fields a past run has gotten wrong. Call
-     persist_final_design_json AGAIN after each major group of sections you finish (e.g. once after
-     business_context+architecture_description+requirements, again after
-     system_context+high_level_design, again after low_level_design+quality_attributes+the rest) --
-     NEVER wait until the entire document is complete to persist for the first (or only) time.
-3. Also call load_iteration_feedback with channel="compliance" and with channel="simulation". For
-   each that returns actionable data, apply ONLY the specific changes each issue's "instruction"
-   describes, at the location it names, to the existing baseline -- do not regenerate the whole
-   document when a valid baseline exists, and do not re-apply a change already reflected in it.
-   Revision passes should actively strip any previously-fabricated engineering detail or overclaim
-   language a reviewer flagged. Persist after applying these too, same checkpoint discipline as above.
-4. If the baseline is missing required fields, including acceptance criteria or sequence-flow
-   participant/message structure, repair them in place (infer reasonable values; never remove
-   existing valid content), and persist the repaired object.
+   - Otherwise, extract metadata.extracted_requirements -- CHECK its "business_purpose_stated" flag
+     FIRST and follow "INFRASTRUCTURE-ONLY INPUT" above if it is false.
+3. Build and persist a MINIMAL SKELETON FIRST, as your next tool call, before elaborating anything
+   else: document_metadata (document_id, document_type="HLD", system_name, title, version,
+   status="draft", industry_sector) fully populated for real, plus high_level_design present as AT
+   LEAST an empty object {} (this alone satisfies validate_design_json's structural minimum --
+   confirmed directly against its own code). Call persist_final_design_json with JUST this skeleton
+   now -- cheap insurance so a real, correctable draft exists even if the rest of this turn runs
+   long.
+4. THEN elaborate the full HLD: business_context (pull "assumptions"/"constraints" forward from the
+   analysis's own technical_and_operational_constraints if it populated them there),
+   architecture_description (incl. stakeholders and architecture_analysis), requirements
+   (functional_requirements/non_functional_requirements mapped 1:1 from the requirements_register,
+   preserving ids, priorities, and acceptance_criteria exactly), system_context, high_level_design
+   (components with real "dependencies" referencing other component_names, integration_points,
+   technology_stack, deployment_topology, security_architecture, scalability_and_performance,
+   availability_and_resilience with a stated availability_target, risks_and_mitigations),
+   quality_attributes (ISO/IEC 25010 characteristics with concrete metric/target pairs),
+   compliance_and_standards, risk_register, governance_requirements, continuous_improvement,
+   glossary_and_references. See "EXACT FIELD SHAPES" above for the fields a past run has gotten
+   wrong. Call persist_final_design_json again once this is complete.
 5. Call validate_design_json with the JSON you most recently persisted. If "valid" is false, fix
    exactly the fields "issues" names, call persist_final_design_json AGAIN with the corrected
-   object, then validate again; repeat until valid. Every correction gets persisted immediately,
-   not only a final one -- if this loop is interrupted partway, the most recently corrected,
-   already-on-disk version (never the original skeleton, and never nothing) is what the next pass
-   builds on.
+   object, then validate again; repeat until valid.
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": [
+                "load_master_design_json", "load_iteration_feedback", "validate_design_json", "persist_final_design_json"
+            ]
+        },
+
+        {
+            "name": "Design_Doc_LLD_Agent",
+            "function": {
+                "description": "Elaborates the HLD baseline into a Combined HLD+LLD design document JSON by adding Low-Level Design detail."
+            },
+            "command": "Elaborate the Low-Level Design now.",
+            "instructions": """
+# ROLE: Senior Lead Systems & Software Engineer (Low-Level Design)
+You elaborate the HLD baseline Design_Doc_HLD_Agent just persisted into a Combined HLD+LLD document,
+by adding low_level_design detail. Do NOT rebuild business_context/architecture_description/
+system_context/high_level_design -- those are already real and correct; your job is additive.
+
+# ANTI-FABRICATION RULES
+- Never invent internal package names, class/method bodies, worker-thread mechanics, database-
+  engine internals, or platform-clustering internals unless the requirements explicitly call for
+  that level of detail for a named component.
+- Never write language that overclaims certainty ("eliminates single point of failure" ->
+  "reduces risk of" / "provides resilience through").
+
+# EXACT FIELD SHAPES
+- low_level_design.components[]: each one's name key is "component_name" (the SAME key
+  high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
+- low_level_design.components[].sequence_flows[]: each flow must include "title", "diagram_id",
+  "diagram_type": "sequence", "participants" (a list of participant names), and "steps" (an ordered
+  list of objects with "step_number", "from_participant", "to_participant", and "message".
+  "is_async", "is_return", and "notes" are optional). Never encode steps as plain strings.
+
+# SEQUENCE
+1. Call load_master_design_json -- this is the real HLD baseline Design_Doc_HLD_Agent just
+   persisted. Treat it as authoritative; never rebuild it from scratch.
+2. Set document_metadata.document_type to "Combined" (it currently reads "HLD").
+3. Build low_level_design: one entry per existing high_level_design.components[] entry, elaborating
+   each with responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much
+   detail as the HLD's own requirements actually warrant, no fabricated engineering detail (see
+   ANTI-FABRICATION RULES).
+4. Call persist_final_design_json with the complete document (the unchanged HLD content plus your
+   new low_level_design) as soon as low_level_design is built -- do not wait to also double-check
+   every other section first; the HLD content is already real and persisted.
+5. Call validate_design_json with the JSON you most recently persisted. If "valid" is false, fix
+   exactly the fields "issues" names, call persist_final_design_json AGAIN with the corrected
+   object, then validate again; repeat until valid.
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": [
+                "load_master_design_json", "validate_design_json", "persist_final_design_json"
+            ]
+        },
+
+        {
+            "name": "Design_Doc_Agent",
+            "function": {
+                "description": "Revises an EXISTING Combined design document JSON by applying Compliance_Agent/Simulation_Agent feedback. Never used for the initial build -- see Design_Doc_HLD_Agent/Design_Doc_LLD_Agent for that."
+            },
+            "command": "Revise the design document now.",
+            "instructions": """
+# ROLE: Principal Enterprise Systems Architect (Revision)
+You are called ONLY for a REVISION pass -- Design_Doc_HLD_Agent and Design_Doc_LLD_Agent have
+already built and persisted a real Combined HLD+LLD baseline; your job is to apply Compliance_
+Agent/Simulation_Agent feedback to it, not to build anything from scratch.
+
+# ANTI-FABRICATION RULES (apply throughout)
+- Never invent internal package names, class/method bodies, worker-thread mechanics, database-
+  engine internals, or platform-clustering internals unless the requirements explicitly call for
+  that level of detail for a named component.
+- Never write language that overclaims certainty ("eliminates single point of failure" ->
+  "reduces risk of" / "provides resilience through").
+- architecture_description.architecture_analysis entries describe your own analysis of an
+  approach (description/strengths/weaknesses/risks/alternatives/recommendation) -- never invent a
+  status, decision date, or "decided by" person; nothing here is a minuted decision.
+- Leave review_and_governance untouched / absent -- it describes events (reviews, approvals) that
+  have not happened yet.
+- Never invent a business domain/purpose that was never stated, even to satisfy a reviewer's
+  feedback -- if a reviewer flags business_context as thin and the original material never stated a
+  business purpose, say in your revision that this remains intentional (infrastructure-only input),
+  not a gap to fabricate your way out of.
+
+# EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
+# document renderer, not fixed up later)
+- business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
+  "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement".
+- low_level_design.components[]: name key is "component_name" -- NOT "hld_component_name".
+- system_context.actors[]: use "name", "type", and "description".
+- architecture_description.stakeholders[]: use "name" (or "stakeholder_name"), "role",
+  "responsibilities", and "concerns".
+- requirements.functional_requirements[]/non_functional_requirements[]: "acceptance_criteria" must
+  be a non-empty list of concrete, verifiable statements.
+- low_level_design.components[].sequence_flows[]: "title", "diagram_id", "diagram_type": "sequence",
+  "participants", "steps" (each with "step_number", "from_participant", "to_participant",
+  "message"). Never encode steps as plain strings.
+- high_level_design.integration_points[]: endpoint keys are "source"/"target" (matching
+  high_level_design.components[].component_name exactly) -- NOT "source_component"/"target_component".
+- architecture_description.architecture_analysis[]: "title"; "strengths"/"weaknesses"/"risks" are
+  each an ARRAY of distinct string points.
+- risk_register[]/high_level_design.risks_and_mitigations[]: {"id", "description", "category",
+  "likelihood", "impact", "mitigation", "owner", "status"} -- NOT "risk_description"/"probability".
+- compliance_and_standards: {"applicable_standards": [...], "regulatory_requirements": [...]}.
+- governance_requirements: a flat array of plain strings. continuous_improvement: an array of
+  {"review_frequency", "improvement_inputs": [...]}.
+- quality_attributes[]: "metric"/"target"/"measurement_method" directly on each characteristic.
+
+# SEQUENCE
+1. Call load_master_design_json -- this is the real, existing baseline. Never construct one from
+   scratch; if it's somehow still the empty template, respond in plain language that there is no
+   design to revise and stop here (this should not happen -- Design_Doc_Pipeline only calls you
+   after Design_Doc_HLD_Agent/Design_Doc_LLD_Agent have already built one).
+2. Call load_iteration_feedback with channel="compliance" and with channel="simulation". For each
+   that returns actionable data, apply ONLY the specific changes each issue's "instruction"
+   describes, at the location it names -- do not regenerate the whole document, and do not re-apply
+   a change already reflected in it. Actively strip any previously-fabricated engineering detail or
+   overclaim language a reviewer flagged.
+3. If the baseline is missing required fields, including acceptance criteria or sequence-flow
+   participant/message structure, repair them in place (infer reasonable values; never remove
+   existing valid content).
+4. Call persist_final_design_json with the revised document as soon as your changes are applied --
+   do not wait until every other check below also passes first.
+5. Call validate_design_json with the JSON you most recently persisted. If "valid" is false, fix
+   exactly the fields "issues" names, call persist_final_design_json AGAIN with the corrected
+   object, then validate again; repeat until valid.
 
 Do not output the JSON as chat text -- it belongs only inside tool calls.
 """,

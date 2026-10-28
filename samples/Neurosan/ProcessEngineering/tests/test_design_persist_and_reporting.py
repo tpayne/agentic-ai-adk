@@ -86,6 +86,25 @@ validate_design_json's own code that this alone passes) as the very next
 action after confirming a fresh generation, before elaborating anything
 else, then persist again after each major group of sections completed --
 never let a single uncheckpointed pass span the whole document.
+
+That checkpoint-discipline fix shipped and was retried live -- and STILL
+never produced a design_data.json. At that point the user pointed out
+(correctly) that the ADK/GCP sibling port never had this problem, and
+asked what was actually different there. The real answer, confirmed by
+re-reading process_agents/design/design_doc_create_agent.py: that port
+splits HLD and LLD generation into two SEPARATE agents (Design_Doc_HLD_
+Agent, Design_Doc_LLD_Agent), each a smaller task, rather than one agent
+building both in a single pass -- this network had deliberately merged
+them as a "simplification" (see this file's own former top-of-file
+comment). Smaller task size, not more checkpointing within one
+overloaded agent, is the actual fix GCP already uses successfully.
+Reverted the merge: Design_Doc_HLD_Agent now builds+persists ONLY the
+HLD, Design_Doc_LLD_Agent elaborates+persists the LLD as a separate
+turn, and Design_Doc_Agent is demoted to revision-only (applying
+Compliance_Agent/Simulation_Agent feedback to an EXISTING baseline is a
+much smaller task than building one from nothing, so it stays reliable
+even though the from-scratch build was not) -- the same reuse pattern
+the ADK port already uses its own Design_Doc_Agent for.
 """
 
 from pathlib import Path
@@ -94,17 +113,36 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DESIGN_HOCON = PROJECT_ROOT / "registries" / "design.hocon"
 
 
-def test_design_doc_agent_persists_a_minimal_skeleton_before_elaborating():
+def test_design_doc_hld_agent_persists_a_minimal_skeleton_before_elaborating():
     # The actual fix for the "never produced a design json" bug: a
     # trivial, structurally-valid skeleton gets built and persisted as
     # the very first action for a fresh generation, before the agent
-    # attempts the much larger task of elaborating every section -- so
-    # an interrupted pass still leaves something real and correctable on
+    # attempts the larger task of elaborating the full HLD -- so an
+    # interrupted pass still leaves something real and correctable on
     # disk instead of nothing.
     text = DESIGN_HOCON.read_text(encoding="utf-8")
-    assert "CHECKPOINT DISCIPLINE" in text
     assert "Build and persist a MINIMAL SKELETON FIRST" in text
-    assert "NEVER wait until the entire document is complete to persist" in text
+
+
+def test_design_pipeline_builds_hld_then_lld_as_separate_agents():
+    # The structural fix: generation is no longer one agent building
+    # HLD+LLD together in a single pass -- it's two smaller, separately
+    # persisted stages, mirroring the ADK port's own proven split.
+    text = DESIGN_HOCON.read_text(encoding="utf-8")
+    assert '"name": "Design_Doc_HLD_Agent"' in text
+    assert '"name": "Design_Doc_LLD_Agent"' in text
+    assert "Call Design_Doc_HLD_Agent" in text
+    assert "Call Design_Doc_LLD_Agent" in text
+
+
+def test_design_doc_agent_is_revision_only_now():
+    # Design_Doc_Agent no longer builds a design from scratch -- that's
+    # Design_Doc_HLD_Agent/Design_Doc_LLD_Agent's job now. Confirmed via
+    # its own function description and the orchestrator only ever
+    # calling it on the loop_control CONTINUE branch (a revision pass).
+    text = DESIGN_HOCON.read_text(encoding="utf-8")
+    assert "Never used for the initial build" in text
+    assert "this is a revision, not a rebuild" in text
 
 
 def test_minimal_skeleton_actually_passes_validation():
@@ -131,7 +169,7 @@ def test_minimal_skeleton_actually_passes_validation():
     assert result["valid"] is True, result["issues"]
 
 
-def test_design_doc_agent_keeps_persisting_after_each_major_group_of_sections():
+def test_design_generators_keep_persisting_corrections_during_the_validate_fix_loop():
     text = DESIGN_HOCON.read_text(encoding="utf-8")
     assert "call persist_final_design_json AGAIN with the corrected" in text
 
