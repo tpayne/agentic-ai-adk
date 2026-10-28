@@ -79,6 +79,17 @@ requirements, design, or audit the document yourself.
      up both reviewers' feedback itself from their own channels, you do not need to relay it.
    - If "verdict" is "STOP": proceed to step 7. Do NOT call Design_Doc_Agent, Compliance_Agent, or
      Simulation_Agent again this turn -- this is an authoritative stop signal.
+
+MANDATORY, NO EXCEPTIONS: steps 7 and 8 below ALWAYS run once "verdict" is "STOP", for EVERY stop
+reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". Design_Doc_Agent has
+ALREADY persisted a real design by this point (step 6 of its own SEQUENCE made this unconditional
+for a fresh generation) -- an open compliance/simulation item is feedback for a FUTURE revision,
+not a reason to withhold the diagram or document for the design that exists RIGHT NOW. Confirmed
+as a real production bug: a run that hit max_iterations with real, persisted design content still
+produced neither a diagram nor a Word document because this orchestrator skipped straight to
+step 9 -- generate_design_flow_diagram/generate_design_document both succeed unconditionally on
+whatever design_data.json currently holds, approved or not, and skipping them is never correct.
+Call both now, regardless of "reason".
 7. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
    of the current design.
 8. Call generate_design_document once, passing the design's own system/title name as

@@ -23,6 +23,25 @@ convention), Design_Doc_Pipeline's final reporting step was instructed to
 "mention that a Word document and architecture diagram were produced
 either way" -- i.e. to claim success unconditionally regardless of what
 the tool actually returned.
+
+A THIRD bug surfaced on the very next live retry, after both fixes above
+were already in place: Design_Doc_Agent correctly persisted a real,
+well-grounded design this time (confirmed directly against the session's
+own design_data.json -- real components, business_context.purpose
+correctly stating no business purpose was provided, no fabrication) and
+Compliance_Agent/Simulation_Agent ran against it for real -- but the run
+still hit max_iterations with open compliance feedback, and the
+orchestrator skipped straight to its final report without EVER calling
+generate_design_flow_diagram or generate_design_document, even though
+both tools work fine unconditionally against whatever design_data.json
+currently holds (confirmed directly: manually invoking
+create_standard_doc_from_file against that exact session's persisted
+design succeeded immediately). The old "If verdict is STOP: proceed to
+step 7" wording was apparently too easy to silently skip once the stop
+reason was "MAX_ITERATIONS" rather than "APPROVED" -- replaced with an
+unmissable, explicitly-labeled MANDATORY block spelling out that open
+review feedback is input for a FUTURE revision, never a reason to
+withhold the diagram/document for the design that exists right now.
 """
 
 from pathlib import Path
@@ -41,3 +60,10 @@ def test_design_doc_pipeline_never_claims_success_the_tool_itself_denied():
     text = DESIGN_HOCON.read_text(encoding="utf-8")
     assert 'starting with either "SUCCESS:" or "ERROR:"' in text
     assert "NEVER claim a document was produced" in text
+
+
+def test_design_doc_pipeline_always_generates_the_diagram_and_document():
+    text = DESIGN_HOCON.read_text(encoding="utf-8")
+    assert "MANDATORY, NO EXCEPTIONS" in text
+    assert 'for EVERY stop\nreason including "MAX_ITERATIONS"' in text
+    assert "Call both now, regardless of" in text
