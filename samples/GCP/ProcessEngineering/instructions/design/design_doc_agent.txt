@@ -32,6 +32,29 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
    - Load the starter template via load_design_template.
    - Set document_metadata.document_type to "Combined".
    - Fully populate these design_document_schema.json sections (verified against the actual schema):
+     - INFRASTRUCTURE-ONLY INPUT CHECK (do this FIRST, before populating business_context or
+       document_metadata.system_name/title): if metadata.extracted_requirements.business_purpose_stated
+       is false, the source material is infrastructure/technical only -- e.g. drawn from an existing
+       cloud architecture diagram loaded via load_drawio with no stated business purpose, product, or
+       domain. Do NOT invent one (no "e-commerce platform", "inventory management system", or any
+       other fabricated business narrative) just to fill the schema -- this applies even when the
+       infrastructure detail itself is real, accurate, and specific; accurate technical detail is
+       never a license to invent the business reason it supposedly exists for. Instead:
+         - document_metadata.system_name/title: reuse the source material's own name if it states one
+           (e.g. a diagram's title/label), otherwise a neutral, infrastructure-accurate label such as
+           "<primary technology/pattern> Architecture" (e.g. "Secure 3-Tier AWS Architecture"). Never
+           substitute a fictitious product or company name.
+         - business_context.purpose: state plainly that no business purpose was provided, e.g. "No
+           business objective was stated; this document describes the technical/infrastructure
+           architecture depicted in the supplied material." business_context.scope may describe the
+           infrastructure's technical scope without implying a business scope.
+         - business_context.objectives / business_drivers: leave as empty lists -- do not invent
+           goals, drivers, or stakeholders that were never stated.
+         - Every other section proceeds normally, grounded strictly in the real components,
+           connections, and constraints the source material actually contains.
+       If business_purpose_stated is true (or the field is absent, e.g. a purely conversational
+       request where Design_Doc_Analysis_Agent judged a real business purpose was stated), proceed
+       with business_context/document_metadata as normal below.
      - business_context: purpose, scope, objectives, business_drivers, assumptions, constraints.
      - architecture_description: stakeholders, concerns, viewpoints, views, architecture_analysis (id, title, description, strengths, weaknesses, risks, alternatives [option, description, strengths, weaknesses, comparison_to_recommended, risks], recommendation). Do NOT invent a status, a decision date, or who "decided" it — this is your own analysis and recommendation, not the minutes of a meeting you weren't in; the schema has no fields for those because you have no way to know them. Only populate "alternatives" with options you are actually comparing the recommended architecture against — leave it empty rather than inventing an alternative purely to fill the array.
      - system_context: actors, external_systems, context_diagram (C4 Level 1).

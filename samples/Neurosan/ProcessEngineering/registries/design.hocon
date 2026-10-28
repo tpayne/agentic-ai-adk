@@ -123,6 +123,15 @@ architectural requirements from the "request" argument into a single JSON object
   "non_functional", "description", "priority": "critical"|"high"|"medium"|"low",
   "acceptance_criteria": [...], "status": "proposed"}. Number functional and non-functional ids
   independently from 001.
+- business_purpose_stated: boolean -- true ONLY if the material states or clearly implies an
+  actual business purpose, product, or domain (e.g. "checkout microservice for an e-commerce
+  platform", "patient records system"). false if the material describes ONLY infrastructure/
+  technical architecture (network topology, compute/storage/security components) with no stated
+  business purpose -- e.g. a bare cloud architecture diagram with generic tier labels like "App
+  Tier"/"Data Subnet" and no named product or domain. NEVER set this true by inferring or guessing
+  a plausible-sounding business domain that was not actually stated anywhere in the material --
+  Design_Doc_Agent relies on this flag to decide whether it's allowed to populate a business
+  narrative at all.
 - requirement_priorities, conflicting_requirements, requirements_needing_clarification,
   coverage_gaps: OPTIONAL, populate only where the material genuinely signals it.
 
@@ -132,17 +141,28 @@ directly to this message -- treat it exactly like the user having typed that pat
 load_directory_context with that path and treat "combined_text" as additional source material. If
 "request" explicitly asks to use a saved requirements summary, call load_requirements_summary first
 and carry forward its requirements_register/priorities/conflicts/clarifications, preserving every
-existing id exactly.
+existing id exactly. If "request" explicitly references an existing/uploaded cloud architecture
+diagram (e.g. "this architecture", "the diagram", "the cloud architecture", "the uploaded
+architecture"), call load_drawio and treat its "xml" as additional source material -- extract the
+REAL components, connections, and security controls actually present in it (e.g. ALB, WAF, VPC/
+subnet topology, IAM, KMS, RDS) into target_technology_stack/system_context_and_scope/technical_and_
+operational_constraints; a diagram with no named business product/domain in it is exactly the
+"business_purpose_stated: false" case above, not license to invent one. This is a deliberate,
+opt-in cross-pipeline read: by default the design and cloud-architecture pipelines stay isolated
+from each other's state, but when the user explicitly asks you to ground a design in an existing
+diagram, you must actually attempt it rather than silently ignoring the request.
 
 STOP CONDITION -- NO REAL SOURCE MATERIAL (CHECK BEFORE WRITING ANYTHING): after the steps above,
 you must have SOMETHING concrete to extract from -- directory combined_text (from an explicit
-directory or an attachment marker), a loaded requirements summary, or a "request" that itself
-states real, specific architectural content
+directory or an attachment marker), a loaded requirements summary, loaded diagram xml, or a
+"request" that itself states real, specific architectural content
 (a system/component name, actual constraints, named technology -- not just an instruction verb like
 "create a design document from these requirements" with nothing else). If all you have is a bare
 instruction with no real content behind it, OR load_directory_context returned "status": "NOT_FOUND"
-or "ERROR", OR "files_processed" came back empty -- STOP. Do NOT infer a plausible-sounding
-system/architecture from nothing. Call save_iteration_feedback with channel="analysis" and
+or "ERROR", OR "files_processed" came back empty, OR the request explicitly referenced a cloud
+architecture diagram and load_drawio returned "status": "NOT_FOUND" or "ERROR" -- STOP. Do NOT infer
+a plausible-sounding system/architecture from nothing. Call save_iteration_feedback with
+channel="analysis" and
 feedback={"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location": "root",
 "instruction": "<what went wrong, quoting any tool's reported reason verbatim; if the problem is
 simply that 'request' carried no real content at all, say so explicitly>", "metadata": {}}]}, then
@@ -158,7 +178,7 @@ channel="analysis" and feedback=
 
 Do not output the requirements JSON as chat text -- it belongs only inside the tool call.
 """,
-            "tools": ["load_directory_context", "load_requirements_summary", "save_iteration_feedback"]
+            "tools": ["load_directory_context", "load_requirements_summary", "load_drawio", "save_iteration_feedback"]
         },
 
         {
@@ -185,6 +205,28 @@ questions.
   status, decision date, or "decided by" person; nothing here is a minuted decision.
 - Leave review_and_governance untouched / absent -- it describes events (reviews, approvals) that
   have not happened yet.
+- If extracted_requirements.business_purpose_stated is false, the source material is infrastructure/
+  technical only with NO stated business purpose, product, or domain -- do NOT invent one (no
+  "e-commerce platform", "inventory management system", or any other fabricated business
+  narrative) just to fill business_context/document_metadata. See "INFRASTRUCTURE-ONLY INPUT" below
+  for exactly what to put there instead. This applies even when the infrastructure detail itself is
+  real, accurate, and specific (e.g. drawn from an actual uploaded diagram) -- accurate technical
+  detail is never a license to invent the business reason it supposedly exists for.
+
+# INFRASTRUCTURE-ONLY INPUT (extracted_requirements.business_purpose_stated is false)
+- document_metadata.system_name / title: reuse the source material's own name if it states one
+  (e.g. a diagram's title/label); otherwise use a neutral, infrastructure-accurate label such as
+  "<primary technology/pattern> Architecture" (e.g. "Secure 3-Tier AWS Architecture"). Never
+  substitute a fictitious product or company name.
+- business_context.purpose: state plainly that no business purpose was provided, e.g. "No business
+  objective was stated; this document describes the technical/infrastructure architecture depicted
+  in the supplied material." business_context.scope may describe the infrastructure's technical
+  scope (what the architecture covers) without implying a business scope.
+- business_context.objectives / business_drivers: leave as empty lists -- do not invent goals,
+  drivers, or stakeholders that were never stated.
+- Every other section (system_context, high_level_design, low_level_design, quality_attributes,
+  risk_register, etc.) proceeds normally, grounded strictly in the real components, connections,
+  and constraints the source material actually contains.
 
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
@@ -241,10 +283,12 @@ questions.
      because no real source material was found, quoting the issue's own "instruction" text. Stop
      here; skip the rest of this SEQUENCE.
    - Otherwise, if it returns actionable data, this is a fresh generation: extract
-     metadata.extracted_requirements from it and build the FULL document_metadata (document_id,
-     document_type="Combined", system_name, title, version, status="draft", industry_sector),
-     business_context (pull "assumptions"/"constraints" forward from the analysis's own
-     technical_and_operational_constraints if it populated them there), architecture_description
+     metadata.extracted_requirements from it -- CHECK its "business_purpose_stated" flag FIRST and
+     follow "INFRASTRUCTURE-ONLY INPUT" above if it is false -- then build the FULL
+     document_metadata (document_id, document_type="Combined", system_name, title, version,
+     status="draft", industry_sector), business_context (pull "assumptions"/"constraints" forward
+     from the analysis's own technical_and_operational_constraints if it populated them there),
+     architecture_description
      (incl. stakeholders and architecture_analysis), requirements
      (functional_requirements/non_functional_requirements mapped 1:1 from the
      requirements_register, preserving ids, priorities, and acceptance_criteria exactly),
@@ -450,6 +494,11 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
             "name": "load_requirements_summary",
             "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "load_drawio",
+            "function": {"description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."},
+            "class": "load_drawio_tool.LoadDrawioCodedTool"
         },
         {
             "name": "generate_design_flow_diagram",
