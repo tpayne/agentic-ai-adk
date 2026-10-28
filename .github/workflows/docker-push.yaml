@@ -38,6 +38,16 @@ jobs:
             file: samples/GCP/ProcessEngineering/Dockerfile
             image: adkprocesseng
 
+          - name: NeurosanProcessEngineering
+            # Build context is the repo root, not this directory: this
+            # sample's pyproject.toml depends on shared/process_toolkit,
+            # which lives outside it -- see its own Dockerfile's comments,
+            # and the matching build_context in testbuild.yml's own
+            # "neurosan_process" matrix entry.
+            context: .
+            file: samples/Neurosan/ProcessEngineering/Dockerfile
+            image: neurosanprocesseng
+
           - name: EmailProcessing
             context: samples/GCP/EmailProcessing/
             file: samples/GCP/EmailProcessing/Dockerfile
