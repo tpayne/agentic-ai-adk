@@ -649,26 +649,39 @@
   });
   window.addEventListener("focus", clearCompletionBadge);
 
+  // Only ever SHOWS a notification -- never requests permission itself.
+  // Browsers require Notification.requestPermission() to be called
+  // synchronously within a genuine user gesture (a click/keypress
+  // handler), never from inside an async callback -- this used to be
+  // called from here, deep inside notifyTurnComplete()'s own async chain
+  // (a server response arriving well after the user's original click had
+  // stopped counting as "active"), which Chrome/Safari both reject with
+  // "Notification prompting can only be done from a user gesture." See
+  // maybeRequestNotificationPermission below for where the request itself
+  // now happens instead.
   function showTurnCompleteNotification() {
-    if (!("Notification" in window)) return;
-    if (Notification.permission === "granted") {
-      try {
-        const n = new Notification("Process Architect", { body: "Your reply is ready." });
-        n.onclick = () => { window.focus(); n.close(); };
-      } catch {
-        // Best-effort -- e.g. some browsers refuse this without a service
-        // worker in certain contexts; the favicon/title badge still covers it.
-      }
-    } else if (Notification.permission !== "denied" && !notificationPermissionRequested) {
-      // Requested lazily here (the FIRST time it would actually matter),
-      // never on page load -- asking before the user has seen any reason
-      // to want it is the kind of upfront permission prompt most people
-      // reflexively deny, after which a browser won't ask again.
-      notificationPermissionRequested = true;
-      Notification.requestPermission().then((permission) => {
-        if (permission === "granted") showTurnCompleteNotification();
-      });
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      const n = new Notification("Process Architect", { body: "Your reply is ready." });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch {
+      // Best-effort -- e.g. some browsers refuse this without a service
+      // worker in certain contexts; the favicon/title badge still covers it.
     }
+  }
+
+  // Called synchronously from the composer's own "submit" handler (a real
+  // user gesture) -- the only place in this file a genuine click/keypress
+  // is still on the call stack. Only ever asks ONCE per page load
+  // (notificationPermissionRequested), and only the first time a message
+  // is actually sent -- never on page load itself, which is the kind of
+  // upfront permission prompt most people reflexively deny.
+  function maybeRequestNotificationPermission() {
+    if (!("Notification" in window)) return;
+    if (notificationPermissionRequested) return;
+    if (Notification.permission !== "default") return;
+    notificationPermissionRequested = true;
+    Notification.requestPermission();
   }
 
   // Called once per turn, regardless of outcome (done/stopped/error) --
@@ -4967,6 +4980,7 @@
 
   el.composerForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    maybeRequestNotificationPermission();
     const markdown = richTextToMarkdown(el.messageInput);
     const hasAttachments = state.pendingAttachments.length > 0;
     if (!markdown && !hasAttachments) return;
