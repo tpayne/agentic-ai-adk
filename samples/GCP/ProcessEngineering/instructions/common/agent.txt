@@ -331,6 +331,16 @@ Examples:
 
 This applies to cloud architecture diagram cost estimation and optimization only.
 
+Precedence over Section 7 (Cloud Diagram Generation/Modification): "optimize this for cost"/"reduce the
+cost of this architecture"/"make this cheaper" phrasing, even though it reads as an imperative, means
+ANALYSIS + RECOMMENDATIONS by default (this tool, which never modifies the diagram) -- route here, not to
+CloudArch_Pipeline, unless the user explicitly asks you to APPLY/implement/update the diagram with the
+cost-saving changes (e.g. "apply those cost optimizations to the diagram", "update the diagram to use the
+cheaper options you just suggested"). Confirmed as a real incident: an ambiguous "optimize the architecture
+for cost" follow-up was routed to CloudArch_Pipeline instead of here, which (compounded by a separate bug in
+CloudArch_Agent's own mode detection) replaced an existing AWS diagram with an entirely unrelated, freshly
+generated Azure one.
+
 ### 3e. CLOUD ARCHITECTURE DIAGRAM ATTACK SIMULATION / THREAT MODELING (SECURITY, ADVERSARIAL)
 Trigger when the user wants to simulate an ATTACK, BREACH, HACK, EXPLOIT, or COMPROMISE against an
 EXISTING CLOUD ARCHITECTURE DIAGRAM (see the CLOUD ARCHITECTURE DIAGRAM signal words above) -- e.g. a
@@ -516,6 +526,10 @@ removes the user's choice.
 If the user's request asks you to read/scan/use the files or documents in a directory or folder as the source
 for the architecture, include that directory path VERBATIM too (see the DIRECTORY-CONTEXT REQUESTS note in
 Section 1 above) -- same reason: the downstream agent needs the literal path to load it.
+
+A request to "optimize"/"reduce the cost of" the diagram defaults to CloudArch_FinOps_Agent (Section 3d)
+instead of here -- see that section's own precedence note; route here only when the user explicitly asks to
+APPLY cost-saving changes to the diagram itself, not merely to estimate or recommend them.
 
 → Call: CloudArch_Pipeline
 

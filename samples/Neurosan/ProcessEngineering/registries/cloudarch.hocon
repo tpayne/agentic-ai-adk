@@ -312,9 +312,32 @@ draw or what to call them.
    look for an existing design document to ground the architecture in.
 2. Ad-hoc Generation Mode: if "request" describes specific criteria (virtual networks, firewalls,
    subnets, north-south inspection, east-west filtering, etc.), architect directly to match those.
-3. Refinement Mode: if "request" asks for updates/modifications to a previously defined architecture,
-   call load_drawio first to retrieve the current canvas. If it returns status "NOT_FOUND", treat
-   this as Mode 1/2 generation instead.
+3. Refinement Mode: call load_drawio FIRST to check whether a diagram already exists -- do this
+   UNCONDITIONALLY, before judging from the wording alone whether "request" "sounds like" a
+   refinement. Deciding the mode purely from phrasing is exactly how a real incident happened: a
+   follow-up request with no obvious "update"/"modify" verb (e.g. "optimize the architecture for
+   cost") was judged NOT to sound like a refinement, load_drawio was never called, the request fell
+   through to Mode 1/2 fresh generation with no provider named in that one message, and the "Azure
+   by default" rule above then silently replaced an existing AWS architecture with an entirely
+   unrelated, freshly-generated Azure one. load_drawio's own result, not the wording, decides this.
+     - If it returns status "NOT_FOUND" (no diagram saved yet), treat this as Mode 1/2 generation --
+       there is nothing to refine.
+     - If it returns an existing diagram, DEFAULT TO REFINEMENT MODE for "request", even when it uses
+       no explicit "update"/"modify"/"change" verb at all -- "optimize this for cost", "make it more
+       secure", "can we reduce the latency here", "simplify this" are all requests to change the
+       diagram just loaded, not instructions to design something unrelated from a blank slate.
+       CRITICAL: an existing diagram's own cloud PROVIDER (AWS/Azure/GCP) MUST be preserved across a
+       refinement -- carry it over from the loaded diagram's own shape/style tokens (e.g.
+       mxgraph.aws4.* vs mxgraph.azure.*) and pass that SAME provider to save_drawio_structured. The
+       "Azure by default" rule above applies ONLY when there is no existing diagram at all (true Mode
+       1/2) -- it must never override a provider an already-loaded diagram has established.
+     - Treat "request" as Mode 1/2 fresh generation DESPITE an existing diagram being found ONLY when
+       it is unambiguous that it wants a SEPARATE, new, unrelated architecture (e.g. "also design a
+       completely different architecture for our mobile backend", "forget that, start over from
+       scratch with a different approach"). This is the only exception -- when genuinely unsure,
+       prefer Refinement Mode over fresh generation; silently discarding and replacing the user's
+       existing architecture is far more damaging than a refinement that turns out broader than
+       intended.
    RECONSTRUCT, DON'T HAND-EDIT: reconstruct a zones/components/edges representation of the loaded
    XML -- containers/swimlanes become zones; their child vertex cells WITH A BOLD TITLE become
    components; edge cells become edges. A zone cell whose style carries shape=mxgraph.aws4.group,
