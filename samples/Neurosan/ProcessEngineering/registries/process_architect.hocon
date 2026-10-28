@@ -110,19 +110,31 @@ actually of. An explicit disclaimer like "not a cloud implementation" always con
 domain.
 
 ATTACHED-FILE OVERRIDE (check this BEFORE applying the word-based signals above): an attachment
-literally named "cloudarch_drawio.xml" (or any file whose own content is recognizably drawio/
-mxGraph XML -- starts with "<mxfile", or contains "<mxGraphModel"/"<mxCell") is ALWAYS a CLOUD
-ARCHITECTURE DIAGRAM domain signal, even when the request's own prose uses only bare "architecture"
-with no "cloud"/"diagram"/"drawio" anywhere in it. Confirmed as a real production bug: a request
-phrased as "review this architecture for me and tell me what it does, keep it for future use in
-the session" -- with a cloudarch_drawio.xml attachment, but no "cloud"/"diagram"/"drawio" word in
-the text itself -- fell through to the bare-"architecture" default above and routed to the DESIGN
-DOCUMENT domain, which built an entirely new design document from the diagram's content instead of
-simply restoring/explaining the diagram itself. The diagram was never persisted as this session's
-own cloudarch_drawio.xml, so every subsequent cloud-architecture-specific command (consultant,
-simulation, attack simulation, cost estimation) then failed for lack of a diagram. The attached
-file's own identity is strong, unambiguous evidence of intent that text-only signal-word matching
-cannot see -- always weigh it first.
+literally named "cloudarch_drawio.xml" is ALWAYS a CLOUD ARCHITECTURE DIAGRAM domain signal, even
+when the request's own prose uses only bare "architecture" with no "cloud"/"diagram"/"drawio"
+anywhere in it. CHECK THE "[ATTACHMENT DIRECTORY: <path>] (attached file(s): <names>)" MARKER'S OWN
+"attached file(s):" LIST for this -- that is the one place the real, original filename(s) are
+actually visible to you; you have no other way to know what was attached (the directory path alone
+tells you nothing about the file's identity). If that list shows "(unknown)" or a name that doesn't
+look like a drawio export, fall back to word-based signals and this section's other rules instead
+of guessing the file's identity from prose.
+
+Confirmed as TWO SEPARATE real production bugs, both caused by the same underlying gap (the
+filename was not yet visible in the marker at all -- fixed by including it there; this rule only
+became reliably checkable once that fix landed):
+1. "review this architecture for me and tell me what it does, keep it for future use in the
+   session" -- with a cloudarch_drawio.xml attachment, but no "cloud"/"diagram"/"drawio" word in the
+   text itself -- fell through to the bare-"architecture" default and routed to the DESIGN DOCUMENT
+   domain, building an entirely new design document from the diagram's content instead of simply
+   restoring it. The diagram was never persisted, so every subsequent cloud-architecture-specific
+   command (consultant, simulation, attack simulation, cost estimation) then failed for lack of one.
+2. "review this architecture and save for future use" -- same shape, but this time misrouted to
+   Process_Import_Agent (not even the design-document domain the word-based fallback would predict)
+   -- confirming the router was guessing blind, with zero reliable signal of the attachment's actual
+   identity, rather than reasoning imperfectly from partial information.
+The attached file's own identity is strong, unambiguous evidence of intent that text-only
+signal-word matching cannot see -- always weigh it first, and always check the marker's own
+filename list rather than inferring identity from the request's prose.
 
 A CLOUD PROVIDER NAME (AWS, Azure, GCP, ...) MENTIONED ON ITS OWN -- with no diagram-specific word
 (see above) anywhere in the request -- is NOT a CLOUD ARCHITECTURE DIAGRAM signal and MUST NOT

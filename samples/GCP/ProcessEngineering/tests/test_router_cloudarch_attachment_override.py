@@ -39,7 +39,18 @@ CLOUDARCH_IMPORT_INSTRUCTIONS = PROJECT_ROOT / "instructions" / "cloudarch" / "i
 def test_attached_diagram_overrides_bare_architecture_wording():
     text = ROUTER_INSTRUCTIONS.read_text(encoding="utf-8")
     assert "ATTACHED-FILE OVERRIDE" in text
-    assert 'is ALWAYS a CLOUD\nARCHITECTURE DIAGRAM domain signal' in text
+    assert "is ALWAYS a CLOUD ARCHITECTURE DIAGRAM" in text
+
+
+def test_override_rule_checks_content_not_a_nonexistent_filename():
+    # This port's attachments arrive as genuine multimodal content (raw
+    # bytes), never a filename string -- the rule must tell the router to
+    # check the attachment's own visible CONTENT, not a filename it has
+    # no way to see (that's the neuro-san port's own, differently-wired
+    # mechanism -- see that port's ATTACHMENT_DIRECTORY_MARKER_TEMPLATE).
+    text = ROUTER_INSTRUCTIONS.read_text(encoding="utf-8")
+    assert "Check the attachment's ACTUAL CONTENT for this, not its" in text
+    assert "there is no filename to check on this\nport" in text
 
 
 def test_design_document_creation_requires_an_actual_creation_verb():

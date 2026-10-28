@@ -66,7 +66,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 
@@ -186,7 +186,7 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # (see ChatSession._attachments_directory/_ingest_attachments below) via
 # stage_attachments_to_directory, and that directory's path is appended
 # directly to the user's own message text as a literal
-# "[ATTACHMENT DIRECTORY: <path>]" marker (see
+# "[ATTACHMENT DIRECTORY: <path>] (attached file(s): <names>)" marker (see
 # ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) -- NOT passed through sly_data to
 # a dedicated CodedTool. An earlier version of this did exactly that (a
 # "load_attached_files" CodedTool reading sly_data), which is architecturally
@@ -200,7 +200,21 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # user who types a path themselves -- no new tool-calling behavior to
 # rely on, and the path is directly visible in the agent's own thinking-
 # file trace for debugging, instead of sitting invisibly in sly_data.
-ATTACHMENT_DIRECTORY_MARKER_TEMPLATE = "[ATTACHMENT DIRECTORY: {path}]"
+#
+# The marker ALSO includes the original filename(s), not just the staging
+# directory's own (randomly-named) path -- confirmed as a real production
+# bug without this: process_architect.hocon's own router instructions tell
+# it an attachment "literally named cloudarch_drawio.xml" is always a
+# cloud-architecture-diagram signal, but the router never actually SAW
+# that filename anywhere in its own input (only the opaque temp directory
+# path) -- it had no way to apply its own rule, only to guess from prose
+# wording, and that guessing failed in practice (e.g. "review this
+# architecture and save for future use" was misrouted to Process_Import_
+# Agent, not even the design-document domain the word-based fallback would
+# predict). Including the real filename(s) here lets the router's own
+# literal-filename check actually run as written, deterministically,
+# instead of depending on the model's prose-based intuition every time.
+ATTACHMENT_DIRECTORY_MARKER_TEMPLATE = "[ATTACHMENT DIRECTORY: {path}] (attached file(s): {filenames})"
 ATTACHMENT_MAX_FILES = 4
 ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
 
@@ -350,17 +364,22 @@ def _parse_attachments(payload: Dict[str, Any]) -> "tuple[Optional[List[Dict[str
     return decoded, None
 
 
-def _append_attachment_directory_marker(text: str, directory: Optional[str]) -> str:
-    """Appends an "[ATTACHMENT DIRECTORY: <path>]" marker (see
-    ATTACHMENT_DIRECTORY_MARKER_TEMPLATE's own comment for why this is a
-    literal text marker rather than a sly_data-only signal) onto the
-    user's own message text, so the agent network's existing "request
-    explicitly names a directory" handling picks it up exactly like a
-    user who typed a path themselves. Returns `text` unchanged when
-    `directory` is None (no attachment this turn)."""
+def _append_attachment_directory_marker(
+    text: str, directory: Optional[str], filenames: Optional[List[str]] = None,
+) -> str:
+    """Appends an "[ATTACHMENT DIRECTORY: <path>] (attached file(s): <names>)"
+    marker (see ATTACHMENT_DIRECTORY_MARKER_TEMPLATE's own comment for why
+    this is a literal text marker rather than a sly_data-only signal, and
+    why the filenames are included, not just the path) onto the user's
+    own message text, so the agent network's existing "request explicitly
+    names a directory" handling picks it up exactly like a user who typed
+    a path themselves. Returns `text` unchanged when `directory` is None
+    (no attachment this turn)."""
     if not directory:
         return text
-    marker = ATTACHMENT_DIRECTORY_MARKER_TEMPLATE.format(path=directory)
+    marker = ATTACHMENT_DIRECTORY_MARKER_TEMPLATE.format(
+        path=directory, filenames=", ".join(filenames) if filenames else "(unknown)",
+    )
     return f"{text}\n\n{marker}" if text else marker
 
 
@@ -533,7 +552,9 @@ class ChatSession:
         turns."""
         shutil.rmtree(self._attachments_directory, ignore_errors=True)
 
-    def _ingest_attachments(self, files: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+    def _ingest_attachments(
+        self, files: Optional[List[Dict[str, Any]]],
+    ) -> Optional[Tuple[str, List[str]]]:
         """
         Stages this turn's attached files (see _parse_attachments) into
         this session's FIXED self._attachments_directory
@@ -541,16 +562,24 @@ class ChatSession:
         clears any files already there first, so a later turn's set
         never mixes with an earlier one left behind in the same path).
 
-        Returns that directory path if files were staged THIS turn, or
-        None if `files` was empty. The caller (send()/send_streaming())
-        uses a non-None return to append an
-        "[ATTACHMENT DIRECTORY: <path>]" marker (see
-        ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) directly onto the user's
-        own message text -- a literal, visible string every network's
-        existing "request explicitly names a directory" handling already
-        knows how to act on, rather than a side channel (sly_data plus a
-        dedicated CodedTool) an agent has to remember to separately call
-        before anything else, every single turn.
+        Returns (directory path, [original filenames]) if files were
+        staged THIS turn, or None if `files` was empty. The caller
+        (send()/send_streaming()) uses a non-None return to append an
+        "[ATTACHMENT DIRECTORY: <path>] (attached file(s): <names>)"
+        marker (see ATTACHMENT_DIRECTORY_MARKER_TEMPLATE) directly onto
+        the user's own message text -- a literal, visible string every
+        network's existing "request explicitly names a directory"
+        handling already knows how to act on, rather than a side channel
+        (sly_data plus a dedicated CodedTool) an agent has to remember to
+        separately call before anything else, every single turn. The
+        filenames are included alongside the path (not just the path
+        alone) so the router's own ATTACHED-FILE OVERRIDE rule -- "an
+        attachment literally named cloudarch_drawio.xml ... is always a
+        signal" -- has something real to check; without them, the router
+        only ever saw an opaque staging-directory path and had to guess
+        the file's identity from prose alone, which failed in practice
+        (confirmed: a real misroute to Process_Import_Agent for an
+        attached cloud architecture diagram).
 
         No-op (returns None, touches nothing on disk) when `files` is
         empty -- a turn with no NEW attachments leaves the directory's
@@ -590,7 +619,7 @@ class ChatSession:
             "Staged %d attached file(s) to %s: %s",
             len(result["files_written"]), result["directory"], result["files_written"],
         )
-        return result["directory"]
+        return result["directory"], result["files_written"]
 
     def close(self) -> None:
         """Releases this session's resources: the attachment-staging
@@ -606,8 +635,11 @@ class ChatSession:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
             try:
-                attachments_directory = self._ingest_attachments(files)
-                effective_text = _append_attachment_directory_marker(text, attachments_directory)
+                staged = self._ingest_attachments(files)
+                attachments_directory, attachment_filenames = staged if staged else (None, None)
+                effective_text = _append_attachment_directory_marker(
+                    text, attachments_directory, attachment_filenames,
+                )
                 state = {
                     "last_chat_response": None,
                     "user_input": effective_text,
@@ -697,8 +729,11 @@ class ChatSession:
         with self._lock:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
-            attachments_directory = self._ingest_attachments(files)
-            effective_text = _append_attachment_directory_marker(text, attachments_directory)
+            staged = self._ingest_attachments(files)
+            attachments_directory, attachment_filenames = staged if staged else (None, None)
+            effective_text = _append_attachment_directory_marker(
+                text, attachments_directory, attachment_filenames,
+            )
             processor = self.input_processor.get_message_processor()
             chat_filter = {"chat_filter_type": "MAXIMAL"}
             chat_request = self.input_processor.formulate_chat_request(
