@@ -82,12 +82,18 @@ requirements, design, or audit the document yourself.
 7. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
    of the current design.
 8. Call generate_design_document once, passing the design's own system/title name as
-   "process_name", to produce the final ISO-formatted Word document.
+   "process_name", to produce the final ISO-formatted Word document. Its result is a plain string
+   starting with either "SUCCESS:" or "ERROR:" -- remember which one it was for step 9.
 9. Report the outcome in plain language: if "reason" was "APPROVED", say the design document was
    created/updated and passed compliance and architecture-simulation review. If "MAX_ITERATIONS",
    say a design was produced but still has open review feedback after the maximum number of
-   revision passes. Mention that a Word document and architecture diagram were produced either
-   way. Plain prose only -- no raw JSON, tool names, or internal field names.
+   revision passes. Only say a Word document was produced if step 8's own result actually started
+   with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document could
+   not be generated and why (using the error's own text), even though a design and diagram were
+   produced. NEVER claim a document was produced "either way" when the tool itself reported
+   otherwise -- confirmed as a real production bug: a prior version of this instruction asserted
+   success unconditionally regardless of what generate_design_document actually returned. Plain
+   prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_Agent", "Compliance_Agent",
@@ -313,8 +319,15 @@ questions.
    existing valid content).
 5. Call validate_design_json with the JSON you intend to persist. If "valid" is false, fix exactly
    the fields "issues" names and validate again; repeat until valid.
-6. Call persist_final_design_json with the final, valid JSON object -- but only if you actually
-   changed something.
+6. Call persist_final_design_json with the final, valid JSON object. For a FRESH generation (the
+   baseline from load_master_design_json was the empty template), this call is UNCONDITIONAL --
+   going from nothing to a populated document is always a change, so always persist. Skipping this
+   step after building a fresh document leaves Compliance_Agent/Simulation_Agent auditing the SAME
+   empty template on every subsequent pass (their own load_master_design_json finds nothing new),
+   which looks like perpetual compliance failure and burns through max_iterations without ever
+   producing a real document -- confirmed as a real production bug, not a hypothetical one. For a
+   revision pass over an existing real baseline, persist only if you actually changed something in
+   response to compliance/simulation feedback.
 
 Do not output the JSON as chat text -- it belongs only inside tool calls.
 """,

@@ -37,6 +37,29 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
 4. HLD ARCHITECTURE GENERATION (INITIAL PASS):
    - If no baseline exists, load design_document_schema.json's instance template via load_design_template.
    - Construct the High-Level Architecture, populating these design_document_schema.json sections (verified against the actual schema -- use these exact paths, not approximations):
+     - INFRASTRUCTURE-ONLY INPUT CHECK (do this FIRST, before populating business_context or
+       document_metadata.system_name/title): if metadata.extracted_requirements.business_purpose_stated
+       is false, the source material is infrastructure/technical only -- e.g. drawn from an existing
+       cloud architecture diagram with no stated business purpose, product, or domain. Do NOT invent
+       one (no "e-commerce platform", "inventory management system", or any other fabricated business
+       narrative) just to fill the schema -- this applies even when the infrastructure detail itself is
+       real, accurate, and specific; accurate technical detail is never a license to invent the
+       business reason it supposedly exists for. Instead:
+         - document_metadata.system_name/title: reuse the source material's own name if it states one
+           (e.g. a diagram's title/label), otherwise a neutral, infrastructure-accurate label such as
+           "<primary technology/pattern> Architecture" (e.g. "Secure 3-Tier AWS Architecture"). Never
+           substitute a fictitious product or company name.
+         - business_context.purpose: state plainly that no business purpose was provided, e.g. "No
+           business objective was stated; this document describes the technical/infrastructure
+           architecture depicted in the supplied material." business_context.scope may describe the
+           infrastructure's technical scope without implying a business scope.
+         - business_context.objectives / business_drivers: leave as empty lists -- do not invent
+           goals, drivers, or stakeholders that were never stated.
+         - Every other section below proceeds normally, grounded strictly in the real components,
+           connections, and constraints the source material actually contains.
+       If business_purpose_stated is true (or the field is absent, e.g. a purely conversational
+       request where Design_Doc_Analysis_Agent judged a real business purpose was stated), proceed
+       with business_context/document_metadata as normal below.
      - document_metadata.document_type: set to "HLD" (standard reference: ISO/IEC/IEEE 42010, ISO/IEC 25010, C4/arc42).
      - business_context: purpose, scope, objectives, business_drivers.
      - system_context: actors, external_systems, context_diagram (C4 Level 1 context, external dependencies, system boundary).
@@ -118,5 +141,12 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
      of editing content further. Iterate fixes until "valid": true.
 
 6. PERSISTENCE:
-   - Call persist_final_design_json ONLY if changes were made or schema repair occurred.
+   - Call persist_final_design_json. For a FRESH generation (no baseline existed, or step 4 built
+     the initial HLD from the empty template), this call is UNCONDITIONAL -- going from nothing to
+     a populated document is always a change, so always persist. Skipping this after building a
+     fresh document leaves every downstream auditor reading the SAME empty template on every later
+     pass (their own load_master_design_json finds nothing new), which looks like perpetual
+     compliance failure and burns through the revision budget without ever producing a real
+     document -- confirmed as a real production bug, not a hypothetical one. For a revision pass
+     over an existing real baseline, persist only if changes were made or schema repair occurred.
    - Output zero chat text or commentary.

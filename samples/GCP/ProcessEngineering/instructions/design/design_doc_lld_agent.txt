@@ -139,5 +139,11 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
    - Repeat until "valid": true.
 
 6. PERSISTENCE:
-   - Call persist_final_design_json ONLY if concrete updates or schema repairs occurred.
+   - Call persist_final_design_json. For a FRESH elaboration pass (the HLD baseline had no
+     low_level_design content yet), this call is UNCONDITIONAL -- going from no LLD content to a
+     populated low_level_design is always a change, so always persist. Skipping this after
+     building fresh content leaves every downstream auditor reading a document with no LLD on
+     every later pass, which looks like perpetual compliance failure and burns through the
+     revision budget without ever producing a real document. For a later revision pass over
+     existing LLD content, persist only if concrete updates or schema repairs occurred.
    - Output zero chat text or commentary.
