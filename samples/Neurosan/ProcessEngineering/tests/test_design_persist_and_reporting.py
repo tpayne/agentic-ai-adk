@@ -42,6 +42,28 @@ reason was "MAX_ITERATIONS" rather than "APPROVED" -- replaced with an
 unmissable, explicitly-labeled MANDATORY block spelling out that open
 review feedback is input for a FUTURE revision, never a reason to
 withhold the diagram/document for the design that exists right now.
+
+A FOURTH bug surfaced on the actual live retry of all three fixes above:
+Design_Doc_Pipeline's first command of that chat session STILL never
+produced a design_data.json at all (confirmed via the server's own
+cli.log: EdgeInference logged "Design document JSON not found" and
+create_standard_doc_from_file raised FileNotFoundError on the exact same
+path, for that exact run) -- meaning Design_Doc_Agent never reached its
+own persist step within that single invocation (most likely stuck
+earlier in the build/validate loop and never got that far, rather than
+reaching persist and skipping it). The orchestrator's own final report
+for that run STILL described specific architecture content ("a
+microservices-based architecture... utilizing Kubernetes... RDS and
+DynamoDB") that matches neither the user's real uploaded diagram (a
+plain 3-tier AWS VPC/ALB/WAF/RDS design) nor anything ever written to
+disk -- i.e. the orchestrator fabricated its summary outright rather
+than reporting that nothing was actually produced. Two fixes: (a)
+Design_Doc_Agent now persists the full document BEFORE validating it
+(not only after validation succeeds), so an interrupted pass still
+leaves a real, correctable draft on disk instead of nothing; (b) the
+orchestrator's step 9 now explicitly forbids describing the design's own
+content from guesswork -- if step 7/8 reported a missing design, it must
+say so plainly instead of inventing specifics.
 """
 
 from pathlib import Path
@@ -52,8 +74,23 @@ DESIGN_HOCON = PROJECT_ROOT / "registries" / "design.hocon"
 
 def test_design_doc_agent_persists_unconditionally_on_a_fresh_generation():
     text = DESIGN_HOCON.read_text(encoding="utf-8")
-    assert "this call is UNCONDITIONAL" in text
-    assert "always persist" in text
+    assert "this first\n   persist is UNCONDITIONAL" in text
+
+
+def test_design_doc_agent_persists_before_validating_not_only_after():
+    # The actual root cause of the "never produced a design json" bug:
+    # the old ordering (validate-until-valid, THEN persist) meant an
+    # interrupted pass left nothing on disk at all. Persisting first
+    # guarantees a real, correctable draft always exists.
+    text = DESIGN_HOCON.read_text(encoding="utf-8")
+    assert "BEFORE validating\n   it" in text
+    assert "call persist_final_design_json AGAIN with the corrected" in text
+
+
+def test_design_doc_pipeline_never_invents_architecture_content_it_cannot_verify():
+    text = DESIGN_HOCON.read_text(encoding="utf-8")
+    assert "NEVER describe the design's own content" in text
+    assert "a design could not be completed and saved this time" in text
 
 
 def test_design_doc_pipeline_never_claims_success_the_tool_itself_denied():

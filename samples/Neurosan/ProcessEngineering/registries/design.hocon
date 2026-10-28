@@ -103,8 +103,20 @@ Call both now, regardless of "reason".
    not be generated and why (using the error's own text), even though a design and diagram were
    produced. NEVER claim a document was produced "either way" when the tool itself reported
    otherwise -- confirmed as a real production bug: a prior version of this instruction asserted
-   success unconditionally regardless of what generate_design_document actually returned. Plain
-   prose only -- no raw JSON, tool names, or internal field names.
+   success unconditionally regardless of what generate_design_document actually returned.
+   NEVER describe the design's own content -- architecture style, technologies, components -- from
+   your own general knowledge, guess, or what would sound plausible. You have not read the design
+   JSON yourself; you only know what reason/step 7's/step 8's own tool results actually said. If
+   step 7 or step 8 reported a missing design (e.g. "Ensure output/design_data.json exists", or any
+   other NOT_FOUND/ERROR about the design data itself, as opposed to a downstream compliance/
+   simulation complaint), this means NO design was actually produced this run, regardless of
+   anything Design_Doc_Agent/Compliance_Agent/Simulation_Agent said internally -- say so plainly
+   ("a design could not be completed and saved this time; please try again") rather than inventing
+   or repeating a plausible-sounding architecture description you cannot verify is real. Confirmed
+   as a real production bug: a run where design_data.json never existed on disk at all still
+   reported specific, invented architecture details (a "microservices on Kubernetes with DynamoDB"
+   description) that matched neither the user's actual input nor anything ever written to disk.
+   Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_Agent", "Compliance_Agent",
@@ -328,17 +340,24 @@ questions.
 4. If the baseline is missing required fields, including acceptance criteria or sequence-flow
    participant/message structure, repair them in place (infer reasonable values; never remove
    existing valid content).
-5. Call validate_design_json with the JSON you intend to persist. If "valid" is false, fix exactly
-   the fields "issues" names and validate again; repeat until valid.
-6. Call persist_final_design_json with the final, valid JSON object. For a FRESH generation (the
-   baseline from load_master_design_json was the empty template), this call is UNCONDITIONAL --
-   going from nothing to a populated document is always a change, so always persist. Skipping this
-   step after building a fresh document leaves Compliance_Agent/Simulation_Agent auditing the SAME
-   empty template on every subsequent pass (their own load_master_design_json finds nothing new),
-   which looks like perpetual compliance failure and burns through max_iterations without ever
-   producing a real document -- confirmed as a real production bug, not a hypothetical one. For a
-   revision pass over an existing real baseline, persist only if you actually changed something in
-   response to compliance/simulation feedback.
+5. Call persist_final_design_json with the FULL document you just built/revised, BEFORE validating
+   it -- this ordering is deliberate, not optional: confirmed as a real production bug where a run
+   that never reached a later step (ran out of turns mid-loop, or otherwise stopped partway through
+   this SEQUENCE) left NOTHING on disk at all, so Compliance_Agent/Simulation_Agent/the diagram/the
+   Word document/the orchestrator's own final report all had no real design to work from, and the
+   orchestrator ended up fabricating a plausible-sounding architecture description instead of
+   reporting that nothing was actually produced -- confirmed directly against a real run (an
+   invented "microservices on Kubernetes with DynamoDB" description that matched neither the user's
+   actual input nor anything ever written to disk). An imperfect draft persisted now and corrected
+   below is categorically better than a perfect draft that never gets persisted at all. For a FRESH
+   generation (the baseline from load_master_design_json was the empty template), this first
+   persist is UNCONDITIONAL. For a revision pass over an existing real baseline, persist only if
+   you actually changed something in response to compliance/simulation feedback.
+6. Call validate_design_json with the SAME JSON you just persisted. If "valid" is false, fix
+   exactly the fields "issues" names, call persist_final_design_json AGAIN with the corrected
+   object, then validate again; repeat until valid. Each correction is persisted immediately, not
+   only the final one -- if this loop is interrupted partway, the most recently corrected version
+   (never the original draft, and never nothing) is what is on disk for the next pass to build on.
 
 Do not output the JSON as chat text -- it belongs only inside tool calls.
 """,
