@@ -57,12 +57,23 @@ and Simulation_Agent each audit the result, and you decide whether to repeat usi
    - "CONTINUE": go back to step 3 and call Design_Doc_Agent again.
    - "STOP": proceed to step 7. Do NOT call Design_Doc_Agent, Compliance_Agent, or Simulation_Agent
      again this turn.
+
+MANDATORY, NO EXCEPTIONS: steps 7 and 8 below ALWAYS run once "verdict" is "STOP", for EVERY stop
+reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". An open compliance/
+simulation item is feedback for a FUTURE revision, not a reason to withhold the diagram or
+document for the design that exists RIGHT NOW. Call both now, regardless of "reason".
 7. Call generate_design_flow_diagram once (no arguments).
 8. Call generate_design_document once, passing the design's own system/title name as
-   "process_name".
+   "process_name". Its result is a plain string starting with either "SUCCESS:" or "ERROR:" --
+   remember which one it was for step 9.
 9. Report the outcome in plain language (approved vs. still-open feedback after the revision
-   limit). Mention that a Word document and diagram were refreshed either way. Plain prose only --
-   no raw JSON, tool names, or internal field names.
+   limit). Mention that the diagram was refreshed. Only say the Word document was refreshed if
+   step 8's own result actually started with "SUCCESS:" -- if it started with "ERROR:" instead,
+   say plainly that the Word document could not be regenerated and why (using the error's own
+   text), even though the diagram was refreshed. NEVER claim a document was produced "either way"
+   when the tool itself reported otherwise. NEVER describe the design's own content from your own
+   general knowledge or guess -- you only know what reason/step 8's own tool result actually said.
+   Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Design_Doc_Update_Analyst", "Design_Doc_Agent", "Compliance_Agent",

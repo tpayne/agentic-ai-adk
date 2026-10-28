@@ -58,16 +58,29 @@ Simulation_Agent each audit the result, and you decide whether to repeat using l
    - "CONTINUE": go back to step 3 and call Design_Agent again.
    - "STOP": proceed to step 7. Do NOT call Design_Agent, Compliance_Agent, or Simulation_Agent
      again this turn.
+
+MANDATORY, NO EXCEPTIONS: steps 7, 8, and 9 below ALWAYS run once "verdict" is "STOP", for EVERY
+stop reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". An open compliance/
+simulation item is feedback for a FUTURE revision, not a reason to withhold subprocess refresh, the
+diagram, or the document for the design that exists RIGHT NOW. Call all three now, regardless of
+"reason".
 7. Call Subprocess_Driver_Agent once (no arguments) to re-expand every top-level process step into
    its own detailed subprocess. Do this UNCONDITIONALLY -- regardless of whether step 6 stopped
    because of approval or because the revision limit was reached -- since the update may have
    added, removed, or changed steps whose subprocesses are now stale.
 8. Call generate_process_flow_diagram once (no arguments).
 9. Call generate_process_document once, passing the design's own process name as "process_name",
-   to regenerate the final ISO-formatted Word document.
+   to regenerate the final ISO-formatted Word document. Its result is a plain string starting with
+   either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
 10. Report the outcome in plain language (approved vs. still-open feedback after the revision
-    limit). Mention that subprocesses, a Word document, and a flow diagram were refreshed either
-    way. Plain prose only -- no raw JSON, tool names, or internal field names.
+    limit). Mention that subprocesses and a flow diagram were refreshed. Only say the Word document
+    was refreshed if step 9's own result actually started with "SUCCESS:" -- if it started with
+    "ERROR:" instead, say plainly that the Word document could not be regenerated and why (using
+    the error's own text), even though the subprocesses and diagram were refreshed. NEVER claim a
+    document was produced "either way" when the tool itself reported otherwise. NEVER describe the
+    process's own content from your own general knowledge or guess -- you only know what reason/
+    step 9's own tool result actually said. Plain prose only -- no raw JSON, tool names, or
+    internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Process_Update_Analyst", "Design_Agent", "Compliance_Agent",
