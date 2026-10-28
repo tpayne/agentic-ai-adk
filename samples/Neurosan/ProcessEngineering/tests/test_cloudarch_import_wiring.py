@@ -7,20 +7,44 @@ instead of being restored verbatim as the active diagram, since the router
 had no cloud-architecture option in its "import an already-existing
 document" decision at all.
 
-Structural HOCON validation (including that the "class" path referenced
-below actually resolves via neuro-san's own Resolver) is covered separately
-by test_hocon_validation.py -- this file instead locks in that the new
-network's own tool re-exports the same canonical save_drawio_xml function
-process.hocon's own CloudArch_Agent already uses (no forked/duplicated
-persistence logic), and that the router's own instructions and the
-manifest actually mention the new network.
+`ns validate` (test_hocon_validation.py) checks HOCON structure but does
+NOT catch a "class" reference that's syntactically fine yet resolves to
+the wrong place on disk -- confirmed the hard way: this network originally
+shipped with load_directory_context_tool/load_drawio_tool referenced by
+their bare module names with NO coded_tools/cloudarch_import/ shim
+directory at all, passed `ns validate` clean, and then failed on the live
+server the first time CloudArch_Import_Agent actually tried to call
+load_directory_context ("Could not find class ... under AGENT_TOOL_PATH
+'coded_tools' ... in the agent network 'cloudarch_import'").
+test_coded_tool_class_resolution.py now guards every network's every
+"class" reference against this exact failure mode generically; the
+identity checks below lock in specifically that THIS network's own shims
+(coded_tools/cloudarch_import/load_directory_context_tool.py,
+.../load_drawio_tool.py) re-export the real canonical classes rather than
+forked copies. restore_drawio_xml_tool.py has no shim to check here --
+CloudArch_Import_Agent is its only caller, so it lives directly under
+coded_tools/cloudarch_import/ as its own canonical home.
 """
 
 from pathlib import Path
 
-from coded_tools.cloudarch.restore_drawio_xml_tool import RestoreDrawioXmlCodedTool
+from coded_tools.requirements_summary.load_directory_context_tool import (
+    LoadDirectoryContextCodedTool as CanonicalLoadDirectoryContext,
+)
+from coded_tools.cloudarch.load_drawio_tool import LoadDrawioCodedTool as CanonicalLoadDrawio
+from coded_tools.cloudarch_import.load_directory_context_tool import LoadDirectoryContextCodedTool
+from coded_tools.cloudarch_import.load_drawio_tool import LoadDrawioCodedTool
+from coded_tools.cloudarch_import.restore_drawio_xml_tool import RestoreDrawioXmlCodedTool
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_cloudarch_import_shims_reexport_the_canonical_classes():
+    # Imported from the network's OWN shim path above -- the same import
+    # neuro-san's own resolver performs at runtime -- and asserted `is`
+    # (identity, not just equality) the canonical class.
+    assert LoadDirectoryContextCodedTool is CanonicalLoadDirectoryContext
+    assert LoadDrawioCodedTool is CanonicalLoadDrawio
 
 
 def test_restore_drawio_xml_tool_delegates_to_the_canonical_save_function(tmp_path, monkeypatch):

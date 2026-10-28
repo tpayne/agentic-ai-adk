@@ -1,11 +1,17 @@
 """CodedTool: persist an already-complete cloud architecture diagram's raw
-XML VERBATIM -- as opposed to save_drawio_structured_tool.py's
-SaveDrawioStructuredCodedTool, which BUILDS the XML from structured zones/
-components/edges via the layout engine. This one is for CloudArch_Import_
-Agent's own literal-restore case: the content already IS valid drawio/
-mxGraph XML (e.g. a cloudarch_drawio.xml re-attached after being downloaded
-earlier), so there is nothing to build -- just the same validate-and-
-persist save_drawio_xml already does for every other save path.
+XML VERBATIM -- as opposed to cloudarch.hocon's own save_drawio_structured
+(coded_tools/cloudarch/save_drawio_structured_tool.py's
+SaveDrawioStructuredCodedTool), which BUILDS the XML from structured
+zones/components/edges via the layout engine. This one is for
+CloudArch_Import_Agent's own literal-restore case: the content already IS
+valid drawio/mxGraph XML (e.g. a cloudarch_drawio.xml re-attached after
+being downloaded earlier), so there is nothing to build -- just the same
+validate-and-persist save_drawio_xml already does for every other save
+path. Lives directly under coded_tools/cloudarch_import/ (not a shim
+re-exporting from elsewhere) since CloudArch_Import_Agent is this class's
+only caller -- see coded_tools/process_subprocess_regenerate/
+subprocess_tool.py's own docstring for why every OTHER tool this agent
+uses (load_directory_context, load_drawio) needs a shim here instead.
 """
 
 import asyncio

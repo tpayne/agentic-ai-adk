@@ -145,6 +145,9 @@ Once a design document exists on disk, it can be queried (`design_consultant`), 
 │   ├── cloudarch_attack_simulation_query
 │   ├── cloudarch_consultant
 │   ├── cloudarch_finops
+│   ├── cloudarch_import              # CloudArch_Import_Agent's own tools -- load_directory_context_tool.py/
+│   │   │                            # load_drawio_tool.py re-export the canonical classes above;
+│   │   │                            # restore_drawio_xml_tool.py lives here directly (no other caller)
 │   ├── cloudarch_simulation_query
 │   ├── common                       # Shared, framework-agnostic logic every per-network
 │   │   │                            # directory below re-exports thin wrappers around
@@ -175,6 +178,8 @@ Once a design document exists on disk, it can be queried (`design_consultant`), 
 │   ├── process_import
 │   ├── process_scenario_tester
 │   ├── process_simulation_query
+│   ├── process_subprocess_regenerate # Subprocess_Driver_Agent_Main's own tools -- re-exports
+│   │   │                            # process/subprocess_tool.py's own canonical classes
 │   ├── process_update
 │   ├── regenerate_document           # Regenerate_Document_Agent's own tools (re-export of the
 │   │   │                            # process/design doc-gen and diagram tools above)
@@ -1087,6 +1092,29 @@ whichever pipeline it routes to has a *separate* 300s budget of its own. A full 
 (analysis → design → compliance → simulation, looped, plus one subprocess-expansion call per
 top-level step) can genuinely exceed 5 minutes. `config/llm_config.hocon` sets
 `"max_execution_seconds": 3600`, which every network inherits.
+
+**A "class" reference resolves per-network, not project-wide -- `ns validate` does not catch a wrong
+one.** When a new standalone network reuses an existing CodedTool class (e.g.
+`process_subprocess_regenerate.hocon` reusing `process.hocon`'s own `subprocess_tool.py`, or
+`cloudarch_import.hocon` reusing `requirements_summary`'s `load_directory_context_tool.py`), neuro-san's
+own class resolution (`abstract_class_activation.py`'s `_attempt_resolve`) tries EXACTLY two package
+candidates for a flat (non-nested) network name -- `coded_tools.<this_network_name>.<module>` and the
+bare `coded_tools.<module>` -- never any OTHER existing network's own subdirectory, no matter how
+genuinely shared the real implementation is. `ns validate` only checks HOCON *structure*, not that the
+referenced class is actually importable at one of those two locations, so a missing shim passes
+validation clean and only fails on a live server the first time an agent actually tries to call the
+tool ("Could not find class ... under AGENT_TOOL_PATH 'coded_tools' ... in the agent network
+'&lt;name&gt;'" -- confirmed directly, the hard way, for both networks named above). **The fix for a new
+network that reuses another's tool class is always a thin per-network shim** --
+`coded_tools/&lt;new_network&gt;/&lt;module&gt;.py` that just does
+`from coded_tools.&lt;owning_network&gt;.&lt;module&gt; import TheClass` (see
+`coded_tools/process_subprocess_regenerate/subprocess_tool.py` or
+`coded_tools/cloudarch_import/load_directory_context_tool.py` for the pattern) -- never reference the
+owning network's own subdirectory directly in the new network's HOCON "class" field, since that's
+exactly the candidate neuro-san's resolver does NOT try. `tests/test_coded_tool_class_resolution.py`
+reproduces this exact two-candidate algorithm for every "class" reference in every network this port
+owns, so a future standalone network that forgets its own shim fails at test time instead of on a live
+server mid-conversation.
 
 **Conversation-history summarization.** A pipeline front-man calls several of its own tools in
 sequence within one turn (reset → generate → review(s) → `loop_control`, repeated up to the
