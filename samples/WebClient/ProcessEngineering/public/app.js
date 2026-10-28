@@ -163,6 +163,7 @@
     chatScroll: document.getElementById("chatScroll"),
     chatContainer: document.getElementById("chatContainer"),
     emptyState: document.getElementById("emptyState"),
+    jumpToLatestBtn: document.getElementById("jumpToLatestBtn"),
 
     composerForm: document.getElementById("composerForm"),
     messageInput: document.getElementById("messageInput"),
@@ -888,13 +889,52 @@
     const lines = text.split("\n");
     const html = [];
     let i = 0;
-    let listBuffer = null; // { type: 'ul'|'ol', items: [] }
+
+    // Stack of currently-open lists, outermost first -- each frame is
+    // { indent, type: 'ul'|'ol', items: [htmlSoFar, ...] }. A deeper
+    // indent than the current top opens a NESTED list inside the top
+    // frame's own last item (a real <ol>/<ul> nested inside that <li>'s
+    // own content) rather than closing the outer list -- the earlier,
+    // flat-buffer version treated every indented sub-bullet as "end the
+    // current list, start an unrelated one," which silently split one
+    // numbered list into several single-item <ol>s (each rendering "1."
+    // via the browser's own per-list auto-numbering) the moment any
+    // numbered item had an indented sub-bullet under it.
+    let listStack = [];
+
+    function lineIndent(line) {
+      const match = line.match(/^(\s*)/);
+      return match ? match[1].length : 0;
+    }
+
+    function closeListFramesDeeperThanOrEqualTo(indent, type) {
+      while (
+        listStack.length &&
+        (listStack[listStack.length - 1].indent > indent ||
+          (listStack[listStack.length - 1].indent === indent && listStack[listStack.length - 1].type !== type))
+      ) {
+        const finished = listStack.pop();
+        const finishedHtml = `<${finished.type}>${finished.items.map((it) => `<li>${it}</li>`).join("")}</${finished.type}>`;
+        if (listStack.length) {
+          const parent = listStack[listStack.length - 1];
+          parent.items[parent.items.length - 1] += finishedHtml;
+        } else {
+          html.push(finishedHtml);
+        }
+      }
+    }
 
     function flushList() {
-      if (!listBuffer) return;
-      const tag = listBuffer.type;
-      html.push(`<${tag}>` + listBuffer.items.map((it) => `<li>${renderInline(it)}</li>`).join("") + `</${tag}>`);
-      listBuffer = null;
+      closeListFramesDeeperThanOrEqualTo(-1, null);
+    }
+
+    function pushListItem(type, indent, itemText) {
+      closeListFramesDeeperThanOrEqualTo(indent, type);
+      const top = listStack[listStack.length - 1];
+      if (!top || top.indent < indent) {
+        listStack.push({ indent, type, items: [] });
+      }
+      listStack[listStack.length - 1].items.push(renderInline(itemText));
     }
 
     while (i < lines.length) {
@@ -927,11 +967,7 @@
       // Unordered list item.
       const ul = line.match(/^\s*[-*]\s+(.*)$/);
       if (ul) {
-        if (!listBuffer || listBuffer.type !== "ul") {
-          flushList();
-          listBuffer = { type: "ul", items: [] };
-        }
-        listBuffer.items.push(ul[1]);
+        pushListItem("ul", lineIndent(line), ul[1]);
         i += 1;
         continue;
       }
@@ -939,11 +975,7 @@
       // Ordered list item.
       const ol = line.match(/^\s*\d+\.\s+(.*)$/);
       if (ol) {
-        if (!listBuffer || listBuffer.type !== "ol") {
-          flushList();
-          listBuffer = { type: "ol", items: [] };
-        }
-        listBuffer.items.push(ol[1]);
+        pushListItem("ol", lineIndent(line), ol[1]);
         i += 1;
         continue;
       }
@@ -978,13 +1010,28 @@
         continue;
       }
 
-      flushList();
-
-      // Blank line -- paragraph separator, nothing to emit.
+      // Blank line -- paragraph separator, UNLESS a blank line (or run of
+      // blank lines) sits between two sibling list items ("loose list"
+      // spacing, e.g. an LLM response with a blank line after every
+      // numbered item). Peek past the blank run; if the next real line
+      // still starts a list item, swallow the blank line(s) and keep the
+      // list open rather than closing it -- otherwise one 4-item <ol>
+      // would split into four single-item <ol>s, each restarting its own
+      // "1." (the exact symptom reported: every item showing as "1.").
       if (line.trim() === "") {
+        let j = i + 1;
+        while (j < lines.length && lines[j].trim() === "") j += 1;
+        const nextLine = j < lines.length ? lines[j] : "";
+        const nextContinuesList =
+          listStack.length > 0 && (/^\s*[-*]\s+/.test(nextLine) || /^\s*\d+\.\s+/.test(nextLine));
+        if (!nextContinuesList) {
+          flushList();
+        }
         i += 1;
         continue;
       }
+
+      flushList();
 
       // Paragraph: gather consecutive non-blank, non-special lines. A
       // line ending in two or more trailing spaces is the standard
@@ -3533,6 +3580,26 @@
   function scrollToBottom() {
     el.chatScroll.scrollTop = el.chatScroll.scrollHeight;
   }
+
+  // Copilot/Teams-style floating "jump to latest message" button -- shown
+  // once the user has scrolled up away from the bottom of the transcript,
+  // so they can skip straight back down without manually scrolling.
+  const JUMP_TO_LATEST_THRESHOLD_PX = 80;
+
+  function isNearChatBottom() {
+    const { scrollTop, scrollHeight, clientHeight } = el.chatScroll;
+    return scrollHeight - scrollTop - clientHeight <= JUMP_TO_LATEST_THRESHOLD_PX;
+  }
+
+  function updateJumpToLatestVisibility() {
+    el.jumpToLatestBtn.hidden = isNearChatBottom();
+  }
+
+  el.chatScroll.addEventListener("scroll", updateJumpToLatestVisibility);
+  el.jumpToLatestBtn.addEventListener("click", () => {
+    scrollToBottom();
+    updateJumpToLatestVisibility();
+  });
 
   function formatTime(date) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
