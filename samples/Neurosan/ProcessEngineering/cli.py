@@ -166,6 +166,7 @@ from coded_tools.common.artifact_downloads import (  # noqa: E402
     list_output_documents,
     safe_output_file_path,
 )
+from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
@@ -852,6 +853,11 @@ def _display_output_document_listing() -> None:
         stat = os.stat(cloudarch_path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
         lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")
+    if iac_zip_exists():
+        iac_path = os.path.join(paths.output_dir(), IAC_ZIP_FILENAME)
+        stat = os.stat(iac_path)
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        lines.append(f"  {IAC_ZIP_FILENAME}  ({stat.st_size:,} bytes, modified {modified})")
     if lines:
         display_text("[Action]: Generated documents in output/:\n" + "\n".join(lines))
     else:
@@ -1351,6 +1357,10 @@ def build_web_app(agent_name: str, https: bool = True):
                                attachment (vs. GET /artifacts/cloudarch's
                                JSON-wrapped string, for the client's own
                                renderer), or 404 if none exists yet.
+      GET    /artifacts/cloudarch_iac/download  Downloads
+                               output/cloudarch_iac.zip as a real file
+                               attachment, or 404 if the IaC pipeline
+                               hasn't produced one yet.
       GET    /agents/<name>/instructions  `name` is an agent's own short
                                name (e.g. "CloudArch_Agent") -> {"status":
                                "ok", "name": "...", "instructions": "...",
@@ -1770,6 +1780,24 @@ def build_web_app(agent_name: str, https: bool = True):
                 "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
             }), 404
         return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
+
+    @web_app.route("/artifacts/cloudarch_iac/download", methods=["GET"])
+    def download_cloudarch_iac():
+        """Downloads this web session's own output/<session_id>/
+        cloudarch_iac.zip as a real file attachment -- structurally
+        identical to download_cloudarch above, for the IaC zip
+        CloudArch_IaC_Pipeline's own zip_iac_files tool produces."""
+        from process_toolkit.iac.generation import IAC_ZIP_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), IAC_ZIP_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": "No cloudarch_iac.zip found yet -- run the IaC pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name=IAC_ZIP_FILENAME, mimetype="application/zip")
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):

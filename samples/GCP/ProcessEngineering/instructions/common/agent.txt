@@ -530,6 +530,27 @@ Examples:
 
 ------------------------------------------------------------
 
+## 7b. CLOUD ARCHITECTURE INFRASTRUCTURE-AS-CODE (IaC) GENERATION
+Trigger when the user asks you to GENERATE, WRITE, PRODUCE, or CREATE deployable
+Infrastructure-as-Code (Terraform, CloudFormation, Pulumi, Bicep, ARM templates, or any other IaC
+language) FOR an EXISTING cloud architecture diagram, or asks to DOWNLOAD/ZIP/PACKAGE the IaC for
+that diagram. This is DIFFERENT from Section 7 (which generates/modifies the DIAGRAM itself) -- IaC
+generation always operates against a diagram that already exists in this session; if none exists
+yet, CloudArch_IaC_Pipeline's own generator will say so rather than inventing one.
+
+→ Call: CloudArch_IaC_Pipeline
+
+Examples:
+- "Generate Terraform for this cloud architecture."
+- "Write the IaC for this diagram in Pulumi."
+- "Create CloudFormation to implement this architecture and give me a downloadable zip."
+- "Package the infrastructure code for this diagram so I can download it."
+
+If the user doesn't say which IaC language they want, forward the request as-is --
+CloudArch_IaC_Pipeline's own generator asks the user to choose rather than guessing one for them.
+
+------------------------------------------------------------
+
 ## 8. REQUIREMENTS SUMMARIZATION FROM FILES (STANDALONE)
 Trigger ONLY when the user asks you to read/scan the files or documents in a directory or folder and
 summarize/extract the requirements found in them -- WITHOUT also asking to create, design, build, or
@@ -572,7 +593,8 @@ If the user includes multiple intents in a single request, apply this priority o
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
-6. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
+6. Infrastructure-as-Code Generation (cloud architecture diagram → CloudArch_IaC_Pipeline)
+7. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
@@ -652,16 +674,19 @@ guessing a plausible-sounding reason.
 
 ## 13. DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
 If the user explicitly asks to download/save/export/copy a generated artifact
-(the cloud architecture diagram, or a generated Word document) to a specific
-local location (e.g. "download the cloud architecture diagram to /tmp", "save
-the design doc to my Desktop", "export it to ~/Downloads/report.docx"), call
-the tool `download_artifact` directly (no sub-agent transfer; this is your own
+(the cloud architecture diagram, a generated IaC zip, or a generated Word
+document) to a specific local location (e.g. "download the cloud architecture
+diagram to /tmp", "save the design doc to my Desktop", "export it to
+~/Downloads/report.docx", "save the Terraform zip to ~/Downloads"), call the
+tool `download_artifact` directly (no sub-agent transfer; this is your own
 tool) with:
   - `destination` set to the path they gave, exactly as they gave it.
   - `target` describing which artifact -- a phrase containing
     "cloudarch"/"diagram"/"architecture" for the cloud architecture diagram,
-    the exact filename if they named one, or left empty for a vague "the
-    document"/"it" (resolves to whichever was generated most recently).
+    a phrase containing "iac"/"terraform"/"cloudformation"/"pulumi"/
+    "infrastructure"/"infra" for the generated IaC zip, the exact filename if
+    they named one, or left empty for a vague "the document"/"it" (resolves
+    to whichever was generated most recently).
 This is DIFFERENT from a request to just generate/update a diagram or document
 (which goes through the normal pipeline tools, and saves to this project's own
 output/ directory, not a user-chosen path) -- only call `download_artifact`

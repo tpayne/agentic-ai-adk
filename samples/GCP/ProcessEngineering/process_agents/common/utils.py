@@ -2847,6 +2847,50 @@ from process_toolkit.feedback.iteration_feedback import (  # noqa: E402,F401
     load_iteration_feedback,
     save_iteration_feedback,
 )
+
+# process_toolkit.iac (shared with the neuro-san port, see
+# coded_tools/cloudarch_iac/iac_tool.py's own equivalent CodedTool wrappers
+# there) -- these three thin wrappers adapt the shared
+# generation.py/validation.py functions into plain ADK tool functions for
+# CloudArch_IaC_Agent/CloudArch_IaC_Validator_Agent/the IaC pipeline's own
+# final zip step.
+from process_toolkit.iac.generation import (
+    load_iac_files,
+    save_iac_files as _shared_save_iac_files,
+    zip_iac_files as _shared_zip_iac_files,
+)
+from process_toolkit.iac.validation import validate_iac_files as _shared_validate_iac_files
+
+
+def save_iac_files(files: dict) -> dict:
+    """Persists the complete set of Infrastructure-as-Code files for this
+    pass. `files` is {relative_filename: content} -- the COMPLETE set,
+    not a diff; each call replaces whatever was saved by the previous one."""
+    written = _shared_save_iac_files(files)
+    return {"status": "OK", "files_written": sorted(written.keys())}
+
+
+def validate_iac_files() -> dict:
+    """Validates the syntax of whatever Infrastructure-as-Code files are
+    currently saved, using a real parser per file format. Takes no
+    arguments -- always re-reads what was actually persisted, never a
+    tool-call argument echoed back to it."""
+    files = load_iac_files()
+    if not files:
+        return {"status": "ERROR", "message": "No IaC files have been saved yet -- nothing to validate."}
+    result = _shared_validate_iac_files(files)
+    return {"status": "OK", **result}
+
+
+def zip_iac_files() -> dict:
+    """Zips the currently-saved Infrastructure-as-Code files into a single
+    downloadable archive. Takes no arguments."""
+    try:
+        zip_path = _shared_zip_iac_files()
+    except FileNotFoundError as e:
+        return {"status": "ERROR", "message": str(e)}
+    return {"status": "OK", "zip_path": zip_path}
+
 # Moved to process_toolkit.requirements_summary.requirements_summary
 # (shared with the neuro-san port) -- re-exported here so existing
 # `from .utils import save_requirements_summary, load_requirements_summary`

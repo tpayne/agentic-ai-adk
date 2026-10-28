@@ -25,6 +25,22 @@ def test_approval_marker_updates_cumulative_approval_state():
     assert state["cloudarch_status"] == "APPROVED"
 
 
+def test_iac_approved_marker_updates_cumulative_approval_state():
+    # Regression for the CloudArch_IaC_Pipeline feature -- IAC APPROVED
+    # must be a registered marker, same as every other reviewer's own
+    # "<DOMAIN> APPROVED" string, or loop_control's own
+    # required={"iac_status": "APPROVED"} check would never be satisfied.
+    save_iteration_feedback({"status": "IAC APPROVED", "data": []}, channel="iac")
+
+    import json
+    from process_toolkit.feedback.iteration_feedback import APPROVAL_FILENAME
+    from process_toolkit.paths import output_path
+
+    with open(output_path(APPROVAL_FILENAME), "r", encoding="utf-8") as f:
+        state = json.load(f)
+    assert state["iac_status"] == "APPROVED"
+
+
 def test_separate_channels_do_not_overwrite_each_other():
     """The exact bug the ADK original's per-reviewer refinement clones
     existed to avoid: two reviewers writing feedback in the same pass must
