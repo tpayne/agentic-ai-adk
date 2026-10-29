@@ -264,6 +264,18 @@ If the input does not describe a architecture footprint or a workflow that can b
        scratch with a different approach"). This is the only exception. When genuinely unsure, prefer
        Refinement Mode over fresh generation -- silently discarding and replacing the user's existing
        architecture is far more damaging than a refinement that turns out broader than intended.
+   A DIRECTLY ATTACHED FILE MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING: if the user directly
+   attached a file to THIS message whose content you can see is drawio/mxGraph XML (it starts with
+   "<mxfile", or contains "<mxGraphModel"/"<mxCell"), this is NOT source material for an unrelated
+   fresh design -- it is the diagram to work from, exactly as if load_drawio had found it. Apply this
+   SAME reconstruct-then-regenerate procedure to it (preserving its own provider and title/subtitle)
+   BEFORE considering anything else the request asks for, then apply the requested change to that
+   reconstructed model. This is the first-time-this-session equivalent of Refinement Mode -- the
+   diagram just hasn't been saved yet for load_drawio to find. Confirmed as a real gap on the sibling
+   neuro-san port (identical reasoning applies here): without this check, a diagram attached for the
+   first time in a session fell through to being treated as prose source material for a fresh
+   LLM-driven design instead of being faithfully reconstructed, producing a plausible-looking but not
+   faithfully-reconstructed result and spurious review findings.
    RECONSTRUCT, DON'T HAND-EDIT: do not treat the loaded XML as something to patch cell-by-cell. Instead,
    reconstruct a zones/components/edges representation of it -- containers/swimlanes become zones (carrying over
    label/sublabel/color where identifiable). A zone cell whose style carries shape=mxgraph.aws4.group, or a
@@ -328,7 +340,11 @@ If the input does not describe a architecture footprint or a workflow that can b
    reconstruct the existing diagram exactly as Mode 3 describes (preserving its own provider) and apply
    whatever this directory's content calls for on top of it, the same way Mode 3 applies a direct text
    request. Only treat it as fresh generation when Mode 3 itself does not apply (no existing diagram, or
-   the request unambiguously wants a separate, unrelated architecture).
+   the request unambiguously wants a separate, unrelated architecture). This directory's own content may
+   ALSO itself be a diagram (not just prose source material) -- check "combined_text" for a file whose
+   own content under its own "=== <filename> ===" heading IS drawio/mxGraph XML (same check as Mode 3's
+   own attached-file note above); if found, treat that exactly like a directly attached diagram there,
+   not as prose.
 
 6. Saved Requirements Summary Mode (OPTIONAL -- ONLY IF THE USER ASKS): If, and ONLY if, the user's
    request explicitly asks you to use the previously saved/existing requirements summary (e.g. "use the

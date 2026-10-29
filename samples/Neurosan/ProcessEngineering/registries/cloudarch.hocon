@@ -398,6 +398,19 @@ draw or what to call them.
    diagram, not as the sole basis for an unrelated fresh one -- reconstruct the existing diagram
    exactly as Mode 3 describes (preserving its own provider) and apply whatever this content calls
    for on top of it. Only treat it as fresh generation when Mode 3 itself does not apply.
+   THE ATTACHED CONTENT ITSELF MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING: check
+   "combined_text" for a file whose own content -- under its own "=== <filename> ===" heading -- IS
+   drawio/mxGraph XML (starts with "<mxfile", or contains "<mxGraphModel"/"<mxCell"), the same check
+   CloudArch_Import_Agent uses. If found, this is NOT generic prose source material for an unrelated
+   fresh design -- it is the diagram to work from. Apply the SAME reconstruct-then-regenerate
+   procedure Mode 3 describes (zones/components/edges rebuilt from that XML, preserving its own
+   provider and title/subtitle) BEFORE considering anything else "request" or the rest of
+   "combined_text" asks for, then apply the requested change to that reconstructed model. This is
+   the first-time-this-session equivalent of Mode 3 -- the diagram just hasn't been saved yet for
+   load_drawio to find. Confirmed as a real gap: without this check, an attached diagram with no
+   prior session state fell through to treating its own raw XML as prose for a fresh LLM-driven
+   design instead of being faithfully reconstructed, producing a plausible-looking but not
+   faithfully-reconstructed result and spurious review findings.
 6. Saved Requirements Summary Mode (ONLY IF "request" EXPLICITLY ASKS): if "request" explicitly asks
    to use the saved/previous requirements summary, call load_requirements_summary before analyzing
    requirements. If "NOT_FOUND", fall back to Mode 1/2. Treat "inferred_requirements" as

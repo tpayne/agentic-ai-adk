@@ -85,3 +85,17 @@ def test_router_has_a_finops_vs_cloudarch_pipeline_precedence_rule():
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert "Precedence over Section 6 (Cloud Diagram Generation/Modification)" in text
     assert "A request to \"optimize\"/\"reduce the cost of\" the diagram defaults to CloudArch_FinOps_Agent" in text
+
+
+def test_cloudarch_agent_reconstructs_a_first_time_attached_diagram():
+    # Regression test for a real incident: "please use this architecture
+    # as a basis, fix any issues you find and keep for future use in the
+    # session" with a diagram attached for the FIRST time this session
+    # (load_drawio finds nothing yet) fell through Mode 5's own
+    # "source material for a fresh generation" framing instead of being
+    # recognized as a diagram to faithfully reconstruct via Mode 3's own
+    # procedure -- producing a plausible-looking but not
+    # faithfully-reconstructed result.
+    text = CLOUDARCH_HOCON.read_text(encoding="utf-8")
+    assert "THE ATTACHED CONTENT ITSELF MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING" in text
+    assert "the same check\n   CloudArch_Import_Agent uses" in text

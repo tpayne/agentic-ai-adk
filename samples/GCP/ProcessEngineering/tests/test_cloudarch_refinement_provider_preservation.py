@@ -84,3 +84,16 @@ def test_router_has_a_finops_vs_cloudarch_pipeline_precedence_rule():
     text = ROUTER_TXT.read_text(encoding="utf-8")
     assert "Precedence over Section 7 (Cloud Diagram Generation/Modification)" in text
     assert "A request to \"optimize\"/\"reduce the cost of\" the diagram defaults to CloudArch_FinOps_Agent" in text
+
+
+def test_cloudarch_agent_reconstructs_a_first_time_attached_diagram():
+    # Regression test for a real incident (confirmed on the sibling
+    # neuro-san port, identical reasoning applies here): a diagram
+    # attached for the FIRST time this session (load_drawio finds nothing
+    # yet) with a request like "use this architecture as a basis, fix any
+    # issues you find" must be recognized as a diagram to faithfully
+    # reconstruct via the Refinement Mode procedure, not treated as prose
+    # source material for an unrelated fresh design.
+    text = CLOUDARCH_AGENT_TXT.read_text(encoding="utf-8")
+    assert "A DIRECTLY ATTACHED FILE MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING" in text
+    assert "attached-file note above" in text
