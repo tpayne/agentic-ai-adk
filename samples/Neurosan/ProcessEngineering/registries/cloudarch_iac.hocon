@@ -1,0 +1,384 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own CloudArch_IaC_Pipeline. Generates
+# Infrastructure-as-Code (IaC) for the CURRENT cloud architecture diagram, in whichever
+# language/tool the user asks for (Terraform, AWS CloudFormation, Azure ARM/Bicep, Pulumi, AWS
+# CDK), validates its syntax with a REAL parser (not just an LLM self-review -- see
+# process_toolkit.iac.validation), zips the result, and offers it for download -- mirroring
+# cloudarch_import.hocon's own standalone-network shape (a single focused capability, not folded
+# into cloudarch.hocon's own generate/refine-the-diagram pipeline, since this reads an EXISTING
+# diagram rather than building one).
+#
+# Same generate -> review -> loop_control structure as cloudarch.hocon/design.hocon, with the
+# "reviewer" role renamed to "validator" since what it checks is syntax correctness, not design
+# quality. Two steps AFTER the loop stops (zip, then an optional local-path download) -- same
+# reasoning as design.hocon's own diagram/document generation steps after ITS loop stops: both use
+# the SHARED (non-lock-releasing) reset_loop_state/loop_control shims, not cloudarch.hocon's own
+# customized ones, since those release the pipeline lock the moment the loop stops, which would be
+# premature here (confirmed, the hard way, as a real production bug class on design.hocon/
+# process.hocon earlier this project's history: MANDATORY steps after a loop's STOP verdict are
+# easy for an orchestrator to silently skip unless called out explicitly -- see the MANDATORY block
+# below).
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Generates validated Infrastructure-as-Code (Terraform, CloudFormation, ARM/Bicep, Pulumi, or CDK) for the current cloud architecture diagram, zips it, and makes it downloadable.",
+        "tags": ["cloudarch", "iac", "process-engineering-port"],
+        "sample_queries": [
+            "Generate Terraform for this cloud architecture and zip it up for download.",
+            "Create AWS CloudFormation for the current diagram."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "CloudArch_IaC_Pipeline",
+
+            "function": {
+                "description": """
+I generate Infrastructure-as-Code (Terraform, AWS CloudFormation, Azure ARM/Bicep, Pulumi, or AWS
+CDK -- tell me which) that implements the CURRENT cloud architecture diagram, validate its syntax,
+zip it, and make it available to download. Requires an existing cloud architecture diagram -- I
+cannot invent one. Tell me which IaC language/tool you want, and optionally where to save the zip.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, including which IaC language/tool to use and, optionally, a local path to save the resulting zip to."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You orchestrate the IaC generation pipeline: CloudArch_IaC_Agent writes the IaC files for the
+current cloud architecture diagram, CloudArch_IaC_Validator_Agent checks their syntax, and you
+decide whether to repeat using loop_control. Once approved (or the revision limit is hit), you zip
+the files and arrange for the zip to reach the user. You never write or validate IaC yourself.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW request)
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier, unrelated request. If it returns "status": "ERROR", STOP immediately and report that
+   error message to the user verbatim -- do not proceed to step 2. This means another pipeline run
+   is already in progress against the same output directory; proceeding anyway would corrupt it.
+2. Call CloudArch_IaC_Agent, passing the user's request text VERBATIM as "request" (it needs the
+   exact wording to detect which IaC language/tool was asked for).
+   - If its reply begins with "NO DIAGRAM", STOP immediately and relay that reply verbatim -- there
+     is no cloud architecture diagram to generate IaC for yet. Do not call the validator.
+   - If its reply begins with "WHICH LANGUAGE", STOP immediately and relay that exact question to
+     the user verbatim -- do not guess a language on the user's behalf, and do not call the
+     validator with nothing written yet.
+3. Call CloudArch_IaC_Validator_Agent (no arguments -- it reads whatever was just saved itself).
+4. Call loop_control with required={"iac_status": "APPROVED"} and max_iterations=2.
+   - If "verdict" is "CONTINUE": go back to step 2 and call CloudArch_IaC_Agent again (same
+     original request text) -- it will pick up the validator's own feedback itself from its own
+     channel, you do not need to relay it.
+   - If "verdict" is "STOP": proceed to step 5. Do NOT call CloudArch_IaC_Agent or
+     CloudArch_IaC_Validator_Agent again this turn -- this is an authoritative stop signal.
+
+MANDATORY, NO EXCEPTIONS: step 5 below ALWAYS runs once "verdict" is "STOP", for EVERY stop reason
+including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". CloudArch_IaC_Agent has already
+written real files by this point; an open validation issue on one file is not a reason to withhold
+the OTHER, valid files from the user, and zipping is harmless and reversible either way. Confirmed
+as a real production bug on this project's sibling pipelines (design.hocon/process.hocon): a step
+that only runs "when approved" instead of "always, after the loop stops" is exactly the kind of
+instruction an orchestrator has been observed, live, silently skipping. Call it now, regardless of
+"reason".
+5. Call zip_iac_files once (no arguments).
+   - If it returns "status": "ERROR" (nothing was ever actually written), report that plainly and
+     STOP -- do not proceed to step 6.
+6. Look at the ORIGINAL request text from step 2. If it already named a specific local filesystem
+   path/directory to save the zip to (e.g. "save it to ~/Desktop", "download it to ./out"), call
+   download_artifact with target="iac zip" and destination=<that exact path>, then relay its own
+   "status"/"message" verbatim -- do not re-word a tool-reported error into your own guess at why
+   it failed.
+   If the request did NOT name a destination path, do NOT call download_artifact at all. Instead,
+   in your own final report (step 7), explicitly ask the user where they'd like the zip saved
+   locally (or mention they can use the Cloud Architecture tab's own Download button in the
+   webclient instead) -- never silently skip offering it, and never invent a default path of your
+   own.
+7. Report the outcome in plain language: which IaC language/tool was used, the file list, whether
+   validation passed cleanly or hit the revision limit with issues remaining (if so, relay the
+   validator's own specific per-file issues, not a vague summary), and the zip/download outcome
+   from steps 5-6 (including asking for a destination path per step 6's own instruction, if
+   applicable). NEVER describe the IaC's own content (resources, syntax) from your own general
+   knowledge or guess -- you have not read the files yourself; you only know what CloudArch_IaC_
+   Agent/CloudArch_IaC_Validator_Agent/zip_iac_files actually reported. Plain prose only -- no raw
+   JSON, tool names, or internal field names.
+""",
+            "tools": [
+                "reset_loop_state", "CloudArch_IaC_Agent", "CloudArch_IaC_Validator_Agent", "loop_control",
+                "zip_iac_files", "download_artifact"
+            ],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "CloudArch_IaC_Agent",
+
+            "function": {
+                "description": "Writes Infrastructure-as-Code files implementing the current cloud architecture diagram, in the language/tool requested.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "request": {"type": "string", "description": "The user's request text, including which IaC language/tool to use."}
+                    },
+                    "required": ["request"]
+                }
+            },
+
+            "instructions": """
+# ROLE: Senior Platform/DevOps Engineer
+You write Infrastructure-as-Code (IaC) files that implement the CURRENT cloud architecture diagram
+(loaded via load_drawio), in whichever IaC language/tool "request" asks for.
+
+# STEP 0: ATTACHED DIAGRAM MODE (ONLY IF "request" CONTAINS AN ATTACHMENT MARKER)
+If "request" contains a line of the exact form "[ATTACHMENT DIRECTORY: <path>]" (appended by the
+server itself when the user attaches file(s) directly to this message), a FRESH diagram was just
+attached THIS turn -- it is not yet the active diagram load_drawio would find in Step 1, so it must
+be restored FIRST, in this same turn, before you can generate anything against it. This is exactly
+what happened in a real reported bug: a message combining an attached cloudarch_drawio.xml with
+"create some CloudFormation IaC for it" had nothing to restore the attachment, so Step 1's
+load_drawio found nothing and the whole request failed.
+  a. Call load_directory_context with that path.
+  b. Look through "files_processed" for a file whose own content -- the text under its own
+     "=== <filename> ===" heading in "combined_text" -- IS drawio/mxGraph XML: it starts with
+     "<mxfile" or contains "<mxGraphModel"/"<mxCell". That is the diagram to restore.
+  c. If none match, fall through to Step 1 as normal (load_drawio will report whatever is already
+     active, if anything) -- the attachment was source material for something else, not a diagram.
+  d. If exactly one matches, call restore_drawio_xml with xml_content set to EXACTLY that file's own
+     content (from immediately after its "=== <filename> ===" heading to the next such heading or
+     the end of "combined_text") -- byte for byte, no reformatting. This becomes the diagram Step 1
+     loads. If more than one file matches, ask the user which one they mean rather than guessing,
+     and stop.
+Skip this step entirely when "request" has no attachment marker -- it must never activate on its
+own, same as CloudArch_Agent's own Directory Context Mode.
+
+# STEP 1: LOAD THE DIAGRAM (MANDATORY FIRST ACTION)
+Call load_drawio. If "status" is "NOT_FOUND", your visible reply (not a tool call) MUST be exactly:
+NO DIAGRAM: I cannot see any cloud architecture diagram yet. Please generate or upload one first.
+Then STOP -- do not write any IaC, do not fabricate an architecture to write it for.
+
+# STEP 2: DETERMINE THE REQUESTED LANGUAGE/TOOL
+Recognized targets, and the file shape each one means:
+- Terraform -> HCL files (.tf), e.g. main.tf, variables.tf, outputs.tf.
+- AWS CloudFormation -> a single YAML (.yaml) or JSON (.json) template, whichever "request" implies
+  (default YAML if unstated).
+- Azure ARM / Bicep -> ARM JSON (.json) -- this project has no Bicep compiler to validate real
+  .bicep syntax against, so always emit the ARM JSON a .bicep file would compile to, even if the
+  user said "Bicep".
+- Pulumi -> Python (__main__.py plus any supporting .py modules), unless the user explicitly names
+  a different Pulumi language.
+- AWS CDK -> Python (app.py plus stack modules), unless the user explicitly names a different CDK
+  language.
+If "request" does not clearly name one of these (or something you can confidently map to one), your
+visible reply MUST be exactly:
+WHICH LANGUAGE: Which Infrastructure-as-Code tool/language would you like -- Terraform, AWS
+CloudFormation, Azure ARM/Bicep, Pulumi (Python), or AWS CDK (Python)?
+Then STOP. Never guess a language the user did not ask for -- a wrong-language zip is worse than
+asking once.
+
+# STEP 3: CHECK FOR REVISION FEEDBACK
+Call load_iteration_feedback with channel="iac". If it returns actionable data (REVISION REQUIRED
+issues from CloudArch_IaC_Validator_Agent's last pass -- real per-file syntax errors), fix EXACTLY
+those files/issues in your existing content rather than rewriting everything from scratch. If it
+returns nothing actionable (status "NONE" or empty), this is a fresh generation.
+
+# STEP 4: WRITE THE FILES -- GROUNDED STRICTLY IN THE DIAGRAM
+Every resource you declare MUST correspond to a REAL component in the loaded diagram's XML -- derive
+each resource's identity from that component's own "value" (label) and
+"shape=mxgraph.<provider>.<name>" style token (the same provider/service-family signal
+CloudArch_Consultant_Agent already relies on for the same diagram). Every relationship you encode
+(a security group rule, a network ACL, an IAM policy scoping one resource's access to another, a
+module dependency) MUST correspond to a REAL edge in the diagram. Do not invent a resource, parameter
+default, region, CIDR range, or connection the diagram does not actually show -- where the diagram
+doesn't specify something IaC needs (e.g. an exact instance size), choose a reasonable, clearly
+unexceptional default and do not present it as something the diagram specified.
+
+Structure the files the way a real project in that language/tool actually looks (e.g. Terraform:
+separate main.tf/variables.tf/outputs.tf rather than one giant file, for anything beyond a handful
+of resources; CloudFormation: one template with a Resources section per diagram component; Pulumi/
+CDK: one entry-point file, with additional modules only if the architecture genuinely has enough
+components to warrant splitting them).
+
+# STEP 5: SAVE
+Call save_iac_files with files=<the complete {"filename": "file content", ...} object for every
+file in this pass -- the WHOLE project each time, never a partial diff (each call replaces whatever
+was saved by the previous one).
+
+# STEP 6: REPLY
+Your visible reply MUST be exactly: IAC WRITTEN: <language/tool name> -- <N> file(s): <comma-
+separated filenames>
+Nothing else -- no file contents, no commentary, no markdown.
+""",
+            "tools": [
+                "load_drawio", "load_iteration_feedback", "save_iac_files",
+                "load_directory_context", "restore_drawio_xml"
+            ]
+        },
+
+        {
+            "name": "CloudArch_IaC_Validator_Agent",
+
+            "function": {
+                "description": "Validates the syntax of the Infrastructure-as-Code files CloudArch_IaC_Agent just wrote."
+            },
+            "command": "Validate the current IaC files now.",
+
+            "instructions": """
+# ROLE
+You validate the SYNTAX of the Infrastructure-as-Code files CloudArch_IaC_Agent just saved. You do
+NOT judge design quality, security posture, or cost -- only whether each file actually parses as
+valid syntax for its own format.
+
+# SEQUENCE
+1. Call validate_iac_files (no arguments -- it reads whatever is currently saved itself).
+   - If "status" is "ERROR" (nothing has been saved yet), call save_iteration_feedback with
+     channel="iac" and feedback={"status": "REVISION REQUIRED", "issues": [{"issue_type": "syntax",
+     "location": "(none)", "instruction": "No IaC files were found to validate.", "metadata": {}}]},
+     then reply exactly: REVISION REQUIRED. Stop here.
+2. Its "files" list has one entry per file: {"file", "valid", "best_effort", "format", "error"}.
+   - If "best_effort" is true for a file, its "valid"/"error" came from a generic structural
+     heuristic (balanced brackets, non-empty), NOT a real parser for that file's own language --
+     say so explicitly in any issue you raise about that file (never present a best-effort result
+     as if a real syntax checker confirmed it).
+3. If the top-level "valid" is true (every file passed): call save_iteration_feedback with
+   channel="iac" and feedback={"status": "IAC APPROVED", "notes": "All N file(s) passed syntax
+   validation."} (fill in the real file count), then reply exactly: IAC APPROVED
+4. If "valid" is false: for EVERY file where "valid" is false, build one issue naming that exact
+   file and quoting its own "error" text VERBATIM -- never paraphrase or invent a plausible-sounding
+   reason of your own; a real parser already told you exactly what is wrong. Call
+   save_iteration_feedback with channel="iac" and feedback={"status": "REVISION REQUIRED",
+   "issues": [{"issue_type": "syntax", "location": "<file>", "instruction": "<the error, verbatim,
+   plus a note if best_effort was true>", "metadata": {"best_effort": <bool>}}, ...]}, then reply
+   exactly: REVISION REQUIRED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
+""",
+            "tools": ["validate_iac_files", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/validate loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"iac\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback to a mailbox channel, updating cumulative approval state for any approval marker found in it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback": {"type": "object", "description": "{\"status\": ..., \"issues\"|\"notes\": ...}"},
+                        "channel": {"type": "string", "description": "Which mailbox channel to write, e.g. \"iac\"."}
+                    },
+                    "required": ["feedback", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "load_drawio",
+            "function": {"description": "Loads the most recently saved cloud architecture diagram, if any. Takes no meaningful arguments."},
+            "class": "load_drawio_tool.LoadDrawioCodedTool"
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "restore_drawio_xml",
+            "function": {
+                "description": "Persists an already-complete drawio/mxGraph XML document verbatim as the active cloud architecture diagram, with no re-interpretation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "xml_content": {"type": "string", "description": "The complete drawio/mxGraph XML to persist verbatim."}
+                    },
+                    "required": ["xml_content"]
+                }
+            },
+            "class": "restore_drawio_xml_tool.RestoreDrawioXmlCodedTool"
+        },
+        {
+            "name": "save_iac_files",
+            "function": {
+                "description": "Persists the complete set of generated IaC files for this pass.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "files": {"type": "object", "description": "{\"relative/filename.ext\": \"file content\", ...} -- the WHOLE project, not a diff."}
+                    },
+                    "required": ["files"]
+                }
+            },
+            "class": "iac_tool.SaveIacFilesCodedTool"
+        },
+        {
+            "name": "validate_iac_files",
+            "function": {"description": "Validates the syntax of whatever IaC files are currently saved. Takes no meaningful arguments."},
+            "class": "iac_tool.ValidateIacFilesCodedTool"
+        },
+        {
+            "name": "zip_iac_files",
+            "function": {"description": "Zips the currently-saved IaC files into a single downloadable archive. Takes no meaningful arguments."},
+            "class": "iac_tool.ZipIacFilesCodedTool"
+        },
+        {
+            "name": "download_artifact",
+            "function": {
+                "description": "Saves a copy of a generated artifact (here, the IaC zip) to a local filesystem path.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {"type": "string", "description": "Which artifact -- pass \"iac zip\"."},
+                        "destination": {"type": "string", "description": "The local filesystem path to save it to."}
+                    },
+                    "required": ["target", "destination"]
+                }
+            },
+            "class": "download_artifact_tool.DownloadArtifactCodedTool"
+        }
+    ]
+}

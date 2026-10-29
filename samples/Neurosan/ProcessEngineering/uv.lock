@@ -2112,6 +2112,8 @@ dependencies = [
     { name = "pandas" },
     { name = "pypdf" },
     { name = "python-docx" },
+    { name = "python-hcl2" },
+    { name = "pyyaml" },
     { name = "werkzeug" },
     { name = "xlrd" },
 ]
@@ -2126,6 +2128,8 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "pypdf", specifier = ">=4.0.0" },
     { name = "python-docx", specifier = ">=1.2.0" },
+    { name = "python-hcl2", specifier = ">=4.3.5" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "werkzeug", specifier = ">=3.0.0" },
     { name = "xlrd", specifier = ">=2.0.2" },
 ]
@@ -2490,6 +2494,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/74/26/2fbeedb218a787a5eea551c7532cac4e009f83d689dd2faa0d0353473f86/python_dotenv-1.2.4.tar.gz", hash = "sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0", size = 60824, upload-time = "2026-10-01T05:36:10Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl", hash = "sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc", size = 23266, upload-time = "2026-10-01T05:36:08.633Z" },
+]
+
+[[package]]
+name = "python-hcl2"
+version = "8.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lark" },
+    { name = "regex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ff/3b/a66df999c382abf2d37f6c7b618a782958615acd41a53615f994dfd6611b/python_hcl2-8.1.4.tar.gz", hash = "sha256:b4145c930540e99e3e9b4f7de297775bdf856df29782a7abdb0916cbfcab7865", size = 119307, upload-time = "2026-09-08T08:26:26.55Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/c7/9b8918ab4954ecad677b03f36f9121d5467a4285f41507fdc6789a33dc3c/python_hcl2-8.1.4-py3-none-any.whl", hash = "sha256:75738bd95717d692a683495babf4d00063f1b211e2eca04b156c6d79b9a0feae", size = 102957, upload-time = "2026-09-08T08:26:25.344Z" },
 ]
 
 [[package]]

@@ -24,6 +24,7 @@ PORTED_NETWORKS = [
     "registries/cloudarch_simulation_query.hocon",
     "registries/cloudarch_attack_simulation_query.hocon",
     "registries/cloudarch_finops.hocon",
+    "registries/cloudarch_iac.hocon",
     "registries/process_update.hocon",
     "registries/design.hocon",
     "registries/design_import.hocon",

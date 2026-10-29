@@ -40,7 +40,20 @@ CLOUDARCH_IMPORT_HOCON = PROJECT_ROOT / "registries" / "cloudarch_import.hocon"
 def test_attached_diagram_overrides_bare_architecture_wording():
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert "ATTACHED-FILE OVERRIDE" in text
-    assert 'is ALWAYS a CLOUD\nARCHITECTURE DIAGRAM domain signal' in text
+    assert "is ALWAYS a CLOUD ARCHITECTURE DIAGRAM domain signal" in text
+
+
+def test_override_rule_points_at_the_markers_own_filename_list():
+    # A second, separate incident of this same bug class (misrouted to
+    # Process_Import_Agent this time, not even Design_Doc_Pipeline) traced
+    # back to a deeper gap: the router was never actually SHOWN the
+    # attached file's own name, only an opaque staging-directory path --
+    # see cli.py's ATTACHMENT_DIRECTORY_MARKER_TEMPLATE and
+    # test_cli.py::TestAppendAttachmentDirectoryMarker for the fix. This
+    # rule must tell the router exactly where the real filename now lives.
+    text = ROUTER_HOCON.read_text(encoding="utf-8")
+    assert '"attached file(s):" LIST' in text
+    assert "Process_Import_Agent" in text
 
 
 def test_design_document_creation_requires_an_actual_creation_verb():

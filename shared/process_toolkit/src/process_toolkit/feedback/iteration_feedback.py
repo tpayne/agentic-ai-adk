@@ -30,6 +30,7 @@ APPROVAL_MARKERS = {
     "GROUNDING APPROVED": ("grounding_status", "APPROVED"),
     "CLOUDARCH APPROVED": ("cloudarch_status", "APPROVED"),
     "JSON APPROVED": ("status", "JSON APPROVED"),
+    "IAC APPROVED": ("iac_status", "APPROVED"),
 }
 
 APPROVED_STATUSES = {
@@ -38,6 +39,7 @@ APPROVED_STATUSES = {
     "SIMULATION_ALL_APPROVED",
     "GROUNDING APPROVED",
     "CLOUDARCH APPROVED",
+    "IAC APPROVED",
 }
 
 # Every channel any network's instructions actually save/load (see the
@@ -49,7 +51,7 @@ APPROVED_STATUSES = {
 # reset_approval_state() alone doesn't clear these, so a later, UNRELATED
 # request against the same network can load and apply that stale feedback
 # the moment its own Design_Agent reads the same channel.
-KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation")
+KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation", "iac")
 
 
 def _feedback_filename(channel: str = "") -> str:

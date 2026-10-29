@@ -27,6 +27,7 @@
     "cloudarch_simulation_query.hocon": true,
     "cloudarch_attack_simulation_query.hocon": true,
     "cloudarch_finops.hocon": true,
+    "cloudarch_iac.hocon": true,
     "process_update.hocon": true,
     "design.hocon": true,
     "design_import.hocon": true,

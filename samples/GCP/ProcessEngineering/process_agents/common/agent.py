@@ -211,6 +211,7 @@ from .agent_registry import (
     cloudarch_simulation_query_agent,
     cloudarch_attack_simulation_query_agent,
     cloudarch_finops_query_agent,
+    cloudarch_iac_pipeline,
     scenario_tester_agent,
     design_scenario_tester_agent,
     update_design_pipeline,
@@ -269,6 +270,7 @@ root_agent = ProcessLlmAgent(
         cloudarch_simulation_query_agent,
         cloudarch_attack_simulation_query_agent,
         cloudarch_finops_query_agent,
+        cloudarch_iac_pipeline,
         scenario_tester_agent,
         design_scenario_tester_agent,
         update_design_pipeline,
@@ -1610,6 +1612,25 @@ def build_web_app(https: bool = True):
                 "error": "No cloudarch_drawio.xml found yet -- run the cloudarch pipeline at least once, then try again.",
             }), 404
         return send_file(path, as_attachment=True, download_name="cloudarch_drawio.xml", mimetype="application/xml")
+
+    @web_app.route("/artifacts/cloudarch_iac/download", methods=["GET"])
+    def download_cloudarch_iac():
+        """Downloads this web session's own output/<session_id>/
+        cloudarch_iac.zip as a real file attachment -- structurally
+        identical to download_cloudarch above, for the IaC zip
+        CloudArch_IaC_Pipeline's own final step produces."""
+        from process_toolkit import paths as toolkit_paths
+        from process_toolkit.iac.generation import IAC_ZIP_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), IAC_ZIP_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": "No cloudarch_iac.zip found yet -- run the IaC pipeline at least once, then try again.",
+            }), 404
+        return send_file(path, as_attachment=True, download_name=IAC_ZIP_FILENAME, mimetype="application/zip")
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):

@@ -207,8 +207,8 @@ def clear_pipeline_lock() -> str:
 
 def download_artifact(target: str = "", destination: str = "") -> str:
     """Saves a copy of a generated artifact (the cloud architecture
-    diagram, or a generated Word document) to a local filesystem path on
-    the machine this agent process is running on.
+    diagram, a generated IaC zip, or a generated Word document) to a local
+    filesystem path on the machine this agent process is running on.
 
     Call this when the user explicitly asks to download/save/export/copy
     a generated artifact to a specific location (e.g. "download the cloud
@@ -229,7 +229,9 @@ def download_artifact(target: str = "", destination: str = "") -> str:
     Args:
         target: Which artifact to save -- a phrase containing
             "cloudarch"/"diagram"/"architecture" for the cloud
-            architecture diagram; an exact generated document filename if
+            architecture diagram; a phrase containing "iac"/"terraform"/
+            "cloudformation"/"pulumi"/"infrastructure"/"infra" for the
+            generated IaC zip; an exact generated document filename if
             the user named one; or leave empty to mean whichever document
             was generated most recently (use this for a vague "the
             document"/"it" when context makes it unambiguous).
@@ -433,6 +435,10 @@ stop_if_ready = _build_stop_if_ready(_default_required_approvals)
 # cloudarch_pipeline_agent.py's stop-controller clone instead of the
 # default stop_if_ready.
 cloudarch_stop_if_ready = _build_stop_if_ready(lambda: {"cloudarch_status": "APPROVED"})
+
+# CloudArch_IaC_Validator_Agent writes iac_status, not cloudarch_status --
+# used by cloudarch_iac_pipeline_agent.py's stop-controller clone.
+iac_stop_if_ready = _build_stop_if_ready(lambda: {"iac_status": "APPROVED"})
 
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""

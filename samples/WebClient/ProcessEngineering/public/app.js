@@ -227,6 +227,7 @@
     cloudarchRefreshBtn: document.getElementById("cloudarchRefreshBtn"),
     cloudarchExportBtn: document.getElementById("cloudarchExportBtn"),
     cloudarchDownloadXmlBtn: document.getElementById("cloudarchDownloadXmlBtn"),
+    cloudarchDownloadIacBtn: document.getElementById("cloudarchDownloadIacBtn"),
     cloudarchStatus: document.getElementById("cloudarchStatus"),
     cloudarchCanvasWrap: document.getElementById("cloudarchCanvasWrap"),
     cloudarchEmpty: document.getElementById("cloudarchEmpty"),
@@ -3354,6 +3355,21 @@
     else if (result === "download") toast("Diagram XML downloaded.");
   }
   el.cloudarchDownloadXmlBtn.addEventListener("click", downloadCloudArchXml);
+
+  // Downloads the generated Infrastructure-as-Code zip (see
+  // CloudArch_IaC_Pipeline, both ports) -- a 404 here just means the IaC
+  // pipeline hasn't been run yet this session; fetchArtifactBlob already
+  // surfaces that server-reported message via toast.
+  async function downloadCloudArchIacZip() {
+    const blob = await fetchArtifactBlob("/artifacts/cloudarch_iac/download");
+    if (!blob) return;
+    const result = await saveFile(blob, "cloudarch_iac.zip", {
+      description: "ZIP archive", accept: { "application/zip": [".zip"] },
+    });
+    if (result === "picker") toast("IaC ZIP saved.");
+    else if (result === "download") toast("IaC ZIP downloaded.");
+  }
+  el.cloudarchDownloadIacBtn.addEventListener("click", downloadCloudArchIacZip);
 
   // Zoom / pan -- identical mechanics to the Agent Network tab's own
   // section further up (state.cloudarch.view instead of state.network.view,

@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 from werkzeug.utils import safe_join
 
 from process_toolkit import paths as toolkit_paths
+from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
 
@@ -98,6 +99,14 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     diagram", "the document I just generated", an exact name they were
     told).
 
+    - A target string containing "iac"/"terraform"/"cloudformation"/
+      "pulumi"/"infrastructure"/"infra" (case-insensitive) resolves to
+      the generated Infrastructure-as-Code zip, if one has been
+      generated. Checked BEFORE the cloudarch-diagram check below, since
+      a request like "download the IaC zip for this cloud architecture"
+      legitimately contains both "iac" and "architecture" -- the IaC zip
+      is unambiguously the more specific match when its own keyword is
+      present.
     - A target string containing "cloudarch"/"diagram"/"architecture"/
       "xml" (case-insensitive) resolves to the cloud architecture
       diagram, if one has been generated.
@@ -111,6 +120,8 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
       worse than an honest "I couldn't find that."
     """
     normalized = (target or "").strip().lower()
+    if normalized and any(word in normalized for word in ("iac", "terraform", "cloudformation", "pulumi", "infrastructure", "infra")):
+        return IAC_ZIP_FILENAME if iac_zip_exists() else None
     if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
         return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
 

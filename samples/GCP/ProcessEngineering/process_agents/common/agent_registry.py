@@ -18,6 +18,13 @@ from ..cloudarch.cloudarch_pipeline_agent import (
     cloudarch_pipeline,
     stop_controller_agent_instance as stop_controller_agent_instance_cloudarch,
 )
+from ..cloudarch.cloudarch_iac_agent import cloudarch_iac_agent
+from ..cloudarch.cloudarch_iac_validator_agent import cloudarch_iac_validator_agent
+from ..cloudarch.cloudarch_iac_zip_agent import cloudarch_iac_zip_agent
+from ..cloudarch.cloudarch_iac_pipeline_agent import (
+    cloudarch_iac_pipeline,
+    stop_controller_agent_instance as stop_controller_agent_instance_cloudarch_iac,
+)
 from ..process.create_process_agent import full_design_pipeline
 from ..process.import_agent import process_import_agent
 from ..design.import_agent import design_import_agent
@@ -174,6 +181,13 @@ CLOUD_AGENTS = [
     cloudarch_agent,
     cloudarch_reviewer_agent,
     stop_controller_agent_instance_cloudarch,
+]
+
+CLOUD_IAC_AGENTS = [
+    cloudarch_iac_agent,
+    cloudarch_iac_validator_agent,
+    cloudarch_iac_zip_agent,
+    stop_controller_agent_instance_cloudarch_iac,
 ]
 
 CREATE_DESIGN_DOC_PIPELINE_AGENTS = [

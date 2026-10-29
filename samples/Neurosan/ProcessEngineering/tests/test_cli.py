@@ -439,12 +439,16 @@ class TestParseAttachments:
 class TestIngestAttachments:
     """ChatSession._ingest_attachments -- stages this turn's attached
     files into this session's FIXED on-disk directory
-    (self._attachments_directory, set once in __init__) and returns that
-    directory's path so send()/send_streaming() can append it to the
-    user's own message text as a literal "[ATTACHMENT DIRECTORY: ...]"
-    marker (see _append_attachment_directory_marker) -- no sly_data, no
+    (self._attachments_directory, set once in __init__) and returns
+    (that directory's path, [original filenames]) so send()/
+    send_streaming() can append it to the user's own message text as a
+    literal "[ATTACHMENT DIRECTORY: ...] (attached file(s): ...)" marker
+    (see _append_attachment_directory_marker) -- no sly_data, no
     dedicated CodedTool; the agent picks it up through its existing
-    "request explicitly names a directory" handling."""
+    "request explicitly names a directory" handling. The filenames are
+    returned alongside the path (not dropped) so the router's own
+    ATTACHED-FILE OVERRIDE rule has an actual filename to check instead
+    of only an opaque staging directory path."""
 
     def _session(self):
         session = cli.ChatSession.__new__(cli.ChatSession)
@@ -472,7 +476,7 @@ class TestIngestAttachments:
             returned = session._ingest_attachments(
                 [{"name": "notes.txt", "mime_type": "text/plain", "data": b"hello world"}]
             )
-            assert returned == session._attachments_directory
+            assert returned == (session._attachments_directory, ["notes.txt"])
             assert (Path(session._attachments_directory) / "notes.txt").read_bytes() == b"hello world"
         finally:
             self._cleanup(session)
@@ -523,22 +527,43 @@ class TestIngestAttachments:
 
 class TestAppendAttachmentDirectoryMarker:
     """_append_attachment_directory_marker -- the one place the staged
-    directory's path becomes visible, literal text in the user's own
-    message, instead of an invisible sly_data side channel."""
+    directory's path (and the attached file's own original name(s))
+    becomes visible, literal text in the user's own message, instead of
+    an invisible sly_data side channel. The filenames matter just as much
+    as the path: the router's own ATTACHED-FILE OVERRIDE rule checks for
+    an attachment "literally named cloudarch_drawio.xml" -- without the
+    real filename present here, that rule has nothing to check and the
+    router has to guess from prose alone (confirmed: a real misroute to
+    Process_Import_Agent for an attached cloud architecture diagram)."""
 
     def test_none_directory_leaves_text_unchanged(self):
         assert cli._append_attachment_directory_marker("hello", None) == "hello"
 
-    def test_directory_is_appended_as_a_marker_line(self):
+    def test_directory_and_filename_are_appended_as_a_marker_line(self):
+        result = cli._append_attachment_directory_marker(
+            "create a process", "/tmp/xyz", ["cloudarch_drawio.xml"],
+        )
+        assert result == (
+            "create a process\n\n"
+            "[ATTACHMENT DIRECTORY: /tmp/xyz] (attached file(s): cloudarch_drawio.xml)"
+        )
+
+    def test_multiple_filenames_are_joined(self):
+        result = cli._append_attachment_directory_marker(
+            "import these", "/tmp/xyz", ["a.txt", "b.txt"],
+        )
+        assert "(attached file(s): a.txt, b.txt)" in result
+
+    def test_missing_filenames_falls_back_to_unknown(self):
         result = cli._append_attachment_directory_marker("create a process", "/tmp/xyz")
-        assert result == "create a process\n\n[ATTACHMENT DIRECTORY: /tmp/xyz]"
+        assert result == "create a process\n\n[ATTACHMENT DIRECTORY: /tmp/xyz] (attached file(s): (unknown))"
 
     def test_empty_text_becomes_just_the_marker(self):
         # cli.py's own /chat and /chat/stream routes already require a
         # non-empty "query", but this helper is defensive regardless --
         # no leading blank lines if "text" ever is empty.
-        result = cli._append_attachment_directory_marker("", "/tmp/xyz")
-        assert result == "[ATTACHMENT DIRECTORY: /tmp/xyz]"
+        result = cli._append_attachment_directory_marker("", "/tmp/xyz", ["notes.txt"])
+        assert result == "[ATTACHMENT DIRECTORY: /tmp/xyz] (attached file(s): notes.txt)"
 
 
 class TestChatSessionClose:
