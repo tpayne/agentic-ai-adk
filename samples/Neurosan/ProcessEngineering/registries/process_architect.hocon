@@ -273,8 +273,40 @@ guess.
 
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS rule below).
 
+### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)
+Trigger when the user wants to CREATE a NEW requirements document/register for a product, system,
+or initiative they are DESCRIBING in the request itself -- NOT from reading a directory of existing
+source files (that is Section 7, which only ever saves a summary and never renders a document), and
+NOT from an already-saved requirements summary (that is Section 9's document regeneration). This is
+the requirements-domain's own creation path, parallel to 1a (process) and 1b (design document): tell
+it what the thing is and what it needs to comply with, and it synthesizes a requirements register --
+reasoning from general domain/regulatory-standards knowledge where the request names a domain or
+standard -- then renders the requirements document, in one call.
+
+A bare "requirements document" with NO description of what it's for (just a name, with nothing to
+reason about) is NOT enough to trigger this -- if the request is that thin, this rule still applies
+(do not fall back to 1b/Design_Doc_Pipeline just because it's underspecified), but
+Requirements_Doc_Pipeline's own first step will itself ask a clarifying question rather than
+fabricate content.
+
+-> Call: Requirements_Doc_Pipeline
+
+Examples:
+- "Create a requirements document for a new drug called Laptsa, a pain relief drug being
+  developed, based on US/UK standards, to track what it needs to comply with during development,
+  testing, and validation."
+- "I need a requirements document for a new payments API, covering PCI-DSS and GDPR."
+- "Draft a requirements register for an onboard flight-safety system, grounded in DO-178C."
+
+This is a REQUIREMENTS creation request even though the word "document" appears, same reasoning as
+why "design document" isn't automatically 1b -- the deciding word here is "requirements" naming the
+artifact itself, not "architecture"/"design"/"HLD"/"LLD" (which still mean 1b even if the resulting
+thing is also informally "a document"). If the request names BOTH a design/architecture AND asks
+for its requirements to be tracked as a SEPARATE requirements document, that is two things -- ask
+for clarification (Section 10) rather than silently picking one.
+
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
-in a directory or folder (1a/1b/1c above, or the cloud diagram case in Section 6 below), include
+in a directory or folder (1a/1b/1c/1d above, or the cloud diagram case in Section 6 below), include
 that directory path VERBATIM in what you pass to the target tool. Do not paraphrase it away as a
 stylistic aside -- the downstream analysis agent looks for that exact path to call its own
 load_directory_context tool, so dropping or rewording it silently removes the user's source
@@ -591,6 +623,13 @@ Examples:
 - "Read the files in ./vendor-docs and summarize the requirements."
 - "Scan ./architecture-notes and extract the requirements into a requirements summary file."
 
+This agent only ever saves a summary -- it never renders a document. A request to CREATE a
+requirements DOCUMENT from a description (no directory at all, or a directory as supplementary
+background) is 1d (Requirements_Doc_Pipeline), not this section, even when it also uses the word
+"summarize"/"requirements" -- the deciding question is whether a directory of EXISTING source
+files is the thing being read (this section) versus a description being synthesized from scratch
+(1d).
+
 Include the directory path VERBATIM (same reason as Section 1).
 
 ------------------------------------------------------------
@@ -600,7 +639,7 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline)
+1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
@@ -764,6 +803,7 @@ section above.
                 "/requirements_consultant",
                 "/requirements_reviewer",
                 "/requirements_simulation_query",
+                "/requirements_doc_pipeline",
                 "/regenerate_document",
                 "clear_pipeline_lock",
                 "download_artifact"
