@@ -11,7 +11,8 @@ import docx
 from docx.oxml.ns import qn
 
 from process_toolkit import paths
-from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
+from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -126,3 +127,79 @@ def test_no_blank_page_when_appendix_and_additional_data_are_both_absent():
     out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
     gaps = _blank_page_gaps(out_path)
     assert gaps == [], f"found {len(gaps)} fully blank page(s) at break-index pairs {gaps}"
+
+
+SAMPLE_REQUIREMENTS_SUMMARY = {
+    "source_directory": "./vendor-docs",
+    "source_files": ["rfp.pdf"],
+    "summary": "Requirements for a vendor onboarding portal.",
+    "industry_sector": "Retail",
+    "stakeholders": ["Procurement Lead", "Legal"],
+    "assumptions": ["Vendors already have a tax id."],
+    "risks": ["Vendor data may be incomplete."],
+    "open_questions": ["Which regions are in scope?"],
+    "requirements_register": [
+        {"id": "FR-001", "type": "functional", "description": "Allow vendor registration.",
+         "source": "rfp.pdf", "acceptance_criteria": ["A vendor can submit a registration form."],
+         "status": "proposed"},
+        {"id": "NFR-001", "type": "non_functional", "description": "Respond within 2 seconds.",
+         "source": "rfp.pdf", "acceptance_criteria": ["p95 latency < 2s"], "status": "proposed"},
+    ],
+    "requirement_priorities": [
+        {"requirement_id": "FR-001", "requirement_text": "vendor registration", "priority": "high",
+         "rationale": "core flow"},
+    ],
+    "conflicting_requirements": [],
+    "requirements_needing_clarification": [],
+    "inferred_requirements": [],
+    "coverage_gaps": [{"category": "Data Privacy & Compliance", "description": "No retention policy stated."}],
+}
+
+
+class TestRequirementsDocumentGeneration:
+    def test_generates_a_requirements_document(self):
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_REQUIREMENTS_SUMMARY, f)
+
+        result = create_standard_doc_from_file("Vendor Onboarding Requirements", schema_type="requirements")
+        assert result.startswith("SUCCESS:")
+
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        assert "1.0 Introduction and Purpose" in headings
+        assert "2.0 Stakeholders" in headings
+        assert "3.0 Requirements Register" in headings
+        assert "4.0 Requirement Priorities" in headings
+        # Conflicting/clarification/inferred are empty in this sample --
+        # must not render a heading for a section with nothing to show.
+        assert not any("Conflicting Requirements" in h for h in headings)
+        assert not any("Needing Clarification" in h for h in headings)
+        assert not any("Inferred Requirements" in h for h in headings)
+        assert any("Coverage Gaps" in h for h in headings)
+        # No diagram, no fabricated glossary.
+        assert not any("Glossary" in h for h in headings)
+        assert not any("Architecture Flow Diagram" in h for h in headings)
+
+    def test_no_blank_pages_in_a_generated_requirements_document(self):
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_REQUIREMENTS_SUMMARY, f)
+
+        result = create_standard_doc_from_file("Vendor Onboarding Requirements", schema_type="requirements")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        gaps = _blank_page_gaps(out_path)
+        assert gaps == [], f"found {len(gaps)} fully blank page(s) at break-index pairs {gaps}"
+
+    def test_requirements_is_reachable_only_via_an_explicit_schema_type(self):
+        # The one guarantee this whole feature depends on: a saved
+        # requirements_summary.json must NEVER be silently auto-discovered
+        # by detect_schema_type_from_disk()'s own fallback -- only an
+        # explicitly-passed schema_type="requirements" reaches it.
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_REQUIREMENTS_SUMMARY, f)
+
+        assert detect_schema_type_from_disk() == "process"
+
+        result = create_standard_doc_from_file("X", schema_type=None)
+        assert result.startswith("ERROR:")
+        assert PROCESS_JSON_FILENAME in result

@@ -35,6 +35,9 @@ from .json_normalizer_agent import json_normalizer_agent
 from .json_review_agent import json_review_agent
 from .requirements_summary_agent import requirements_summary_agent
 from .requirements_consultant_agent import requirements_consultant_agent
+from .requirements_reviewer_agent import requirements_reviewer_agent
+from .requirements_simulation_agent import requirements_simulation_query_agent
+from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from ..process.scenario_agent import scenario_tester_agent
 from ..design.scenario_design_agent import design_scenario_tester_agent
 from ..process.simulation_agent import simulation_agent

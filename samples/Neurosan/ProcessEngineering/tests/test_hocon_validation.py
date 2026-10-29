@@ -13,6 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTED_NETWORKS = [
     "registries/requirements_summary.hocon",
     "registries/requirements_consultant.hocon",
+    "registries/requirements_reviewer.hocon",
+    "registries/requirements_simulation_query.hocon",
+    "registries/requirements_doc_pipeline.hocon",
     "registries/cloudarch.hocon",
     "registries/process.hocon",
     "registries/process_import.hocon",

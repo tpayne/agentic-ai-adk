@@ -756,8 +756,9 @@
     return { Authorization: `Bearer ${key}` };
   }
 
-  // GET /artifacts/* routes (viewing/downloading process/design/cloudarch
-  // data, generated documents) have no JSON body of their own the way
+  // GET /artifacts/* routes (viewing/downloading process/design/
+  // requirements/cloudarch data, generated documents) have no JSON body
+  // of their own the way
   // POST /chat does, so the session id this client tracks in state.sessionId
   // (set from POST /chat's own response -- see setSessionId) has to travel
   // as a query parameter instead. The backend's own session cookie is NOT
@@ -2215,10 +2216,11 @@
   el.nodeDetailCloseBtn.addEventListener("click", closeNodeDetail);
 
   // ---------------------------------------------------------------
-  // Data explorer -- hierarchical viewer for the Process/Design tab's
-  // GET /artifacts/<name> ("process" or "design"), a read-only snapshot of
-  // this project's own output/process_data.json / output/design_data.json
-  // on whichever backend is connected. Rendered as an expandable tree
+  // Data explorer -- hierarchical viewer for the Process/Design/Requirements
+  // tab's GET /artifacts/<name> ("process", "design", or "requirements"), a
+  // read-only snapshot of this project's own output/process_data.json /
+  // output/design_data.json / output/requirements_summary.json on whichever
+  // backend is connected. Rendered as an expandable tree
   // (root top-left, children expanding down-and-right) built via
   // document.createElement/.textContent -- NOT innerHTML string
   // concatenation -- since the JSON content being displayed is arbitrary
@@ -2320,8 +2322,8 @@
         body.textContent = error;
       } else {
         heading.textContent = "No data loaded";
-        body.textContent = "Pick Process or Design above, then click the refresh icon to load " +
-          "that pipeline's current output/*_data.json from the connected backend.";
+        body.textContent = "Pick Process, Design, or Requirements above, then click the refresh " +
+          "icon to load that pipeline's current saved output from the connected backend.";
       }
       return;
     }
@@ -2333,7 +2335,7 @@
     el.artifactTree.innerHTML = "";
     const { raw, artifact } = state.dataExplorer;
     if (raw === null) return;
-    const rootLabel = artifact === "design" ? "design" : "process";
+    const rootLabel = artifact === "design" || artifact === "requirements" ? artifact : "process";
     buildTreeRow(rootLabel, raw, "$", 0, el.artifactTree);
   }
 
@@ -2480,19 +2482,23 @@
 
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
-  // Downloads the real process_data.json/design_data.json file (vs. the
-  // tree view loadArtifact above renders from) -- re-attaching this exact
-  // file to a later chat turn (the composer's own "attach file" button)
-  // restores it verbatim as the active process/design, without re-running
+  // Downloads the real process_data.json/design_data.json/
+  // requirements_summary.json file (vs. the tree view loadArtifact above
+  // renders from) -- re-attaching this exact file to a later chat turn
+  // (the composer's own "attach file" button) restores it verbatim as
+  // the active process/design/requirements summary, without re-running
   // the pipeline -- see both backends' Process_Import_Agent/
   // Design_Import_Agent for how a re-uploaded process_data.json/
   // design_data.json is recognized by name and restored rather than
-  // re-extracted.
+  // re-extracted, and Requirements_Summary_Agent's own literal-restore
+  // STEP for requirements_summary.json.
   async function downloadArtifactJson() {
-    const artifact = state.dataExplorer.artifact; // "process" or "design"
+    const artifact = state.dataExplorer.artifact; // "process", "design", or "requirements"
     const blob = await fetchArtifactBlob(`/artifacts/${artifact}/download`);
     if (!blob) return;
-    const filename = `${artifact}_data.json`;
+    // requirements_summary.json has no "_data.json" suffix, unlike the
+    // other two -- the real on-disk filename, not a derived pattern.
+    const filename = artifact === "requirements" ? "requirements_summary.json" : `${artifact}_data.json`;
     const result = await saveFile(blob, filename, {
       description: "JSON file", accept: { "application/json": [".json"] },
     });

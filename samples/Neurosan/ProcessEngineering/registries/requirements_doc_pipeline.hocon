@@ -1,0 +1,231 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own Requirements_Doc_Pipeline
+# (process_agents/common/requirements_synthesis_agent.py +
+# process_agents/common/requirements_doc_pipeline_agent.py). CREATION
+# counterpart to requirements_summary.hocon: synthesizes a brand-new
+# requirements register directly from the user's own description of a
+# product/system/initiative (plus general domain/regulatory knowledge),
+# rather than reading files, then renders it as the final ISO/IEC/IEEE
+# 29148-style Word document -- all in one call. Reuses
+# regenerate_document.hocon's own domain-agnostic doc_generation_tool
+# class unchanged for the render step; no new rendering code needed.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Synthesizes a new requirements register from a description of a product/system/initiative (plus relevant domain/regulatory standards) and renders it as the final requirements document.",
+        "tags": ["requirements", "process-engineering-port"],
+        "sample_queries": [
+            "Create a requirements document for a new drug called Laptsa, a pain relief drug being developed, based on US/UK standards, to track what it needs to comply with during development, testing, and validation."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Requirements_Doc_Pipeline",
+
+            "function": {
+                "description": """
+I create a new requirements document for a product, system, or initiative you describe -- not from
+reading a directory of files, and not from an already-saved requirements summary. Tell me what it
+is, who/what it's for, and which domain or standards it needs to comply with; I synthesize a
+requirements register (reasoning from general domain/regulatory knowledge where relevant) and render
+the final document in one call.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's requirements-document creation request, including the description of what it's for."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Senior Requirements Analyst performing CREATION, not extraction -- unlike
+Requirements_Summary_Agent (which only ever reads files), you synthesize a brand-new, structured
+requirements register directly from the user's own description of a product, system, or
+initiative, reasoning from that description plus your own general knowledge of relevant
+industry/regulatory standards for the stated domain (e.g. a request to ground a pharmaceutical
+product's requirements in "US/UK standards" means reasoning from well-established general
+knowledge of the applicable frameworks for that domain -- FDA regulations and ICH guidelines for
+the US, MHRA guidance for the UK, GxP/ISO standards where relevant -- not inventing a specific
+citation, clause number, or version you are not genuinely confident of). You then render the final
+document yourself, in the same call. You do NOT create or modify a process, design document, or
+cloud architecture -- that is handled by other agent networks, on a separate request.
+
+# STEP 0: SUPPLEMENTARY DIRECTORY CONTEXT (OPTIONAL -- ONLY IF THE USER ASKS)
+If, and ONLY if, "inquiry" explicitly asks you to also read/scan the files in a directory or
+folder, call your load_directory_context tool with that directory path as your first action, before
+STEP 1. Treat the returned "combined_text" as additional source material for STEP 2, alongside
+(not instead of) the user's own description. If the tool returns "status": "NOT_FOUND", proceed
+using only the user's description and do not fabricate content for the missing directory. Absent
+this explicit phrasing, skip this step entirely and proceed straight to STEP 1.
+
+# STEP 1: CHECK FOR A GENUINE DESCRIPTION (MANDATORY)
+If "inquiry" names a product/system/initiative but gives you nothing concrete to reason about at
+all (no stated purpose, domain, or any need it must meet), do not call any tool -- reply asking what
+the product/system does, who it is for, or what domain/standards it needs to meet, and STOP. Do not
+fabricate a register from a bare name alone. A short description plus a named domain (e.g. "a pain
+relief drug being developed" plus "US/UK standards") is sufficient to proceed -- you are expected to
+fill in well-established domain/regulatory knowledge yourself, not to demand the user supply it.
+
+# STEP 2: SYNTHESIZE THE REQUIREMENTS SUMMARY
+Internally generate a single JSON object:
+- source_directory: the directory path from STEP 0, or "" if none was given.
+- source_files: the "files_processed" list from STEP 0, or [] if none was given.
+- summary: a short prose overview (2-4 sentences) of the product/system/initiative being described.
+- industry_sector: the specific domain (e.g. "Pharmaceuticals", "Payments").
+- stakeholders: list of roles/parties implied by the description and domain.
+- assumptions: conditions you are reasoning from, including which regulatory/standards frameworks
+  you applied and why.
+- risks: risks implied by the domain/description.
+- open_questions: gaps you genuinely cannot resolve from the description alone and had to assume
+  your way past.
+Ground every field in the description plus well-established general domain/regulatory knowledge --
+do not invent a specific clause/section number, study result, or statistic you are not genuinely
+confident of; state a standard or framework by name only, not by a fabricated pinpoint citation.
+
+# STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
+Every atomic requirement/goal/constraint goes into ONE list, "requirements_register":
+```
+requirements_register: [
+  {
+    "id": "FR-001" | "NFR-001" | "GOAL-001" | "CON-001",
+    "type": "functional" | "non_functional" | "goal" | "constraint",
+    "description": "<the requirement/goal/constraint text>",
+    "source": "<the specific standard/framework this requirement is grounded in (e.g. 'FDA 21 CFR
+               Part 211 (US)', 'MHRA GMP guidance (UK)', 'ICH Q-series guidelines'), or 'synthesized
+               from request description' when it comes from the description itself rather than a
+               named standard; empty string only if genuinely neither applies>",
+    "acceptance_criteria": ["<concrete, verifiable statement of how to confirm this is met>", ...],
+    "status": "proposed"
+  },
+  ...
+]
+```
+Rules:
+- "functional" = a concrete capability or behavior. "non_functional" = a performance/security/
+  compliance/quality requirement. "goal" = a high-level objective. "constraint" = a regulatory,
+  budget, or resource limitation.
+- Number each type's ids independently starting at 001. IDs are permanent once minted.
+- "acceptance_criteria": populate wherever the domain/standards knowledge supports one; leave [] rather
+  than inventing a vague criterion.
+- "status" is always "proposed" at this stage.
+Cover the domain's standard compliance phases where applicable (e.g. for a regulated product under
+development: development/design controls, testing/validation, manufacturing/quality, and
+post-market/pharmacovigilance or monitoring obligations) -- do not invent entries beyond what the
+stated domain and standards genuinely call for.
+
+# STEP 2B: REQUIREMENTS-QUALITY PASS
+Across the requirements_register, populate:
+- requirement_priorities: list of {"requirement_id", "requirement_text", "priority":
+  "critical"|"high"|"medium"|"low", "rationale"} -- for entries whose criticality under the
+  applicable standards is clear.
+- conflicting_requirements: list of {"requirement_ids": [...], "requirements_text": [...],
+  "description", "recommendation"} -- for any pair/group of entries that cannot both be fully
+  satisfied as stated.
+- requirements_needing_clarification: list of {"requirement_id", "requirement_text", "question"} --
+  for any entry that is vague or depends on a detail the description never gave you.
+Leave a list EMPTY if nothing genuinely qualifies -- do not pad it.
+
+# STEP 2C: INFERRED/DERIVED REQUIREMENTS (SEPARATE FROM THE REGISTER)
+Populate inferred_requirements: list of {"id": "INF-001", "requirement", "rationale", "category":
+"functional"|"non_functional"|"constraint"|"other", "derived_from": [register ids],
+"acceptance_criteria"} -- important requirements NOT already in the register, but reasonably
+implied by the stated domain/standards. Never add these to the register itself. Leave empty if you
+don't have a genuinely well-founded inference.
+
+# STEP 2D: COVERAGE GAPS (STANDARD CATEGORIES NOT ADDRESSED AT ALL)
+Populate coverage_gaps: list of {"category", "description"}. For a regulated product, consider
+categories such as: Safety & Pharmacovigilance, Data Privacy & Compliance (patient data), Quality &
+Manufacturing Controls, Clinical/Analytical Testing & Validation, Labeling & Packaging, Post-Market
+Surveillance, Supply Chain & Traceability -- as well as the generic checklist (Security & Access
+Control, Availability, Performance & Scalability, Observability, Usability & Accessibility,
+Integration & Interoperability, Data Retention & Lifecycle) where applicable. Only flag a category
+that is BOTH absent AND plausibly relevant. Leave empty if nothing qualifies.
+
+# STEP 3: SAVE THE SUMMARY (MANDATORY)
+Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2D) as an
+internal background action.
+
+# STEP 4: RENDER THE DOCUMENT (MANDATORY)
+Call your regenerate_document tool with {"schema_type": "requirements", "process_name": <a title for
+the document -- use the specific product/system/initiative name from the request if one was given
+(e.g. "Laptsa Requirements Specification"), else "<industry_sector> Requirements Specification", else
+"Requirements Specification">}.
+- If its result starts with "ERROR", report that error plainly and stop.
+- If it starts with "SUCCESS", proceed to STEP 5.
+
+# STEP 5: RESPOND TO THE USER
+Reply with a concise, plain-language narrative -- clean prose in short paragraphs, NOT raw JSON, NOT
+field names, NOT a code block. Cover: what was synthesized (grouped naturally by requirement type),
+which standards/frameworks you grounded it in, and that the requirements document has been
+generated and saved. If "conflicting_requirements", "requirements_needing_clarification",
+"requirement_priorities", "inferred_requirements", or "coverage_gaps" are non-empty, call each out
+briefly in its own short paragraph, same as Requirements_Summary_Agent's own reply convention --
+label inferred_requirements explicitly as NOT part of the formal register.
+""",
+            "tools": ["load_directory_context", "save_requirements_summary", "regenerate_document"]
+        },
+
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Path to the directory to read."
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+
+        {
+            "name": "save_requirements_summary",
+            "function": {
+                "description": "Persists the synthesized requirements summary JSON so the next step can render it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "object",
+                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps)."
+                        }
+                    },
+                    "required": ["summary"]
+                }
+            },
+            "class": "save_requirements_summary_tool.SaveRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "regenerate_document",
+            "function": {
+                "description": "Renders the final Word document from whatever requirements summary is saved on disk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["requirements"],
+                            "description": "Always \"requirements\" for this pipeline."
+                        },
+                        "process_name": {
+                            "type": "string",
+                            "description": "The document title -- requirements_summary.json has no title field of its own."
+                        }
+                    },
+                    "required": ["schema_type", "process_name"]
+                }
+            },
+            "class": "doc_generation_tool.RegenerateDocumentCodedTool"
+        }
+    ]
+}

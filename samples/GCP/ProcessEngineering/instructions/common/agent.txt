@@ -200,12 +200,51 @@ CloudArch_Import_Agent). The deciding question is whether the directory's conten
 artifact to bring in as-is (1c), or merely INFORMS a new artifact the user is asking you to
 design/generate (1a/1b). If genuinely ambiguous, ask (Rule 10) rather than guess.
 
+A REQUIREMENTS SUMMARY is not one of this rule's three artifact types -- "import"/"restore"/
+"re-upload" wording naming a requirements summary (e.g. "import the requirements summary in
+./old-exports") does NOT go to Process_Import_Agent/Design_Import_Agent/CloudArch_Import_Agent.
+Route it to Requirements_Summary_Agent (Section 8) instead -- it already recognizes a re-uploaded
+`requirements_summary.json` and restores it verbatim, the identical literal-restore mechanism this
+rule's three agents use for their own artifact types.
+
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS note below).
 
+### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)
+Trigger when the user wants to CREATE a NEW requirements document/register for a product, system,
+or initiative they are DESCRIBING in the request itself -- NOT from reading a directory of existing
+source files (that is Section 8, which only ever saves a summary and never renders a document), and
+NOT from an already-saved requirements summary (that is Section 6's document regeneration). This is
+the requirements-domain's own creation path, parallel to 1a (process) and 1b (design document):
+tell it what the thing is and what it needs to comply with, and it synthesizes a requirements
+register -- reasoning from your own general domain/regulatory-standards knowledge where the request
+names a domain or standard -- then renders the requirements document, in one call.
+
+A bare "requirements document" with NO description of what it's for (just a name, with nothing to
+reason about) is NOT enough to trigger this -- if the request is that thin, this rule still applies
+(do not fall back to 1b/Full_Design_Doc_Pipeline just because it's underspecified), but
+Requirements_Doc_Pipeline's own first stage will itself ask a clarifying question rather than
+fabricate content.
+
+→ Call: Requirements_Doc_Pipeline
+
+Examples:
+- "Create a requirements document for a new drug called Laptsa, a pain relief drug being
+  developed, based on US/UK standards, to track what it needs to comply with during development,
+  testing, and validation."
+- "I need a requirements document for a new payments API, covering PCI-DSS and GDPR."
+- "Draft a requirements register for an onboard flight-safety system, grounded in DO-178C."
+
+This is a REQUIREMENTS creation request even though the word "document" appears, same reasoning as
+why "design document" isn't automatically 1b -- the deciding word here is "requirements" naming the
+artifact itself, not "architecture"/"design"/"HLD"/"LLD" (which still mean 1b even if the resulting
+thing is also informally "a document"). If the request names BOTH a design/architecture AND asks
+for its requirements to be tracked as a SEPARATE requirements document, that is two things -- ask
+for clarification (Section 11) rather than silently picking one.
+
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
-in a directory or folder (1a/1b/1c above, or the cloud diagram case in Section 7 below), include that
-directory path VERBATIM in what you pass to the target pipeline tool. Do not paraphrase it away as a
-stylistic aside: the downstream analysis agent looks for that exact path to call its own
+in a directory or folder (1a/1b/1c/1d above, or the cloud diagram case in Section 7 below), include
+that directory path VERBATIM in what you pass to the target pipeline tool. Do not paraphrase it away
+as a stylistic aside: the downstream analysis agent looks for that exact path to call its own
 load_directory_context tool, so dropping or rewording it silently removes the user's source material.
 (If the request is ONLY to summarize the directory's files, with no creation verb alongside it, that
 is Section 8's standalone mode instead -- see below.)
@@ -367,6 +406,27 @@ Examples:
 
 This applies to cloud architecture diagram adversarial attack-path analysis only.
 
+### 3f. REQUIREMENTS COMPLETENESS SIMULATION
+Trigger when the user wants to SIMULATE, IDENTIFY, or FIND requirements that are LIKELY MISSING
+from the saved requirements summary -- a FRESH reasoning pass beyond what extraction already
+recorded, not a re-statement of it. Signal words: "simulate completeness", "simulate [the]
+requirements", "identify missing requirements", "what requirements might we be missing", "find gaps
+we haven't already flagged", "run a completeness check on the requirements".
+
+PRECEDENCE vs. 4d: a BARE "what's missing"/"what are we missing" with no simulate/identify/fresh-pass
+wording means "read back what was already flagged" → Requirements_Consultant_Agent (4d), which
+already answers this from the saved "coverage_gaps" field. Only route here when the request explicitly
+asks for new analysis beyond the saved summary's own recorded gaps.
+
+→ Call: Requirements_Simulation_Query_Agent
+
+Examples:
+- "What requirements might we be missing for this healthcare platform?"
+- "Simulate completeness of these requirements."
+- "Run a fresh gap analysis beyond what was already flagged."
+
+This applies to saved requirements summary completeness analysis only.
+
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
@@ -471,6 +531,25 @@ requirements of this process/design" question (with no reference to a saved/prev
 summary) is NOT this -- that stays with 4a/4b as before, since it's asking about a different
 artifact (the process or design document itself, not a pre-pipeline requirements extraction).
 
+### 4e. REQUIREMENTS QUALITY REVIEW
+Trigger when the user wants the SAVED requirements themselves AUDITED for quality -- vague,
+ambiguous, compound, untestable, duplicate, or conflicting wording -- against classic SRS/ISO-29148
+criteria. This is NOT 4d (which only reads back what's already recorded) -- 4e makes a fresh
+judgment about whether each requirement is WELL-WRITTEN, not what it says. Signal words: "review the
+requirements for quality", "audit the requirements", "are these requirements reasonable/well-formed/
+testable", "check these against SRS/ISO 29148", "find vague or duplicate requirements".
+
+PRECEDENCE vs. 4d: bare "review the requirements" with no quality/reasonableness/testability wording
+stays 4d (general review of content). Route here only when the request asks about the requirements'
+own QUALITY, not their content.
+
+→ Call: Requirements_Reviewer_Agent
+
+Examples:
+- "Review the requirements for quality."
+- "Are these requirements reasonable?"
+- "Audit the saved requirements against SRS best practice."
+
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
@@ -508,6 +587,11 @@ Analysis tool (Simulation_Optimization_Query_Agent or Design_Architecture_Simula
 ## 6. DOCUMENT REGENERATION
 Trigger when the user asks for a process document OR a design document (HLD/LLD/Combined) to be regenerated or generated. This single tool inspects whichever baseline (process or design) currently exists and regenerates the matching document type automatically — you do not need to distinguish domain for this rule.
 
+Also trigger here when the user explicitly asks to regenerate "the requirements"/"the requirements
+document" -- the requirements document is NEVER auto-detected the way process/design are (the saved
+requirements summary is far more often read as context by other pipelines than it is the thing
+someone wants rendered), so it is only built when the request explicitly names it.
+
 → Call: Create_Doc_Agent
 
 Examples:
@@ -515,6 +599,7 @@ Examples:
 - "Regenerate the documents..."
 - "Regenerate the design document"
 - "Please regenerate the HLD document"
+- "Regenerate the requirements document"
 
 ------------------------------------------------------------
 
@@ -590,7 +675,12 @@ Trigger ONLY when the user asks you to read/scan the files or documents in a dir
 summarize/extract the requirements found in them -- WITHOUT also asking to create, design, build, or
 generate a process, design document, or cloud architecture in the same request. This is a standalone
 "just give me the summary" request, distinct from Section 1's creation flow (which already reads a
-directory inline as part of a full pipeline run).
+directory inline as part of a full pipeline run). This ALSO covers re-uploading a previously
+downloaded `requirements_summary.json` to restore it verbatim (e.g. "import the requirements summary
+in ./old-exports", or simply re-attaching that exact file) -- Requirements_Summary_Agent recognizes
+that file by name and content and restores it rather than re-summarizing it as prose; see 1c's own
+cross-reference for why this, not Process_Import_Agent/Design_Import_Agent, is the right target for
+a requirements-summary import.
 
 → Call: Requirements_Summary_Agent
 
@@ -598,10 +688,19 @@ Examples:
 - "Read the files in ./vendor-docs and summarize the requirements."
 - "Just read the files in that folder and summarize the requirements to the screen."
 - "Scan ./architecture-notes and extract the requirements into a requirements summary file."
+- "Import the requirements summary in ./old-exports." (re-uploading a previously downloaded
+  `requirements_summary.json`)
 
 Precedence rule: if a single request asks to BOTH summarize files AND create/design/build/generate
 something, treat it as a creation request (Section 1), not this standalone mode -- the creation
 pipelines already read the directory inline as part of their own analysis stage.
+
+This agent only ever saves a summary -- it never renders a document. A request to CREATE a
+requirements DOCUMENT from a description (no directory at all, or a directory as supplementary
+background) is Section 1d (Requirements_Doc_Pipeline), not this section, even when it also uses the
+word "summarize"/"requirements" -- the deciding question is whether a directory of EXISTING source
+files is the thing being read (this section) versus a description being synthesized from scratch
+(1d).
 
 Include the directory path VERBATIM in what you pass to Requirements_Summary_Agent (same reason as
 the DIRECTORY-CONTEXT REQUESTS note in Section 1 -- the agent needs the literal path to load it).
@@ -622,13 +721,13 @@ Examples:
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline)
+1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline; requirements document from a description → Requirements_Doc_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
-4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent)
+4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud architecture diagram → CloudArch_IaC_Pipeline)
-7. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent)
+7. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent; requirements quality → Requirements_Reviewer_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
