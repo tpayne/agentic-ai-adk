@@ -1494,16 +1494,17 @@ def build_web_app(https: bool = True):
     def artifact(name):
         """
         Read-only access to this web session's own output/<session_id>/
-        process_data.json, design_data.json, or cloudarch_drawio.xml (or
-        flat output/ for a caller with no session id at all -- e.g. a
-        direct API caller that never went through POST /chat first),
-        resolved via a `session_id` query parameter (see
-        _web_session_id_for_get_request's own docstring for why a query
-        parameter, not just the session cookie, matters here) -- a plain
-        GET has no JSON body of its own to carry a session_id in the way
-        POST /chat does. Powers the web client's "Process / Design" and "Cloud
-        Architecture" tabs -- a hierarchical/diagram viewer of whichever
-        pipeline's current artifact. Both backends serve this the same
+        process_data.json, design_data.json, requirements_summary.json, or
+        cloudarch_drawio.xml (or flat output/ for a caller with no session
+        id at all -- e.g. a direct API caller that never went through
+        POST /chat first), resolved via a `session_id` query parameter
+        (see _web_session_id_for_get_request's own docstring for why a
+        query parameter, not just the session cookie, matters here) -- a
+        plain GET has no JSON body of its own to carry a session_id in
+        the way POST /chat does. Powers the web client's "Process /
+        Design / Requirements" and "Cloud Architecture" tabs -- a
+        hierarchical/diagram viewer of whichever pipeline's current
+        artifact. Both backends serve this the same
         way (the neuro-san port's build_web_app has an identical route)
         and both keep these files at an identical relative path, so the
         client's fetch logic doesn't need to know which backend it's
@@ -1526,13 +1527,14 @@ def build_web_app(https: bool = True):
         filenames = {
             "process": "process_data.json",
             "design": "design_data.json",
+            "requirements": "requirements_summary.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
         if filename is None:
             return jsonify({
                 "status": "error",
-                "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'cloudarch'.",
+                "error": f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', or 'cloudarch'.",
             }), 400
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
@@ -1641,24 +1643,30 @@ def build_web_app(https: bool = True):
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
-        process_data.json or design_data.json as a real file attachment
-        (as opposed to GET /artifacts/<name> above, which returns it
-        JSON-wrapped for the client's own data-explorer viewer) --
-        structurally identical to download_cloudarch above, just for the
-        other two artifact kinds. Same contract as the neuro-san port's
-        own identical route. The downloaded file can later be re-attached
-        to a chat turn to resume working on it -- see Process_Import_Agent/
-        Design_Import_Agent's own instructions for how an attachment
-        literally named process_data.json/design_data.json is recognized
-        and restored verbatim rather than re-extracted."""
+        process_data.json, design_data.json, or requirements_summary.json
+        as a real file attachment (as opposed to GET /artifacts/<name>
+        above, which returns it JSON-wrapped for the client's own
+        data-explorer viewer) -- structurally identical to
+        download_cloudarch above, just for the other artifact kinds. Same
+        contract as the neuro-san port's own identical route. The
+        downloaded file can later be re-attached to a chat turn to resume
+        working on it -- see Process_Import_Agent/Design_Import_Agent's
+        own instructions for how an attachment literally named
+        process_data.json/design_data.json is recognized and restored
+        verbatim rather than re-extracted, and Requirements_Summary_Agent's
+        own literal-restore STEP for requirements_summary.json."""
         from process_toolkit import paths as toolkit_paths
 
-        filenames = {"process": "process_data.json", "design": "design_data.json"}
+        filenames = {
+            "process": "process_data.json",
+            "design": "design_data.json",
+            "requirements": "requirements_summary.json",
+        }
         filename = filenames.get(name)
         if filename is None:
             return jsonify({
                 "status": "error",
-                "error": f"Unknown artifact '{name}' -- use 'process' or 'design'.",
+                "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'requirements'.",
             }), 400
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(toolkit_paths.output_dir(), filename)

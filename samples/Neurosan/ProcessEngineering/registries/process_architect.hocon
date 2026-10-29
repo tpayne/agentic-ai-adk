@@ -271,6 +271,13 @@ content IS the finished artifact to bring in as-is (1c), or merely INFORMS a new
 asking you to design/generate (1a/1b/Section 6). If genuinely ambiguous, ask (Rule 10) rather than
 guess.
 
+A REQUIREMENTS SUMMARY is not one of this rule's three artifact types -- "import"/"restore"/
+"re-upload" wording naming a requirements summary (e.g. "import the requirements summary in
+./old-exports") does NOT go to Process_Import_Agent/Design_Import_Agent/CloudArch_Import_Agent.
+Route it to Requirements_Summary_Agent (Section 7) instead -- it already recognizes a re-uploaded
+`requirements_summary.json` and restores it verbatim, the identical literal-restore mechanism this
+rule's three agents use for their own artifact types.
+
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS rule below).
 
 ### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)
@@ -615,13 +622,20 @@ CloudArch_IaC_Pipeline's own generator asks the user to choose rather than guess
 Trigger ONLY when the user asks you to read/scan the files in a directory and summarize/extract
 requirements -- WITHOUT also asking to create/design/build/generate a process, design document, or
 cloud architecture in the same request (that combination is Section 1/6 instead, which already read
-the directory inline as part of their own analysis stage).
+the directory inline as part of their own analysis stage). This ALSO covers re-uploading a
+previously downloaded `requirements_summary.json` to restore it verbatim (e.g. "import the
+requirements summary in ./old-exports", or simply re-attaching that exact file) --
+Requirements_Summary_Agent recognizes that file by name and content and restores it rather than
+re-summarizing it as prose; see 1c's own cross-reference for why this, not
+Process_Import_Agent/Design_Import_Agent, is the right target for a requirements-summary import.
 
 -> Call: Requirements_Summary_Agent
 
 Examples:
 - "Read the files in ./vendor-docs and summarize the requirements."
 - "Scan ./architecture-notes and extract the requirements into a requirements summary file."
+- "Import the requirements summary in ./old-exports." (re-uploading a previously downloaded
+  `requirements_summary.json`)
 
 This agent only ever saves a summary -- it never renders a document. A request to CREATE a
 requirements DOCUMENT from a description (no directory at all, or a directory as supplementary

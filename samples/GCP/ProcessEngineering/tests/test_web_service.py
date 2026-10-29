@@ -924,6 +924,12 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["data"], {"doc": True})
 
+    def test_requirements_artifact_name_maps_to_requirements_summary_json(self):
+        self._write("requirements_summary.json", '{"requirements_register": []}')
+        response = self.client.get("/artifacts/requirements", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"], {"requirements_register": []})
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self):
         self._write("cloudarch_drawio.xml", "<mxfile><diagram>stuff</diagram></mxfile>")
         response = self.client.get("/artifacts/cloudarch", headers=self._authorized_headers())
@@ -1044,6 +1050,15 @@ class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, b'{"document_metadata": {}}')
         self.assertIn("design_data.json", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_requirements_summary_json_as_a_real_attachment(self):
+        self._write("requirements_summary.json", '{"requirements_register": []}')
+        response = self.client.get(
+            "/artifacts/requirements/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b'{"requirements_register": []}')
+        self.assertIn("requirements_summary.json", response.headers.get("Content-Disposition", ""))
 
     def test_404s_when_not_yet_generated(self):
         response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())

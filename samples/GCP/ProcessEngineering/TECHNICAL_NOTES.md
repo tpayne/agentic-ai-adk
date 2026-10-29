@@ -79,7 +79,7 @@ The ADK pipeline provides:
 - **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
 - **Requirement Traceability Register**: Every atomic requirement identified during analysis gets a stable id (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which source file it came from, and one or more concrete acceptance criteria. For the design-document pipeline, this register is mapped directly into `design_document_schema.json`'s `requirements.functional_requirements`/`requirements.non_functional_requirements`/`requirements.traceability_matrix` sections — closing a gap where the HLD/Combined generator previously never populated that part of the schema — giving every generated design document real, ISO/IEC/IEEE 29148-style requirement traceability.
 - **Requirements-Aware Consultation & Simulation**: Every consultant, scenario-tester, and simulation-query agent (`Consultant_Agent`, `Design_Consultant_Agent`, `Scenario_Tester`, `Design_Scenario_Tester`, `CloudArch_Consultant_Agent`, `CloudArch_Simulation_Query_Agent`, `CloudArch_Attack_Simulation_Query_Agent`, `CloudArch_FinOps_Agent`, `Design_Architecture_Simulation_Query_Agent`, `Simulation_Optimization_Query_Agent`) also checks once per conversation for a saved requirements summary (`load_requirements_summary`) alongside the process/design/diagram it's actually answering about. A `NOT_FOUND` status changes nothing. If a summary exists and the question is specifically about requirement fulfillment, coverage, or a gap (e.g. *"does this diagram satisfy the encryption-at-rest requirement?"*, *"would this what-if scenario breach our SLA?"*), the agent cross-checks the stated requirement against the actual process/design/diagram data and says plainly whether it's met, partially met, at risk, or not addressed — naming the responsible component or step. For any other question it stays silent on the subject; it never volunteers the requirements summary unprompted. The three pipeline-internal auto-revision gates (`Compliance_Agent`, `Design_Architecture_Simulation_Agent`, `Simulation_Optimization_Agent`) are deliberately excluded, since they run automatically mid-creation with no user turn to ask a fulfillment question against.
-- **Downloading Generated Artifacts**: Save a copy of the cloud architecture diagram, the generated IaC zip, or any generated Word document to a local path — three ways. In chat, just ask (e.g. *"download the cloud architecture diagram to /tmp"*, *"save the Terraform zip to ~/Downloads"*, *"save the design doc to my Desktop"*): the root orchestrator's `download_artifact` tool resolves which artifact you mean (an exact filename, a phrase like "diagram"/"architecture" for the cloud architecture diagram, a phrase like "iac"/"terraform"/"cloudformation"/"pulumi"/"infrastructure" for the IaC zip, or whichever document was generated most recently if you just say "it") and copies it to the path you gave. The interactive/`-f` CLI has the same capability as plain control lines — `list` shows what's in `output/`, `download <filename> [destination]` copies one out — with no agent/LLM call involved. The web client's **Process / Design** and **Cloud Architecture** tabs expose the same capability as download buttons (`GET /artifacts/documents`, see [Downloading generated artifacts](#downloading-generated-artifacts) below). See [Known issues](#known-issues) for a caveat on exposing the chat-driven download tool beyond local use. Developed in tandem with the neuro-san port's own identical feature.
+- **Downloading Generated Artifacts**: Save a copy of the cloud architecture diagram, the generated IaC zip, or any generated Word document to a local path — three ways. In chat, just ask (e.g. *"download the cloud architecture diagram to /tmp"*, *"save the Terraform zip to ~/Downloads"*, *"save the design doc to my Desktop"*): the root orchestrator's `download_artifact` tool resolves which artifact you mean (an exact filename, a phrase like "diagram"/"architecture" for the cloud architecture diagram, a phrase like "iac"/"terraform"/"cloudformation"/"pulumi"/"infrastructure" for the IaC zip, or whichever document was generated most recently if you just say "it") and copies it to the path you gave. The interactive/`-f` CLI has the same capability as plain control lines — `list` shows what's in `output/`, `download <filename> [destination]` copies one out — with no agent/LLM call involved. The web client's **Process / Design / Requirements** and **Cloud Architecture** tabs expose the same capability as download buttons (`GET /artifacts/documents`, see [Downloading generated artifacts](#downloading-generated-artifacts) below). See [Known issues](#known-issues) for a caveat on exposing the chat-driven download tool beyond local use. Developed in tandem with the neuro-san port's own identical feature.
 
 ---
 
@@ -856,8 +856,8 @@ The service exposes:
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
-| `GET` | `/artifacts/<name>` | `name` is `process` or `design` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
-| `GET` | `/artifacts/<name>/download` | `name` is `process` or `design` -- download the raw `process_data.json`/`design_data.json` as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read above, for the web client's own data-explorer viewer). Re-attaching this exact file to a later chat turn restores it verbatim -- see [Downloading generated artifacts](#downloading-generated-artifacts) below. |
+| `GET` | `/artifacts/<name>` | `name` is `process`, `design`, or `requirements` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json` / `output/requirements_summary.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/<name>/download` | `name` is `process`, `design`, or `requirements` -- download the raw `process_data.json`/`design_data.json`/`requirements_summary.json` as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read above, for the web client's own data-explorer viewer). Re-attaching this exact file to a later chat turn restores it verbatim -- see [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |
 | `GET` | `/artifacts/cloudarch/download` | Download `output/cloudarch_drawio.xml` as a real file attachment (vs. `GET /artifacts/cloudarch`'s JSON-wrapped string, for the web client's own renderer). |
@@ -996,8 +996,9 @@ a turn is streaming) is what actually calls this in practice.
 
 ### Process/Design artifacts
 
-`GET /artifacts/<name>` (`name` is `process` or `design`) returns this project's own current
-`output/process_data.json` or `output/design_data.json`, parsed:
+`GET /artifacts/<name>` (`name` is `process`, `design`, or `requirements`) returns this project's
+own current `output/process_data.json`, `output/design_data.json`, or `output/requirements_summary.json`,
+parsed:
 
 ```json
 {"status": "ok", "name": "process", "data": { "...": "..." }}
@@ -1010,7 +1011,7 @@ found yet -- run the process pipeline at least once, then try again."}`), 400 fo
 the file is missing (fine for a pipeline about to populate one, wrong for a debugging/inspection
 endpoint that needs to tell "genuinely not generated yet" apart from "here's an empty template").
 Subject to the same auth/rate-limiting as every other route except `/status`. The web client's
-**Process / Design** tab (below) is what actually consumes this.
+**Process / Design / Requirements** tab (below) is what actually consumes this.
 
 ### Downloading generated artifacts
 
@@ -1051,6 +1052,7 @@ GET /artifacts/cloudarch/download               # the real cloudarch_drawio.xml 
 GET /artifacts/cloudarch_iac/download           # the real cloudarch_iac.zip bytes, as an attachment
 GET /artifacts/process/download                 # the real process_data.json bytes, as an attachment
 GET /artifacts/design/download                  # the real design_data.json bytes, as an attachment
+GET /artifacts/requirements/download             # the real requirements_summary.json bytes, as an attachment
 ```
 
 A generated document's filename is never fixed -- each one is named after whatever process/design
@@ -1061,16 +1063,27 @@ check, not just a string pattern) before serving it. Subject to the same auth/ra
 other route except `/status`.
 
 **Saving/resuming a process or design (download then re-upload)** -- `GET /artifacts/process/
-download`/`GET /artifacts/design/download` (web client: the **Process / Design** tab's own
-"Download JSON" button) save the exact, current `process_data.json`/`design_data.json`. Re-attaching
-that exact file to a later chat turn -- the composer's existing "attach file(s)" button, the same
-mechanism as any other upload, no separate UI -- resumes work on it: `Process_Import_Agent`/
+download`/`GET /artifacts/design/download` (web client: the **Process / Design / Requirements** tab's
+own "Download JSON" button) save the exact, current `process_data.json`/`design_data.json`.
+Re-attaching that exact file to a later chat turn -- the composer's existing "attach file(s)" button,
+the same mechanism as any other upload, no separate UI -- resumes work on it: `Process_Import_Agent`/
 `Design_Import_Agent` recognize an attachment literally named `process_data.json`/`design_data.json`
 and restore it **verbatim** (no LLM re-derivation of its fields) rather than running it through their
 normal prose-extraction flow, after the same overwrite-confirmation step a fresh import already asks
 for. If the uploaded file fails schema validation (e.g. hand-edited into an invalid shape), the
 agent reports the exact issues and asks for a corrected re-upload rather than guessing field values
 to force it to pass.
+
+**Saving/resuming a requirements summary** works the same way but through one agent instead of two:
+`GET /artifacts/requirements/download` (web client: the same tab, switched to **Requirements**)
+saves the exact, current `requirements_summary.json`. Re-attaching it to a later chat turn is
+recognized by `Requirements_Summary_Agent` itself (not a separate import agent -- it already reads a
+directory and already calls `save_requirements_summary` directly, with no review loop to bypass, so
+the literal-restore check is just one more step in its own instructions), which restores it
+**verbatim** rather than re-summarizing it as prose. Unlike process/design, `requirements_summary.json`
+has no JSON Schema validation at all (by design -- see `process_toolkit.schema.requirements_json`),
+so there is no "failed validation" rejection case here; any JSON object containing a
+`requirements_register` (or old-format) key is accepted as-is.
 
 The cloud architecture diagram works the same way: `GET /artifacts/cloudarch/download` (web client:
 the **Cloud Architecture** tab's own "Download XML" button) saves the exact, current
@@ -1107,7 +1120,8 @@ waiting for the next sweep.
 
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) is a small
 static chat UI (no build step, no server of its own) for this REST API, including a **Process /
-Design** tab that hierarchically browses whichever artifact `GET /artifacts/<name>` above returns.
+Design / Requirements** tab that hierarchically browses whichever artifact `GET /artifacts/<name>`
+above returns.
 It also works unmodified against the neuro-san port's own `cli.py -d --flask`, which exposes an
 identical contract -- point it at whichever backend's Base URL you're running.
 

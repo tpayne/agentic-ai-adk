@@ -1180,6 +1180,14 @@ class TestArtifactRoute:
         assert resp.status_code == 200
         assert resp.get_json()["data"] == {"doc": True}
 
+    def test_requirements_artifact_name_maps_to_requirements_summary_json(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"requirements_summary.json": '{"requirements_register": []}'}
+        )
+        resp = client.get("/artifacts/requirements")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"requirements_register": []}
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self, monkeypatch, tmp_path):
         client = self._build_client(
             monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile><diagram>stuff</diagram></mxfile>"}
@@ -1290,10 +1298,20 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.data == b'{"document_metadata": {}}'
         assert "design_data.json" in resp.headers.get("Content-Disposition", "")
 
+    def test_downloads_requirements_summary_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"requirements_summary.json": '{"requirements_register": []}'}
+        )
+        resp = client.get("/artifacts/requirements/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"requirements_register": []}'
+        assert "requirements_summary.json" in resp.headers.get("Content-Disposition", "")
+
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
         assert client.get("/artifacts/process/download").status_code == 404
         assert client.get("/artifacts/design/download").status_code == 404
+        assert client.get("/artifacts/requirements/download").status_code == 404
 
     def test_400_for_an_unrecognized_artifact_name(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)

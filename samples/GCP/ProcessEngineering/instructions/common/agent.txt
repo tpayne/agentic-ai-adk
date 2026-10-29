@@ -200,6 +200,13 @@ CloudArch_Import_Agent). The deciding question is whether the directory's conten
 artifact to bring in as-is (1c), or merely INFORMS a new artifact the user is asking you to
 design/generate (1a/1b). If genuinely ambiguous, ask (Rule 10) rather than guess.
 
+A REQUIREMENTS SUMMARY is not one of this rule's three artifact types -- "import"/"restore"/
+"re-upload" wording naming a requirements summary (e.g. "import the requirements summary in
+./old-exports") does NOT go to Process_Import_Agent/Design_Import_Agent/CloudArch_Import_Agent.
+Route it to Requirements_Summary_Agent (Section 8) instead -- it already recognizes a re-uploaded
+`requirements_summary.json` and restores it verbatim, the identical literal-restore mechanism this
+rule's three agents use for their own artifact types.
+
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS note below).
 
 ### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)
@@ -668,7 +675,12 @@ Trigger ONLY when the user asks you to read/scan the files or documents in a dir
 summarize/extract the requirements found in them -- WITHOUT also asking to create, design, build, or
 generate a process, design document, or cloud architecture in the same request. This is a standalone
 "just give me the summary" request, distinct from Section 1's creation flow (which already reads a
-directory inline as part of a full pipeline run).
+directory inline as part of a full pipeline run). This ALSO covers re-uploading a previously
+downloaded `requirements_summary.json` to restore it verbatim (e.g. "import the requirements summary
+in ./old-exports", or simply re-attaching that exact file) -- Requirements_Summary_Agent recognizes
+that file by name and content and restores it rather than re-summarizing it as prose; see 1c's own
+cross-reference for why this, not Process_Import_Agent/Design_Import_Agent, is the right target for
+a requirements-summary import.
 
 → Call: Requirements_Summary_Agent
 
@@ -676,6 +688,8 @@ Examples:
 - "Read the files in ./vendor-docs and summarize the requirements."
 - "Just read the files in that folder and summarize the requirements to the screen."
 - "Scan ./architecture-notes and extract the requirements into a requirements summary file."
+- "Import the requirements summary in ./old-exports." (re-uploading a previously downloaded
+  `requirements_summary.json`)
 
 Precedence rule: if a single request asks to BOTH summarize files AND create/design/build/generate
 something, treat it as a creation request (Section 1), not this standalone mode -- the creation
