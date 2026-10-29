@@ -23,7 +23,7 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 
 ## 🕸️ Agent Networks
 
-This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 21 (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 23 (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
 | Network | What it is | What it does | Sub-agents it uses |
 | :--- | :--- | :--- | :--- |
@@ -42,12 +42,15 @@ This suite is built from a set of neuro-san agent networks — each one invocabl
 | `design_import` | Import (`Design_Import_Agent`) | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json`. | — |
 | `cloudarch` | Creation/refinement pipeline (`CloudArch_Pipeline`) | Generates, refines, and reviews a cloud architecture diagram until it's approved; also applies natural-language edits to an existing one. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
 | `cloudarch_consultant` | Consultant (`CloudArch_Consultant_Agent`) | Answers questions about an existing cloud architecture diagram. | — |
+| `cloudarch_import` | Import (`CloudArch_Import_Agent`) | Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML export) verbatim as the active diagram — no re-interpretation. | — |
 | `cloudarch_simulation_query` | Simulation query (`CloudArch_Simulation_Query_Agent`) | Runs a resilience/scalability/latency simulation over an existing diagram. | — |
 | `cloudarch_attack_simulation_query` | Attack simulation (`CloudArch_Attack_Simulation_Query_Agent`) | Runs an adversarial attack-path simulation over an existing diagram. Analysis-only. | — |
 | `cloudarch_finops` | Cost estimator (`CloudArch_FinOps_Agent`) | Estimates monthly cost and recommends optimizations for an existing diagram. | — |
+| `cloudarch_iac` | IaC generation pipeline (`CloudArch_IaC_Pipeline`) | Generates validated Infrastructure-as-Code (Terraform/CloudFormation/ARM-Bicep/Pulumi/CDK) implementing an existing diagram, then zips it for download. | `CloudArch_IaC_Agent`, `CloudArch_IaC_Validator_Agent` |
 | `requirements_summary` | Requirements summarizer (`Requirements_Summary_Agent`) | Reads a directory of files and saves a structured, traceable requirements summary. | — |
 | `requirements_consultant` | Requirements consultant (`Requirements_Consultant_Agent`) | Answers questions about the saved requirements summary. | — |
 | `regenerate_document` | Document regenerator (`Regenerate_Document_Agent`) | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | — |
+| `process_subprocess_regenerate` | Subprocess regenerator (`Subprocess_Driver_Agent_Main`) | Expands every top-level step of an already-saved process into its own detailed level-2/3 subprocess — no re-analysis, no process regeneration. | `Subprocess_Generator_Agent_Main` |
 
 ---
 

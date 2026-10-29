@@ -21,7 +21,7 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 
 ## 🕸️ Agent Networks
 
-This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 21 (full detail, including every internal loop/sequence wrapper, is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+This suite is built from a set of ADK agent pipelines — each one a focused pipeline or agent, reachable directly by name or routed to automatically by the top-level `Process_Architect_Orchestrator`. The table below covers all 24 (full detail, including every internal loop/sequence wrapper, is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
 | Pipeline / Agent | What it is | What it does | Sub-agents it uses |
 | :--- | :--- | :--- | :--- |
@@ -40,12 +40,15 @@ This suite is built from a set of ADK agent pipelines — each one a focused pip
 | `Design_Import_Agent` | Import | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json`. | — |
 | `CloudArch_Pipeline` | Creation/refinement pipeline | Generates, refines, and reviews a cloud architecture diagram until it's approved; also applies natural-language edits to an existing one. | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
 | `CloudArch_Consultant_Agent` | Consultant | Answers questions about an existing cloud architecture diagram. | — |
+| `CloudArch_Import_Agent` | Import | Restores an already-existing cloud architecture diagram (a drawio/mxGraph XML export) verbatim as the active diagram — no re-interpretation. | — |
 | `CloudArch_Simulation_Query_Agent` | Simulation query | Runs a resilience/scalability/latency simulation over an existing diagram. | — |
 | `CloudArch_Attack_Simulation_Query_Agent` | Attack simulation | Runs an adversarial attack-path simulation over an existing diagram. Analysis-only. | — |
 | `CloudArch_FinOps_Agent` | Cost estimator | Estimates monthly cost and recommends optimizations for an existing diagram. | — |
+| `CloudArch_IaC_Pipeline` | IaC generation pipeline | Generates validated Infrastructure-as-Code (Terraform/CloudFormation/ARM-Bicep/Pulumi/CDK) implementing an existing diagram, then zips it for download. | `CloudArch_IaC_Agent`, `CloudArch_IaC_Validator_Agent`, `CloudArch_IaC_Zip_Agent` |
 | `Requirements_Summary_Agent` | Requirements summarizer | Reads a directory of files and saves a structured, traceable requirements summary. | — |
 | `Requirements_Consultant_Agent` | Requirements consultant | Answers questions about the saved requirements summary. | — |
 | `Create_Doc_Agent` | Document regenerator | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
+| `Subprocess_Driver_Agent_Main` | Subprocess regenerator | Expands every top-level step of an already-saved process into its own detailed level-2/3 subprocess — no re-analysis, no process regeneration. | `Subprocess_Generator_Agent` |
 
 ---
 
