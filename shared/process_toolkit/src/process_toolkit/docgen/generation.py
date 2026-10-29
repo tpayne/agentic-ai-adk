@@ -26,6 +26,7 @@ from process_toolkit import paths
 from process_toolkit.filenames import safe_filename_component
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
+from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
     _add_version_history_table,
@@ -69,6 +70,15 @@ from process_toolkit.docgen.design_sections import (
     _add_architecture_analysis,
     _add_low_level_design_section,
     _add_glossary_and_references_section,
+)
+from process_toolkit.docgen.requirements_sections import (
+    _add_requirements_overview_section,
+    _add_requirements_register_section,
+    _add_requirement_priorities_section,
+    _add_conflicting_requirements_section,
+    _add_requirements_needing_clarification_section,
+    _add_inferred_requirements_section,
+    _add_coverage_gaps_section,
 )
 
 logger = logging.getLogger("ProcessArchitect.DocGen")
@@ -167,15 +177,27 @@ def _apply_global_styles(doc: docx.Document):
 def create_standard_doc_from_file(process_name: str = "Process", schema_type: Optional[str] = None) -> str:
     """
     Generate a structured, ISO-formatted Word document from the master
-    JSON (output/process_data.json or output/design_data.json).
+    JSON (output/process_data.json, output/design_data.json, or
+    output/requirements_summary.json).
     `schema_type` defaults to auto-detecting from which master file exists
-    on disk (detect_schema_type_from_disk).
+    on disk (detect_schema_type_from_disk) -- note that auto-detect NEVER
+    resolves to "requirements": detect_schema_type_from_disk() only ever
+    returns "process"/"design", by design (requirements_summary.json is
+    consumed as context by other pipelines far more often than it's the
+    thing someone wants rendered, so it must never be silently discovered
+    this way). A requirements document is only ever built when
+    schema_type="requirements" is passed explicitly.
     """
     logger.debug(f"Creating document for process: {process_name}...")
 
     try:
         resolved_type = schema_type or detect_schema_type_from_disk()
-        data_filename = DESIGN_JSON_FILENAME if resolved_type == "design" else PROCESS_JSON_FILENAME
+        if resolved_type == "requirements":
+            data_filename = REQUIREMENTS_SUMMARY_FILENAME
+        elif resolved_type == "design":
+            data_filename = DESIGN_JSON_FILENAME
+        else:
+            data_filename = PROCESS_JSON_FILENAME
 
         data_path = paths.output_path(data_filename)
         with open(data_path, "r", encoding="utf-8") as f:
@@ -186,7 +208,9 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
         doc = docx.Document()
         apply_theme(doc)
 
-        if resolved_type == "design":
+        if resolved_type == "requirements":
+            out_path = _build_requirements_document(doc, data, process_name)
+        elif resolved_type == "design":
             out_path = _build_design_document(doc, data, process_name)
         else:
             out_path = _build_process_document(doc, data, process_name)
@@ -380,6 +404,138 @@ def _build_process_document(doc: docx.Document, data: dict, process_name: str) -
         add_iso_page_break(doc)
 
     _add_glossary(doc)
+
+    # Save
+    out_path = paths.output_path(f"{safe_filename_component(name)}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _build_requirements_document(doc: docx.Document, data: dict, process_name: str) -> str:
+    """
+    Builds the requirements-tracking document into `doc` and saves it.
+    Requirements-schema counterpart to _build_process_document/
+    _build_design_document -- renders requirements_summary.json's own
+    fields directly (see requirements_sections.py). Deliberately NO
+    diagram section (a requirements register has no flow/architecture
+    diagram, unlike process/design) and NO fabricated Glossary (unlike
+    the process document's own hardcoded 4-term fallback glossary --
+    requirements_summary.json has no field to source one from, and this
+    pipeline's convention is to never fabricate a section with no
+    backing data, same as the design document's own glossary handling).
+
+    requirements_summary.json has no title/name field of its own -- `name`
+    is whatever the caller passed as `process_name`.
+    """
+    name = str(process_name)
+    sector = data.get("industry_sector") or "N/A"
+
+    stakeholders = data.get("stakeholders")
+    requirement_priorities = data.get("requirement_priorities")
+    conflicting_requirements = data.get("conflicting_requirements")
+    requirements_needing_clarification = data.get("requirements_needing_clarification")
+    inferred_requirements = data.get("inferred_requirements")
+    coverage_gaps = data.get("coverage_gaps")
+
+    consumed_keys = {
+        "source_directory", "source_files", "summary", "industry_sector",
+        "stakeholders", "assumptions", "risks", "open_questions",
+        "requirements_register", "requirement_priorities",
+        "conflicting_requirements", "requirements_needing_clarification",
+        "inferred_requirements", "coverage_gaps",
+        # Legacy old-format fields (is_old_format_requirements_summary) --
+        # already rendered by _add_requirements_register_section's own
+        # old-format branch when present, so they must not also reappear
+        # via the Appendix B leftover-data catch-all below.
+        "functional_requirements", "non_functional_requirements",
+        "goals_or_objectives", "constraints",
+    }
+
+    # ---- COVER PAGE ----
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(name)
+    run.bold = True
+    run.font.size = Pt(28)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run("Requirements Specification").font.size = Pt(18)
+
+    doc.add_paragraph()
+    doc.add_paragraph(f"Industry / Domain: {sector}")
+    doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    add_iso_page_break(doc)
+
+    # ---- DOCUMENT CONTROL + TOC ----
+    _add_version_history_table(
+        doc, version="1.0", author="Requirements Analyst",
+        description="Initial generated requirements summary",
+    )
+
+    add_iso_page_break(doc)
+    doc.add_heading("Table of Contents", level=1)
+    _add_table_of_contents(doc)
+
+    add_iso_page_break(doc)
+
+    # ---- MAIN SECTIONS ----
+    # Section numbers are intentionally left un-normalized here, same
+    # reasoning as _build_design_document: _renumber_design_document_
+    # headings fixes them all in one pass from the final actual set of
+    # headings, right before saving, since which sections render depends
+    # on what's actually present in the source JSON.
+    rendered = True  # Introduction and Purpose always renders unconditionally.
+    _add_requirements_overview_section(doc, data)
+
+    if stakeholders:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_stakeholders_section(
+            doc, stakeholders, heading="2.0 Stakeholders", subject_noun="requirements effort",
+        )
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_requirements_register_section(doc, data)
+
+    if requirement_priorities:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_requirement_priorities_section(doc, requirement_priorities)
+
+    if conflicting_requirements:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_conflicting_requirements_section(doc, conflicting_requirements)
+
+    if requirements_needing_clarification:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_requirements_needing_clarification_section(
+            doc, requirements_needing_clarification,
+        )
+
+    if inferred_requirements:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_inferred_requirements_section(doc, inferred_requirements)
+
+    if coverage_gaps:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_coverage_gaps_section(doc, coverage_gaps)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, consumed_keys)
+
+    # Fix up section numbers from the final set of headings that actually
+    # rendered above -- same mechanism _build_design_document already
+    # uses, needed for the same reason (conditional sections mean fixed
+    # literal numbers would collide/gap).
+    _renumber_design_document_headings(doc)
 
     # Save
     out_path = paths.output_path(f"{safe_filename_component(name)}.docx")

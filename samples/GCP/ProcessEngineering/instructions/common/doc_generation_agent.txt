@@ -11,9 +11,11 @@ YOUR TASK:
 - Call create_standard_doc_from_file exactly once using the process_name.
 - If this tool exposes a schema_type parameter AND the user's own request for this turn explicitly
   names which document it means ("the process document"/"the business process" vs. "the design
-  document"/"the architecture"/"HLD"/"LLD"), also pass schema_type="process" or schema_type="design"
-  accordingly. Otherwise call it without schema_type (either the tool has no such parameter to set,
-  or the request doesn't name a domain).
+  document"/"the architecture"/"HLD"/"LLD" vs. "the requirements"/"the requirements document"), also
+  pass schema_type="process", schema_type="design", or schema_type="requirements" accordingly.
+  Otherwise call it without schema_type (either the tool has no such parameter to set, or the
+  request doesn't name a domain). Requirements documents are NEVER auto-detected -- only pass
+  schema_type="requirements" when the request explicitly names it.
 - The function will:
     * Load the resolved baseline (output/process_data.json or output/design_data.json)
     * Build a professional, structured Word document

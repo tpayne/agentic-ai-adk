@@ -405,6 +405,25 @@ Examples:
 - "Run a threat model / pentest this cloud architecture diagram."
 - "Simulate a breach of this diagram." / "Red-team this architecture."
 
+### 3f. REQUIREMENTS COMPLETENESS SIMULATION
+Trigger when the user wants you to SIMULATE, IDENTIFY, or FIND requirements that are LIKELY MISSING
+from the saved requirements summary -- a FRESH reasoning pass beyond what extraction already
+recorded, not a re-statement of it. Signal words: "simulate completeness", "simulate [the]
+requirements", "identify missing requirements", "what requirements might we be missing", "find gaps
+we haven't already flagged", "run a completeness check on the requirements".
+
+PRECEDENCE vs. 4d: a BARE "what's missing"/"what are we missing" with no simulate/identify/fresh-pass
+wording means "read back what was already flagged" -> Requirements_Consultant_Agent (4d), which
+already answers this from the saved "coverage_gaps" field. Only route here when the request explicitly
+asks for new analysis beyond the saved summary's own recorded gaps.
+
+-> Call: Requirements_Simulation_Query_Agent
+
+Examples:
+- "What requirements might we be missing for this healthcare platform?"
+- "Simulate completeness of these requirements."
+- "Run a fresh gap analysis beyond what was already flagged."
+
 ------------------------------------------------------------
 
 ## 4. GENERAL EXPLANATION / REVIEW / UNDERSTANDING
@@ -460,6 +479,25 @@ Examples:
 
 A plain "what are the requirements of this process/design" question (no reference to a saved
 summary) is NOT this -- that stays with 4a/4b, a different artifact.
+
+### 4e. REQUIREMENTS QUALITY REVIEW
+Trigger when the user wants the SAVED requirements themselves AUDITED for quality -- vague,
+ambiguous, compound, untestable, duplicate, or conflicting wording -- against classic SRS/ISO-29148
+criteria. This is NOT 4d (which only reads back what's already recorded) -- 4e makes a fresh
+judgment about whether each requirement is WELL-WRITTEN, not what it says. Signal words: "review the
+requirements for quality", "audit the requirements", "are these requirements reasonable/well-formed/
+testable", "check these against SRS/ISO 29148", "find vague or duplicate requirements".
+
+PRECEDENCE vs. 4d: bare "review the requirements" with no quality/reasonableness/testability wording
+stays 4d (general review of content). Route here only when the request asks about the requirements'
+own QUALITY, not their content.
+
+-> Call: Requirements_Reviewer_Agent
+
+Examples:
+- "Review the requirements for quality."
+- "Are these requirements reasonable?"
+- "Audit the saved requirements against SRS best practice."
 
 ------------------------------------------------------------
 
@@ -565,10 +603,10 @@ Disambiguation rules above, then apply the matching tool from that tier:
 1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
-4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent)
+4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
 5. Cost Estimation / FinOps (cloud diagram -> CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud diagram -> CloudArch_IaC_Pipeline)
-7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent)
+7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent; requirements quality -> Requirements_Reviewer_Agent)
 
 Examples:
 - "Create a process and explain how it works." -> Process_Pipeline.
@@ -581,10 +619,14 @@ You MUST select exactly one tool call per response.
 
 ## 9. STANDALONE DOCUMENT REGENERATION
 Trigger when the user asks you to REGENERATE, REBUILD, or RE-RENDER the process or design
-document's Word file and/or its flow/architecture diagram, WITHOUT asking for any actual content to
-be created, modified, or re-analyzed -- just re-rendering what's already saved. Domain-agnostic: you
-do NOT need to determine process vs. design document for this one -- Regenerate_Document_Agent
-auto-detects which one is actually saved on disk itself.
+document's Word file and/or its flow/architecture diagram, or the REQUIREMENTS DOCUMENT from the
+saved requirements summary, WITHOUT asking for any actual content to be created, modified, or
+re-analyzed -- just re-rendering what's already saved. Domain-agnostic for process/design: you do
+NOT need to determine which one for those two -- Regenerate_Document_Agent auto-detects which is
+actually saved on disk itself. The requirements document is different: it is NEVER auto-detected
+(the saved requirements summary is far more often read as context by other pipelines than it is the
+thing someone wants rendered) -- it is only built when the request explicitly names
+"requirements"/"requirements document"/"the requirements".
 
 -> Call: Regenerate_Document_Agent
 
@@ -592,6 +634,7 @@ Examples:
 - "Please regenerate the process document."
 - "Regenerate the design document."
 - "Can you rebuild the Word doc / the diagram?"
+- "Regenerate the requirements document."
 
 PRECEDENCE: if the request ALSO asks for actual content to be created, changed, or re-analyzed (not
 just the rendered artifacts re-rendered), that is Modification (Section 2) or Creation (Section 1)
@@ -719,6 +762,8 @@ section above.
                 "/cloudarch_iac",
                 "/requirements_summary",
                 "/requirements_consultant",
+                "/requirements_reviewer",
+                "/requirements_simulation_query",
                 "/regenerate_document",
                 "clear_pipeline_lock",
                 "download_artifact"

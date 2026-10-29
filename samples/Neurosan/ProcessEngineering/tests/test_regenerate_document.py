@@ -136,6 +136,38 @@ class TestRegenerateDocumentCodedTool:
         out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Onboarding.docx")
         assert os.path.exists(out_path)
 
+    def test_regenerates_a_requirements_document_when_explicitly_requested(self):
+        from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({
+                "industry_sector": "Retail",
+                "requirements_register": [
+                    {"id": "FR-001", "type": "functional", "description": "Allow vendor registration.",
+                     "source": "rfp.pdf", "acceptance_criteria": ["x"], "status": "proposed"},
+                ],
+            }, f)
+
+        doc_result = RegenerateDocumentCodedTool().invoke(
+            {"schema_type": "requirements", "process_name": "Retail Requirements Specification"}, {},
+        )
+        assert doc_result.startswith("SUCCESS:")
+        out_path = os.path.join(paths.OUTPUT_DIR, "Retail_Requirements_Specification.docx")
+        assert os.path.exists(out_path)
+
+    def test_requirements_schema_type_is_never_auto_detected(self):
+        # The one guarantee this whole feature depends on: a saved
+        # requirements_summary.json must never be picked up by a generic
+        # "regenerate the document" request with no schema_type passed.
+        from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump({"requirements_register": []}, f)
+
+        result = RegenerateDocumentCodedTool().invoke({}, {})
+        assert result.startswith("ERROR:")
+        assert "process_data.json" in result
+
     def test_nothing_saved_yet_returns_a_clean_error_not_an_exception(self):
         result = RegenerateDocumentCodedTool().invoke({}, {})
         assert result.startswith("ERROR:")
