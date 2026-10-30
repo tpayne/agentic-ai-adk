@@ -27,6 +27,7 @@ from process_toolkit.filenames import safe_filename_component
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
     _add_version_history_table,
@@ -79,6 +80,19 @@ from process_toolkit.docgen.requirements_sections import (
     _add_requirements_needing_clarification_section,
     _add_inferred_requirements_section,
     _add_coverage_gaps_section,
+)
+from process_toolkit.docgen.proposal_response_sections import (
+    _add_executive_summary_section,
+    _add_understanding_section,
+    _add_proposed_solution_section,
+    _add_differentiators_section,
+    _add_compliance_matrix_section,
+    _add_qualifications_section,
+    _add_assumptions_section,
+    _add_risks_and_mitigations_section,
+    _add_pricing_approach_section,
+    _add_open_questions_section,
+    _add_unaddressed_items_section,
 )
 
 logger = logging.getLogger("ProcessArchitect.DocGen")
@@ -177,16 +191,18 @@ def _apply_global_styles(doc: docx.Document):
 def create_standard_doc_from_file(process_name: str = "Process", schema_type: Optional[str] = None) -> str:
     """
     Generate a structured, ISO-formatted Word document from the master
-    JSON (output/process_data.json, output/design_data.json, or
-    output/requirements_summary.json).
+    JSON (output/process_data.json, output/design_data.json,
+    output/requirements_summary.json, or output/proposal_response.json).
     `schema_type` defaults to auto-detecting from which master file exists
     on disk (detect_schema_type_from_disk) -- note that auto-detect NEVER
-    resolves to "requirements": detect_schema_type_from_disk() only ever
-    returns "process"/"design", by design (requirements_summary.json is
-    consumed as context by other pipelines far more often than it's the
-    thing someone wants rendered, so it must never be silently discovered
-    this way). A requirements document is only ever built when
-    schema_type="requirements" is passed explicitly.
+    resolves to "requirements" or "proposal_response": detect_schema_type_
+    from_disk() only ever returns "process"/"design", by design (both
+    requirements_summary.json and proposal_response.json are consumed as
+    context by other pipelines far more often than they're the thing
+    someone wants rendered, so neither must ever be silently discovered
+    this way). A requirements or proposal-response document is only ever
+    built when schema_type="requirements"/"proposal_response" is passed
+    explicitly.
     """
     logger.debug(f"Creating document for process: {process_name}...")
 
@@ -194,6 +210,8 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
         resolved_type = schema_type or detect_schema_type_from_disk()
         if resolved_type == "requirements":
             data_filename = REQUIREMENTS_SUMMARY_FILENAME
+        elif resolved_type == "proposal_response":
+            data_filename = PROPOSAL_RESPONSE_FILENAME
         elif resolved_type == "design":
             data_filename = DESIGN_JSON_FILENAME
         else:
@@ -210,6 +228,8 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
 
         if resolved_type == "requirements":
             out_path = _build_requirements_document(doc, data, process_name)
+        elif resolved_type == "proposal_response":
+            out_path = _build_proposal_response_document(doc, data, process_name)
         elif resolved_type == "design":
             out_path = _build_design_document(doc, data, process_name)
         else:
@@ -535,6 +555,135 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     # rendered above -- same mechanism _build_design_document already
     # uses, needed for the same reason (conditional sections mean fixed
     # literal numbers would collide/gap).
+    _renumber_design_document_headings(doc)
+
+    # Save
+    out_path = paths.output_path(f"{safe_filename_component(name)}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _build_proposal_response_document(doc: docx.Document, data: dict, process_name: str) -> str:
+    """
+    Builds the proposal-response document into `doc` and saves it.
+    Proposal-response-schema counterpart to _build_requirements_document
+    -- renders proposal_response.json's own fields directly (see
+    proposal_response_sections.py). Deliberately NO diagram section (a
+    proposal response has no flow/architecture diagram, unlike
+    process/design) and NO fabricated Glossary (same convention as the
+    requirements document -- never fabricate a section with no backing
+    data).
+
+    proposal_response.json has no title/name field of its own -- `name`
+    is whatever the caller passed as `process_name`.
+    """
+    name = str(process_name)
+
+    differentiators = data.get("differentiators")
+    compliance_matrix = data.get("compliance_matrix")
+    assumptions = data.get("assumptions")
+    risks_and_mitigations = data.get("risks_and_mitigations")
+    open_questions_for_client = data.get("open_questions_for_client")
+    unaddressed_items = data.get("unaddressed_items")
+
+    consumed_keys = {
+        "summary", "our_understanding", "proposed_solution", "differentiators",
+        "compliance_matrix", "qualifications", "assumptions",
+        "risks_and_mitigations", "pricing_approach", "open_questions_for_client",
+        "unaddressed_items",
+    }
+
+    # ---- COVER PAGE ----
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(name)
+    run.bold = True
+    run.font.size = Pt(28)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run("Response to Proposal").font.size = Pt(18)
+
+    doc.add_paragraph()
+    doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    add_iso_page_break(doc)
+
+    # ---- DOCUMENT CONTROL + TOC ----
+    _add_version_history_table(
+        doc, version="1.0", author="Proposal Response",
+        description="Initial generated proposal response",
+    )
+
+    add_iso_page_break(doc)
+    doc.add_heading("Table of Contents", level=1)
+    _add_table_of_contents(doc)
+
+    add_iso_page_break(doc)
+
+    # ---- MAIN SECTIONS ----
+    # Section numbers are intentionally left un-normalized here, same
+    # reasoning as _build_requirements_document/_build_design_document:
+    # _renumber_design_document_headings fixes them all in one pass from
+    # the final actual set of headings, right before saving, since which
+    # sections render depends on what's actually present in the source
+    # JSON.
+    rendered = True  # Executive Summary always renders unconditionally.
+    _add_executive_summary_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_understanding_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_proposed_solution_section(doc, data)
+
+    if differentiators:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_differentiators_section(doc, differentiators)
+
+    if compliance_matrix:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_compliance_matrix_section(doc, compliance_matrix)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_qualifications_section(doc, data)
+
+    if assumptions:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_assumptions_section(doc, assumptions)
+
+    if risks_and_mitigations:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_risks_and_mitigations_section(doc, risks_and_mitigations)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_pricing_approach_section(doc, data)
+
+    if open_questions_for_client:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_open_questions_section(doc, open_questions_for_client)
+
+    if unaddressed_items:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_unaddressed_items_section(doc, unaddressed_items)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, consumed_keys)
+
+    # Fix up section numbers from the final set of headings that actually
+    # rendered above -- same mechanism _build_requirements_document/
+    # _build_design_document already use.
     _renumber_design_document_headings(doc)
 
     # Save

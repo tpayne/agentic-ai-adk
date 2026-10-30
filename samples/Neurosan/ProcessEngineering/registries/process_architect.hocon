@@ -271,12 +271,14 @@ content IS the finished artifact to bring in as-is (1c), or merely INFORMS a new
 asking you to design/generate (1a/1b/Section 6). If genuinely ambiguous, ask (Rule 10) rather than
 guess.
 
-A REQUIREMENTS SUMMARY is not one of this rule's three artifact types -- "import"/"restore"/
-"re-upload" wording naming a requirements summary (e.g. "import the requirements summary in
-./old-exports") does NOT go to Process_Import_Agent/Design_Import_Agent/CloudArch_Import_Agent.
-Route it to Requirements_Summary_Agent (Section 7) instead -- it already recognizes a re-uploaded
-`requirements_summary.json` and restores it verbatim, the identical literal-restore mechanism this
-rule's three agents use for their own artifact types.
+A REQUIREMENTS SUMMARY or a PROPOSAL RESPONSE is not one of this rule's three artifact types --
+"import"/"restore"/"re-upload" wording naming either one (e.g. "import the requirements summary in
+./old-exports", "re-upload our proposal response") does NOT go to Process_Import_Agent/
+Design_Import_Agent/CloudArch_Import_Agent. Route a requirements summary to
+Requirements_Summary_Agent (Section 7) instead, and a proposal response to Proposal_Response_Pipeline
+(Section 1e) -- both already recognize their own re-uploaded JSON by filename+content and restore
+it verbatim, the identical literal-restore mechanism this rule's three agents use for their own
+artifact types.
 
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS rule below).
 
@@ -311,6 +313,36 @@ artifact itself, not "architecture"/"design"/"HLD"/"LLD" (which still mean 1b ev
 thing is also informally "a document"). If the request names BOTH a design/architecture AND asks
 for its requirements to be tracked as a SEPARATE requirements document, that is two things -- ask
 for clarification (Section 10) rather than silently picking one.
+
+### 1e. PROPOSAL RESPONSE DOCUMENT CREATION
+Trigger when the user wants to CREATE a Response to Proposal / RFP / tender / bid document --
+addressing an RFP or proposal's requirements point-by-point (a compliance matrix), stating a
+proposed solution, and covering the other standard sections a bid response needs. UNLIKE 1a/1b/1d,
+this rule has a hard prerequisite: it drafts against a requirements summary that must ALREADY be
+saved (produced by a prior, separate Section 7 request reading the RFP/proposal's own files) -- it
+never reads source files itself. If the user's own request ALSO asks to analyze/summarize the RFP's
+requirements in the SAME message with no prior analysis having happened, that combined request is
+Section 7 first (do not call this rule speculatively hoping a summary already exists -- if none
+does, Proposal_Response_Pipeline's own first step will say so and ask the user to run Section 7
+first, rather than you guessing).
+
+Signal words: "respond to this proposal/RFP/tender/bid", "draft our response to the RFP", "generate
+the proposal response", "write our bid response". The request should also describe (at least
+briefly) the responding organization's own solution/offering -- that is what the response is drafted
+FROM, alongside the already-saved requirements.
+
+-> Call: Proposal_Response_Pipeline
+
+Examples:
+- "Respond to this RFP -- our solution offers a cloud-native vendor portal with 24/7 support and a
+  proven track record in retail." (after the RFP's requirements were already summarized)
+- "Draft our proposal response. We propose a fixed-price implementation plus an annual subscription."
+- "Generate the response to this tender, covering our compliance with each requirement."
+
+PRECEDENCE vs. 1d: 1d creates a NEW requirements document/register from a description of a
+product/system being built; 1e drafts a RESPONSE to requirements that already exist (someone else's
+RFP) using a description of what the responding organization offers. "Requirements document for X"
+is 1d; "response to this proposal/RFP" is 1e.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
 in a directory or folder (1a/1b/1c/1d above, or the cloud diagram case in Section 6 below), include
@@ -653,7 +685,7 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline)
+1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
@@ -672,14 +704,16 @@ You MUST select exactly one tool call per response.
 
 ## 9. STANDALONE DOCUMENT REGENERATION
 Trigger when the user asks you to REGENERATE, REBUILD, or RE-RENDER the process or design
-document's Word file and/or its flow/architecture diagram, or the REQUIREMENTS DOCUMENT from the
-saved requirements summary, WITHOUT asking for any actual content to be created, modified, or
-re-analyzed -- just re-rendering what's already saved. Domain-agnostic for process/design: you do
-NOT need to determine which one for those two -- Regenerate_Document_Agent auto-detects which is
-actually saved on disk itself. The requirements document is different: it is NEVER auto-detected
-(the saved requirements summary is far more often read as context by other pipelines than it is the
-thing someone wants rendered) -- it is only built when the request explicitly names
-"requirements"/"requirements document"/"the requirements".
+document's Word file and/or its flow/architecture diagram, the REQUIREMENTS DOCUMENT from the
+saved requirements summary, or the PROPOSAL RESPONSE DOCUMENT from the saved proposal response,
+WITHOUT asking for any actual content to be created, modified, or re-analyzed -- just re-rendering
+what's already saved. Domain-agnostic for process/design: you do NOT need to determine which one
+for those two -- Regenerate_Document_Agent auto-detects which is actually saved on disk itself.
+The requirements and proposal-response documents are different: NEITHER is ever auto-detected
+(each saved artifact is far more often read as context by other pipelines than it is the thing
+someone wants rendered) -- each is only built when the request explicitly names
+"requirements"/"requirements document"/"the requirements", or "proposal response"/"response to
+the proposal", respectively.
 
 -> Call: Regenerate_Document_Agent
 
@@ -688,6 +722,7 @@ Examples:
 - "Regenerate the design document."
 - "Can you rebuild the Word doc / the diagram?"
 - "Regenerate the requirements document."
+- "Regenerate the proposal response document."
 
 PRECEDENCE: if the request ALSO asks for actual content to be created, changed, or re-analyzed (not
 just the rendered artifacts re-rendered), that is Modification (Section 2) or Creation (Section 1)
@@ -818,6 +853,7 @@ section above.
                 "/requirements_reviewer",
                 "/requirements_simulation_query",
                 "/requirements_doc_pipeline",
+                "/proposal_response_pipeline",
                 "/regenerate_document",
                 "clear_pipeline_lock",
                 "download_artifact"

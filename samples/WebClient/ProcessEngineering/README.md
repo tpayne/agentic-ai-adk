@@ -25,12 +25,13 @@ POST   /chat                    {"query": "...", "session_id": "..." (optional)}
                                  -> {"status": "ok", "session_id": "...", "query": "...", "response": "..."}
 POST   /chat/stream              same body; text/event-stream of progress/delta/done events instead
 DELETE /chat/<session_id>       -> {"status": "ok", "session_id": "...", "cleared": true|false}
-GET    /artifacts/<name>        "process", "design", or "requirements" -> {"status": "ok",
-                                 "name": "...", "data": {...the parsed output/process_data.json /
-                                 design_data.json / requirements_summary.json...}}; "cloudarch"
-                                 -> same envelope, but "data" is the raw output/cloudarch_drawio.xml
-                                 TEXT instead of parsed JSON; 404 if that pipeline hasn't produced
-                                 an artifact yet
+GET    /artifacts/<name>        "process", "design", "requirements", or "proposal_response" ->
+                                 {"status": "ok", "name": "...", "data": {...the parsed
+                                 output/process_data.json / design_data.json /
+                                 requirements_summary.json / proposal_response.json...}};
+                                 "cloudarch" -> same envelope, but "data" is the raw
+                                 output/cloudarch_drawio.xml TEXT instead of parsed JSON; 404 if
+                                 that pipeline hasn't produced an artifact yet
 ```
 
 Same request/response shapes, same `Authorization: Bearer <key>` / `X-API-Key` auth header
@@ -241,23 +242,24 @@ The graph (and its detail data) is scoped to the current session — **+ New cha
 with the transcript, and switching Base URL/API key without starting a new chat does not retroactively
 relabel anything already recorded.
 
-## Process / Design / Requirements tab
+## Process / Design / Requirements / Proposal Response tab
 
-The **Process / Design / Requirements** tab is a read-only, hierarchical viewer for whichever
-pipeline's current output the connected backend has on disk — `output/process_data.json`,
-`output/design_data.json`, or `output/requirements_summary.json` — fetched via the new
-`GET /artifacts/<name>` endpoint above. Unlike the Chat and Agent Network tabs (built entirely from
-data already flowing over the streaming contract), this one needed a new backend route, since the
-web client is a static page with no filesystem access of its own: both backends serve it
-identically, deliberately as a raw file read rather than reusing each project's own
-`load_master_process_json`/`load_master_design_json` helpers, which silently fall back to a blank
-template when the file is missing — this tab needs a real 404 to tell "genuinely not generated yet"
-apart from "here's an empty template".
+The **Process / Design / Requirements / Proposal Response** tab is a read-only, hierarchical viewer
+for whichever pipeline's current output the connected backend has on disk —
+`output/process_data.json`, `output/design_data.json`, `output/requirements_summary.json`, or
+`output/proposal_response.json` — fetched via the new `GET /artifacts/<name>` endpoint above.
+Unlike the Chat and Agent Network tabs (built entirely from data already flowing over the
+streaming contract), this one needed a new backend route, since the web client is a static page
+with no filesystem access of its own: both backends serve it identically, deliberately as a raw
+file read rather than reusing each project's own `load_master_process_json`/`load_master_design_json`
+helpers, which silently fall back to a blank template when the file is missing — this tab needs a
+real 404 to tell "genuinely not generated yet" apart from "here's an empty template".
 
-- The **Process**/**Design**/**Requirements** toggle picks which artifact to load; the icon-only
-  refresh button (top-right of the toolbar, next to the toggle) re-fetches the currently selected one
-  on demand — this tab never auto-refreshes on its own, since the underlying file only changes when
-  a pipeline run finishes, not on any predictable schedule the client could poll against.
+- The **Process**/**Design**/**Requirements**/**Proposal Response** toggle picks which artifact to
+  load; the icon-only refresh button (top-right of the toolbar, next to the toggle) re-fetches the
+  currently selected one on demand — this tab never auto-refreshes on its own, since the underlying
+  file only changes when a pipeline run finishes, not on any predictable schedule the client could
+  poll against.
 - The tree starts at the root, top-left, with children expanding down and to the right as you open
   them — click the small arrow to expand or collapse a node; this state is tracked per JSON path
   (e.g. `$.process_steps[2].substeps[0]`) and preserved across re-renders within the same load.
@@ -275,10 +277,10 @@ apart from "here's an empty template".
 
 ## Cloud Architecture tab
 
-The **Cloud Architecture** tab (next to **Process / Design / Requirements**) renders the connected
-backend's current `output/cloudarch_drawio.xml` — fetched via the same `GET /artifacts/<name>`
-endpoint as the Process/Design/Requirements tab (`name=cloudarch`), which returns the raw XML text
-instead of parsed JSON for this one name.
+The **Cloud Architecture** tab (next to **Process / Design / Requirements / Proposal Response**)
+renders the connected backend's current `output/cloudarch_drawio.xml` — fetched via the same
+`GET /artifacts/<name>` endpoint as the Process/Design/Requirements/Proposal Response tab
+(`name=cloudarch`), which returns the raw XML text instead of parsed JSON for this one name.
 
 **This is a summary rendering, not a full drawio client.** It's built from scratch, by this page,
 specifically for this project's own generated diagrams — it does not aim to (and will not)

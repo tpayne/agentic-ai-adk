@@ -2912,6 +2912,22 @@ def load_requirements_summary(tool_context: Optional[ToolContext] = None) -> dic
     return _shared_load_requirements_summary(tool_context.state if tool_context is not None else None)
 
 
+# Same re-export pattern as requirements_summary.py above, for
+# proposal_response.py (shared with the neuro-san port).
+from process_toolkit.proposal_response.proposal_response import (  # noqa: E402,F401
+    save_proposal_response as _shared_save_proposal_response,
+    load_proposal_response as _shared_load_proposal_response,
+)
+
+
+def save_proposal_response(response: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_save_proposal_response(response, tool_context.state if tool_context is not None else None)
+
+
+def load_proposal_response(tool_context: Optional[ToolContext] = None) -> dict:
+    return _shared_load_proposal_response(tool_context.state if tool_context is not None else None)
+
+
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:
     """
     Loads a JSON template from the process_agents/templates directory.

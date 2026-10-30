@@ -13,6 +13,7 @@ from docx.oxml.ns import qn
 from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -197,6 +198,78 @@ class TestRequirementsDocumentGeneration:
         # explicitly-passed schema_type="requirements" reaches it.
         with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
             json.dump(SAMPLE_REQUIREMENTS_SUMMARY, f)
+
+        assert detect_schema_type_from_disk() == "process"
+
+        result = create_standard_doc_from_file("X", schema_type=None)
+        assert result.startswith("ERROR:")
+        assert PROCESS_JSON_FILENAME in result
+
+
+SAMPLE_PROPOSAL_RESPONSE = {
+    "summary": "Our response to the vendor onboarding portal RFP.",
+    "our_understanding": "You need a self-service vendor registration portal with fast response times.",
+    "proposed_solution": "A cloud-native portal built on our existing vendor management platform.",
+    "differentiators": ["10 years in vendor management SaaS.", "24/7 support included."],
+    "compliance_matrix": [
+        {"requirement_id": "FR-001", "requirement_text": "Allow vendor registration.",
+         "requirement_type": "functional", "response_status": "Fully Compliant",
+         "response": "Our platform already supports self-service vendor registration."},
+        {"requirement_id": "NFR-001", "requirement_text": "Respond within 2 seconds.",
+         "requirement_type": "non_functional", "response_status": "Partially Compliant",
+         "response": "p95 latency is currently 2.3s; a caching layer upgrade will close this gap."},
+    ],
+    "assumptions": ["Client provides API access to their existing ERP."],
+    "risks_and_mitigations": [{"risk": "Data migration delays.", "mitigation": "Phased cutover plan."}],
+    "qualifications": "Our team has delivered 12 similar vendor portals in the retail sector.",
+    "pricing_approach": "Fixed-price implementation plus a per-seat annual subscription.",
+    "open_questions_for_client": ["Which regions are in scope for data residency?"],
+    "unaddressed_items": ["Data retention policy was flagged as a gap in the original requirements analysis."],
+}
+
+
+class TestProposalResponseDocumentGeneration:
+    def test_generates_a_proposal_response_document(self):
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        assert result.startswith("SUCCESS:")
+
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        assert "1.0 Executive Summary" in headings
+        assert "2.0 Our Understanding of Your Requirements" in headings
+        assert "3.0 Proposed Solution" in headings
+        assert any("Differentiators" in h for h in headings)
+        assert any("Compliance Matrix" in h for h in headings)
+        assert any("Qualifications" in h for h in headings)
+        assert any("Assumptions" in h for h in headings)
+        assert any("Risks and Mitigations" in h for h in headings)
+        assert any("Pricing Approach" in h for h in headings)
+        assert any("Open Questions" in h for h in headings)
+        assert any("Unaddressed Items" in h for h in headings)
+        # No diagram, no fabricated glossary.
+        assert not any("Glossary" in h for h in headings)
+        assert not any("Architecture Flow Diagram" in h for h in headings)
+
+    def test_no_blank_pages_in_a_generated_proposal_response_document(self):
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        gaps = _blank_page_gaps(out_path)
+        assert gaps == [], f"found {len(gaps)} fully blank page(s) at break-index pairs {gaps}"
+
+    def test_proposal_response_is_reachable_only_via_an_explicit_schema_type(self):
+        # Same guarantee as requirements: a saved proposal_response.json
+        # must NEVER be silently auto-discovered by detect_schema_type_
+        # from_disk()'s own fallback -- only an explicitly-passed
+        # schema_type="proposal_response" reaches it.
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
 
         assert detect_schema_type_from_disk() == "process"
 

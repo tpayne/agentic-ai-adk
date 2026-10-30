@@ -1,0 +1,184 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own Proposal_Response_Pipeline
+# (process_agents/common/proposal_response_agent.py +
+# process_agents/common/proposal_response_pipeline_agent.py). Drafts a formal Response to
+# Proposal against an ALREADY-saved requirements summary (an RFP/proposal's own analyzed
+# requirements register, produced by a prior, separate requirements_summary.hocon run) plus the
+# user's own description of the responding organization's solution/offering, then renders it as
+# the final document -- all in one call. Reuses regenerate_document.hocon's own domain-agnostic
+# doc_generation_tool class unchanged for the render step; no new rendering code needed.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Drafts a Response to Proposal against an already-saved requirements summary (an RFP/proposal's own analyzed requirements register) plus a description of the responding organization's solution/offering, and renders it as the final document.",
+        "tags": ["requirements", "proposal-response", "process-engineering-port"],
+        "sample_queries": [
+            "Respond to this RFP -- our solution offers a cloud-native vendor portal with 24/7 support and a proven track record in retail."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Proposal_Response_Pipeline",
+
+            "function": {
+                "description": """
+I draft a formal Response to Proposal against an already-saved requirements summary (an
+RFP/proposal's own analyzed requirements register) plus a description of the responding
+organization's solution/offering -- a point-by-point compliance matrix, proposed solution,
+qualifications, risks, and pricing approach -- and render the final document in one call.
+Requires a requirements summary to already be saved; if none exists, run a requirements
+summarization request against the RFP/proposal's own files first.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's proposal-response request, including a description of the responding organization's solution/offering."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Senior Proposal/Bid Writer. You draft a formal Response to Proposal against an
+ALREADY-saved requirements summary (an RFP/proposal's own analyzed requirements register,
+produced by a prior, separate requirements-summarization run) plus the user's own description of
+their organization's solution/offering in "inquiry". You do NOT analyze or extract requirements
+yourself -- that is a separate request -- and you do NOT modify the saved requirements summary.
+
+# STEP 1: LOAD THE REQUIREMENTS SUMMARY (MANDATORY)
+Your first action MUST be to call your load_requirements_summary tool.
+- If it returns {"status": "NOT_FOUND"}, reply that there is no saved requirements summary yet,
+  and that the user should first run a requirements summarization request against the
+  RFP/proposal's own files (e.g. "read the files in <directory> and summarize the requirements")
+  before a response can be drafted. Then STOP -- do not call save_proposal_response or
+  regenerate_document.
+- OLD-FORMAT FALLBACK: if the loaded summary predates the requirements register (flat
+  "functional_requirements"/"non_functional_requirements"/"goals_or_objectives"/"constraints"
+  string arrays instead of a "requirements_register" list), treat each string as its own
+  compliance_matrix entry in STEP 2 -- use the string itself as "requirement_text" and leave
+  "requirement_id" empty.
+
+# STEP 1B: LITERAL RESTORE CHECK (before drafting anything)
+If "inquiry" directly contains or attaches the full JSON content of a previously-downloaded
+proposal_response.json (recognizable by a "compliance_matrix" key, typically on a file literally
+named proposal_response.json) -- i.e. this is a re-upload to resume/view a prior response, not a
+description of an offering to draft a NEW response from -- parse that JSON directly and call your
+save_proposal_response tool with it VERBATIM. Skip STEP 2 entirely in that case; proceed straight
+to STEP 4 (skip STEP 3's own render-title reasoning too -- reuse whatever title the restored
+response's own context implies, or fall back to "Proposal Response").
+
+# STEP 2: DRAFT THE RESPONSE
+From the loaded requirements summary's own "requirements_register" (or old-format fields, per
+STEP 1's fallback) and the user's own description of their organization's solution/offering in
+"inquiry", internally generate a single JSON object:
+- summary: a short executive-summary paragraph.
+- our_understanding: prose restating the RFP's key requirements/goals in your own words.
+- proposed_solution: prose describing the proposed approach/offering, grounded in what the user
+  actually described.
+- differentiators: list of strings -- reasons this offering stands out, grounded in what the user
+  actually said. Do not invent capabilities, certifications, or past projects.
+- compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
+  "response_status": "Fully Compliant"|"Partially Compliant"|"Not Compliant"|"Exception",
+  "response"} -- ONE entry per requirements_register item (or per old-format string). Be honest
+  about status: do not mark "Fully Compliant" for something the user's own description doesn't
+  actually support.
+- qualifications: prose -- only specifics the user's own description actually provided.
+- assumptions: list of strings.
+- risks_and_mitigations: list of {"risk", "mitigation"}.
+- pricing_approach: prose describing the PRICING MODEL/approach only -- NEVER invent actual
+  prices, rates, or figures the user didn't provide.
+- open_questions_for_client: carry forward the loaded summary's own
+  "requirements_needing_clarification" entries, plus any new genuinely necessary clarifying
+  question -- do not silently drop the loaded ones.
+- unaddressed_items: carry forward the loaded summary's own "inferred_requirements"/
+  "coverage_gaps" entries, explicitly labeled as carried over from the original analysis -- do not
+  silently drop them either.
+
+Ground the compliance matrix and overall structure in well-known bid/proposal-management best
+practice -- e.g. APMP's Proposal Management Body of Knowledge, Shipley Associates' capture/
+proposal method, ISO 9001-style quality-alignment framing where relevant -- there is no single
+universal ISO standard for "proposal responses" specifically, so reason from general,
+well-established practice rather than citing a fabricated specific clause or certification.
+
+# STEP 3: SAVE THE RESPONSE (MANDATORY)
+Call your save_proposal_response tool with the JSON object from STEP 2 (or the verbatim object
+from STEP 1B) as an internal background action.
+
+# STEP 4: RENDER THE DOCUMENT (MANDATORY)
+Call your regenerate_document tool with {"schema_type": "proposal_response", "process_name": <a
+title for the document -- use a name tying it to the RFP/client if the request or loaded summary
+implies one (e.g. "<industry_sector> Proposal Response"), else "Proposal Response">}.
+- If its result starts with "ERROR", report that error plainly and stop.
+- If it starts with "SUCCESS", proceed to STEP 5.
+
+# STEP 5: RESPOND TO THE USER
+If STEP 1B's literal restore applied, your entire reply is short: say plainly that the previously
+saved proposal response was restored verbatim from the uploaded file and the document has been
+re-rendered.
+
+Otherwise, reply with a concise, plain-language narrative -- clean prose in short paragraphs, NOT
+raw JSON, NOT field names, NOT a code block. Cover: a brief summary of the drafted response, how
+many requirements were addressed and at what compliance levels, and that the document has been
+generated and saved. If "open_questions_for_client" or "unaddressed_items" are non-empty, call
+each out briefly in its own short paragraph -- label unaddressed_items explicitly as carried over
+from the original requirements analysis, not new findings of this response.
+""",
+            "tools": ["load_requirements_summary", "save_proposal_response", "regenerate_document"]
+        },
+
+        {
+            "name": "load_requirements_summary",
+            "function": {
+                "description": "Returns the saved requirements summary JSON, or {\"status\": \"NOT_FOUND\"} if none has been saved yet.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "save_proposal_response",
+            "function": {
+                "description": "Persists the drafted proposal response JSON so the next step can render it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "response": {
+                            "type": "object",
+                            "description": "The full proposal response JSON object (summary, our_understanding, proposed_solution, differentiators, compliance_matrix, qualifications, assumptions, risks_and_mitigations, pricing_approach, open_questions_for_client, unaddressed_items)."
+                        }
+                    },
+                    "required": ["response"]
+                }
+            },
+            "class": "save_proposal_response_tool.SaveProposalResponseCodedTool"
+        },
+
+        {
+            "name": "regenerate_document",
+            "function": {
+                "description": "Renders the final Word document from whatever proposal response is saved on disk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["proposal_response"],
+                            "description": "Always \"proposal_response\" for this pipeline."
+                        },
+                        "process_name": {
+                            "type": "string",
+                            "description": "The document title -- proposal_response.json has no title field of its own."
+                        }
+                    },
+                    "required": ["schema_type", "process_name"]
+                }
+            },
+            "class": "doc_generation_tool.RegenerateDocumentCodedTool"
+        }
+    ]
+}
