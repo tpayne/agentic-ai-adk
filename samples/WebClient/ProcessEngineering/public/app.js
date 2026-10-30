@@ -137,11 +137,9 @@
     sidebarOpenBtn: document.getElementById("sidebarOpenBtn"),
     sidebarCloseBtn: document.getElementById("sidebarCloseBtn"),
 
-    // Scoped to the sidebar -- the Process/Design tab's artifact toggle
-    // (below) reuses the same ".preset-btn" class purely for its visual
-    // style, via a different selector (".artifacts-toggle .preset-btn"),
-    // and must NOT be picked up here or setPreset's own active-state
-    // bookkeeping would stomp on it (and vice versa).
+    // Scoped to the sidebar -- the Base URL preset buttons are the only
+    // ".preset-btn" elements left (the Artefact Browser tab uses a plain
+    // <select>, not this class).
     presetBtns: Array.from(document.querySelectorAll("#sidebar .preset-btn")),
     baseUrlInput: document.getElementById("baseUrlInput"),
     apiKeyInput: document.getElementById("apiKeyInput"),
@@ -206,7 +204,7 @@
     nodeDetailCloseBtn: document.getElementById("nodeDetailCloseBtn"),
 
     artifactsTabPanel: document.getElementById("artifactsTabPanel"),
-    artifactToggleBtns: Array.from(document.querySelectorAll(".artifacts-toggle .preset-btn")),
+    artifactSelect: document.getElementById("artifactSelect"),
     artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
     artifactDownloadJsonBtn: document.getElementById("artifactDownloadJsonBtn"),
     artifactsStatus: document.getElementById("artifactsStatus"),
@@ -2216,12 +2214,13 @@
   el.nodeDetailCloseBtn.addEventListener("click", closeNodeDetail);
 
   // ---------------------------------------------------------------
-  // Data explorer -- hierarchical viewer for the Process/Design/Requirements/
-  // Proposal Response tab's GET /artifacts/<name> ("process", "design",
-  // "requirements", or "proposal_response"), a read-only snapshot of this
-  // project's own output/process_data.json / output/design_data.json /
-  // output/requirements_summary.json / output/proposal_response.json on
-  // whichever backend is connected. Rendered as an expandable tree
+  // Data explorer -- hierarchical viewer for the Artefact Browser tab's
+  // GET /artifacts/<name> ("process", "design", "requirements", or
+  // "proposal_response", picked via the tab's own dropdown), a read-only
+  // snapshot of this project's own output/process_data.json /
+  // output/design_data.json / output/requirements_summary.json /
+  // output/proposal_response.json on whichever backend is connected.
+  // Rendered as an expandable tree
   // (root top-left, children expanding down-and-right) built via
   // document.createElement/.textContent -- NOT innerHTML string
   // concatenation -- since the JSON content being displayed is arbitrary
@@ -2323,8 +2322,8 @@
         body.textContent = error;
       } else {
         heading.textContent = "No data loaded";
-        body.textContent = "Pick Process, Design, Requirements, or Proposal Response above, then " +
-          "click the refresh icon to load that pipeline's current saved output from the connected backend.";
+        body.textContent = "Pick an artefact from the dropdown above, then click the refresh icon " +
+          "to load that pipeline's current saved output from the connected backend.";
       }
       return;
     }
@@ -2471,14 +2470,11 @@
 
   el.artifactDetailCloseBtn.addEventListener("click", closeArtifactDetail);
 
-  el.artifactToggleBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const name = btn.dataset.artifact;
-      if (name === state.dataExplorer.artifact) return; // already the active one
-      state.dataExplorer.artifact = name;
-      el.artifactToggleBtns.forEach((b) => b.classList.toggle("active", b.dataset.artifact === name));
-      loadArtifact(name);
-    });
+  el.artifactSelect.addEventListener("change", () => {
+    const name = el.artifactSelect.value;
+    if (name === state.dataExplorer.artifact) return; // already the active one
+    state.dataExplorer.artifact = name;
+    loadArtifact(name);
   });
 
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));

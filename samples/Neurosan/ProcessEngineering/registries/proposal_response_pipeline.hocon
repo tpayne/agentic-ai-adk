@@ -131,11 +131,7 @@ from the original requirements analysis, not new findings of this response.
         {
             "name": "load_requirements_summary",
             "function": {
-                "description": "Returns the saved requirements summary JSON, or {\"status\": \"NOT_FOUND\"} if none has been saved yet.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {}
-                }
+                "description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."
             },
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
         },
