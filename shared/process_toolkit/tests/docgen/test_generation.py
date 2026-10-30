@@ -210,6 +210,14 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "summary": "Our response to the vendor onboarding portal RFP.",
     "our_understanding": "You need a self-service vendor registration portal with fast response times.",
     "proposed_solution": "A cloud-native portal built on our existing vendor management platform.",
+    "architecture_components": [
+        {"name": "Vendor Portal UI", "description": "Self-service registration frontend.",
+         "connects_to": ["Vendor API"]},
+        {"name": "Vendor API", "description": "REST API backing the portal.",
+         "connects_to": ["ERP Connector"]},
+        {"name": "ERP Connector", "description": "Syncs vendor records to the client's ERP.",
+         "connects_to": []},
+    ],
     "differentiators": ["10 years in vendor management SaaS.", "24/7 support included."],
     "compliance_matrix": [
         {"requirement_id": "FR-001", "requirement_text": "Allow vendor registration.",
@@ -242,6 +250,7 @@ class TestProposalResponseDocumentGeneration:
         assert "1.0 Executive Summary" in headings
         assert "2.0 Our Understanding of Your Requirements" in headings
         assert "3.0 Proposed Solution" in headings
+        assert any("Solution Architecture" in h for h in headings)
         assert any("Differentiators" in h for h in headings)
         assert any("Compliance Matrix" in h for h in headings)
         assert any("Qualifications" in h for h in headings)
@@ -250,9 +259,28 @@ class TestProposalResponseDocumentGeneration:
         assert any("Pricing Approach" in h for h in headings)
         assert any("Open Questions" in h for h in headings)
         assert any("Unaddressed Items" in h for h in headings)
-        # No diagram, no fabricated glossary.
+        # The solution-architecture diagram embeds as a real inline image.
+        assert len(doc.inline_shapes) >= 1
+        # Still no fabricated glossary, and not the process/design-style
+        # flow diagram heading (a different section entirely).
         assert not any("Glossary" in h for h in headings)
         assert not any("Architecture Flow Diagram" in h for h in headings)
+
+    def test_no_solution_architecture_section_when_components_are_absent(self):
+        # No-fabrication guarantee: a proposal response that never
+        # populated architecture_components gets no diagram section at
+        # all, not a placeholder/empty one.
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data.pop("architecture_components")
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        assert not any("Solution Architecture" in h for h in headings)
+        assert len(doc.inline_shapes) == 0
 
     def test_no_blank_pages_in_a_generated_proposal_response_document(self):
         with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:

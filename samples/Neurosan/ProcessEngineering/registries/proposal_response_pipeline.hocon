@@ -72,11 +72,32 @@ response's own context implies, or fall back to "Proposal Response").
 # STEP 2: DRAFT THE RESPONSE
 From the loaded requirements summary's own "requirements_register" (or old-format fields, per
 STEP 1's fallback) and the user's own description of their organization's solution/offering in
-"inquiry", internally generate a single JSON object:
-- summary: a short executive-summary paragraph.
-- our_understanding: prose restating the RFP's key requirements/goals in your own words.
-- proposed_solution: prose describing the proposed approach/offering, grounded in what the user
-  actually described.
+"inquiry", internally generate a single JSON object. A real proposal response is a substantive
+document, not a one-paragraph summary -- the three narrative fields below (our_understanding,
+proposed_solution, qualifications) each need MULTIPLE paragraphs of real substance. A single
+short paragraph for any of them is NOT acceptable; treat each as a piece of an actual
+client-facing deliverable, not a chat reply.
+- summary: a short executive-summary paragraph (this one stays brief -- it's the only field meant
+  to be terse; the detail belongs in the sections below).
+- our_understanding: MULTIPLE paragraphs restating the RFP's own requirements/goals in your own
+  words -- the problem being solved, the key drivers (performance/cost/compliance targets actually
+  named in the register), the stakeholders affected, and why it matters. Demonstrates genuine
+  comprehension, not a copy of the source text.
+- proposed_solution: MULTIPLE paragraphs with real technical substance -- an architecture overview
+  (what kind of system this is and how it's structured), the specific technologies/approaches used
+  for each major capability the requirements call for, how it integrates with every named external
+  system (e.g. if the register mentions SharePoint or SAP, say concretely how this solution talks
+  to each one), a data-flow narrative (what happens to a piece of data from entry to final output),
+  and deployment/operational considerations (hosting model, security posture, monitoring). Ground
+  every specific claim in what the user actually described in "inquiry" plus the register's own
+  stated requirements -- richer prose, not fabricated specifics beyond that.
+- architecture_components: list of {"name", "description", "connects_to": ["<other component
+  name>", ...]} -- the proposed solution's own components (3-8 typical, not padded) and how they
+  connect, i.e. the SAME system "proposed_solution" just described in prose, now as a structured
+  component breakdown so it can be rendered as a diagram. Each component's "name" should be short
+  (2-4 words) and each "connects_to" entry must be another component's exact "name" in this same
+  list (a component with nothing downstream has an empty list). Derive this directly from
+  "proposed_solution" -- do not introduce a component there's no prose basis for.
 - differentiators: list of strings -- reasons this offering stands out, grounded in what the user
   actually said. Do not invent capabilities, certifications, or past projects.
 - compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
@@ -84,7 +105,10 @@ STEP 1's fallback) and the user's own description of their organization's soluti
   "response"} -- ONE entry per requirements_register item (or per old-format string). Be honest
   about status: do not mark "Fully Compliant" for something the user's own description doesn't
   actually support.
-- qualifications: prose -- only specifics the user's own description actually provided.
+- qualifications: MULTIPLE paragraphs -- only specifics the user's own description actually
+  provided (team background, certifications, past projects, domain experience), expanded into
+  real substance rather than restated as a single sentence; do not fabricate team size,
+  certifications, or past-project details beyond what was actually given.
 - assumptions: list of strings.
 - risks_and_mitigations: list of {"risk", "mitigation"}.
 - pricing_approach: prose describing the PRICING MODEL/approach only -- NEVER invent actual

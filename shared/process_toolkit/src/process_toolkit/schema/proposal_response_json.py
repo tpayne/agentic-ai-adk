@@ -29,6 +29,9 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "summary": "",
     "our_understanding": "",
     "proposed_solution": "",
+    "architecture_components": [
+        {"name": "", "description": "", "connects_to": []}
+    ],
     "differentiators": [],
     "compliance_matrix": [
         {

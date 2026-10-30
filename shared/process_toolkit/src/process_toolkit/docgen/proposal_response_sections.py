@@ -18,9 +18,11 @@ return.
 import traceback
 
 import docx
+from docx.shared import Inches
 
 from process_toolkit.docgen.structure import apply_iso_table_formatting, _set_cell_bullets
 from process_toolkit.docgen.design_sections import _natural_sort_key
+from process_toolkit.docgen.proposal_architecture_diagram import generate_proposal_architecture_diagram
 
 
 def _set_header_row(table, headers) -> None:
@@ -93,7 +95,52 @@ def _add_proposed_solution_section(
 
 
 # ============================================================
+# 4.0 SOLUTION ARCHITECTURE
+# ============================================================
+
+def _add_solution_architecture_section(
+    doc: docx.Document, components, process_name: str, heading: str = "4.0 Solution Architecture",
+) -> bool:
+    """4.0 Solution Architecture -- renders a generated component diagram
+    (see proposal_architecture_diagram.py) plus a Component/Description
+    table underneath for accessibility/non-image contexts. No-op (no
+    fabricated section) when "architecture_components" has no usable
+    entries -- same convention as every other renderer here."""
+    try:
+        items = [c for c in (components or []) if isinstance(c, dict) and c.get("name")]
+        if not items:
+            return False
+
+        diagram_path = generate_proposal_architecture_diagram(items, process_name)
+
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "The following diagram provides a high-level visualization of the proposed solution's "
+            "architecture."
+        )
+        doc.add_picture(diagram_path, width=Inches(6))
+        doc.add_paragraph()
+
+        headers = ["Component", "Description"]
+        table = doc.add_table(rows=1, cols=len(headers))
+        _set_header_row(table, headers)
+        for item in items:
+            row = table.add_row().cells
+            row[0].text = str(item.get("name") or "")
+            _set_cell_bullets(row[1], item.get("description"))
+        apply_iso_table_formatting(table, doc)
+        doc.add_paragraph()
+        return True
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# ============================================================
 # 4.0 DIFFERENTIATORS
+# (section-marker comments below are cosmetic only -- every actual
+# heading number gets recomputed from final render order by
+# generation.py's own _renumber_design_document_headings)
 # ============================================================
 
 def _add_differentiators_section(

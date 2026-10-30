@@ -85,6 +85,7 @@ from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
     _add_understanding_section,
     _add_proposed_solution_section,
+    _add_solution_architecture_section,
     _add_differentiators_section,
     _add_compliance_matrix_section,
     _add_qualifications_section,
@@ -568,17 +569,21 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     Builds the proposal-response document into `doc` and saves it.
     Proposal-response-schema counterpart to _build_requirements_document
     -- renders proposal_response.json's own fields directly (see
-    proposal_response_sections.py). Deliberately NO diagram section (a
-    proposal response has no flow/architecture diagram, unlike
-    process/design) and NO fabricated Glossary (same convention as the
-    requirements document -- never fabricate a section with no backing
-    data).
+    proposal_response_sections.py). Embeds a generated solution-
+    architecture diagram when "architecture_components" is present
+    (see proposal_architecture_diagram.py) -- unlike the requirements
+    document, a proposal response genuinely benefits from a system-
+    design visual, so this is NOT the same "never fabricate" exclusion
+    requirements_sections.py applies to its own Glossary; it's simply
+    conditional on the agent having actually populated the field, same
+    as every other optional section here. Still NO fabricated Glossary.
 
     proposal_response.json has no title/name field of its own -- `name`
     is whatever the caller passed as `process_name`.
     """
     name = str(process_name)
 
+    architecture_components = data.get("architecture_components")
     differentiators = data.get("differentiators")
     compliance_matrix = data.get("compliance_matrix")
     assumptions = data.get("assumptions")
@@ -587,8 +592,8 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     unaddressed_items = data.get("unaddressed_items")
 
     consumed_keys = {
-        "summary", "our_understanding", "proposed_solution", "differentiators",
-        "compliance_matrix", "qualifications", "assumptions",
+        "summary", "our_understanding", "proposed_solution", "architecture_components",
+        "differentiators", "compliance_matrix", "qualifications", "assumptions",
         "risks_and_mitigations", "pricing_approach", "open_questions_for_client",
         "unaddressed_items",
     }
@@ -638,6 +643,11 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_proposed_solution_section(doc, data)
+
+    if architecture_components:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_solution_architecture_section(doc, architecture_components, name)
 
     if differentiators:
         if rendered:

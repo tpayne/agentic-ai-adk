@@ -31,6 +31,28 @@ def test_proposed_solution_section_is_a_noop_without_data():
     assert prs._add_proposed_solution_section(doc, {}) is False
 
 
+def test_solution_architecture_section_is_a_noop_when_empty():
+    doc = docx.Document()
+    assert prs._add_solution_architecture_section(doc, None, "Vendor Portal") is False
+    assert prs._add_solution_architecture_section(doc, [{"description": "no name"}], "Vendor Portal") is False
+    assert doc.tables == []
+
+
+def test_solution_architecture_section_embeds_a_diagram_and_a_component_table():
+    doc = docx.Document()
+    components = [
+        {"name": "Ingestion API", "description": "Receives documents.", "connects_to": ["OCR Engine"]},
+        {"name": "OCR Engine", "description": "Extracts text.", "connects_to": []},
+    ]
+    assert prs._add_solution_architecture_section(doc, components, "Vendor Portal") is True
+    assert any(p.text == "4.0 Solution Architecture" for p in doc.paragraphs)
+    # A picture is embedded as an inline shape, not a paragraph/table.
+    assert len(doc.inline_shapes) == 1
+    table = doc.tables[0]
+    assert table.rows[1].cells[0].text == "Ingestion API"
+    assert table.rows[2].cells[0].text == "OCR Engine"
+
+
 def test_differentiators_section_renders_bullets():
     doc = docx.Document()
     assert prs._add_differentiators_section(doc, ["Fast delivery.", "24/7 support."]) is True
@@ -100,6 +122,7 @@ def test_all_section_renderers_are_noops_on_empty_input():
     doc = docx.Document()
     assert prs._add_understanding_section(doc, {}) is False
     assert prs._add_proposed_solution_section(doc, {}) is False
+    assert prs._add_solution_architecture_section(doc, None, "Vendor Portal") is False
     assert prs._add_differentiators_section(doc, None) is False
     assert prs._add_compliance_matrix_section(doc, None) is False
     assert prs._add_qualifications_section(doc, {}) is False
