@@ -53,6 +53,18 @@ def test_solution_architecture_section_embeds_a_diagram_and_a_component_table():
     assert table.rows[2].cells[0].text == "OCR Engine"
 
 
+def test_deliverables_section_is_a_noop_when_empty():
+    doc = docx.Document()
+    assert prs._add_deliverables_section(doc, None) is False
+
+
+def test_deliverables_section_renders_bullets():
+    doc = docx.Document()
+    assert prs._add_deliverables_section(doc, ["A deployed pipeline.", "Admin dashboard."]) is True
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert bullets == ["A deployed pipeline.", "Admin dashboard."]
+
+
 def test_differentiators_section_renders_bullets():
     doc = docx.Document()
     assert prs._add_differentiators_section(doc, ["Fast delivery.", "24/7 support."]) is True
@@ -77,10 +89,43 @@ def test_compliance_matrix_section_sorts_by_requirement_id():
     assert table.rows[2].cells[0].text == "FR-002"
 
 
+def test_compliance_matrix_section_renders_the_evidence_ref_column():
+    doc = docx.Document()
+    matrix = [
+        {
+            "requirement_id": "FR-001", "requirement_text": "a", "response_status": "Fully Compliant",
+            "response": "r1", "evidence_ref": "See Proposed Solution",
+        },
+    ]
+    assert prs._add_compliance_matrix_section(doc, matrix) is True
+    table = doc.tables[0]
+    assert table.rows[0].cells[4].text == "Evidence / Location"
+    assert table.rows[1].cells[4].text == "• See Proposed Solution"
+
+
 def test_compliance_matrix_section_is_a_noop_when_empty():
     doc = docx.Document()
     assert prs._add_compliance_matrix_section(doc, None) is False
     assert doc.tables == []
+
+
+def test_implementation_plan_section_is_a_noop_when_empty():
+    doc = docx.Document()
+    assert prs._add_implementation_plan_section(doc, None) is False
+    assert doc.tables == []
+
+
+def test_implementation_plan_section_renders_a_table_in_given_order():
+    doc = docx.Document()
+    plan = [
+        {"phase": "Phase 2", "timing": "Weeks 5-8", "deliverable": "Integration.", "acceptance_criteria": "UAT passed."},
+        {"phase": "Phase 1", "timing": "Weeks 1-4", "deliverable": "Design doc.", "acceptance_criteria": "Sign-off."},
+    ]
+    assert prs._add_implementation_plan_section(doc, plan) is True
+    table = doc.tables[0]
+    # Not sorted -- preserves the agent's own given (sequential) order.
+    assert table.rows[1].cells[0].text == "Phase 2"
+    assert table.rows[2].cells[0].text == "Phase 1"
 
 
 def test_qualifications_section_is_a_noop_without_data():
@@ -107,6 +152,29 @@ def test_pricing_approach_section_is_a_noop_without_data():
     assert prs._add_pricing_approach_section(doc, {}) is False
 
 
+def test_pricing_approach_section_renders_prose_only():
+    doc = docx.Document()
+    assert prs._add_pricing_approach_section(doc, {"pricing_approach": "Fixed price."}) is True
+    assert any(p.text == "Fixed price." for p in doc.paragraphs)
+    assert doc.tables == []
+
+
+def test_pricing_approach_section_renders_the_pricing_table_without_prose():
+    doc = docx.Document()
+    data = {"pricing_table": [{"item": "Implementation", "basis": "One-time", "price": "TBD"}]}
+    assert prs._add_pricing_approach_section(doc, data) is True
+    table = doc.tables[0]
+    assert table.rows[1].cells[0].text == "Implementation"
+    assert table.rows[1].cells[2].text == "TBD"
+
+
+def test_pricing_approach_section_defaults_a_missing_price_to_tbd():
+    doc = docx.Document()
+    data = {"pricing_table": [{"item": "Support", "basis": "Recurring"}]}
+    assert prs._add_pricing_approach_section(doc, data) is True
+    assert doc.tables[0].rows[1].cells[2].text == "TBD"
+
+
 def test_open_questions_section_renders_bullets():
     doc = docx.Document()
     assert prs._add_open_questions_section(doc, ["Which region hosts the data?"]) is True
@@ -123,8 +191,10 @@ def test_all_section_renderers_are_noops_on_empty_input():
     assert prs._add_understanding_section(doc, {}) is False
     assert prs._add_proposed_solution_section(doc, {}) is False
     assert prs._add_solution_architecture_section(doc, None, "Vendor Portal") is False
+    assert prs._add_deliverables_section(doc, None) is False
     assert prs._add_differentiators_section(doc, None) is False
     assert prs._add_compliance_matrix_section(doc, None) is False
+    assert prs._add_implementation_plan_section(doc, None) is False
     assert prs._add_qualifications_section(doc, {}) is False
     assert prs._add_assumptions_section(doc, None) is False
     assert prs._add_risks_and_mitigations_section(doc, None) is False

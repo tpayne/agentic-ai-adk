@@ -98,13 +98,24 @@ client-facing deliverable, not a chat reply.
   (2-4 words) and each "connects_to" entry must be another component's exact "name" in this same
   list (a component with nothing downstream has an empty list). Derive this directly from
   "proposed_solution" -- do not introduce a component there's no prose basis for.
+- deliverables: list of strings -- the concrete, tangible outputs the client receives at
+  completion (e.g. "A production-deployed vendor portal," "Admin dashboard with role-based
+  access," "90 days of post-launch support"). Derive these directly from "proposed_solution"/
+  "architecture_components" -- do not introduce a deliverable there's no basis for in either.
 - differentiators: list of strings -- reasons this offering stands out, grounded in what the user
   actually said. Do not invent capabilities, certifications, or past projects.
 - compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
   "response_status": "Fully Compliant"|"Partially Compliant"|"Not Compliant"|"Exception",
-  "response"} -- ONE entry per requirements_register item (or per old-format string). Be honest
-  about status: do not mark "Fully Compliant" for something the user's own description doesn't
-  actually support.
+  "response", "evidence_ref"} -- ONE entry per requirements_register item (or per old-format
+  string). Be honest about status: do not mark "Fully Compliant" for something the user's own
+  description doesn't actually support. "evidence_ref" is a short pointer naming where the fuller
+  detail lives elsewhere in this same document (e.g. "See Proposed Solution" or "See
+  Implementation Plan, Phase 2") -- name the section by title, not by number.
+- implementation_plan: list of {"phase", "timing", "deliverable", "acceptance_criteria"} -- a
+  phased delivery timeline grounded in "proposed_solution"'s own scope. Use relative timing (e.g.
+  "Weeks 1-4", "Month 2") unless the user gave actual calendar dates. Each phase needs a concrete
+  deliverable and a stated acceptance criterion/gate for moving to the next phase -- a single vague
+  phase is not acceptable.
 - qualifications: MULTIPLE paragraphs -- only specifics the user's own description actually
   provided (team background, certifications, past projects, domain experience), expanded into
   real substance rather than restated as a single sentence; do not fabricate team size,
@@ -113,6 +124,11 @@ client-facing deliverable, not a chat reply.
 - risks_and_mitigations: list of {"risk", "mitigation"}.
 - pricing_approach: prose describing the PRICING MODEL/approach only -- NEVER invent actual
   prices, rates, or figures the user didn't provide.
+- pricing_table: list of {"item", "basis", "price"} -- an itemized breakdown of the pricing
+  approach above. "basis" states how each line is charged (one-time/recurring/usage-based).
+  "price" is the actual figure ONLY if the user gave one for that line item; otherwise use the
+  literal string "TBD" -- never fabricate a number. Still include the line item itself even when
+  the price is unknown.
 - open_questions_for_client: carry forward the loaded summary's own
   "requirements_needing_clarification" entries, plus any new genuinely necessary clarifying
   question -- do not silently drop the loaded ones.
@@ -125,6 +141,12 @@ practice -- e.g. APMP's Proposal Management Body of Knowledge, Shipley Associate
 proposal method, ISO 9001-style quality-alignment framing where relevant -- there is no single
 universal ISO standard for "proposal responses" specifically, so reason from general,
 well-established practice rather than citing a fabricated specific clause or certification.
+
+In independent analysis of real competitive bids, Technical quality, Financial/pricing clarity,
+and Delivery Strategy are consistently the most decisive factors in whether a proposal wins --
+give "proposed_solution"/"architecture_components" (Technical), "pricing_approach"/
+"pricing_table" (Financial), and "implementation_plan" (Delivery Strategy) the most care
+accordingly.
 
 # STEP 3: SAVE THE RESPONSE (MANDATORY)
 Call your save_proposal_response tool with the JSON object from STEP 2 (or the verbatim object
@@ -169,7 +191,7 @@ from the original requirements analysis, not new findings of this response.
                     "properties": {
                         "response": {
                             "type": "object",
-                            "description": "The full proposal response JSON object (summary, our_understanding, proposed_solution, differentiators, compliance_matrix, qualifications, assumptions, risks_and_mitigations, pricing_approach, open_questions_for_client, unaddressed_items)."
+                            "description": "The full proposal response JSON object (summary, our_understanding, proposed_solution, architecture_components, deliverables, differentiators, compliance_matrix, implementation_plan, qualifications, assumptions, risks_and_mitigations, pricing_approach, pricing_table, open_questions_for_client, unaddressed_items)."
                         }
                     },
                     "required": ["response"]

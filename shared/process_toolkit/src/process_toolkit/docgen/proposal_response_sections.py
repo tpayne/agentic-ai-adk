@@ -1,9 +1,12 @@
 """Bespoke renderers for the proposal-response document: Executive
 Summary, Our Understanding of Your Requirements, Proposed Solution,
+Solution Architecture (embeds a generated component diagram), Deliverables,
 Differentiators, the Compliance Matrix (the central traceability table,
 one row per requirement id from the SOURCE requirements_summary.json
-that Proposal_Response_Agent drafted this response against),
-Qualifications, Assumptions, Risks and Mitigations, Pricing Approach,
+that Proposal_Response_Agent drafted this response against, each with an
+Evidence/Location pointer into this same document), the Implementation
+Plan (a phased delivery timeline), Qualifications, Assumptions, Risks and
+Mitigations, Pricing Approach (prose plus an itemized pricing table),
 Open Questions for Clarification, and Unaddressed Items -- rendered
 directly from proposal_response.json's own fields (see
 process_toolkit.proposal_response.proposal_response and
@@ -137,6 +140,26 @@ def _add_solution_architecture_section(
 
 
 # ============================================================
+# 4.0 DELIVERABLES
+# ============================================================
+
+def _add_deliverables_section(
+    doc: docx.Document, deliverables, heading: str = "4.0 Deliverables",
+) -> bool:
+    try:
+        values = [str(v) for v in (deliverables or []) if isinstance(v, str) and v.strip()]
+        if not values:
+            return False
+        doc.add_heading(heading, level=1)
+        for v in values:
+            doc.add_paragraph(v, style="List Bullet")
+        return True
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# ============================================================
 # 4.0 DIFFERENTIATORS
 # (section-marker comments below are cosmetic only -- every actual
 # heading number gets recomputed from final render order by
@@ -183,7 +206,7 @@ def _add_compliance_matrix_section(
 
         items = sorted(items, key=lambda m: _natural_sort_key(m.get("requirement_id")))
 
-        headers = ["ID", "Requirement", "Status", "Response"]
+        headers = ["ID", "Requirement", "Status", "Response", "Evidence / Location"]
         table = doc.add_table(rows=1, cols=len(headers))
         _set_header_row(table, headers)
         for m in items:
@@ -192,6 +215,7 @@ def _add_compliance_matrix_section(
             _set_cell_bullets(row[1], m.get("requirement_text"))
             row[2].text = str(m.get("response_status") or "")
             _set_cell_bullets(row[3], m.get("response"))
+            _set_cell_bullets(row[4], m.get("evidence_ref"))
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
         return True
@@ -201,7 +225,41 @@ def _add_compliance_matrix_section(
 
 
 # ============================================================
-# 6.0 QUALIFICATIONS
+# 6.0 IMPLEMENTATION PLAN
+# ============================================================
+
+def _add_implementation_plan_section(
+    doc: docx.Document, plan, heading: str = "6.0 Implementation Plan",
+) -> bool:
+    """6.0 Implementation Plan -- a phased delivery timeline. Rows are left
+    in the agent's own given order (not sorted) since phases are
+    inherently sequential, unlike the compliance matrix's requirement
+    ids."""
+    try:
+        items = [p for p in (plan or []) if isinstance(p, dict)]
+        if not items:
+            return False
+
+        doc.add_heading(heading, level=1)
+        headers = ["Phase", "Timing", "Deliverable", "Acceptance Criteria"]
+        table = doc.add_table(rows=1, cols=len(headers))
+        _set_header_row(table, headers)
+        for p in items:
+            row = table.add_row().cells
+            row[0].text = str(p.get("phase") or "")
+            row[1].text = str(p.get("timing") or "")
+            _set_cell_bullets(row[2], p.get("deliverable"))
+            _set_cell_bullets(row[3], p.get("acceptance_criteria"))
+        apply_iso_table_formatting(table, doc)
+        doc.add_paragraph()
+        return True
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# ============================================================
+# 7.0 QUALIFICATIONS
 # ============================================================
 
 def _add_qualifications_section(
@@ -274,12 +332,31 @@ def _add_risks_and_mitigations_section(
 def _add_pricing_approach_section(
     doc: docx.Document, data: dict, heading: str = "9.0 Pricing Approach",
 ) -> bool:
+    """9.0 Pricing Approach -- the pricing-model prose plus, when present,
+    an itemized pricing_table breakdown underneath. Renders if EITHER is
+    present; a line item with no actual "price" the user ever gave
+    renders as "TBD" rather than being fabricated or dropped."""
     try:
         pricing = data.get("pricing_approach")
-        if not pricing:
+        table_items = [p for p in (data.get("pricing_table") or []) if isinstance(p, dict)]
+        if not pricing and not table_items:
             return False
+
         doc.add_heading(heading, level=1)
-        doc.add_paragraph(str(pricing))
+        if pricing:
+            doc.add_paragraph(str(pricing))
+
+        if table_items:
+            headers = ["Item", "Basis", "Price"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for item in table_items:
+                row = table.add_row().cells
+                row[0].text = str(item.get("item") or "")
+                _set_cell_bullets(row[1], item.get("basis"))
+                row[2].text = str(item.get("price") or "TBD")
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
         return True
     except Exception:
         traceback.print_exc()

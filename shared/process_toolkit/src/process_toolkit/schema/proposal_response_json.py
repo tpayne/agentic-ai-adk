@@ -32,6 +32,7 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "architecture_components": [
         {"name": "", "description": "", "connects_to": []}
     ],
+    "deliverables": [],
     "differentiators": [],
     "compliance_matrix": [
         {
@@ -40,12 +41,17 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
             "requirement_type": "functional",
             "response_status": "Fully Compliant",
             "response": "",
+            "evidence_ref": "",
         }
+    ],
+    "implementation_plan": [
+        {"phase": "", "timing": "", "deliverable": "", "acceptance_criteria": ""}
     ],
     "assumptions": [],
     "risks_and_mitigations": [{"risk": "", "mitigation": ""}],
     "qualifications": "",
     "pricing_approach": "",
+    "pricing_table": [{"item": "", "basis": "", "price": ""}],
     "open_questions_for_client": [],
     "unaddressed_items": [],
 }

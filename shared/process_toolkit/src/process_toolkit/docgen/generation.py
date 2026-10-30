@@ -86,8 +86,10 @@ from process_toolkit.docgen.proposal_response_sections import (
     _add_understanding_section,
     _add_proposed_solution_section,
     _add_solution_architecture_section,
+    _add_deliverables_section,
     _add_differentiators_section,
     _add_compliance_matrix_section,
+    _add_implementation_plan_section,
     _add_qualifications_section,
     _add_assumptions_section,
     _add_risks_and_mitigations_section,
@@ -577,6 +579,12 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     requirements_sections.py applies to its own Glossary; it's simply
     conditional on the agent having actually populated the field, same
     as every other optional section here. Still NO fabricated Glossary.
+    Also renders a Deliverables list and a phased Implementation Plan
+    table when present, and an itemized pricing table alongside the
+    Pricing Approach prose -- structural patterns consistently present
+    in real competitive RFP responses (phased delivery plan, itemized
+    pricing, concrete deliverables list) that pure narrative alone
+    doesn't capture.
 
     proposal_response.json has no title/name field of its own -- `name`
     is whatever the caller passed as `process_name`.
@@ -584,8 +592,10 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     name = str(process_name)
 
     architecture_components = data.get("architecture_components")
+    deliverables = data.get("deliverables")
     differentiators = data.get("differentiators")
     compliance_matrix = data.get("compliance_matrix")
+    implementation_plan = data.get("implementation_plan")
     assumptions = data.get("assumptions")
     risks_and_mitigations = data.get("risks_and_mitigations")
     open_questions_for_client = data.get("open_questions_for_client")
@@ -593,9 +603,9 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     consumed_keys = {
         "summary", "our_understanding", "proposed_solution", "architecture_components",
-        "differentiators", "compliance_matrix", "qualifications", "assumptions",
-        "risks_and_mitigations", "pricing_approach", "open_questions_for_client",
-        "unaddressed_items",
+        "deliverables", "differentiators", "compliance_matrix", "implementation_plan",
+        "qualifications", "assumptions", "risks_and_mitigations", "pricing_approach",
+        "pricing_table", "open_questions_for_client", "unaddressed_items",
     }
 
     # ---- COVER PAGE ----
@@ -649,6 +659,11 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
             add_iso_page_break(doc)
         rendered = _add_solution_architecture_section(doc, architecture_components, name)
 
+    if deliverables:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_deliverables_section(doc, deliverables)
+
     if differentiators:
         if rendered:
             add_iso_page_break(doc)
@@ -658,6 +673,11 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_compliance_matrix_section(doc, compliance_matrix)
+
+    if implementation_plan:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_implementation_plan_section(doc, implementation_plan)
 
     if rendered:
         add_iso_page_break(doc)

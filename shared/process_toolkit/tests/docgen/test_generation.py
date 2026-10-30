@@ -218,19 +218,32 @@ SAMPLE_PROPOSAL_RESPONSE = {
         {"name": "ERP Connector", "description": "Syncs vendor records to the client's ERP.",
          "connects_to": []},
     ],
+    "deliverables": ["A production-deployed vendor portal.", "Admin dashboard with role-based access."],
     "differentiators": ["10 years in vendor management SaaS.", "24/7 support included."],
     "compliance_matrix": [
         {"requirement_id": "FR-001", "requirement_text": "Allow vendor registration.",
          "requirement_type": "functional", "response_status": "Fully Compliant",
-         "response": "Our platform already supports self-service vendor registration."},
+         "response": "Our platform already supports self-service vendor registration.",
+         "evidence_ref": "See Proposed Solution"},
         {"requirement_id": "NFR-001", "requirement_text": "Respond within 2 seconds.",
          "requirement_type": "non_functional", "response_status": "Partially Compliant",
-         "response": "p95 latency is currently 2.3s; a caching layer upgrade will close this gap."},
+         "response": "p95 latency is currently 2.3s; a caching layer upgrade will close this gap.",
+         "evidence_ref": "See Implementation Plan, Phase 2"},
+    ],
+    "implementation_plan": [
+        {"phase": "Phase 1: Discovery & Design", "timing": "Weeks 1-4",
+         "deliverable": "Signed architecture document.", "acceptance_criteria": "Client sign-off on design."},
+        {"phase": "Phase 2: Build & Integrate", "timing": "Weeks 5-10",
+         "deliverable": "ERP integration live in staging.", "acceptance_criteria": "UAT passed."},
     ],
     "assumptions": ["Client provides API access to their existing ERP."],
     "risks_and_mitigations": [{"risk": "Data migration delays.", "mitigation": "Phased cutover plan."}],
     "qualifications": "Our team has delivered 12 similar vendor portals in the retail sector.",
     "pricing_approach": "Fixed-price implementation plus a per-seat annual subscription.",
+    "pricing_table": [
+        {"item": "Implementation", "basis": "One-time", "price": "TBD"},
+        {"item": "Annual subscription", "basis": "Recurring, per-seat", "price": "TBD"},
+    ],
     "open_questions_for_client": ["Which regions are in scope for data residency?"],
     "unaddressed_items": ["Data retention policy was flagged as a gap in the original requirements analysis."],
 }
@@ -251,8 +264,10 @@ class TestProposalResponseDocumentGeneration:
         assert "2.0 Our Understanding of Your Requirements" in headings
         assert "3.0 Proposed Solution" in headings
         assert any("Solution Architecture" in h for h in headings)
+        assert any("Deliverables" in h for h in headings)
         assert any("Differentiators" in h for h in headings)
         assert any("Compliance Matrix" in h for h in headings)
+        assert any("Implementation Plan" in h for h in headings)
         assert any("Qualifications" in h for h in headings)
         assert any("Assumptions" in h for h in headings)
         assert any("Risks and Mitigations" in h for h in headings)
@@ -261,6 +276,9 @@ class TestProposalResponseDocumentGeneration:
         assert any("Unaddressed Items" in h for h in headings)
         # The solution-architecture diagram embeds as a real inline image.
         assert len(doc.inline_shapes) >= 1
+        # 6 tables: version history, architecture components, compliance
+        # matrix, implementation plan, risks and mitigations, pricing table.
+        assert len(doc.tables) == 6
         # Still no fabricated glossary, and not the process/design-style
         # flow diagram heading (a different section entirely).
         assert not any("Glossary" in h for h in headings)
@@ -281,6 +299,20 @@ class TestProposalResponseDocumentGeneration:
         headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
         assert not any("Solution Architecture" in h for h in headings)
         assert len(doc.inline_shapes) == 0
+
+    def test_no_implementation_plan_section_when_absent(self):
+        # Same no-fabrication guarantee as architecture_components: no
+        # plan populated means no Implementation Plan section at all.
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data.pop("implementation_plan")
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        assert not any("Implementation Plan" in h for h in headings)
 
     def test_no_blank_pages_in_a_generated_proposal_response_document(self):
         with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
