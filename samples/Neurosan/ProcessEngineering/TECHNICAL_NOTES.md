@@ -279,7 +279,7 @@ the same schema.
 
 ## 🛠 Requirements
 
-- **An LLM provider API key**: whichever provider is configured in `config/llm_config.hocon` (e.g. `GOOGLE_API_KEY` for Gemini, `ANTHROPIC_API_KEY` for Claude, `OPENAI_API_KEY` — see neuro-san's own [`docs/api_key.md`](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/api_key.md)).
+- **An LLM provider API key**: whichever provider is configured in `config/llm_config.hocon` (e.g. `GOOGLE_API_KEY` for Gemini, `ANTHROPIC_API_KEY` for Claude, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` for OpenRouter — see neuro-san's own [`docs/api_key.md`](https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/api_key.md)). No API key is needed when using a locally-served Ollama model.
 - **Python 3.14** (pinned via `.python-version`/`pyproject.toml`'s `requires-python`).
 - **[`uv`](https://docs.astral.sh/uv/)** for dependency management and running — see `pyproject.toml`/`uv.lock`. Note: some packages (e.g. `python-docx`, `extract-msg`) may require system packages for advanced document conversions — document any environment-specific installs here as you discover them.
 
@@ -310,6 +310,123 @@ Notes:
 - Consider storing secrets in a secure location or using a `.env` file and a tool like direnv.
 - Run the test suite with `uv run pytest`.
 - `uv run ns validate registries/<name>.hocon` structurally validates a network file without needing an API key — useful while editing.
+
+---
+
+## Choosing a Model / LLM Provider
+
+The active model is set in `config/llm_config.hocon` via `"model_name"`. The format of the model
+string determines which provider is used. Commented-out examples for every supported provider are
+already included in that file.
+
+### Gemini (default)
+
+No prefix. Uses either Vertex AI (when `GOOGLE_CLOUD_PROJECT` / `GOOGLE_PROJECT_ID` is set) or
+the Gemini Developer API (when `GOOGLE_API_KEY` is set).
+
+```hocon
+"model_name": "gemini-3-flash"
+```
+
+```bash
+export GOOGLE_API_KEY="<YourKey>"
+# or for Vertex AI:
+export GOOGLE_CLOUD_PROJECT="<your-gcp-project>"
+```
+
+### Anthropic (Claude)
+
+```hocon
+"model_name": "claude-sonnet-4-5"
+```
+
+```bash
+export ANTHROPIC_API_KEY="<YourKey>"
+```
+
+### OpenAI
+
+```hocon
+"model_name": "gpt-4o"
+```
+
+```bash
+export OPENAI_API_KEY="<YourKey>"
+```
+
+### AWS Bedrock
+
+```hocon
+"model_name": "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+```
+
+```bash
+export AWS_REGION_NAME="us-east-1"
+# plus your AWS credentials (access keys or IAM role)
+```
+
+### Local Ollama
+
+Run any model locally with [Ollama](https://ollama.ai/) — **no API key required**. Use the
+`ollama_chat/` prefix for chat and tool-calling models (recommended for this project), or `ollama/`
+for text-generation / embedding models.
+
+1. Install Ollama and pull your model:
+
+   ```bash
+   ollama pull llama3.2
+   # or: ollama pull mistral, ollama pull qwen2.5:7b, etc.
+   ```
+
+2. Set the model name in `config/llm_config.hocon`:
+
+   ```hocon
+   "model_name": "ollama_chat/llama3.2"
+   ```
+
+3. *(Optional)* Override the default endpoint if Ollama is not on `localhost:11434`:
+
+   ```bash
+   export OLLAMA_BASE_URL="http://your-host:11434"
+   ```
+
+No API key is needed. neuro-san routes the call through LiteLLM, which handles the Ollama REST API
+transparently.
+
+> [!NOTE]
+> This project's agent networks make heavy use of structured JSON tool-calls. Use a capable model
+> (e.g. `llama3.2`, `qwen2.5:7b`, `mistral-nemo`) that reliably follows tool-calling instructions.
+> Smaller or older models may produce malformed JSON or skip tool calls entirely.
+
+### OpenRouter
+
+[OpenRouter](https://openrouter.ai/) is a unified gateway that routes to 300+ models from
+OpenAI, Anthropic, Meta, Google, Mistral, and many others — useful when you want to experiment with
+different providers without managing separate API keys for each.
+
+1. Get an API key at <https://openrouter.ai/keys>.
+
+2. Set the model name in `config/llm_config.hocon` using the `openrouter/` prefix:
+
+   ```hocon
+   "model_name": "openrouter/openai/gpt-4o"
+   # or: "openrouter/anthropic/claude-sonnet-4-5"
+   # or: "openrouter/meta-llama/llama-3.1-8b-instruct"
+   # or: "openrouter/google/gemini-flash-1.5"
+   ```
+
+   Browse available model strings at <https://openrouter.ai/models>.
+
+3. Export your key:
+
+   ```bash
+   export OPENROUTER_API_KEY="sk-or-v1-..."
+   ```
+
+No other configuration is needed. neuro-san routes the call through LiteLLM, which recognizes the
+`openrouter/` prefix and authenticates via `OPENROUTER_API_KEY` automatically.
+
+---
 
 ## Test Deployment Emulation using WebUI
 

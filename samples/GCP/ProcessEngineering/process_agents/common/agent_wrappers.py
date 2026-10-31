@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import os
 import random
 import re
 import time
@@ -348,12 +349,28 @@ def _resolve_model(model: Optional[Any], *, _agent_name: str = "agent") -> Any:
       clone() and callers who construct their own LiteLlm(...) never get
       double-wrapped (the wrapper is idempotent/guarded).
     - A provider-prefixed string, e.g. "anthropic/claude-sonnet-5",
-      "openai/gpt-4o", "vertex_ai/claude-3-7-sonnet@20250219" -> wrapped
+      "openai/gpt-4o", "vertex_ai/claude-3-7-sonnet@20250219",
+      "openrouter/openai/gpt-4o", "ollama_chat/llama3.2" -> wrapped
       in LiteLlm so non-Gemini providers work out of the box.
     - A bare Gemini model name, e.g. "gemini-2.5-flash" (no "/") -> built
       into a real `Gemini(...)` model object (rather than left as a plain
       string) so retry behaviour can be attached to it too; ADK accepts a
       BaseLlm instance here exactly as it accepts a bare model string.
+
+    Ollama notes
+    ------------
+    LiteLlm is constructed with ``api_base`` set to the Ollama server URL so
+    every agent's model call hits the right host. The URL is resolved from
+    (in priority order):
+      1. The ``OLLAMA_BASE_URL`` environment variable.
+      2. The ``OLLAMA_BASE_URL`` property in ``agentapp.properties``.
+      3. The hard-coded default ``http://localhost:11434``.
+
+    OpenRouter notes
+    ----------------
+    LiteLlm uses the ``OPENROUTER_API_KEY`` environment variable for auth
+    automatically when the model string starts with ``openrouter/``. No extra
+    ``api_base`` is needed; OpenRouter's public endpoint is used by default.
     """
     resolved = model if model is not None else getProperty("MODEL")
 
@@ -364,6 +381,20 @@ def _resolve_model(model: Optional[Any], *, _agent_name: str = "agent") -> Any:
         return _wrap_with_retry(resolved, model_name=_agent_name)
 
     if "/" in resolved:
+        provider = resolved.split("/", 1)[0]
+
+        # --- Local Ollama: resolve api_base from env / properties / default ---
+        if provider in ("ollama_chat", "ollama"):
+            ollama_base = (
+                os.getenv("OLLAMA_BASE_URL")
+                or getProperty("OLLAMA_BASE_URL", default=None)
+                or "http://localhost:11434"
+            )
+            return _wrap_with_retry(
+                LiteLlm(model=resolved, api_base=ollama_base),
+                model_name=_agent_name,
+            )
+
         return _wrap_with_retry(LiteLlm(model=resolved), model_name=_agent_name)
 
     from google.adk.models import Gemini  # local import: avoids import cost/cycles when unused

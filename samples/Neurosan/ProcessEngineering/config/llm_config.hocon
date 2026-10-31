@@ -7,6 +7,32 @@
         # those models retain reasoning and can still call this project's tools.
         # Other providers ignore this OpenAI-specific option.
         "use_responses_api": true
+
+        # ---------------------------------------------------------------------------
+        # LOCAL OLLAMA (no API key required — Ollama must be running locally)
+        # Use "ollama_chat/" for chat/tool-calling models (recommended).
+        # Use "ollama/" for text-generation or embedding models.
+        # Requires: Ollama running at http://localhost:11434 (default).
+        # Pull your model first: `ollama pull llama3.2`
+        # Set OLLAMA_BASE_URL to override the default endpoint, e.g.:
+        #   export OLLAMA_BASE_URL="http://localhost:11434"
+        # ---------------------------------------------------------------------------
+        #"model_name": "ollama_chat/llama3.2"
+        #"model_name": "ollama_chat/mistral"
+        #"model_name": "ollama_chat/qwen2.5:7b"
+        #"model_name": "ollama/llama3.2"           # generation/embeddings endpoint
+
+        # ---------------------------------------------------------------------------
+        # OPENROUTER (cloud-hosted, 300+ models from many providers)
+        # Requires: OPENROUTER_API_KEY environment variable.
+        #   export OPENROUTER_API_KEY="sk-or-v1-..."
+        # Model format: "openrouter/<provider>/<model>"
+        # Browse available models at https://openrouter.ai/models
+        # ---------------------------------------------------------------------------
+        #"model_name": "openrouter/openai/gpt-4o"
+        #"model_name": "openrouter/anthropic/claude-sonnet-4-5"
+        #"model_name": "openrouter/meta-llama/llama-3.1-8b-instruct"
+        #"model_name": "openrouter/google/gemini-flash-1.5"
     },
 
     # neuro-san's own default (RunContextRunnable.run_it) is 300 seconds per
