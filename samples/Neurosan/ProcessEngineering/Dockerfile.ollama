@@ -42,7 +42,6 @@ COPY samples/Neurosan/ProcessEngineering/config ./config
 COPY samples/Neurosan/ProcessEngineering/mcp ./mcp
 COPY samples/Neurosan/ProcessEngineering/middleware ./middleware
 COPY samples/Neurosan/ProcessEngineering/registries ./registries
-COPY samples/Neurosan/ProcessEngineering/registries ./registries
 
 RUN uv sync --locked --no-dev
 

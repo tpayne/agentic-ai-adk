@@ -906,7 +906,9 @@ To run with a different Ollama model (e.g. `qwen2.5:7b` or `mistral`):
 
 ```bash
 docker run --rm \
-  -p 8080:8080 \
+  -p 8081:8081 \
+  -e HOST=0.0.0.0 \
+  -e ALLOWINSECUREWEBSERVICE=true \
   -p 11434:11434 \
   -e OLLAMA_MODEL="qwen2.5:7b" \
   -v "$(pwd)/output:/app/samples/Neurosan/ProcessEngineering/output" \
