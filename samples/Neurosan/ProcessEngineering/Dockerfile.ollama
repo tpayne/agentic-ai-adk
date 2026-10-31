@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install official Ollama binary for the host/container architecture
+RUN curl -fsSL https://ollama.com/install.sh > /dev/null 2>&1
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # Install Astral uv by copying it from the official image
@@ -35,7 +36,14 @@ COPY samples/Neurosan/ProcessEngineering/pyproject.toml samples/Neurosan/Process
 RUN uv sync --locked --no-dev --no-install-project
 
 # Copy application code
-COPY samples/Neurosan/ProcessEngineering/ .
+COPY samples/Neurosan/ProcessEngineering/cli.py .
+COPY samples/Neurosan/ProcessEngineering/coded_tools ./coded_tools
+COPY samples/Neurosan/ProcessEngineering/config ./config
+COPY samples/Neurosan/ProcessEngineering/mcp ./mcp
+COPY samples/Neurosan/ProcessEngineering/middleware ./middleware
+COPY samples/Neurosan/ProcessEngineering/registries ./registries
+COPY samples/Neurosan/ProcessEngineering/registries ./registries
+
 RUN uv sync --locked --no-dev
 
 ARG account=neurosan_process_user
@@ -49,6 +57,8 @@ RUN useradd -ms /bin/bash ${account} \
 
 # Supervisor configuration
 COPY samples/Neurosan/ProcessEngineering/supervisord.conf /etc/supervisord.conf
+
+USER ${account}
 
 # Environment settings
 ENV AGENT_MANIFEST_FILE=/app/samples/Neurosan/ProcessEngineering/registries/manifest.hocon

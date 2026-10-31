@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install official Ollama binary for the host/container architecture
+RUN curl -fsSL https://ollama.com/install.sh > /dev/null 2>&1
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
 WORKDIR /app/samples/GCP/ProcessEngineering
@@ -57,6 +58,8 @@ RUN useradd -ms /bin/bash ${account} \
 
 # Supervisor configuration
 COPY samples/GCP/ProcessEngineering/supervisord.conf /etc/supervisord.conf
+
+USER ${account}
 
 # Environment settings
 ENV OLLAMA_HOST=0.0.0.0:11434
