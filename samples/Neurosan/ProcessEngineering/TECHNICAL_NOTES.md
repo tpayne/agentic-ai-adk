@@ -887,7 +887,9 @@ A dedicated multi-process Dockerfile is provided that runs the **Ollama daemon**
 Build from repository root:
 
 ```bash
-docker build -f samples/Neurosan/ProcessEngineering/Dockerfile.ollama -t processengineering-neurosan-ollama .
+docker build \
+  -f samples/Neurosan/ProcessEngineering/Dockerfile.ollama \
+  -t processengineering-neurosan-ollama .
 ```
 
 Run container:

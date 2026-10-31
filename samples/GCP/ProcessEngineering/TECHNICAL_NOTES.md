@@ -1296,7 +1296,9 @@ A dedicated multi-process Dockerfile is provided that runs the **Ollama daemon**
 Build from repository root:
 
 ```bash
-docker build -f samples/GCP/ProcessEngineering/Dockerfile.ollama -t adkprocesseng-ollama .
+docker build -f \
+  samples/GCP/ProcessEngineering/Dockerfile.ollama \
+  -t adkprocesseng-ollama .
 ```
 
 Run container:
