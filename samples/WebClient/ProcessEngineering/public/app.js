@@ -4505,7 +4505,7 @@
           live.setText(event.text || "");
         } else if (event.status === "done") {
           sawDone = true;
-          live.finalize(event.response || "(empty response)");
+          live.finalize(event.response || "(The assistant didn't return a reply for this turn. Please try again.)");
           recordUsageTurn(event.usage, text);
         } else if (event.status === "stopped") {
           sawDone = true;
@@ -4534,7 +4534,7 @@
           const data = await postChat(baseUrl, text, files);
           if (data.status === "ok") {
             setSessionId(data.session_id);
-            addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
+            addMessage("agent", data.response || "(The assistant didn't return a reply for this turn. Please try again.)", { isMarkdown: true });
             recordUsageTurn(data.usage, text);
           } else {
             addMessage("error", data.error || "The backend returned an error.");
