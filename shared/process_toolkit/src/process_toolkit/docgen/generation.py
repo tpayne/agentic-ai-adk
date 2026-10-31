@@ -83,17 +83,17 @@ from process_toolkit.docgen.requirements_sections import (
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
-    _add_understanding_section,
     _add_proposed_solution_section,
     _add_solution_architecture_section,
-    _add_deliverables_section,
-    _add_differentiators_section,
+    _add_scope_of_work_section,
     _add_compliance_matrix_section,
-    _add_implementation_plan_section,
+    _add_delivery_approach_section,
+    _add_governance_section,
+    _add_team_profiles_section,
+    _add_success_stories_section,
     _add_qualifications_section,
-    _add_assumptions_section,
-    _add_risks_and_mitigations_section,
-    _add_pricing_approach_section,
+    _add_assumptions_dependencies_section,
+    _add_commercial_proposal_section,
     _add_open_questions_section,
     _add_unaddressed_items_section,
 )
@@ -579,12 +579,14 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     requirements_sections.py applies to its own Glossary; it's simply
     conditional on the agent having actually populated the field, same
     as every other optional section here. Still NO fabricated Glossary.
-    Also renders a Deliverables list and a phased Implementation Plan
-    table when present, and an itemized pricing table alongside the
-    Pricing Approach prose -- structural patterns consistently present
-    in real competitive RFP responses (phased delivery plan, itemized
-    pricing, concrete deliverables list) that pure narrative alone
-    doesn't capture.
+    Also renders a much fuller enterprise-RTP table of contents: Scope of
+    Work & Boundaries, Delivery & Engagement Approach, Governance Model,
+    Indicative Profiles & Team Structure, and Relevant Success Stories &
+    References are each a single container section holding several
+    independently-optional Heading-2 subsections (see
+    proposal_response_sections.py's own `_add_scope_of_work_section` and
+    siblings) -- structural patterns consistently present in real
+    competitive RFP responses that pure narrative alone doesn't capture.
 
     proposal_response.json has no title/name field of its own -- `name`
     is whatever the caller passed as `process_name`.
@@ -592,20 +594,24 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     name = str(process_name)
 
     architecture_components = data.get("architecture_components")
-    deliverables = data.get("deliverables")
-    differentiators = data.get("differentiators")
     compliance_matrix = data.get("compliance_matrix")
-    implementation_plan = data.get("implementation_plan")
-    assumptions = data.get("assumptions")
-    risks_and_mitigations = data.get("risks_and_mitigations")
     open_questions_for_client = data.get("open_questions_for_client")
     unaddressed_items = data.get("unaddressed_items")
 
     consumed_keys = {
-        "summary", "our_understanding", "proposed_solution", "architecture_components",
-        "deliverables", "differentiators", "compliance_matrix", "implementation_plan",
-        "qualifications", "assumptions", "risks_and_mitigations", "pricing_approach",
-        "pricing_table", "open_questions_for_client", "unaddressed_items",
+        "summary", "our_understanding", "solution_summary", "expected_outcomes",
+        "proposed_solution", "architecture_components",
+        "services_in_scope", "environments_covered", "deliverables", "out_of_scope",
+        "technical_constraints", "differentiators", "compliance_matrix",
+        "domain_expertise", "domain_accelerators", "core_delivery_approach",
+        "platform_approach", "quality_validation_approach", "automation_approach",
+        "environment_setup", "tooling_stack", "slas_and_kpis", "implementation_plan",
+        "governance_framework", "raci_matrix", "escalation_path", "meeting_cadence",
+        "team_structure", "key_personnel", "skills_and_certifications",
+        "case_studies", "measurable_outcomes",
+        "qualifications", "assumptions", "client_dependencies", "risks_and_mitigations",
+        "pricing_approach", "pricing_table", "ongoing_costs_approach",
+        "rate_card_and_change_control", "open_questions_for_client", "unaddressed_items",
     }
 
     # ---- COVER PAGE ----
@@ -648,10 +654,6 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_understanding_section(doc, data)
-
-    if rendered:
-        add_iso_page_break(doc)
     rendered = _add_proposed_solution_section(doc, data)
 
     if architecture_components:
@@ -659,43 +661,42 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
             add_iso_page_break(doc)
         rendered = _add_solution_architecture_section(doc, architecture_components, name)
 
-    if deliverables:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_deliverables_section(doc, deliverables)
-
-    if differentiators:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_differentiators_section(doc, differentiators)
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_scope_of_work_section(doc, data)
 
     if compliance_matrix:
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_compliance_matrix_section(doc, compliance_matrix)
 
-    if implementation_plan:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_implementation_plan_section(doc, implementation_plan)
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_delivery_approach_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_governance_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_team_profiles_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_success_stories_section(doc, data)
 
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_qualifications_section(doc, data)
 
-    if assumptions:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_assumptions_section(doc, assumptions)
-
-    if risks_and_mitigations:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_risks_and_mitigations_section(doc, risks_and_mitigations)
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_assumptions_dependencies_section(doc, data)
 
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_pricing_approach_section(doc, data)
+    rendered = _add_commercial_proposal_section(doc, data)
 
     if open_questions_for_client:
         if rendered:

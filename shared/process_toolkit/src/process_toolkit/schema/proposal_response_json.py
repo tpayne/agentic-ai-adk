@@ -28,11 +28,17 @@ _VALID_RESPONSE_STATUSES = {
 PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "summary": "",
     "our_understanding": "",
+    "solution_summary": "",
+    "expected_outcomes": [],
     "proposed_solution": "",
     "architecture_components": [
         {"name": "", "description": "", "connects_to": []}
     ],
+    "services_in_scope": [],
+    "environments_covered": [],
     "deliverables": [],
+    "out_of_scope": [],
+    "technical_constraints": [],
     "differentiators": [],
     "compliance_matrix": [
         {
@@ -44,14 +50,39 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
             "evidence_ref": "",
         }
     ],
+    "domain_expertise": "",
+    "domain_accelerators": [],
+    "core_delivery_approach": "",
+    "platform_approach": "",
+    "quality_validation_approach": "",
+    "automation_approach": "",
+    "environment_setup": "",
+    "tooling_stack": [],
+    "slas_and_kpis": [{"metric": "", "target": ""}],
     "implementation_plan": [
         {"phase": "", "timing": "", "deliverable": "", "acceptance_criteria": ""}
     ],
-    "assumptions": [],
-    "risks_and_mitigations": [{"risk": "", "mitigation": ""}],
+    "governance_framework": "",
+    "raci_matrix": [
+        {"activity": "", "responsible": "", "accountable": "", "consulted": "", "informed": ""}
+    ],
+    "escalation_path": [],
+    "meeting_cadence": [{"meeting": "", "frequency": "", "attendees": ""}],
+    "team_structure": [{"role": "", "allocation": ""}],
+    "key_personnel": [{"role": "", "responsibilities": ""}],
+    "skills_and_certifications": [],
+    "case_studies": [
+        {"title": "", "context": "", "challenge": "", "work_completed": "", "outcome": ""}
+    ],
+    "measurable_outcomes": [],
     "qualifications": "",
+    "assumptions": [],
+    "client_dependencies": [],
+    "risks_and_mitigations": [{"risk": "", "mitigation": ""}],
     "pricing_approach": "",
     "pricing_table": [{"item": "", "basis": "", "price": ""}],
+    "ongoing_costs_approach": "",
+    "rate_card_and_change_control": "",
     "open_questions_for_client": [],
     "unaddressed_items": [],
 }
