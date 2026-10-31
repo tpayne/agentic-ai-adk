@@ -2,7 +2,7 @@
 #   docker build -f samples/GCP/ProcessEngineering/Dockerfile.ollama -t adkprocesseng-ollama .
 #
 # This Dockerfile deploys a standalone container packaging:
-# 1. The local Ollama daemon (/usr/local/bin/ollama)
+# 1. The local Ollama daemon (/usr/bin/ollama)
 # 2. An automatic model-puller (defaults to llama3.2, override with -e OLLAMA_MODEL=...)
 # 3. The ADK ProcessEngineering detached REST web service (-d --http -p 8080)
 # 4. Supervisord orchestrating process startup, dependencies, and health.
