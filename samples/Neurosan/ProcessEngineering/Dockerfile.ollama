@@ -9,9 +9,10 @@
 
 FROM python:3.14-slim
 
-# Install system dependencies: curl (for Ollama install & healthchecks), supervisor, procps, bash
+# Install system dependencies: curl (for Ollama install & healthchecks), zstd, supervisor, procps, bash
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    zstd \
     supervisor \
     procps \
     bash \

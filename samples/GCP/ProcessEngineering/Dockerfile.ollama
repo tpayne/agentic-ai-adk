@@ -10,7 +10,7 @@
 ARG pythonVersion=3.12.9
 FROM python:${pythonVersion}-slim AS runner
 
-# System dependencies for matplotlib, numpy, pandas, graphviz, docx, supervisor, curl
+# System dependencies for matplotlib, numpy, pandas, graphviz, docx, supervisor, curl, zstd
 RUN apt-get update && apt-get install -y --no-install-recommends \
     graphviz \
     gcc \
@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     curl \
+    zstd \
     supervisor \
     procps \
     bash \
