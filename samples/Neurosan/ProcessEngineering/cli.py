@@ -84,6 +84,15 @@ from dotenv import load_dotenv
 # environment variable that's already set (load_dotenv's own default).
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
+# --- Dynamic Model Lookup / Environment Fallback ---
+# Automatically resolve and configure LLM provider settings dynamically based on runtime environment availability.
+if not any(os.environ.get(k) for k in ["AZURE_OPENAI_ENDPOINT", "OPENAI_API_KEY", "GOOGLE_API_KEY", "OPENROUTER_API_KEY"]):
+    os.environ.setdefault("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    _target_ollama_model = os.environ.get("OLLAMA_MODEL") or os.environ.get("MODEL_NAME") or "llama3.2"
+    os.environ.setdefault("DEFAULT_LLM_MODEL", f"ollama_chat/{_target_ollama_model}")
+    os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "http://127.0.0.1:11434")
+    os.environ.setdefault("OPENAI_API_KEY", "ollama-local-placeholder")
+
 # A direct (in-process) neuro-san session resolves agent names and
 # CodedTool "class" references against AGENT_MANIFEST_FILE/AGENT_TOOL_PATH/
 # PYTHONPATH, not simply "relative to cwd" -- `ns chat`/`ns run` set all
