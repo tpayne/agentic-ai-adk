@@ -58,9 +58,17 @@ def configure_model_provider(model: str) -> None:
       - Bare Gemini name (no "/"), e.g. "gemini-3-flash-preview"
           -> Vertex AI if GOOGLE_CLOUD_PROJECT/GOOGLE_PROJECT_ID is set,
              else the Gemini API if GOOGLE_API_KEY is set.
-      - "anthropic/..."  -> requires ANTHROPIC_API_KEY
-      - "openai/..."     -> requires OPENAI_API_KEY
-      - "bedrock/..."    -> requires AWS region + credentials
+      - "anthropic/..."      -> requires ANTHROPIC_API_KEY
+      - "openai/..."         -> requires OPENAI_API_KEY
+      - "bedrock/..."        -> requires AWS region + credentials
+      - "ollama_chat/..."    -> local Ollama server; no API key required.
+                               Optionally set OLLAMA_BASE_URL (default:
+                               http://localhost:11434).
+      - "ollama/..."         -> local Ollama server (generation/embedding
+                               endpoint); no API key required.
+      - "openrouter/..."     -> OpenRouter gateway; requires OPENROUTER_API_KEY.
+                               Provides access to 300+ models from many
+                               providers. See https://openrouter.ai/models.
     """
     # --- Bare Gemini model name: native ADK path, not LiteLLM ---
     if "/" not in model:
@@ -82,15 +90,15 @@ def configure_model_provider(model: str) -> None:
 
     provider = model.split("/", 1)[0]
 
-    # Every branch below (anthropic/openai/bedrock) is routed through
-    # LiteLLM (see agent_wrappers._resolve_model). Some models impose
-    # stricter parameter constraints than our own per-agent "quick knobs"
-    # assume -- e.g. litellm rejects any non-default temperature outright
-    # for some Claude models ("litellm.UnsupportedParamsError: ... Only
-    # temperature=1 is supported"). drop_params tells litellm to silently
-    # drop a param a given model doesn't support instead of raising, so
-    # each agent's own tuned temperature/top_p still applies for models
-    # that support it and is harmlessly ignored for ones that don't.
+    # Every branch below is routed through LiteLLM (see
+    # agent_wrappers._resolve_model). Some models impose stricter parameter
+    # constraints than our own per-agent "quick knobs" assume -- e.g. litellm
+    # rejects any non-default temperature outright for some Claude models
+    # ("litellm.UnsupportedParamsError: ... Only temperature=1 is supported").
+    # drop_params tells litellm to silently drop a param a given model doesn't
+    # support instead of raising, so each agent's own tuned temperature/top_p
+    # still applies for models that support it and is harmlessly ignored for
+    # ones that don't.
     import litellm
     litellm.drop_params = True
 
@@ -134,10 +142,29 @@ def configure_model_provider(model: str) -> None:
         os.environ["ADK_MODEL_PROVIDER"] = "bedrock"
         litellm.modify_params = True  # required for multi-turn tool calls on Bedrock
 
+    # --- Local Ollama (ollama_chat/ or ollama/) ---
+    elif provider in ("ollama_chat", "ollama"):
+        # No API key required for a locally-served Ollama instance.
+        # OLLAMA_BASE_URL may be set to override the default localhost endpoint
+        # (http://localhost:11434); _resolve_model in agent_wrappers.py reads
+        # it and passes it as api_base to LiteLlm so every agent's model call
+        # hits the right host without any per-agent configuration.
+        os.environ["ADK_MODEL_PROVIDER"] = "ollama"
+
+    # --- OpenRouter (300+ models via a single gateway API key) ---
+    elif provider == "openrouter":
+        if not os.getenv("OPENROUTER_API_KEY"):
+            raise EnvironmentError(
+                f"MODEL='{model}' requires OPENROUTER_API_KEY to be set. "
+                "Get a key at https://openrouter.ai/keys"
+            )
+        os.environ["ADK_MODEL_PROVIDER"] = "openrouter"
+
     else:
         raise EnvironmentError(
             f"Unrecognized provider prefix '{provider}/' in MODEL='{model}'. "
-            "Supported: anthropic/, openai/, bedrock/ (or a bare Gemini name)."
+            "Supported: anthropic/, openai/, bedrock/, ollama_chat/, ollama/, "
+            "openrouter/ (or a bare Gemini name)."
         )
 
 

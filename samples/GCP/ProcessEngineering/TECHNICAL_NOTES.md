@@ -695,7 +695,7 @@ Once a design document exists on disk, it can be queried (`Design_Consultant_Age
 
 ## 🛠 Requirements
 
-- **Google API Key**: An active Gemini API key (set as `GOOGLE_API_KEY` in your environment).
+- **Google API Key** (or another supported LLM provider's key — see [Choosing a Model / LLM Provider](#choosing-a-model--llm-provider) below): set as `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY` as appropriate. No API key is needed when using a locally-served Ollama model.
 - **Python 3.12+**.
 - **Dependencies**: See `requirements.txt`. Note: some packages (e.g., graphviz, python-docx) may require system packages (graphviz binary, LibreOffice for advanced doc conversions, etc.) — document[...]
 
@@ -724,6 +724,133 @@ export ANTHROPIC_API_KEY="<YourKey>"
 Notes:
 - Avoid running `rm -r .venv` unless you are sure you want to remove the virtual environment.
 - Consider storing secrets in a secure location or using a .env file and a tool like direnv.
+
+---
+
+## Choosing a Model / LLM Provider
+
+The active model is configured via the `MODEL` property in `properties/agentapp.properties`. The
+format of the model string determines which provider is used. Commented-out examples for every
+supported provider are already included in that file.
+
+### Gemini (default)
+
+No prefix. Uses either Vertex AI (when `GOOGLE_CLOUD_PROJECT` / `GOOGLE_PROJECT_ID` is set) or
+the Gemini Developer API (when `GOOGLE_API_KEY` is set).
+
+```ini
+MODEL = "gemini-3.8-flash"
+```
+
+```bash
+export GOOGLE_API_KEY="<YourKey>"
+# or for Vertex AI:
+export GOOGLE_CLOUD_PROJECT="<your-gcp-project>"
+```
+
+### Anthropic (Claude)
+
+```ini
+MODEL = "anthropic/claude-sonnet-5"
+```
+
+```bash
+export ANTHROPIC_API_KEY="<YourKey>"
+```
+
+### OpenAI
+
+```ini
+MODEL = "openai/gpt-4o"
+```
+
+```bash
+export OPENAI_API_KEY="<YourKey>"
+```
+
+### AWS Bedrock
+
+```ini
+MODEL = "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+```
+
+```bash
+export AWS_REGION_NAME="us-east-1"
+# plus your AWS credentials (access keys or IAM role)
+```
+
+### Local Ollama
+
+Run any model locally with [Ollama](https://ollama.ai/) — **no API key required**. Use the
+`ollama_chat/` prefix for chat and tool-calling models (recommended for this project), or `ollama/`
+for text-generation / embedding models.
+
+1. Install Ollama and pull your model:
+
+   ```bash
+   ollama pull llama3.2
+   # or: ollama pull mistral, ollama pull qwen2.5:7b, etc.
+   ```
+
+2. Set the model in `properties/agentapp.properties`:
+
+   ```ini
+   MODEL = "ollama_chat/llama3.2"
+   ```
+
+3. *(Optional)* Override the Ollama endpoint if it's not on `localhost:11434`, either via
+   `agentapp.properties`:
+
+   ```ini
+   OLLAMA_BASE_URL = "http://your-host:11434"
+   ```
+
+   or via an environment variable:
+
+   ```bash
+   export OLLAMA_BASE_URL="http://your-host:11434"
+   ```
+
+No API key is needed. The `configure_model_provider` function in `agent.py` detects the
+`ollama_chat/` or `ollama/` prefix and skips the credential check; `_resolve_model` in
+`agent_wrappers.py` constructs a `LiteLlm` instance with `api_base` set to the Ollama server URL
+so every agent's model call is routed correctly.
+
+> [!NOTE]
+> This project's agent pipelines make heavy use of structured JSON tool-calls. Use a capable model
+> (e.g. `llama3.2`, `qwen2.5:7b`, `mistral-nemo`) that reliably follows tool-calling instructions.
+> Smaller or older models may produce malformed JSON or skip tool calls entirely.
+
+### OpenRouter
+
+[OpenRouter](https://openrouter.ai/) is a unified gateway that routes to 300+ models from
+OpenAI, Anthropic, Meta, Google, Mistral, and many others — useful when you want to experiment with
+different providers without managing separate API keys for each.
+
+1. Get an API key at <https://openrouter.ai/keys>.
+
+2. Set the model in `properties/agentapp.properties` using the `openrouter/` prefix:
+
+   ```ini
+   MODEL = "openrouter/openai/gpt-4o"
+   # or: MODEL = "openrouter/anthropic/claude-sonnet-4-5"
+   # or: MODEL = "openrouter/meta-llama/llama-3.1-8b-instruct"
+   # or: MODEL = "openrouter/google/gemini-flash-1.5"
+   ```
+
+   Browse available model strings at <https://openrouter.ai/models>.
+
+3. Export your key:
+
+   ```bash
+   export OPENROUTER_API_KEY="sk-or-v1-..."
+   ```
+
+No other configuration is needed. `configure_model_provider` in `agent.py` validates the key is
+present; `_resolve_model` in `agent_wrappers.py` wraps the model string in `LiteLlm`, which
+recognises the `openrouter/` prefix and authenticates via `OPENROUTER_API_KEY` automatically.
+
+---
 
 ## Test Deployment Emulation using WebUI
 

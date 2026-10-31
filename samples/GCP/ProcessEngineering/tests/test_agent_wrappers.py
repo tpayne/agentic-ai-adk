@@ -222,6 +222,23 @@ class WrapperConfigurationTests(unittest.TestCase):
         )
         self.assertIsNone(agent_wrappers._resolve_sub_agents(None))
 
+    def test_resolve_model_ollama_sets_api_base(self):
+        with patch.dict("os.environ", {}, clear=True), \
+             patch.object(agent_wrappers, "getProperty", return_value=None):
+            model = agent_wrappers._resolve_model("ollama_chat/llama3.2")
+            self.assertEqual(model.model, "ollama_chat/llama3.2")
+            self.assertEqual(model._additional_args.get("api_base"), "http://localhost:11434")
+
+        with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://custom-host:11434"}, clear=True):
+            model = agent_wrappers._resolve_model("ollama/mistral")
+            self.assertEqual(model.model, "ollama/mistral")
+            self.assertEqual(model._additional_args.get("api_base"), "http://custom-host:11434")
+
+    def test_resolve_model_openrouter(self):
+        model = agent_wrappers._resolve_model("openrouter/openai/gpt-4o")
+        self.assertEqual(model.model, "openrouter/openai/gpt-4o")
+        self.assertNotIn("api_base", model._additional_args)
+
 
 if __name__ == "__main__":
     unittest.main()

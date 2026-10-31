@@ -85,8 +85,9 @@ def _install_dependency_stubs():
         pass
 
     class LiteLlm:
-        def __init__(self, *args, **kwargs):
-            pass
+        def __init__(self, model=None, **kwargs):
+            self.model = model
+            self._additional_args = dict(kwargs)
 
     class ToolContext:
         pass
