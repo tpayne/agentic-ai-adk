@@ -62,6 +62,15 @@ jobs:
               # graph resolves (including the shared process_toolkit package).
               docker run --rm --entrypoint python3 "$IMAGE_TAG" -c "import process_toolkit; import process_agents.common.utils; print('process_toolkit imports OK')"
 
+          - name: process_adk_ollama
+            context: samples/GCP/ProcessEngineering
+            file: samples/GCP/ProcessEngineering/Dockerfile.ollama
+            build_context: .
+            tag: adkprocesseng-ollama:latest
+            test_cmd: |
+              # Verifies Ollama binary, supervisor, and python modules are properly installed
+              docker run --rm --entrypoint /bin/bash "$IMAGE_TAG" -c "ollama --version && supervisord --version && python3 -c 'import process_toolkit; print(\"OK\")'"
+
           - name: neurosan_process
             context: samples/Neurosan/ProcessEngineering
             # Build context is the repo root, not this directory: this
@@ -77,6 +86,15 @@ jobs:
               # neurosan_processengineering_tests job below.
               docker run --rm "$IMAGE_TAG" uv run python -c "import cli; print('cli imports OK')"
 
+          - name: neurosan_process_ollama
+            context: samples/Neurosan/ProcessEngineering
+            file: samples/Neurosan/ProcessEngineering/Dockerfile.ollama
+            build_context: .
+            tag: neurosanprocesseng-ollama:latest
+            test_cmd: |
+              # Verifies Ollama binary, supervisor, and uv project are properly installed
+              docker run --rm --entrypoint /bin/bash "$IMAGE_TAG" -c "ollama --version && supervisord --version && uv run python -c 'import cli; print(\"OK\")'"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -84,8 +102,9 @@ jobs:
       - name: Build Docker image - ${{ matrix.name }}
         env:
           IMAGE_TAG: ${{ matrix.tag }}
+          DOCKERFILE: ${{ matrix.file || format('{0}/Dockerfile', matrix.context) }}
         run: |
-          docker build "${{ matrix.build_context }}" --file "${{ matrix.context }}/Dockerfile" --tag "$IMAGE_TAG"
+          docker build "${{ matrix.build_context }}" --file "$DOCKERFILE" --tag "$IMAGE_TAG"
 
       - name: Run container/tests - ${{ matrix.name }}
         working-directory: ${{ matrix.context }}

@@ -38,6 +38,11 @@ jobs:
             file: samples/GCP/ProcessEngineering/Dockerfile
             image: adkprocesseng
 
+          - name: ProcessEngineeringOllama
+            context: .
+            file: samples/GCP/ProcessEngineering/Dockerfile.ollama
+            image: adkprocesseng-ollama
+
           - name: NeurosanProcessEngineering
             # Build context is the repo root, not this directory: this
             # sample's pyproject.toml depends on shared/process_toolkit,
@@ -47,6 +52,11 @@ jobs:
             context: .
             file: samples/Neurosan/ProcessEngineering/Dockerfile
             image: neurosanprocesseng
+
+          - name: NeurosanProcessEngineeringOllama
+            context: .
+            file: samples/Neurosan/ProcessEngineering/Dockerfile.ollama
+            image: neurosanprocesseng-ollama
 
           - name: EmailProcessing
             context: samples/GCP/EmailProcessing/
