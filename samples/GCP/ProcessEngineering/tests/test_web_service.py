@@ -1317,6 +1317,40 @@ class WebServiceSessionOutputIsolationTest(unittest.TestCase):
             is_final_response=lambda: True,
         )
 
+    @staticmethod
+    def _bundled_function_call_event(text, function_name, author=None):
+        # A real event shape ADK can produce: a model turn that both
+        # comments in natural language AND invokes a required tool in
+        # the SAME event -- is_final_response() is False here (ADK's own
+        # formula excludes any function-call-bearing event), matching
+        # google.adk.events.event.Event.is_final_response exactly, even
+        # though `text` is genuine, substantive, user-facing content.
+        return SimpleNamespace(
+            partial=False,
+            usage_metadata=None,
+            author=author,
+            content=SimpleNamespace(parts=[
+                SimpleNamespace(text=text, function_call=None),
+                SimpleNamespace(text=None, function_call=SimpleNamespace(name=function_name)),
+            ]),
+            is_final_response=lambda: False,
+            get_function_calls=lambda: [SimpleNamespace(name=function_name)],
+        )
+
+    @staticmethod
+    def _silent_final_event(author=None):
+        # A trailing agent (e.g. Unmute_Agent) whose own instructions are
+        # to produce no visible output -- is_final_response() is True,
+        # but there is no real text here at all.
+        return SimpleNamespace(
+            partial=False,
+            usage_metadata=None,
+            author=author,
+            content=SimpleNamespace(parts=[SimpleNamespace(text="", function_call=None)]),
+            is_final_response=lambda: True,
+            get_function_calls=lambda: [],
+        )
+
     def _fake_get_or_create_web_session(self, ids_by_call):
         calls = {"n": 0}
 
@@ -1401,6 +1435,79 @@ class WebServiceSessionOutputIsolationTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(expected_path), f"expected {expected_path} to exist")
         with open(expected_path, encoding="utf-8") as f:
             self.assertEqual(f.read(), "streamed data")
+
+    @staticmethod
+    def _parse_sse(body):
+        return [
+            json.loads(line[len("data: "):])
+            for line in body.strip().split("\n\n")
+            if line.startswith("data: ")
+        ]
+
+    def test_chat_preserves_text_bundled_with_a_mandatory_tool_call(self):
+        # Regression test: a sub-agent (e.g. Proposal_Response_Agent) can
+        # emit a single event carrying BOTH real narrative text AND a
+        # function_call (e.g. its own mandatory save_proposal_response
+        # call) -- ADK's own is_final_response() is False for that event
+        # regardless of the text, since get_function_calls() is non-
+        # empty. _run_chat_turn used to gate purely on is_final_response(),
+        # so that text was silently dropped, and if a LATER agent in the
+        # pipeline (e.g. a silent-by-design Unmute_Agent) ever produced
+        # its own is_final_response()==True event with empty text, the
+        # user saw nothing at all even though a real answer was drafted.
+        async def fake_run_async(user_id, session_id, new_message, run_config):
+            yield self._bundled_function_call_event(
+                "I have drafted a comprehensive response to the proposal.",
+                "save_proposal_response",
+            )
+            yield self._silent_final_event(author="Unmute_Agent")
+
+        get_session = self._fake_get_or_create_web_session([("web-session-c", "user-1", "adk-session-1")])
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_web_runner", SimpleNamespace(run_async=fake_run_async)
+        ):
+            client = self.agent.build_web_app(https=False).test_client()
+            resp = client.post("/chat", json={"query": "q"}, headers=self._authorized_headers())
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.get_json()["response"],
+            "I have drafted a comprehensive response to the proposal.",
+        )
+
+    def test_chat_stream_preserves_text_bundled_with_a_mandatory_tool_call(self):
+        # Same regression as above, for the streaming /chat/stream path
+        # (_stream_chat_turn) -- its function_calls branch used to
+        # `continue` immediately after posting a "Calling X" progress
+        # note, without ever checking for accompanying real text in the
+        # same event.
+        async def fake_run_async(user_id, session_id, new_message, run_config):
+            yield self._bundled_function_call_event(
+                "I have drafted a comprehensive response to the proposal.",
+                "save_proposal_response",
+                author="Proposal_Response_Agent",
+            )
+            yield self._silent_final_event(author="Unmute_Agent")
+
+        get_session = AsyncMock(return_value=("web-session-cs", "user-1", "adk-session-1"))
+
+        with patch.object(self.agent, "_get_or_create_web_session", get_session), patch.object(
+            self.agent, "_web_runner", SimpleNamespace(run_async=fake_run_async)
+        ):
+            client = self.agent.build_web_app(https=False).test_client()
+            response = client.post(
+                "/chat/stream", json={"query": "q"}, headers=self._authorized_headers()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        events = self._parse_sse(response.get_data(as_text=True))
+        done_events = [e for e in events if e.get("status") == "done"]
+        self.assertEqual(len(done_events), 1)
+        self.assertEqual(
+            done_events[0]["response"],
+            "I have drafted a comprehensive response to the proposal.",
+        )
 
     def test_delete_removes_the_sessions_output_directory_immediately(self):
         async def fake_run_async(user_id, session_id, new_message, run_config):

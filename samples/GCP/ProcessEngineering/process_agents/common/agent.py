@@ -437,6 +437,26 @@ STREAMING_RUN_CONFIG = RunConfig(
 )
 
 
+def _event_response_text(event) -> Optional[str]:
+    """Joins every text Part in `event.content.parts`, skipping function-
+    call/response parts and None text. Deliberately does NOT gate on
+    event.is_final_response() the way every call site here used to --
+    ADK's own is_final_response() formula (google.adk.events.event.Event.
+    is_final_response) always returns False for an event that carries a
+    function_call, EVEN when that same event also carries genuine
+    narrative text in a sibling Part (a real pattern: a model emitting a
+    one-line comment alongside the tool call it's required to make).
+    Gating on is_final_response() alone silently threw that text away.
+    Returns None (not "") when there's nothing real to extract, so
+    callers can keep whichever earlier non-None text they already have
+    instead of clobbering it with a later content-free/text-free event
+    (e.g. a trailing agent whose own instructions are to stay silent)."""
+    if not event.content or not event.content.parts:
+        return None
+    text = "".join(part.text or "" for part in event.content.parts if part.text)
+    return text or None
+
+
 def display_text(text: str, type: str = "info", end: str = "\n"):
     # `end` exists so run_shell_command can print already-newline-terminated
     # subprocess stdout without doubling it up (display_text(..., end=""))
@@ -962,8 +982,9 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: 
             ):
                 if not event.partial:
                     _accumulate_event_usage(event, usage_totals)
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                    text = _event_response_text(event)
+                    if text:
+                        final_response = text
 
             usage = {**usage_totals, "model": MODEL}
             return web_session_id, (final_response or ""), usage
@@ -1047,13 +1068,20 @@ async def _stream_chat_turn(
                     "text": f"Calling {names}" if names else "Calling a tool...",
                 })
                 last_progress_author = event.author
-                continue
 
-            if event.is_final_response() and event.content and event.content.parts:
-                final_text = "".join(part.text or "" for part in event.content.parts if part.text)
-                if final_text:
-                    answer_so_far = final_text
-                    event_queue.put({"status": "delta", "text": answer_so_far})
+            # Deliberately NOT gated on event.is_final_response() -- it
+            # always returns False for an event carrying a function_call,
+            # even when that same event ALSO carries genuine narrative
+            # text in a sibling Part (see _event_response_text's own
+            # docstring). Extract that text regardless of whether this
+            # same event also invoked a tool, so a model that comments
+            # alongside a mandatory tool call doesn't lose that comment.
+            final_text = _event_response_text(event)
+            if final_text:
+                answer_so_far = final_text
+                event_queue.put({"status": "delta", "text": answer_so_far})
+
+            if function_calls or (event.content and event.content.parts):
                 continue
 
             # Any other event (e.g. a hand-off to a different sub-agent)
@@ -1934,8 +1962,9 @@ async def process_file(file_path: str):
                 new_message=content,
                 run_config=RUN_CONFIG,
             ):
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                text = _event_response_text(event)
+                if text:
+                    final_response = text
 
             if final_response:
                 display_text(f"[ArchitectBot]: {final_response}")
@@ -2007,8 +2036,9 @@ async def process_single_prompt(prompt: str):
             new_message=content,
             run_config=RUN_CONFIG,
         ):
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+            text = _event_response_text(event)
+            if text:
+                final_response = text
 
         if final_response:
             display_text(f"[ArchitectBot]: {final_response}")
@@ -2095,8 +2125,9 @@ async def start_local_chat():
 
             final_response = None
             async for event in events:
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                text = _event_response_text(event)
+                if text:
+                    final_response = text
 
             if final_response:
                 display_text(f"[ArchitectBot]: {final_response}")
