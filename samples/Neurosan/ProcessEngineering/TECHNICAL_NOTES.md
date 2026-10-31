@@ -880,6 +880,48 @@ Notes:
 - The container builds and starts cleanly with no LLM key set too; you'll only hit the "no LLM API
   key configured" wall once you actually chat with it.
 
+### Self-Contained Local Ollama Server (`Dockerfile.ollama`)
+
+A dedicated multi-process Dockerfile is provided that runs the **Ollama daemon**, pulls an appropriate model (default: `llama3.2`), and starts the **NeuroSAN server** orchestrated via `supervisord`. No external API keys or remote connections are needed.
+
+Build from repository root:
+
+```bash
+docker build -f samples/Neurosan/ProcessEngineering/Dockerfile.ollama -t processengineering-neurosan-ollama .
+```
+
+Run container:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -v "$(pwd)/output:/app/samples/Neurosan/ProcessEngineering/output" \
+  processengineering-neurosan-ollama
+```
+
+To run with a different Ollama model (e.g. `qwen2.5:7b` or `mistral`):
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -e OLLAMA_MODEL="qwen2.5:7b" \
+  -v "$(pwd)/output:/app/samples/Neurosan/ProcessEngineering/output" \
+  processengineering-neurosan-ollama
+```
+
+To persist downloaded Ollama models across container restarts, mount `/home/neurosan_process_user/.ollama`:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -v ollama_models:/home/neurosan_process_user/.ollama \
+  -v "$(pwd)/output:/app/samples/Neurosan/ProcessEngineering/output" \
+  processengineering-neurosan-ollama
+```
+
 ---
 
 ## Sample Prompts

@@ -1,0 +1,68 @@
+# Build context for this Dockerfile MUST be the repo root:
+#   docker build -f samples/Neurosan/ProcessEngineering/Dockerfile.ollama -t processengineering-neurosan-ollama .
+#
+# This Dockerfile deploys a standalone container packaging:
+# 1. The local Ollama daemon (/usr/local/bin/ollama)
+# 2. An automatic model-puller (defaults to llama3.2, override with -e OLLAMA_MODEL=...)
+# 3. The NeuroSAN process server running against the local Ollama instance
+# 4. Supervisord orchestrating process startup, dependencies, and health.
+
+FROM python:3.14-slim
+
+# Install system dependencies: curl (for Ollama install & healthchecks), zstd, supervisor, procps, bash
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    zstd \
+    supervisor \
+    procps \
+    bash \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install official Ollama binary for the host/container architecture
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+# Install Astral uv by copying it from the official image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app/samples/Neurosan/ProcessEngineering
+
+# Shared process_toolkit package
+COPY shared/process_toolkit /app/shared/process_toolkit
+
+# Dependencies first for caching
+COPY samples/Neurosan/ProcessEngineering/pyproject.toml samples/Neurosan/ProcessEngineering/uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
+
+# Copy application code
+COPY samples/Neurosan/ProcessEngineering/ .
+RUN uv sync --locked --no-dev
+
+ARG account=neurosan_process_user
+RUN useradd -ms /bin/bash ${account} \
+    && mkdir -p /app/samples/Neurosan/ProcessEngineering/output \
+    && mkdir -p /app/samples/Neurosan/ProcessEngineering/logs \
+    && mkdir -p /home/${account}/.ollama \
+    && chown -R ${account}:${account} /app \
+    && chown -R ${account}:${account} /home/${account}/.ollama \
+    && chmod -R o+rx /app/shared/
+
+# Supervisor configuration
+COPY samples/Neurosan/ProcessEngineering/supervisord.conf /etc/supervisord.conf
+
+# Environment settings
+ENV AGENT_MANIFEST_FILE=/app/samples/Neurosan/ProcessEngineering/registries/manifest.hocon
+ENV AGENT_TOOL_PATH=/app/samples/Neurosan/ProcessEngineering/coded_tools
+ENV OLLAMA_HOST=0.0.0.0:11434
+ENV OLLAMA_BASE_URL=http://127.0.0.1:11434
+ENV OLLAMA_MODEL=llama3.2
+ENV HOME=/home/${account}
+
+# Expose Ollama (11434) and Neurosan server (8080)
+EXPOSE 8080
+EXPOSE 11434
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://127.0.0.1:11434/api/tags && curl -f http://127.0.0.1:8080/status || exit 1
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
