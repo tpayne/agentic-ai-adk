@@ -1289,6 +1289,49 @@ Notes:
 - The ADK CLI is installed during container startup and used via `adk run`.
 - Ensure your host `output` folder is writable by the container user.
 
+### Self-Contained Local Ollama Server (`Dockerfile.ollama`)
+
+A dedicated multi-process Dockerfile is provided that runs the **Ollama daemon**, pulls an appropriate model (default: `llama3.2`), and starts the **ADK REST service** (`process_agents.agent -d --http -p 8080`) orchestrated via `supervisord`. No external API keys or remote connections are needed.
+
+Build from repository root:
+
+```bash
+docker build -f samples/GCP/ProcessEngineering/Dockerfile.ollama -t adkprocesseng-ollama .
+```
+
+Run container:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -v "$(pwd)/output:/app/samples/GCP/ProcessEngineering/output" \
+  adkprocesseng-ollama
+```
+
+To run with a different Ollama model (e.g. `qwen2.5:7b` or `mistral`):
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -e OLLAMA_MODEL="qwen2.5:7b" \
+  -e MODEL="ollama_chat/qwen2.5:7b" \
+  -v "$(pwd)/output:/app/samples/GCP/ProcessEngineering/output" \
+  adkprocesseng-ollama
+```
+
+To persist downloaded Ollama models across container restarts, mount `/home/adk_process_user/.ollama`:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -p 11434:11434 \
+  -v ollama_models:/home/adk_process_user/.ollama \
+  -v "$(pwd)/output:/app/samples/GCP/ProcessEngineering/output" \
+  adkprocesseng-ollama
+```
+
 ---
 
 ## Sample Prompts

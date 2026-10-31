@@ -1,0 +1,76 @@
+# Build context for this Dockerfile MUST be the repo root:
+#   docker build -f samples/GCP/ProcessEngineering/Dockerfile.ollama -t adkprocesseng-ollama .
+#
+# This Dockerfile deploys a standalone container packaging:
+# 1. The local Ollama daemon (/usr/local/bin/ollama)
+# 2. An automatic model-puller (defaults to llama3.2, override with -e OLLAMA_MODEL=...)
+# 3. The ADK ProcessEngineering detached REST web service (-d --http -p 8080)
+# 4. Supervisord orchestrating process startup, dependencies, and health.
+
+ARG pythonVersion=3.12.9
+FROM python:${pythonVersion}-slim AS runner
+
+# System dependencies for matplotlib, numpy, pandas, graphviz, docx, supervisor, curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    graphviz \
+    gcc \
+    g++ \
+    build-essential \
+    libfreetype6-dev \
+    libpng-dev \
+    libjpeg-dev \
+    curl \
+    supervisor \
+    procps \
+    bash \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install official Ollama binary for the host/container architecture
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+WORKDIR /app/samples/GCP/ProcessEngineering
+
+# Shared process_toolkit package
+COPY shared/process_toolkit /app/shared/process_toolkit
+
+# Copy dependencies and application files
+COPY samples/GCP/ProcessEngineering/requirements.txt .
+COPY samples/GCP/ProcessEngineering/process_agents ./process_agents
+COPY samples/GCP/ProcessEngineering/instructions ./instructions
+COPY samples/GCP/ProcessEngineering/properties ./properties
+
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
+
+ARG account=adk_process_user
+RUN useradd -ms /bin/bash ${account} \
+    && mkdir -p /app/samples/GCP/ProcessEngineering/output/logs \
+    && mkdir -p /app/samples/GCP/ProcessEngineering/output/subprocesses \
+    && mkdir -p /app/samples/GCP/ProcessEngineering/output/docs \
+    && mkdir -p /home/${account}/.ollama \
+    && chown -R ${account}:${account} /app/ \
+    && chown -R ${account}:${account} /home/${account}/.ollama \
+    && chmod -R o+rwx /app/samples/ \
+    && chmod -R o+rx /app/shared/
+
+# Supervisor configuration
+COPY samples/GCP/ProcessEngineering/supervisord.conf /etc/supervisord.conf
+
+# Environment settings
+ENV OLLAMA_HOST=0.0.0.0:11434
+ENV OLLAMA_BASE_URL=http://127.0.0.1:11434
+ENV OLLAMA_MODEL=llama3.2
+ENV MODEL=ollama_chat/llama3.2
+ENV HOST=0.0.0.0
+ENV PORT=8080
+ENV ALLOWINSECUREWEBSERVICE=true
+ENV HOME=/home/${account}
+
+EXPOSE 8080
+EXPOSE 11434
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://127.0.0.1:11434/api/tags && curl -f http://127.0.0.1:8080/status || exit 1
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
