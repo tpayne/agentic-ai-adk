@@ -24,6 +24,7 @@ import pytest
 from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, DESIGN_JSON_FILENAME
 from process_toolkit.requirements_summary.requirements_summary import REQUIREMENTS_SUMMARY_FILENAME
+from process_toolkit.proposal_response.proposal_response import PROPOSAL_RESPONSE_FILENAME
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +48,11 @@ def _write_design_json():
 def _write_requirements_summary_json():
     with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
         json.dump({"industry_sector": "Healthcare", "requirements_register": []}, f)
+
+
+def _write_proposal_response_json():
+    with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({"summary": "Our response.", "compliance_matrix": []}, f)
 
 
 class TestEdgeInferencePinning:
@@ -113,6 +119,20 @@ class TestEdgeInferencePinning:
         assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
         assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
 
+    def test_pinned_proposal_response_tool_is_a_noop_that_touches_no_disk(self):
+        # Same reasoning as the requirements no-op above: a proposal
+        # response has no flow/architecture diagram either.
+        from process_agents.common.doc_creation_agent import build_edge_inference_instance
+
+        _write_process_json()
+        _write_design_json()
+        agent = build_edge_inference_instance("proposal_response")
+        result = agent.tools[0]()
+
+        assert result.startswith("SKIPPED:")
+        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
+        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
+
 
 class TestDocGenerationPinning:
     def test_pinned_tool_has_no_llm_visible_schema_type_parameter_but_keeps_process_name(self):
@@ -162,6 +182,22 @@ class TestDocGenerationPinning:
 
         assert result.startswith("SUCCESS:")
         out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Requirements.docx")
+        assert os.path.exists(out_path)
+        assert docx.Document(out_path).paragraphs
+
+    def test_pinned_proposal_response_tool_renders_the_proposal_response_document(self):
+        # proposal_response.json has no title field of its own either --
+        # name comes from whatever process_name the caller/LLM passes.
+        from process_agents.common.doc_creation_agent import build_doc_generation_instance
+
+        _write_proposal_response_json()
+        _write_process_json()
+        _write_design_json()
+        agent = build_doc_generation_instance("proposal_response")
+        result = agent.tools[0](process_name="Vendor Portal Proposal Response")
+
+        assert result.startswith("SUCCESS:")
+        out_path = os.path.join(paths.OUTPUT_DIR, "Vendor_Portal_Proposal_Response.docx")
         assert os.path.exists(out_path)
         assert docx.Document(out_path).paragraphs
 

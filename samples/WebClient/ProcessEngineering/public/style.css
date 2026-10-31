@@ -1036,7 +1036,7 @@ input[type="range"]:disabled {
   font-weight: 650;
 }
 
-/* ---------- Data explorer (Process / Design tab) ---------- */
+/* ---------- Data explorer (Artefact Browser tab) ---------- */
 
 .artifacts-toolbar {
   display: flex;
@@ -1047,17 +1047,34 @@ input[type="range"]:disabled {
   flex-shrink: 0;
 }
 
-/* Overrides .preset-row/.preset-btn's sidebar sizing (flex:1 across a
-   full-width row) -- here the toggle sits inline in a toolbar alongside
-   the refresh button and status text, so each button should size to its
-   own label instead of splitting the row's whole width. */
-.artifacts-toggle {
+/* Which artefact (process/design/requirements/proposal_response) to
+   browse -- a plain <select>, not the preset-btn row this used to be,
+   since a 5th/6th artefact type would otherwise keep widening the
+   toolbar indefinitely. Sized to its own content, not the toolbar's
+   full width, and styled to match .field input's own border/background
+   so it reads as one family of control with the rest of the sidebar. */
+.artifact-select {
   flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.artifacts-toggle .preset-btn {
-  flex: 0 0 auto;
-  padding: 7px 16px;
+.artifact-select:hover {
+  border-color: var(--accent);
+}
+
+.artifact-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .artifacts-status {

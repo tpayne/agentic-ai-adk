@@ -37,8 +37,8 @@ def test_old_format_keys_are_recognized_too():
 
 def test_section_1c_points_requirements_imports_away_from_the_other_import_agents():
     text = ROUTER_HOCON.read_text(encoding="utf-8")
-    assert "A REQUIREMENTS SUMMARY is not one of this rule's three artifact types" in text
-    assert "Route it to Requirements_Summary_Agent (Section 7) instead" in text
+    assert "A REQUIREMENTS SUMMARY or a PROPOSAL RESPONSE is not one of this rule's three" in text
+    assert "Route a requirements summary to\nRequirements_Summary_Agent (Section 7) instead" in text
 
 
 def test_section_7_mentions_the_literal_restore_case():

@@ -137,11 +137,9 @@
     sidebarOpenBtn: document.getElementById("sidebarOpenBtn"),
     sidebarCloseBtn: document.getElementById("sidebarCloseBtn"),
 
-    // Scoped to the sidebar -- the Process/Design tab's artifact toggle
-    // (below) reuses the same ".preset-btn" class purely for its visual
-    // style, via a different selector (".artifacts-toggle .preset-btn"),
-    // and must NOT be picked up here or setPreset's own active-state
-    // bookkeeping would stomp on it (and vice versa).
+    // Scoped to the sidebar -- the Base URL preset buttons are the only
+    // ".preset-btn" elements left (the Artefact Browser tab uses a plain
+    // <select>, not this class).
     presetBtns: Array.from(document.querySelectorAll("#sidebar .preset-btn")),
     baseUrlInput: document.getElementById("baseUrlInput"),
     apiKeyInput: document.getElementById("apiKeyInput"),
@@ -206,7 +204,7 @@
     nodeDetailCloseBtn: document.getElementById("nodeDetailCloseBtn"),
 
     artifactsTabPanel: document.getElementById("artifactsTabPanel"),
-    artifactToggleBtns: Array.from(document.querySelectorAll(".artifacts-toggle .preset-btn")),
+    artifactSelect: document.getElementById("artifactSelect"),
     artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
     artifactDownloadJsonBtn: document.getElementById("artifactDownloadJsonBtn"),
     artifactsStatus: document.getElementById("artifactsStatus"),
@@ -757,8 +755,8 @@
   }
 
   // GET /artifacts/* routes (viewing/downloading process/design/
-  // requirements/cloudarch data, generated documents) have no JSON body
-  // of their own the way
+  // requirements/proposal-response/cloudarch data, generated documents)
+  // have no JSON body of their own the way
   // POST /chat does, so the session id this client tracks in state.sessionId
   // (set from POST /chat's own response -- see setSessionId) has to travel
   // as a query parameter instead. The backend's own session cookie is NOT
@@ -2216,11 +2214,13 @@
   el.nodeDetailCloseBtn.addEventListener("click", closeNodeDetail);
 
   // ---------------------------------------------------------------
-  // Data explorer -- hierarchical viewer for the Process/Design/Requirements
-  // tab's GET /artifacts/<name> ("process", "design", or "requirements"), a
-  // read-only snapshot of this project's own output/process_data.json /
-  // output/design_data.json / output/requirements_summary.json on whichever
-  // backend is connected. Rendered as an expandable tree
+  // Data explorer -- hierarchical viewer for the Artefact Browser tab's
+  // GET /artifacts/<name> ("process", "design", "requirements", or
+  // "proposal_response", picked via the tab's own dropdown), a read-only
+  // snapshot of this project's own output/process_data.json /
+  // output/design_data.json / output/requirements_summary.json /
+  // output/proposal_response.json on whichever backend is connected.
+  // Rendered as an expandable tree
   // (root top-left, children expanding down-and-right) built via
   // document.createElement/.textContent -- NOT innerHTML string
   // concatenation -- since the JSON content being displayed is arbitrary
@@ -2322,8 +2322,8 @@
         body.textContent = error;
       } else {
         heading.textContent = "No data loaded";
-        body.textContent = "Pick Process, Design, or Requirements above, then click the refresh " +
-          "icon to load that pipeline's current saved output from the connected backend.";
+        body.textContent = "Pick an artefact from the dropdown above, then click the refresh icon " +
+          "to load that pipeline's current saved output from the connected backend.";
       }
       return;
     }
@@ -2335,7 +2335,7 @@
     el.artifactTree.innerHTML = "";
     const { raw, artifact } = state.dataExplorer;
     if (raw === null) return;
-    const rootLabel = artifact === "design" || artifact === "requirements" ? artifact : "process";
+    const rootLabel = ["design", "requirements", "proposal_response"].includes(artifact) ? artifact : "process";
     buildTreeRow(rootLabel, raw, "$", 0, el.artifactTree);
   }
 
@@ -2470,35 +2470,39 @@
 
   el.artifactDetailCloseBtn.addEventListener("click", closeArtifactDetail);
 
-  el.artifactToggleBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const name = btn.dataset.artifact;
-      if (name === state.dataExplorer.artifact) return; // already the active one
-      state.dataExplorer.artifact = name;
-      el.artifactToggleBtns.forEach((b) => b.classList.toggle("active", b.dataset.artifact === name));
-      loadArtifact(name);
-    });
+  el.artifactSelect.addEventListener("change", () => {
+    const name = el.artifactSelect.value;
+    if (name === state.dataExplorer.artifact) return; // already the active one
+    state.dataExplorer.artifact = name;
+    loadArtifact(name);
   });
 
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // Downloads the real process_data.json/design_data.json/
-  // requirements_summary.json file (vs. the tree view loadArtifact above
-  // renders from) -- re-attaching this exact file to a later chat turn
-  // (the composer's own "attach file" button) restores it verbatim as
-  // the active process/design/requirements summary, without re-running
-  // the pipeline -- see both backends' Process_Import_Agent/
-  // Design_Import_Agent for how a re-uploaded process_data.json/
-  // design_data.json is recognized by name and restored rather than
-  // re-extracted, and Requirements_Summary_Agent's own literal-restore
-  // STEP for requirements_summary.json.
+  // requirements_summary.json/proposal_response.json file (vs. the tree
+  // view loadArtifact above renders from) -- re-attaching this exact
+  // file to a later chat turn (the composer's own "attach file" button)
+  // restores it verbatim as the active process/design/requirements
+  // summary/proposal response, without re-running the pipeline -- see
+  // both backends' Process_Import_Agent/Design_Import_Agent for how a
+  // re-uploaded process_data.json/design_data.json is recognized by name
+  // and restored rather than re-extracted, and Requirements_Summary_Agent's/
+  // Proposal_Response_Pipeline's own literal-restore STEPs for
+  // requirements_summary.json/proposal_response.json.
+  const ARTIFACT_FILENAMES = {
+    requirements: "requirements_summary.json",
+    proposal_response: "proposal_response.json",
+  };
+
   async function downloadArtifactJson() {
-    const artifact = state.dataExplorer.artifact; // "process", "design", or "requirements"
+    const artifact = state.dataExplorer.artifact; // "process", "design", "requirements", or "proposal_response"
     const blob = await fetchArtifactBlob(`/artifacts/${artifact}/download`);
     if (!blob) return;
-    // requirements_summary.json has no "_data.json" suffix, unlike the
-    // other two -- the real on-disk filename, not a derived pattern.
-    const filename = artifact === "requirements" ? "requirements_summary.json" : `${artifact}_data.json`;
+    // requirements_summary.json/proposal_response.json have no "_data.json"
+    // suffix, unlike process/design -- the real on-disk filename, not a
+    // derived pattern.
+    const filename = ARTIFACT_FILENAMES[artifact] || `${artifact}_data.json`;
     const result = await saveFile(blob, filename, {
       description: "JSON file", accept: { "application/json": [".json"] },
     });
@@ -4501,7 +4505,7 @@
           live.setText(event.text || "");
         } else if (event.status === "done") {
           sawDone = true;
-          live.finalize(event.response || "(empty response)");
+          live.finalize(event.response || "(The assistant didn't return a reply for this turn. Please try again.)");
           recordUsageTurn(event.usage, text);
         } else if (event.status === "stopped") {
           sawDone = true;
@@ -4530,7 +4534,7 @@
           const data = await postChat(baseUrl, text, files);
           if (data.status === "ok") {
             setSessionId(data.session_id);
-            addMessage("agent", data.response || "(empty response)", { isMarkdown: true });
+            addMessage("agent", data.response || "(The assistant didn't return a reply for this turn. Please try again.)", { isMarkdown: true });
             recordUsageTurn(data.usage, text);
           } else {
             addMessage("error", data.error || "The backend returned an error.");

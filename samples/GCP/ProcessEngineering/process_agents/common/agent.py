@@ -226,6 +226,7 @@ from .agent_registry import (
     requirements_reviewer_agent,
     requirements_simulation_query_agent,
     requirements_doc_pipeline,
+    proposal_response_pipeline,
     process_import_agent,
     design_import_agent,
     cloudarch_import_agent,
@@ -288,6 +289,7 @@ root_agent = ProcessLlmAgent(
         requirements_reviewer_agent,
         requirements_simulation_query_agent,
         requirements_doc_pipeline,
+        proposal_response_pipeline,
         process_import_agent,
         design_import_agent,
         cloudarch_import_agent,
@@ -433,6 +435,26 @@ STREAMING_RUN_CONFIG = RunConfig(
     max_llm_calls=int(getProperty("maxLlmCallsPerInvocation", default=200)),
     streaming_mode=StreamingMode.SSE,
 )
+
+
+def _event_response_text(event) -> Optional[str]:
+    """Joins every text Part in `event.content.parts`, skipping function-
+    call/response parts and None text. Deliberately does NOT gate on
+    event.is_final_response() the way every call site here used to --
+    ADK's own is_final_response() formula (google.adk.events.event.Event.
+    is_final_response) always returns False for an event that carries a
+    function_call, EVEN when that same event also carries genuine
+    narrative text in a sibling Part (a real pattern: a model emitting a
+    one-line comment alongside the tool call it's required to make).
+    Gating on is_final_response() alone silently threw that text away.
+    Returns None (not "") when there's nothing real to extract, so
+    callers can keep whichever earlier non-None text they already have
+    instead of clobbering it with a later content-free/text-free event
+    (e.g. a trailing agent whose own instructions are to stay silent)."""
+    if not event.content or not event.content.parts:
+        return None
+    text = "".join(part.text or "" for part in event.content.parts if part.text)
+    return text or None
 
 
 def display_text(text: str, type: str = "info", end: str = "\n"):
@@ -960,8 +982,9 @@ async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: 
             ):
                 if not event.partial:
                     _accumulate_event_usage(event, usage_totals)
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                    text = _event_response_text(event)
+                    if text:
+                        final_response = text
 
             usage = {**usage_totals, "model": MODEL}
             return web_session_id, (final_response or ""), usage
@@ -1045,13 +1068,20 @@ async def _stream_chat_turn(
                     "text": f"Calling {names}" if names else "Calling a tool...",
                 })
                 last_progress_author = event.author
-                continue
 
-            if event.is_final_response() and event.content and event.content.parts:
-                final_text = "".join(part.text or "" for part in event.content.parts if part.text)
-                if final_text:
-                    answer_so_far = final_text
-                    event_queue.put({"status": "delta", "text": answer_so_far})
+            # Deliberately NOT gated on event.is_final_response() -- it
+            # always returns False for an event carrying a function_call,
+            # even when that same event ALSO carries genuine narrative
+            # text in a sibling Part (see _event_response_text's own
+            # docstring). Extract that text regardless of whether this
+            # same event also invoked a tool, so a model that comments
+            # alongside a mandatory tool call doesn't lose that comment.
+            final_text = _event_response_text(event)
+            if final_text:
+                answer_so_far = final_text
+                event_queue.put({"status": "delta", "text": answer_so_far})
+
+            if function_calls or (event.content and event.content.parts):
                 continue
 
             # Any other event (e.g. a hand-off to a different sub-agent)
@@ -1494,17 +1524,17 @@ def build_web_app(https: bool = True):
     def artifact(name):
         """
         Read-only access to this web session's own output/<session_id>/
-        process_data.json, design_data.json, requirements_summary.json, or
-        cloudarch_drawio.xml (or flat output/ for a caller with no session
-        id at all -- e.g. a direct API caller that never went through
-        POST /chat first), resolved via a `session_id` query parameter
-        (see _web_session_id_for_get_request's own docstring for why a
-        query parameter, not just the session cookie, matters here) -- a
-        plain GET has no JSON body of its own to carry a session_id in
-        the way POST /chat does. Powers the web client's "Process /
-        Design / Requirements" and "Cloud Architecture" tabs -- a
-        hierarchical/diagram viewer of whichever pipeline's current
-        artifact. Both backends serve this the same
+        process_data.json, design_data.json, requirements_summary.json,
+        proposal_response.json, or cloudarch_drawio.xml (or flat output/
+        for a caller with no session id at all -- e.g. a direct API
+        caller that never went through POST /chat first), resolved via a
+        `session_id` query parameter (see _web_session_id_for_get_request's
+        own docstring for why a query parameter, not just the session
+        cookie, matters here) -- a plain GET has no JSON body of its own
+        to carry a session_id in the way POST /chat does. Powers the web
+        client's "Process / Design / Requirements / Proposal Response"
+        and "Cloud Architecture" tabs -- a hierarchical/diagram viewer of
+        whichever pipeline's current artifact. Both backends serve this the same
         way (the neuro-san port's build_web_app has an identical route)
         and both keep these files at an identical relative path, so the
         client's fetch logic doesn't need to know which backend it's
@@ -1528,13 +1558,17 @@ def build_web_app(https: bool = True):
             "process": "process_data.json",
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
+            "proposal_response": "proposal_response.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
         if filename is None:
             return jsonify({
                 "status": "error",
-                "error": f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', or 'cloudarch'.",
+                "error": (
+                    f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
+                    "'proposal_response', or 'cloudarch'."
+                ),
             }), 400
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
@@ -1643,30 +1677,35 @@ def build_web_app(https: bool = True):
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
-        process_data.json, design_data.json, or requirements_summary.json
-        as a real file attachment (as opposed to GET /artifacts/<name>
-        above, which returns it JSON-wrapped for the client's own
-        data-explorer viewer) -- structurally identical to
-        download_cloudarch above, just for the other artifact kinds. Same
-        contract as the neuro-san port's own identical route. The
+        process_data.json, design_data.json, requirements_summary.json,
+        or proposal_response.json as a real file attachment (as opposed
+        to GET /artifacts/<name> above, which returns it JSON-wrapped for
+        the client's own data-explorer viewer) -- structurally identical
+        to download_cloudarch above, just for the other artifact kinds.
+        Same contract as the neuro-san port's own identical route. The
         downloaded file can later be re-attached to a chat turn to resume
         working on it -- see Process_Import_Agent/Design_Import_Agent's
         own instructions for how an attachment literally named
         process_data.json/design_data.json is recognized and restored
-        verbatim rather than re-extracted, and Requirements_Summary_Agent's
-        own literal-restore STEP for requirements_summary.json."""
+        verbatim rather than re-extracted, and Requirements_Summary_Agent's/
+        Proposal_Response_Agent's own literal-restore STEPs for
+        requirements_summary.json/proposal_response.json."""
         from process_toolkit import paths as toolkit_paths
 
         filenames = {
             "process": "process_data.json",
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
+            "proposal_response": "proposal_response.json",
         }
         filename = filenames.get(name)
         if filename is None:
             return jsonify({
                 "status": "error",
-                "error": f"Unknown artifact '{name}' -- use 'process', 'design', or 'requirements'.",
+                "error": (
+                    f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
+                    "or 'proposal_response'."
+                ),
             }), 400
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(toolkit_paths.output_dir(), filename)
@@ -1923,8 +1962,9 @@ async def process_file(file_path: str):
                 new_message=content,
                 run_config=RUN_CONFIG,
             ):
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                text = _event_response_text(event)
+                if text:
+                    final_response = text
 
             if final_response:
                 display_text(f"[ArchitectBot]: {final_response}")
@@ -1996,8 +2036,9 @@ async def process_single_prompt(prompt: str):
             new_message=content,
             run_config=RUN_CONFIG,
         ):
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+            text = _event_response_text(event)
+            if text:
+                final_response = text
 
         if final_response:
             display_text(f"[ArchitectBot]: {final_response}")
@@ -2084,8 +2125,9 @@ async def start_local_chat():
 
             final_response = None
             async for event in events:
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+                text = _event_response_text(event)
+                if text:
+                    final_response = text
 
             if final_response:
                 display_text(f"[ArchitectBot]: {final_response}")
