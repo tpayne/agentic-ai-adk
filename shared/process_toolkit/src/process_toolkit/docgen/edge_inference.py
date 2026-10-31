@@ -530,20 +530,23 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
     callers (e.g. "regenerate whichever document already exists") should
     omit this and accept the disk-based guess.
 
-    schema_type="requirements" is a deliberate no-op, not an error: a
-    requirements register has no flow/architecture diagram at all (unlike
-    process/design). Without this explicit case, "requirements" would
-    fall through to the "process" branch below (is_design is only ever
-    true for "design") and either error confusingly or -- worse --
-    silently render a stale, unrelated process diagram if a
-    process_data.json happens to coexist, exactly the class of
-    contamination bug this function's own docstring already documents
-    above for a missing schema_type.
+    schema_type="requirements"/"proposal_response" are both deliberate
+    no-ops, not errors: neither a requirements register nor a proposal
+    response has a flow/architecture diagram at all (unlike
+    process/design). Without this explicit case, either would fall
+    through to the "process" branch below (is_design is only ever true
+    for "design") and either error confusingly or -- worse -- silently
+    render a stale, unrelated process diagram if a process_data.json
+    happens to coexist, exactly the class of contamination bug this
+    function's own docstring already documents above for a missing
+    schema_type.
     """
     logger.debug("Generating flow diagram...")
 
     if schema_type == "requirements":
         return "SKIPPED: Requirements summaries have no flow/architecture diagram to generate."
+    if schema_type == "proposal_response":
+        return "SKIPPED: Proposal responses have no flow/architecture diagram to generate."
 
     try:
         is_design = (schema_type or detect_schema_type_from_disk()) == "design"

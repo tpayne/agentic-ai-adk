@@ -19,6 +19,7 @@
     "requirements_reviewer.hocon": true,
     "requirements_simulation_query.hocon": true,
     "requirements_doc_pipeline.hocon": true,
+    "proposal_response_pipeline.hocon": true,
     "cloudarch.hocon": true,
     "process.hocon": true,
     "process_import.hocon": true,

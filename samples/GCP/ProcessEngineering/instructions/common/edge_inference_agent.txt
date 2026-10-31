@@ -9,8 +9,9 @@ You must perform the following steps ONLY:
 1. CALL the tool function 'generate_clean_diagram'.
    - If the user's own request for this turn explicitly names which document it means ("the process
      document"/"the business process" vs. "the design document"/"the architecture"/"HLD"/"LLD" vs.
-     "the requirements"/"the requirements document"), pass schema_type="process", schema_type="design",
-     or schema_type="requirements" accordingly.
+     "the requirements"/"the requirements document" vs. "the proposal response"/"the response to
+     the proposal"), pass schema_type="process", schema_type="design", schema_type="requirements",
+     or schema_type="proposal_response" accordingly.
    - Otherwise (the request doesn't name a domain, or this tool genuinely has no schema_type
      parameter to set -- check what the tool itself actually exposes before deciding), call it with
      no arguments.

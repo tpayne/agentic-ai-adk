@@ -58,3 +58,21 @@ def test_generate_clean_diagram_skips_requirements_without_touching_disk():
 
     assert result == "SKIPPED: Requirements summaries have no flow/architecture diagram to generate."
     assert not os.path.exists(paths.output_path("X_flow.png"))
+
+
+def test_generate_clean_diagram_skips_proposal_response_without_touching_disk():
+    # Same reasoning as the requirements no-op above: a proposal response
+    # has no flow/architecture diagram at all either.
+    import json
+    import os
+
+    from process_toolkit import paths
+    from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({"process_name": "X", "process_steps": []}, f)
+
+    result = edge_inference.generate_clean_diagram(schema_type="proposal_response")
+
+    assert result == "SKIPPED: Proposal responses have no flow/architecture diagram to generate."
+    assert not os.path.exists(paths.output_path("X_flow.png"))

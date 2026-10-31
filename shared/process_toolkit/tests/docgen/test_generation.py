@@ -13,6 +13,7 @@ from docx.oxml.ns import qn
 from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -197,6 +198,201 @@ class TestRequirementsDocumentGeneration:
         # explicitly-passed schema_type="requirements" reaches it.
         with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
             json.dump(SAMPLE_REQUIREMENTS_SUMMARY, f)
+
+        assert detect_schema_type_from_disk() == "process"
+
+        result = create_standard_doc_from_file("X", schema_type=None)
+        assert result.startswith("ERROR:")
+        assert PROCESS_JSON_FILENAME in result
+
+
+SAMPLE_PROPOSAL_RESPONSE = {
+    "summary": "Our response to the vendor onboarding portal RFP.",
+    "our_understanding": "You need a self-service vendor registration portal with fast response times.",
+    "solution_summary": "A cloud-native, self-service vendor portal integrated with the client's own ERP.",
+    "expected_outcomes": ["Reduced vendor onboarding time.", "Fewer manual data-entry errors."],
+    "proposed_solution": "A cloud-native portal built on our existing vendor management platform.",
+    "architecture_components": [
+        {"name": "Vendor Portal UI", "description": "Self-service registration frontend.",
+         "connects_to": ["Vendor API"]},
+        {"name": "Vendor API", "description": "REST API backing the portal.",
+         "connects_to": ["ERP Connector"]},
+        {"name": "ERP Connector", "description": "Syncs vendor records to the client's ERP.",
+         "connects_to": []},
+    ],
+    "services_in_scope": ["Vendor self-service registration.", "ERP synchronization."],
+    "environments_covered": ["Production Azure tenant.", "UAT environment."],
+    "deliverables": ["A production-deployed vendor portal.", "Admin dashboard with role-based access."],
+    "out_of_scope": ["Migration of legacy vendor records older than 5 years."],
+    "technical_constraints": ["Must integrate with the client's existing on-prem ERP via REST."],
+    "differentiators": ["10 years in vendor management SaaS.", "24/7 support included."],
+    "compliance_matrix": [
+        {"requirement_id": "FR-001", "requirement_text": "Allow vendor registration.",
+         "requirement_type": "functional", "response_status": "Fully Compliant",
+         "response": "Our platform already supports self-service vendor registration.",
+         "evidence_ref": "See Proposed Solution"},
+        {"requirement_id": "NFR-001", "requirement_text": "Respond within 2 seconds.",
+         "requirement_type": "non_functional", "response_status": "Partially Compliant",
+         "response": "p95 latency is currently 2.3s; a caching layer upgrade will close this gap.",
+         "evidence_ref": "See Mobilisation & Phased Roadmap, Phase 2"},
+    ],
+    "domain_expertise": "We have deep experience in vendor-management SaaS for the retail sector.",
+    "domain_accelerators": ["Pre-built ERP connector framework."],
+    "core_delivery_approach": "An agile, iterative delivery model with bi-weekly demos.",
+    "platform_approach": "A multi-tenant Azure deployment with per-client data isolation.",
+    "quality_validation_approach": "Automated regression suite plus manual UAT sign-off per phase.",
+    "automation_approach": "CI/CD pipeline with automated test gating on every merge.",
+    "environment_setup": "Dedicated UAT and production environments provisioned via IaC.",
+    "tooling_stack": ["Azure DevOps", "Terraform", "Playwright"],
+    "slas_and_kpis": [{"metric": "Portal uptime", "target": ">= 99.5%"}],
+    "implementation_plan": [
+        {"phase": "Phase 1: Discovery & Design", "timing": "Weeks 1-4",
+         "deliverable": "Signed architecture document.", "acceptance_criteria": "Client sign-off on design."},
+        {"phase": "Phase 2: Build & Integrate", "timing": "Weeks 5-10",
+         "deliverable": "ERP integration live in staging.", "acceptance_criteria": "UAT passed."},
+    ],
+    "governance_framework": "A joint steering committee meets monthly to review progress and risks.",
+    "raci_matrix": [
+        {"activity": "Architecture sign-off", "responsible": "Delivery Lead", "accountable": "Client Sponsor",
+         "consulted": "Client IT", "informed": "Steering Committee"},
+    ],
+    "escalation_path": ["Tier 1: Delivery Lead.", "Tier 2: Engagement Director."],
+    "meeting_cadence": [{"meeting": "Steering Committee", "frequency": "Monthly", "attendees": "Sponsors, Delivery Lead"}],
+    "team_structure": [{"role": "Delivery Lead", "allocation": "50% FTE"}],
+    "key_personnel": [{"role": "Delivery Lead", "responsibilities": "Overall delivery accountability."}],
+    "skills_and_certifications": ["Azure Solutions Architect Expert."],
+    "case_studies": [
+        {"title": "Retail Vendor Portal Rollout", "context": "A national retailer.",
+         "challenge": "Manual vendor onboarding.", "work_completed": "Deployed a self-service portal.",
+         "outcome": "60% faster onboarding."},
+    ],
+    "measurable_outcomes": ["60% reduction in onboarding time across prior engagements."],
+    "assumptions": ["Client provides API access to their existing ERP."],
+    "client_dependencies": ["Client provides timely access to ERP sandbox credentials."],
+    "risks_and_mitigations": [{"risk": "Data migration delays.", "mitigation": "Phased cutover plan."}],
+    "qualifications": "Our team has delivered 12 similar vendor portals in the retail sector.",
+    "pricing_approach": "Fixed-price implementation plus a per-seat annual subscription.",
+    "pricing_table": [
+        {"item": "Implementation", "basis": "One-time", "price": "TBD"},
+        {"item": "Annual subscription", "basis": "Recurring, per-seat", "price": "TBD"},
+    ],
+    "ongoing_costs_approach": "Annual subscription covers hosting, support, and minor enhancements.",
+    "rate_card_and_change_control": "Out-of-scope change requests follow a standard change-control process.",
+    "open_questions_for_client": ["Which regions are in scope for data residency?"],
+    "unaddressed_items": ["Data retention policy was flagged as a gap in the original requirements analysis."],
+}
+
+
+class TestProposalResponseDocumentGeneration:
+    def test_generates_a_proposal_response_document(self):
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        assert result.startswith("SUCCESS:")
+
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        h1 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        h2 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        headings = h1 + h2
+
+        assert "1.0 Executive Summary" in h1
+        assert any("Understanding of Client Objectives" in h for h in h2)
+        assert any("Summary of Proposed Solution" in h for h in h2)
+        assert any("Differentiators & Value Proposition" in h for h in h2)
+        assert any("Expected Outcomes & ROI" in h for h in h2)
+        assert "2.0 Proposed Solution" in h1
+        assert any("Solution Architecture" in h for h in h1)
+        assert any("Scope of Work & Boundaries" in h for h in h1)
+        assert any("Services in Scope" in h for h in h2)
+        assert any("Functional Coverage" in h for h in h2)
+        assert any("Environments & Platforms Covered" in h for h in h2)
+        assert any("Key Deliverables & Artifacts" in h for h in h2)
+        assert any("Out-of-Scope Activities" in h for h in h2)
+        assert any("Key Technical Constraints" in h for h in h2)
+        assert any("Compliance Matrix" in h for h in h1)
+        assert any("Delivery & Engagement Approach" in h for h in h1)
+        assert any("Industry / Domain Expertise" in h for h in h2)
+        assert any("Mobilisation & Phased Roadmap" in h for h in h2)
+        assert any("Governance Model, Roles & Responsibilities" in h for h in h1)
+        assert any("RACI Matrix" in h for h in h2)
+        assert any("Indicative Profiles & Team Structure" in h for h in h1)
+        assert any("Key Personnel Profiles" in h for h in h2)
+        assert any("Relevant Success Stories & References" in h for h in h1)
+        assert any("Case Studies" in h for h in h2)
+        assert any("Qualifications" in h for h in h1)
+        assert any("Key Assumptions & Dependencies" in h for h in h1)
+        assert any("Project Assumptions" in h for h in h2)
+        assert any("Client Responsibilities & Dependencies" in h for h in h2)
+        assert any("Risk Management & Mitigation Matrix" in h for h in h2)
+        assert any("Commercial Proposal & Total Cost of Ownership" in h for h in h1)
+        assert any("Fixed-Fee Implementation Schedule" in h for h in h2)
+        assert any("Ongoing Managed Support" in h for h in h2)
+        assert any("Rate Cards & Change Control" in h for h in h2)
+        assert any("Open Questions" in h for h in h1)
+        assert any("Unaddressed Items" in h for h in h1)
+        # The solution-architecture diagram embeds as a real inline image.
+        assert len(doc.inline_shapes) >= 1
+        # 11 tables: version history, architecture components, compliance
+        # matrix, SLAs/KPIs, implementation plan, RACI matrix, meeting
+        # cadence, team structure, key personnel, risks and mitigations,
+        # pricing table.
+        assert len(doc.tables) == 11
+        # Still no fabricated glossary, and not the process/design-style
+        # flow diagram heading (a different section entirely).
+        assert not any("Glossary" in h for h in headings)
+        assert not any("Architecture Flow Diagram" in h for h in headings)
+
+    def test_no_solution_architecture_section_when_components_are_absent(self):
+        # No-fabrication guarantee: a proposal response that never
+        # populated architecture_components gets no diagram section at
+        # all, not a placeholder/empty one.
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data.pop("architecture_components")
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        assert not any("Solution Architecture" in h for h in headings)
+        assert len(doc.inline_shapes) == 0
+
+    def test_no_implementation_plan_section_when_absent(self):
+        # Same no-fabrication guarantee as architecture_components: no
+        # plan populated means no Mobilisation & Phased Roadmap
+        # subsection at all (the rest of Delivery & Engagement Approach
+        # still renders, since other fields in that group are present).
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data.pop("implementation_plan")
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+        assert not any("Mobilisation & Phased Roadmap" in h for h in headings)
+        assert any("Delivery & Engagement Approach" in h for h in headings)
+
+    def test_no_blank_pages_in_a_generated_proposal_response_document(self):
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
+
+        result = create_standard_doc_from_file("Vendor Portal Proposal Response", schema_type="proposal_response")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        gaps = _blank_page_gaps(out_path)
+        assert gaps == [], f"found {len(gaps)} fully blank page(s) at break-index pairs {gaps}"
+
+    def test_proposal_response_is_reachable_only_via_an_explicit_schema_type(self):
+        # Same guarantee as requirements: a saved proposal_response.json
+        # must NEVER be silently auto-discovered by detect_schema_type_
+        # from_disk()'s own fallback -- only an explicitly-passed
+        # schema_type="proposal_response" reaches it.
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_PROPOSAL_RESPONSE, f)
 
         assert detect_schema_type_from_disk() == "process"
 

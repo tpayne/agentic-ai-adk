@@ -1188,6 +1188,14 @@ class TestArtifactRoute:
         assert resp.status_code == 200
         assert resp.get_json()["data"] == {"requirements_register": []}
 
+    def test_proposal_response_artifact_name_maps_to_proposal_response_json(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"proposal_response.json": '{"compliance_matrix": []}'}
+        )
+        resp = client.get("/artifacts/proposal_response")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"compliance_matrix": []}
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self, monkeypatch, tmp_path):
         client = self._build_client(
             monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile><diagram>stuff</diagram></mxfile>"}
@@ -1306,6 +1314,15 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.status_code == 200
         assert resp.data == b'{"requirements_register": []}'
         assert "requirements_summary.json" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_proposal_response_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"proposal_response.json": '{"compliance_matrix": []}'}
+        )
+        resp = client.get("/artifacts/proposal_response/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"compliance_matrix": []}'
+        assert "proposal_response.json" in resp.headers.get("Content-Disposition", "")
 
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
