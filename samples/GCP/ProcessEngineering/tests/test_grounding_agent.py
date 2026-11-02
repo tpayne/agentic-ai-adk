@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import json
 import sys
 import types
@@ -125,9 +126,45 @@ def _install_dependency_stubs():
     google.adk = adk
 
 
-# Install import-time SDK/HTTP stubs before loading the agent to keep tests offline.
-_install_dependency_stubs()
-from process_agents.common import grounding_agent  # noqa: E402
+def _is_stubbed_dependency(name):
+    return (
+        name == "google"
+        or name.startswith("google.")
+        or name in {"yaml", "certifi", "pydantic"}
+        or name == "requests"
+        or name.startswith("requests.")
+        or name == "urllib3"
+        or name.startswith("urllib3.")
+        or name == "process_agents"
+        or name.startswith("process_agents.")
+    )
+
+
+@contextmanager
+def _isolated_dependency_stubs():
+    modules_before_stubs = {
+        name: module
+        for name, module in sys.modules.items()
+        if _is_stubbed_dependency(name)
+    }
+    for name in tuple(sys.modules):
+        if _is_stubbed_dependency(name):
+            del sys.modules[name]
+
+    _install_dependency_stubs()
+    try:
+        yield
+    finally:
+        for name in tuple(sys.modules):
+            if _is_stubbed_dependency(name):
+                del sys.modules[name]
+        sys.modules.update(modules_before_stubs)
+
+
+# Import-time SDK/HTTP stubs keep the focused tests offline without leaking
+# synthetic modules into the rest of the test suite.
+with _isolated_dependency_stubs():
+    from process_agents.common import grounding_agent  # noqa: E402
 
 
 class GroundingValidationTests(unittest.TestCase):

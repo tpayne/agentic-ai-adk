@@ -41,7 +41,7 @@ class WebServiceSessionDeleteTest(unittest.TestCase):
         # process_agents module first and force genuine re-imports.
         _STUBBED_PREFIXES = (
             "google", "pydantic", "certifi", "requests", "urllib3",
-            "yaml", "matplotlib", "networkx",
+            "yaml",
         )
         for name in list(sys.modules):
             if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
@@ -124,7 +124,7 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
         os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
         _STUBBED_PREFIXES = (
             "google", "pydantic", "certifi", "requests", "urllib3",
-            "yaml", "matplotlib", "networkx",
+            "yaml",
         )
         for name in list(sys.modules):
             if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
@@ -270,7 +270,7 @@ class LeftoverPipelineLockCleanupTest(unittest.TestCase):
         os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
         _STUBBED_PREFIXES = (
             "google", "pydantic", "certifi", "requests", "urllib3",
-            "yaml", "matplotlib", "networkx",
+            "yaml",
         )
         for name in list(sys.modules):
             if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
@@ -346,7 +346,7 @@ class WebServiceInitRaceTest(unittest.TestCase):
         os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
         _STUBBED_PREFIXES = (
             "google", "pydantic", "certifi", "requests", "urllib3",
-            "yaml", "matplotlib", "networkx",
+            "yaml",
         )
         for name in list(sys.modules):
             if name in _STUBBED_PREFIXES or name.split(".", 1)[0] in _STUBBED_PREFIXES:
@@ -534,7 +534,7 @@ class WebServiceRequestControlsTest(unittest.TestCase):
 
         self.assertEqual(
             run_chat_turn.await_args_list,
-            [call(None, "hello", files=[]), call(None, "hello", files=[])],
+            [call(None, "hello", files=[]), call("session-123", "hello", files=[])],
         )
 
     def test_status_is_open_and_does_not_consume_the_rate_limit(self):

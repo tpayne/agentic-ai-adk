@@ -70,10 +70,27 @@ def _run_core_simulation(data: Dict[str, Any], iterations: int = 2000) -> Dict[s
 
     cycle_times = []
     per_step_times = {s["name"]: [] for s in step_info}
+    pending_steps = list(step_info)
+    remaining_names = {s["name"] for s in pending_steps}
+    ordered_steps = []
+    while pending_steps:
+        ready_step = next(
+            (
+                s
+                for s in pending_steps
+                if not any(dependency in remaining_names for dependency in s["deps"])
+            ),
+            None,
+        )
+        if ready_step is None:
+            raise ValueError("Circular dependency detected in process steps.")
+        ordered_steps.append(ready_step)
+        pending_steps.remove(ready_step)
+        remaining_names.remove(ready_step["name"])
 
     for _ in range(iterations):
         completed = {}
-        for s in step_info:
+        for s in ordered_steps:
             dep_finish = max([completed.get(dep, 0.0) for dep in s["deps"]] or [0.0])
             duration = random.triangular(s["base"] * 0.8, s["base"] * 2.2, s["base"])
             finish_time = dep_finish + duration

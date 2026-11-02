@@ -6,17 +6,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.test_grounding_agent import _install_dependency_stubs
+from tests.test_grounding_agent import _isolated_dependency_stubs
 
-_install_dependency_stubs()
+with _isolated_dependency_stubs():
+    if "pydantic" not in sys.modules:
+        pydantic = types.ModuleType("pydantic")
+        pydantic.BaseModel = type("BaseModel", (), {})
+        pydantic.Field = lambda default=None, **kwargs: default
+        sys.modules["pydantic"] = pydantic
 
-if "pydantic" not in sys.modules:
-    pydantic = types.ModuleType("pydantic")
-    pydantic.BaseModel = type("BaseModel", (), {})
-    pydantic.Field = lambda default=None, **kwargs: default
-    sys.modules["pydantic"] = pydantic
-
-from process_agents.common import utils_agent  # noqa: E402
+    from process_agents.common import utils_agent  # noqa: E402
 
 
 class UtilsAgentTests(unittest.TestCase):

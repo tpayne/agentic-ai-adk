@@ -7,7 +7,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 _STUBBED_PREFIXES = (
     "google", "pydantic", "certifi", "requests", "urllib3",
-    "yaml", "matplotlib", "networkx",
+    "yaml",
 )
 
 

@@ -2,10 +2,10 @@ import unittest
 import asyncio
 from unittest.mock import patch
 
-from tests.test_grounding_agent import _install_dependency_stubs
+from tests.test_grounding_agent import _isolated_dependency_stubs
 
-_install_dependency_stubs()
-from process_agents.common import agent_wrappers  # noqa: E402
+with _isolated_dependency_stubs():
+    from process_agents.common import agent_wrappers  # noqa: E402
 
 
 class CloneOverrideTests(unittest.TestCase):

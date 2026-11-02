@@ -1,61 +1,11 @@
 import os
-import sys
-import types
 import unittest
 from unittest.mock import patch
 
+from tests.test_grounding_agent import _isolated_dependency_stubs
 
-def _install_google_stubs():
-    """Make the utility module importable without installing the ADK runtime."""
-    if "google.adk.models" in sys.modules:
-        return
-
-    google = types.ModuleType("google")
-    adk = types.ModuleType("google.adk")
-    models = types.ModuleType("google.adk.models")
-    agents = types.ModuleType("google.adk.agents")
-    callback_context = types.ModuleType("google.adk.agents.callback_context")
-    tools = types.ModuleType("google.adk.tools")
-    tool_context = types.ModuleType("google.adk.tools.tool_context")
-
-    class LlmRequest:
-        pass
-
-    class LlmResponse:
-        pass
-
-    class CallbackContext:
-        pass
-
-    class ToolContext:
-        pass
-
-    models.LlmRequest = LlmRequest
-    models.LlmResponse = LlmResponse
-    callback_context.CallbackContext = CallbackContext
-    tool_context.ToolContext = ToolContext
-    agents.callback_context = callback_context
-    tools.tool_context = tool_context
-    adk.models = models
-    adk.agents = agents
-    adk.tools = tools
-    google.adk = adk
-
-    sys.modules.update(
-        {
-            "google": google,
-            "google.adk": adk,
-            "google.adk.models": models,
-            "google.adk.agents": agents,
-            "google.adk.agents.callback_context": callback_context,
-            "google.adk.tools": tools,
-            "google.adk.tools.tool_context": tool_context,
-        }
-    )
-
-
-_install_google_stubs()
-from process_agents.common import utils  # noqa: E402
+with _isolated_dependency_stubs():
+    from process_agents.common import utils  # noqa: E402
 
 
 class GetPropertyEnvFallbackTests(unittest.TestCase):

@@ -1,58 +1,12 @@
 import json
-import sys
 import types
 import unittest
 from unittest.mock import patch
 
+from tests.test_grounding_agent import _isolated_dependency_stubs
 
-def _install_adk_stubs():
-    google = sys.modules.setdefault("google", types.ModuleType("google"))
-    adk = sys.modules.setdefault("google.adk", types.ModuleType("google.adk"))
-    models = sys.modules.setdefault(
-        "google.adk.models", types.ModuleType("google.adk.models")
-    )
-    agents = sys.modules.setdefault(
-        "google.adk.agents", types.ModuleType("google.adk.agents")
-    )
-    callback_context = sys.modules.setdefault(
-        "google.adk.agents.callback_context",
-        types.ModuleType("google.adk.agents.callback_context"),
-    )
-    tools = sys.modules.setdefault(
-        "google.adk.tools", types.ModuleType("google.adk.tools")
-    )
-    tool_context = sys.modules.setdefault(
-        "google.adk.tools.tool_context",
-        types.ModuleType("google.adk.tools.tool_context"),
-    )
-    genai = sys.modules.setdefault("google.genai", types.ModuleType("google.genai"))
-
-    models.LlmRequest = type("LlmRequest", (), {})
-    models.LlmResponse = type("LlmResponse", (), {})
-    callback_context.CallbackContext = type("CallbackContext", (), {})
-    tool_context.ToolContext = type("ToolContext", (), {})
-    agents.callback_context = callback_context
-    tools.tool_context = tool_context
-    adk.models = models
-    adk.agents = agents
-    adk.tools = tools
-    google.adk = adk
-    class HttpOptions:
-        def __init__(self, **kwargs):
-            self.timeout = kwargs.get("timeout")
-
-    class GenerateContentConfig:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-            self.http_options = kwargs.get("http_options")
-
-    genai.types = types.SimpleNamespace(
-        GenerateContentConfig=GenerateContentConfig, HttpOptions=HttpOptions
-    )
-
-
-_install_adk_stubs()
-from process_agents.process import simulation_agent  # noqa: E402
+with _isolated_dependency_stubs():
+    from process_agents.process import simulation_agent  # noqa: E402
 
 
 def process(steps):
@@ -96,6 +50,30 @@ class SimulationParsingTests(unittest.TestCase):
 
 
 class SimulationCoreTests(unittest.TestCase):
+    def test_core_simulation_respects_dependencies_when_steps_are_unsorted(self):
+        data = process(
+            [
+                {
+                    "step_name": "Child",
+                    "estimated_duration": "1 hours",
+                    "dependencies": ["Parent"],
+                },
+                {
+                    "step_name": "Parent",
+                    "estimated_duration": "1 hours",
+                    "dependencies": [],
+                },
+            ]
+        )
+        with patch.object(
+            simulation_agent.random,
+            "triangular",
+            side_effect=lambda low, high, mode: mode,
+        ):
+            result = simulation_agent._run_core_simulation(data, iterations=1)
+
+        self.assertEqual(result["avg_cycle_time"], 2.0)
+
     def test_detect_cycles_rejects_circular_dependencies(self):
         with self.assertRaisesRegex(ValueError, "Circular dependency"):
             simulation_agent._detect_cycles(
