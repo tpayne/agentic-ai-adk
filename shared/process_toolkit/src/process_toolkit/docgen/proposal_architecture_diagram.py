@@ -113,6 +113,7 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
     fig_width = min(12.0, max(8.5, plot_width * 0.72))
     fig_height = fig_width * plot_height / plot_width
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_facecolor("#F4F7FB")
     ax.set_xlim(left, right)
     ax.set_ylim(bottom, top)
@@ -221,7 +222,6 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
         ))
 
     ax.axis("off")
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     out_path = paths.output_path(f"{safe_filename_component(process_name.lower())}_architecture.png")
 

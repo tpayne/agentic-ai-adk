@@ -614,6 +614,7 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
             fig_width = min(13.0, max(9.0, plot_width * 0.66))
             fig_height = fig_width * plot_height / plot_width
             fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+            fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
             ax.set_facecolor("#F4F7FB")
             ax.set_xlim(left, right)
             ax.set_ylim(bottom, top)
@@ -706,7 +707,6 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
                     facecolor=color, edgecolor="none", zorder=5,
                 ))
             ax.axis("off")
-            fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
         else:
             card_width, card_height = 3.55, 1.95
             x_min, x_max = min(x_vals), max(x_vals)
@@ -717,6 +717,7 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
             fig_width = min(13.0, max(9.0, plot_width * 0.66))
             fig_height = fig_width * plot_height / plot_width
             fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+            fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
             ax.set_facecolor("#F4F7FB")
             ax.set_xlim(left, right)
             ax.set_ylim(bottom, top)
@@ -813,7 +814,6 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
                     facecolor=color, edgecolor="none", zorder=5,
                 ))
             ax.axis("off")
-            fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         default_out_filename = "design_flow.png" if is_design else "process_flow.png"
         out_filename = default_out_filename

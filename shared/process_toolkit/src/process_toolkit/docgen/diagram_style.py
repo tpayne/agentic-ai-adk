@@ -81,6 +81,7 @@ def _fit_lines(
     if not content:
         return [""], fontsize
 
+    height_px = max(0, height_px - 6)
     chosen_lines = [content]
     chosen_size = min_fontsize
     size = fontsize
@@ -99,15 +100,36 @@ def _fit_lines(
                     parts = []
                     remainder = word
                     while remainder:
-                        low, high = 1, len(remainder)
-                        while low < high:
-                            mid = (low + high + 1) // 2
-                            if renderer.get_text_width_height_descent(remainder[:mid], prop, ismath=False)[0] <= width_px:
-                                low = mid
-                            else:
-                                high = mid - 1
-                        parts.append(remainder[:low])
-                        remainder = remainder[low:]
+                        if renderer.get_text_width_height_descent(
+                            remainder, prop, ismath=False
+                        )[0] <= width_px:
+                            parts.append(remainder)
+                            break
+                        hyphen_breaks = [
+                            index + 1 for index, character in enumerate(remainder)
+                            if character == "-"
+                        ]
+                        fitting_breaks = [
+                            index for index in hyphen_breaks
+                            if renderer.get_text_width_height_descent(
+                                remainder[:index], prop, ismath=False
+                            )[0] <= width_px
+                        ]
+                        if fitting_breaks:
+                            split_at = fitting_breaks[-1]
+                        else:
+                            low, high = 1, len(remainder)
+                            while low < high:
+                                mid = (low + high + 1) // 2
+                                if renderer.get_text_width_height_descent(
+                                    remainder[:mid], prop, ismath=False
+                                )[0] <= width_px:
+                                    low = mid
+                                else:
+                                    high = mid - 1
+                            split_at = low
+                        parts.append(remainder[:split_at])
+                        remainder = remainder[split_at:]
                 for part in parts:
                     candidate = f"{current} {part}".strip()
                     if current and renderer.get_text_width_height_descent(candidate, prop, ismath=False)[0] > width_px:
