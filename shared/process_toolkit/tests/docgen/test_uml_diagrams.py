@@ -10,24 +10,32 @@ from process_toolkit.docgen.uml_diagrams import generate_uml_diagram
     [
         (
             {
-                "title": "Payment authorization",
-                "participants": ["Client", "Gateway"],
+                "title": "Client contract intelligence and enterprise integration sequence",
+                "participants": ["Client Contract Administration", "Document Intelligence Gateway"],
                 "steps": [{
                     "step_number": 1,
-                    "from_participant": "Client",
-                    "to_participant": "Gateway",
-                    "message": "Authorize payment",
+                    "from_participant": "Client Contract Administration",
+                    "to_participant": "Document Intelligence Gateway",
+                    "message": "Securely ingest and validate the uploaded contract documentation package",
                 }],
             },
             {},
         ),
         (
-            {"title": "Payment model"},
-            {"classes": [{"class_name": "Payment", "attributes": ["id"], "methods": ["authorize()"]}]},
+            {"title": "Payment and contract domain model"},
+            {"classes": [{
+                "class_name": "ContractDocumentValidationAndExtractionResult",
+                "attributes": ["document_reference_id", "extracted_legal_terms", "validation_confidence_score"],
+                "methods": ["validateRequiredContractTerms()", "generateStructuredExtractionResult()"],
+            }]},
         ),
         (
             {"title": "Service integration"},
-            {"integration_points": [{"source": "Portal", "target": "API", "protocol": "HTTPS"}]},
+            {"integration_points": [{
+                "source": "SharePoint Contract Document Repository",
+                "target": "Azure Document Intelligence Processing Service",
+                "protocol": "Secure document ingestion using managed identity",
+            }]},
         ),
         (
             {"title": "System context"},
