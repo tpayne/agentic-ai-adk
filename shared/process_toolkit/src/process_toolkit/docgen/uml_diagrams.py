@@ -73,6 +73,28 @@ def _wrap(label: Any, width: int = 22) -> str:
     return "\n".join(textwrap.wrap(text, width=width, break_long_words=False, break_on_hyphens=False)) or text
 
 
+def _finish_diagram(fig, ax, title: str, out_path: str) -> None:
+    fig.patch.set_facecolor("#F4F7FB")
+    ax.set_facecolor("#F4F7FB")
+    fig.patches.append(patches.FancyBboxPatch(
+        (0.015, 0.885), 0.97, 0.105,
+        boxstyle="round,pad=0.01,rounding_size=0.018",
+        transform=fig.transFigure, facecolor="#14243A",
+        edgecolor="none", zorder=10,
+    ))
+    fig.text(
+        0.04, 0.955, "SYSTEM DESIGN DETAIL",
+        color="#77D6C1", fontsize=8, fontweight="bold", va="center", zorder=11,
+    )
+    fig.text(
+        0.04, 0.915, textwrap.shorten(str(title), width=72, placeholder="..."),
+        color="white", fontsize=14, fontweight="bold", va="center", zorder=11,
+    )
+    fig.subplots_adjust(left=0.05, right=0.95, top=0.85, bottom=0.05)
+    fig.savefig(out_path, dpi=220, facecolor="#F4F7FB")
+    plt.close(fig)
+
+
 # ------------------------------------------------------------
 # HUB-AND-SPOKE -- one central node with unconnected peers around it
 # (context diagrams: the system + its external systems; a component
@@ -96,13 +118,17 @@ def _draw_hub_and_spoke(out_path: str, title: str, hub_label: str, spokes: List[
     fig, ax = plt.subplots(figsize=(11, 9))
     ax.axis("off")
 
-    nx.draw_networkx_edges(G, pos, edge_color="gray", arrows=False, ax=ax)
+    nx.draw_networkx_edges(G, pos, edge_color="#9AABC0", width=1.6, arrows=False, ax=ax)
 
-    node_colors = ["#dbe8f9" if n == hub_label else "#f5f5f5" for n in G.nodes()]
-    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=4200, edgecolors="black", ax=ax)
+    node_colors = ["#2878B8" if n == hub_label else "#7258B5" for n in G.nodes()]
+    nx.draw_networkx_nodes(
+        G, pos, node_color=node_colors, node_size=4800,
+        edgecolors="white", linewidths=2, ax=ax,
+    )
 
     for n, (x, y) in pos.items():
-        ax.text(x, y, _wrap(n, 20), ha="center", va="center", fontsize=9)
+        ax.text(x, y, _wrap(n, 20), ha="center", va="center", fontsize=9,
+                fontweight="bold", color="white")
 
     for s in spokes:
         if s.get("edge_label"):
@@ -111,13 +137,10 @@ def _draw_hub_and_spoke(out_path: str, title: str, hub_label: str, spokes: List[
             mx, my = (x0 + x1) / 2, (y0 + y1) / 2
             ax.text(
                 mx, my, _wrap(s["edge_label"], 18), fontsize=7, ha="center", va="center",
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+                bbox=dict(facecolor="#F4F7FB", edgecolor="none", alpha=0.96, pad=2.5),
             )
 
-    fig.suptitle(_wrap(title, 60), fontsize=13)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    _finish_diagram(fig, ax, title, out_path)
     return out_path
 
 
@@ -149,17 +172,17 @@ def _draw_node_grid(out_path: str, title: str, nodes: List[Dict[str, Any]]) -> s
         x, y = col + 0.5, row + 0.5
         box = patches.FancyBboxPatch(
             (col + 0.08, row + 0.12), 0.84, 0.76,
-            boxstyle="round,pad=0.02", linewidth=1, edgecolor="black", facecolor="#f5f5f5",
+            boxstyle="round,pad=0.02,rounding_size=0.06", linewidth=1.2,
+            edgecolor="#D8E1EC", facecolor="white",
         )
         ax.add_patch(box)
-        ax.text(x, y - 0.1, _wrap(node["label"], 24), ha="center", va="center", fontsize=9, fontweight="bold")
+        ax.text(x, y - 0.1, _wrap(node["label"], 24), ha="center", va="center",
+                fontsize=9, fontweight="bold", color="#1C2D43")
         if node.get("sublabel"):
-            ax.text(x, y + 0.24, _wrap(node["sublabel"], 30), ha="center", va="center", fontsize=6.8, color="#444")
+            ax.text(x, y + 0.24, _wrap(node["sublabel"], 30), ha="center", va="center",
+                    fontsize=6.8, color="#64758A")
 
-    fig.suptitle(_wrap(title, 60), fontsize=13)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    _finish_diagram(fig, ax, title, out_path)
     return out_path
 
 
@@ -183,11 +206,18 @@ def _draw_edge_graph(out_path: str, title: str, edges: List[Dict[str, Any]]) -> 
     fig, ax = plt.subplots(figsize=(12, 9))
     ax.axis("off")
 
-    nx.draw_networkx_edges(G, pos, edge_color="gray", arrows=True, arrowstyle="-|>", arrowsize=14, ax=ax)
-    nx.draw_networkx_nodes(G, pos, node_color="#f5f5f5", node_size=4500, edgecolors="black", ax=ax)
+    nx.draw_networkx_edges(
+        G, pos, edge_color="#7C91AA", width=1.8, arrows=True,
+        arrowstyle="-|>", arrowsize=16, ax=ax,
+    )
+    nx.draw_networkx_nodes(
+        G, pos, node_color="#2878B8", node_size=4800,
+        edgecolors="white", linewidths=2, ax=ax,
+    )
 
     for n, (x, y) in pos.items():
-        ax.text(x, y, _wrap(n, 22), ha="center", va="center", fontsize=8)
+        ax.text(x, y, _wrap(n, 22), ha="center", va="center",
+                fontsize=8, fontweight="bold", color="white")
 
     for e in edges:
         if e.get("label") and e["source"] in pos and e["target"] in pos:
@@ -196,13 +226,10 @@ def _draw_edge_graph(out_path: str, title: str, edges: List[Dict[str, Any]]) -> 
             mx, my = (x0 + x1) / 2, (y0 + y1) / 2
             ax.text(
                 mx, my, _wrap(e["label"], 18), fontsize=6.5, ha="center", va="center",
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+                bbox=dict(facecolor="#F4F7FB", edgecolor="none", alpha=0.96, pad=2.5),
             )
 
-    fig.suptitle(_wrap(title, 60), fontsize=13)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    _finish_diagram(fig, ax, title, out_path)
     return out_path
 
 
@@ -242,28 +269,29 @@ def _draw_class_diagram(out_path: str, title: str, classes: List[Dict[str, Any]]
         attrs_h = h * 0.4
         methods_h = h - name_h - attrs_h
 
-        ax.add_patch(patches.Rectangle((x0, y0), w, h, edgecolor="black", facecolor="white", linewidth=1.2))
-        ax.add_patch(patches.Rectangle((x0, y0), w, name_h, edgecolor="black", facecolor="#dbe8f9", linewidth=1))
+        ax.add_patch(patches.FancyBboxPatch(
+            (x0, y0), w, h, boxstyle="round,pad=0.02,rounding_size=0.06",
+            edgecolor="#D8E1EC", facecolor="white", linewidth=1.2,
+        ))
+        ax.add_patch(patches.Rectangle((x0, y0), w, name_h, edgecolor="none", facecolor="#2878B8"))
         ax.text(
             x0 + w / 2, y0 + name_h / 2, _wrap(name, 26), ha="center", va="center",
-            fontsize=8.5, fontweight="bold",
+            fontsize=8.5, fontweight="bold", color="white",
         )
 
-        ax.plot([x0, x0 + w], [y0 + name_h + attrs_h] * 2, color="black", linewidth=1)
+        ax.plot([x0, x0 + w], [y0 + name_h + attrs_h] * 2, color="#D8E1EC", linewidth=1)
 
         attr_text = "\n".join(_wrap(a, 30) for a in attrs[:8])
-        ax.text(x0 + 0.08, y0 + name_h + 0.08, attr_text, ha="left", va="top", fontsize=6.3, family="monospace")
+        ax.text(x0 + 0.08, y0 + name_h + 0.08, attr_text, ha="left", va="top",
+                fontsize=6.3, family="monospace", color="#42556D")
 
         method_text = "\n".join(_wrap(m, 30) for m in methods[:8])
         ax.text(
             x0 + 0.08, y0 + name_h + attrs_h + 0.08, method_text,
-            ha="left", va="top", fontsize=6.3, family="monospace",
+            ha="left", va="top", fontsize=6.3, family="monospace", color="#42556D",
         )
 
-    fig.suptitle(_wrap(title, 60), fontsize=13)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    _finish_diagram(fig, ax, title, out_path)
     return out_path
 
 
@@ -305,18 +333,19 @@ def _draw_sequence_diagram(
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
     ax.set_xlim(-1.3, x_positions[participants[-1]] + 1.3)
-    ax.set_ylim(0, lifeline_bottom + 0.6)
+    ax.set_ylim(-0.55, lifeline_bottom + 0.6)
     ax.invert_yaxis()
 
     for p in participants:
         x = x_positions[p]
         box = patches.FancyBboxPatch(
             (x - 0.95, -0.3), 1.9, 0.6, boxstyle="round,pad=0.02",
-            linewidth=1, edgecolor="black", facecolor="#dbe8f9",
+            linewidth=1, edgecolor="#D8E1EC", facecolor="white",
         )
         ax.add_patch(box)
-        ax.text(x, 0.0, _wrap(p, 20), ha="center", va="center", fontsize=8.5, fontweight="bold")
-        ax.plot([x, x], [0.3, lifeline_bottom], color="gray", linestyle="--", linewidth=1, zorder=0)
+        ax.text(x, 0.0, _wrap(p, 20), ha="center", va="center", fontsize=8.5,
+                fontweight="bold", color="#1C2D43")
+        ax.plot([x, x], [0.3, lifeline_bottom], color="#AAB8C8", linestyle="--", linewidth=1, zorder=0)
 
     y = lifeline_top + step_gap
     for step in sorted(steps, key=lambda s: s.get("step_number") or 0):
@@ -337,36 +366,33 @@ def _draw_sequence_diagram(
             ax.plot(
                 [x0, x0 + loop_w, x0 + loop_w, x0 + 0.06],
                 [y, y, y + 0.32, y + 0.32],
-                color="black", linestyle=linestyle, linewidth=1.2,
+                color="#2878B8", linestyle=linestyle, linewidth=1.5,
             )
             ax.annotate(
                 "", xy=(x0, y + 0.32), xytext=(x0 + 0.1, y + 0.32),
-                arrowprops=dict(arrowstyle="-|>", color="black", linewidth=1.2),
+                arrowprops=dict(arrowstyle="-|>", color="#2878B8", linewidth=1.5),
             )
             label_x, label_ha = x0 + loop_w + 0.12, "left"
         else:
             ax.annotate(
                 "", xy=(x1, y), xytext=(x0, y),
-                arrowprops=dict(arrowstyle="-|>", color="black", linewidth=1.2, linestyle=linestyle),
+                arrowprops=dict(arrowstyle="-|>", color="#2878B8", linewidth=1.5, linestyle=linestyle),
             )
             label_x, label_ha = (x0 + x1) / 2, "center"
 
         ax.text(
             label_x, y - 0.1, message, fontsize=7, ha=label_ha, va="bottom",
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.85),
+            color="#1C2D43", bbox=dict(facecolor="#F4F7FB", edgecolor="none", alpha=0.96, pad=2.5),
         )
         if step.get("notes"):
             ax.text(
                 label_x, y + 0.22, _wrap(step["notes"], 30), fontsize=6, ha=label_ha, va="top",
-                color="#555", style="italic",
+                color="#64758A", style="italic",
             )
 
         y += step_gap
 
-    fig.suptitle(_wrap(title, 60), fontsize=13)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    _finish_diagram(fig, ax, title, out_path)
     return out_path
 
 

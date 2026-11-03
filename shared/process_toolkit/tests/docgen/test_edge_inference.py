@@ -76,3 +76,30 @@ def test_generate_clean_diagram_skips_proposal_response_without_touching_disk():
 
     assert result == "SKIPPED: Proposal responses have no flow/architecture diagram to generate."
     assert not os.path.exists(paths.output_path("X_flow.png"))
+
+
+def test_design_architecture_diagram_renders_component_cards_and_connections():
+    import json
+    import os
+
+    from process_toolkit import paths
+    from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
+
+    with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({
+            "document_metadata": {"title": "Payment Platform"},
+            "high_level_design": {
+                "components": [
+                    {"component_name": "Client Portal", "owner": "Experience"},
+                    {"component_name": "Payment API", "owner": "Services"},
+                ],
+                "integration_points": [{"source": "Client Portal", "target": "Payment API"}],
+            },
+        }, f)
+
+    result = edge_inference.generate_clean_diagram(schema_type="design")
+    diagram_path = paths.output_path("payment_platform_flow.png")
+
+    assert result == f"Diagram successfully generated at {diagram_path}"
+    assert os.path.isfile(diagram_path)
+    assert os.path.getsize(diagram_path) > 0

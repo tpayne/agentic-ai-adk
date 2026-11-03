@@ -27,6 +27,7 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import networkx as nx  # noqa: E402
+from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 
 from process_toolkit import paths
 from process_toolkit.filenames import safe_filename_component
@@ -610,61 +611,162 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
             y = lane_y_indices[lane] * y_spacing
             x = x_index.get(n, 0) * x_spacing
             pos[n] = (x, y)
+        x_vals = [point[0] for point in pos.values()]
+        y_vals = [point[1] for point in pos.values()]
 
-        fig, ax = plt.subplots(figsize=(18, 10))
+        if is_design:
+            card_width, card_height = 3.5, 1.65
+            x_min, x_max = min(x_vals), max(x_vals)
+            y_min, y_max = min(y_vals), max(y_vals)
+            left, right = x_min - 7.0, x_max + 3.0
+            bottom, top = y_min - 2.5, y_max + 3.0
+            plot_width, plot_height = right - left, top - bottom
+            fig_width = min(13.0, max(9.0, plot_width * 0.66))
+            fig_height = fig_width * plot_height / plot_width
+            fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+            ax.set_facecolor("#F4F7FB")
 
-        lane_colors = _get_lane_colormap(len(lanes))
-        for i, lane in enumerate(lanes):
-            y_coord = lane_y_indices[lane] * y_spacing
-            ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.10)
-            ax.text(-3.0, y_coord, lane.upper(), va='center', ha='right',
-                    fontsize=11, fontweight='bold', color="#555555")
-
-        nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color="#7f8c8d", arrows=True,
-            arrowstyle='-|>', arrowsize=20, width=1.5,
-            connectionstyle="arc3,rad=0.1", min_source_margin=30, min_target_margin=30
-        )
-
-        for node in nodes:
-            x, y = pos[node]
-            label = label_map.get(node, node)
-            wrapped_text = "\n".join(textwrap.wrap(label, width=28))
-
-            if node in start_nodes:
-                fill_color, line_color, text_weight = "#15B615", "#006400", "bold"
-            elif node in end_nodes:
-                fill_color, line_color, text_weight = "#FF0000", "#8B0000", "bold"
-            else:
-                # "medium" (weight 500) is a valid matplotlib keyword, but the
-                # bundled DejaVu Sans font only ships Regular (400)/Bold (700)
-                # faces, so it can never actually render -- matplotlib falls
-                # back to 400 on every single non-start/end node, logging a
-                # "Failed to find font weight" warning each time. "normal"
-                # asks for the weight that's actually available.
-                fill_color, line_color, text_weight = "#D5E8F7", "#2980B9", "normal"
-
-            ax.plot(x, y, marker='o', markersize=62,
-                    markeredgecolor=line_color, markerfacecolor=fill_color,
-                    linestyle='None')
-
+            ax.add_patch(FancyBboxPatch(
+                (left, top - 1.55), plot_width, 1.55,
+                boxstyle="round,pad=0.02,rounding_size=0.18",
+                facecolor="#14243A", edgecolor="none", zorder=1,
+            ))
             ax.text(
-                x, y, wrapped_text,
-                ha="center", va="center",
-                fontsize=9, fontweight=text_weight,
-                bbox=dict(
-                    facecolor="white", edgecolor=line_color,
-                    boxstyle="round,pad=0.5", linewidth=1.5,
-                )
+                left + 0.45, top - 0.55, "SYSTEM ARCHITECTURE",
+                color="#77D6C1", fontsize=9, fontweight="bold",
+                va="center", ha="left", zorder=2,
+            )
+            ax.text(
+                left + 0.45, top - 1.08, textwrap.shorten(final_name, 58, placeholder="..."),
+                color="white", fontsize=17, fontweight="bold",
+                va="center", ha="left", zorder=2,
+            )
+            ax.text(
+                right - 0.35, top - 0.82, f"{len(nodes):02d} ARCHITECTURE COMPONENTS",
+                color="#D3DFEC", fontsize=8, fontweight="bold",
+                va="center", ha="right", zorder=2,
             )
 
-        if pos:
-            x_vals, y_vals = [p[0] for p in pos.values()], [p[1] for p in pos.values()]
-            ax.set_xlim(min(x_vals) - 5.5, max(x_vals) + 5.5)
-            ax.set_ylim(min(y_vals) - 3.5, max(y_vals) + 3.5)
+            lane_colors = ["#E9EFF7", "#EEF3F8"]
+            for index, lane in enumerate(lanes):
+                y_coord = lane_y_indices[lane] * y_spacing
+                ax.axhspan(
+                    y_coord - 1.85, y_coord + 1.85,
+                    color=lane_colors[index % len(lane_colors)], zorder=0,
+                )
+                ax.text(
+                    left + 0.25, y_coord, textwrap.shorten(lane.upper(), 26, placeholder="..."),
+                    va="center", ha="left", fontsize=8, fontweight="bold",
+                    color="#64758A", zorder=1,
+                )
 
-        plt.title(f"{default_title}: {final_name}", fontsize=15, pad=30, fontweight='bold')
-        plt.axis("off")
+            node_cards = {}
+            for node in nodes:
+                x, y = pos[node]
+                card = FancyBboxPatch(
+                    (x - card_width / 2, y - card_height / 2),
+                    card_width, card_height,
+                    boxstyle="round,pad=0.04,rounding_size=0.14",
+                    facecolor="white", edgecolor="#D8E1EC", linewidth=1.0, zorder=3,
+                )
+                ax.add_patch(card)
+                node_cards[node] = card
+
+            for source, target in G.edges:
+                ax.add_patch(FancyArrowPatch(
+                    pos[source], pos[target],
+                    patchA=node_cards[source], patchB=node_cards[target],
+                    arrowstyle="-|>", mutation_scale=14,
+                    connectionstyle="arc3,rad=0.1",
+                    color="#7C91AA", linewidth=1.6, zorder=2,
+                    shrinkA=4, shrinkB=4,
+                ))
+
+            palette = ["#2878B8", "#7258B5", "#178C83", "#D08034"]
+            for index, node in enumerate(nodes, start=1):
+                x, y = pos[node]
+                color = palette[(index - 1) % len(palette)]
+                label_lines = label_map.get(node, node).splitlines()
+                ax.add_patch(Circle(
+                    (x - card_width / 2 + 0.3, y + 0.48), 0.16,
+                    facecolor=color, edgecolor="none", zorder=4,
+                ))
+                ax.text(
+                    x - card_width / 2 + 0.3, y + 0.48, f"{index:02d}",
+                    color="white", fontsize=6.5, fontweight="bold",
+                    ha="center", va="center", zorder=5,
+                )
+                ax.text(
+                    x - card_width / 2 + 0.58, y + 0.48,
+                    "\n".join(textwrap.wrap(label_lines[0], width=26)[:2]),
+                    color="#1C2D43", fontsize=9.5, fontweight="bold",
+                    ha="left", va="center", zorder=5,
+                )
+                if len(label_lines) > 1:
+                    ax.text(
+                        x - card_width / 2 + 0.28, y - 0.12,
+                        "\n".join(textwrap.wrap(" | ".join(label_lines[1:]), width=38)[:2]),
+                        color="#64758A", fontsize=7, ha="left", va="top",
+                        linespacing=1.2, zorder=5,
+                    )
+                ax.add_patch(FancyBboxPatch(
+                    (x - card_width / 2 + 0.28, y - card_height / 2 + 0.12),
+                    0.42, 0.05, boxstyle="round,pad=0.01,rounding_size=0.02",
+                    facecolor=color, edgecolor="none", zorder=5,
+                ))
+            ax.set_xlim(left, right)
+            ax.set_ylim(bottom, top)
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+            fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        else:
+            fig, ax = plt.subplots(figsize=(18, 10))
+
+            lane_colors = _get_lane_colormap(len(lanes))
+            for i, lane in enumerate(lanes):
+                y_coord = lane_y_indices[lane] * y_spacing
+                ax.axhspan(y_coord - 1.8, y_coord + 1.8, color=lane_colors(i), alpha=0.10)
+                ax.text(-3.0, y_coord, lane.upper(), va='center', ha='right',
+                        fontsize=11, fontweight='bold', color="#555555")
+
+            nx.draw_networkx_edges(
+                G, pos, ax=ax, edge_color="#7f8c8d", arrows=True,
+                arrowstyle='-|>', arrowsize=20, width=1.5,
+                connectionstyle="arc3,rad=0.1", min_source_margin=30, min_target_margin=30
+            )
+
+            for node in nodes:
+                x, y = pos[node]
+                label = label_map.get(node, node)
+                wrapped_text = "\n".join(textwrap.wrap(label, width=28))
+
+                if node in start_nodes:
+                    fill_color, line_color, text_weight = "#15B615", "#006400", "bold"
+                elif node in end_nodes:
+                    fill_color, line_color, text_weight = "#FF0000", "#8B0000", "bold"
+                else:
+                    fill_color, line_color, text_weight = "#D5E8F7", "#2980B9", "normal"
+
+                ax.plot(x, y, marker='o', markersize=62,
+                        markeredgecolor=line_color, markerfacecolor=fill_color,
+                        linestyle='None')
+
+                ax.text(
+                    x, y, wrapped_text,
+                    ha="center", va="center",
+                    fontsize=9, fontweight=text_weight,
+                    bbox=dict(
+                        facecolor="white", edgecolor=line_color,
+                        boxstyle="round,pad=0.5", linewidth=1.5,
+                    )
+                )
+
+            if pos:
+                ax.set_xlim(min(x_vals) - 5.5, max(x_vals) + 5.5)
+                ax.set_ylim(min(y_vals) - 3.5, max(y_vals) + 3.5)
+
+            plt.title(f"{default_title}: {final_name}", fontsize=15, pad=30, fontweight='bold')
+            plt.axis("off")
 
         default_out_filename = "design_flow.png" if is_design else "process_flow.png"
         out_filename = default_out_filename
@@ -672,8 +774,11 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
             out_filename = f"{safe_filename_component(final_name.lower())}_flow.png"
         out_path = paths.output_path(out_filename)
 
-        fig.tight_layout()
-        plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
+        if is_design:
+            plt.savefig(out_path, dpi=220, facecolor="#F4F7FB")
+        else:
+            fig.tight_layout()
+            plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close(fig)
 
         return f"Diagram successfully generated at {out_path}"
