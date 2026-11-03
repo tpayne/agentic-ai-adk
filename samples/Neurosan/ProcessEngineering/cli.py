@@ -224,6 +224,7 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # literal-filename check actually run as written, deterministically,
 # instead of depending on the model's prose-based intuition every time.
 ATTACHMENT_DIRECTORY_MARKER_TEMPLATE = "[ATTACHMENT DIRECTORY: {path}] (attached file(s): {filenames})"
+_WEB_CHAT_STATE_FILENAME = ".web_chat_state.json"
 ATTACHMENT_MAX_FILES = 4
 ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024  # per file, raw (decoded) size
 
@@ -521,6 +522,7 @@ class ChatSession:
         self.input_processor.get_message_processor().add_processor(LiveTraceMessageProcessor())
         self.sly_data = None
         self.chat_context = None
+        self._web_session_id: Optional[str] = None
         # Fixed for this ChatSession's entire lifetime -- deterministic
         # (pid + this instance's own id(), not a random mkdtemp suffix)
         # specifically so it's easy to find and inspect by hand while
@@ -639,6 +641,37 @@ class ChatSession:
         self._cleanup_attachments_directory()
         self.session.close()
 
+    def persist_web_state(self) -> None:
+        """Atomically persist this web conversation for restart recovery."""
+        web_session_id = getattr(self, "_web_session_id", None)
+        if not web_session_id:
+            return
+        payload = {
+            "version": 1,
+            "agent_name": self.agent_name,
+            "chat_context": self.chat_context,
+            "sly_data": self.sly_data,
+        }
+        try:
+            serialized = json.dumps(payload, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("The neuro-san conversation state is not JSON serializable.") from exc
+
+        with paths.use_session(web_session_id):
+            state_path = paths.output_path(_WEB_CHAT_STATE_FILENAME)
+            temporary_path = f"{state_path}.{uuid.uuid4().hex}.tmp"
+            try:
+                with open(temporary_path, "w", encoding="utf-8") as state_file:
+                    state_file.write(serialized)
+                    state_file.flush()
+                    os.fsync(state_file.fileno())
+                os.replace(temporary_path, state_path)
+            finally:
+                try:
+                    os.remove(temporary_path)
+                except FileNotFoundError:
+                    pass
+
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
         with self._lock:
             turn_started = time.monotonic()
@@ -660,6 +693,7 @@ class ChatSession:
                 state = self.input_processor.process_once(state)
                 self.sly_data = state.get("sly_data")
                 self.chat_context = state.get("chat_context")
+                self.persist_web_state()
 
                 token_accounting = state.get("token_accounting")
                 self.last_usage = _extract_usage(token_accounting)
@@ -812,6 +846,7 @@ class ChatSession:
 
                 token_accounting = processor.get_token_accounting()
                 self.last_usage = _extract_usage(token_accounting)
+                self.persist_web_state()
 
                 # Previously only logged AT ALL when token_accounting happened
                 # to be present, and even then carried no duration or explicit
@@ -1122,6 +1157,43 @@ def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
         return True
 
 
+def _load_persisted_web_chat_state(session_id: str, agent_name: str) -> Optional[Dict[str, Any]]:
+    try:
+        paths.sanitize_session_id(session_id)
+    except ValueError:
+        return None
+
+    with paths.use_session(session_id):
+        state_path = paths.output_path(_WEB_CHAT_STATE_FILENAME)
+        if not os.path.isfile(state_path):
+            return None
+        try:
+            with open(state_path, "r", encoding="utf-8") as state_file:
+                payload = json.load(state_file)
+        except (OSError, json.JSONDecodeError) as exc:
+            _web_logger.exception("Could not read persisted chat state for session %s.", session_id)
+            raise RuntimeError("The saved conversation state could not be loaded.") from exc
+
+    if (
+        not isinstance(payload, dict)
+        or payload.get("version") != 1
+        or payload.get("agent_name") != agent_name
+    ):
+        raise RuntimeError("The saved conversation state is invalid or belongs to another agent.")
+    if payload.get("chat_context") is not None and not isinstance(payload["chat_context"], dict):
+        raise RuntimeError("The saved conversation context is invalid.")
+    if payload.get("sly_data") is not None and not isinstance(payload["sly_data"], dict):
+        raise RuntimeError("The saved conversation data is invalid.")
+    return payload
+
+
+def _configure_persisted_web_session(session: ChatSession, session_id: str, payload: Optional[Dict[str, Any]]) -> None:
+    session._web_session_id = session_id
+    if payload is not None:
+        session.chat_context = payload.get("chat_context")
+        session.sly_data = payload.get("sly_data")
+
+
 def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: str):
     """Resolve a web session id to its ChatSession, PINNING it against the
     idle-eviction sweep below in the same locked step (see
@@ -1163,12 +1235,28 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     if session is not None:
         return existing_session_id, session
 
+    if existing_session_id:
+        saved_state = _load_persisted_web_chat_state(existing_session_id, agent_name)
+        if saved_state is not None:
+            session = ChatSession(agent_name, isolated=True)
+            _configure_persisted_web_session(session, existing_session_id, saved_state)
+            with _web_sessions_lock:
+                winner = _web_sessions.get(existing_session_id)
+                if winner is None:
+                    _web_sessions[existing_session_id] = session
+                    _active_web_sessions[existing_session_id] = 1
+                    return existing_session_id, session
+                _active_web_sessions[existing_session_id] = _active_web_sessions.get(existing_session_id, 0) + 1
+            session.close()
+            return existing_session_id, winner
+
     # Constructed outside the lock -- ChatSession's own __init__ does real
     # I/O (neuro-san session setup, thinking-file creation), which would
     # otherwise serialize EVERY concurrent session creation (even for
     # unrelated users) behind this one lock.
     session = ChatSession(agent_name, isolated=True)
     web_session_id = str(uuid.uuid4())
+    _configure_persisted_web_session(session, web_session_id, None)
     with _web_sessions_lock:
         _web_sessions[web_session_id] = session
         _active_web_sessions[web_session_id] = 1
@@ -1703,10 +1791,13 @@ def build_web_app(agent_name: str, https: bool = True):
         # "drop this session" request is as clear a signal as it gets that
         # nothing will need those files again.
         try:
-            purge_session(session_id)
+            persisted_state_removed = purge_session(session_id)
         except ValueError:
-            pass  # session_id didn't look like a real session directory name -- nothing to remove
-        return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
+            persisted_state_removed = False
+        return jsonify({
+            "status": "ok", "session_id": session_id,
+            "cleared": existed or persisted_state_removed,
+        })
 
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):

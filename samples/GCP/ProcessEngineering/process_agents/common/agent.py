@@ -21,6 +21,7 @@ import pkgutil
 import google
 import google.adk
 from google.adk.agents import LoopAgent, SequentialAgent, LlmAgent
+from google.adk.sessions import DatabaseSessionService
 
 # `google` and `google.adk` are namespace packages -- multiple
 # independently-installed distributions (this app's own code plus
@@ -585,9 +586,9 @@ _web_sessions: dict = {}
 _web_sessions_lock = threading.Lock()
 
 # A client that creates a session and never calls DELETE /chat/<session_id>
-# (closed tab, crash, forgotten cleanup) would otherwise leak its entry here
-# -- and its backing ADK session in _web_session_service -- for the life of
-# the process. Entries idle longer than this are swept opportunistically by
+# (closed tab, crash, forgotten cleanup) would otherwise leak its cache entry
+# here for the life of the process. Entries idle longer than this are swept
+# opportunistically by
 # _get_or_create_web_session below. Generous relative to this project's own
 # documented ~5-10 minute typical turn time, so a slow-but-active session is
 # never evicted out from under a still-engaged user.
@@ -608,8 +609,8 @@ _web_sessions_last_swept = 0.0
 # while the OTHER turn is still running, doesn't capture that. last_accessed
 # (above) is stamped at turn START, so a turn that legitimately runs longer
 # than _WEB_SESSION_IDLE_TIMEOUT_SECONDS would otherwise look just as idle
-# to the sweep as an abandoned session, and get its entry (and its backing
-# ADK session) deleted while still in use. Checked by the sweep in
+# to the sweep as an abandoned session, and get its cache entry dropped while
+# still in use. Checked by the sweep in
 # _get_or_create_web_session; incremented/decremented by _run_chat_turn
 # (non-streaming) and chat_stream's generate() (streaming), guarded by
 # _web_sessions_lock since both already take it to touch _web_sessions
@@ -631,7 +632,7 @@ _web_runner = None
 _web_session_service = None
 # Guards the lazy-init of _web_runner/_web_session_service below: Flask's
 # threaded request handling means two concurrent first requests can both see
-# them as None and each build their own Runner/InMemorySessionService, after
+# them as None and each build their own Runner/DatabaseSessionService, after
 # which whichever one wins the final "if None" assignment leaves the other
 # thread's session created in a service the shared runner doesn't use.
 _web_runtime_init_lock = threading.Lock()
@@ -697,13 +698,14 @@ def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:
 
 async def _get_or_create_web_session(existing_session_id: Optional[str]):
     """
-    Resolve a web session id to its ADK (user_id, session_id) pair.
+    Resolve or restore a web session from the persistent ADK session store.
 
-    If existing_session_id is missing/unknown, a fresh ADK session is
-    created and registered under a new web session id, which is returned
-    alongside the pair.
+    The web session id is also used as the ADK user and session id, so the
+    durable database can restore a session without a separate in-memory
+    identity map after a process restart.
     """
     global _web_runner, _web_session_service, _web_sessions_last_swept
+    from process_toolkit import paths as toolkit_paths
 
     now = time.monotonic()
     evicted: list = []
@@ -722,19 +724,11 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
             if entry is not None:
                 entry["last_accessed"] = now
 
-    for stale_id, stale_entry in evicted:
+    for stale_id, _stale_entry in evicted:
         logger.info("Evicting idle web session %s after %.0fs of inactivity.",
                     stale_id, _WEB_SESSION_IDLE_TIMEOUT_SECONDS)
-        if _web_session_service is not None:
-            try:
-                await _web_session_service.delete_session(
-                    app_name=_WEB_APP_NAME,
-                    user_id=stale_entry["user_id"],
-                    session_id=stale_entry["session_id"],
-                )
-            except Exception:
-                logger.warning("Failed to delete idle ADK session %s during eviction sweep.",
-                                stale_id, exc_info=True)
+        # Idle eviction only drops the process-local cache entry. The ADK
+        # database remains authoritative so the client can resume this chat.
 
     if entry is not None:
         return existing_session_id, entry["user_id"], entry["session_id"]
@@ -742,7 +736,7 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
     if _web_runner is None or _web_session_service is None:
         with _web_runtime_init_lock:
             if _web_session_service is None:
-                _web_session_service = InMemorySessionService()
+                _web_session_service = _create_web_session_service()
             if _web_runner is None:
                 _web_runner = Runner(
                     app=root_app,
@@ -750,8 +744,30 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
                     session_service=_web_session_service,
                 )
 
-    user_id = str(uuid.uuid4())
-    session_id = str(uuid.uuid4())
+    if existing_session_id:
+        try:
+            toolkit_paths.sanitize_session_id(existing_session_id)
+        except ValueError:
+            pass
+        else:
+            restored = await _web_session_service.get_session(
+                app_name=_WEB_APP_NAME,
+                user_id=existing_session_id,
+                session_id=existing_session_id,
+            )
+            if restored is not None:
+                entry = {
+                    "user_id": existing_session_id,
+                    "session_id": existing_session_id,
+                    "last_accessed": time.monotonic(),
+                }
+                with _web_sessions_lock:
+                    _web_sessions[existing_session_id] = entry
+                return existing_session_id, existing_session_id, existing_session_id
+
+    web_session_id = str(uuid.uuid4())
+    user_id = web_session_id
+    session_id = web_session_id
     await _web_session_service.create_session(
         app_name=_WEB_APP_NAME,
         user_id=user_id,
@@ -759,12 +775,26 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
         state={},
     )
 
-    web_session_id = str(uuid.uuid4())
     with _web_sessions_lock:
         _web_sessions[web_session_id] = {
             "user_id": user_id, "session_id": session_id, "last_accessed": time.monotonic(),
         }
     return web_session_id, user_id, session_id
+
+
+def _create_web_session_service():
+    """Creates the durable ADK session store used by web-service mode."""
+    from process_toolkit import paths as toolkit_paths
+    from sqlalchemy.engine import URL
+
+    db_url = (
+        os.environ.get("WEBSESSIONDATABASEURL")
+        or getProperty("webSessionDatabaseUrl", default=None)
+    )
+    if not db_url:
+        database_path = os.path.abspath(toolkit_paths.output_path("web_sessions.db"))
+        db_url = URL.create("sqlite+aiosqlite", database=database_path)
+    return DatabaseSessionService(db_url=db_url)
 
 
 def _accumulate_event_usage(event, totals: Dict[str, int]) -> None:
@@ -1520,16 +1550,30 @@ def build_web_app(https: bool = True):
 
     @web_app.route("/chat/<session_id>", methods=["DELETE"])
     def chat_reset(session_id):
+        global _web_session_service
         with _web_sessions_lock:
             entry = _web_sessions.pop(session_id, None)
+        if _web_session_service is None:
+            with _web_runtime_init_lock:
+                if _web_session_service is None:
+                    _web_session_service = _create_web_session_service()
+
+        service = _web_session_service
+        if entry is None:
+            restored = asyncio.run(service.get_session(
+                app_name=_WEB_APP_NAME,
+                user_id=session_id,
+                session_id=session_id,
+            ))
+            if restored is not None:
+                entry = {"user_id": session_id, "session_id": session_id}
+
         existed = entry is not None
-        # Popping _web_sessions only forgets the cookie/session_id mapping;
-        # the ADK session itself (and its event history) lives in
-        # _web_session_service until explicitly deleted, or it leaks for the
-        # life of the process across repeated create/delete cycles.
-        if existed and _web_session_service is not None:
+        # The ADK session and its event history are durable and can be
+        # restored without this process-local cache entry.
+        if existed:
             asyncio.run(
-                _web_session_service.delete_session(
+                service.delete_session(
                     app_name=_WEB_APP_NAME,
                     user_id=entry["user_id"],
                     session_id=entry["session_id"],

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "ADK (Google Agent Development Kit) implementation of the ProcessEngineering sample."
 requires-python = ">=3.12"
 dependencies = [
-    "google-adk>=2.9.2,<3.0.0",
+    "google-adk[db]>=2.9.2,<3.0.0",
     "google-auth>=2.17.3",
     "litellm>=1.55.0",
     "botocore>=1.43.106",

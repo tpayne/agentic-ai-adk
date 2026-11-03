@@ -1254,6 +1254,14 @@ session directory with a request currently in flight is never purged regardless 
 looks. `DELETE /chat/<session_id>` also removes that session's directory immediately, rather than
 waiting for the next sweep.
 
+Web conversation history is stored separately from this per-session artifact directory by ADK's
+`DatabaseSessionService`. By default it uses the SQLite database `output/web_sessions.db`; set
+`WEBSESSIONDATABASEURL` (or `webSessionDatabaseUrl` in the properties file) to use another
+SQLAlchemy-supported database URL. Keep this database on durable storage to retain chats across
+backend restarts. Idle eviction only drops the in-memory cache; `DELETE /chat/<session_id>` removes
+the persisted ADK session. Sessions created before database-backed persistence was enabled cannot
+be recovered after a restart.
+
 ### Browser client
 
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) is a small

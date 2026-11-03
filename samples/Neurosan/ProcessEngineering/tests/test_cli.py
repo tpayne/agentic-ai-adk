@@ -964,6 +964,67 @@ class TestChatRoute:
         assert received == []
 
 
+class TestPersistedWebChatState:
+    def test_chat_state_is_restored_after_the_in_memory_session_is_lost(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        session_id = str(uuid.uuid4())
+        original = cli.ChatSession.__new__(cli.ChatSession)
+        original.agent_name = "process_architect"
+        original._web_session_id = session_id
+        original.chat_context = {"messages": [{"role": "user", "content": "hello"}]}
+        original.sly_data = {"artifact": {"status": "ready"}}
+        original.persist_web_state()
+
+        created = []
+
+        class _RestoredChatSession:
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+                self.closed = False
+                created.append(self)
+
+            def close(self):
+                self.closed = True
+
+        monkeypatch.setattr(cli, "ChatSession", _RestoredChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            cli._active_web_sessions.clear()
+
+        restored_id, restored = cli._get_or_create_web_session(session_id, "process_architect")
+
+        assert restored_id == session_id
+        assert restored.chat_context == original.chat_context
+        assert restored.sly_data == original.sly_data
+        assert restored._web_session_id == session_id
+        assert len(created) == 1
+
+    def test_delete_removes_persisted_chat_state(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        session_id = str(uuid.uuid4())
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session.agent_name = "process_architect"
+        session._web_session_id = session_id
+        session.chat_context = {"messages": []}
+        session.sly_data = {}
+        session.persist_web_state()
+
+        class _StubChatSession:
+            def close(self):
+                pass
+
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            cli._web_sessions[session_id] = _StubChatSession()
+        client = cli.build_web_app("process_architect", https=False).test_client()
+
+        response = client.delete(f"/chat/{session_id}")
+
+        assert response.status_code == 200
+        assert response.get_json()["cleared"] is True
+        assert not (tmp_path / "output" / session_id / cli._WEB_CHAT_STATE_FILENAME).exists()
+
+
 class TestChatDeleteRoute:
     """DELETE /chat/<session_id> -- drops server-side state for a
     session, calling ChatSession.close() (not session.session.close()

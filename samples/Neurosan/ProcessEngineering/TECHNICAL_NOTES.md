@@ -830,6 +830,13 @@ started once when `-d --flask` boots. A session directory with a request current
 purged regardless of how stale it looks. `DELETE /chat/<session_id>` also removes that session's
 directory immediately, rather than waiting for the next sweep.
 
+For restart recovery, each web conversation's `chat_context` and `sly_data` are atomically saved in
+`output/<session_id>/.web_chat_state.json` after each completed turn. Keep `output/` on durable
+storage if chats must survive backend restarts. Idle eviction closes only the in-memory neuro-san
+session; the snapshot remains available to restore it. The normal session-age purge and
+`DELETE /chat/<session_id>` remove the snapshot along with that session's artifacts. Conversations
+created before this persistence was enabled cannot be recovered if they are no longer in memory.
+
 ### Browser client
 
 [`samples/WebClient/ProcessEngineering`](../../WebClient/ProcessEngineering/README.md) is a small

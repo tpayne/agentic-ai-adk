@@ -108,6 +108,45 @@ class WebServiceSessionDeleteTest(unittest.TestCase):
         self.assertEqual(delete_resp.status_code, 200)
         self.assertFalse(delete_resp.get_json()["cleared"])
 
+    def test_existing_web_session_is_restored_after_database_service_restart(self):
+        agent = self.agent
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_url = f"sqlite+aiosqlite:///{os.path.join(temp_dir, 'sessions.db')}"
+            with patch.object(
+                agent, "_create_web_session_service",
+                side_effect=lambda: agent.DatabaseSessionService(db_url=database_url),
+            ):
+                agent._web_session_service = None
+                agent._web_runner = None
+                web_session_id, user_id, adk_session_id = agent.asyncio.run(
+                    agent._get_or_create_web_session(None)
+                )
+                agent.asyncio.run(agent._web_session_service.close())
+
+                with agent._web_sessions_lock:
+                    agent._web_sessions.clear()
+                agent._web_session_service = None
+                agent._web_runner = None
+
+                restored = agent.asyncio.run(agent._get_or_create_web_session(web_session_id))
+                self.assertEqual(
+                    restored,
+                    (web_session_id, web_session_id, web_session_id),
+                )
+                self.assertEqual(user_id, adk_session_id)
+                with agent._web_sessions_lock:
+                    agent._web_sessions.clear()
+                delete_response = self.client.delete(f"/chat/{web_session_id}")
+                self.assertTrue(delete_response.get_json()["cleared"])
+                self.assertIsNone(agent.asyncio.run(
+                    agent._web_session_service.get_session(
+                        app_name=agent._WEB_APP_NAME,
+                        user_id=web_session_id,
+                        session_id=web_session_id,
+                    )
+                ))
+                agent.asyncio.run(agent._web_session_service.close())
+
 
 class WebServiceSessionEvictionTest(unittest.TestCase):
     """_get_or_create_web_session's opportunistic idle-eviction sweep --
@@ -152,7 +191,7 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
         )
         return {"user_id": user_id, "session_id": session_id, "last_accessed": last_accessed}
 
-    def test_idle_and_inactive_session_is_evicted(self):
+    def test_idle_eviction_keeps_session_in_persistent_store_for_restore(self):
         agent = self.agent
         stale = time.monotonic() - agent._WEB_SESSION_IDLE_TIMEOUT_SECONDS - 10
         with agent._web_sessions_lock:
@@ -164,10 +203,10 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
         self.assertEqual(result[0], "current")
         with agent._web_sessions_lock:
             self.assertNotIn("idle", agent._web_sessions)
-        post_delete = agent.asyncio.run(
+        still_persisted = agent.asyncio.run(
             agent._web_session_service.get_session(app_name=agent._WEB_APP_NAME, user_id="u1", session_id="s1")
         )
-        self.assertIsNone(post_delete)
+        self.assertIsNotNone(still_persisted)
 
     def test_idle_but_active_turn_is_not_evicted(self):
         agent = self.agent
@@ -367,18 +406,17 @@ class WebServiceInitRaceTest(unittest.TestCase):
         agent = self.agent
         init_count = {"n": 0}
         init_count_lock = threading.Lock()
-        real_service_cls = agent.InMemorySessionService
+        real_service_class = agent.InMemorySessionService
 
-        class SlowInMemorySessionService(real_service_cls):
-            def __init__(self, *args, **kwargs):
-                # Widen the race window so two threads both reliably observe
-                # _web_session_service/_web_runner as None before either
-                # finishes initializing it, the way two real concurrent
-                # first HTTP requests could.
-                time.sleep(0.05)
-                with init_count_lock:
-                    init_count["n"] += 1
-                super().__init__(*args, **kwargs)
+        def slow_service_factory():
+            # Widen the race window so two threads both reliably observe
+            # _web_session_service/_web_runner as None before either
+            # finishes initializing it, the way two real concurrent
+            # first HTTP requests could.
+            time.sleep(0.05)
+            with init_count_lock:
+                init_count["n"] += 1
+            return real_service_class()
 
         results = []
         errors = []
@@ -389,7 +427,7 @@ class WebServiceInitRaceTest(unittest.TestCase):
             except Exception as exc:  # pragma: no cover - surfaced via errors list
                 errors.append(exc)
 
-        with patch.object(agent, "InMemorySessionService", SlowInMemorySessionService):
+        with patch.object(agent, "_create_web_session_service", slow_service_factory):
             threads = [threading.Thread(target=worker) for _ in range(5)]
             for t in threads:
                 t.start()
