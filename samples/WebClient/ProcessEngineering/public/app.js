@@ -290,6 +290,7 @@
     voiceMuted: false,
     voiceVolume: 100,
     ...loadState(),
+    isSending: false,
   };
 
   // Finalized (non-streaming-partial) turns, for "Save chat" -- runtime
@@ -829,7 +830,7 @@
     state.sessionId = id || null;
     el.sessionIdLabel.textContent = id || "none";
     el.sessionIdLabel.title = id ? summarizeSessionForTooltip(state.transcript) : "";
-    el.deleteSessionBtn.disabled = !state.sessionId;
+    el.deleteSessionBtn.disabled = state.isSending || !state.sessionId;
     saveState({ sessionId: state.sessionId });
   }
 
@@ -852,6 +853,10 @@
   // it can be reopened later. Only the explicit "Delete session" button,
   // or "Clear chats older than 3 days", ever removes a session.
   function newChat() {
+    if (state.isSending) {
+      toast("Wait for the current response to finish before switching chats.");
+      return;
+    }
     clearLocalChatState();
     renderSessionHistoryList();
     toast("Started a new chat.");
@@ -863,6 +868,10 @@
   // server-side delete (unlike newChat above), so a failure here is
   // reported rather than silently swallowed.
   async function deleteSession() {
+    if (state.isSending) {
+      toast("Wait for the current response to finish before deleting a chat.");
+      return;
+    }
     if (!state.sessionId) return;
     const confirmed = window.confirm(
       "Delete this session's chat history and every file it generated on the server? This cannot be undone."
@@ -1008,9 +1017,14 @@
       // without that nesting.
       const item = document.createElement("div");
       item.setAttribute("role", "button");
-      item.tabIndex = 0;
-      item.className = "session-history-item" + (entry.sessionId === state.sessionId ? " active" : "");
-      item.title = summarizeSessionForTooltip(entry.transcript || []);
+      item.tabIndex = state.isSending ? -1 : 0;
+      item.setAttribute("aria-disabled", String(state.isSending));
+      item.className = "session-history-item"
+        + (entry.sessionId === state.sessionId ? " active" : "")
+        + (state.isSending ? " busy" : "");
+      item.title = state.isSending
+        ? "Wait for the current response to finish before switching chats."
+        : summarizeSessionForTooltip(entry.transcript || []);
 
       const main = document.createElement("span");
       main.className = "session-history-item-main";
@@ -1028,6 +1042,7 @@
       del.type = "button";
       del.className = "session-history-item-delete";
       del.title = "Remove from history";
+      del.disabled = state.isSending;
       del.setAttribute("aria-label", "Remove from history");
       del.textContent = "✕";
       del.addEventListener("click", (evt) => {
@@ -1069,6 +1084,10 @@
   // continue that same server-side conversation) and replays its saved
   // transcript back into the chat view.
   function switchToSession(sessionId) {
+    if (state.isSending) {
+      toast("Wait for the current response to finish before switching chats.");
+      return;
+    }
     if (sessionId === state.sessionId) return;
     const entry = loadSessionHistory().find((s) => s.sessionId === sessionId);
     if (!entry) return;
@@ -4382,7 +4401,7 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async function postChat(baseUrl, query, files) {
+  async function postChat(baseUrl, query, files, sessionId) {
     let lastError = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
       if (attempt > 0) {
@@ -4393,7 +4412,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
-            query, session_id: state.sessionId || undefined,
+            query, session_id: sessionId || undefined,
             files: files && files.length ? files : undefined,
           }),
         });
@@ -4433,12 +4452,12 @@
   // reading response.body's ReadableStream works the same way EventSource
   // would from the caller's point of view (just `for await` the events)
   // without that limitation.
-  async function* streamChat(baseUrl, query, files) {
+  async function* streamChat(baseUrl, query, files, sessionId) {
     const response = await fetch(`${baseUrl}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({
-        query, session_id: state.sessionId || undefined,
+        query, session_id: sessionId || undefined,
         files: files && files.length ? files : undefined,
       }),
     });
@@ -4477,7 +4496,13 @@
       toast("Set a Base URL and click Connect first.");
       return;
     }
+    if (state.isSending) return;
 
+    const requestedSessionId = state.sessionId;
+    state.isSending = true;
+    el.newChatBtn.disabled = true;
+    el.deleteSessionBtn.disabled = true;
+    renderSessionHistoryList();
     stopVoiceInputIfActive();
     stopSpeaking();
     addMessage("user", text, { isMarkdown: true, attachmentNames: (files || []).map((f) => f.name) });
@@ -4493,9 +4518,14 @@
     let sawDone = false;
 
     try {
-      for await (const event of streamChat(baseUrl, text, files)) {
+      for await (const event of streamChat(baseUrl, text, files, requestedSessionId)) {
         gotAnyEvent = true;
-        if (event.session_id) setSessionId(event.session_id);
+        if (event.session_id && requestedSessionId && event.session_id !== requestedSessionId) {
+          throw new Error(
+            "The backend returned a different chat session. The selected chat was not switched."
+          );
+        }
+        if (event.session_id && !requestedSessionId) setSessionId(event.session_id);
 
         if (event.status === "progress") {
           live.setProgress(event.origin, event.text || "");
@@ -4531,9 +4561,14 @@
         // a dead typing indicator.
         live.row.remove();
         try {
-          const data = await postChat(baseUrl, text, files);
+          const data = await postChat(baseUrl, text, files, requestedSessionId);
           if (data.status === "ok") {
-            setSessionId(data.session_id);
+            if (requestedSessionId && data.session_id !== requestedSessionId) {
+              throw new Error(
+                "The backend returned a different chat session. The selected chat was not switched."
+              );
+            }
+            if (!requestedSessionId) setSessionId(data.session_id);
             addMessage("agent", data.response || "(The assistant didn't return a reply for this turn. Please try again.)", { isMarkdown: true });
             recordUsageTurn(data.usage, text);
           } else {
@@ -4550,6 +4585,10 @@
       }
     } finally {
       endNetworkTurn();
+      state.isSending = false;
+      el.newChatBtn.disabled = false;
+      el.deleteSessionBtn.disabled = !state.sessionId;
+      renderSessionHistoryList();
       el.sendBtn.disabled = false;
       el.sendBtn.hidden = false;
       el.stopBtn.hidden = true;

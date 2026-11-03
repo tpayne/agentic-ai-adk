@@ -242,6 +242,13 @@ button, input, textarea {
 
 .session-history-item:hover { background: var(--bg-elevated); border-color: var(--border); }
 
+.session-history-item.busy {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.session-history-item.busy:hover { background: transparent; border-color: transparent; }
+
 .session-history-item.active {
   background: var(--accent-soft);
   border-color: var(--accent);
