@@ -103,3 +103,28 @@ def test_design_architecture_diagram_renders_component_cards_and_connections():
     assert result == f"Diagram successfully generated at {diagram_path}"
     assert os.path.isfile(diagram_path)
     assert os.path.getsize(diagram_path) > 0
+
+
+def test_process_flow_diagram_renders_step_cards_and_lanes():
+    import json
+    import os
+
+    from process_toolkit import paths
+    from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({
+            "process_name": "Client Onboarding",
+            "process_steps": [
+                {"step_number": 1, "step_name": "Submit application", "lane": "Client"},
+                {"step_number": 2, "step_name": "Review application", "lane": "Operations"},
+                {"step_number": 3, "step_name": "Activate account", "lane": "Operations"},
+            ],
+        }, f)
+
+    result = edge_inference.generate_clean_diagram(schema_type="process")
+    diagram_path = paths.output_path("client_onboarding_flow.png")
+
+    assert result == f"Diagram successfully generated at {diagram_path}"
+    assert os.path.isfile(diagram_path)
+    assert os.path.getsize(diagram_path) > 0
