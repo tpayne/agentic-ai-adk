@@ -18,7 +18,6 @@ doesn't need a separate prior agent tool call.
 """
 
 import logging
-import textwrap
 from typing import Any, Dict, List, Tuple
 
 import matplotlib as mpl
@@ -32,6 +31,7 @@ import networkx as nx  # noqa: E402
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Circle
 
 from process_toolkit import paths
+from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
 from process_toolkit.filenames import safe_filename_component
 
 logger = logging.getLogger("ProcessArchitect.ProposalArchitectureDiagram")
@@ -70,7 +70,7 @@ def _layered_component_positions(components: List[Dict[str, Any]]) -> Tuple[nx.D
     for n in names:
         by_depth.setdefault(depth[n], []).append(n)
 
-    x_spacing, y_spacing = 3.4, -2.2
+    x_spacing, y_spacing = 3.4, -2.8
     pos: Dict[str, Tuple[float, float]] = {}
     for d, nodes_at_depth in by_depth.items():
         count = len(nodes_at_depth)
@@ -95,12 +95,16 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
 
     G, pos = _layered_component_positions(valid)
 
-    card_width, card_height = 2.55, 1.55
+    card_width, card_height = 2.55, 2.4
     x_vals = [p[0] for p in pos.values()]
     y_vals = [p[1] for p in pos.values()]
     x_min, x_max = min(x_vals), max(x_vals)
     y_min, y_max = min(y_vals), max(y_vals)
     left, right = x_min - 1.45, x_max + 1.45
+    if right - left < 8.5:
+        extra_padding = (8.5 - (right - left)) / 2
+        left -= extra_padding
+        right += extra_padding
     bottom, top = y_min - 1.55, y_max + 2.65
     plot_width, plot_height = right - left, top - bottom
 
@@ -110,6 +114,9 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
     fig_height = fig_width * plot_height / plot_width
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
     ax.set_facecolor("#F4F7FB")
+    ax.set_xlim(left, right)
+    ax.set_ylim(bottom, top)
+    ax.set_aspect("equal", adjustable="box")
 
     # Header block
     ax.add_patch(FancyBboxPatch(
@@ -122,11 +129,10 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
         color="#77D6C1", fontsize=9, fontweight="bold", va="center",
         ha="left", zorder=2,
     )
-    title = textwrap.shorten(str(process_name), width=58, placeholder="...")
-    ax.text(
-        left + 0.35, top - 0.91, title,
-        color="white", fontsize=17, fontweight="bold", va="center",
-        ha="left", zorder=2,
+    title = str(process_name)
+    fit_title(
+        ax, title, left + 0.35, top - 0.91, plot_width - 4.5,
+        color="white", fontweight="bold", ha="left", zorder=2,
     )
     ax.text(
         right - 0.3, top - 0.72, f"{len(G.nodes):02d} ARCHITECTURE COMPONENTS",
@@ -144,10 +150,11 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
             facecolor="#E9EFF7" if layer_number % 2 else "#EEF3F8",
             edgecolor="#DCE5EF", linewidth=0.8, zorder=0,
         ))
-        ax.text(
-            x, top - 1.58, f"LAYER {layer_number:02d}  |  {len(names_at_layer)}",
-            color="#64758A", fontsize=7, fontweight="bold",
-            ha="center", va="center", zorder=2,
+        add_fitted_text(
+            ax, f"LAYER {layer_number:02d}  |  {len(names_at_layer)}",
+            x - 1.3, top - 1.58, 2.6, 0.28,
+            fontsize=7, min_fontsize=5.5, color="#64758A",
+            fontweight="bold", ha="center", zorder=2,
         )
 
     node_boxes = {}
@@ -190,11 +197,10 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
             color="white", fontsize=6.5, fontweight="bold",
             ha="center", va="center", zorder=5,
         )
-        wrapped_name = "\n".join(textwrap.wrap(str(name), width=24)[:2])
-        ax.text(
-            x - card_width / 2 + 0.48, y + 0.42, wrapped_name,
-            color="#1C2D43", fontsize=9.5, fontweight="bold",
-            ha="left", va="center", zorder=5,
+        add_fitted_text(
+            ax, name, x - card_width / 2 + 0.48, y + 0.42,
+            card_width - 0.68, 0.58, fontsize=9.5, min_fontsize=6.5,
+            color="#1C2D43", fontweight="bold", ha="left", zorder=5,
         )
         description = next(
             (str(component.get("description", "")).strip()
@@ -202,22 +208,18 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
             "",
         )
         if description:
-            wrapped_description = textwrap.fill(description, width=39, max_lines=3, placeholder="...")
-            ax.text(
-                x - card_width / 2 + 0.22, y - 0.23, wrapped_description,
-                color="#64758A", fontsize=7.1, ha="left", va="top",
-                linespacing=1.25, zorder=5,
+            add_fitted_text(
+                ax, description, x - card_width / 2 + 0.22, y - 0.17,
+                    card_width - 0.44, 0.85, fontsize=7.1, min_fontsize=5.2,
+                color="#64758A", ha="left", va="top", linespacing=1.15, zorder=5,
             )
         ax.add_patch(FancyBboxPatch(
-            (x - card_width / 2 + 0.22, y - card_height / 2 + 0.12),
+            (x - card_width / 2 + 0.22, y - card_height / 2 + 0.06),
             0.38, 0.045,
             boxstyle="round,pad=0.01,rounding_size=0.02",
             facecolor=color, edgecolor="none", zorder=5,
         ))
 
-    ax.set_xlim(left, right)
-    ax.set_ylim(bottom, top)
-    ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 

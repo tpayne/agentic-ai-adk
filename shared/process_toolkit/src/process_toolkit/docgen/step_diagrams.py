@@ -2,7 +2,6 @@
 
 import os
 import logging
-import textwrap
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib
@@ -20,6 +19,7 @@ import networkx as nx  # noqa: E402
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 
 from process_toolkit.filenames import safe_filename_component
+from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
 from process_toolkit import paths
 
 logger = logging.getLogger("ProcessArchitect.StepDiagram")
@@ -169,7 +169,7 @@ def generate_step_diagram_for_step(
                 f"step_name={step_name!r} resolved to {resolved_path!r}"
             )
             return ""
-        card_width, card_height = 3.45, 1.65
+        card_width, card_height = 3.45, 1.95
         x_values = [point[0] for point in pos.values()]
         y_values = [point[1] for point in pos.values()]
         left, right = min(x_values) - 7.0, max(x_values) + 3.0
@@ -179,6 +179,9 @@ def generate_step_diagram_for_step(
         fig_height = fig_width * plot_height / plot_width
         fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
         ax.set_facecolor("#F4F7FB")
+        ax.set_xlim(left, right)
+        ax.set_ylim(bottom, top)
+        ax.set_aspect("equal", adjustable="box")
 
         ax.add_patch(FancyBboxPatch(
             (left, top - 1.55), plot_width, 1.55,
@@ -190,10 +193,9 @@ def generate_step_diagram_for_step(
             color="#77D6C1", fontsize=9, fontweight="bold",
             va="center", ha="left", zorder=2,
         )
-        ax.text(
-            left + 0.45, top - 1.08, textwrap.shorten(step_name, 58, placeholder="..."),
-            color="white", fontsize=17, fontweight="bold",
-            va="center", ha="left", zorder=2,
+        fit_title(
+            ax, step_name, left + 0.45, top - 1.08, plot_width - 5.2,
+            color="white", fontweight="bold", ha="left", zorder=2,
         )
         ax.text(
             right - 0.35, top - 0.82, f"{len(nodes):02d} PROCESS STEPS",
@@ -208,10 +210,10 @@ def generate_step_diagram_for_step(
                 y_coord - 1.85, y_coord + 1.85,
                 color=lane_colors[index % len(lane_colors)], zorder=0,
             )
-            ax.text(
-                left + 0.25, y_coord, textwrap.shorten(lane.upper(), 26, placeholder="..."),
-                va="center", ha="left", fontsize=8, fontweight="bold",
-                color="#64758A", zorder=1,
+            add_fitted_text(
+                ax, lane.upper(), left + 0.25, y_coord, 2.8, 0.65,
+                fontsize=8, min_fontsize=5.5, color="#64758A",
+                fontweight="bold", ha="left", zorder=1,
             )
 
         node_cards = {}
@@ -257,18 +259,18 @@ def generate_step_diagram_for_step(
                 color="white", fontsize=6.5, fontweight="bold",
                 ha="center", va="center", zorder=5,
             )
-            ax.text(
-                x - card_width / 2 + 0.58, y + 0.43,
-                "\n".join(textwrap.wrap(label, width=20, break_long_words=False)[:2]),
-                color="#1C2D43", fontsize=9.5, fontweight="bold",
-                ha="left", va="center", zorder=5,
+            add_fitted_text(
+                ax, label,                 x - card_width / 2 + 0.58, y + 0.35,
+                card_width - 0.82, 0.8, fontsize=9.5, min_fontsize=6.5,
+                color="#1C2D43", fontweight="bold", ha="left", zorder=5,
             )
             if is_decision:
-                ax.text(
+                add_fitted_text(
+                    ax,
+                    substep.get("condition") or substep.get("branch_condition") or "Decision",
                     x - card_width / 2 + 0.28, y - 0.2,
-                    textwrap.shorten(str(substep.get("condition") or substep.get("branch_condition") or "Decision"), 42, placeholder="..."),
-                    color="#D08034", fontsize=7, fontweight="bold",
-                    ha="left", va="top", zorder=5,
+                    card_width - 0.56, 0.36, fontsize=7, min_fontsize=5.5,
+                    color="#D08034", fontweight="bold", ha="left", va="top", zorder=5,
                 )
             ax.add_patch(FancyBboxPatch(
                 (x - card_width / 2 + 0.28, y - card_height / 2 + 0.12),
@@ -277,9 +279,6 @@ def generate_step_diagram_for_step(
                 edgecolor="none", zorder=5,
             ))
 
-        ax.set_xlim(left, right)
-        ax.set_ylim(bottom, top)
-        ax.set_aspect("equal", adjustable="box")
         ax.axis("off")
         fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
         fig.savefig(out_path, dpi=220, facecolor="#F4F7FB")
