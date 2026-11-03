@@ -1,0 +1,259 @@
+{
+  "subprocess_flow": [
+    {
+      "step_risks_and_controls": [
+        {
+          "control": "Automated timestamping of alert receipt and assignment.",
+          "risk": "Alerts are ignored or missed by staff."
+        }
+      ],
+      "inputs": [
+        "Inventory system alerts",
+        "Physical shelf audit results"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Standard operational procedure update request."
+        }
+      ],
+      "estimated_duration": "15 minutes",
+      "description": "The Store Manager or designated Inventory Associate monitors the ERP system and physical audit logs for \"zero on-hand\" alerts or reported gaps from the floor. Each alert is triaged to prioritize high-velocity SKUs and assigned to a specific staff member for immediate physical verification to ensure the 2-hour SLA is met.",
+      "outputs": [
+        "Assigned Verification Tasks"
+      ],
+      "scope": "Management office and digital inventory dashboard.",
+      "success_criteria": [
+        "All alerts assigned within 15 minutes of generation."
+      ],
+      "dependencies": [],
+      "triggers": [
+        "Zero on-hand quantity alert",
+        "Physical gap identified"
+      ],
+      "end_conditions": [
+        "Alerts are assigned to specific team members for action."
+      ],
+      "substep_name": "Triage and Assign Inventory Alerts",
+      "process_owner": "Inventory Control Manager",
+      "responsible_party": "Store Manager",
+      "purpose": "To ensure every system alert is acknowledged and prioritized for physical inspection.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly",
+          "improvement_inputs": [
+            "Alert response times",
+            "Cycle count accuracy"
+          ]
+        }
+      ],
+      "governance_requirements": [
+        "Store Manager review of daily alert assignment logs."
+      ]
+    },
+    {
+      "step_risks_and_controls": [
+        {
+          "control": "Requirement to scan the shelf tag during verification.",
+          "risk": "Associate checks the wrong shelf location."
+        }
+      ],
+      "inputs": [
+        "Assigned Verification Tasks"
+      ],
+      "success_criteria": [
+        "Primary shelf location and adjacent slots visually confirmed and documented."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Misplaced item frequency logs"
+          ],
+          "review_frequency": "Weekly"
+        }
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard operational procedure update request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "scope": "Store sales floor.",
+      "purpose": "To confirm the item is truly missing from the customer-facing area.",
+      "description": "The assigned associate visits the primary shelf location for the alerted SKU to confirm its absence. This involves checking behind other products, looking at adjacent slots where the item might have been misplaced by customers, and verifying if any promotional displays on the sales floor contain the item.",
+      "substep_name": "Physical Sales Floor Verification",
+      "outputs": [
+        "Sales Floor Status Report"
+      ],
+      "dependencies": [
+        "Triage and Assign Inventory Alerts"
+      ],
+      "triggers": [
+        "Assignment of verification task."
+      ],
+      "end_conditions": [
+        "Sales floor status for the SKU is documented."
+      ],
+      "estimated_duration": "20 minutes",
+      "governance_requirements": [
+        "Physical verification must be logged in the mobile audit tool."
+      ],
+      "process_owner": "Inventory Control Manager",
+      "responsible_party": "Inventory Associate"
+    },
+    {
+      "outputs": [
+        "Backroom/Transit Audit Results"
+      ],
+      "triggers": [
+        "Item confirmed missing from sales floor."
+      ],
+      "inputs": [
+        "Sales Floor Status Report"
+      ],
+      "dependencies": [
+        "Physical Sales Floor Verification"
+      ],
+      "estimated_duration": "45 minutes",
+      "description": "If the item is not on the sales floor, the associate performs a comprehensive search of the backroom storage bins, overstock pallets, and the receiving dock. This step includes checking \"in-transit\" manifests to see if the stock has arrived at the store but has not yet been processed into the system or moved to the floor.",
+      "success_criteria": [
+        "All potential storage locations within the store perimeter checked and cleared."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Unprocessed deliveries lead to false stock-out declarations.",
+          "control": "Cross-reference with the latest delivery manifest."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Backroom organization metrics"
+          ],
+          "review_frequency": "Weekly"
+        }
+      ],
+      "scope": "Store backroom and receiving docks.",
+      "end_conditions": [
+        "All storage and transit zones have been searched."
+      ],
+      "responsible_party": "Inventory Associate",
+      "governance_requirements": [
+        "Search must include a sign-off on the backroom zone checklist."
+      ],
+      "substep_name": "Backroom and Transit Zone Search",
+      "process_owner": "Inventory Control Manager",
+      "change_management": [
+        {
+          "change_request_process": "Standard operational procedure update request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "purpose": "To ensure stock isn't hidden in non-customer areas before declaring a stock-out."
+    },
+    {
+      "outputs": [
+        "Discrepancy Analysis"
+      ],
+      "scope": "ERP System and Inventory Records.",
+      "step_risks_and_controls": [
+        {
+          "control": "Weekly cycle counts and automated reconciliation.",
+          "risk": "Inaccurate inventory data leading to missed stock-out alerts."
+        }
+      ],
+      "substep_name": "Reconcile Physical Findings with ERP Data",
+      "estimated_duration": "20 minutes",
+      "responsible_party": "Store Manager",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly",
+          "improvement_inputs": [
+            "Phantom inventory trend data"
+          ]
+        }
+      ],
+      "end_conditions": [
+        "Root cause of discrepancy is identified or noted for further audit."
+      ],
+      "process_owner": "Inventory Control Manager",
+      "triggers": [
+        "Completion of physical search."
+      ],
+      "purpose": "To resolve data errors that prevent the system from triggering replenishment.",
+      "inputs": [
+        "Backroom/Transit Audit Results",
+        "Inventory system alerts"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Standard operational procedure update request."
+        }
+      ],
+      "description": "The Store Manager compares the physical search findings with the current ERP inventory balance. If the system indicates stock exists but the physical search yielded nothing, the manager identifies this as 'phantom inventory' and investigates recent transaction logs or potential shrinkage to explain the discrepancy.",
+      "governance_requirements": [
+        "Managerial sign-off on all phantom inventory adjustments."
+      ],
+      "dependencies": [
+        "Backroom and Transit Zone Search"
+      ],
+      "success_criteria": [
+        "Reconciliation identifies the exact gap between system records and physical reality."
+      ]
+    },
+    {
+      "outputs": [
+        "Confirmed stock-out report",
+        "Inventory Audit Log",
+        "Verified Stock-out Status"
+      ],
+      "dependencies": [
+        "Reconcile Physical Findings with ERP Data"
+      ],
+      "success_criteria": [
+        "Physical verification completed for all alerts within 2 hours."
+      ],
+      "governance_requirements": [
+        "Store Manager review of daily alerts and final report archival."
+      ],
+      "responsible_party": "Store Manager",
+      "process_owner": "Inventory Control Manager",
+      "estimated_duration": "15 minutes",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Cycle count results"
+          ],
+          "review_frequency": "Weekly"
+        }
+      ],
+      "triggers": [
+        "Discrepancy analysis confirms zero availability."
+      ],
+      "description": "Upon final confirmation of zero stock, the Store Manager updates the item status in the ERP to reflect a true stock-out. They generate the Confirmed Stock-out Report and update the Inventory Audit Log. This documentation serves as the formal trigger for the replenishment or emergency order protocol.",
+      "scope": "Inventory Management System.",
+      "end_conditions": [
+        "Stock-out status is verified in ERP."
+      ],
+      "inputs": [
+        "Discrepancy Analysis"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrectly marking items as out-of-stock, causing over-ordering.",
+          "control": "Dual-authorization for high-value SKU status changes."
+        }
+      ],
+      "purpose": "To officially record the stock-out and initiate the response protocol.",
+      "substep_name": "Final Status Declaration and Reporting",
+      "change_management": [
+        {
+          "change_request_process": "Standard operational procedure update request.",
+          "versioning_rules": "V1.0"
+        }
+      ]
+    }
+  ],
+  "step_name": "Stock-out Identification and Verification"
+}

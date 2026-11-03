@@ -1,21 +1,18 @@
 {
-  "avg_cycle_time": 10.652013361446727,
-  "cycle_time_variance": 0.9023719824401581,
-  "time_unit": "minutes",
+  "avg_cycle_time": 5.321649134445144,
+  "cycle_time_variance": 0.6294907420172049,
+  "time_unit": "hours",
   "bottlenecks": [
-    "Preventive Measures",
-    "Inventory Replenishment",
-    "Stock-out Identification"
+    "Root Cause Analysis and Documentation",
+    "Stock-out Identification and Verification",
+    "Process Review and Performance Monitoring"
   ],
   "resource_contention_risk": "Low",
   "per_step_avg": {
-    "Stock-out Identification": 1.335772181261207,
-    "Verification and Documentation": 1.3254041480352823,
-    "Root Cause Analysis": 1.324400798618145,
-    "Immediate Action": 1.334573697668643,
-    "Order Placement": 1.3264341395575017,
-    "Order Fulfillment": 1.326903155677063,
-    "Inventory Replenishment": 1.3383124140886242,
-    "Preventive Measures": 1.3402128265402617
+    "Stock-out Identification and Verification": 1.3309728739462152,
+    "Immediate Customer Mitigation": 1.3221348894514489,
+    "Rapid Replenishment Triggering": 1.3265774898020983,
+    "Root Cause Analysis and Documentation": 1.3342549618645092,
+    "Process Review and Performance Monitoring": 1.329843808832321
   }
 }

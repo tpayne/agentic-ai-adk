@@ -1,75 +1,63 @@
 {
   "resilience": {
-    "avg_blast_radius": 0.00325,
-    "blast_radius_variance": 0.041204014772025954,
-    "critical_incident_rate": 0.0045,
+    "avg_blast_radius": 0.0005,
+    "blast_radius_variance": 0.00998749217771909,
+    "critical_incident_rate": 0.0,
     "resilience_risk_rating": "Low",
     "single_points_of_failure": [
-      "ServiceNow ITOM Discovery Engine & IRE",
-      "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)",
-      "Enterprise Credential Vault Gateway"
+      "ServiceNow Instance",
+      "AWS Cloud API",
+      "On-Prem Targets"
     ],
     "per_component_failure_probability": {
-      "ServiceNow ITOM Discovery Engine & IRE": 0.0009999999999998899,
-      "AWS Cloud MID Server Cluster": 0.0009999999999998899,
-      "On-Premises Datacenter MID Server Cluster": 0.0009999999999998899,
-      "Enterprise Credential Vault Gateway": 0.0009999999999998899,
-      "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)": 0.0009999999999998899,
-      "Hybrid Target Infrastructure & Workloads": 0.0009999999999998899
+      "ServiceNow Instance": 0.0009999999999998899,
+      "MID Server Cluster (On-Prem)": 0.0009999999999998899,
+      "MID Server Cluster (AWS)": 0.0009999999999998899,
+      "AWS Cloud API": 0.0009999999999998899,
+      "On-Prem Targets": 0.0009999999999998899
     },
-    "component_count": 6,
-    "unresolved_references": [
-      "AWS & On-Premises MID Server Clusters",
-      "AWS Cloud Control Plane APIs",
-      "AWS Secrets Manager VPC Endpoint",
-      "CyberArk Central Credential Provider (CCP)",
-      "Hybrid MID Server Clusters",
-      "ServiceNow SaaS ECC Queue"
-    ]
+    "component_count": 5,
+    "unresolved_references": []
   },
   "scalability": {
-    "expected_load": "50,000+ infrastructure CIs (physical servers, virtual machines, cloud instances, network devices) and 100,000+ software installation records processed within an 8-hour discovery window.",
+    "expected_load": "Discovery of thousands of CIs across multi-cloud and on-prem.",
     "scaling_strategy_declared": true,
-    "scaling_strategy": "Horizontal scaling of MID Server clusters: auto-distributed load balancing across clustered MID nodes, each configured with 4-8 vCPUs, 8-16 GB RAM, and up to 50 concurrent worker threads. Additional MID Server nodes can be provisioned in minutes via Terraform in AWS or VMware templates on-premise to absorb growing workload volumes.",
+    "scaling_strategy": "Horizontal scaling of MID Servers within clusters.",
     "performance_targets": [
-      "ECC Queue processing queue depth maintained below 5,000 concurrent messages at all times.",
-      "Average probe execution turnaround time under 45 seconds per host target.",
-      "Complete discovery cycle execution completed within scheduled 8-hour maintenance windows without schedule overrun.",
-      "CMDB IRE identification and insertion processing rate exceeding 200 CIs per minute during peak ingestion."
+      {
+        "metric": "ECC Queue Latency",
+        "target": "< 5 minutes during peak windows"
+      }
     ],
     "structural_bottlenecks": [
       {
-        "component_name": "ServiceNow ITOM Discovery Engine & IRE",
-        "dependent_count": 3,
-        "elastic_technology_declared": false
-      },
-      {
-        "component_name": "Enterprise Credential Vault Gateway",
-        "dependent_count": 2,
-        "elastic_technology_declared": false
-      },
-      {
-        "component_name": "Hybrid Target Infrastructure & Workloads",
+        "component_name": "ServiceNow Instance",
         "dependent_count": 2,
         "elastic_technology_declared": false
       }
     ],
     "flagged_risks": [
       {
-        "id": "RSK-001",
-        "description": "Large-scale discovery sweeps across dense datacenter subnets may trigger Intrusion Detection/Prevention Systems (IDS/IPS) or cause temporary network congestion.",
+        "id": "RM-001",
+        "description": "ECC Queue Congestion due to high volume of discovery data.",
         "likelihood": "medium",
         "impact": "medium"
       },
       {
-        "id": "RSK-002",
-        "description": "Concurrent execution of heavy discovery schedules can generate ECC Queue backpressure and message backlog exceeding 5,000 items, degrading sensor processing latency.",
-        "likelihood": "low",
-        "impact": "high"
+        "id": "RM-003",
+        "description": "AWS API Throttling during large-scale discovery.",
+        "likelihood": "medium",
+        "impact": "medium"
       },
       {
-        "id": "RSK-005",
-        "description": "Excessive discovery of short-lived container instances (EKS/ECS) can flood the SAM software installation tables (cmdb_sam_sw_install) with transient noise, inflating license reconciliation workloads.",
+        "id": "RR-001",
+        "description": "ECC Queue Congestion due to high volume of discovery data.",
+        "likelihood": "medium",
+        "impact": "medium"
+      },
+      {
+        "id": "RR-003",
+        "description": "AWS API Throttling during large-scale discovery.",
         "likelihood": "medium",
         "impact": "medium"
       }
@@ -78,19 +66,19 @@
   "security": {
     "missing_controls": [],
     "compliance_summary": {
-      "compliant": 6
+      "Compliant": 1
     },
     "non_compliant_standards": [],
     "flagged_risks": [
       {
-        "id": "RSK-004",
-        "description": "Potential credential exposure if target administrative passwords are saved to disk or exposed in discovery logs.",
+        "id": "RM-002",
+        "description": "Credential Exposure if the ServiceNow vault is compromised.",
         "likelihood": "low",
-        "impact": "critical"
+        "impact": "high"
       },
       {
-        "id": "REG-RSK-001",
-        "description": "Compromise of MID Server host instance could provide lateral network access to discovered subnets.",
+        "id": "RR-002",
+        "description": "Credential Exposure if the ServiceNow vault is compromised.",
         "likelihood": "low",
         "impact": "high"
       }
@@ -99,18 +87,12 @@
     "security_risk_rating": "Medium"
   },
   "latency": {
-    "declared_latency_targets": [
-      {
-        "metric": "Discovery window completion time and ECC Queue processing latency",
-        "target": "Complete discovery cycle within 8 hours; maintain ECC Queue queue depth below 5,000 messages"
-      }
-    ],
+    "declared_latency_targets": [],
     "parsed_latency_values": [],
-    "deepest_dependency_chain_length": 3,
+    "deepest_dependency_chain_length": 2,
     "deepest_dependency_chain": [
-      "AWS Cloud MID Server Cluster",
-      "ServiceNow ITOM Discovery Engine & IRE",
-      "ServiceNow Asset Lifecycle Engine (HAM Pro & SAM Pro)"
+      "MID Server Cluster (On-Prem)",
+      "On-Prem Targets"
     ],
     "latency_budget_risk": false
   },

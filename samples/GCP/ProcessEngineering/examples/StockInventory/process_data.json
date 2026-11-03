@@ -1,257 +1,532 @@
 {
-  "appendix": {
-    "Pre-approved Order Templates (Sample)": "Examples of pre-approved order templates for frequently stocked-out items.",
-    "Inventory Replenishment Policy": "Detailed guidelines for determining order quantities and safety stock levels.",
-    "Stock-out Reporting Form": "A sample form for sales associates to report stock-outs manually.",
-    "RFID Implementation Guide": "Guidelines for implementing and maintaining the RFID infrastructure for shelf monitoring.",
-    "Root Cause Analysis Checklist": "A standardized checklist to guide the root cause analysis process.",
-    "Data Analysis Procedures": "Detailed procedures for analyzing stock-out data and identifying trends.",
-    "Supplier Communication Protocols": "Protocols for communicating with suppliers regarding inventory replenishment and potential supply chain disruptions."
-  },
+  "process_owner": "Inventory Control Manager",
+  "system_requirements": [
+    {
+      "details": "The system must support real-time inventory tracking across multiple locations and automated replenishment triggers.",
+      "name": "Real-time Inventory Tracking"
+    },
+    {
+      "name": "CRM and Mobile Access",
+      "details": "CRM module to track rain checks and special orders with mobile access for floor staff."
+    }
+  ],
+  "appendix": {},
+  "critical_failure_factors": [
+    {
+      "name": "Data Silos",
+      "description": "If warehouse and store systems do not sync, replenishment will be delayed or directed to the wrong locations."
+    },
+    {
+      "description": "If the supply chain is too slow to respond, the product will remain out of stock for a duration that exceeds customer patience.",
+      "name": "Slow Supply Chain Response"
+    },
+    {
+      "description": "Without investigating why it happened, the organization will repeat the same inventory mistakes indefinitely.",
+      "name": "Lack of Root Cause Analysis"
+    }
+  ],
+  "change_management": [
+    {
+      "versioning_rules": "A pilot phase will be conducted in three high-volume stores before a full rollout.",
+      "change_request_process": "Staff training programs will be implemented to familiarize employees with the new stock-out verification steps and customer mitigation scripts."
+    }
+  ],
+  "assumptions": [
+    {
+      "name": "ERP Integration",
+      "description": "The retailer uses a modern ERP system with integrated inventory and point-of-sale modules."
+    },
+    {
+      "name": "Supplier SLAs",
+      "description": "Suppliers have a baseline service level agreement (SLA) that includes a standard reorder lead time."
+    },
+    {
+      "description": "Store staff have access to mobile devices or terminals to check inventory and place 'save the sale' orders.",
+      "name": "Staff Mobility"
+    }
+  ],
+  "constraints": [
+    "Budgetary limits on expedited shipping costs which cannot exceed 10% of the item's retail value.",
+    "Staffing constraints during peak hours which may limit the ability to perform manual physical shelf audits.",
+    "Warehouse capacity limitations that prevent over-ordering as a defensive strategy against stock-outs."
+  ],
+  "requirements_register": [
+    {
+      "type": "functional",
+      "acceptance_criteria": [
+        "Alert is sent within 5 minutes of quantity reaching zero",
+        "Alert includes SKU ID, Location, and last known sales velocity"
+      ],
+      "source": "Process Design Requirement",
+      "description": "The system shall generate an automated alert to the inventory manager when an SKU's on-hand quantity reaches zero.",
+      "status": "proposed",
+      "id": "FR-001"
+    },
+    {
+      "acceptance_criteria": [
+        "Database sync latency is measured and reported hourly",
+        "Latency does not exceed 300 seconds for 99% of transactions"
+      ],
+      "source": "Operational Requirement",
+      "type": "non_functional",
+      "description": "The inventory database must update within 5 minutes of a point-of-sale transaction to ensure data freshness.",
+      "id": "NFR-001",
+      "status": "proposed"
+    },
+    {
+      "source": "Business Objective",
+      "acceptance_criteria": [
+        "Baseline duration established from previous 6 months",
+        "Measurement taken at the end of the 6-month pilot period"
+      ],
+      "status": "proposed",
+      "type": "goal",
+      "description": "Reduce the average duration of stock-out events by 15% within the first six months of implementation.",
+      "id": "GOAL-001"
+    },
+    {
+      "acceptance_criteria": [
+        "Legal department approval of rain check terms and conditions",
+        "System prevents pricing overrides that violate the policy"
+      ],
+      "id": "CON-001",
+      "status": "proposed",
+      "source": "Legal Compliance",
+      "type": "constraint",
+      "description": "All rain check policies must comply with local consumer protection laws regarding pricing and fulfillment."
+    }
+  ],
+  "process_goals": [
+    {
+      "name": "Reduce Stock-out Duration",
+      "description": "Reduce the average duration of stock-out events by 15% within the first six months of implementation."
+    }
+  ],
+  "governance_requirements": [
+    "All stock-out reports must be reviewed by the Store Manager daily.",
+    "Root cause analysis summaries must be signed off by the Inventory Control Manager monthly to ensure accountability."
+  ],
   "metrics": [
     {
-      "metric_name": "Stock-out Rate",
-      "description": "Percentage of time a product is unavailable when a customer wants to purchase it. Target: <1%."
+      "name": "Stock-out Rate",
+      "description": "Measures the percentage of SKUs that are out of stock relative to the total assortment.",
+      "measurement_frequency": "Daily",
+      "target": "< 2%"
     },
     {
-      "description": "Measured through surveys and feedback forms. Target: >90% satisfaction with stock availability.",
-      "metric_name": "Customer Satisfaction"
+      "measurement_frequency": "Weekly",
+      "description": "Tracks the duration from stock-out detection to the item being back on the shelf.",
+      "name": "Average Time to Replenish",
+      "target": "< 48 hours"
     },
     {
-      "description": "Total revenue lost due to inability to fulfill customer demand. Target: Minimize revenue loss.",
-      "metric_name": "Revenue Loss Due to Stock-outs"
-    },
-    {
-      "metric_name": "Inventory Turnover Rate",
-      "description": "How quickly inventory is sold and replenished. Target: Maintain optimal turnover rate for each product category."
+      "description": "Measures the percentage of customers who accepted an alternative or home delivery.",
+      "name": "Save-the-Sale Conversion Rate",
+      "target": "> 15%",
+      "measurement_frequency": "Monthly"
     }
   ],
-  "introduction": "This process outlines the steps for handling inventory stock-outs in a retail environment, from identification to prevention. The primary goal is to minimize lost sales and customer dissatisfaction by ensuring product availability through proactive monitoring, efficient inter-departmental communication, and effective inventory management practices. The process encompasses identifying stock-outs, verifying the shortage, performing a root cause analysis, taking immediate actions, placing replenishment orders, fulfilling the order, replenishing the inventory, and implementing preventive measures to minimize future stock-out occurrences. Version 1.4 addresses bottlenecks identified in Preventive Measures, Inventory Replenishment, and Stock-out Identification.",
-  "version": "1.4",
-  "tools_summary": {
-    "Dedicated Picking and Packing Team": "Warehouse resource for expedited order fulfillment.",
-    "Point of Sale (POS) System": "Provides accurate sales data and stock-out reporting functionality.",
-    "Enhanced Data Analytics Software": "For improved analysis of stock-out patterns and trends.",
-    "Pre-approved Order Templates": "Streamlines the order placement process for frequently stocked-out items.",
-    "Inventory Management System": "Essential for real-time inventory tracking and automated alerts.",
-    "Mobile Devices": "Facilitate stock-out reporting on the sales floor.",
-    "Standardized Checklist and Decision Tree": "Aids in faster and more consistent root cause analysis.",
-    "RFID Tags and Sensors": "Enable real-time shelf monitoring for automated stock-out detection.",
-    "Reporting and Analytics Tools": "Enable analysis of sales data and inventory performance metrics."
-  },
-  "process_steps": [
+  "process_triggers": [
+    "Inventory system alerts showing zero on-hand quantity",
+    "Physical shelf audit identifying a gap in the product assortment",
+    "Customer inquiry for an item that cannot be located on the sales floor"
+  ],
+  "version": "1.1",
+  "reporting_and_analytics": [
     {
-      "description": "Sales associates identify stock-outs on the sales floor by observing empty shelves or customer inquiries regarding unavailable products. To improve speed and accuracy, the store has implemented real-time shelf monitoring using RFID tags and sensors. Sales associates are alerted via their handheld devices when a stock-out is detected. The effectiveness of RFID tag placement and sensor sensitivity is regularly evaluated and adjusted to ensure optimal performance. Sales associates must promptly report stock-outs to the Inventory Management Team, providing details such as the product ID, location on the sales floor, and estimated time the stock-out was noticed. This can be done manually using a stock-out reporting form or electronically using handheld devices to scan the shelf and compare it to the system inventory. Accurate and timely identification is crucial for initiating the stock-out handling process effectively.",
-      "responsible_party": "Sales Associates",
-      "success_criteria": [
-        "Stock-outs are identified and reported within 5 minutes of occurrence.",
-        "Stock-out reports contain accurate product and location information."
-      ],
-      "deliverables": [
-        "Stock-out report (manual or electronic)"
-      ],
-      "dependencies": [],
-      "estimated_duration": "1-3 minutes per incident",
-      "step_name": "Stock-out Identification"
+      "description": "A high-priority report showing items that hit zero inventory to trigger immediate shelf checks by Store Managers.",
+      "report": "Daily Stock-out Alert"
     },
     {
-      "responsible_party": "Inventory Management Team",
-      "deliverables": [
-        "Verified stock-out documentation"
-      ],
-      "description": "Upon receiving a stock-out report, the Inventory Management Team verifies the stock-out by checking physical inventory in the back stock and on the sales floor, as well as system records in the Inventory Management System. If the stock-out is confirmed, the Inventory Management Team documents the stock-out details, including the product ID, quantity, time of occurrence, potential causes, and the sales associate who reported the stock-out. Proper documentation is essential for analyzing stock-out trends and implementing effective preventive measures, and is stored for later review.",
-      "estimated_duration": "15-30 minutes per incident",
-      "success_criteria": [
-        "Stock-outs are verified within 30 minutes of being reported.",
-        "Stock-out documentation is complete and accurate."
-      ],
-      "dependencies": [
-        "Stock-out Identification"
-      ],
-      "step_name": "Verification and Documentation"
+      "description": "A summary detailing how long items stayed out of stock and the performance of various suppliers for the Supply Chain Director.",
+      "report": "Weekly Replenishment Performance"
     },
     {
-      "estimated_duration": "45-90 minutes per incident",
-      "step_name": "Root Cause Analysis",
-      "deliverables": [
-        "Root cause analysis report"
-      ],
-      "success_criteria": [
-        "Root cause analysis is completed within 90 minutes of stock-out verification.",
-        "Root cause analysis identifies the primary reason for the stock-out."
-      ],
-      "responsible_party": "Inventory Management Team",
-      "dependencies": [
-        "Verification and Documentation"
-      ],
-      "description": "The Inventory Management Team conducts a thorough root cause analysis to determine the underlying cause of the stock-out. To expedite the process, the team now utilizes a standardized checklist and decision tree to guide the analysis. This involves analyzing sales data, reviewing past orders, checking for discrepancies in inventory records, identifying potential supply chain issues, and considering factors such as unexpected demand surges, delays in delivery, or errors in inventory management practices. The root cause analysis should identify the primary reason for the stock-out to prevent similar incidents in the future. The analysis needs to be documented and tracked, along with any shortfalls or errors."
-    },
-    {
-      "responsible_party": "Inventory Management Team",
-      "estimated_duration": "20-45 minutes per incident",
-      "dependencies": [
-        "Root Cause Analysis"
-      ],
-      "description": "If possible, the Inventory Management Team takes immediate action to address the stock-out and minimize its impact on customers. A designated team member is now responsible for coordinating immediate actions, ensuring quicker response times. This may involve checking the back stock for additional inventory, contacting other stores for inventory transfer, or expediting the next order from the supplier. The Inventory Management Team should communicate with sales associates to inform them of the actions taken and provide them with alternative product suggestions to offer to customers. Any immediate actions are taken to remedy the stock-out issue immediately for the customer.",
-      "success_criteria": [
-        "Immediate action is taken within 45 minutes of root cause analysis.",
-        "Temporary stock-out resolution is achieved whenever possible."
-      ],
-      "deliverables": [
-        "Temporary stock-out resolution (if possible)"
-      ],
-      "step_name": "Immediate Action"
-    },
-    {
-      "responsible_party": "Inventory Management Team",
-      "dependencies": [
-        "Immediate Action"
-      ],
-      "description": "If the stock-out cannot be resolved immediately through checking back stock or transferring inventory, the Inventory Management Team places an order with the Purchasing Department to replenish the inventory. To streamline this step, the Inventory Management Team now utilizes pre-approved order templates for frequently stocked-out items. The order quantity is determined based on demand forecasts, lead times, safety stock levels, and the identified root cause of the stock-out. The Inventory Management Team communicates the urgency of the order to the Purchasing Department to ensure timely replenishment. They ensure sufficient justification for the order is given to the purchasing department for reconciliation.",
-      "deliverables": [
-        "Replenishment order"
-      ],
-      "success_criteria": [
-        "Replenishment order is placed within 20 minutes of determining the need.",
-        "Order quantity is based on accurate demand forecasts and lead times."
-      ],
-      "estimated_duration": "10-20 minutes per order",
-      "step_name": "Order Placement"
-    },
-    {
-      "estimated_duration": "6-48 hours",
-      "success_criteria": [
-        "Order is fulfilled and shipped within the agreed lead time.",
-        "Inventory is accurately picked and packed for shipment."
-      ],
-      "step_name": "Order Fulfillment",
-      "deliverables": [
-        "Inventory shipment to the store"
-      ],
-      "responsible_party": [
-        "Purchasing Department",
-        "Warehouse Staff"
-      ],
-      "dependencies": [
-        "Order Placement"
-      ],
-      "description": "The Purchasing Department sends the order to the warehouse. To expedite order fulfillment, the warehouse has implemented a dedicated picking and packing team for urgent stock-out replenishment orders and negotiated faster shipping times with carriers. Warehouse staff receives the order, picks the inventory from the warehouse shelves, packs it securely, and ships the inventory to the store using expedited shipping options. The warehouse staff ensures accurate order fulfillment and timely dispatch of the inventory. The warehouse staff must update the inventory management system to account for the reduced stock amounts in the warehouse. The Purchasing Department tracks the order and communicates any delays or issues to the Inventory Management Team."
-    },
-    {
-      "success_criteria": [
-        "Inventory is replenished within 1.5 hours of receiving the shipment.",
-        "System records are updated accurately to reflect the replenished inventory."
-      ],
-      "deliverables": [
-        "Replenished shelves",
-        "Updated system records"
-      ],
-      "estimated_duration": "0.25-1.5 hours",
-      "step_name": "Inventory Replenishment",
-      "responsible_party": [
-        "Inventory Management Team",
-        "Sales Associates"
-      ],
-      "description": "Upon receiving the inventory shipment, the Inventory Management Team verifies the received quantity against the order and updates the system records. To streamline replenishment, the store has implemented a dedicated overnight restocking crew. The layout of the storage area has been optimized, and the shelving configuration has been refined to improve the speed of the overnight restocking crew. A dedicated restocking team, composed of both Inventory Management and Sales Associates, now handles shelf replenishment during off-peak hours to minimize customer disruption. Sales associates assist with restocking the shelves, ensuring products are placed in the correct location, and updating shelf labels. The Inventory Management Team monitors the sales floor to ensure that shelves are adequately stocked and that stock-outs are avoided. This includes verifying the correct number of units shipped from the warehouse.",
-      "dependencies": [
-        "Order Fulfillment"
-      ]
-    },
-    {
-      "responsible_party": "Inventory Management Team",
-      "estimated_duration": "Ongoing",
-      "dependencies": [
-        "Inventory Replenishment"
-      ],
-      "description": "Based on the root cause analysis of stock-outs, the Inventory Management Team implements preventive measures to avoid future occurrences. To improve the effectiveness of preventive measures, the team focuses on better data analysis and more proactive supplier communication. This may include adjusting safety stock levels, improving demand forecasting methods, optimizing inventory control procedures, strengthening supplier relationships, and providing additional training to staff. The Inventory Management Team regularly reviews stock-out data and adjusts preventive measures as needed. The team also looks to identify opportunities for improvement and address any new stock-out patterns that emerge.",
-      "step_name": "Preventive Measures",
-      "success_criteria": [
-        "Stock-out rate is reduced by at least 20% within 3 months.",
-        "Inventory turnover rate is maintained at an optimal level.",
-        "Preventive measures are implemented within 1 week of root cause analysis completion."
-      ],
-      "deliverables": [
-        "Adjusted safety stock levels",
-        "Improved demand forecasting methods",
-        "Optimized inventory control procedures",
-        "Strengthened supplier relationships"
-      ]
+      "report": "Monthly Lost Sales Analysis",
+      "description": "An analytical report estimating revenue lost to stock-outs and identifying the top 10 SKUs responsible for Finance."
     }
   ],
-  "stakeholders": [
+  "tools_summary": [
     {
-      "responsibilities": [
-        "Overseeing all store operations.",
-        "Making decisions related to inventory management.",
-        "Ensuring compliance with the stock-out handling process.",
-        "Approving orders for inventory replenishment."
+      "tools": [
+        "ERP System",
+        "POS System",
+        "Mobile Inventory Terminals"
       ],
-      "stakeholder_name": "Store Manager",
-      "role": "Store Manager"
-    },
-    {
-      "responsibilities": [
-        "Monitoring inventory levels.",
-        "Analyzing stock-out data.",
-        "Implementing corrective actions.",
-        "Verifying reported stock-outs.",
-        "Performing root cause analysis.",
-        "Placing replenishment orders.",
-        "Updating system records upon inventory receipt.",
-        "Implementing preventive measures."
-      ],
-      "role": "Inventory Management Team",
-      "stakeholder_name": "Inventory Management Team"
-    },
-    {
-      "stakeholder_name": "Sales Associates",
-      "responsibilities": [
-        "Identifying stock-outs on the sales floor.",
-        "Reporting stock-outs to the Inventory Management Team immediately.",
-        "Assisting customers with alternative products when a stock-out occurs.",
-        "Restocking shelves with replenished inventory."
-      ],
-      "role": "Sales Associates"
-    },
-    {
-      "role": "Purchasing Department",
-      "stakeholder_name": "Purchasing Department",
-      "responsibilities": [
-        "Replenishing inventory based on stock-out data and demand forecasts.",
-        "Processing orders from the Inventory Management Team.",
-        "Communicating with suppliers to ensure timely delivery of inventory.",
-        "Monitoring lead times and adjusting order quantities as needed."
-      ]
-    },
-    {
-      "responsibilities": [
-        "Fulfilling orders from the Purchasing Department.",
-        "Shipping inventory to the store.",
-        "Ensuring accurate and timely delivery of inventory.",
-        "Maintaining inventory accuracy in the warehouse."
-      ],
-      "role": "Warehouse Staff",
-      "stakeholder_name": "Warehouse Staff"
+      "category": "Inventory Management"
     }
   ],
   "industry_sector": "Retail",
-  "system_requirements": [
-    "Inventory Management System: Real-time tracking of inventory levels, automated alerts for low stock, demand forecasting capabilities, and integration with sales and purchasing systems, including support for pre-approved order templates and RFID data integration.",
-    "Point of Sale (POS) System: Accurate sales data capture, integration with the Inventory Management System, and stock-out reporting functionality.",
-    "Reporting and Analytics Tools: Tools to analyze sales data, stock-out trends, inventory performance metrics, and RFID data.",
-    "Mobile Devices: Handheld devices for sales associates to scan products, report stock-outs, and receive real-time alerts.",
-    "Dedicated Communication Channels: Communication channels between sales associates, inventory management and purchasing departments.",
-    "RFID Infrastructure: RFID tags on products and sensors on shelves for real-time shelf monitoring.",
-    "Advanced Demand Forecasting Software: Software to predict demand fluctuations and optimize inventory levels.",
-    "Supplier Relationship Management (SRM) System: System for managing communication and performance with suppliers."
+  "stakeholders": [
+    {
+      "role": "Store Manager",
+      "responsibilities": [
+        "Reviewing daily stock-out reports and conducting physical audits."
+      ],
+      "stakeholder_name": "Store Manager"
+    },
+    {
+      "responsibilities": [
+        "Conducting root cause analysis and adjusting safety stock levels."
+      ],
+      "role": "Inventory Planner",
+      "stakeholder_name": "Inventory Planner"
+    },
+    {
+      "stakeholder_name": "Warehouse Manager",
+      "responsibilities": [
+        "Managing emergency stock transfers and warehouse replenishment."
+      ],
+      "role": "Warehouse Manager"
+    },
+    {
+      "role": "Customer Service Representative",
+      "stakeholder_name": "Customer Service Representative",
+      "responsibilities": [
+        "Managing customer interactions, offering alternatives and rain checks."
+      ]
+    },
+    {
+      "stakeholder_name": "Procurement Team",
+      "responsibilities": [
+        "Communicating with suppliers for urgent reorders."
+      ],
+      "role": "Procurement Team"
+    },
+    {
+      "responsibilities": [
+        "Recipient of mitigation actions (rain checks, alternatives)."
+      ],
+      "role": "Retail Customer",
+      "stakeholder_name": "Retail Customer"
+    }
   ],
-  "process_name": "Inventory Stock-out Handling Process",
-  "reporting_and_analytics": [
-    "Stock-out Reports: Daily and weekly reports showing the number and duration of stock-outs by product and location.",
-    "Sales Data Analysis: Analysis of sales trends and patterns to identify products with high demand and potential stock-out risks.",
-    "Inventory Performance Metrics: Tracking of inventory turnover rate, fill rate, and other key performance indicators to assess inventory management effectiveness.",
-    "Customer Feedback Analysis: Analysis of customer surveys and feedback forms to identify issues related to stock availability and customer satisfaction.",
-    "Real-time Shelf Monitoring Data: Data from RFID tags and sensors to track shelf inventory levels in real-time.",
-    "Supplier Performance Reports: Tracking of supplier lead times and delivery reliability."
+  "introduction": "The Inventory Stock-out Management process is designed to provide a comprehensive framework for handling product unavailability in a retail setting. In an era where customer loyalty is fragile, ensuring that high-demand products are consistently available is paramount for maintaining revenue and brand reputation. This process outlines the specific actions required from identification through to replenishment and final root cause analysis, ensuring that the organization learns from every instance of a stock-out to improve long-term supply chain resilience. It serves as a bridge between store-level operations and corporate supply chain strategy, fostering a culture of data-driven inventory management.",
+  "scope": "This process encompasses the entire lifecycle of a stock-out event within the retail environment, starting from the initial moment a product is identified as unavailable on the sales floor or in the system and ending once the item is successfully replenished and the root cause has been documented and analyzed. It includes internal communications between store operations, the warehouse, and procurement, as well as external interactions with customers regarding alternative solutions like rain checks or home delivery. The scope is limited to operational responses and tactical replenishment, excluding long-term strategic procurement decisions but providing the necessary data to inform them. It covers all retail locations and centralized distribution centers involved in the replenishment chain.",
+  "continuous_improvement": [
+    {
+      "review_frequency": "Quarterly",
+      "improvement_inputs": [
+        "Quarterly reviews of stock-out data"
+      ]
+    }
+  ],
+  "risks_and_controls": [
+    {
+      "risk": "Inaccurate inventory data leading to missed stock-out alerts",
+      "control": "Implement weekly cycle counts and automated reconciliation between POS and ERP systems."
+    },
+    {
+      "control": "Establish clear communication protocols and automated SMS/email updates for customers with pending rain checks.",
+      "risk": "Customer dissatisfaction due to long replenishment delays"
+    }
+  ],
+  "process_steps": [
+    {
+      "process_end_conditions": [
+        "Stock-out status is verified in ERP"
+      ],
+      "outputs": [
+        "Confirmed stock-out report"
+      ],
+      "dependencies": [],
+      "deliverables": [
+        "Verified Stock-out Status",
+        "Inventory Audit Log"
+      ],
+      "step_name": "Stock-out Identification and Verification",
+      "responsible_party": "Store Manager",
+      "process_triggers": [
+        "Zero on-hand quantity alert",
+        "Physical gap identified"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Standard operational procedure update request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "governance_requirements": [
+        "Store Manager review of daily alerts"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate inventory data leading to missed stock-out alerts",
+          "control": "Implement weekly cycle counts and automated reconciliation between POS and ERP systems."
+        }
+      ],
+      "scope": "Store sales floor and backroom.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Weekly",
+          "improvement_inputs": [
+            "Cycle count results"
+          ]
+        }
+      ],
+      "inputs": [
+        "Inventory system alerts",
+        "Physical shelf audit results"
+      ],
+      "estimated_duration": "1-2 hours",
+      "success_criteria": [
+        "Physical verification completed for all alerts within 2 hours."
+      ],
+      "purpose": "To confirm if a product is truly unavailable.",
+      "description": "This step involves the initial detection of a stock-out either through automated system alerts or physical shelf audits conducted by store staff. Once a potential stock-out is detected, the team must verify if the inventory is truly zero or if 'phantom inventory' exists due to data errors or misplaced items, ensuring that all physical locations including backstock and transit areas are checked before officially declaring a stock-out and initiating the response protocol. Verification is critical to avoid unnecessary emergency orders for items that are actually present on-site.",
+      "process_owner": "Inventory Control Manager"
+    },
+    {
+      "step_name": "Immediate Customer Mitigation",
+      "estimated_duration": "Immediate (during customer interaction)",
+      "outputs": [
+        "Mitigation action record"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Customer service script updates.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "process_end_conditions": [
+        "Customer accepts alternative or rain check is processed"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback"
+          ]
+        }
+      ],
+      "scope": "Customer-facing store operations.",
+      "responsible_party": "Customer Service Representative",
+      "process_owner": "Inventory Control Manager",
+      "process_triggers": [
+        "Customer inquiry for missing item"
+      ],
+      "inputs": [
+        "Confirmed stock-out status",
+        "Customer inquiry"
+      ],
+      "governance_requirements": [
+        "Compliance with local consumer protection laws (CON-001)"
+      ],
+      "description": "Upon confirmation of a stock-out, retail staff must proactively manage the customer experience by offering alternatives such as similar products, rain checks, or 'save the sale' options like ordering the item from another store for home delivery. This step is crucial for maintaining brand loyalty and capturing revenue that would otherwise be lost to competitors. Staff use the CRM module to quickly capture customer details, which automates the issuance of rain checks and notifications, reducing the time per interaction and addressing potential bottlenecks. It requires clear communication of expected restock dates and consistent follow-up to ensure the customer feels valued despite the initial disappointment of the item being unavailable.",
+      "success_criteria": [
+        "Customer mitigation action recorded for 100% of inquiries."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Customer dissatisfaction due to long replenishment delays",
+          "control": "Establish clear communication protocols and automated SMS/email updates for customers."
+        },
+        {
+          "risk": "Data privacy breach of customer contact information (PII)",
+          "control": "Encrypt PII data at rest and in transit; restrict access to authorized CRM users and implement automated data purging post-fulfillment per GDPR standards."
+        }
+      ],
+      "deliverables": [
+        "Rain check issued",
+        "Alternative product sale",
+        "Home delivery order"
+      ],
+      "dependencies": [
+        "Stock-out Identification and Verification"
+      ],
+      "purpose": "To maintain brand loyalty and capture revenue."
+    },
+    {
+      "dependencies": [
+        "Stock-out Identification and Verification"
+      ],
+      "deliverables": [
+        "Emergency Purchase Order",
+        "Stock Transfer Request"
+      ],
+      "outputs": [
+        "Replenishment order confirmation"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Replenishment of low-margin items prioritized over high-impact items",
+          "control": "Automated prioritization based on margin and velocity."
+        },
+        {
+          "risk": "Expedited shipping costs exceeding the 10% retail value budget constraint.",
+          "control": "ERP-integrated budget tracking that triggers a mandatory secondary approval for any shipping expense over the 10% threshold."
+        }
+      ],
+      "governance_requirements": [
+        "Adherence to expedited shipping budget constraints"
+      ],
+      "process_owner": "Inventory Control Manager",
+      "process_triggers": [
+        "Verified stock-out declaration"
+      ],
+      "description": "This stage focuses on initiating the supply chain response by generating emergency purchase orders or stock transfers from other locations to address the immediate inventory shortage. The ERP system pre-calculates priority and generates draft orders based on sales velocity and profit margin, allowing the Warehouse Manager to review and release shipments with minimal manual intervention, thus reducing process bottlenecks. This minimizes downtime and lost sales opportunities by bypassing standard, slower replenishment cycles. Coordination with the warehouse manager is essential to ensure that transit times are minimized and incoming stock is processed with high priority.",
+      "scope": "Supply chain and procurement.",
+      "step_name": "Rapid Replenishment Triggering",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Supplier performance data"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Supply chain priority logic adjustment.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "inputs": [
+        "Confirmed stock-out report",
+        "Sales velocity data"
+      ],
+      "success_criteria": [
+        "Replenishment order triggered within 4 hours of verification."
+      ],
+      "purpose": "To return high-impact products to shelves quickly.",
+      "estimated_duration": "4-8 hours",
+      "responsible_party": "Warehouse Manager",
+      "process_end_conditions": [
+        "Replenishment order is acknowledged by supplier/warehouse"
+      ]
+    },
+    {
+      "estimated_duration": "1-2 days",
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of root cause analysis leading to repeated mistakes (CFF-003)",
+          "control": "Centralized database for root cause tracking."
+        }
+      ],
+      "responsible_party": "Inventory Planner",
+      "description": "After the immediate crisis is managed, the Inventory Planner conducts a thorough investigation to determine why the stock-out occurred. To streamline the process and reduce bottlenecks, the Inventory Planner utilizes automated diagnostic tools that correlate sales spikes and supplier delays, pre-populating the analysis report for final review. Documenting these causes in a centralized database allows the organization to adjust safety stock levels, reorder points, and supplier lead time assumptions. This proactive analysis is the key to moving from reactive firefighting to a strategic, preventive inventory posture.",
+      "governance_requirements": [
+        "Monthly sign-off by Inventory Control Manager"
+      ],
+      "purpose": "To prevent similar occurrences in the future.",
+      "change_management": [
+        {
+          "change_request_process": "Safety stock parameter updates.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "process_triggers": [
+        "Replenishment order initiation"
+      ],
+      "outputs": [
+        "Root cause entry in database"
+      ],
+      "success_criteria": [
+        "Root cause identified and documented for 95% of events."
+      ],
+      "scope": "Analytical review of supply chain data.",
+      "step_name": "Root Cause Analysis and Documentation",
+      "process_end_conditions": [
+        "Root cause is recorded and corrective action identified"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Root cause trends"
+          ]
+        }
+      ],
+      "inputs": [
+        "Replenishment data",
+        "Supplier lead time history",
+        "Shrinkage reports"
+      ],
+      "deliverables": [
+        "Root Cause Analysis Report",
+        "Safety Stock Adjustment Recommendation"
+      ],
+      "dependencies": [
+        "Rapid Replenishment Triggering"
+      ],
+      "process_owner": "Inventory Control Manager"
+    },
+    {
+      "success_criteria": [
+        "Monthly review conducted with all relevant stakeholders."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "KPI reports"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "scope": "Performance management and strategic adjustment.",
+      "step_name": "Process Review and Performance Monitoring",
+      "estimated_duration": "Monthly review session",
+      "purpose": "To ensure process efficiency and inform strategy.",
+      "process_end_conditions": [
+        "Performance review completed and shared with stakeholders"
+      ],
+      "responsible_party": "Store Manager",
+      "dependencies": [
+        "Root Cause Analysis and Documentation"
+      ],
+      "deliverables": [
+        "Performance Review Summary",
+        "KPI Dashboard Update"
+      ],
+      "outputs": [
+        "Process improvement plan"
+      ],
+      "process_owner": "Inventory Control Manager",
+      "description": "The final step involves reviewing the effectiveness of the stock-out response and tracking key performance indicators such as the duration of the outage and the success rate of customer mitigation efforts. This feedback loop ensures that the process remains efficient and provides the necessary data for senior management to make informed decisions about inventory investment, warehouse operations, and overall supply chain strategy. Regular reviews allow for the continuous refinement of the process based on real-world performance data and changing market conditions, ensuring the retail operation remains competitive.",
+      "inputs": [
+        "Stock-out Rate (M-001)",
+        "Average Time to Replenish (M-002)",
+        "Save-the-Sale Conversion Rate (M-003)"
+      ],
+      "governance_requirements": [
+        "Senior management reporting"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Process design revision request."
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Performance metrics not reflecting actual customer experience",
+          "control": "Regular KPI audits and process walkthroughs."
+        }
+      ],
+      "process_triggers": [
+        "End of reporting period (Monthly)"
+      ]
+    }
+  ],
+  "critical_success_factors": [
+    {
+      "description": "Success depends on the system's data matching physical reality to ensure stock-outs are identified immediately.",
+      "name": "Real-time Inventory Accuracy"
+    },
+    {
+      "name": "Supplier Lead Time Reliability",
+      "description": "The ability to restock quickly depends on suppliers meeting their delivery windows consistently."
+    },
+    {
+      "name": "Staff Proactivity",
+      "description": "Front-line employees must be trained to identify gaps and offer alternatives immediately to prevent customer churn."
+    }
+  ],
+  "purpose": "The purpose of the inventory stock-out management process is to establish a systematic and proactive approach for identifying, addressing, and preventing instances where products are unavailable for purchase in a retail environment. By formalizing these steps, the organization aims to minimize the negative impact on customer experience and revenue while simultaneously improving supply chain resilience and data accuracy. This process ensures that every stock-out is treated not just as a lost sale, but as a critical data point for continuous improvement in demand forecasting, inventory control, and supplier management. It provides a structured path from immediate tactical response to long-term strategic prevention.",
+  "process_name": "Inventory Stock-out Management",
+  "process_end_conditions": [
+    "Product is successfully restocked and available for purchase",
+    "Root cause analysis is completed and recorded in the system",
+    "Customer mitigation actions (e.g., rain check fulfillment) are closed"
   ]
 }

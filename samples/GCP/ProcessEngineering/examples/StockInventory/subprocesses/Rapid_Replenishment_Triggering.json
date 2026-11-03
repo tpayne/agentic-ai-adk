@@ -1,0 +1,249 @@
+{
+  "subprocess_flow": [
+    {
+      "step_risks_and_controls": [
+        {
+          "risk": "Replenishment of low-margin items prioritized over high-impact items.",
+          "control": "Automated prioritization based on margin and velocity."
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "triggers": "Verified stock-out declaration.",
+      "scope": "Automated data processing within the ERP environment.",
+      "governance_requirements": [
+        "Compliance with ERP data integrity standards."
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "ERP logic error logs"
+          ]
+        }
+      ],
+      "inputs": [
+        "Confirmed stock-out report",
+        "Sales velocity data"
+      ],
+      "substep_name": "Automated Priority Analysis",
+      "responsible_party": "ERP System",
+      "estimated_duration": "30 minutes",
+      "dependencies": [],
+      "change_management": [
+        {
+          "change_request_process": "Logic updates via Supply Chain Steering Committee.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "end_conditions": [
+        "Draft orders are visible in the ERP system."
+      ],
+      "description": "The ERP system processes the verified stock-out report and sales velocity data to calculate replenishment priority. It automatically generates draft emergency purchase orders or stock transfer requests based on pre-defined margin and velocity logic, ensuring high-impact items are addressed first.",
+      "success_criteria": [
+        "Draft orders generated within 30 minutes of stock-out verification."
+      ],
+      "purpose": "To rapidly identify and prepare the most critical items for replenishment.",
+      "outputs": [
+        "Draft Emergency PO",
+        "Draft Stock Transfer Request (STR)"
+      ]
+    },
+    {
+      "scope": "Review of automated drafts for accuracy and feasibility.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Managerial override frequency data."
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "estimated_duration": "30 minutes",
+      "inputs": [
+        "Draft Emergency PO",
+        "Draft STR"
+      ],
+      "success_criteria": [
+        "100% of draft orders reviewed for accuracy."
+      ],
+      "description": "The Inventory Control Manager reviews the draft orders to ensure the prioritization aligns with current business needs and that the chosen fulfillment method (PO vs. STR) is feasible. This step provides a human check on the automated logic to account for external factors not captured by the ERP.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Incorrect automated fulfillment method selection.",
+          "control": "Mandatory review by Inventory Control Manager."
+        }
+      ],
+      "substep_name": "Review and Refine Draft Orders",
+      "change_management": [
+        {
+          "change_request_process": "Managerial override protocol.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "responsible_party": "Inventory Control Manager",
+      "outputs": [
+        "Validated Replenishment Plan"
+      ],
+      "triggers": "Completion of draft generation in ERP.",
+      "purpose": "To ensure human oversight on automated replenishment decisions.",
+      "governance_requirements": [
+        "Audit trail of all draft order modifications."
+      ],
+      "end_conditions": [
+        "Replenishment plan is validated and ready for financial audit."
+      ],
+      "dependencies": [
+        "Automated Priority Analysis"
+      ]
+    },
+    {
+      "triggers": "Validated replenishment plan ready for release.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Expedited shipping costs exceeding the 10% retail value budget constraint.",
+          "control": "ERP-integrated budget tracking and mandatory secondary approval for >10% costs."
+        }
+      ],
+      "success_criteria": [
+        "All shipping expenses validated against the 10% threshold."
+      ],
+      "inputs": [
+        "Validated Replenishment Plan"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Shipping cost variance reports."
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "end_conditions": [
+        "Shipping costs are approved or adjusted to fit budget."
+      ],
+      "governance_requirements": [
+        "Adherence to expedited shipping budget constraints."
+      ],
+      "purpose": "To maintain financial discipline during emergency replenishment.",
+      "dependencies": [
+        "Review and Refine Draft Orders"
+      ],
+      "outputs": [
+        "Approved Shipping Budget"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Budget threshold adjustments via Finance.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "scope": "Financial compliance and budget auditing for shipping.",
+      "description": "Evaluate the estimated expedited shipping costs against the 10% retail value budget constraint. If the cost exceeds the threshold, the Warehouse Manager must trigger a mandatory secondary approval from the Finance Department to justify the expense.",
+      "responsible_party": "Warehouse Manager",
+      "estimated_duration": "1 hour",
+      "process_owner": "Inventory Control Manager",
+      "substep_name": "Expedited Shipping Financial Audit"
+    },
+    {
+      "end_conditions": [
+        "Orders are successfully transmitted to external or internal partners."
+      ],
+      "triggers": "Budget approval received.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Transmission error reports."
+          ]
+        }
+      ],
+      "governance_requirements": [
+        "Secure transmission of procurement data."
+      ],
+      "inputs": [
+        "Approved Shipping Budget",
+        "Validated Replenishment Plan"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "EDI and transmission protocol updates."
+        }
+      ],
+      "substep_name": "Execute Order Transmission",
+      "process_owner": "Inventory Control Manager",
+      "responsible_party": "Warehouse Manager",
+      "description": "The Warehouse Manager officially releases the approved purchase orders or stock transfer requests to the suppliers or internal warehouse locations. Transmission is handled via EDI or the ERP portal to ensure immediate notification and minimize transit delays.",
+      "estimated_duration": "30 minutes",
+      "step_risks_and_controls": [
+        {
+          "control": "ERP transmission logs and automated failure alerts.",
+          "risk": "Order transmission failure resulting in replenishment delays."
+        }
+      ],
+      "outputs": [
+        "Emergency Purchase Order",
+        "Stock Transfer Request"
+      ],
+      "dependencies": [
+        "Expedited Shipping Financial Audit"
+      ],
+      "purpose": "To initiate the physical movement of goods from the source to the stock-out location.",
+      "scope": "Procurement execution and logistics communication.",
+      "success_criteria": [
+        "Orders transmitted within 4 hours of the initial trigger."
+      ]
+    },
+    {
+      "process_owner": "Inventory Control Manager",
+      "outputs": [
+        "Replenishment order confirmation"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Supplier communication protocol changes."
+        }
+      ],
+      "success_criteria": [
+        "Order acknowledgment received for all emergency requests."
+      ],
+      "purpose": "To confirm the supply chain response has been initiated and accepted.",
+      "end_conditions": [
+        "Replenishment order is acknowledged by supplier/warehouse."
+      ],
+      "dependencies": [
+        "Execute Order Transmission"
+      ],
+      "scope": "Supplier relationship management and order tracking.",
+      "substep_name": "Monitor and Record Acknowledgment",
+      "responsible_party": "Warehouse Manager",
+      "governance_requirements": [
+        "Documentation of supplier commitment to delivery timelines."
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Supplier performance data"
+          ]
+        }
+      ],
+      "triggers": "Confirmation of order transmission.",
+      "inputs": [
+        "Emergency Purchase Order",
+        "Stock Transfer Request"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Follow-up protocol if no response within 2 hours of transmission.",
+          "risk": "Supplier fails to acknowledge order in a timely manner."
+        }
+      ],
+      "estimated_duration": "1-2 hours",
+      "description": "Monitor the communication channels for acknowledgment from the supplier or the fulfilling warehouse. This step ensures that the replenishment request has been received and scheduled for expedited processing, closing the loop on the triggering phase."
+    }
+  ],
+  "step_name": "Rapid Replenishment Triggering"
+}

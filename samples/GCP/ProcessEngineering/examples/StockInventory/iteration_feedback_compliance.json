@@ -1,0 +1,23 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "instruction": "Add 'Customer inquiry for an item that cannot be located on the sales floor' to the process_triggers list to align with the root-level process triggers and ensure that customer-initiated events properly flow through the verification step.",
+      "issue_type": "compliance",
+      "metadata": {
+        "category": "Data Integrity",
+        "risk_level": "Low"
+      },
+      "location": "process_steps[0].process_triggers"
+    },
+    {
+      "issue_type": "compliance",
+      "location": "process_steps[4].responsible_party",
+      "metadata": {
+        "category": "Operational",
+        "risk_level": "Medium"
+      },
+      "instruction": "Change the responsible_party from 'Store Manager' to 'Inventory Control Manager'. The description and governance requirements for this step involve aggregate performance monitoring, senior management reporting, and strategic process refinement, which fall under the purview of the Process Owner rather than an individual store-level manager."
+    }
+  ]
+}
