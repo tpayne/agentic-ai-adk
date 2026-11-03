@@ -1,0 +1,21 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "instruction": "The ServiceNow Instance is identified as a structural bottleneck. Ensure that the technology stack or description explicitly mentions elastic scaling in a way the simulator recognizes (e.g., 'elastic', 'auto-scaling'), or mitigate the dependency count.",
+      "issue_type": "simulation",
+      "location": "high_level_design.components[0]",
+      "metadata": {
+        "issue": "structural_bottleneck"
+      }
+    },
+    {
+      "issue_type": "simulation",
+      "instruction": "The security risk rating is Medium. Review the 'Credential Exposure' risk and ensure mitigations (like external vault integration) are fully reflected in the component controls to lower the risk rating.",
+      "metadata": {
+        "issue": "security_risk_rating_medium"
+      },
+      "location": "high_level_design.security_architecture"
+    }
+  ]
+}
