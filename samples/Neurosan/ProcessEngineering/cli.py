@@ -1202,9 +1202,10 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     fully done with the returned session, including having called
     session.send()/send_streaming() to completion, or the session can
     never become eligible for eviction again. If existing_session_id is
-    missing/unknown, a fresh (isolated -- see ChatSession's own
-    docstring) ChatSession is created and registered under a new web
-    session id, which is returned alongside it (also pinned)."""
+    missing, a fresh (isolated -- see ChatSession's own docstring)
+    ChatSession is created under a new id. For an unknown but valid
+    requested id, a fresh session reuses that id so the client remains
+    pinned to its selected conversation. The returned session is pinned."""
     global _web_sessions_last_swept
 
     now = time.monotonic()
@@ -1254,13 +1255,24 @@ def _get_or_create_web_session(existing_session_id: Optional[str], agent_name: s
     # I/O (neuro-san session setup, thinking-file creation), which would
     # otherwise serialize EVERY concurrent session creation (even for
     # unrelated users) behind this one lock.
-    session = ChatSession(agent_name, isolated=True)
     web_session_id = str(uuid.uuid4())
+    try:
+        paths.sanitize_session_id(existing_session_id)
+        web_session_id = existing_session_id
+    except (TypeError, ValueError):
+        pass
+    session = ChatSession(agent_name, isolated=True)
     _configure_persisted_web_session(session, web_session_id, None)
     with _web_sessions_lock:
-        _web_sessions[web_session_id] = session
-        _active_web_sessions[web_session_id] = 1
-    return web_session_id, session
+        winner = _web_sessions.get(web_session_id)
+        if winner is not None:
+            _active_web_sessions[web_session_id] = _active_web_sessions.get(web_session_id, 0) + 1
+        else:
+            _web_sessions[web_session_id] = session
+            _active_web_sessions[web_session_id] = 1
+            return web_session_id, session
+    session.close()
+    return web_session_id, winner
 
 
 def _release_web_session(web_session_id: str) -> None:

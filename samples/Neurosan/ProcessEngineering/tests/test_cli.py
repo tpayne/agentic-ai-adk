@@ -965,6 +965,29 @@ class TestChatRoute:
 
 
 class TestPersistedWebChatState:
+    def test_unknown_valid_session_id_is_reused_for_a_fresh_session(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        requested_id = str(uuid.uuid4())
+
+        class _FreshChatSession:
+            def __init__(self, agent_name, isolated=False):
+                self.agent_name = agent_name
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        monkeypatch.setattr(cli, "ChatSession", _FreshChatSession)
+        with cli._web_sessions_lock:
+            cli._web_sessions.clear()
+            cli._active_web_sessions.clear()
+
+        resolved_id, session = cli._get_or_create_web_session(requested_id, "process_architect")
+
+        assert resolved_id == requested_id
+        assert session._web_session_id == requested_id
+        assert cli._web_sessions[requested_id] is session
+
     def test_chat_state_is_restored_after_the_in_memory_session_is_lost(self, monkeypatch, tmp_path):
         monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         session_id = str(uuid.uuid4())

@@ -108,6 +108,22 @@ class WebServiceSessionDeleteTest(unittest.TestCase):
         self.assertEqual(delete_resp.status_code, 200)
         self.assertFalse(delete_resp.get_json()["cleared"])
 
+    def test_unknown_valid_session_id_is_reused_for_a_fresh_session(self):
+        agent = self.agent
+        requested_id = "6ec5a122-ceb5-4965-b10a-23655de151a3"
+
+        result = agent.asyncio.run(agent._get_or_create_web_session(requested_id))
+
+        self.assertEqual(result, (requested_id, requested_id, requested_id))
+        persisted = agent.asyncio.run(
+            agent._web_session_service.get_session(
+                app_name=agent._WEB_APP_NAME,
+                user_id=requested_id,
+                session_id=requested_id,
+            )
+        )
+        self.assertIsNotNone(persisted)
+
     def test_existing_web_session_is_restored_after_database_service_restart(self):
         agent = self.agent
         with tempfile.TemporaryDirectory() as temp_dir:

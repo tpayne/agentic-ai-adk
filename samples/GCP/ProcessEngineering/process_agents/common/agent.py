@@ -744,6 +744,7 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
                     session_service=_web_session_service,
                 )
 
+    web_session_id = None
     if existing_session_id:
         try:
             toolkit_paths.sanitize_session_id(existing_session_id)
@@ -764,8 +765,12 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
                 with _web_sessions_lock:
                     _web_sessions[existing_session_id] = entry
                 return existing_session_id, existing_session_id, existing_session_id
+            # The caller already selected this id. If it is valid but no
+            # durable session exists, initialize a fresh session under that
+            # id rather than returning a different id the client will reject.
+            web_session_id = existing_session_id
 
-    web_session_id = str(uuid.uuid4())
+    web_session_id = web_session_id or str(uuid.uuid4())
     user_id = web_session_id
     session_id = web_session_id
     await _web_session_service.create_session(
