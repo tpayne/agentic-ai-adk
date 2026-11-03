@@ -73,9 +73,9 @@ to whichever backend Base URL you configure in the sidebar.
    produced rather than appearing all at once after a long silent wait. The session id returned by
    the first event is reused automatically for every turn after that, so the conversation actually
    continues rather than starting fresh each time.
-5. **+ New chat** clears the session client-side and asks the backend to drop its own server-side
-   state for it (`DELETE /chat/<session_id>`) — best-effort; if the backend is unreachable at that
-   moment, the client still forgets the id and starts clean either way.
+5. Use **+ New chat** to start a separate conversation; it does not delete the previous one.
+   Reopen saved conversations from the **History** list in the sidebar. Use **Delete session**
+   to remove the active conversation and its generated files from the backend.
 
 ## Composing a message
 
