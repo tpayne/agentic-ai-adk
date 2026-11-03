@@ -1,16 +1,12 @@
-"""Renders a simple, deterministic solution-architecture diagram from
+"""Renders a polished, deterministic solution-architecture diagram from
 proposal_response.json's own "architecture_components" field (list of
-{"name", "description", "connects_to": [...]}) -- one labeled node per
-component, one directed edge per "connects_to" entry.
+{"name", "description", "connects_to": [...]}) -- one capability card
+per component, one directed edge per "connects_to" entry.
 
-Mirrors edge_inference.py's generate_clean_diagram's own node-circle +
-wrapped-text-label + arrow drawing style for visual consistency with the
-rest of this project's generated diagrams, but with a much simpler
-layout: architecture components have no "lane" concept the way process
-steps/design components do, so nodes are positioned purely by BFS depth
-from root nodes (in_degree() == 0) -- depth drives the X axis, index-
-within-depth-level drives the Y axis, centered. No swimlane engine, no
-topological-sort-for-X-position complexity.
+Components are arranged into left-to-right layers by BFS depth from root
+nodes (in_degree() == 0), with siblings centered vertically. The diagram
+uses a restrained enterprise palette, readable capability cards, and
+directional connectors to create a client-facing system-context visual.
 
 Self-contained and called directly by generation.py's own document-build
 step (_add_solution_architecture_section), NOT wired through
@@ -33,6 +29,7 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import networkx as nx  # noqa: E402
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Circle
 
 from process_toolkit import paths
 from process_toolkit.filenames import safe_filename_component
@@ -73,7 +70,7 @@ def _layered_component_positions(components: List[Dict[str, Any]]) -> Tuple[nx.D
     for n in names:
         by_depth.setdefault(depth[n], []).append(n)
 
-    x_spacing, y_spacing = 5.0, -3.5
+    x_spacing, y_spacing = 3.4, -2.2
     pos: Dict[str, Tuple[float, float]] = {}
     for d, nodes_at_depth in by_depth.items():
         count = len(nodes_at_depth)
@@ -98,40 +95,135 @@ def generate_proposal_architecture_diagram(components: List[Dict[str, Any]], pro
 
     G, pos = _layered_component_positions(valid)
 
-    fig, ax = plt.subplots(figsize=(14, 8))
+    card_width, card_height = 2.55, 1.55
+    x_vals = [p[0] for p in pos.values()]
+    y_vals = [p[1] for p in pos.values()]
+    x_min, x_max = min(x_vals), max(x_vals)
+    y_min, y_max = min(y_vals), max(y_vals)
+    left, right = x_min - 1.45, x_max + 1.45
+    bottom, top = y_min - 1.55, y_max + 2.65
+    plot_width, plot_height = right - left, top - bottom
 
-    nx.draw_networkx_edges(
-        G, pos, ax=ax, edge_color="#7f8c8d", arrows=True,
-        arrowstyle='-|>', arrowsize=20, width=1.5,
-        connectionstyle="arc3,rad=0.1", min_source_margin=30, min_target_margin=30,
+    # Keep text legible when the document inserts the image at page width;
+    # grow the canvas only as needed for unusually large graphs.
+    fig_width = min(12.0, max(8.5, plot_width * 0.72))
+    fig_height = fig_width * plot_height / plot_width
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+    ax.set_facecolor("#F4F7FB")
+
+    # Header block
+    ax.add_patch(FancyBboxPatch(
+        (left, top - 1.25), plot_width, 1.25,
+        boxstyle="round,pad=0.02,rounding_size=0.16",
+        facecolor="#14243A", edgecolor="none", zorder=1,
+    ))
+    ax.text(
+        left + 0.35, top - 0.47, "SYSTEM ARCHITECTURE",
+        color="#77D6C1", fontsize=9, fontweight="bold", va="center",
+        ha="left", zorder=2,
+    )
+    title = textwrap.shorten(str(process_name), width=58, placeholder="...")
+    ax.text(
+        left + 0.35, top - 0.91, title,
+        color="white", fontsize=17, fontweight="bold", va="center",
+        ha="left", zorder=2,
+    )
+    ax.text(
+        right - 0.3, top - 0.72, f"{len(G.nodes):02d} ARCHITECTURE COMPONENTS",
+        color="#D3DFEC", fontsize=8, fontweight="bold", va="center",
+        ha="right", zorder=2,
     )
 
-    for name in G.nodes():
-        x, y = pos.get(name, (0.0, 0.0))
-        wrapped_text = "\n".join(textwrap.wrap(name, width=24))
-        ax.plot(
-            x, y, marker='o', markersize=62,
-            markeredgecolor="#2980B9", markerfacecolor="#D5E8F7", linestyle='None',
-        )
+    layers: Dict[float, List[str]] = {}
+    for name, (x, _) in pos.items():
+        layers.setdefault(x, []).append(name)
+    for layer_number, (x, names_at_layer) in enumerate(sorted(layers.items()), start=1):
+        ax.add_patch(FancyBboxPatch(
+            (x - 1.52, bottom + 0.18), 3.04, plot_height - 1.65,
+            boxstyle="round,pad=0.02,rounding_size=0.12",
+            facecolor="#E9EFF7" if layer_number % 2 else "#EEF3F8",
+            edgecolor="#DCE5EF", linewidth=0.8, zorder=0,
+        ))
         ax.text(
-            x, y, wrapped_text, ha="center", va="center",
-            fontsize=9, fontweight="normal",
-            bbox=dict(facecolor="white", edgecolor="#2980B9", boxstyle="round,pad=0.5", linewidth=1.5),
+            x, top - 1.58, f"LAYER {layer_number:02d}  |  {len(names_at_layer)}",
+            color="#64758A", fontsize=7, fontweight="bold",
+            ha="center", va="center", zorder=2,
         )
 
-    if pos:
-        x_vals = [p[0] for p in pos.values()]
-        y_vals = [p[1] for p in pos.values()]
-        ax.set_xlim(min(x_vals) - 4.0, max(x_vals) + 4.0)
-        ax.set_ylim(min(y_vals) - 3.0, max(y_vals) + 3.0)
+    node_boxes = {}
+    for name in G.nodes:
+        x, y = pos[name]
+        box = FancyBboxPatch(
+            (x - card_width / 2, y - card_height / 2),
+            card_width, card_height,
+            boxstyle="round,pad=0.04,rounding_size=0.13",
+            facecolor="white", edgecolor="#D8E1EC", linewidth=1.0,
+            zorder=3,
+        )
+        ax.add_patch(box)
+        node_boxes[name] = box
 
-    plt.title(f"Solution Architecture: {process_name}", fontsize=15, pad=30, fontweight='bold')
-    plt.axis("off")
+    node_order = {name: index for index, name in enumerate(G.nodes)}
+    for source, target in G.edges:
+        source_pos, target_pos = pos[source], pos[target]
+        curve = 0.12 if node_order[source] <= node_order[target] else -0.12
+        edge = FancyArrowPatch(
+            source_pos, target_pos,
+            patchA=node_boxes[source], patchB=node_boxes[target],
+            arrowstyle="-|>", mutation_scale=13,
+            connectionstyle=f"arc3,rad={curve}",
+            color="#7C91AA", linewidth=1.55, alpha=0.9,
+            shrinkA=4, shrinkB=4, zorder=2,
+        )
+        ax.add_patch(edge)
+
+    palette = ["#2878B8", "#7258B5", "#178C83", "#D08034"]
+    for index, name in enumerate(G.nodes, start=1):
+        x, y = pos[name]
+        color = palette[(index - 1) % len(palette)]
+        ax.add_patch(Circle(
+            (x - card_width / 2 + 0.24, y + 0.42), 0.14,
+            facecolor=color, edgecolor="none", zorder=4,
+        ))
+        ax.text(
+            x - card_width / 2 + 0.24, y + 0.42, f"{index:02d}",
+            color="white", fontsize=6.5, fontweight="bold",
+            ha="center", va="center", zorder=5,
+        )
+        wrapped_name = "\n".join(textwrap.wrap(str(name), width=24)[:2])
+        ax.text(
+            x - card_width / 2 + 0.48, y + 0.42, wrapped_name,
+            color="#1C2D43", fontsize=9.5, fontweight="bold",
+            ha="left", va="center", zorder=5,
+        )
+        description = next(
+            (str(component.get("description", "")).strip()
+             for component in valid if component["name"] == name),
+            "",
+        )
+        if description:
+            wrapped_description = textwrap.fill(description, width=39, max_lines=3, placeholder="...")
+            ax.text(
+                x - card_width / 2 + 0.22, y - 0.23, wrapped_description,
+                color="#64758A", fontsize=7.1, ha="left", va="top",
+                linespacing=1.25, zorder=5,
+            )
+        ax.add_patch(FancyBboxPatch(
+            (x - card_width / 2 + 0.22, y - card_height / 2 + 0.12),
+            0.38, 0.045,
+            boxstyle="round,pad=0.01,rounding_size=0.02",
+            facecolor=color, edgecolor="none", zorder=5,
+        ))
+
+    ax.set_xlim(left, right)
+    ax.set_ylim(bottom, top)
+    ax.set_aspect("equal", adjustable="box")
+    ax.axis("off")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     out_path = paths.output_path(f"{safe_filename_component(process_name.lower())}_architecture.png")
 
-    fig.tight_layout()
-    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
+    plt.savefig(out_path, dpi=220, facecolor="#F4F7FB")
     plt.close(fig)
 
     return out_path
