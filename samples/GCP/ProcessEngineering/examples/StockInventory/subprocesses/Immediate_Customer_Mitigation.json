@@ -1,0 +1,313 @@
+{
+  "step_name": "Immediate Customer Mitigation",
+  "subprocess_flow": [
+    {
+      "dependencies": [],
+      "triggers": [
+        "Customer inquiry for missing item confirmed as out-of-stock."
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Customer feedback",
+            "Interaction time logs"
+          ]
+        }
+      ],
+      "substep_name": "Empathy and Stock-out Confirmation",
+      "process_owner": "Inventory Control Manager",
+      "estimated_duration": "1-2 minutes",
+      "inputs": [
+        "Confirmed stock-out status",
+        "Customer inquiry"
+      ],
+      "purpose": "To acknowledge the issue and maintain customer rapport before offering alternatives.",
+      "end_conditions": [
+        "Customer acknowledges the stock-out status and is ready for alternatives."
+      ],
+      "success_criteria": [
+        "Customer remains engaged in the conversation and feels heard."
+      ],
+      "description": "The Customer Service Representative acknowledges the customer's request and confirms the out-of-stock status based on the previous verification step. This sub-step involves using professional empathy to manage customer expectations and setting a positive tone for the mitigation process. The representative should explicitly mention that while the item is currently unavailable, several solutions are available to ensure the customer's needs are met.",
+      "governance_requirements": [
+        "Compliance with local consumer protection laws (CON-001) regarding transparency."
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Use standardized empathy scripts to ensure professional delivery.",
+          "risk": "Initial customer frustration escalates due to poor communication."
+        }
+      ],
+      "responsible_party": "Customer Service Representative",
+      "scope": "Initial customer interaction at the point of sale or service desk.",
+      "outputs": [
+        "Validated customer need"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Customer service script updates."
+        }
+      ]
+    },
+    {
+      "description": "The Representative identifies similar products currently in stock that meet the customer's needs by using the inventory management system's 'related items' feature. They present the benefits, features, and price points of these alternatives to the customer. This step is designed to facilitate an immediate sale and solve the customer's problem without delay, preventing them from visiting a competitor.",
+      "process_owner": "Inventory Control Manager",
+      "inputs": [
+        "Product specifications",
+        "Inventory system access"
+      ],
+      "purpose": "To capture immediate revenue by providing an available substitute.",
+      "triggers": [
+        "Customer expresses willingness to consider other products."
+      ],
+      "end_conditions": [
+        "Customer either accepts an alternative or requests the original item via other means."
+      ],
+      "scope": "In-store inventory search and presentation.",
+      "step_risks_and_controls": [
+        {
+          "control": "Real-time inventory system access to ensure suggested alternatives are actually in stock.",
+          "risk": "Suggesting an alternative that is also out of stock."
+        }
+      ],
+      "governance_requirements": [
+        "Fair trade practices regarding product substitution."
+      ],
+      "outputs": [
+        "Alternative product options presented"
+      ],
+      "dependencies": [
+        "Empathy and Stock-out Confirmation"
+      ],
+      "substep_name": "Identify and Present Alternative Products",
+      "success_criteria": [
+        "Customer considers or accepts a suggested alternative product."
+      ],
+      "responsible_party": "Customer Service Representative",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Conversion rate on alternatives"
+          ]
+        }
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Product substitution list updates."
+        }
+      ],
+      "estimated_duration": "2-5 minutes"
+    },
+    {
+      "success_criteria": [
+        "Customer is provided with a clear delivery timeline and cost."
+      ],
+      "scope": "Cross-channel inventory fulfillment.",
+      "triggers": [
+        "Customer rejects in-store alternatives but still wants the specific item."
+      ],
+      "outputs": [
+        "Home delivery order (potential)"
+      ],
+      "process_owner": "Inventory Control Manager",
+      "change_management": [
+        {
+          "versioning_rules": "V1.1",
+          "change_request_process": "Logistics partner service level updates."
+        }
+      ],
+      "end_conditions": [
+        "Home delivery order initiated or customer declines delivery option."
+      ],
+      "governance_requirements": [
+        "GDPR/Data Privacy compliance for shipping address collection."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate delivery date promises leading to dissatisfaction.",
+          "control": "Automated shipping estimates and real-time tracking integration."
+        }
+      ],
+      "estimated_duration": "3-5 minutes",
+      "responsible_party": "Customer Service Representative",
+      "substep_name": "Check Extended Inventory for Home Delivery",
+      "purpose": "To fulfill the customer's specific request using the broader supply chain network.",
+      "dependencies": [
+        "Identify and Present Alternative Products"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Delivery success rates"
+          ]
+        }
+      ],
+      "description": "If the customer insists on the original item and is willing to wait for shipping, the Representative checks the 'Save the Sale' module. This module determines if the product is available at a regional distribution center or another branch for direct-to-home delivery. The Representative explains the shipping timeline, potential costs, and the convenience of having the item delivered directly to the customer's door.",
+      "inputs": [
+        "Centralized inventory data",
+        "Logistics schedule"
+      ]
+    },
+    {
+      "inputs": [
+        "Expected restock dates",
+        "CRM access"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Rain check redemption rates"
+          ]
+        }
+      ],
+      "triggers": [
+        "Item is out of stock but has a confirmed replenishment date."
+      ],
+      "outputs": [
+        "Rain check request"
+      ],
+      "description": "In cases where the item is expected back in stock shortly and the customer prefers to pick it up in-store, the Representative initiates a rain check. This process involves verifying the next replenishment date in the ERP system and locking in the current promotional or standard price for the customer. The Representative explains that the customer will be notified as soon as the stock arrives.",
+      "estimated_duration": "2-3 minutes",
+      "success_criteria": [
+        "Customer agrees to the rain check terms and restock timeline."
+      ],
+      "end_conditions": [
+        "Rain check details confirmed in the CRM."
+      ],
+      "dependencies": [
+        "Check Extended Inventory for Home Delivery"
+      ],
+      "scope": "Future fulfillment commitment.",
+      "responsible_party": "Customer Service Representative",
+      "substep_name": "Issue Rain Check for Future Pickup",
+      "purpose": "To ensure the customer returns to the store for the item once it is restocked.",
+      "step_risks_and_controls": [
+        {
+          "control": "Automated restock alerts linked to the rain check record.",
+          "risk": "Failure to notify customer when item returns to stock."
+        }
+      ],
+      "governance_requirements": [
+        "Compliance with local consumer protection laws (CON-001) regarding rain check validity."
+      ],
+      "process_owner": "Inventory Control Manager",
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Rain check policy revisions."
+        }
+      ]
+    },
+    {
+      "end_conditions": [
+        "Customer data and mitigation action successfully saved in CRM."
+      ],
+      "success_criteria": [
+        "100% of customer mitigation actions are recorded in the CRM."
+      ],
+      "substep_name": "Record Customer Details and Mitigation Choice in CRM",
+      "process_owner": "Inventory Control Manager",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Data accuracy audits"
+          ],
+          "review_frequency": "Quarterly"
+        }
+      ],
+      "outputs": [
+        "Mitigation action record",
+        "CRM Record"
+      ],
+      "dependencies": [
+        "Issue Rain Check for Future Pickup"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Encrypt PII data at rest and in transit; restrict access to authorized CRM users.",
+          "risk": "Data privacy breach of customer contact information (PII)."
+        }
+      ],
+      "governance_requirements": [
+        "GDPR/PII data protection standards."
+      ],
+      "estimated_duration": "2-4 minutes",
+      "scope": "Data entry and privacy compliance.",
+      "triggers": [
+        "Mitigation path selected by the customer."
+      ],
+      "inputs": [
+        "Customer contact details",
+        "Mitigation selection"
+      ],
+      "description": "The Representative captures the customer's contact information (name, phone, email) and the specific mitigation choice in the CRM. This data entry is essential for maintaining the 'Mitigation action record' and ensuring that the success criteria of 100% recording is met. The representative must ensure the customer's consent for data storage is captured according to privacy laws.",
+      "purpose": "To document the interaction for compliance, reporting, and future follow-up.",
+      "change_management": [
+        {
+          "versioning_rules": "V1.2",
+          "change_request_process": "CRM data entry field updates."
+        }
+      ],
+      "responsible_party": "Customer Service Representative"
+    },
+    {
+      "inputs": [
+        "CRM Record",
+        "Payment (if applicable)"
+      ],
+      "triggers": [
+        "CRM record completion."
+      ],
+      "purpose": "To provide the customer with formal proof of the mitigation agreement and conclude the service interaction.",
+      "substep_name": "Finalize Transaction and Handover Documentation",
+      "estimated_duration": "2-3 minutes",
+      "dependencies": [
+        "Record Customer Details and Mitigation Choice in CRM"
+      ],
+      "governance_requirements": [
+        "Financial auditing standards for transactions."
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "System-generated unique identifiers for rain checks and delivery orders.",
+          "risk": "Loss of documentation or manual errors in voucher issuance."
+        }
+      ],
+      "outputs": [
+        "Rain check issued",
+        "Alternative product sale",
+        "Home delivery order"
+      ],
+      "description": "The Representative finalizes the transaction at the POS or CRM terminal. They provide the customer with the appropriate documentation, such as a sales receipt for an alternative, a home delivery confirmation, or a physical/digital rain check voucher. The representative confirms the customer understands the next steps (e.g., waiting for a restock notification or delivery arrival) and thanks them for their patience.",
+      "end_conditions": [
+        "Customer accepts alternative or rain check is processed."
+      ],
+      "scope": "Transaction finalization and document handover.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Customer exit survey feedback"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "responsible_party": "Customer Service Representative",
+      "process_owner": "Inventory Control Manager",
+      "success_criteria": [
+        "Customer leaves with a clear record of the resolved inquiry."
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Receipt/Documentation template updates.",
+          "versioning_rules": "V1.0"
+        }
+      ]
+    }
+  ]
+}

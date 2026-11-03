@@ -1,0 +1,13 @@
+{
+  "status": "REVISION REQUIRED",
+  "data": [
+    {
+      "issue_type": "simulation",
+      "metadata": {
+        "issue": "Simulation identified multiple bottlenecks in the process flow."
+      },
+      "instruction": "Address bottlenecks in 'Root Cause Analysis and Documentation', 'Stock-out Identification and Verification', and 'Process Review and Performance Monitoring' to streamline the flow.",
+      "location": "process_steps"
+    }
+  ]
+}

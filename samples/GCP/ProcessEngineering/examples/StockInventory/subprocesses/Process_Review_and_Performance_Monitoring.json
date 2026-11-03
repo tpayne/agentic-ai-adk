@@ -1,0 +1,298 @@
+{
+  "step_name": "Process Review and Performance Monitoring",
+  "subprocess_flow": [
+    {
+      "process_owner": "Inventory Control Manager",
+      "step_risks_and_controls": [
+        {
+          "control": "Automated data validation scripts and manual spot checks.",
+          "risk": "Inaccurate data entry leading to flawed analysis."
+        }
+      ],
+      "scope": "Data aggregation and dashboard maintenance.",
+      "purpose": "To provide a visual and data-driven foundation for performance assessment.",
+      "success_criteria": [
+        "Dashboard reflects 100% of the required metrics for the reporting period."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "KPI reports"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "outputs": [
+        "KPI Dashboard Update"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Process design revision request."
+        }
+      ],
+      "dependencies": [],
+      "triggers": [
+        "End of reporting period (Monthly)"
+      ],
+      "governance_requirements": [
+        "Data integrity verification"
+      ],
+      "inputs": [
+        "Stock-out Rate (M-001)",
+        "Average Time to Replenish (M-002)",
+        "Save-the-Sale Conversion Rate (M-003)"
+      ],
+      "end_conditions": "KPI Dashboard is fully updated with the latest period data.",
+      "estimated_duration": "1-2 days",
+      "description": "Gather and consolidate data for the key performance indicators including Stock-out Rate (M-001), Average Time to Replenish (M-002), and Save-the-Sale Conversion Rate (M-003). This sub-step involves updating the centralized monitoring dashboard to reflect the current period's performance against historical benchmarks.",
+      "substep_name": "Update KPI Dashboards",
+      "responsible_party": "Store Manager"
+    },
+    {
+      "governance_requirements": [
+        "Senior management reporting preparation"
+      ],
+      "purpose": "To correlate performance metrics with operational root causes.",
+      "substep_name": "Analyze Performance Trends and Root Causes",
+      "estimated_duration": "1 day",
+      "outputs": [
+        "Preliminary Analysis Report"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Process design revision request."
+        }
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Root Cause Analysis reports"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "triggers": [
+        "Completion of KPI Dashboard Update."
+      ],
+      "responsible_party": "Inventory Control Manager",
+      "scope": "Trend analysis and root cause correlation.",
+      "process_owner": "Inventory Control Manager",
+      "inputs": [
+        "KPI Dashboard Update",
+        "Root Cause Analysis and Documentation"
+      ],
+      "description": "Analyze the updated KPI data in conjunction with the Root Cause Analysis and Documentation from the preceding process step. Identify specific trends, such as recurring vendor delays or specific product categories with high stock-out rates, to understand the 'why' behind the numbers.",
+      "dependencies": [
+        "Update KPI Dashboards"
+      ],
+      "success_criteria": [
+        "Correlation identified between at least 80% of major stock-out events and their root causes."
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Cross-referencing KPI trends with qualitative incident reports.",
+          "risk": "Misinterpretation of data without operational context."
+        }
+      ],
+      "end_conditions": "Analysis of performance drivers is documented."
+    },
+    {
+      "process_owner": "Inventory Control Manager",
+      "dependencies": [
+        "Analyze Performance Trends and Root Causes"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Omission of critical performance failures in the summary.",
+          "control": "Peer review of the summary for clarity and accuracy."
+        }
+      ],
+      "triggers": [
+        "Completion of Trend Analysis."
+      ],
+      "substep_name": "Generate Performance Review Summary",
+      "end_conditions": "Performance Review Summary is drafted and ready for distribution.",
+      "governance_requirements": [
+        "Standardized reporting templates compliance"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Process design revision request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "estimated_duration": "4-6 hours",
+      "inputs": [
+        "Preliminary Analysis Report",
+        "KPI Dashboard Update"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Preliminary Analysis Report"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "purpose": "To prepare a concise summary of performance for stakeholder review.",
+      "success_criteria": [
+        "Summary document completed and distributed to stakeholders 24 hours before the review meeting."
+      ],
+      "description": "Synthesize the data and analysis into a comprehensive Performance Review Summary. This document serves as the primary briefing material for stakeholders, highlighting critical successes in customer mitigation and identifying persistent bottlenecks in the replenishment cycle.",
+      "outputs": [
+        "Performance Review Summary"
+      ],
+      "scope": "Reporting and documentation.",
+      "responsible_party": "Store Manager"
+    },
+    {
+      "responsible_party": "Store Manager",
+      "step_risks_and_controls": [
+        {
+          "risk": "Lack of stakeholder engagement or biased feedback.",
+          "control": "Structured agenda and independent facilitator if necessary."
+        }
+      ],
+      "substep_name": "Conduct Monthly Stakeholder Review Session",
+      "description": "Convene a meeting with relevant stakeholders (department heads, supply chain leads, and the Inventory Control Manager) to discuss the findings. The goal is to validate the analysis, gather frontline insights on the effectiveness of stock-out responses, and reach a consensus on required adjustments.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Monthly",
+          "improvement_inputs": [
+            "Stakeholder feedback"
+          ]
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "estimated_duration": "2 hours",
+      "triggers": [
+        "Distribution of Performance Review Summary."
+      ],
+      "dependencies": [
+        "Generate Performance Review Summary"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Process design revision request."
+        }
+      ],
+      "scope": "Stakeholder engagement and collaborative review.",
+      "success_criteria": [
+        "Attendance of all key department heads and documented consensus on performance gaps."
+      ],
+      "end_conditions": "Review meeting concluded with documented action items.",
+      "outputs": [
+        "Stakeholder Feedback and Action Items"
+      ],
+      "governance_requirements": [
+        "Meeting minutes documentation"
+      ],
+      "purpose": "To ensure organizational alignment and gather qualitative feedback on process efficiency.",
+      "inputs": [
+        "Performance Review Summary",
+        "KPI Dashboard Update"
+      ]
+    },
+    {
+      "scope": "Strategic planning and process refinement.",
+      "estimated_duration": "1 day",
+      "process_owner": "Inventory Control Manager",
+      "triggers": [
+        "Conclusion of the Stakeholder Review Session."
+      ],
+      "end_conditions": "Process Improvement Plan is finalized and signed off by the Store Manager.",
+      "inputs": [
+        "Stakeholder Feedback and Action Items",
+        "Performance Review Summary"
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Action items from review session"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "governance_requirements": [
+        "Senior management reporting approval"
+      ],
+      "outputs": [
+        "Process improvement plan"
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Feasibility study and cost-benefit analysis of proposed changes.",
+          "risk": "Proposing improvements that are not operationally or financially viable."
+        }
+      ],
+      "dependencies": [
+        "Conduct Monthly Stakeholder Review Session"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Process design revision request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "purpose": "To translate performance data into actionable strategic improvements.",
+      "substep_name": "Develop Process Improvement Plan",
+      "description": "Based on the data analysis and stakeholder feedback, develop a formal Process Improvement Plan. This plan should detail specific strategic adjustments to inventory investment, warehouse operational changes, or training for customer-facing staff to improve 'Save-the-Sale' conversion rates.",
+      "success_criteria": [
+        "Plan includes at least three actionable improvements with assigned owners and deadlines."
+      ],
+      "responsible_party": "Store Manager"
+    },
+    {
+      "responsible_party": "Inventory Control Manager",
+      "outputs": [
+        "Executive Briefing Acknowledgment"
+      ],
+      "purpose": "To provide senior management with the data needed for informed supply chain strategy decisions.",
+      "triggers": [
+        "Finalization of the Process Improvement Plan."
+      ],
+      "description": "Present the finalized Performance Review Summary and the Process Improvement Plan to senior management. This ensures that leadership is informed of supply chain performance and provides the necessary authorization for any significant resource allocations or strategic shifts.",
+      "estimated_duration": "1 hour briefing",
+      "dependencies": [
+        "Develop Process Improvement Plan"
+      ],
+      "governance_requirements": [
+        "Senior management reporting"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Process design revision request."
+        }
+      ],
+      "substep_name": "Report to Senior Management",
+      "inputs": [
+        "Process improvement plan",
+        "Performance Review Summary"
+      ],
+      "success_criteria": [
+        "Formal acknowledgment or approval of the Improvement Plan by senior leadership."
+      ],
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Process improvement plan"
+          ],
+          "review_frequency": "Monthly"
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Executive summary highlighting ROI and strategic alignment.",
+          "risk": "Senior management misalignment with proposed operational changes."
+        }
+      ],
+      "scope": "Executive reporting and governance.",
+      "end_conditions": "Performance review completed and shared with stakeholders/senior management.",
+      "process_owner": "Inventory Control Manager"
+    }
+  ]
+}

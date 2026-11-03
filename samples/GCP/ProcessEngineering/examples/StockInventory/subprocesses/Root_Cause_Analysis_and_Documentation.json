@@ -1,0 +1,378 @@
+{
+  "subprocess_flow": [
+    {
+      "substep_name": "Initiate Automated Diagnostic Data Collection",
+      "outputs": [
+        "Compiled Diagnostic Dataset"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Data source modification request."
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "estimated_duration": "1-2 hours",
+      "description": "The Inventory Planner initiates the automated diagnostic tool to extract replenishment data, supplier lead time history, and shrinkage reports from the ERP and Warehouse Management Systems. This step ensures that all quantitative data points required for a factual analysis are gathered and consolidated into a single working environment.",
+      "end_conditions": "All required data sets are successfully extracted and consolidated.",
+      "dependencies": [],
+      "triggers": [
+        "Replenishment order initiation following a stock-out crisis."
+      ],
+      "responsible_party": "Inventory Planner",
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or corrupted data extraction.",
+          "control": "Automated data validation scripts."
+        }
+      ],
+      "scope": "Extraction and consolidation of historical inventory and supply chain data.",
+      "purpose": "To provide a factual foundation for the root cause investigation.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Data accuracy metrics"
+          ],
+          "review_frequency": "Quarterly"
+        }
+      ],
+      "governance_requirements": "Data privacy and system access audit logs.",
+      "inputs": [
+        "Replenishment data",
+        "Supplier lead time history",
+        "Shrinkage reports"
+      ],
+      "success_criteria": [
+        "Dataset contains all 3 required input types."
+      ]
+    },
+    {
+      "outputs": [
+        "Variance Correlation Report"
+      ],
+      "responsible_party": "Inventory Planner",
+      "dependencies": [
+        "Initiate Automated Diagnostic Data Collection"
+      ],
+      "substep_name": "Correlate Sales and Supplier Variance",
+      "governance_requirements": "Standardized analytical methodology compliance.",
+      "end_conditions": "Correlation patterns are identified and quantified.",
+      "estimated_duration": "2-4 hours",
+      "step_risks_and_controls": [
+        {
+          "control": "Planner review of automated correlation findings.",
+          "risk": "Misinterpretation of correlation as causation."
+        }
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Algorithm adjustment request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "inputs": [
+        "Compiled Diagnostic Dataset"
+      ],
+      "purpose": "To isolate external supply and demand factors contributing to the stock-out.",
+      "scope": "Analytical correlation of external market and supplier data.",
+      "description": "The Inventory Planner utilizes the diagnostic tools to perform a correlation analysis between sales spikes and supplier delivery delays. By mapping these two variables, the planner can determine if the stock-out was primarily caused by an unexpected surge in demand, a failure in the supply chain timeline, or a combination of both.",
+      "success_criteria": [
+        "Primary external driver (Supply vs Demand) identified."
+      ],
+      "triggers": [
+        "Availability of compiled diagnostic dataset."
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Correlation accuracy feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "process_owner": "Inventory Control Manager",
+      "responsible_party": "Inventory Planner",
+      "description": "The Inventory Planner investigates internal records to identify operational issues such as inventory shrinkage, data entry errors, or warehouse delays. This step ensures that internal inefficiencies are not overlooked when assigning responsibility for the stock-out event.",
+      "purpose": "To identify internal process failures that contributed to inventory depletion.",
+      "continuous_improvement": [
+        {
+          "improvement_inputs": [
+            "Warehouse feedback on shrinkage accuracy"
+          ],
+          "review_frequency": "Quarterly"
+        }
+      ],
+      "scope": "Review of internal warehouse and inventory management operations.",
+      "substep_name": "Investigate Internal Operational Factors",
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Internal audit process update."
+        }
+      ],
+      "inputs": [
+        "Shrinkage reports",
+        "Warehouse logs"
+      ],
+      "dependencies": [
+        "Initiate Automated Diagnostic Data Collection"
+      ],
+      "governance_requirements": "Inventory accuracy standards compliance.",
+      "success_criteria": [
+        "Internal factors quantified and categorized."
+      ],
+      "end_conditions": "Internal operational contributors are documented.",
+      "triggers": [
+        "Availability of shrinkage and warehouse data."
+      ],
+      "estimated_duration": "2-4 hours",
+      "step_risks_and_controls": [
+        {
+          "risk": "Underreporting of internal operational errors.",
+          "control": "Cross-referencing shrinkage reports with physical cycle counts."
+        }
+      ],
+      "outputs": [
+        "Internal Factor Analysis"
+      ]
+    },
+    {
+      "triggers": [
+        "Completion of correlation and internal analyses."
+      ],
+      "end_conditions": "Initial draft of the RCA report is completed.",
+      "scope": "Drafting of the formal analysis document.",
+      "inputs": [
+        "Variance Correlation Report",
+        "Internal Factor Analysis"
+      ],
+      "outputs": [
+        "Draft Root Cause Analysis Report"
+      ],
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Report clarity feedback"
+          ]
+        }
+      ],
+      "substep_name": "Generate Draft Root Cause Analysis Report",
+      "change_management": [
+        {
+          "versioning_rules": "V1.1",
+          "change_request_process": "RCA template update."
+        }
+      ],
+      "estimated_duration": "2-4 hours",
+      "success_criteria": [
+        "Draft report covers both external and internal factors."
+      ],
+      "dependencies": [
+        "Correlate Sales and Supplier Variance",
+        "Investigate Internal Operational Factors"
+      ],
+      "governance_requirements": "Standardized RCA reporting format.",
+      "purpose": "To synthesize data into a cohesive explanation of the stock-out.",
+      "step_risks_and_controls": [
+        {
+          "risk": "Over-reliance on automated report generation without context.",
+          "control": "Mandatory qualitative commentary fields."
+        }
+      ],
+      "responsible_party": "Inventory Planner",
+      "description": "The Inventory Planner generates the initial draft of the Root Cause Analysis (RCA) report, combining the automated correlation results with the internal factor analysis. The planner adds qualitative context to the pre-populated data to provide a comprehensive narrative of the event.",
+      "process_owner": "Inventory Control Manager"
+    },
+    {
+      "inputs": [
+        "Draft Root Cause Analysis Report"
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Inaccurate root cause identification.",
+          "control": "Review against standardized RCA checklist."
+        }
+      ],
+      "dependencies": [
+        "Generate Draft Root Cause Analysis Report"
+      ],
+      "substep_name": "Finalize Root Cause Analysis Report",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Root cause accuracy trends"
+          ]
+        }
+      ],
+      "success_criteria": [
+        "Root cause clearly identified for the event."
+      ],
+      "purpose": "To ensure the analysis is accurate before being used for strategic decision-making.",
+      "description": "The Inventory Planner reviews the draft report for accuracy, completeness, and clarity. Final adjustments are made to the narrative to ensure it meets the success criteria of identifying a clear root cause, preparing it for management review and database entry.",
+      "responsible_party": "Inventory Planner",
+      "triggers": [
+        "Completion of the draft RCA report."
+      ],
+      "governance_requirements": "Quality assurance review by the Inventory Planner.",
+      "process_owner": "Inventory Control Manager",
+      "scope": "Final review and polishing of the RCA document.",
+      "end_conditions": "Final RCA report is ready for distribution and filing.",
+      "estimated_duration": "1-2 hours",
+      "outputs": [
+        "Root Cause Analysis Report"
+      ],
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Final report sign-off procedure."
+        }
+      ]
+    },
+    {
+      "governance_requirements": "Adherence to inventory optimization mathematical models.",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Stock-out frequency after adjustments"
+          ]
+        }
+      ],
+      "outputs": [
+        "Safety Stock Adjustment Recommendation"
+      ],
+      "triggers": [
+        "Finalization of the RCA report."
+      ],
+      "scope": "Calculation of inventory replenishment parameters.",
+      "change_management": [
+        {
+          "versioning_rules": "V1.0",
+          "change_request_process": "Safety stock parameter update process."
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "control": "Peer review of calculation logic.",
+          "risk": "Over-correction leading to excess inventory."
+        }
+      ],
+      "description": "Based on the findings in the RCA report, the Inventory Planner calculates new safety stock levels, reorder points, and lead time assumptions. These recommendations are designed to adjust the system parameters to prevent a recurrence of the stock-out under similar conditions.",
+      "purpose": "To translate analysis into actionable preventative measures.",
+      "substep_name": "Develop Inventory Parameter Recommendations",
+      "end_conditions": "Specific parameter adjustment recommendations are formulated.",
+      "estimated_duration": "4-6 hours",
+      "success_criteria": [
+        "Recommendations address the identified root cause."
+      ],
+      "dependencies": [
+        "Finalize Root Cause Analysis Report"
+      ],
+      "responsible_party": "Inventory Planner",
+      "process_owner": "Inventory Control Manager",
+      "inputs": [
+        "Root Cause Analysis Report"
+      ]
+    },
+    {
+      "substep_name": "Record Findings in Centralized Database",
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Database usability feedback"
+          ]
+        }
+      ],
+      "inputs": [
+        "Root Cause Analysis Report"
+      ],
+      "dependencies": [
+        "Finalize Root Cause Analysis Report"
+      ],
+      "scope": "Data entry into the centralized tracking system.",
+      "end_conditions": "The database record is saved and verified.",
+      "triggers": [
+        "Finalization of the RCA report."
+      ],
+      "estimated_duration": "1 hour",
+      "change_management": [
+        {
+          "change_request_process": "Database schema change request.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "outputs": [
+        "Root cause entry in database"
+      ],
+      "governance_requirements": "Data integrity and audit trail requirements.",
+      "success_criteria": [
+        "Record is searchable and correctly categorized."
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Incomplete or inconsistent database entries.",
+          "control": "Database validation rules for mandatory fields."
+        }
+      ],
+      "process_owner": "Inventory Control Manager",
+      "description": "The Inventory Planner enters the final root cause findings and the summary of the event into the organization's centralized root cause database. This ensures that historical data is available for trend analysis and long-term strategic planning.",
+      "responsible_party": "Inventory Planner",
+      "purpose": "To maintain a historical record of supply chain failures for continuous improvement."
+    },
+    {
+      "continuous_improvement": [
+        {
+          "review_frequency": "Quarterly",
+          "improvement_inputs": [
+            "Approval lead time metrics"
+          ]
+        }
+      ],
+      "step_risks_and_controls": [
+        {
+          "risk": "Delayed implementation of corrective actions.",
+          "control": "SLA for management review turnaround."
+        }
+      ],
+      "description": "The Inventory Planner submits the Final RCA Report and the Safety Stock Adjustment Recommendations to the Inventory Control Manager. The Manager reviews the documents and provides formal sign-off, authorizing the implementation of the recommended parameter changes.",
+      "estimated_duration": "2-4 hours",
+      "outputs": [
+        "Approved Adjustment Plan"
+      ],
+      "change_management": [
+        {
+          "change_request_process": "Management approval workflow.",
+          "versioning_rules": "V1.0"
+        }
+      ],
+      "scope": "Review and approval of proposed inventory changes.",
+      "governance_requirements": "Monthly sign-off by Inventory Control Manager.",
+      "triggers": [
+        "Submission of recommendations and RCA report."
+      ],
+      "dependencies": [
+        "Develop Inventory Parameter Recommendations",
+        "Record Findings in Centralized Database"
+      ],
+      "process_owner": "Inventory Control Manager",
+      "inputs": [
+        "Root Cause Analysis Report",
+        "Safety Stock Adjustment Recommendation"
+      ],
+      "substep_name": "Obtain Approval for Parameter Adjustments",
+      "success_criteria": [
+        "Formal sign-off obtained for 100% of validated recommendations."
+      ],
+      "purpose": "To ensure managerial oversight and accountability for inventory strategy changes.",
+      "responsible_party": "Inventory Control Manager",
+      "end_conditions": "Managerial approval is received and documented."
+    }
+  ],
+  "step_name": "Root Cause Analysis and Documentation"
+}
