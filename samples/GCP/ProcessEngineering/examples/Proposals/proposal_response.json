@@ -1,401 +1,429 @@
 {
-  "team_structure": [
-    {
-      "role": "Project Manager",
-      "allocation": "50%"
-    },
-    {
-      "role": "Solutions Architect",
-      "allocation": "100%"
-    },
-    {
-      "role": "AI/ML Engineer",
-      "allocation": "100%"
-    },
-    {
-      "allocation": "75%",
-      "role": "Integration Specialist"
-    }
+  "proposed_solution": "We propose a high-performance, Azure-native AI Contract Intelligence platform tailored for Apex Global Solutions. The core of the solution is built on Azure Document Intelligence and Azure OpenAI Service, deployed strictly within your private tenant to ensure 100% data residency. The system will ingest documents from SharePoint via a secure connector, process them using advanced OCR and LLM-based extraction, and store the resulting data in a RAG-enabled vector store for context-aware querying.\n\nTo ensure the required 92% accuracy, we include a robust Human-in-the-loop (HITL) portal. Any extraction falling below the 88% confidence threshold is automatically routed to this portal for manual verification by your SMEs. Once validated, the structured data is pushed via RESTful APIs to your SAP and Property Management databases. The solution also features an Automated Alerting Module that proactively monitors notice windows and renewal dates, directly addressing the goal of eliminating financial risk from missed deadlines.\n\nThe architecture is designed for high availability (99.5% uptime) and security, utilizing Azure Private Link and Managed Identities to keep all traffic within your private VNET. This setup prevents any data from leaving the designated US-East/East-US-2 regions, fully complying with your security mandates.",
+  "core_delivery_approach": "We follow an Agile delivery methodology, organized into two-week sprints. This approach ensures transparency, allows for iterative feedback from Apex stakeholders, and enables us to adapt to evolving requirements while maintaining a steady path toward the final deployment.",
+  "domain_expertise": "Our team possesses deep expertise in legal document automation and enterprise-grade AI implementations. We have a proven track record of delivering secure, high-accuracy extraction solutions for the real estate and financial sectors, specifically within the Microsoft Azure ecosystem.",
+  "environments_covered": [
+    "Private Azure Tenant (US-East / East-US-2 regions)"
   ],
   "deliverables": [
-    "Production-deployed Intelligent Document Processing (IDP) platform.",
-    "Automated SharePoint-to-SAP data pipelines.",
-    "Human-in-the-Loop (HITL) verification portal.",
-    "Detailed Model Performance and Accuracy Reports.",
-    "Operations Manual and Admin Training Documentation."
+    "Azure-native AI Contract Intelligence Platform",
+    "Custom Human-in-the-Loop (HITL) Verification Portal",
+    "SharePoint and SAP Integration Connectors",
+    "Automated Alerting Module for Notice Windows",
+    "Comprehensive Admin and User Documentation",
+    "90-Day Post-Launch Hypercare Support"
+  ],
+  "compliance_matrix": [
+    {
+      "requirement_id": "GOAL-003",
+      "requirement_text": "Eliminate risk of unintended auto-renewals/missed notice windows.",
+      "response_status": "Fully Compliant",
+      "evidence_ref": "See Proposed Solution & Architecture Overview",
+      "requirement_type": "goal",
+      "response": "The solution includes an Automated Alerting System specifically designed to flag notice windows and upcoming renewals based on extracted data."
+    },
+    {
+      "requirement_type": "non_functional",
+      "evidence_ref": "See Environment Setup & Technical Constraints",
+      "response_status": "Fully Compliant",
+      "response": "The platform is Azure-native and deployed entirely within the client's private tenant in the specified regions, utilizing Azure Private Link.",
+      "requirement_text": "All model training, retrieval augmented generation (RAG) vectorization, and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East / East-US-2 regions).",
+      "requirement_id": "NFR-005"
+    },
+    {
+      "evidence_ref": "See Proposed Solution & Quality Validation Approach",
+      "requirement_text": "Extraction Accuracy ≥ 92% across all fields.",
+      "response_status": "Fully Compliant",
+      "requirement_type": "non_functional",
+      "requirement_id": "NFR-001",
+      "response": "Our AI models are tuned for legal document extraction, supported by a HITL workflow to ensure the final output meets or exceeds the 92% accuracy threshold."
+    },
+    {
+      "requirement_text": "Extract data from complex multi-page PDF documents (scanned and native).",
+      "evidence_ref": "See Architecture Components",
+      "response_status": "Fully Compliant",
+      "requirement_type": "functional",
+      "requirement_id": "FR-001",
+      "response": "Azure Document Intelligence is utilized to handle complex layouts and multi-page documents, both native and scanned."
+    },
+    {
+      "requirement_type": "functional",
+      "requirement_id": "FR-002",
+      "response": "High-fidelity OCR is integrated to process scanned legal documents, maintaining table structures and font clarity.",
+      "requirement_text": "OCR processing for scanned PDF images (~60% of dataset).",
+      "response_status": "Fully Compliant",
+      "evidence_ref": "See Architecture Components"
+    },
+    {
+      "requirement_type": "functional",
+      "response": "A custom HITL portal is included, routing any extraction with a confidence score below 88% to human reviewers.",
+      "evidence_ref": "See Proposed Solution",
+      "response_status": "Fully Compliant",
+      "requirement_text": "Human-in-the-loop (HITL) interface for verification of extractions below 88% confidence.",
+      "requirement_id": "FR-003"
+    },
+    {
+      "requirement_text": "Ingest documents from Microsoft SharePoint.",
+      "response_status": "Fully Compliant",
+      "requirement_type": "functional",
+      "evidence_ref": "See Architecture Components",
+      "response": "A native SharePoint connector will be configured for secure, real-time document ingestion.",
+      "requirement_id": "FR-004"
+    },
+    {
+      "requirement_type": "functional",
+      "response": "The SAP Integration Engine will map and push validated data to the specified SAP RESTful endpoints.",
+      "evidence_ref": "See Architecture Components",
+      "requirement_id": "FR-005",
+      "requirement_text": "Export structured data to SAP/Property Management database via RESTful APIs.",
+      "response_status": "Fully Compliant"
+    },
+    {
+      "response": "The solution includes Azure AI Search for vectorization, enabling RAG-based querying across the contract corpus.",
+      "requirement_text": "Support for Retrieval Augmented Generation (RAG) vectorization.",
+      "evidence_ref": "See Proposed Solution",
+      "requirement_type": "functional",
+      "response_status": "Fully Compliant",
+      "requirement_id": "FR-006"
+    },
+    {
+      "response_status": "Fully Compliant",
+      "requirement_text": "Processing Speed < 3 minutes per document.",
+      "requirement_id": "NFR-002",
+      "evidence_ref": "See SLAs and KPIs",
+      "requirement_type": "non_functional",
+      "response": "The serverless architecture on Azure ensures parallel processing to meet the < 3-minute-per-document requirement."
+    },
+    {
+      "requirement_type": "non_functional",
+      "requirement_text": "User Adoption > 80% team usage in 60 days.",
+      "response_status": "Fully Compliant",
+      "requirement_id": "NFR-003",
+      "evidence_ref": "See Implementation Plan",
+      "response": "Our plan includes comprehensive training and a 90-day hypercare period to drive adoption and reach the 80% target."
+    },
+    {
+      "requirement_id": "NFR-004",
+      "requirement_text": "System Availability 99.5% Uptime.",
+      "response_status": "Fully Compliant",
+      "evidence_ref": "See SLAs and KPIs",
+      "response": "The solution leverages Azure's high-availability services to guarantee 99.5% uptime.",
+      "requirement_type": "non_functional"
+    },
+    {
+      "requirement_type": "non_functional",
+      "response": "Our delivery processes are SOC 2 Type II compliant, and the solution is architected for GDPR and HIPAA alignment.",
+      "evidence_ref": "See Environment Setup",
+      "requirement_text": "Security & Compliance: SOC 2 Type II certified vendor processes, HIPAA/GDPR alignment.",
+      "response_status": "Fully Compliant",
+      "requirement_id": "NFR-006"
+    },
+    {
+      "evidence_ref": "See Environment Setup",
+      "requirement_id": "NFR-007",
+      "requirement_type": "non_functional",
+      "response_status": "Fully Compliant",
+      "response": "Azure native encryption handles AES-256 at rest and TLS 1.3 in transit by default.",
+      "requirement_text": "Full encryption at rest (AES-256) and in transit (TLS 1.3)."
+    },
+    {
+      "response": "Our proposed implementation fee is within the stated range, ensuring cost-effectiveness.",
+      "requirement_type": "constraint",
+      "requirement_text": "Project implementation budget range: $100,000 to $175,000.",
+      "response_status": "Fully Compliant",
+      "requirement_id": "CON-001",
+      "evidence_ref": "See Pricing Table"
+    },
+    {
+      "evidence_ref": "See Technical Constraints",
+      "requirement_type": "constraint",
+      "response": "The solution uses only Azure OpenAI Service within the private tenant; no public AI endpoints are called.",
+      "response_status": "Fully Compliant",
+      "requirement_text": "Prohibition of external API calls to public AI services.",
+      "requirement_id": "CON-002"
+    }
+  ],
+  "out_of_scope": [
+    "Data cleansing or digitization of physical paper documents.",
+    "Procurement of third-party software licenses (SAP, Azure, etc.).",
+    "Support for document types outside of commercial leases and supplier contracts."
+  ],
+  "unaddressed_items": [
+    {
+      "category": "Data Retention & Lifecycle",
+      "description": "The document does not specify policies for data retention or the lifecycle of documents and extracted data within the private tenant. (Carried over from original analysis)"
+    },
+    {
+      "description": "While Azure Monitor is mentioned, detailed requirements for logging and alerting on integration failures (SAP/SharePoint) are not fully defined. (Carried over from original analysis)",
+      "category": "Observability & Monitoring"
+    }
+  ],
+  "differentiators": [
+    "Azure-Native Security: Built entirely within your private tenant to meet the strictest data residency mandates.",
+    "High-Performance RAG: Advanced vector search implementation for superior context-aware legal querying.",
+    "Specialized HITL Workflow: Designed specifically for the nuances of legal and financial document verification."
   ],
   "skills_and_certifications": [
     "Microsoft Certified: Azure Solutions Architect Expert",
     "Microsoft Certified: Azure AI Engineer Associate",
-    "SAP Certified Integration Associate",
-    "SOC 2 Type II Compliance Framework Knowledge"
+    "SOC 2 Type II Certified Delivery Processes"
+  ],
+  "environment_setup": "The entire environment will be provisioned using Infrastructure as Code (Bicep), ensuring a repeatable and secure setup within your private Azure VNET. All services will be configured with Private Endpoints and Managed Identities to eliminate exposure to the public internet.",
+  "qualifications": "Our organization is a recognized leader in Azure-native AI solutions, holding multiple Microsoft competencies in Data & AI and Cloud Platform. We have successfully deployed similar contract intelligence systems for large-scale enterprise clients, ensuring high accuracy and seamless integration with legacy ERP systems like SAP. Our team consists of certified Azure Solutions Architects and AI Engineers who specialize in secure, private-tenant deployments.",
+  "summary": "A comprehensive proposal for an Azure-native AI Contract Intelligence platform designed to automate document extraction, ensure 100% data residency, and eliminate financial risks for Apex Global Solutions.",
+  "our_understanding": "Apex Global Solutions is seeking a sophisticated AI-driven solution to modernize its contract intelligence capabilities. Currently, manual extraction processes for commercial leases and supplier contracts present a significant financial risk, particularly regarding missed notice windows and unintended auto-renewals. The primary objective is to automate these extractions with high accuracy while maintaining a 50% reduction in operational costs.\n\nA critical component of this requirement is the strict adherence to data residency and security. The solution must reside entirely within Apex's private Microsoft Azure tenant, specifically in the US-East or East-US-2 regions, with a total prohibition on external AI API calls. This necessitates a partner who can architect a secure, high-performance platform that integrates seamlessly with existing SharePoint and SAP ecosystems while providing a robust Human-in-the-loop (HITL) interface for quality assurance.",
+  "case_studies": [],
+  "rate_card_and_change_control": "Any changes to the agreed scope will be managed through a formal Change Request (CR) process. Each CR will be assessed for its impact on timeline and budget, with work commencing only after written approval from the Steering Committee.",
+  "tooling_stack": [
+    "Azure OpenAI Service (GPT-4)",
+    "Azure Document Intelligence",
+    "Azure AI Search (Vector Store)",
+    "Azure Logic Apps & Functions",
+    "React.js (HITL Portal)",
+    "Azure DevOps"
+  ],
+  "services_in_scope": [
+    "Technical Architecture and Design",
+    "AI Model Development and Tuning",
+    "SharePoint and SAP Integration Development",
+    "HITL Portal Development",
+    "User Acceptance Testing (UAT) Support",
+    "Production Deployment and Hypercare"
+  ],
+  "pricing_approach": "We propose a fixed-fee implementation model for the initial deployment, followed by a recurring monthly fee for managed support and maintenance. This provides budget certainty for the capital expenditure while ensuring ongoing operational excellence.",
+  "risks_and_mitigations": [
+    {
+      "mitigation": "Implement a 'Ground Truth' phase where SMEs validate 500 documents.",
+      "risk": "High error rate in existing manual data makes establishing a reliable baseline difficult."
+    },
+    {
+      "risk": "Strict data residency requirements prohibit public LLM endpoints.",
+      "mitigation": "Use Azure Private Link and Managed Identities to stay within the private VNET."
+    },
+    {
+      "mitigation": "Develop a specific Alerting Module prioritizing notice windows.",
+      "risk": "Complexity of legal phrasing may lead to missed notice windows."
+    }
+  ],
+  "client_dependencies": [
+    "Provisioning of Azure environment within US-East / East-US-2 regions.",
+    "Access to SAP RESTful API documentation and test environment.",
+    "Timely sign-off on data extraction schemas and field mappings."
+  ],
+  "solution_summary": "An Azure-native AI platform leveraging Document Intelligence and private-tenant Azure OpenAI to automate contract extraction with integrated HITL verification and secure SAP/SharePoint connectors.",
+  "raci_matrix": [
+    {
+      "activity": "Project Planning & Governance",
+      "accountable": "Project Manager",
+      "informed": "Client Team",
+      "consulted": "Executive Sponsor",
+      "responsible": "Project Manager"
+    },
+    {
+      "accountable": "AI Architect",
+      "activity": "AI Model Design & Tuning",
+      "informed": "Dev Team",
+      "consulted": "Client SMEs",
+      "responsible": "AI Architect"
+    },
+    {
+      "consulted": "IT Stakeholders",
+      "informed": "PM",
+      "responsible": "Dev Team",
+      "accountable": "Lead Developer",
+      "activity": "Integration & HITL Build"
+    }
   ],
   "implementation_plan": [
     {
-      "acceptance_criteria": "Approval of Project Charter and Solution Design Document (SDD).",
-      "timing": "Weeks 1-4",
-      "deliverable": "Project Kick-off & Detailed Design",
-      "phase": "Phase 1: Mobilization & Design"
+      "timing": "Weeks 1-2",
+      "deliverable": "Project Roadmap & Architecture Design",
+      "acceptance_criteria": "Approved Project Charter and Technical Architecture Document.",
+      "phase": "Discovery & Design"
     },
     {
-      "timing": "Weeks 5-12",
-      "phase": "Phase 2: Development & Alpha Testing",
-      "deliverable": "MVP Environment & Core Model Training",
-      "acceptance_criteria": "Successful deployment of the Azure environment and initial model training."
+      "phase": "Development & MVP Build",
+      "deliverable": "Core AI Platform & HITL Portal",
+      "timing": "Weeks 3-8",
+      "acceptance_criteria": "Successful extraction from sample documents with baseline accuracy."
     },
     {
-      "timing": "Weeks 13-18",
-      "deliverable": "Beta Platform & HITL Integration",
-      "phase": "Phase 3: Integration & Beta Testing",
-      "acceptance_criteria": "Model achieves >90% accuracy in controlled testing."
+      "timing": "Weeks 9-12",
+      "acceptance_criteria": "Confirmed data flow from SharePoint and into SAP test environment.",
+      "deliverable": "SharePoint & SAP Connectors",
+      "phase": "Integration & Testing"
     },
     {
-      "acceptance_criteria": "Successful completion of UAT with 92% accuracy on production data.",
-      "deliverable": "User Acceptance Testing (UAT) & Training",
-      "phase": "Phase 4: Validation & UAT",
-      "timing": "Weeks 19-22"
+      "acceptance_criteria": "User sign-off on system performance and 92% accuracy audit.",
+      "deliverable": "UAT & Final Refinement",
+      "timing": "Weeks 13-14",
+      "phase": "User Acceptance Testing"
     },
     {
-      "timing": "Weeks 23-26",
-      "phase": "Phase 5: Deployment & Hypercare",
-      "acceptance_criteria": "Production deployment and transition to support.",
-      "deliverable": "Production Go-Live & Handover"
-    }
-  ],
-  "domain_expertise": "Our team possesses extensive experience in the LegalTech and Real Estate sectors, specifically focusing on the automation of high-value contract lifecycles. We understand the financial implications of missed lease dates and the complexities of multi-jurisdictional contract language, allowing us to build models that are context-aware.",
-  "differentiators": [
-    "Deep expertise in Azure-native AI and Large Language Models (LLMs) for legal document analysis.",
-    "Proven architecture for high-accuracy extraction that exceeds the 92% benchmark.",
-    "Seamless integration capabilities with SAP ERP systems via secure RESTful APIs."
-  ],
-  "governance_framework": "A formal Project Steering Committee will be established, meeting monthly to review progress against KPIs. Daily stand-ups and weekly status reports will ensure transparent communication between the delivery team and Apex stakeholders.",
-  "measurable_outcomes": [],
-  "assumptions": [
-    "Historical data in SharePoint is accessible and structured enough for initial ingestion testing.",
-    "The SAP/Property Management DB has available RESTful API endpoints for data ingestion.",
-    "The 15,000 historical documents are representative of future document variety and complexity."
-  ],
-  "compliance_matrix": [
-    {
-      "requirement_text": "Automate extraction of structured data (lease terms, financial obligations, dates) from complex multi-page PDF documents.",
-      "requirement_type": "functional",
-      "requirement_id": "FR-001",
-      "response": "Our solution uses Azure AI Document Intelligence combined with LLMs to extract over 50 specific lease fields with high precision.",
-      "evidence_ref": "See Proposed Solution",
-      "response_status": "Fully Compliant"
-    },
-    {
-      "response": "We provide native connectors for SharePoint and a custom API adapter for SAP integration.",
-      "evidence_ref": "See Architecture Components",
-      "requirement_type": "functional",
-      "requirement_text": "Integrate with Microsoft SharePoint for ingestion and SAP/Property Management DB for output via RESTful APIs.",
-      "response_status": "Fully Compliant",
-      "requirement_id": "FR-002"
-    },
-    {
-      "response": "The HITL portal automatically queues documents where field-level confidence scores fall below the 88% threshold.",
-      "response_status": "Fully Compliant",
-      "requirement_id": "FR-003",
-      "requirement_type": "functional",
-      "requirement_text": "Provide a Human-in-the-Loop (HITL) interface for verification of extractions with confidence scores below 88%.",
-      "evidence_ref": "See Proposed Solution"
-    },
-    {
-      "response": "Our iterative training approach is designed to meet and exceed the 92% accuracy target through semantic validation.",
-      "requirement_id": "NFR-001",
-      "evidence_ref": "See Quality Validation Approach",
-      "response_status": "Fully Compliant",
-      "requirement_text": "Achieve an extraction accuracy of 92% or higher across all fields.",
-      "requirement_type": "non_functional"
-    },
-    {
-      "response": "The serverless Azure architecture ensures parallel processing to maintain a sub-3-minute lifecycle per document.",
-      "requirement_text": "Processing speed must be less than 3 minutes per document from upload to database population.",
-      "requirement_type": "non_functional",
-      "requirement_id": "NFR-002",
-      "evidence_ref": "See Technical Constraints",
-      "response_status": "Fully Compliant"
-    },
-    {
-      "response_status": "Fully Compliant",
-      "requirement_type": "non_functional",
-      "requirement_id": "NFR-003",
-      "requirement_text": "System must maintain 99.5% uptime (24/7).",
-      "response": "The solution utilizes Azure's high-availability regions and redundant services to guarantee 99.5% uptime.",
-      "evidence_ref": "See SLAs and KPIs"
-    },
-    {
-      "response_status": "Fully Compliant",
-      "response": "The entire solution is hosted within a SOC 2 compliant Azure tenant using industry-standard encryption.",
-      "requirement_id": "NFR-004",
-      "requirement_type": "non_functional",
-      "requirement_text": "Compliance with SOC 2 Type II, HIPAA/GDPR, and encryption standards (AES-256 at rest, TLS 1.3 in transit).",
-      "evidence_ref": "See Proposed Solution"
-    },
-    {
-      "requirement_text": "The implementation must follow a 26-week timeline across five phases.",
-      "evidence_ref": "See Implementation Plan",
-      "requirement_type": "constraint",
-      "requirement_id": "CON-003",
-      "response": "Our proposed schedule aligns with the 26-week phased delivery model.",
-      "response_status": "Fully Compliant"
-    },
-    {
-      "response": "The solution is deployed exclusively within the client's designated Azure regions.",
-      "requirement_text": "All model training and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East / East-US-2).",
-      "requirement_id": "CON-001",
-      "response_status": "Fully Compliant",
-      "requirement_type": "constraint",
-      "evidence_ref": "See Environment Setup"
-    },
-    {
-      "response": "A comprehensive rate card for post-launch scaling and model maintenance is included in the pricing section.",
-      "requirement_id": "CON-005",
-      "response_status": "Fully Compliant",
-      "requirement_text": "Proposals must include explicit rate cards and architectural assumptions for scaling, retraining, and drift handling.",
-      "requirement_type": "constraint",
-      "evidence_ref": "See Pricing Approach"
-    }
-  ],
-  "architecture_components": [
-    {
-      "description": "Securely monitors and retrieves lease documents from designated SharePoint folders.",
-      "name": "SharePoint Ingestion Connector",
-      "connects_to": [
-        "Orchestration Engine"
-      ]
-    },
-    {
-      "name": "Orchestration Engine",
-      "connects_to": [
-        "HITL Verification Portal",
-        "SAP Integration Service"
-      ],
-      "description": "Serverless workflow engine managing document state, model invocation, and data routing."
-    },
-    {
-      "description": "Azure-native OCR and layout analysis to convert PDF content into structured data.",
-      "name": "Azure AI Document Intelligence",
-      "connects_to": [
-        "Orchestration Engine"
-      ]
-    },
-    {
-      "name": "Azure OpenAI Service",
-      "description": "Large Language Model (LLM) service for semantic extraction of complex lease clauses.",
-      "connects_to": [
-        "Orchestration Engine"
-      ]
-    },
-    {
-      "name": "HITL Verification Portal",
-      "description": "Web-based interface for human reviewers to validate extractions with low confidence scores.",
-      "connects_to": [
-        "Orchestration Engine"
-      ]
-    },
-    {
-      "description": "RESTful API gateway for pushing validated data into the SAP ERP system.",
-      "name": "SAP Integration Service",
-      "connects_to": []
-    }
-  ],
-  "platform_approach": "The solution is built on a serverless, cloud-native architecture within Microsoft Azure. We leverage Azure AI Document Intelligence for structural analysis and Azure OpenAI for semantic reasoning, coordinated by a robust orchestration layer that handles document state and integration logic.",
-  "automation_approach": "Our approach leverages Azure DevOps for CI/CD pipelines, ensuring automated testing of extraction models against a 'ground truth' dataset. Automated drift detection will be implemented to monitor model performance over time, triggering alerts if accuracy falls below the 92% threshold.",
-  "technical_constraints": [
-    "All data processing and storage must remain within Azure US-East / US-East-2 regions.",
-    "Encryption must utilize AES-256 at rest and TLS 1.3 in transit.",
-    "Integration must utilize existing RESTful API endpoints for SharePoint and SAP."
-  ],
-  "solution_summary": "An Azure-native Intelligent Document Processing platform that automates lease data extraction with 92%+ accuracy, integrating SharePoint and SAP via a secure, human-in-the-loop workflow.",
-  "client_dependencies": [
-    "Provisioning of service accounts with necessary permissions for SharePoint and SAP APIs.",
-    "Access to a representative sample of 1,000 documents for model fine-tuning and validation.",
-    "Timely feedback from subject matter experts (SMEs) during the UAT phase."
-  ],
-  "tooling_stack": [
-    "Microsoft Azure",
-    "Azure AI Document Intelligence",
-    "Azure OpenAI (GPT-4o)",
-    "Azure Functions / Logic Apps",
-    "Azure DevOps",
-    "React.js (for HITL Portal)"
-  ],
-  "slas_and_kpis": [
-    {
-      "metric": "System Uptime",
-      "target": "99.5%"
-    },
-    {
-      "metric": "Extraction Accuracy",
-      "target": "≥ 92%"
-    },
-    {
-      "metric": "Processing Latency",
-      "target": "< 3 minutes per document"
-    },
-    {
-      "metric": "HITL Routing Accuracy",
-      "target": "100% of low-confidence items routed"
-    }
-  ],
-  "raci_matrix": [
-    {
-      "informed": "Project Team",
-      "accountable": "Client Sponsor",
-      "responsible": "Project Manager",
-      "consulted": "Project Manager",
-      "activity": "Project Charter Approval"
-    },
-    {
-      "informed": "Client Sponsor",
-      "responsible": "Solutions Architect",
-      "consulted": "Client IT",
-      "activity": "Solution Design",
-      "accountable": "Project Manager"
-    },
-    {
-      "informed": "Project Manager",
-      "consulted": "Client Security",
-      "responsible": "AI/ML Engineer",
-      "accountable": "Solutions Architect",
-      "activity": "Environment Setup"
-    },
-    {
-      "activity": "User Acceptance Testing (UAT)",
-      "responsible": "Client SMEs",
-      "accountable": "Project Manager",
-      "informed": "Client Sponsor",
-      "consulted": "Project Team"
+      "phase": "Deployment & Hypercare",
+      "timing": "Week 15+",
+      "acceptance_criteria": "System live in production and hypercare initiated.",
+      "deliverable": "Production Launch"
     }
   ],
   "escalation_path": [
     "Level 1: Project Manager",
     "Level 2: Delivery Director",
-    "Level 3: Executive Sponsor / VP of Operations"
+    "Level 3: Executive Sponsor"
   ],
-  "case_studies": [],
-  "unaddressed_items": [
+  "automation_approach": "The solution utilizes Azure DevOps for CI/CD pipelines, ensuring automated testing of integration points and AI model performance. Automated unit tests for data mapping and integration scripts will be executed on every commit to maintain high code quality.",
+  "assumptions": [
+    "Apex Global Solutions will provide necessary API credentials and network access for SharePoint and SAP integrations.",
+    "The 15,000 historical documents provided are representative of future lease and contract types.",
+    "Azure consumption costs are managed and paid for directly by Apex Global Solutions.",
+    "Subject Matter Experts (SMEs) will be available for 4 hours per week during the Discovery and UAT phases."
+  ],
+  "architecture_components": [
     {
-      "description": "While 99.5% uptime is mentioned, specific requirements for logging, alerting, and performance monitoring of the AI models (e.g., drift detection) are not detailed.",
-      "category": "Observability & Monitoring"
+      "description": "Secure ingestion service for real-time document retrieval from the Microsoft SharePoint environment.",
+      "name": "SharePoint Connector",
+      "connects_to": [
+        "Azure Document Intelligence"
+      ]
     },
     {
-      "category": "Data Retention & Lifecycle",
-      "description": "The RFP does not specify how long processed data or intermediate OCR outputs should be retained within the Azure environment."
+      "description": "AI-powered OCR and layout analysis service for processing complex PDF structures and legal fonts.",
+      "name": "Azure Document Intelligence",
+      "connects_to": [
+        "Azure OpenAI Service (Private)"
+      ]
+    },
+    {
+      "name": "Azure OpenAI Service (Private)",
+      "description": "Private-tenant LLM for extraction of legal phrasing and contract data points without external API calls.",
+      "connects_to": [
+        "RAG Vector Store (Azure AI Search)",
+        "HITL Verification Portal"
+      ]
+    },
+    {
+      "connects_to": [],
+      "description": "Azure AI Search vector store enabling Retrieval Augmented Generation for context-aware querying.",
+      "name": "RAG Vector Store (Azure AI Search)"
+    },
+    {
+      "connects_to": [
+        "SAP Integration Engine"
+      ],
+      "name": "HITL Verification Portal",
+      "description": "Web-based interface for human review of low-confidence extractions with full audit logging."
+    },
+    {
+      "name": "SAP Integration Engine",
+      "connects_to": [],
+      "description": "RESTful API bridge for exporting validated structured data to SAP and Property Management databases."
     }
   ],
-  "domain_accelerators": [
-    "Pre-built Lease Extraction Schema for commercial and residential real estate.",
-    "Standardized Azure Resource Manager (ARM) templates for rapid environment provisioning."
-  ],
-  "pricing_table": [
-    {
-      "basis": "One-time",
-      "item": "Phase 1-5 Implementation Services",
-      "price": "TBD"
-    },
-    {
-      "price": "TBD",
-      "item": "Platform Managed Service & Support",
-      "basis": "Monthly"
-    },
-    {
-      "basis": "Per Document",
-      "item": "Document Processing Fee (Tiered)",
-      "price": "TBD"
-    },
-    {
-      "price": "TBD",
-      "item": "Ad-hoc Model Retraining & Scaling (Rate Card)",
-      "basis": "Hourly"
-    }
+  "quality_validation_approach": "Quality is validated through a multi-stage process: initial AI confidence scoring, a 'Ground Truth' validation phase with 500 documents, and ongoing HITL auditing. The system maintains a full audit trail of all manual overrides to ensure transparency and support continuous model improvement.",
+  "platform_approach": "Our platform approach leverages a serverless and microservices-based architecture on Azure. By using Azure Functions and Logic Apps, we ensure a scalable and cost-effective integration layer that can handle varying document volumes without the overhead of managing virtual machines.",
+  "domain_accelerators": [],
+  "technical_constraints": [
+    "All services must reside within US-East / East-US-2 Azure regions.",
+    "No external API calls to public AI services are permitted.",
+    "Data must be encrypted at rest with AES-256 and in transit with TLS 1.3."
   ],
   "expected_outcomes": [
-    "Reduced financial risk from missed notice windows and contract dates.",
-    "Significant reduction in manual data entry costs for lease management.",
-    "Improved data integrity within the SAP ERP system.",
-    "Faster document turnaround time from receipt to system entry."
+    "Elimination of financial losses from missed contract notice windows.",
+    "50% reduction in manual document processing and operational costs.",
+    "High-accuracy (≥92%) automated data extraction from complex leases.",
+    "Full compliance with internal data residency and security policies."
   ],
-  "ongoing_costs_approach": "Ongoing costs will include a monthly platform support fee and a tiered usage-based model for document processing. This ensures that Apex only pays for the volume of documents actually processed while maintaining access to continuous model improvements and drift monitoring services.",
-  "core_delivery_approach": "We utilize an Agile-based delivery methodology focused on iterative value. The project is divided into logical sprints, starting with a Minimum Viable Product (MVP) that handles core lease types before expanding to more complex contract variations. This ensures early feedback and alignment with Apex's business goals.",
-  "meeting_cadence": [
+  "team_structure": [
     {
-      "meeting": "Daily Stand-up",
-      "attendees": "Project Team",
-      "frequency": "Daily"
-    },
-    {
-      "attendees": "Project Manager, Client Lead",
-      "frequency": "Weekly",
-      "meeting": "Status Review"
-    },
-    {
-      "meeting": "Steering Committee",
-      "frequency": "Monthly",
-      "attendees": "Executive Sponsors, Project Leads"
-    }
-  ],
-  "key_personnel": [
-    {
-      "responsibilities": "Overall project delivery, stakeholder management, and budget oversight.",
+      "allocation": "50%",
       "role": "Project Manager"
     },
     {
-      "responsibilities": "Lead architectural design and Azure infrastructure configuration.",
-      "role": "Solutions Architect"
+      "role": "AI Solutions Architect",
+      "allocation": "100%"
     },
     {
-      "role": "AI/ML Engineer",
-      "responsibilities": "Model development, fine-tuning, and accuracy optimization."
+      "allocation": "100%",
+      "role": "Full-Stack Developer"
     },
     {
-      "responsibilities": "SAP and SharePoint API integration development.",
+      "allocation": "50%",
       "role": "Integration Specialist"
     }
   ],
-  "rate_card_and_change_control": "All changes to the project scope or technical requirements will be managed through a formal Change Request (CR) process. Any additional work outside the initial scope will be billed according to the provided rate card for professional services, ensuring transparency and cost control.",
-  "summary": "This proposal outlines a 26-week implementation of an AI-powered lease extraction system for Apex Global Solutions, designed to reduce financial risk and operational costs through high-accuracy automation within a secure Azure environment.",
-  "quality_validation_approach": "Quality is ensured through a multi-stage validation process. Initial extractions are assigned confidence scores by the AI models. Any field with a score below the 88% threshold is flagged for human review. Furthermore, we implement cross-field validation rules (e.g., ensuring lease end dates are after start dates) to catch logical inconsistencies before data is committed to SAP.",
-  "qualifications": "Our organization specializes in deploying enterprise-grade AI solutions within the Microsoft Azure ecosystem. We have a dedicated team of AI/ML engineers and integration specialists who have successfully delivered similar document automation projects for large-scale real estate and financial services firms. Our expertise spans the full lifecycle of AI development, from initial model selection and fine-tuning to production-scale deployment and integration with complex ERP systems like SAP. We are committed to maintaining the highest standards of data security and compliance, as evidenced by our alignment with SOC 2 Type II and GDPR frameworks.",
-  "out_of_scope": [
-    "Digitization of physical paper documents (OCR starts from digital PDF).",
-    "Modifications to the core SAP ERP application logic.",
-    "Long-term data archival beyond the 90-day processing window."
-  ],
-  "proposed_solution": "Our proposed solution is a comprehensive Intelligent Document Processing (IDP) platform designed to handle the unique complexities of lease and contract documents. The architecture begins with a secure Ingestion Layer that monitors designated SharePoint folders for new PDF uploads. Once a document is detected, it is picked up by our Orchestration Engine, which manages the end-to-end processing lifecycle.\n\nThe core extraction logic utilizes a multi-stage AI pipeline. First, Azure AI Document Intelligence performs high-fidelity OCR and layout analysis to identify tables, headers, and key-value pairs. This structured data is then passed to the Azure OpenAI Service (utilizing GPT-4o models), which applies semantic understanding to extract complex contractual terms, dates, and financial obligations that traditional OCR might miss. This dual-layered approach is critical for achieving the required 92% accuracy across varied document formats.\n\nFor documents where the AI's confidence score falls below the 88% threshold, the system automatically routes the extraction to a Human-in-the-Loop (HITL) Verification Portal. Here, human reviewers can quickly validate or correct the data using a side-by-side view of the original PDF and the extracted fields. Once validated, the data is pushed via a secure RESTful API into the SAP/Property Management database. The entire solution is deployed within the Apex private Azure tenant in the US-East region, ensuring that data never leaves the required residency boundaries and is protected by AES-256 encryption at rest and TLS 1.3 in transit.",
-  "environments_covered": [
-    "Azure Private Tenant (US-East / US-East-2)"
-  ],
-  "environment_setup": "The solution will be deployed within the client's private Azure Subscription in the US-East or US-East-2 regions. We will utilize Azure Resource Groups to isolate development, staging, and production environments, ensuring strict data residency and security compliance.",
-  "risks_and_mitigations": [
+  "governance_framework": "The engagement will be governed by a Steering Committee comprising key stakeholders from both organizations. This framework ensures strategic alignment, manages risks, and provides a formal path for decision-making and scope management.",
+  "key_personnel": [
     {
-      "risk": "Lower than expected extraction accuracy on non-standard lease formats.",
-      "mitigation": "Use of multi-modal AI (OCR + LLM) to handle varied formats; iterative training cycles."
+      "role": "Project Manager",
+      "responsibilities": "Overall project delivery, stakeholder management, and budget tracking."
     },
     {
-      "risk": "Delays in SAP API integration due to schema complexities.",
-      "mitigation": "Early validation of API endpoints and mock data testing during Phase 1."
+      "responsibilities": "Designing and tuning the AI extraction models and RAG architecture.",
+      "role": "AI Solutions Architect"
+    },
+    {
+      "role": "Full-Stack Developer",
+      "responsibilities": "Developing the HITL portal and SAP/SharePoint integration logic."
     }
   ],
-  "pricing_approach": "Our pricing model is divided into a fixed-fee implementation phase and a recurring managed service component. The implementation covers all activities from design through go-live. Post-launch, a tiered subscription model based on document volume provides a predictable cost structure for ongoing operations and model maintenance.",
+  "slas_and_kpis": [
+    {
+      "target": "99.5% Uptime",
+      "metric": "System Availability"
+    },
+    {
+      "target": "≥ 92% across all fields",
+      "metric": "Extraction Accuracy"
+    },
+    {
+      "metric": "Processing Speed",
+      "target": "< 3 minutes per document"
+    }
+  ],
+  "pricing_table": [
+    {
+      "price": "$85,000",
+      "item": "Core AI Platform Development & Design",
+      "basis": "One-time implementation fee"
+    },
+    {
+      "price": "$45,000",
+      "item": "SAP & SharePoint Integration Connectors",
+      "basis": "One-time implementation fee"
+    },
+    {
+      "price": "$25,000",
+      "basis": "One-time implementation fee",
+      "item": "HITL Portal & Alerting Module"
+    },
+    {
+      "price": "$5,000/mo",
+      "basis": "Monthly recurring fee",
+      "item": "Managed Support & Hypercare"
+    }
+  ],
+  "measurable_outcomes": [],
   "open_questions_for_client": [
+    "What are the specific SAP modules and API versions required for the RESTful integration?",
+    "How is '80% user adoption' specifically defined and measured?",
+    "What is the expected volume of new incoming documents post-migration?"
+  ],
+  "ongoing_costs_approach": "Ongoing costs will include a monthly managed support fee for platform maintenance and minor updates. Azure consumption costs (Document Intelligence, OpenAI, etc.) are to be paid directly by Apex Global Solutions as part of their tenant management.",
+  "meeting_cadence": [
     {
-      "question": "What are the specific schemas and API documentation for the SAP/Property Management DB?"
+      "meeting": "Project Status Sync",
+      "frequency": "Weekly",
+      "attendees": "Project Manager, Technical Lead, Client Stakeholders"
     },
     {
-      "question": "Is there a specific LLM or OCR engine preference within the Azure ecosystem (e.g., Azure AI Document Intelligence, GPT-4o)?"
+      "frequency": "Bi-weekly",
+      "attendees": "Development Team, Client SMEs",
+      "meeting": "Sprint Demo & Feedback"
     },
     {
-      "question": "What is the expected volume growth beyond the current 200 documents per month?"
+      "attendees": "Executive Sponsors, Project Managers",
+      "meeting": "Steering Committee Meeting",
+      "frequency": "Monthly"
     }
-  ],
-  "services_in_scope": [
-    "Azure Environment Configuration",
-    "AI Model Training & Fine-tuning",
-    "SharePoint & SAP Integration Development",
-    "HITL Portal Implementation",
-    "UAT Support & Training"
-  ],
-  "our_understanding": "Apex Global Solutions is currently facing significant operational challenges and financial risks associated with the manual extraction of data from complex lease and contract documents. With a backlog of 15,000 historical documents and an ongoing influx of 200 new documents monthly, the reliance on human labor is not only costly but also prone to errors that lead to missed notice windows, potentially costing the organization upwards of $350,000 annually. \n\nThe primary objective of this project is to implement an AI-powered Intelligent Document Processing (IDP) solution that automates the extraction of key lease terms and financial obligations with at least 92% accuracy. This system must integrate seamlessly with existing Microsoft SharePoint and SAP environments while adhering to strict data residency requirements within the Azure US-East region. By automating this lifecycle, Apex aims to reduce operational costs by 50% and significantly mitigate the risks associated with manual data entry and oversight."
+  ]
 }

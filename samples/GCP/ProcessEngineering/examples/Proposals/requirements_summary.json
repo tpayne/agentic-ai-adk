@@ -1,215 +1,270 @@
 {
-  "summary": "Apex Global Solutions is seeking an AI-powered system to automate the extraction of lease and contract data from PDFs into their SAP ERP system. The project focuses on high accuracy (92%+), strict Azure-based data residency, and a significant reduction in manual labor costs and financial risks associated with missed contract dates.",
-  "conflicting_requirements": [],
-  "industry_sector": "Enterprise Operations / LegalTech / Real Estate Management",
-  "assumptions": [
-    {
-      "description": "Historical data in SharePoint is accessible and structured enough for initial ingestion testing."
-    },
-    {
-      "description": "The SAP/Property Management DB has available RESTful API endpoints for data ingestion."
-    },
-    {
-      "description": "The 15,000 historical documents are representative of future document variety and complexity."
-    }
-  ],
   "requirement_priorities": [
     {
-      "requirement_text": "All model training and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East).",
-      "rationale": "Explicitly stated as a strict residency requirement.",
       "priority": "critical",
-      "requirement_id": "CON-001"
+      "requirement_id": "GOAL-003",
+      "rationale": "The primary driver of the project is eliminating financial losses from missed windows.",
+      "requirement_text": "Eliminate risk of unintended auto-renewals/missed notice windows."
     },
     {
-      "priority": "high",
-      "requirement_text": "Extraction Accuracy ≥ 92% across all fields.",
+      "rationale": "Strict security and residency mandates prohibit any data from leaving the private Azure tenant.",
+      "priority": "critical",
+      "requirement_id": "NFR-005",
+      "requirement_text": "All model training, retrieval augmented generation (RAG) vectorization, and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East / East-US-2 regions)."
+    },
+    {
+      "rationale": "The system must meet a high accuracy bar to be viable for legal/financial data.",
       "requirement_id": "NFR-001",
-      "rationale": "This is the primary success metric for the project to mitigate financial risk."
-    },
-    {
-      "requirement_text": "Bidders must provide explicit rate cards and architectural assumptions for Phase 2: Scaling, Retraining, and Drift Handling.",
-      "requirement_id": "CON-005",
       "priority": "high",
-      "rationale": "Proposals lacking this will be disqualified."
-    }
-  ],
-  "requirements_needing_clarification": [],
-  "open_questions": [
-    {
-      "question": "What are the specific schemas and API documentation for the SAP/Property Management DB?"
-    },
-    {
-      "question": "Is there a specific LLM or OCR engine preference within the Azure ecosystem (e.g., Azure AI Document Intelligence, GPT-4o)?"
-    },
-    {
-      "question": "What is the expected volume growth beyond the current 200 documents per month?"
-    }
-  ],
-  "risks": [
-    {
-      "description": "Financial risk from missed notice windows (currently $350k/year) if the system fails to extract key dates accurately."
-    },
-    {
-      "description": "Data privacy risk due to the presence of PII and confidential trade terms in lease documents."
-    }
-  ],
-  "coverage_gaps": [
-    {
-      "description": "While 99.5% uptime is mentioned, specific requirements for logging, alerting, and performance monitoring of the AI models (e.g., drift detection) are not detailed.",
-      "category": "Observability & Monitoring"
-    },
-    {
-      "description": "The RFP does not specify how long processed data or intermediate OCR outputs should be retained within the Azure environment.",
-      "category": "Data Retention & Lifecycle"
-    }
-  ],
-  "source_files": [
-    "AI_RFP_Template_2026.docx"
-  ],
-  "inferred_requirements": [
-    {
-      "derived_from": [
-        "FR-001",
-        "NFR-002"
-      ],
-      "requirement": "The system should be scalable to handle peak processing loads without degrading performance below the 3-minute threshold.",
-      "rationale": "The current volume is 200/month, but enterprise growth or batch uploads may require handling higher peak loads than the average rate suggests.",
-      "acceptance_criteria": [
-        "System must demonstrate stable performance when processing 50+ documents simultaneously."
-      ],
-      "category": "non_functional",
-      "id": "INF-001"
-    },
-    {
-      "requirement": "The HITL interface should provide deep-linking or highlighting of source text within the PDF for verified fields.",
-      "derived_from": [
-        "FR-003"
-      ],
-      "rationale": "For the HITL interface to be effective, human reviewers need to quickly verify the source of the extraction.",
-      "id": "INF-002",
-      "acceptance_criteria": [
-        "Users can view the specific page and paragraph in the PDF where a data point was extracted."
-      ],
-      "category": "functional"
+      "requirement_text": "Extraction Accuracy ≥ 92% across all fields."
     }
   ],
   "requirements_register": [
     {
-      "type": "functional",
-      "description": "Automate extraction of structured data (lease terms, financial obligations, dates) from complex multi-page PDF documents.",
-      "status": "proposed",
-      "source": "AI_RFP_Template_2026.docx",
       "id": "FR-001",
+      "type": "functional",
       "acceptance_criteria": [
-        "Successful extraction of key fields from both scanned and native PDFs."
+        "System automatically extracts data from complex legal phrasing and varied PDF layouts."
+      ],
+      "status": "proposed",
+      "description": "Extract data from complex multi-page PDF documents (scanned and native).",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx"
+    },
+    {
+      "id": "FR-002",
+      "status": "proposed",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "OCR processing for scanned PDF images (~60% of dataset).",
+      "acceptance_criteria": [
+        "OCR successfully processes legal document fonts and table structures in scanned images."
+      ],
+      "type": "functional"
+    },
+    {
+      "status": "proposed",
+      "id": "FR-003",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "Human-in-the-loop (HITL) interface for verification of extractions below 88% confidence.",
+      "type": "functional",
+      "acceptance_criteria": [
+        "Portal allows human review and correction of fields; overrides are audited."
       ]
     },
     {
       "status": "proposed",
-      "type": "functional",
+      "id": "FR-004",
       "acceptance_criteria": [
-        "Data successfully flows from SharePoint into the AI engine and then into the SAP/Property Management DB."
+        "Secure, real-time ingestion of documents from SharePoint environment."
       ],
-      "source": "AI_RFP_Template_2026.docx",
-      "id": "FR-002",
-      "description": "Integrate with Microsoft SharePoint for ingestion and SAP/Property Management DB for output via RESTful APIs."
+      "description": "Ingest documents from Microsoft SharePoint.",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "type": "functional"
     },
     {
+      "description": "Export structured data to SAP/Property Management database via RESTful APIs.",
       "type": "functional",
-      "description": "Provide a Human-in-the-Loop (HITL) interface for verification of extractions with confidence scores below 88%.",
-      "status": "proposed",
+      "id": "FR-005",
       "acceptance_criteria": [
-        "The system presents a UI for human review when the model confidence score for an extraction is below 88%."
+        "Validated data is successfully mapped and pushed to SAP RESTful endpoints."
       ],
-      "source": "AI_RFP_Template_2026.docx",
-      "id": "FR-003"
-    },
-    {
-      "description": "Achieve an extraction accuracy of 92% or higher across all fields.",
-      "type": "non_functional",
-      "acceptance_criteria": [
-        "Monthly audit of 100 random documents shows ≥ 92% accuracy against ground truth."
-      ],
-      "source": "AI_RFP_Template_2026.docx",
-      "id": "NFR-001",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
       "status": "proposed"
     },
     {
-      "id": "NFR-002",
+      "id": "FR-006",
       "status": "proposed",
+      "description": "Support for Retrieval Augmented Generation (RAG) vectorization.",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
       "acceptance_criteria": [
-        "System telemetry logs confirm processing time is under 3 minutes per document."
+        "Azure AI Search vector store is functional for RAG-based querying."
       ],
-      "source": "AI_RFP_Template_2026.docx",
-      "type": "non_functional",
-      "description": "Processing speed must be less than 3 minutes per document from upload to database population."
+      "type": "functional"
     },
     {
+      "id": "NFR-001",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "Extraction Accuracy ≥ 92% across all fields.",
       "status": "proposed",
       "type": "non_functional",
-      "id": "NFR-003",
-      "description": "System must maintain 99.5% uptime (24/7).",
-      "source": "AI_RFP_Template_2026.docx",
       "acceptance_criteria": [
-        "Monitoring dashboard confirms 99.5% uptime."
+        "Accuracy audit confirms ≥ 92% accuracy across all extracted fields."
       ]
     },
     {
-      "status": "proposed",
-      "acceptance_criteria": [
-        "Vendor provides SOC 2 Type II certification and demonstrates AES-256 and TLS 1.3 implementation."
-      ],
-      "source": "AI_RFP_Template_2026.docx",
-      "description": "Compliance with SOC 2 Type II, HIPAA/GDPR, and encryption standards (AES-256 at rest, TLS 1.3 in transit).",
       "type": "non_functional",
+      "status": "proposed",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "Processing Speed < 3 minutes per document.",
+      "id": "NFR-002",
+      "acceptance_criteria": [
+        "End-to-end processing from ingestion to validation completes in < 180 seconds."
+      ]
+    },
+    {
+      "acceptance_criteria": [
+        "Usage metrics show > 80% team adoption within 60 days of launch."
+      ],
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "status": "proposed",
+      "id": "NFR-003",
+      "type": "non_functional",
+      "description": "User Adoption > 80% team usage in 60 days."
+    },
+    {
+      "description": "System Availability 99.5% Uptime.",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "type": "non_functional",
+      "acceptance_criteria": [
+        "System uptime logs confirm 99.5% availability."
+      ],
+      "status": "proposed",
       "id": "NFR-004"
     },
     {
+      "type": "non_functional",
+      "id": "NFR-005",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "All model training, retrieval augmented generation (RAG) vectorization, and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East / East-US-2 regions).",
       "status": "proposed",
-      "id": "CON-003",
-      "type": "constraint",
       "acceptance_criteria": [
-        "Project completes within 26 weeks."
-      ],
-      "description": "The implementation must follow a 26-week timeline across five phases.",
-      "source": "AI_RFP_Template_2026.docx"
+        "Network logs and architecture audit confirm no data leaves the designated private Azure regions."
+      ]
     },
     {
+      "description": "Security & Compliance: SOC 2 Type II certified vendor processes, HIPAA/GDPR alignment.",
       "acceptance_criteria": [
-        "All data processing remains within the specified Azure regions."
+        "Compliance audit confirms SOC 2 Type II and alignment with GDPR/HIPAA."
       ],
-      "source": "AI_RFP_Template_2026.docx",
-      "type": "constraint",
-      "id": "CON-001",
+      "type": "non_functional",
       "status": "proposed",
-      "description": "All model training and execution must occur strictly within Apex's private Microsoft Azure tenant (US-East / East-US-2)."
+      "id": "NFR-006",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx"
     },
     {
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "Full encryption at rest (AES-256) and in transit (TLS 1.3).",
+      "status": "proposed",
+      "id": "NFR-007",
+      "type": "non_functional",
       "acceptance_criteria": [
-        "Proposal includes multi-year maintenance cost projections."
-      ],
-      "source": "AI_RFP_Template_2026.docx",
-      "description": "Proposals must include explicit rate cards and architectural assumptions for scaling, retraining, and drift handling.",
-      "id": "CON-005",
-      "type": "constraint",
-      "status": "proposed"
+        "Storage and transit channels use AES-256 and TLS 1.3 respectively."
+      ]
     },
     {
-      "acceptance_criteria": [],
-      "description": "Automate the extraction and validation of contractual terms to reduce error rates and financial risk.",
+      "description": "Automate document extraction from commercial leases and supplier contracts.",
       "id": "GOAL-001",
       "status": "proposed",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
       "type": "goal",
-      "source": "AI_RFP_Template_2026.docx"
+      "acceptance_criteria": []
+    },
+    {
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "type": "goal",
+      "description": "Reduce operational costs by 50%.",
+      "status": "proposed",
+      "id": "GOAL-002",
+      "acceptance_criteria": []
+    },
+    {
+      "id": "GOAL-003",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "acceptance_criteria": [],
+      "type": "goal",
+      "status": "proposed",
+      "description": "Eliminate risk of unintended auto-renewals and missed notice windows."
+    },
+    {
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "description": "Project implementation budget range: $100,000 to $175,000.",
+      "status": "proposed",
+      "id": "CON-001",
+      "type": "constraint",
+      "acceptance_criteria": []
     },
     {
       "acceptance_criteria": [],
-      "source": "AI_RFP_Template_2026.docx",
-      "description": "Achieve a 50% reduction in operational costs.",
-      "id": "GOAL-002",
-      "type": "goal",
+      "source": "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx",
+      "type": "constraint",
+      "description": "Prohibition of external API calls to public AI services.",
+      "id": "CON-002",
       "status": "proposed"
     }
   ],
-  "source_directory": "/var/folders/d1/qp3s8ktj41x6r5tnvdn26ft40000gn/T/process_architect_attachments_37142_112662cf0"
+  "source_directory": "/var/folders/d1/qp3s8ktj41x6r5tnvdn26ft40000gn/T/process_architect_attachments_8850_110a770e0",
+  "industry_sector": "Real Estate / Legal / Enterprise Software",
+  "risks": [
+    {
+      "mitigation": "Implement a 'Ground Truth' phase where SMEs validate 500 documents.",
+      "description": "High error rate (12%) in existing manual data makes it difficult to establish a reliable baseline."
+    },
+    {
+      "description": "Strict data residency requirements prohibit public LLM endpoints.",
+      "mitigation": "Use Azure Private Link and Managed Identities to stay within the private VNET."
+    },
+    {
+      "description": "Complexity of legal phrasing may lead to missed notice windows.",
+      "mitigation": "Develop a specific Alerting Module prioritizing notice windows."
+    }
+  ],
+  "source_files": [
+    "Apex_Global_Solutions_AI_Contract_Intelligence_Proposal.docx"
+  ],
+  "requirements_needing_clarification": [
+    {
+      "requirement_text": "Export structured data to SAP/Property Management database via RESTful APIs.",
+      "requirement_id": "FR-005",
+      "question": "Which specific SAP modules and RESTful API endpoints will be used?"
+    },
+    {
+      "requirement_id": "NFR-003",
+      "question": "What metrics or logs will be used to calculate the 80% usage rate?",
+      "requirement_text": "User Adoption > 80% team usage in 60 days."
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "description": "The document does not specify policies for data retention or the lifecycle of documents and extracted data within the private tenant.",
+      "category": "Data Retention & Lifecycle"
+    },
+    {
+      "category": "Observability & Monitoring",
+      "description": "While Azure Monitor is mentioned, detailed requirements for logging and alerting on integration failures (SAP/SharePoint) are not fully defined."
+    }
+  ],
+  "inferred_requirements": [
+    {
+      "rationale": "The document lists an 'Automated Alerting System' as a deliverable and risk mitigation, though it is not explicitly listed in the requirement matrix.",
+      "requirement": "The system must provide automated alerting for notice windows and renewals.",
+      "acceptance_criteria": "Automated notifications are sent to relevant parties before critical notice windows close.",
+      "derived_from": [
+        "GOAL-003"
+      ],
+      "id": "INF-001",
+      "category": "functional"
+    },
+    {
+      "category": "non_functional",
+      "derived_from": [
+        "FR-003"
+      ],
+      "requirement": "The HITL portal must maintain a full audit trail of manual overrides.",
+      "id": "INF-002",
+      "rationale": "Section 2 and 3 mention the need for a clear audit trail for manual overrides to support monthly accuracy audits.",
+      "acceptance_criteria": "Audit logs capture user ID, timestamp, and specific changes made during manual verification."
+    }
+  ],
+  "open_questions": [
+    "What are the specific SAP modules and API versions required for the RESTful integration?",
+    "How is '80% user adoption' specifically defined and measured?",
+    "What is the expected volume of new incoming documents post-migration?"
+  ],
+  "conflicting_requirements": [],
+  "assumptions": [
+    "Apex Global Solutions will provide necessary API credentials and network access for SharePoint and SAP integrations.",
+    "The 15,000 historical documents provided are representative of future lease and contract types.",
+    "Azure consumption costs are managed and paid for directly by Apex Global Solutions.",
+    "Subject Matter Experts (SMEs) will be available for 4 hours per week during the Discovery and UAT phases."
+  ],
+  "summary": "The source material is a proposal for an Azure-native AI Contract Intelligence system for Apex Global Solutions. The solution aims to automate extraction from commercial leases and supplier contracts, targeting high accuracy (≥92%) and strict data residency within a private Azure tenant to reduce operational costs and financial risks."
 }
