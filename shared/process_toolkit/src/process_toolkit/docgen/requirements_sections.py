@@ -38,11 +38,36 @@ def _set_header_row(table, headers) -> None:
         table.rows[0].cells[idx].text = label
 
 
+def _coerce_to_text(v) -> str:
+    """Coerces a list entry the agent SHOULD have written as a plain
+    string, but sometimes writes as a richer {"description"/"question"/
+    "text": ...} object instead (observed directly: an agent drafting a
+    detailed "risks"/"open_questions" entry drifts toward the same
+    object shape neighboring fields like conflicting_requirements use,
+    even though these two fields are documented as plain strings) --
+    silently dropping those entries would hide genuinely good content
+    the agent DID produce, which is worse than rendering it. Prefers an
+    explicit text-bearing key, falls back to the first non-empty string
+    value in the dict, then to str(v) as a last resort."""
+    if isinstance(v, str):
+        return v.strip()
+    if isinstance(v, dict):
+        for key in ("description", "question", "text", "requirement_text"):
+            value = v.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in v.values():
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return str(v).strip()
+
+
 def _add_bullet_list_subsection(doc: docx.Document, values, heading: str, level: int = 2) -> bool:
     """Shared helper for every plain string-list subsection introduced in
     this pass (scope_in, scope_out, success_measures)."""
     try:
-        items = [str(v) for v in (values or []) if isinstance(v, str) and v.strip()]
+        items = [_coerce_to_text(v) for v in (values or []) if v not in (None, "", {}, [])]
+        items = [v for v in items if v]
         if not items:
             return False
         doc.add_heading(heading, level=level)
@@ -108,7 +133,8 @@ def _add_requirements_overview_section(
         for key, label in (
             ("assumptions", "Assumptions"), ("risks", "Risks"), ("open_questions", "Open Questions"),
         ):
-            values = [str(v) for v in (data.get(key) or []) if isinstance(v, str) and v.strip()]
+            values = [_coerce_to_text(v) for v in (data.get(key) or []) if v not in (None, "", {}, [])]
+            values = [v for v in values if v]
             if not values:
                 continue
             doc.add_heading(f"{lead}.{subsection} {label}", level=2)

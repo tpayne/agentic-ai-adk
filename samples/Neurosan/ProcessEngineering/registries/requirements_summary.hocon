@@ -107,14 +107,17 @@ From the returned "combined_text", internally generate a single JSON object:
 - stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
   {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
   "Yes"|"No"} when the material actually supports that level of detail -- optional per entry.
-- assumptions: Conditions the material implies must be true.
-- risks: Risks mentioned or reasonably inferred -- including, MANDATORILY, one entry for EVERY
-  tension or conflict you yourself flag elsewhere in this same summary (see "conflicting_requirements"
-  below -- a flagged conflict always implies a risk until it's resolved, not optional
-  cross-referencing). Worked example: a stated hard Recovery Point Objective alongside operational
-  detail that implies only periodic/batch backups is not just a conflicting_requirements entry -- it
-  directly implies a risks entry naming the resulting data-loss exposure.
-- open_questions: Gaps or ambiguities in the source material worth flagging to the user.
+- assumptions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict, unlike
+  conflicting_requirements below). Conditions the material implies must be true.
+- risks: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Risks mentioned or
+  reasonably inferred -- including, MANDATORILY, one entry for EVERY tension or conflict you yourself
+  flag elsewhere in this same summary (see "conflicting_requirements" below -- a flagged conflict
+  always implies a risk until it's resolved, not optional cross-referencing). Worked example: a
+  stated hard Recovery Point Objective alongside operational detail that implies only periodic/batch
+  backups is not just a conflicting_requirements entry -- it directly implies a risks entry (a
+  single string) naming the resulting data-loss exposure.
+- open_questions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Gaps or
+  ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
 fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
 "assumptions", "risks", and "open_questions" are just as important as every field above and below
@@ -223,7 +226,10 @@ REWRITE anything that fails -- do not save a draft that still fails either one:
    conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
    wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
    have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
-This check is not optional narration -- actually re-read the two lists and fix them if they fail,
+3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
+   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
+   as objects, rewrite each one as a single plain-string sentence before saving.
+This check is not optional narration -- actually re-read the lists and fix them if they fail,
 the same way you would re-read code before committing it.
 
 # STEP 3: SAVE THE SUMMARY (MANDATORY ON SUCCESS)

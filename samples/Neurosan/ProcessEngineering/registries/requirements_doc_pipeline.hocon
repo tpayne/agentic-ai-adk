@@ -126,16 +126,18 @@ Internally generate a single JSON object:
   plain string, or an object {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low",
   "approval_authority": "Yes"|"No"} when the description actually supports that detail -- optional
   per entry.
-- assumptions: conditions you are reasoning from, including which regulatory/standards frameworks
-  you applied and why.
-- risks: risks implied by the domain/description -- including, MANDATORILY, one entry for EVERY
-  tension or conflict you yourself flag elsewhere in this same summary (see "conflicting_requirements"
-  below -- a flagged conflict always implies a risk until it's resolved, not optional
-  cross-referencing). Worked example: a stated hard Recovery Point Objective alongside a description
-  that implies only periodic/batch backups is not just a conflicting_requirements entry -- it
-  directly implies a risks entry naming the resulting data-loss exposure.
-- open_questions: gaps you genuinely cannot resolve from the description alone and had to assume
-  your way past.
+- assumptions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict, unlike
+  conflicting_requirements below). Conditions you are reasoning from, including which
+  regulatory/standards frameworks you applied and why.
+- risks: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Risks implied by the
+  domain/description -- including, MANDATORILY, one entry for EVERY tension or conflict you yourself
+  flag elsewhere in this same summary (see "conflicting_requirements" below -- a flagged conflict
+  always implies a risk until it's resolved, not optional cross-referencing). Worked example: a
+  stated hard Recovery Point Objective alongside a description that implies only periodic/batch
+  backups is not just a conflicting_requirements entry -- it directly implies a risks entry (a
+  single string) naming the resulting data-loss exposure.
+- open_questions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Gaps you
+  genuinely cannot resolve from the description alone and had to assume your way past.
 Ground every field in the description plus well-established general domain/regulatory knowledge --
 do not invent a specific clause/section number, study result, or statistic you are not genuinely
 confident of; state a standard or framework by name only, not by a fabricated pinpoint citation.
@@ -238,7 +240,10 @@ REWRITE anything that fails -- do not save a draft that still fails either one:
    conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
    wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
    have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
-This check is not optional narration -- actually re-read the two lists and fix them if they fail,
+3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
+   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
+   as objects, rewrite each one as a single plain-string sentence before saving.
+This check is not optional narration -- actually re-read the lists and fix them if they fail,
 the same way you would re-read code before committing it.
 
 # STEP 3: SAVE THE SUMMARY (MANDATORY)

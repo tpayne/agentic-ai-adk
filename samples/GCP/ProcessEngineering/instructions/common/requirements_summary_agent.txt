@@ -87,17 +87,21 @@ From the returned "combined_text", internally generate a single JSON object:
   "Yes"|"No"} when the source material actually supports that level of detail -- "interest"/
   "approval_authority" are optional per entry; omit them for a stakeholder the material doesn't say
   enough about rather than guessing.
-- assumptions: Conditions the material implies must be true.
-- risks: Risks mentioned or reasonably inferred -- including, MANDATORILY, one entry for EVERY
-  tension or conflict you yourself flag elsewhere in this same summary. If "conflicting_requirements"
-  (STEP 2B) identifies a genuine conflict, or a stated constraint creates a real trade-off, that
-  MUST also produce a corresponding risks entry here -- it is not optional cross-referencing, it is
-  a direct consequence of something you already found. Worked example: if the material states a
-  15-minute Recovery Point Objective but the operational detail describes only nightly backups, that
-  is not just a conflicting_requirements entry -- it directly implies a risks entry such as "Up to a
-  24-hour data loss window on recovery, against a stated 15-minute RPO target, until the backup
+- assumptions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict, unlike
+  conflicting_requirements/requirements_needing_clarification below). Conditions the material
+  implies must be true.
+- risks: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Risks mentioned or
+  reasonably inferred -- including, MANDATORILY, one entry for EVERY tension or conflict you
+  yourself flag elsewhere in this same summary. If "conflicting_requirements" (STEP 2B) identifies a
+  genuine conflict, or a stated constraint creates a real trade-off, that MUST also produce a
+  corresponding risks entry here -- it is not optional cross-referencing, it is a direct consequence
+  of something you already found. Worked example: if the material states a 15-minute Recovery Point
+  Objective but the operational detail describes only nightly backups, that is not just a
+  conflicting_requirements entry -- it directly implies a risks entry such as the single string "Up
+  to a 24-hour data loss window on recovery, against a stated 15-minute RPO target, until the backup
   cadence and RPO requirement are reconciled."
-- open_questions: Gaps or ambiguities in the source material worth flagging to the user.
+- open_questions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Gaps or
+  ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
 fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
 "assumptions", "risks", and "open_questions" are just as important as every field added above and
@@ -234,7 +238,10 @@ REWRITE anything that fails -- do not save a draft that still fails either one:
    conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
    wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
    have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
-This check is not optional narration -- actually re-read the two lists and fix them if they fail,
+3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
+   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
+   as objects, rewrite each one as a single plain-string sentence before saving.
+This check is not optional narration -- actually re-read the lists and fix them if they fail,
 the same way you would re-read code before committing it.
 
 # STEP 3: SAVE THE SUMMARY (MANDATORY ON SUCCESS)

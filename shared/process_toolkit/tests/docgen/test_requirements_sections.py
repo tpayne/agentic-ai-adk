@@ -25,6 +25,30 @@ def test_overview_section_renders_assumptions_risks_and_open_questions_as_subsec
     assert headings == ["1.1 Assumptions", "1.2 Risks", "1.3 Open Questions"]
 
 
+def test_overview_section_coerces_dict_shaped_risks_and_open_questions_to_text():
+    # Regression: an agent sometimes drifts to writing "risks"/"open_questions"
+    # entries as {"description"/"question": ...} objects (pattern-matching
+    # the object shape neighboring fields like conflicting_requirements
+    # use), even though these two fields are documented as plain strings.
+    # A strict isinstance(v, str) filter silently dropped every such entry,
+    # making the WHOLE 1.2/1.3 subsection vanish even though the agent had
+    # genuinely written good content -- confirmed directly against a real
+    # saved requirements_summary.json produced during live testing.
+    doc = docx.Document()
+    data = {
+        "risks": [{"description": "Up to a 24-hour data loss window against a 15-minute RPO target."}],
+        "open_questions": [
+            {"question": "What is the retention schedule?", "requirement_id": "NFR-003"},
+        ],
+    }
+    assert rs._add_requirements_overview_section(doc, data) is True
+    headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+    assert headings == ["1.1 Risks", "1.2 Open Questions"]
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Up to a 24-hour data loss window against a 15-minute RPO target." in bullets
+    assert "What is the retention schedule?" in bullets
+
+
 def test_overview_section_renders_source_files_as_bullets_not_a_comma_list():
     doc = docx.Document()
     data = {"source_directory": "./vendor-docs", "source_files": ["rfp.pdf", "addendum.pdf"]}

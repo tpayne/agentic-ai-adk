@@ -69,6 +69,9 @@ REWRITE anything that fails -- do not save a draft that still fails either one:
    confirm "risks" has AT LEAST that many entries, each one naming the specific exposure the
    conflict creates. If "risks" has fewer entries than "conflicting_requirements", you have NOT
    finished STEP 3 -- go back and add the missing risks entries before proceeding.
+3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
+   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
+   as objects, rewrite each one as a single plain-string sentence before saving.
 
 # STEP 4: SAVE (MANDATORY ON SUCCESS)
 CALL 'save_requirements_summary' with the JSON object from STEP 3 (after the STEP 3B self-check) as
