@@ -76,14 +76,20 @@ Internally generate a single JSON object:
 - source_files: the "files_processed" list from STEP 0, or [] if none was given.
 - summary: a short prose overview (2-4 sentences) of the product/system/initiative being described.
 - industry_sector: the specific domain (e.g. "Pharmaceuticals", "Payments").
-- current_state: a short paragraph on the current/as-is situation, ONLY if the description actually
-  describes one; leave empty rather than guessing.
-- future_state: a short paragraph on the desired future/to-be situation the description implies.
+- current_state: a real paragraph (not a one-liner) on the current/as-is situation, grounded in the
+  description plus well-established domain knowledge. ONLY if the description actually supports
+  one; leave empty rather than guessing. When it IS covered, give it the same level of detail as a
+  proposal response's "our_understanding" -- several sentences, not a generic gloss.
+- future_state: a real paragraph (same bar as current_state) on the desired future/to-be situation
+  the description implies.
 - success_measures: list of strings -- concrete measures of success, ONLY if actually stated or
   clearly implied; otherwise leave empty.
-- scope_in: list of strings -- specific capabilities/activities the description places in scope.
-- scope_out: list of strings -- specific capabilities/activities the description EXPLICITLY
-  excludes. Leave empty rather than guessing if the description never says so.
+- scope_in: list of strings -- SPECIFIC capabilities/activities the description places in scope.
+  Each bullet should name a concrete thing, not a generic one-or-two word label -- a reader with no
+  other context should understand what the bullet actually covers.
+- scope_out: list of strings -- SPECIFIC capabilities/activities the description EXPLICITLY
+  excludes, same concreteness bar as scope_in. Leave empty rather than guessing if the description
+  never says so.
 - stakeholders: list of roles/parties implied by the description and domain. Each entry MAY be a
   plain string, or an object {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low",
   "approval_authority": "Yes"|"No"} when the description actually supports that detail -- optional
@@ -96,6 +102,9 @@ Internally generate a single JSON object:
 Ground every field in the description plus well-established general domain/regulatory knowledge --
 do not invent a specific clause/section number, study result, or statistic you are not genuinely
 confident of; state a standard or framework by name only, not by a fabricated pinpoint citation.
+IMPORTANT: "assumptions", "risks", and "open_questions" are just as important as every field above
+and below them -- do not let them shrink or go empty just because there are now more fields to
+populate.
 
 # STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
 Every atomic requirement/goal/constraint goes into ONE list, "requirements_register":
@@ -168,9 +177,11 @@ that is BOTH absent AND plausibly relevant. Leave empty if nothing qualifies.
 
 # STEP 2E: DEPENDENCIES AND GLOSSARY
 Also populate:
-- dependencies: list of {"dependency", "description", "status"} -- external systems, integrations,
-  or third-party deliverables this effort genuinely depends on. Distinct from "risks": a dependency
-  is a known fact to track, not a probabilistic threat. Leave empty if none apply.
+- dependencies: list of {"dependency", "description", "status": "Confirmed"|"Unconfirmed"|"At
+  Risk"|""} -- external systems, integrations, or third-party deliverables this effort genuinely
+  depends on. "status" MUST be one of exactly these three values, or empty string if truly unknown
+  -- do not invent any other status word. Distinct from "risks": a dependency is a known fact to
+  track, not a probabilistic threat. Leave empty if none apply.
 - glossary: list of {"term", "definition"} -- ONLY for acronyms/terms that appear elsewhere in THIS
   summary's own fields. Defining a term you yourself used is not fabrication. Do not define a term
   that doesn't actually appear elsewhere in this summary.

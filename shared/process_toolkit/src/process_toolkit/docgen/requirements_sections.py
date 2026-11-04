@@ -116,10 +116,10 @@ def _add_requirements_overview_section(
         if source_directory or source_files:
             p = doc.add_paragraph()
             p.add_run("Source Material: ").bold = True
-            parts = [str(source_directory)] if source_directory else []
-            if source_files:
-                parts.append(", ".join(source_files))
-            p.add_run(" -- ".join(parts))
+            if source_directory:
+                p.add_run(str(source_directory))
+            for f in source_files:
+                doc.add_paragraph(f, style="List Bullet")
 
         return True
     except Exception:
@@ -161,6 +161,10 @@ def _add_business_context_section(
             return False
 
         doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This section describes the situation driving this effort -- where things stand today, "
+            "where they need to get to, and how success will be measured."
+        )
         _add_current_state_section(doc, data)
         _add_future_state_section(doc, data)
         _add_success_measures_section(doc, data.get("success_measures"))
@@ -194,6 +198,11 @@ def _add_scope_section(
             return False
 
         doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This section defines the boundaries of this effort -- what is explicitly included, "
+            "and what is explicitly excluded -- to prevent ambiguity about what this requirements "
+            "set is meant to cover."
+        )
         _add_scope_in_section(doc, data.get("scope_in"))
         _add_scope_out_section(doc, data.get("scope_out"))
         return True
@@ -221,7 +230,14 @@ _OLD_FORMAT_SECTIONS = (
 )
 
 
-def _add_requirements_register_table(doc: docx.Document, items) -> None:
+def _add_requirements_register_table(doc: docx.Document, items, priority_lookup=None) -> None:
+    """`priority_lookup` is an optional {requirement_id: priority} map built
+    from the SEPARATE requirement_priorities list -- used as a fallback
+    when an entry's own "priority" key is empty, since the agent doesn't
+    always reliably set both; this way the Priority column is populated
+    whenever priority info exists ANYWHERE in the document, regardless of
+    which of the two fields it actually used."""
+    priority_lookup = priority_lookup or {}
     items = sorted(items, key=lambda r: _natural_sort_key(r.get("id")))
 
     headers = ["ID", "Description", "Priority", "Source", "Acceptance Criteria", "Status"]
@@ -232,7 +248,8 @@ def _add_requirements_register_table(doc: docx.Document, items) -> None:
         row = table.add_row().cells
         row[0].text = str(item.get("id") or "N/A")
         _set_cell_bullets(row[1], item.get("description"))
-        row[2].text = str(item.get("priority") or "").title()
+        priority = item.get("priority") or priority_lookup.get(item.get("id")) or ""
+        row[2].text = str(priority).title()
         row[3].text = str(item.get("source") or "")
         _set_cell_bullets(row[4], item.get("acceptance_criteria"))
         row[5].text = str(item.get("status") or "").replace("_", " ").title()
@@ -287,11 +304,22 @@ def _add_requirements_register_section(
         for item in register:
             by_type.setdefault(item.get("type"), []).append(item)
 
+        priority_lookup = {
+            p.get("requirement_id"): p.get("priority")
+            for p in (data.get("requirement_priorities") or [])
+            if isinstance(p, dict) and p.get("requirement_id") and p.get("priority")
+        }
+
         doc.add_heading(heading, level=1)
         doc.add_paragraph(
             "This section identifies the functional, non-functional, goal, and constraint "
             "requirements for this effort, following ISO/IEC/IEEE 29148 requirements "
             "engineering practice. Each table is ordered by identifier."
+        )
+        doc.add_paragraph(
+            "Status key: Proposed (not yet reviewed) -- Approved (accepted, not yet built) -- "
+            "Implemented (built, not yet verified) -- Verified (confirmed to meet its acceptance "
+            "criteria) -- Rejected (will not be implemented)."
         )
 
         subsection = 1
@@ -301,7 +329,7 @@ def _add_requirements_register_section(
                 continue
             doc.add_heading(f"{lead}.{subsection} {label}", level=2)
             subsection += 1
-            _add_requirements_register_table(doc, items)
+            _add_requirements_register_table(doc, items, priority_lookup)
 
         return True
     except Exception:
@@ -588,6 +616,10 @@ def _add_dependency_register_section(
         doc.add_paragraph(
             "This section records external dependencies this effort relies on."
         )
+        doc.add_paragraph(
+            "Status key: Confirmed (verified to be available/in place) -- Unconfirmed (assumed, "
+            "not yet verified) -- At Risk (verification raised a concern)."
+        )
 
         headers = ["Dependency", "Description", "Status"]
         table = doc.add_table(rows=1, cols=len(headers))
@@ -623,6 +655,9 @@ def _add_glossary_section(
             return False
 
         doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This section defines acronyms and terms used elsewhere in this document."
+        )
 
         items = sorted(items, key=lambda g: str(g.get("term") or "").lower())
 

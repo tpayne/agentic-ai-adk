@@ -3,6 +3,7 @@ import json
 from process_toolkit.requirements_summary.requirements_summary import (
     save_requirements_summary,
     load_requirements_summary,
+    update_requirements_summary,
 )
 from process_toolkit import paths
 
@@ -91,3 +92,45 @@ def test_load_with_state_falls_back_to_shared_file_if_session_never_saved():
     loaded = load_requirements_summary(fresh_session)
     assert loaded["status"] == "OK"
     assert loaded["summary"] == "from an earlier run"
+
+
+def test_update_rejects_non_dict_patch():
+    save_requirements_summary({"summary": "first"})
+    result = update_requirements_summary(["not", "a", "dict"])
+    assert result.startswith("ERROR:")
+
+
+def test_update_fails_when_nothing_has_been_saved_yet():
+    result = update_requirements_summary({"summary": "revised"})
+    assert result.startswith("ERROR:")
+
+
+def test_update_shallow_merges_the_patch_onto_the_existing_summary():
+    save_requirements_summary({
+        "summary": "first draft",
+        "requirements_register": [{"id": "FR-001", "type": "functional", "description": "Allow login."}],
+    })
+
+    result = update_requirements_summary({"summary": "corrected draft"})
+    assert result.startswith("SUCCESS:")
+
+    loaded = load_requirements_summary()
+    assert loaded["summary"] == "corrected draft"
+    # untouched key survives the patch
+    assert loaded["requirements_register"] == [
+        {"id": "FR-001", "type": "functional", "description": "Allow login."},
+    ]
+    # the status key injected by load must never leak into the persisted file
+    on_disk = json.loads(open(paths.output_path("requirements_summary.json"), encoding="utf-8").read())
+    assert "status" not in on_disk
+
+
+def test_update_uses_session_state_when_provided():
+    session = {}
+    save_requirements_summary({"summary": "first draft"}, session)
+
+    result = update_requirements_summary({"summary": "revised"}, session)
+    assert result.startswith("SUCCESS:")
+
+    loaded = load_requirements_summary(session)
+    assert loaded["summary"] == "revised"

@@ -2901,6 +2901,7 @@ def zip_iac_files() -> dict:
 from process_toolkit.requirements_summary.requirements_summary import (  # noqa: E402,F401
     save_requirements_summary as _shared_save_requirements_summary,
     load_requirements_summary as _shared_load_requirements_summary,
+    update_requirements_summary as _shared_update_requirements_summary,
 )
 
 
@@ -2912,11 +2913,16 @@ def load_requirements_summary(tool_context: Optional[ToolContext] = None) -> dic
     return _shared_load_requirements_summary(tool_context.state if tool_context is not None else None)
 
 
+def update_requirements_summary(patch: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_update_requirements_summary(patch, tool_context.state if tool_context is not None else None)
+
+
 # Same re-export pattern as requirements_summary.py above, for
 # proposal_response.py (shared with the neuro-san port).
 from process_toolkit.proposal_response.proposal_response import (  # noqa: E402,F401
     save_proposal_response as _shared_save_proposal_response,
     load_proposal_response as _shared_load_proposal_response,
+    update_proposal_response as _shared_update_proposal_response,
 )
 
 
@@ -2926,6 +2932,10 @@ def save_proposal_response(response: dict, tool_context: Optional[ToolContext] =
 
 def load_proposal_response(tool_context: Optional[ToolContext] = None) -> dict:
     return _shared_load_proposal_response(tool_context.state if tool_context is not None else None)
+
+
+def update_proposal_response(patch: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_update_proposal_response(patch, tool_context.state if tool_context is not None else None)
 
 
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:

@@ -79,14 +79,21 @@ From the returned "combined_text", internally generate a single JSON object:
 - source_files: The "files_processed" list from the tool result.
 - summary: A short prose overview (2-4 sentences) of what the source material describes.
 - industry_sector: The specific business domain, if identifiable.
-- current_state: A short paragraph on the current/as-is situation, ONLY if the material actually
-  describes one; leave empty rather than guessing.
-- future_state: A short paragraph on the desired future/to-be situation -- same grounding rule.
+- current_state: A real paragraph (not a one-liner) on the current/as-is situation -- who does what
+  today, with what systems/process, and what pain points the material itself calls out. ONLY if the
+  material actually describes one; leave empty rather than guessing. When it IS covered, give it the
+  same level of detail you would for "our_understanding" in a proposal response -- several sentences
+  grounded in specifics, not a generic one-sentence gloss.
+- future_state: A real paragraph (same bar as current_state) on the desired future/to-be situation
+  -- same grounding rule.
 - success_measures: List of strings -- concrete measures of success, ONLY if the material actually
   states or clearly implies one; otherwise leave empty.
-- scope_in: List of strings -- specific capabilities/activities the material describes as in scope.
-- scope_out: List of strings -- specific capabilities/activities the material EXPLICITLY excludes.
-  Leave empty rather than guessing if the material never actually says so.
+- scope_in: List of strings -- SPECIFIC capabilities/activities/systems the material describes as in
+  scope. Each bullet should name a concrete thing, not a generic one-or-two word label -- a reader
+  with no other context should understand what the bullet actually covers.
+- scope_out: List of strings -- SPECIFIC capabilities/activities the material EXPLICITLY excludes,
+  same concreteness bar as scope_in. Leave empty rather than guessing if the material never actually
+  says so.
 - stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
   {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
   "Yes"|"No"} when the material actually supports that level of detail -- optional per entry.
@@ -94,7 +101,9 @@ From the returned "combined_text", internally generate a single JSON object:
 - risks: Risks mentioned or reasonably inferred.
 - open_questions: Gaps or ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
-fine for a list to be short or empty if the material genuinely doesn't cover that area.
+fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
+"assumptions", "risks", and "open_questions" are just as important as every field above and below
+them -- do not let them shrink or go empty just because there are now more fields to populate.
 
 # STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
 Instead of separate flat lists for goals/functional/non-functional/constraints, every atomic
@@ -174,10 +183,12 @@ plausibly relevant. Leave empty if nothing qualifies.
 
 # STEP 2E: DEPENDENCIES AND GLOSSARY
 Also populate:
-- dependencies: list of {"dependency", "description", "status"} -- external systems, integrations,
-  or third-party deliverables this effort genuinely depends on, per the source material. Distinct
-  from "risks": a dependency is a known fact to track, not a probabilistic threat. Leave empty if
-  the material doesn't name any.
+- dependencies: list of {"dependency", "description", "status": "Confirmed"|"Unconfirmed"|"At
+  Risk"|""} -- external systems, integrations, or third-party deliverables this effort genuinely
+  depends on, per the source material. "status" MUST be one of exactly these three values, or empty
+  string if truly unknown -- do not invent any other status word. Distinct from "risks": a
+  dependency is a known fact to track, not a probabilistic threat. Leave empty if the material
+  doesn't name any.
 - glossary: list of {"term", "definition"} -- ONLY for acronyms/terms that appear elsewhere in THIS
   summary's own fields. Defining a term you yourself used (e.g. HITL, RAG, OCR, API) is not
   fabrication. Do not define a term that doesn't actually appear elsewhere in this summary.

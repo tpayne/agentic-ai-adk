@@ -25,6 +25,22 @@ def test_overview_section_renders_assumptions_risks_and_open_questions_as_subsec
     assert headings == ["1.1 Assumptions", "1.2 Risks", "1.3 Open Questions"]
 
 
+def test_overview_section_renders_source_files_as_bullets_not_a_comma_list():
+    doc = docx.Document()
+    data = {"source_directory": "./vendor-docs", "source_files": ["rfp.pdf", "addendum.pdf"]}
+    assert rs._add_requirements_overview_section(doc, data) is True
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert bullets == ["rfp.pdf", "addendum.pdf"]
+    assert not any("rfp.pdf, addendum.pdf" in p.text for p in doc.paragraphs)
+
+
+def test_overview_section_renders_source_directory_with_no_files():
+    doc = docx.Document()
+    data = {"source_directory": "./vendor-docs"}
+    assert rs._add_requirements_overview_section(doc, data) is True
+    assert any("./vendor-docs" in p.text for p in doc.paragraphs)
+
+
 def test_business_context_section_is_a_noop_when_every_subsection_is_empty():
     doc = docx.Document()
     assert rs._add_business_context_section(doc, {}) is False
@@ -39,6 +55,13 @@ def test_business_context_section_renders_present_subsections_only():
     assert headings == ["2.0 Business Context", "2.1 Current State", "2.3 Success Measures"]
 
 
+def test_business_context_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    data = {"current_state": "Manual data entry today."}
+    assert rs._add_business_context_section(doc, data) is True
+    assert any("situation driving this effort" in p.text for p in doc.paragraphs)
+
+
 def test_scope_section_is_a_noop_when_both_lists_are_empty():
     doc = docx.Document()
     assert rs._add_scope_section(doc, {}) is False
@@ -50,6 +73,13 @@ def test_scope_section_renders_in_and_out_of_scope():
     assert rs._add_scope_section(doc, data) is True
     headings = [p.text for p in doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
     assert headings == ["3.0 Scope", "3.1 In Scope", "3.2 Out of Scope"]
+
+
+def test_scope_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    data = {"scope_in": ["Contract extraction."]}
+    assert rs._add_scope_section(doc, data) is True
+    assert any("boundaries of this effort" in p.text for p in doc.paragraphs)
 
 
 def test_requirements_register_section_is_a_noop_with_nothing_present():
@@ -97,6 +127,50 @@ def test_requirements_register_table_includes_a_priority_column():
         "ID", "Description", "Priority", "Source", "Acceptance Criteria", "Status",
     ]
     assert table.rows[1].cells[2].text == "High"
+
+
+def test_requirements_register_table_falls_back_to_priority_lookup_when_own_field_empty():
+    doc = docx.Document()
+    rs._add_requirements_register_table(
+        doc,
+        [{"id": "FR-001", "type": "functional", "description": "x"}],
+        priority_lookup={"FR-001": "critical"},
+    )
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Critical"
+
+
+def test_requirements_register_table_prefers_its_own_priority_over_the_lookup():
+    doc = docx.Document()
+    rs._add_requirements_register_table(
+        doc,
+        [{"id": "FR-001", "type": "functional", "description": "x", "priority": "low"}],
+        priority_lookup={"FR-001": "critical"},
+    )
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Low"
+
+
+def test_requirements_register_section_builds_priority_lookup_from_requirement_priorities():
+    doc = docx.Document()
+    data = {
+        "requirements_register": [
+            {"id": "FR-001", "type": "functional", "description": "x"},
+        ],
+        "requirement_priorities": [
+            {"requirement_id": "FR-001", "priority": "high"},
+        ],
+    }
+    assert rs._add_requirements_register_section(doc, data) is True
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "High"
+
+
+def test_requirements_register_section_includes_a_status_key_legend():
+    doc = docx.Document()
+    data = {"requirements_register": [{"id": "FR-001", "type": "functional", "description": "x"}]}
+    assert rs._add_requirements_register_section(doc, data) is True
+    assert any(p.text.startswith("Status key:") for p in doc.paragraphs)
 
 
 def test_old_format_summary_renders_plain_bullets_not_a_table():
@@ -204,6 +278,20 @@ def test_dependency_register_section_renders_a_table():
     table = doc.tables[0]
     assert table.rows[1].cells[0].text == "SAP API availability"
     assert table.rows[1].cells[2].text == "Confirmed"
+
+
+def test_dependency_register_section_includes_a_status_key_legend():
+    doc = docx.Document()
+    deps = [{"dependency": "SAP API availability", "description": "Needed for data export.", "status": "Confirmed"}]
+    assert rs._add_dependency_register_section(doc, deps) is True
+    assert any(p.text.startswith("Status key:") for p in doc.paragraphs)
+
+
+def test_glossary_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    glossary = [{"term": "RAG", "definition": "Retrieval Augmented Generation."}]
+    assert rs._add_glossary_section(doc, glossary) is True
+    assert any("defines acronyms and terms" in p.text for p in doc.paragraphs)
 
 
 def test_glossary_section_is_a_noop_when_empty():

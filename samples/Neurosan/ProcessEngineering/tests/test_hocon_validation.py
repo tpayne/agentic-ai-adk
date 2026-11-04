@@ -23,6 +23,8 @@ PORTED_NETWORKS = [
     "registries/requirements_simulation_query.hocon",
     "registries/requirements_doc_pipeline.hocon",
     "registries/proposal_response_pipeline.hocon",
+    "registries/proposal_response_consultant.hocon",
+    "registries/proposal_response_reviewer.hocon",
     "registries/cloudarch.hocon",
     "registries/process.hocon",
     "registries/process_import.hocon",

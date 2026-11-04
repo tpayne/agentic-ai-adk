@@ -52,16 +52,25 @@ From the returned "combined_text", internally generate a single JSON object:
 - source_files: The "files_processed" list from the tool result.
 - summary: A short prose overview (2-4 sentences) of what the source material describes.
 - industry_sector: The specific business domain, if identifiable.
-- current_state: A short paragraph on the current/as-is situation the source material describes --
-  only if the material actually describes one; leave empty rather than guessing.
-- future_state: A short paragraph on the desired future/to-be situation -- same grounding rule.
+- current_state: A real paragraph (not a one-liner) on the current/as-is situation the source
+  material describes -- who does what today, with what systems/process, and what pain points or
+  limitations the material itself calls out. Only write this if the material actually describes the
+  current state; leave empty rather than guessing, but when it IS covered, give it the same level of
+  detail you would for "our_understanding" in a proposal response -- several sentences grounded in
+  specifics from the material, not a generic one-sentence gloss.
+- future_state: A real paragraph (same bar as current_state) on the desired future/to-be situation --
+  what changes, for whom, and what the material says the end state should look like. Same grounding
+  rule: leave empty rather than guessing, but do not under-write it when the material supports more.
 - success_measures: List of strings -- concrete measures of success, ONLY if the material actually
   states or clearly implies one (e.g. a stated target percentage or metric); otherwise leave empty.
-- scope_in: List of strings -- specific capabilities/activities the material describes as part of
-  this effort's scope.
-- scope_out: List of strings -- specific capabilities/activities the material EXPLICITLY excludes
-  or describes as out of scope. Leave empty rather than guessing what's excluded if the material
-  never actually says so.
+- scope_in: List of strings -- SPECIFIC capabilities/activities/systems the material describes as
+  part of this effort's scope. Each bullet should name a concrete thing (e.g. "Automated extraction
+  of line-item data from vendor invoices in PDF and scanned image form"), not a generic one-or-two
+  word label (e.g. not just "Invoices") -- a reader with no other context should understand what the
+  bullet actually covers.
+- scope_out: List of strings -- SPECIFIC capabilities/activities the material EXPLICITLY excludes
+  or describes as out of scope, with the same concreteness bar as scope_in. Leave empty rather than
+  guessing what's excluded if the material never actually says so.
 - stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
   {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
   "Yes"|"No"} when the source material actually supports that level of detail -- "interest"/
@@ -71,7 +80,10 @@ From the returned "combined_text", internally generate a single JSON object:
 - risks: Risks mentioned or reasonably inferred.
 - open_questions: Gaps or ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
-fine for a list to be short or empty if the material genuinely doesn't cover that area.
+fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
+"assumptions", "risks", and "open_questions" are just as important as every field added above and
+below them -- do not let them shrink or go empty just because there are now more fields to populate.
+If the material supports entries for them, populate them with the same care as any other field.
 
 # STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
 Instead of separate flat lists for goals/functional/non-functional/constraints, every atomic
@@ -175,10 +187,13 @@ Also populate:
 # STEP 2E: DEPENDENCIES AND GLOSSARY
 Also populate:
 - dependencies: list of {"dependency": "<short name>", "description": "<what it is and why this
-  effort relies on it>", "status": "<e.g. 'Confirmed', 'Unconfirmed', 'At Risk', or empty string if
-  unknown>"} -- external systems, integrations, or third-party deliverables this effort genuinely
-  depends on, per the source material. Distinct from "risks": a dependency is a known fact to track,
-  not a probabilistic threat. Leave empty if the material doesn't name any.
+  effort relies on it>", "status": "Confirmed"|"Unconfirmed"|"At Risk"|""} -- external systems,
+  integrations, or third-party deliverables this effort genuinely depends on, per the source
+  material. "status" MUST be one of exactly these three values, or empty string if truly unknown --
+  do not invent any other status word. Use "Confirmed" only when the material itself states the
+  dependency is available/in place; "Unconfirmed" when it's assumed but not verified; "At Risk" when
+  the material itself raises a concern about it. Distinct from "risks": a dependency is a known fact
+  to track, not a probabilistic threat. Leave empty if the material doesn't name any.
 - glossary: list of {"term": "<acronym or term>", "definition": "<plain-language definition>"} --
   ONLY for acronyms/technical terms that appear elsewhere in THIS summary's own fields (summary,
   register descriptions, etc.). You already know what common acronyms mean (e.g. HITL, RAG, OCR,
