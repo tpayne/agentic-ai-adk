@@ -86,17 +86,27 @@ client during Mobilisation") rather than omitting the field -- but NEVER invent 
 certification, or past engagement you have no basis for. This distinction matters most for
 case_studies and key_personnel below, where the fabrication risk is highest.
 
+Write in customer-centric language throughout -- "you will gain...", "your team will benefit
+from...", "this enables <client>'s own..." -- rather than a purely supplier-centric "we provide...",
+"we utilise..." voice. Both say the same thing; the former reads as a proposal written FOR this
+client, the latter as a generic capability list.
+
 - summary: a short executive-summary paragraph (this one stays brief -- it's the only field meant
   to be terse; the detail belongs in the sections below). EXISTING.
 - our_understanding: MULTIPLE paragraphs restating the RFP's own requirements/goals in your own
-  words -- the problem being solved, the key drivers (performance/cost/compliance targets actually
-  named in the register), the stakeholders affected, and why it matters. Demonstrates genuine
-  comprehension, not a copy of the source text. EXISTING.
-- solution_summary: NEW -- 2-3 sentences summarizing "proposed_solution" below, for the Executive
-  Summary's own quick-read version (the full technical detail stays in "proposed_solution").
+  words. Lead with the client's own situation before any hint of a solution: the business drivers
+  and current challenges actually named or implied in the register, why change is needed now, the
+  key targets (performance/cost/compliance actually named), and the stakeholders affected.
+  Demonstrates genuine comprehension of the CLIENT's own position, not a copy of the source text
+  and not a premature pitch. EXISTING.
 - expected_outcomes: NEW -- list of strings, the qualitative business outcomes this solution should
   produce (e.g. "Reduced manual processing time", "Fewer compliance exceptions"). Only include a
   quantified figure if the user actually gave one; otherwise keep it qualitative.
+- benefits_realisation: NEW -- list of {"benefit", "measure", "expected_outcome"} -- a structured
+  benefits table expanding on "expected_outcomes" above. Only state a quantified "expected_outcome"
+  if actually supported; otherwise describe the benefit qualitatively rather than inventing a number.
+- solution_summary: NEW -- 2-3 sentences summarizing "proposed_solution" below, for the Executive
+  Summary's own quick-read version (the full technical detail stays in "proposed_solution").
 - proposed_solution: MULTIPLE paragraphs with real technical substance -- an architecture overview
   (what kind of system this is and how it's structured), the specific technologies/approaches used
   for each major capability the requirements call for, how it integrates with every named external
@@ -125,7 +135,10 @@ case_studies and key_personnel below, where the fabrication risk is highest.
 - technical_constraints: NEW -- list of strings, genuine technical/architectural constraints this
   solution operates under.
 - differentiators: list of strings -- reasons this offering stands out, grounded in what the user
-  actually said. Do not invent capabilities, certifications, or past projects. EXISTING.
+  actually said. Renders in a dedicated "Why We Are Best Placed to Deliver" section alongside
+  domain_expertise/domain_accelerators below -- write these as genuine win themes (risk reduction,
+  speed, cost, proven approach), not a restatement of proposed_solution. Do not invent capabilities,
+  certifications, or past projects. EXISTING.
 - compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
   "response_status": "Fully Compliant"|"Partially Compliant"|"Not Compliant"|"Exception",
   "response", "evidence_ref"} -- ONE entry per requirements_register item (or per old-format
@@ -152,7 +165,11 @@ case_studies and key_personnel below, where the fabrication risk is highest.
   phased delivery timeline grounded in "proposed_solution"'s own scope. Use relative timing (e.g.
   "Weeks 1-4", "Month 2") unless the user gave actual calendar dates. Each phase needs a concrete
   deliverable and a stated acceptance criterion/gate for moving to the next phase -- a single vague
-  phase is not acceptable. EXISTING.
+  phase is not acceptable. Also renders as a visual phase-by-phase roadmap diagram, so each "phase"
+  name should be short enough to read as a card title (2-6 words). EXISTING.
+- transition_to_bau: NEW -- a short paragraph describing the transition to business-as-usual once
+  delivery completes (knowledge transfer, handover, ongoing support/service-management model) --
+  standard practice framing, not a client-specific commitment beyond what's reasonable to assume.
 - governance_framework: NEW -- a short paragraph describing a standard governance structure for an
   engagement of this size, grounded in general bid/delivery-management best practice.
 - raci_matrix: NEW -- list of {"activity", "responsible", "accountable", "consulted", "informed"}
@@ -164,10 +181,21 @@ case_studies and key_personnel below, where the fabrication risk is highest.
   provided (team background, certifications, past projects, domain experience), expanded into
   real substance rather than restated as a single sentence; do not fabricate team size,
   certifications, or past-project details beyond what was actually given. EXISTING.
+- company_overview: NEW -- a short paragraph on the responding organization itself (founding,
+  size, headquarters, sectors served) -- only facts actually given; if nothing was provided, write
+  a brief honest placeholder rather than inventing company history.
+- relevant_experience: NEW -- a short paragraph on experience specifically relevant to THIS
+  engagement's domain, distinct from "qualifications"'s own general narrative.
+- certifications_overview: NEW -- a short paragraph summarizing organizational (not individual)
+  certifications relevant to this engagement -- only ones actually named.
+- delivery_capability: NEW -- a short paragraph on overall delivery capacity/capability (team
+  size, regional presence, delivery model maturity) -- only what was actually given.
 - team_structure: NEW -- list of {"role", "allocation"} -- role-level staffing, never named
   individuals.
-- key_personnel: NEW -- list of {"role", "responsibilities"} -- ROLE-level profiles only. NEVER
-  invent a named person, their background, or their CV.
+- key_personnel: NEW -- list of {"role", "responsibilities", "experience", "certifications"} --
+  ROLE-level profiles. "experience"/"certifications" are optional per entry -- include them ONLY
+  when actually supported for that role; omit rather than invent. NEVER invent a named person,
+  their background, or their CV.
 - skills_and_certifications: NEW -- list of strings. NEVER invent a specific certification the
   user didn't actually mention -- use a general statement instead if ungrounded.
 - case_studies: NEW, HIGHEST FABRICATION RISK -- list of {"title", "context", "challenge",
@@ -175,6 +203,10 @@ case_studies and key_personnel below, where the fabrication risk is highest.
   If none was given, leave this list EMPTY entirely -- never invent a client name or result.
 - measurable_outcomes: NEW -- list of strings, quantified results ONLY from a real past engagement
   with real figures; otherwise leave empty rather than inventing a statistic or testimonial.
+- future_roadmap: NEW -- list of strings, potential future enhancements beyond this engagement's
+  own scope -- renders explicitly framed as possibilities, not commitments, so these may reasonably
+  extrapolate from "proposed_solution" as long as they're a plausible extension of what was
+  actually described, not an unrelated capability.
 - assumptions: list of strings. EXISTING.
 - client_dependencies: NEW -- list of strings, specific things the CLIENT must provide/do for this
   engagement to succeed -- distinct from "assumptions" (the client's own action items).
@@ -252,7 +284,7 @@ from the original requirements analysis, not new findings of this response.
                     "properties": {
                         "response": {
                             "type": "object",
-                            "description": "The full proposal response JSON object (summary, our_understanding, solution_summary, expected_outcomes, proposed_solution, architecture_components, services_in_scope, environments_covered, deliverables, out_of_scope, technical_constraints, differentiators, compliance_matrix, domain_expertise, domain_accelerators, core_delivery_approach, platform_approach, quality_validation_approach, automation_approach, environment_setup, tooling_stack, slas_and_kpis, implementation_plan, governance_framework, raci_matrix, escalation_path, meeting_cadence, qualifications, team_structure, key_personnel, skills_and_certifications, case_studies, measurable_outcomes, assumptions, client_dependencies, risks_and_mitigations, pricing_approach, pricing_table, ongoing_costs_approach, rate_card_and_change_control, open_questions_for_client, unaddressed_items)."
+                            "description": "The full proposal response JSON object (summary, our_understanding, expected_outcomes, benefits_realisation, solution_summary, proposed_solution, architecture_components, services_in_scope, environments_covered, deliverables, out_of_scope, technical_constraints, differentiators, compliance_matrix, domain_expertise, domain_accelerators, core_delivery_approach, platform_approach, quality_validation_approach, automation_approach, environment_setup, tooling_stack, slas_and_kpis, implementation_plan, transition_to_bau, governance_framework, raci_matrix, escalation_path, meeting_cadence, qualifications, company_overview, relevant_experience, certifications_overview, delivery_capability, team_structure, key_personnel, skills_and_certifications, case_studies, measurable_outcomes, future_roadmap, assumptions, client_dependencies, risks_and_mitigations, pricing_approach, pricing_table, ongoing_costs_approach, rate_card_and_change_control, open_questions_for_client, unaddressed_items)."
                         }
                     },
                     "required": ["response"]

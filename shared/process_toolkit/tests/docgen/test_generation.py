@@ -211,6 +211,9 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "our_understanding": "You need a self-service vendor registration portal with fast response times.",
     "solution_summary": "A cloud-native, self-service vendor portal integrated with the client's own ERP.",
     "expected_outcomes": ["Reduced vendor onboarding time.", "Fewer manual data-entry errors."],
+    "benefits_realisation": [
+        {"benefit": "Cost Reduction", "measure": "Manual onboarding effort", "expected_outcome": "50% reduction."},
+    ],
     "proposed_solution": "A cloud-native portal built on our existing vendor management platform.",
     "architecture_components": [
         {"name": "Vendor Portal UI", "description": "Self-service registration frontend.",
@@ -251,6 +254,7 @@ SAMPLE_PROPOSAL_RESPONSE = {
         {"phase": "Phase 2: Build & Integrate", "timing": "Weeks 5-10",
          "deliverable": "ERP integration live in staging.", "acceptance_criteria": "UAT passed."},
     ],
+    "transition_to_bau": "A two-week knowledge-transfer period with shadow support precedes full handover.",
     "governance_framework": "A joint steering committee meets monthly to review progress and risks.",
     "raci_matrix": [
         {"activity": "Architecture sign-off", "responsible": "Delivery Lead", "accountable": "Client Sponsor",
@@ -259,7 +263,10 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "escalation_path": ["Tier 1: Delivery Lead.", "Tier 2: Engagement Director."],
     "meeting_cadence": [{"meeting": "Steering Committee", "frequency": "Monthly", "attendees": "Sponsors, Delivery Lead"}],
     "team_structure": [{"role": "Delivery Lead", "allocation": "50% FTE"}],
-    "key_personnel": [{"role": "Delivery Lead", "responsibilities": "Overall delivery accountability."}],
+    "key_personnel": [
+        {"role": "Delivery Lead", "responsibilities": "Overall delivery accountability.",
+         "experience": "12 years in enterprise delivery.", "certifications": "PMP"},
+    ],
     "skills_and_certifications": ["Azure Solutions Architect Expert."],
     "case_studies": [
         {"title": "Retail Vendor Portal Rollout", "context": "A national retailer.",
@@ -271,6 +278,11 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "client_dependencies": ["Client provides timely access to ERP sandbox credentials."],
     "risks_and_mitigations": [{"risk": "Data migration delays.", "mitigation": "Phased cutover plan."}],
     "qualifications": "Our team has delivered 12 similar vendor portals in the retail sector.",
+    "company_overview": "Founded in 2012, headquartered in Austin, with 200+ employees.",
+    "relevant_experience": "Two similar vendor-portal engagements delivered in the retail sector.",
+    "certifications_overview": "SOC 2 Type II certified; ISO 27001 aligned.",
+    "delivery_capability": "A dedicated delivery practice of 40+ consultants across three regions.",
+    "future_roadmap": ["Predictive vendor-risk scoring.", "Copilot-assisted onboarding review."],
     "pricing_approach": "Fixed-price implementation plus a per-seat annual subscription.",
     "pricing_table": [
         {"item": "Implementation", "basis": "One-time", "price": "TBD"},
@@ -299,10 +311,14 @@ class TestProposalResponseDocumentGeneration:
 
         assert "1.0 Executive Summary" in h1
         assert any("Understanding of Client Objectives" in h for h in h2)
-        assert any("Summary of Proposed Solution" in h for h in h2)
-        assert any("Differentiators & Value Proposition" in h for h in h2)
         assert any("Expected Outcomes & ROI" in h for h in h2)
-        assert "2.0 Proposed Solution" in h1
+        assert any("Benefits Realisation" in h for h in h2)
+        assert any("Summary of Proposed Solution" in h for h in h2)
+        assert any("Why We Are Best Placed to Deliver" in h for h in h1)
+        assert any("Differentiators & Value Proposition" in h for h in h2)
+        assert any("Industry / Domain Expertise" in h for h in h2)
+        assert any("Domain-Specific Accelerators" in h for h in h2)
+        assert any("Proposed Solution" in h for h in h1)
         assert any("Solution Architecture" in h for h in h1)
         assert any("Scope of Work & Boundaries" in h for h in h1)
         assert any("Services in Scope" in h for h in h2)
@@ -313,8 +329,8 @@ class TestProposalResponseDocumentGeneration:
         assert any("Key Technical Constraints" in h for h in h2)
         assert any("Compliance Matrix" in h for h in h1)
         assert any("Delivery & Engagement Approach" in h for h in h1)
-        assert any("Industry / Domain Expertise" in h for h in h2)
         assert any("Mobilisation & Phased Roadmap" in h for h in h2)
+        assert any("Transition to Business-As-Usual" in h for h in h2)
         assert any("Governance Model, Roles & Responsibilities" in h for h in h1)
         assert any("RACI Matrix" in h for h in h2)
         assert any("Indicative Profiles & Team Structure" in h for h in h1)
@@ -322,6 +338,11 @@ class TestProposalResponseDocumentGeneration:
         assert any("Relevant Success Stories & References" in h for h in h1)
         assert any("Case Studies" in h for h in h2)
         assert any("Qualifications" in h for h in h1)
+        assert any("Company Overview" in h for h in h2)
+        assert any("Relevant Experience" in h for h in h2)
+        assert any("Certifications" in h for h in h2)
+        assert any("Delivery Capability" in h for h in h2)
+        assert any("Future Roadmap & Innovation" in h for h in h1)
         assert any("Key Assumptions & Dependencies" in h for h in h1)
         assert any("Project Assumptions" in h for h in h2)
         assert any("Client Responsibilities & Dependencies" in h for h in h2)
@@ -332,13 +353,13 @@ class TestProposalResponseDocumentGeneration:
         assert any("Rate Cards & Change Control" in h for h in h2)
         assert any("Open Questions" in h for h in h1)
         assert any("Unaddressed Items" in h for h in h1)
-        # The solution-architecture diagram embeds as a real inline image.
-        assert len(doc.inline_shapes) >= 1
-        # 11 tables: version history, architecture components, compliance
-        # matrix, SLAs/KPIs, implementation plan, RACI matrix, meeting
-        # cadence, team structure, key personnel, risks and mitigations,
-        # pricing table.
-        assert len(doc.tables) == 11
+        # Two embedded diagrams: solution architecture + mobilisation roadmap.
+        assert len(doc.inline_shapes) == 2
+        # 12 tables: version history, architecture components, compliance
+        # matrix, benefits realisation, SLAs/KPIs, implementation plan,
+        # RACI matrix, meeting cadence, team structure, key personnel,
+        # risks and mitigations, pricing table.
+        assert len(doc.tables) == 12
         # Still no fabricated glossary, and not the process/design-style
         # flow diagram heading (a different section entirely).
         assert not any("Glossary" in h for h in headings)
@@ -358,7 +379,9 @@ class TestProposalResponseDocumentGeneration:
         doc = docx.Document(out_path)
         headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
         assert not any("Solution Architecture" in h for h in headings)
-        assert len(doc.inline_shapes) == 0
+        # The mobilisation-roadmap diagram still embeds -- it's driven by
+        # implementation_plan, not architecture_components.
+        assert len(doc.inline_shapes) == 1
 
     def test_no_implementation_plan_section_when_absent(self):
         # Same no-fabrication guarantee as architecture_components: no

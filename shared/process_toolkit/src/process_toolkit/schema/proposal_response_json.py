@@ -28,8 +28,9 @@ _VALID_RESPONSE_STATUSES = {
 PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "summary": "",
     "our_understanding": "",
-    "solution_summary": "",
     "expected_outcomes": [],
+    "benefits_realisation": [{"benefit": "", "measure": "", "expected_outcome": ""}],
+    "solution_summary": "",
     "proposed_solution": "",
     "architecture_components": [
         {"name": "", "description": "", "connects_to": []}
@@ -62,6 +63,7 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "implementation_plan": [
         {"phase": "", "timing": "", "deliverable": "", "acceptance_criteria": ""}
     ],
+    "transition_to_bau": "",
     "governance_framework": "",
     "raci_matrix": [
         {"activity": "", "responsible": "", "accountable": "", "consulted": "", "informed": ""}
@@ -69,13 +71,18 @@ PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
     "escalation_path": [],
     "meeting_cadence": [{"meeting": "", "frequency": "", "attendees": ""}],
     "team_structure": [{"role": "", "allocation": ""}],
-    "key_personnel": [{"role": "", "responsibilities": ""}],
+    "key_personnel": [{"role": "", "responsibilities": "", "experience": "", "certifications": ""}],
     "skills_and_certifications": [],
     "case_studies": [
         {"title": "", "context": "", "challenge": "", "work_completed": "", "outcome": ""}
     ],
     "measurable_outcomes": [],
     "qualifications": "",
+    "company_overview": "",
+    "relevant_experience": "",
+    "certifications_overview": "",
+    "delivery_capability": "",
+    "future_roadmap": [],
     "assumptions": [],
     "client_dependencies": [],
     "risks_and_mitigations": [{"risk": "", "mitigation": ""}],

@@ -52,18 +52,30 @@ client during Mobilisation") rather than omitting the field -- but NEVER invent 
 certification, or past engagement you have no basis for. This distinction matters most for
 case_studies and key_personnel below, where the fabrication risk is highest.
 
+Write in customer-centric language throughout -- "you will gain...", "your team will benefit
+from...", "this enables <client>'s own..." -- rather than a purely supplier-centric "we provide...",
+"we utilise..." voice. Both say the same thing; the former reads as a proposal written FOR this
+client, the latter as a generic capability list.
+
 - summary: a short executive-summary paragraph (this one stays brief -- it's the only field meant
   to be terse; the detail belongs in the sections below). EXISTING.
 - our_understanding: MULTIPLE paragraphs restating the RFP's own requirements/goals in your own
-  words -- the problem being solved, the key drivers (performance/cost/compliance targets actually
-  named in the register), the stakeholders affected, and why it matters. Demonstrates genuine
-  comprehension, not a copy of the source text. EXISTING.
-- solution_summary: NEW -- 2-3 sentences summarizing "proposed_solution" below, for the Executive
-  Summary's own quick-read version (the full technical detail stays in "proposed_solution").
+  words. Lead with the client's own situation before any hint of a solution: the business drivers
+  and current challenges actually named or implied in the register, why change is needed now, the
+  key targets (performance/cost/compliance actually named), and the stakeholders affected.
+  Demonstrates genuine comprehension of the CLIENT's own position, not a copy of the source text and
+  not a premature pitch. EXISTING.
 - expected_outcomes: NEW -- list of strings, the qualitative business outcomes this solution should
   produce (e.g. "Reduced manual processing time", "Fewer compliance exceptions"). Only include a
   quantified figure (a percentage, a dollar amount) if the user actually gave one; otherwise keep it
   qualitative.
+- benefits_realisation: NEW -- list of {"benefit", "measure", "expected_outcome"} -- a structured
+  benefits table expanding on "expected_outcomes" above (e.g. {"benefit": "Cost Reduction",
+  "measure": "Manual processing effort", "expected_outcome": "50% reduction"}). Only state a
+  quantified "expected_outcome" if the user or the requirements register actually supports it;
+  otherwise describe the benefit qualitatively rather than inventing a number.
+- solution_summary: NEW -- 2-3 sentences summarizing "proposed_solution" below, for the Executive
+  Summary's own quick-read version (the full technical detail stays in "proposed_solution").
 - proposed_solution: MULTIPLE paragraphs with real technical substance -- an architecture overview
   (what kind of system this is and how it's structured), the specific technologies/approaches used
   for each major capability the requirements call for, how it integrates with every named external
@@ -95,8 +107,10 @@ case_studies and key_personnel below, where the fabrication risk is highest.
 - technical_constraints: NEW -- list of strings, genuine technical/architectural constraints this
   solution operates under (e.g. "Must integrate with the client's existing on-prem ERP via REST").
 - differentiators: list of strings -- reasons this offering stands out, grounded in what the user
-  actually said about their own organization. Do not invent capabilities, certifications, or past
-  projects the user didn't mention. EXISTING.
+  actually said about their own organization. Renders in a dedicated "Why We Are Best Placed to
+  Deliver" section alongside domain_expertise/domain_accelerators below -- write these as genuine
+  win themes (risk reduction, speed, cost, proven approach), not a restatement of proposed_solution.
+  Do not invent capabilities, certifications, or past projects the user didn't mention. EXISTING.
 - compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
   "response_status": "Fully Compliant"|"Partially Compliant"|"Not Compliant"|"Exception",
   "response", "evidence_ref"} -- ONE entry per requirements_register item (or per old-format string
@@ -135,7 +149,14 @@ case_studies and key_personnel below, where the fabrication risk is highest.
   phased delivery timeline grounded in "proposed_solution"'s own scope. Use relative timing (e.g.
   "Weeks 1-4", "Month 2") unless the user gave actual calendar dates. Each phase needs a concrete
   deliverable and a stated acceptance criterion/gate for moving to the next phase -- a single vague
-  phase is not acceptable; this needs genuine structure, not a placeholder. EXISTING.
+  phase is not acceptable; this needs genuine structure, not a placeholder. Also renders as a visual
+  phase-by-phase roadmap diagram, so each "phase" name should be short enough to read as a card
+  title (2-6 words). EXISTING.
+- transition_to_bau: NEW -- a short paragraph describing the transition to business-as-usual once
+  delivery completes (knowledge transfer, handover, ongoing support/service-management model) --
+  standard practice framing (e.g. "a structured two-week knowledge-transfer period with shadow
+  support precedes full handover to the client's own operations team"), not a client-specific
+  commitment beyond what's reasonable to assume.
 - governance_framework: NEW -- a short paragraph describing a standard governance structure for an
   engagement of this size (e.g. a steering committee, sponsor/delivery-lead relationship) -- ground
   this in general bid/delivery-management best practice, not a fabricated client-specific detail.
@@ -152,10 +173,25 @@ case_studies and key_personnel below, where the fabrication risk is highest.
   experience), expanded into real substance rather than restated as a single sentence; do not
   fabricate team size, certifications, or past-project details beyond what was actually given.
   EXISTING.
+- company_overview: NEW -- a short paragraph on the responding organization itself (founding,
+  size, headquarters, sectors served) -- only facts the user's own description actually gave; if
+  genuinely nothing was provided, write a brief honest placeholder rather than inventing company
+  history.
+- relevant_experience: NEW -- a short paragraph on experience specifically relevant to THIS
+  engagement's domain, distinct from "qualifications"'s own general narrative -- grounded only in
+  what was actually given.
+- certifications_overview: NEW -- a short paragraph summarizing organizational (not individual)
+  certifications relevant to this engagement (e.g. SOC 2, ISO 27001) -- only ones the user actually
+  named.
+- delivery_capability: NEW -- a short paragraph on overall delivery capacity/capability (team size,
+  regional presence, delivery model maturity) -- only what was actually given.
 - team_structure: NEW -- list of {"role", "allocation"} -- role-level staffing (e.g. {"role":
   "Delivery Lead", "allocation": "50% FTE"}), never named individuals.
-- key_personnel: NEW -- list of {"role", "responsibilities"} -- ROLE-level profiles only (e.g.
-  "Delivery Lead" / "Overall delivery accountability"). NEVER invent a named person, their
+- key_personnel: NEW -- list of {"role", "responsibilities", "experience", "certifications"} --
+  ROLE-level profiles (e.g. "Delivery Lead" / "Overall delivery accountability"). "experience" and
+  "certifications" are both optional per entry -- include them ONLY when the user's own description
+  actually supports a real figure/credential for that role (e.g. "12 years in enterprise delivery",
+  "PMP"); omit them for a given role rather than inventing one. NEVER invent a named person, their
   background, or their CV -- if the user named real people, you may use those names; otherwise
   describe the role only.
 - skills_and_certifications: NEW -- list of strings. NEVER invent a specific certification (e.g.
@@ -168,6 +204,12 @@ case_studies and key_personnel below, where the fabrication risk is highest.
 - measurable_outcomes: NEW -- list of strings, quantified results ONLY if the user actually gave
   real figures from a real past engagement; otherwise leave this empty rather than inventing a
   statistic or a client quote/testimonial.
+- future_roadmap: NEW -- list of strings, potential future enhancements beyond this engagement's
+  own scope (e.g. "Predictive renewal risk scoring", "Copilot-assisted review") -- renders explicitly
+  framed as possibilities, not commitments, so these may reasonably extrapolate from
+  "proposed_solution" (e.g. a natural next capability for the same platform) without needing the
+  user to have stated them outright, as long as they're a plausible extension of what was actually
+  described -- not an unrelated capability.
 - assumptions: list of strings. EXISTING.
 - client_dependencies: NEW -- list of strings, specific things the CLIENT must provide/do for this
   engagement to succeed (e.g. "Client provides timely access to ERP sandbox credentials") --

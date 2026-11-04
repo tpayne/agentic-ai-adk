@@ -83,6 +83,7 @@ from process_toolkit.docgen.requirements_sections import (
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
+    _add_win_themes_section,
     _add_proposed_solution_section,
     _add_solution_architecture_section,
     _add_scope_of_work_section,
@@ -92,6 +93,7 @@ from process_toolkit.docgen.proposal_response_sections import (
     _add_team_profiles_section,
     _add_success_stories_section,
     _add_qualifications_section,
+    _add_future_roadmap_section,
     _add_assumptions_dependencies_section,
     _add_commercial_proposal_section,
     _add_open_questions_section,
@@ -579,10 +581,14 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     requirements_sections.py applies to its own Glossary; it's simply
     conditional on the agent having actually populated the field, same
     as every other optional section here. Still NO fabricated Glossary.
-    Also renders a much fuller enterprise-RTP table of contents: Scope of
-    Work & Boundaries, Delivery & Engagement Approach, Governance Model,
-    Indicative Profiles & Team Structure, and Relevant Success Stories &
-    References are each a single container section holding several
+    Also renders a much fuller enterprise-RTP table of contents: Why We
+    Are Best Placed to Deliver (a consolidated "win themes" section),
+    Scope of Work & Boundaries, Delivery & Engagement Approach (now
+    including a visual mobilisation-roadmap diagram and a Transition-to-
+    BAU subsection), Governance Model, Indicative Profiles & Team
+    Structure, Relevant Success Stories & References, a restructured
+    multi-subsection Qualifications section, and Future Roadmap &
+    Innovation are each a single container section holding several
     independently-optional Heading-2 subsections (see
     proposal_response_sections.py's own `_add_scope_of_work_section` and
     siblings) -- structural patterns consistently present in real
@@ -599,17 +605,19 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     unaddressed_items = data.get("unaddressed_items")
 
     consumed_keys = {
-        "summary", "our_understanding", "solution_summary", "expected_outcomes",
-        "proposed_solution", "architecture_components",
+        "summary", "our_understanding", "expected_outcomes", "benefits_realisation",
+        "solution_summary", "proposed_solution", "architecture_components",
         "services_in_scope", "environments_covered", "deliverables", "out_of_scope",
         "technical_constraints", "differentiators", "compliance_matrix",
         "domain_expertise", "domain_accelerators", "core_delivery_approach",
         "platform_approach", "quality_validation_approach", "automation_approach",
         "environment_setup", "tooling_stack", "slas_and_kpis", "implementation_plan",
-        "governance_framework", "raci_matrix", "escalation_path", "meeting_cadence",
-        "team_structure", "key_personnel", "skills_and_certifications",
+        "transition_to_bau", "governance_framework", "raci_matrix", "escalation_path",
+        "meeting_cadence", "team_structure", "key_personnel", "skills_and_certifications",
         "case_studies", "measurable_outcomes",
-        "qualifications", "assumptions", "client_dependencies", "risks_and_mitigations",
+        "qualifications", "company_overview", "relevant_experience",
+        "certifications_overview", "delivery_capability", "future_roadmap",
+        "assumptions", "client_dependencies", "risks_and_mitigations",
         "pricing_approach", "pricing_table", "ongoing_costs_approach",
         "rate_card_and_change_control", "open_questions_for_client", "unaddressed_items",
     }
@@ -654,6 +662,10 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     if rendered:
         add_iso_page_break(doc)
+    rendered = _add_win_themes_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
     rendered = _add_proposed_solution_section(doc, data)
 
     if architecture_components:
@@ -672,7 +684,7 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_delivery_approach_section(doc, data)
+    rendered = _add_delivery_approach_section(doc, data, name)
 
     if rendered:
         add_iso_page_break(doc)
@@ -689,6 +701,10 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_qualifications_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_future_roadmap_section(doc, data.get("future_roadmap"))
 
     if rendered:
         add_iso_page_break(doc)
