@@ -1,0 +1,439 @@
+{
+  "key_personnel": [
+    {
+      "experience": "10+ years in public sector IT delivery.",
+      "role": "Project Manager",
+      "responsibilities": "Overall project delivery, stakeholder management, and budget control."
+    },
+    {
+      "responsibilities": "Technical leadership, architecture design, and integration strategy.",
+      "experience": "Expertise in cloud-native architecture and secure integrations.",
+      "role": "Lead Solution Architect"
+    },
+    {
+      "experience": "Specialist in building accessible, user-centric web applications.",
+      "role": "Senior Portal Developer",
+      "responsibilities": "Frontend development and accessibility compliance."
+    }
+  ],
+  "domain_accelerators": [
+    "Reusable Supplier Portal Framework",
+    "Configurable Workflow Engine for Review Queues",
+    "Standardized Integration Connectors for Finance Platforms"
+  ],
+  "assumptions": [
+    "The Authority (customer) owns the document retention schedule and legal hold decisions.",
+    "MetroLink provides process owners, policies, data dictionary, test users, and timely decisions.",
+    "MetroLink/platform providers supply API documentation, sandbox access, and required credentials.",
+    "The application is deployed into a customer-controlled cloud subscription in a UK region."
+  ],
+  "services_in_scope": [
+    "Technical Discovery and Design",
+    "Portal Development and Configuration",
+    "Workflow Engine Implementation",
+    "Integration Layer Development",
+    "Cloud Deployment and Environment Setup",
+    "UAT Support and Training",
+    "Post-Launch Support Service"
+  ],
+  "governance_framework": "The project will be governed by a joint Steering Committee and a weekly Project Board. This structure ensures strategic alignment, timely decision-making, and effective risk management throughout the engagement.",
+  "qualifications": "Harborlight Digital brings extensive experience in delivering complex digital transformation projects within the UK public sector. Our team specializes in creating secure, accessible portals that bridge the gap between user-facing services and legacy back-office systems. We have a proven track record of implementing robust integration layers that handle sensitive financial and organizational data with the highest levels of integrity.\n\nOur delivery model is centered on partnership and transparency, ensuring that MetroLink stakeholders are involved at every stage of the lifecycle—from initial technical discovery and field mapping to final deployment and service transition. We pride ourselves on our ability to navigate the technical and compliance complexities of public sector cloud environments, providing a solution that is not only functional but also sustainable and secure. Our consultants are experts in Agile delivery, ensuring that value is realized early and often throughout the project.",
+  "ongoing_costs_approach": "Ongoing costs will include a fixed monthly fee for service desk support, platform maintenance, and minor enhancements. These costs will be detailed in the final Service Level Agreement.",
+  "pricing_table": [
+    {
+      "basis": "One-time Project Fee",
+      "price": "TBD",
+      "item": "Phase 1: Discovery & Design"
+    },
+    {
+      "basis": "One-time Project Fee",
+      "item": "Phase 2-4: Development, Integration & Testing",
+      "price": "TBD"
+    },
+    {
+      "basis": "One-time Project Fee",
+      "price": "TBD",
+      "item": "Phase 5: Deployment & Handover"
+    },
+    {
+      "price": "TBD",
+      "basis": "Recurring Monthly Fee",
+      "item": "Ongoing Support & Maintenance"
+    }
+  ],
+  "domain_expertise": "Our team possesses extensive domain expertise in procurement technology and supplier lifecycle management. We understand the complexities of onboarding and the critical importance of data integrity between front-end portals and financial systems of record.",
+  "team_structure": [
+    {
+      "role": "Project Manager",
+      "allocation": "100%"
+    },
+    {
+      "role": "Lead Solution Architect",
+      "allocation": "100%"
+    },
+    {
+      "role": "Senior Portal Developer (x2)",
+      "allocation": "100%"
+    },
+    {
+      "allocation": "50%",
+      "role": "QA & Accessibility Specialist"
+    },
+    {
+      "allocation": "25%",
+      "role": "Delivery Director"
+    }
+  ],
+  "skills_and_certifications": [
+    "Cloud Architecture (Azure/AWS)",
+    "Full-Stack Web Development (React/Node.js)",
+    "API and Integration Design",
+    "WCAG Accessibility Compliance",
+    "Agile Project Management (Prince2 Agile/Scrum)"
+  ],
+  "summary": "Harborlight Digital is pleased to submit this proposal for the MetroLink Supplier Onboarding Portal. Our solution provides a secure, integrated, and accessible platform to modernize MetroLink's supplier lifecycle, ensuring efficient reviews and seamless data synchronization with the existing finance platform.",
+  "company_overview": "Harborlight Digital is a technology consultancy specializing in digital transformation and secure portal solutions for the public sector. Based in the UK, we focus on bridging the gap between user-centric front-end services and complex back-office systems.",
+  "risks_and_mitigations": [
+    {
+      "risk": "Integration success depends on the availability of technical documentation and sandbox access for MetroLink.",
+      "mitigation": "Early technical discovery and sandbox access request in Phase 1."
+    },
+    {
+      "risk": "Deployment is subject to architecture review and service availability within the customer's cloud subscription.",
+      "mitigation": "Direct collaboration with MetroLink IT for early architecture review."
+    }
+  ],
+  "name": "MetroLink Supplier Onboarding Portal Proposal Response",
+  "implementation_plan": [
+    {
+      "phase": "Phase 1: Discovery & Design",
+      "timing": "Weeks 1-4",
+      "deliverable": "Technical Discovery & Design Document",
+      "acceptance_criteria": "Signed-off Discovery Report including field mapping and technical architecture."
+    },
+    {
+      "acceptance_criteria": "Functional supplier portal and internal review queues in the development environment.",
+      "timing": "Weeks 5-12",
+      "deliverable": "Core Portal & Workflow Build",
+      "phase": "Phase 2: Core Development"
+    },
+    {
+      "timing": "Weeks 13-16",
+      "acceptance_criteria": "Successful data exchange between the portal and the MetroLink sandbox.",
+      "deliverable": "Integration Layer Implementation",
+      "phase": "Phase 3: Integration & Security"
+    },
+    {
+      "acceptance_criteria": "Successful completion of UAT and accessibility testing by MetroLink stakeholders.",
+      "phase": "Phase 4: Testing & QA",
+      "timing": "Weeks 17-20",
+      "deliverable": "User Acceptance Testing (UAT) & Fixes"
+    },
+    {
+      "timing": "Weeks 21-24",
+      "acceptance_criteria": "Production-ready system deployed and operational in the customer tenant.",
+      "deliverable": "Production Deployment & Handover",
+      "phase": "Phase 5: Launch & Transition"
+    }
+  ],
+  "certifications_overview": "Harborlight Digital maintains organizational certifications relevant to secure public sector delivery, including Cyber Essentials and alignment with ISO 27001 standards for information security management.",
+  "our_understanding": "MetroLink currently faces challenges with a fragmented or manual supplier onboarding process that lacks centralization and real-time integration with their core finance platform. This results in administrative overhead, potential data inconsistencies, and a sub-optimal experience for both suppliers and internal staff. The primary business driver is to modernize this lifecycle through a secure, user-centric digital portal that serves as a single point of entry for all supplier engagements.\n\nThe key targets for this engagement include providing a seamless 'save and resume' capability for suppliers, a robust internal review workflow for MetroLink staff, and a reliable integration layer that synchronizes approved records with the existing MetroLink finance platform. Compliance with UK data residency requirements and high standards of accessibility (WCAG) are non-negotiable pillars of the future state, ensuring the system is inclusive and secure by design.\n\nFurthermore, the solution must operate within the constraints of the existing MetroLink infrastructure, necessitating a sophisticated integration approach that avoids the need for core system redesign. The ultimate goal is to provide a scalable, sustainable platform that reduces the time-to-onboard while maintaining the highest levels of data integrity and auditability.",
+  "deliverables": [
+    "Authenticated Supplier Onboarding Portal",
+    "Internal Staff Review and Approval Module",
+    "Integration Layer for MetroLink Finance Platform",
+    "System Administration and Reporting Dashboard",
+    "Technical Documentation and Handover Pack",
+    "Post-Launch Support and Maintenance Service"
+  ],
+  "open_questions_for_client": [
+    {
+      "requirement_text": "Monthly service reporting and support proposal.",
+      "requirement_id": "FR-006",
+      "question": "What are the specific response and restoration targets for the service desk support?"
+    },
+    {
+      "requirement_id": "FR-003",
+      "requirement_text": "Integration with finance platform.",
+      "question": "What is the preferred integration method (API vs. encrypted file transfer) for the MetroLink platform?"
+    },
+    {
+      "requirement_id": "FR-006",
+      "requirement_text": "Monthly service reporting.",
+      "question": "What are the specific metric definitions and data sources required for monthly reporting?"
+    }
+  ],
+  "slas_and_kpis": [
+    {
+      "target": "99.9% (TBC during Mobilisation)",
+      "metric": "System Availability"
+    },
+    {
+      "metric": "Incident Response Time",
+      "target": "To be agreed during Mobilisation"
+    },
+    {
+      "target": "100% for approved records",
+      "metric": "Application Sync Success Rate"
+    }
+  ],
+  "transition_to_bau": "Following successful deployment, we will conduct a formal knowledge transfer to MetroLink's internal teams. This includes providing comprehensive documentation and training sessions. Ongoing support will be provided via our UK-based service desk as per the agreed SLA.",
+  "core_delivery_approach": "We follow an iterative, phased delivery methodology that prioritizes early discovery and technical validation. This ensures that the integration layer and portal features are perfectly aligned with MetroLink's operational needs before full-scale development.",
+  "automation_approach": "We will utilize CI/CD pipelines for automated deployment and testing. Automated accessibility scans will be integrated into the build process to ensure continuous compliance with WCAG standards.",
+  "meeting_cadence": [
+    {
+      "attendees": "Project Manager, Lead Architect, MetroLink Counterparts",
+      "frequency": "Weekly",
+      "meeting": "Project Status Meeting"
+    },
+    {
+      "frequency": "Monthly",
+      "attendees": "Delivery Director, MetroLink Project Sponsor",
+      "meeting": "Steering Committee Meeting"
+    },
+    {
+      "frequency": "Daily",
+      "meeting": "Daily Stand-up",
+      "attendees": "Development Team"
+    }
+  ],
+  "solution_summary": "Harborlight Digital proposes a secure, cloud-native Supplier Onboarding Portal featuring a user-friendly interface for suppliers and a robust review workflow for MetroLink staff. The solution includes a dedicated integration layer to seamlessly synchronize approved supplier data with the existing MetroLink finance platform while maintaining strict UK data residency and accessibility standards.",
+  "benefits_realisation": [
+    {
+      "benefit": "Reduced Manual Processing",
+      "measure": "Reduction in time-to-onboard for new suppliers.",
+      "expected_outcome": "Streamlined internal review workflows and automated data synchronization."
+    },
+    {
+      "measure": "Decrease in record errors in the MetroLink system.",
+      "expected_outcome": "Validation at source and direct integration with the finance platform.",
+      "benefit": "Enhanced Data Quality"
+    },
+    {
+      "expected_outcome": "Secure document storage, MFA, and full audit trails.",
+      "measure": "Successful security audit and adherence to UK data residency.",
+      "benefit": "Improved Compliance and Security"
+    }
+  ],
+  "tooling_stack": [
+    "React.js (Frontend)",
+    "Node.js / TypeScript (Backend)",
+    "RESTful APIs / SFTP (Integration)",
+    "Cloud-native SQL Database",
+    "Customer-managed Cloud Storage (e.g., Azure Blob / AWS S3)"
+  ],
+  "client_dependencies": [
+    "Provision of API documentation and sandbox access for the MetroLink finance platform.",
+    "Access to the customer-managed UK cloud subscription for deployment.",
+    "Availability of MetroLink process owners and technical stakeholders for discovery sessions.",
+    "Definition of document retention policies and legal hold requirements."
+  ],
+  "case_studies": [],
+  "compliance_matrix": [
+    {
+      "response": "The proposed solution includes a secure, authenticated portal with full save/resume functionality and integrated document upload capabilities.",
+      "evidence_ref": "See Proposed Solution",
+      "requirement_type": "functional",
+      "requirement_text": "Authenticated supplier portal for application management including saving/resuming forms and uploading evidence.",
+      "response_status": "Fully Compliant",
+      "requirement_id": "FR-001"
+    },
+    {
+      "response_status": "Fully Compliant",
+      "response": "The Internal Review Module provides dedicated queues, role-based assignment, and structured approval/rejection workflows.",
+      "requirement_type": "functional",
+      "requirement_text": "Internal review queues with correction requests, assignment capabilities, and approval routing.",
+      "requirement_id": "FR-002",
+      "evidence_ref": "See Proposed Solution"
+    },
+    {
+      "requirement_type": "functional",
+      "requirement_text": "Integration layer to exchange approved supplier records with the MetroLink finance platform.",
+      "response_status": "Fully Compliant",
+      "response": "Our integration layer supports API and scheduled file transfers to ensure seamless data synchronization with MetroLink.",
+      "requirement_id": "FR-003",
+      "evidence_ref": "See Proposed Solution / Integration Layer"
+    },
+    {
+      "response_status": "Fully Compliant",
+      "evidence_ref": "See Proposed Solution",
+      "response": "The system is configured to store all supplier documents directly in MetroLink's managed cloud storage.",
+      "requirement_id": "FR-004",
+      "requirement_text": "Supplier document collection and storage in a customer-managed repository.",
+      "requirement_type": "functional"
+    },
+    {
+      "response": "Automated reminders and a detailed audit log for every action are core features of the proposed platform.",
+      "requirement_id": "FR-005",
+      "requirement_text": "System-generated expiry reminders and a comprehensive audit history for all records.",
+      "requirement_type": "functional",
+      "evidence_ref": "See Proposed Solution",
+      "response_status": "Fully Compliant"
+    },
+    {
+      "requirement_id": "FR-006",
+      "evidence_ref": "See Implementation Plan / Phase 5",
+      "requirement_type": "functional",
+      "requirement_text": "Monthly service reporting on system performance, incidents, and workflow metrics.",
+      "response": "Harborlight Digital will provide comprehensive monthly reports covering availability, incident trends, and throughput.",
+      "response_status": "Fully Compliant"
+    },
+    {
+      "requirement_id": "NFR-001",
+      "response": "The solution is designed for cloud-native deployment within the customer's UK-based tenant.",
+      "requirement_type": "non_functional",
+      "requirement_text": "Application deployment into a customer-controlled cloud subscription in a UK region.",
+      "response_status": "Fully Compliant",
+      "evidence_ref": "See Environment Setup"
+    },
+    {
+      "response_status": "Fully Compliant",
+      "response": "Granular RBAC ensures that users only access the screens and data relevant to their specific roles.",
+      "requirement_text": "Role-based access permissions for supplier-facing and staff-facing screens sharing a common record model.",
+      "requirement_type": "non_functional",
+      "requirement_id": "NFR-002",
+      "evidence_ref": "See Proposed Solution"
+    },
+    {
+      "evidence_ref": "See Proposed Solution / Security",
+      "requirement_id": "NFR-003",
+      "response": "The platform incorporates enterprise-grade security including MFA and end-to-end encryption.",
+      "response_status": "Fully Compliant",
+      "requirement_text": "Implementation of encryption, MFA, audit logging, and backup/recovery procedures.",
+      "requirement_type": "non_functional"
+    },
+    {
+      "response_status": "Fully Compliant",
+      "requirement_text": "System accessibility including keyboard-only navigation and assistive-technology compatibility.",
+      "requirement_type": "non_functional",
+      "requirement_id": "NFR-004",
+      "evidence_ref": "See Quality Validation Approach",
+      "response": "The portal is built to WCAG standards, ensuring full accessibility for all users including keyboard-only navigation."
+    }
+  ],
+  "raci_matrix": [
+    {
+      "informed": "MetroLink Sponsor",
+      "accountable": "Delivery Director",
+      "activity": "Project Governance",
+      "responsible": "Project Manager",
+      "consulted": "Steering Committee"
+    },
+    {
+      "consulted": "UX Lead",
+      "accountable": "Project Manager",
+      "responsible": "Lead Developer",
+      "activity": "Portal Development",
+      "informed": "MetroLink Staff"
+    },
+    {
+      "informed": "Project Manager",
+      "activity": "System Integration",
+      "consulted": "MetroLink Finance Team",
+      "responsible": "Integration Specialist",
+      "accountable": "Lead Architect"
+    }
+  ],
+  "proposed_solution": "The proposed Harborlight Digital solution is a cloud-native Supplier Onboarding Portal designed to be deployed directly into MetroLink's UK cloud subscription. The architecture is modular, comprising a frontend supplier portal, a backend administration and review module, and a dedicated integration service. The supplier portal provides an intuitive interface for account creation, form completion, and secure document uploading, ensuring that sensitive business evidence is captured and stored directly in MetroLink's managed repositories. This 'save and resume' functionality is critical for complex applications that require multiple pieces of evidence.\n\nFor internal staff, the solution offers a comprehensive review queue where applications can be assigned, audited, and processed. This module includes built-in communication tools for requesting clarifications from suppliers, ensuring a transparent and efficient approval loop. The system automatically routes applications based on pre-defined rules, reducing manual assignment effort and ensuring that the right reviewers are notified at the right time.\n\nThe integration layer is the critical bridge to the MetroLink finance platform, supporting both real-time API calls and scheduled encrypted file transfers to accommodate the specific technical constraints of the legacy environment. This layer performs necessary data transformations to ensure that approved supplier records match the target system's schema exactly. Security is baked into every layer, featuring Multi-Factor Authentication (MFA), role-based access controls, and full audit logging of all system interactions. The entire solution is optimized for accessibility, meeting WCAG standards to ensure a high-quality experience for all users regardless of their assistive technology needs.",
+  "factory_approach": "Not Applicable",
+  "differentiators": [
+    "Proven expertise in public sector digital transformation and secure portal delivery.",
+    "Deep understanding of UK cloud residency and security compliance requirements.",
+    "Robust integration approach that handles legacy system constraints without requiring core system changes.",
+    "Commitment to WCAG accessibility standards as a core design principle."
+  ],
+  "unaddressed_items": [
+    {
+      "description": "Specific compliance standards (e.g., GDPR, Cyber Essentials) are not detailed beyond general mentions of encryption and MFA.",
+      "category": "Data Privacy & Compliance"
+    },
+    {
+      "description": "No specific targets for concurrent users, throughput, or system response times are provided.",
+      "category": "Performance & Scalability"
+    },
+    {
+      "derived_from": [
+        "FR-003"
+      ],
+      "requirement": "The integration layer must perform data transformation to align portal records with the finance platform schema.",
+      "category": "functional",
+      "id": "INF-002"
+    }
+  ],
+  "expected_outcomes": [
+    "Streamlined and modernized supplier onboarding process.",
+    "Automated synchronization of data with the MetroLink finance platform.",
+    "Secure and centralized storage for all supplier evidence documents.",
+    "Full transparency and auditability of the approval workflow.",
+    "Enhanced supplier experience through a user-friendly digital interface."
+  ],
+  "quality_validation_approach": "Quality is ensured through a multi-layered testing strategy including unit testing, integration testing, and User Acceptance Testing (UAT). We specifically include accessibility testing with assistive technologies to guarantee compliance with NFR-004.",
+  "future_roadmap": [
+    "AI-assisted document verification for automated evidence checking.",
+    "Advanced supplier performance analytics and dashboarding.",
+    "Integration with external credit check and business verification services.",
+    "Mobile application for on-the-go review and approvals."
+  ],
+  "out_of_scope": [
+    "Replacement or redesign of the MetroLink finance platform.",
+    "Legal, tax, or financial advice for supplier applicants.",
+    "Migration or handling of historical closed supplier records.",
+    "Manual scanning of paper archives."
+  ],
+  "pricing_approach": "Our pricing model is based on a fixed-price delivery for the implementation phases, followed by a recurring monthly service fee for support and maintenance. This provides MetroLink with budget certainty and long-term cost transparency.",
+  "escalation_path": [
+    "Level 1: Project Manager",
+    "Level 2: Delivery Director",
+    "Level 3: Account Executive"
+  ],
+  "environments_covered": [
+    "Customer-controlled Azure/AWS UK Production Tenant",
+    "Staging/UAT Environment",
+    "Development/Sandbox Environment"
+  ],
+  "platform_approach": "The platform is built using a modern, scalable tech stack optimized for cloud deployment. It utilizes a common record model to ensure consistency between supplier and staff views, while maintaining strict role-based isolation.",
+  "delivery_capability": "Harborlight Digital maintains a dedicated UK-based delivery team with deep expertise in cloud architecture, integration, and user-centric design. We have the capacity to scale our resources to meet project timelines while maintaining high quality.",
+  "architecture_components": [
+    {
+      "name": "Supplier Portal",
+      "description": "The primary interface for suppliers to register, complete onboarding forms, and upload evidence.",
+      "connects_to": [
+        "Internal Review Module",
+        "Document Repository"
+      ]
+    },
+    {
+      "description": "Workflow tool for MetroLink staff to review applications, request corrections, and grant approvals.",
+      "connects_to": [
+        "Integration Layer",
+        "Document Repository"
+      ],
+      "name": "Internal Review Module"
+    },
+    {
+      "connects_to": [
+        "MetroLink Finance Platform"
+      ],
+      "description": "Service responsible for mapping and synchronizing approved supplier records with the finance system.",
+      "name": "Integration Layer"
+    },
+    {
+      "name": "MetroLink Finance Platform",
+      "description": "The existing core system of record for financial data (Out of Scope for modification).",
+      "connects_to": []
+    },
+    {
+      "connects_to": [],
+      "description": "Customer-managed cloud storage for all uploaded supplier evidence and documents.",
+      "name": "Document Repository"
+    }
+  ],
+  "measurable_outcomes": [],
+  "rate_card_and_change_control": "Any changes to the agreed scope will be managed through a formal Change Control Procedure. Standard day rates for additional services will be provided in the final contract.",
+  "relevant_experience": "We have successfully delivered similar supplier and citizen portals for other UK public sector bodies, focusing on secure document handling and integration with legacy ERP and finance systems.",
+  "technical_constraints": [
+    "Integration must accommodate MetroLink's existing API or file transfer capabilities.",
+    "Solution must be deployed within a customer-managed UK cloud region.",
+    "No modifications are permitted to the core MetroLink finance platform."
+  ]
+}
