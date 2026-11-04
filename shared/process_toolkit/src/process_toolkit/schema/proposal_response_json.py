@@ -26,6 +26,7 @@ _VALID_RESPONSE_STATUSES = {
 # convention -- for test fixtures and documentation only, never consumed
 # by the save path.
 PROPOSAL_RESPONSE_TEMPLATE: Dict[str, Any] = {
+    "name": "",
     "summary": "",
     "our_understanding": "",
     "expected_outcomes": [],

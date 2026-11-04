@@ -170,8 +170,10 @@ class TestDocGenerationPinning:
         assert os.path.exists(out_path)
 
     def test_pinned_requirements_tool_renders_the_requirements_document(self):
-        # requirements_summary.json has no title field of its own -- name
-        # comes from whatever process_name the caller/LLM passes.
+        # This fixture's requirements_summary.json has no "name" field of
+        # its own, so the title falls back to whatever process_name the
+        # caller/LLM passes (see test_generation.py for the precedence
+        # test covering the case where "name" IS present).
         from process_agents.common.doc_creation_agent import build_doc_generation_instance
 
         _write_requirements_summary_json()
@@ -186,8 +188,10 @@ class TestDocGenerationPinning:
         assert docx.Document(out_path).paragraphs
 
     def test_pinned_proposal_response_tool_renders_the_proposal_response_document(self):
-        # proposal_response.json has no title field of its own either --
-        # name comes from whatever process_name the caller/LLM passes.
+        # This fixture's proposal_response.json has no "name" field of its
+        # own either, so the title falls back to whatever process_name the
+        # caller/LLM passes (see test_generation.py for the precedence
+        # test covering the case where "name" IS present).
         from process_agents.common.doc_creation_agent import build_doc_generation_instance
 
         _write_proposal_response_json()

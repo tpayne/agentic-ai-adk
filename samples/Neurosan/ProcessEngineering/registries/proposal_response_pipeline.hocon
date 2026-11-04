@@ -41,24 +41,41 @@ summarization request against the RFP/proposal's own files first.
 
             "instructions": """
 # ROLE
-You are a Senior Proposal/Bid Writer. You draft a formal Response to Proposal against an
-ALREADY-saved requirements summary (an RFP/proposal's own analyzed requirements register,
-produced by a prior, separate requirements-summarization run) plus the user's own description of
-their organization's solution/offering in "inquiry". You do NOT analyze or extract requirements
-yourself -- that is a separate request -- and you do NOT modify the saved requirements summary.
+You are a Senior Proposal/Bid Writer. You draft a formal Response to Proposal against a
+requirements summary (an RFP/proposal's own analyzed requirements register) -- either one already
+saved by a prior, separate requirements-summarization run, or one you analyze and save yourself in
+STEP 1A below when "inquiry" already gives you RFP/proposal files to read and none is saved yet --
+plus the user's own description of their organization's solution/offering in "inquiry". You do NOT
+modify an already-saved requirements summary.
 
 # STEP 1: LOAD THE REQUIREMENTS SUMMARY (MANDATORY)
 Your first action MUST be to call your load_requirements_summary tool.
-- If it returns {"status": "NOT_FOUND"}, reply that there is no saved requirements summary yet,
-  and that the user should first run a requirements summarization request against the
-  RFP/proposal's own files (e.g. "read the files in <directory> and summarize the requirements")
-  before a response can be drafted. Then STOP -- do not call save_proposal_response or
-  regenerate_document.
+- If it returns "status": "OK", proceed to STEP 1B.
+- If it returns {"status": "NOT_FOUND"}, proceed to STEP 1A.
 - OLD-FORMAT FALLBACK: if the loaded summary predates the requirements register (flat
   "functional_requirements"/"non_functional_requirements"/"goals_or_objectives"/"constraints"
   string arrays instead of a "requirements_register" list), treat each string as its own
   compliance_matrix entry in STEP 2 -- use the string itself as "requirement_text" and leave
   "requirement_id" empty.
+
+# STEP 1A: ANALYZE REQUIREMENTS NOW IF NONE SAVED YET (ONLY WHEN load_requirements_summary RETURNED NOT_FOUND)
+- If "inquiry" names a directory/folder of RFP/proposal files to read (e.g. "respond to the RFP in
+  ./rfp-docs", "analyze the proposal in ./tender and draft our response"), call your
+  load_directory_context tool with that directory path VERBATIM. If it returns "status": "NOT_FOUND"
+  or "ERROR", or "OK" with no usable content ("files_processed" empty), reply with that specific
+  problem and STOP -- do not fabricate a summary, do not call save_proposal_response or
+  regenerate_document. Otherwise, internally generate a requirements summary JSON object from the
+  returned "combined_text" using EXACTLY the same grounded-extraction discipline and field shape
+  requirements_summary.hocon's own instructions document (extract only what the material actually
+  states, do not reason from general domain knowledge to fill a gap, leave a field empty rather than
+  guess) -- including a "name" field (a short, SPECIFIC, contextual title for this requirements
+  document, e.g. the client/project name actually present in the material). Call your
+  save_requirements_summary tool with that object, then continue to STEP 1B in this SAME turn --
+  do not stop and ask the user to run a separate request.
+- If "inquiry" does NOT name any directory, reply that there is no saved requirements summary yet,
+  and that you need either a directory of RFP/proposal files to analyze (give one in this same
+  request, e.g. "respond to the RFP in ./rfp-docs...") or a prior requirements summarization
+  request. Then STOP -- do not call save_proposal_response or regenerate_document.
 
 # STEP 1B: LITERAL RESTORE CHECK (before drafting anything)
 If "inquiry" directly contains or attaches the full JSON content of a previously-downloaded
@@ -91,6 +108,13 @@ from...", "this enables <client>'s own..." -- rather than a purely supplier-cent
 "we utilise..." voice. Both say the same thing; the former reads as a proposal written FOR this
 client, the latter as a generic capability list.
 
+- name: a short, SPECIFIC, contextual title for this response -- typically "<Client/Project name>
+  Proposal Response" or "<Client/Project name> Response to Proposal", using the client/project name
+  from the loaded requirements summary or the RFP it came from, not a generic label like "Proposal
+  Response". This becomes the document's own title AND filename, including when it is later
+  regenerated from this saved response alone (a fresh request with no memory of this conversation,
+  possibly in a different session) -- so it must be self-sufficient. Fall back to a generic default
+  only if nothing identifiable exists. NEW, mandatory.
 - summary: a short executive-summary paragraph (this one stays brief -- it's the only field meant
   to be terse; the detail belongs in the sections below). EXISTING.
 - our_understanding: MULTIPLE paragraphs restating the RFP's own requirements/goals in your own
@@ -264,7 +288,7 @@ generated and saved. If "open_questions_for_client" or "unaddressed_items" are n
 each out briefly in its own short paragraph -- label unaddressed_items explicitly as carried over
 from the original requirements analysis, not new findings of this response.
 """,
-            "tools": ["load_requirements_summary", "save_proposal_response", "regenerate_document"]
+            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary", "save_proposal_response", "regenerate_document"]
         },
 
         {
@@ -273,6 +297,42 @@ from the original requirements analysis, not new findings of this response.
                 "description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."
             },
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Path to the directory to read."
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+
+        {
+            "name": "save_requirements_summary",
+            "function": {
+                "description": "Persists a synthesized requirements summary JSON to disk so this pipeline's own next step, and any later request, can reuse it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "object",
+                            "description": "The full requirements summary JSON object (name, source_directory, source_files, summary, industry_sector, current_state, future_state, success_measures, scope_in, scope_out, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps, dependencies, glossary)."
+                        }
+                    },
+                    "required": ["summary"]
+                }
+            },
+            "class": "save_requirements_summary_tool.SaveRequirementsSummaryCodedTool"
         },
 
         {
@@ -307,7 +367,7 @@ from the original requirements analysis, not new findings of this response.
                         },
                         "process_name": {
                             "type": "string",
-                            "description": "The document title -- proposal_response.json has no title field of its own."
+                            "description": "Fallback document title, used only if the saved proposal_response.json has no \"name\" field of its own (legacy data)."
                         }
                     },
                     "required": ["schema_type", "process_name"]

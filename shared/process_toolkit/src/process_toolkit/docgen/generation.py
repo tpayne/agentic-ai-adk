@@ -455,10 +455,16 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     no backing data; same conditional convention as every other optional
     section here.
 
-    requirements_summary.json has no title/name field of its own -- `name`
-    is whatever the caller passed as `process_name`.
+    requirements_summary.json's own "name" field wins when present (set by
+    the drafting agent from the source material/description) -- `process_name`
+    is only a fallback for legacy data saved before this field existed.
+    Same precedence _build_process_document already gives "process_name"
+    and _build_design_document gives "document_metadata.title" -- without
+    it, a later standalone "regenerate the document" request (a fresh
+    agent turn with no memory of the original drafting conversation) has
+    no way to recover the original title.
     """
-    name = str(process_name)
+    name = str(data.get("name") or process_name)
     sector = data.get("industry_sector") or "N/A"
 
     stakeholders = data.get("stakeholders")
@@ -471,7 +477,7 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     glossary = data.get("glossary")
 
     consumed_keys = {
-        "source_directory", "source_files", "summary", "industry_sector",
+        "name", "source_directory", "source_files", "summary", "industry_sector",
         "current_state", "future_state", "success_measures", "scope_in", "scope_out",
         "stakeholders", "assumptions", "risks", "open_questions",
         "requirements_register", "requirement_priorities",
@@ -625,10 +631,17 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     siblings) -- structural patterns consistently present in real
     competitive RFP responses that pure narrative alone doesn't capture.
 
-    proposal_response.json has no title/name field of its own -- `name`
-    is whatever the caller passed as `process_name`.
+    proposal_response.json's own "name" field wins when present (set by
+    the drafting agent from the RFP/requirements summary it drafted
+    against) -- `process_name` is only a fallback for legacy data saved
+    before this field existed. Same precedence _build_process_document
+    already gives "process_name" -- without it, a later standalone
+    "regenerate the document" request (a fresh agent turn with no memory
+    of the original drafting conversation) has no way to recover the
+    original title, and produces a differently-named file that reads as
+    a brand-new document rather than an update to the existing one.
     """
-    name = str(process_name)
+    name = str(data.get("name") or process_name)
 
     architecture_components = data.get("architecture_components")
     compliance_matrix = data.get("compliance_matrix")
@@ -636,7 +649,7 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     unaddressed_items = data.get("unaddressed_items")
 
     consumed_keys = {
-        "summary", "our_understanding", "expected_outcomes", "benefits_realisation",
+        "name", "summary", "our_understanding", "expected_outcomes", "benefits_realisation",
         "solution_summary", "proposed_solution", "architecture_components",
         "services_in_scope", "environments_covered", "deliverables", "out_of_scope",
         "technical_constraints", "differentiators", "compliance_matrix",

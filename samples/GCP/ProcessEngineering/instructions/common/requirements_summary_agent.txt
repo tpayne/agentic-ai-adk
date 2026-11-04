@@ -48,6 +48,14 @@ freshly synthesized.
 
 # STEP 2: SYNTHESIZE THE REQUIREMENTS SUMMARY
 From the returned "combined_text", internally generate a single JSON object:
+- name: A short, SPECIFIC, contextual title for this requirements document -- the client, project,
+  or system name actually present in the source material (e.g. "MetroLink Digital Procurement and
+  Vendor Onboarding Requirements Specification"), not a generic label like "Requirements
+  Specification". This becomes the document's own title AND filename, including when it is later
+  regenerated from this saved summary alone (a fresh request with no memory of this conversation) --
+  so it must be self-sufficient, not something a reader would need surrounding chat context to
+  understand. Fall back to a generic default only if the material genuinely names nothing
+  identifiable.
 - source_directory: The directory path you were given.
 - source_files: The "files_processed" list from the tool result.
 - summary: A short prose overview (2-4 sentences) of what the source material describes.
@@ -67,17 +75,28 @@ From the returned "combined_text", internally generate a single JSON object:
   part of this effort's scope. Each bullet should name a concrete thing (e.g. "Automated extraction
   of line-item data from vendor invoices in PDF and scanned image form"), not a generic one-or-two
   word label (e.g. not just "Invoices") -- a reader with no other context should understand what the
-  bullet actually covers.
+  bullet actually covers. Self-check before writing each bullet: if it could be pasted unchanged
+  into a DIFFERENT project's scope section without reading oddly, it is too generic -- rewrite it
+  using the material's own specific terms (named systems, document types, data fields, user roles)
+  until it could ONLY describe this effort.
 - scope_out: List of strings -- SPECIFIC capabilities/activities the material EXPLICITLY excludes
-  or describes as out of scope, with the same concreteness bar as scope_in. Leave empty rather than
-  guessing what's excluded if the material never actually says so.
+  or describes as out of scope, with the same concreteness bar and self-check as scope_in. Leave
+  empty rather than guessing what's excluded if the material never actually says so.
 - stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
   {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
   "Yes"|"No"} when the source material actually supports that level of detail -- "interest"/
   "approval_authority" are optional per entry; omit them for a stakeholder the material doesn't say
   enough about rather than guessing.
 - assumptions: Conditions the material implies must be true.
-- risks: Risks mentioned or reasonably inferred.
+- risks: Risks mentioned or reasonably inferred -- including, MANDATORILY, one entry for EVERY
+  tension or conflict you yourself flag elsewhere in this same summary. If "conflicting_requirements"
+  (STEP 2B) identifies a genuine conflict, or a stated constraint creates a real trade-off, that
+  MUST also produce a corresponding risks entry here -- it is not optional cross-referencing, it is
+  a direct consequence of something you already found. Worked example: if the material states a
+  15-minute Recovery Point Objective but the operational detail describes only nightly backups, that
+  is not just a conflicting_requirements entry -- it directly implies a risks entry such as "Up to a
+  24-hour data loss window on recovery, against a stated 15-minute RPO target, until the backup
+  cadence and RPO requirement are reconciled."
 - open_questions: Gaps or ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
 fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
@@ -148,7 +167,8 @@ Across the requirements_register, populate:
   suggested resolution, or empty string if none>"} -- for any pair or group of register entries that
   cannot both be fully satisfied as stated (e.g. a hard latency target alongside a requirement that
   implies heavy synchronous processing, or two stakeholders' stated needs that pull in opposite
-  directions).
+  directions). Every entry you add here MUST also produce a corresponding "risks" entry above (see
+  that field's own instruction) -- a flagged conflict always implies a risk until it's resolved.
 - requirements_needing_clarification: list of {"requirement_id": "<id>", "requirement_text":
   "<description>", "question": "<clarifying question to raise with the stakeholder>"} -- for any
   register entry that is vague, measurable only in spirit, or missing information needed to act on

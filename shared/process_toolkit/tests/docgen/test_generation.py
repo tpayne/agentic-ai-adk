@@ -229,6 +229,26 @@ class TestRequirementsDocumentGeneration:
         assert result.startswith("ERROR:")
         assert PROCESS_JSON_FILENAME in result
 
+    def test_the_saved_summarys_own_name_field_wins_over_the_process_name_argument(self):
+        # Mirrors _build_process_document's own data.get("process_name", process_name)
+        # precedence -- without this, a later standalone "regenerate the
+        # document" request (a fresh agent turn with no memory of the
+        # original drafting conversation) has no way to recover the
+        # original title.
+        data = dict(SAMPLE_REQUIREMENTS_SUMMARY)
+        data["name"] = "Acme Vendor Onboarding Requirements Specification"
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Fallback Title", schema_type="requirements")
+        assert result.startswith("SUCCESS:")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert "Acme_Vendor_Onboarding_Requirements_Specification" in out_path
+
+        doc = docx.Document(out_path)
+        cover_page_text = [p.text for p in doc.paragraphs][:3]
+        assert any("Acme Vendor Onboarding Requirements Specification" in t for t in cover_page_text)
+
 
 SAMPLE_PROPOSAL_RESPONSE = {
     "summary": "Our response to the vendor onboarding portal RFP.",
@@ -446,3 +466,24 @@ class TestProposalResponseDocumentGeneration:
         result = create_standard_doc_from_file("X", schema_type=None)
         assert result.startswith("ERROR:")
         assert PROCESS_JSON_FILENAME in result
+
+    def test_the_saved_responses_own_name_field_wins_over_the_process_name_argument(self):
+        # Root-cause fix for the RTP-regeneration-loses-identity bug: a
+        # saved proposal_response.json never had a name field, so a later
+        # standalone "regenerate the document" request (a fresh agent
+        # turn with no memory of the original drafting conversation) had
+        # no way to recover the original title/filename and produced a
+        # differently-named file that read as a brand-new document.
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data["name"] = "Harborlight Digital Supplier Portal Proposal Response"
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Proposal_Response", schema_type="proposal_response")
+        assert result.startswith("SUCCESS:")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert "Harborlight_Digital_Supplier_Portal_Proposal_Response" in out_path
+
+        doc = docx.Document(out_path)
+        cover_page_text = [p.text for p in doc.paragraphs][:3]
+        assert any("Harborlight Digital Supplier Portal Proposal Response" in t for t in cover_page_text)

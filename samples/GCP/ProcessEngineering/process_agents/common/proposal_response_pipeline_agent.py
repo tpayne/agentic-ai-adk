@@ -1,14 +1,18 @@
 # process_agents/proposal_response_pipeline_agent.py
 #
-# One-shot creation pipeline for the proposal-response domain: drafts a
-# response against an ALREADY-saved requirements summary (no fresh
-# requirements analysis here -- that is Requirements_Summary_Agent's own
-# separate, prior step -- see proposal_response_agent.py), saves it,
+# One-shot creation pipeline for the proposal-response domain: ensures a
+# requirements summary is saved (Ensure_Requirements_Summary_Agent --
+# reusing one already saved by a prior, separate Requirements_Summary_
+# Agent run, or reading the RFP/proposal's own files itself when the
+# request already named a directory and none is saved yet -- see that
+# agent's own module for why this needs to be a real stage rather than a
+# branch inside proposal_response_agent.py: SequentialAgent stages can't
+# conditionally skip themselves), drafts a response against it, saves it,
 # then renders it as the final Response to Proposal document.
 # Deliberately light -- no compliance/simulation review loop, no
 # JSON-normalization stage, no subprocess expansion -- mirrors
 # Requirements_Doc_Pipeline's own shape exactly, including its mute/
-# unmute bracketing so this pipeline's own two stages produce no
+# unmute bracketing so this pipeline's own stages produce no
 # intermediate chatter, only the final doc-generation stage's own short
 # confirmation.
 #
@@ -19,6 +23,7 @@
 
 from google.adk.agents import SequentialAgent
 
+from .ensure_requirements_summary_agent import ensure_requirements_summary_agent
 from .proposal_response_agent import proposal_response_agent
 from .doc_creation_agent import build_doc_creation_agent
 from .agent_wrappers import ProcessAgent
@@ -49,16 +54,17 @@ unmute_agent_instance = ProcessAgent(
 proposal_response_pipeline = SequentialAgent(
     name="Proposal_Response_Pipeline",
     description=(
-        "Use this tool ONLY when the user wants to CREATE a Response to Proposal document "
-        "against an already-saved requirements summary (an RFP/proposal's own analyzed "
-        "requirements register) plus a description of the responding organization's "
-        "solution/offering. Requires a requirements summary to already be saved -- if none "
-        "exists, run a requirements summarization request against the RFP/proposal's own files "
-        "first. Drafts the response (including a point-by-point compliance matrix) and renders "
+        "Use this tool when the user wants to CREATE a Response to Proposal document against an "
+        "already-saved requirements summary (an RFP/proposal's own analyzed requirements "
+        "register) plus a description of the responding organization's solution/offering. If no "
+        "requirements summary is saved yet, AND the request also names a directory of RFP/"
+        "proposal files to read, this pipeline analyzes them itself first -- no separate request "
+        "needed. Drafts the response (including a point-by-point compliance matrix) and renders "
         "the final Word document in one call."
     ),
     sub_agents=[
         mute_agent_instance,
+        ensure_requirements_summary_agent,
         proposal_response_agent,
         build_doc_creation_agent("Proposal_Response_Doc_Creation", schema_type="proposal_response"),
         unmute_agent_instance,

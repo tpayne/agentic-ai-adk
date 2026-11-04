@@ -79,10 +79,14 @@ class TestRouterInstructions:
         text = _router_text()
         assert "Proposal_Response_Pipeline" in text
 
-    def test_router_1e_exists_and_requires_a_saved_requirements_summary(self):
+    def test_router_1e_exists_and_describes_both_requirements_summary_sources(self):
         text = _router_text()
         assert "### 1e. PROPOSAL RESPONSE DOCUMENT CREATION" in text
-        assert "this rule has a hard prerequisite" in text
+        # Can reuse an already-saved summary, or analyze a directory of
+        # RFP/proposal files itself (Ensure_Requirements_Summary_Agent's
+        # own stage) -- no longer a hard "must already be saved"
+        # prerequisite that forces a separate Section 8 request.
+        assert "analyzing them itself first" in text
 
     def test_router_distinguishes_1e_from_1d(self):
         text = _router_text()

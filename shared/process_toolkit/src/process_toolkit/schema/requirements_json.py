@@ -32,6 +32,7 @@ _OLD_FORMAT_KEYS = (
 # template convention -- for test fixtures and documentation only, never
 # consumed by the save path.
 REQUIREMENTS_SUMMARY_TEMPLATE: Dict[str, Any] = {
+    "name": "",
     "source_directory": "",
     "source_files": [],
     "summary": "",

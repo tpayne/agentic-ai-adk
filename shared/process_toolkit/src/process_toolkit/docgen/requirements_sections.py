@@ -54,6 +54,17 @@ def _add_bullet_list_subsection(doc: docx.Document, values, heading: str, level:
         return False
 
 
+def _add_key_legend(doc: docx.Document, label: str, entries) -> None:
+    """Shared helper for every "Status key:"-style legend introduced last
+    session -- a bold lead-in paragraph followed by one List Bullet
+    paragraph per (term, definition) pair, rather than a single
+    em-dash-separated paragraph (harder to scan)."""
+    p = doc.add_paragraph()
+    p.add_run(f"{label}:").bold = True
+    for term, definition in entries:
+        doc.add_paragraph(f"{term} -- {definition}", style="List Bullet")
+
+
 def _add_prose_subsection(doc: docx.Document, text, heading: str, level: int = 2) -> bool:
     """Shared helper for every single-paragraph prose subsection
     introduced in this pass (current_state, future_state)."""
@@ -236,7 +247,10 @@ def _add_requirements_register_table(doc: docx.Document, items, priority_lookup=
     when an entry's own "priority" key is empty, since the agent doesn't
     always reliably set both; this way the Priority column is populated
     whenever priority info exists ANYWHERE in the document, regardless of
-    which of the two fields it actually used."""
+    which of the two fields it actually used. Priority is treated as a
+    MANDATORY column -- when neither source has a value, default to
+    "medium" rather than leaving the cell blank; a sensible default beats
+    an empty column the agent simply never populated."""
     priority_lookup = priority_lookup or {}
     items = sorted(items, key=lambda r: _natural_sort_key(r.get("id")))
 
@@ -248,7 +262,7 @@ def _add_requirements_register_table(doc: docx.Document, items, priority_lookup=
         row = table.add_row().cells
         row[0].text = str(item.get("id") or "N/A")
         _set_cell_bullets(row[1], item.get("description"))
-        priority = item.get("priority") or priority_lookup.get(item.get("id")) or ""
+        priority = item.get("priority") or priority_lookup.get(item.get("id")) or "medium"
         row[2].text = str(priority).title()
         row[3].text = str(item.get("source") or "")
         _set_cell_bullets(row[4], item.get("acceptance_criteria"))
@@ -316,11 +330,13 @@ def _add_requirements_register_section(
             "requirements for this effort, following ISO/IEC/IEEE 29148 requirements "
             "engineering practice. Each table is ordered by identifier."
         )
-        doc.add_paragraph(
-            "Status key: Proposed (not yet reviewed) -- Approved (accepted, not yet built) -- "
-            "Implemented (built, not yet verified) -- Verified (confirmed to meet its acceptance "
-            "criteria) -- Rejected (will not be implemented)."
-        )
+        _add_key_legend(doc, "Status key", (
+            ("Proposed", "not yet reviewed"),
+            ("Approved", "accepted, not yet built"),
+            ("Implemented", "built, not yet verified"),
+            ("Verified", "confirmed to meet its acceptance criteria"),
+            ("Rejected", "will not be implemented"),
+        ))
 
         subsection = 1
         for req_type, label in _TYPE_SECTIONS:
@@ -616,10 +632,11 @@ def _add_dependency_register_section(
         doc.add_paragraph(
             "This section records external dependencies this effort relies on."
         )
-        doc.add_paragraph(
-            "Status key: Confirmed (verified to be available/in place) -- Unconfirmed (assumed, "
-            "not yet verified) -- At Risk (verification raised a concern)."
-        )
+        _add_key_legend(doc, "Status key", (
+            ("Confirmed", "verified to be available/in place"),
+            ("Unconfirmed", "assumed, not yet verified"),
+            ("At Risk", "verification raised a concern"),
+        ))
 
         headers = ["Dependency", "Description", "Status"]
         table = doc.add_table(rows=1, cols=len(headers))

@@ -211,21 +211,29 @@ artifact types.
 
 Include the directory path VERBATIM (same reason as the DIRECTORY-CONTEXT REQUESTS note below).
 
-### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)
-Trigger when the user wants to CREATE a NEW requirements document/register for a product, system,
-or initiative they are DESCRIBING in the request itself -- NOT from reading a directory of existing
-source files (that is Section 8, which only ever saves a summary and never renders a document), and
-NOT from an already-saved requirements summary (that is Section 6's document regeneration). This is
-the requirements-domain's own creation path, parallel to 1a (process) and 1b (design document):
-tell it what the thing is and what it needs to comply with, and it synthesizes a requirements
-register -- reasoning from your own general domain/regulatory-standards knowledge where the request
-names a domain or standard -- then renders the requirements document, in one call.
+### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION OR FROM FILES)
+Trigger when the user wants to CREATE a NEW requirements document/register -- whether they DESCRIBE
+the product/system/initiative inline in the request, or ask you to READ/REVIEW/ANALYZE the files in
+a directory and produce a requirements document from them (e.g. "review these documents and create
+a requirements management document," "read the files in ./rfp-docs and build a requirements
+document"). NOT from an already-saved requirements summary (that is Section 6's document
+regeneration -- the user explicitly says to regenerate/rebuild from what's already saved, with no
+new source material). This is the requirements-domain's own creation path, parallel to 1a (process)
+and 1b (design document): it synthesizes a requirements register -- grounded in whichever source
+material it actually has (an inline description, directory files, or both) -- then renders the
+requirements document, in one call.
 
-A bare "requirements document" with NO description of what it's for (just a name, with nothing to
-reason about) is NOT enough to trigger this -- if the request is that thin, this rule still applies
-(do not fall back to 1b/Full_Design_Doc_Pipeline just because it's underspecified), but
-Requirements_Doc_Pipeline's own first stage will itself ask a clarifying question rather than
-fabricate content.
+This is also where a request combining "summarize/review the files" WITH a create/build/generate
+verb belongs -- see Section 8's own precedence note, which already says so. A directory-only
+request with NO separate inline description is still valid here: Requirements_Doc_Pipeline's own
+synthesis stage treats the directory's own content as the primary source in that case (grounded
+extraction, same discipline Requirements_Summary_Agent uses -- see that stage's own instructions).
+
+A bare "requirements document" with NO description of what it's for AND no directory to read (just
+a name, with nothing to reason about) is NOT enough to trigger this -- if the request is that thin,
+this rule still applies (do not fall back to 1b/Full_Design_Doc_Pipeline just because it's
+underspecified), but Requirements_Doc_Pipeline's own first stage will itself ask a clarifying
+question rather than fabricate content.
 
 → Call: Requirements_Doc_Pipeline
 
@@ -235,6 +243,8 @@ Examples:
   testing, and validation."
 - "I need a requirements document for a new payments API, covering PCI-DSS and GDPR."
 - "Draft a requirements register for an onboard flight-safety system, grounded in DO-178C."
+- "Review the documents in ./rfp-docs and create a requirements management document."
+- "Read the files in ./vendor-notes and build a requirements document from them."
 
 This is a REQUIREMENTS creation request even though the word "document" appears, same reasoning as
 why "design document" isn't automatically 1b -- the deciding word here is "requirements" naming the
@@ -246,19 +256,18 @@ for clarification (Section 11) rather than silently picking one.
 ### 1e. PROPOSAL RESPONSE DOCUMENT CREATION
 Trigger when the user wants to CREATE a Response to Proposal / RFP / tender / bid document --
 addressing an RFP or proposal's requirements point-by-point (a compliance matrix), stating a
-proposed solution, and covering the other standard sections a bid response needs. UNLIKE 1a/1b/1d,
-this rule has a hard prerequisite: it drafts against a requirements summary that must ALREADY be
-saved (produced by a prior, separate Section 8 request reading the RFP/proposal's own files) -- it
-never reads source files itself. If the user's own request ALSO asks to analyze/summarize the RFP's
-requirements in the SAME message with no prior analysis having happened, that combined request is
-Section 8 first (do not call this rule speculatively hoping a summary already exists -- if none
-does, Proposal_Response_Agent's own first step will say so and ask the user to run Section 8
-first, rather than you guessing).
+proposed solution, and covering the other standard sections a bid response needs. It drafts against
+a requirements summary -- reusing one ALREADY saved by a prior, separate Section 8 request, OR, if
+none is saved yet AND the SAME request also names a directory of RFP/proposal files to read,
+analyzing them itself first as this pipeline's own first stage (no separate Section 8 request
+needed -- the combined "analyze the RFP and draft our response" case belongs here, not Section 8;
+see that section's own precedence note). If no summary is saved AND no directory was given either,
+the pipeline's own first stage will say so and ask for one, rather than you guessing.
 
 Signal words: "respond to this proposal/RFP/tender/bid", "draft our response to the RFP", "generate
 the proposal response", "write our bid response". The request should also describe (at least
 briefly) the responding organization's own solution/offering -- that is what the response is drafted
-FROM, alongside the already-saved requirements.
+FROM, alongside the requirements (already-saved, or analyzed from files in this same request).
 
 → Call: Proposal_Response_Pipeline
 
@@ -267,6 +276,8 @@ Examples:
   proven track record in retail." (after the RFP's requirements were already summarized)
 - "Draft our proposal response. We propose a fixed-price implementation plus an annual subscription."
 - "Generate the response to this tender, covering our compliance with each requirement."
+- "Analyze the RFP in ./rfp-docs and draft our response -- we offer a cloud-native vendor portal
+  with 24/7 support." (no prior Section 8 run -- the pipeline analyzes ./rfp-docs itself first)
 
 PRECEDENCE vs. 1d: 1d creates a NEW requirements document/register from a description of a
 product/system being built; 1e drafts a RESPONSE to requirements that already exist (someone else's
@@ -274,7 +285,7 @@ RFP) using a description of what the responding organization offers. "Requiremen
 is 1d; "response to this proposal/RFP" is 1e.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
-in a directory or folder (1a/1b/1c/1d above, or the cloud diagram case in Section 7 below), include
+in a directory or folder (1a/1b/1c/1d/1e above, or the cloud diagram case in Section 7 below), include
 that directory path VERBATIM in what you pass to the target pipeline tool. Do not paraphrase it away
 as a stylistic aside: the downstream analysis agent looks for that exact path to call its own
 load_directory_context tool, so dropping or rewording it silently removes the user's source material.

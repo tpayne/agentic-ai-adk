@@ -166,11 +166,21 @@ def test_requirements_register_section_builds_priority_lookup_from_requirement_p
     assert table.rows[1].cells[2].text == "High"
 
 
+def test_requirements_register_table_defaults_priority_to_medium_when_nowhere_populated():
+    doc = docx.Document()
+    rs._add_requirements_register_table(doc, [{"id": "FR-001", "type": "functional", "description": "x"}])
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Medium"
+
+
 def test_requirements_register_section_includes_a_status_key_legend():
     doc = docx.Document()
     data = {"requirements_register": [{"id": "FR-001", "type": "functional", "description": "x"}]}
     assert rs._add_requirements_register_section(doc, data) is True
-    assert any(p.text.startswith("Status key:") for p in doc.paragraphs)
+    assert any(p.text == "Status key:" for p in doc.paragraphs)
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Proposed -- not yet reviewed" in bullets
+    assert "Rejected -- will not be implemented" in bullets
 
 
 def test_old_format_summary_renders_plain_bullets_not_a_table():
@@ -284,7 +294,10 @@ def test_dependency_register_section_includes_a_status_key_legend():
     doc = docx.Document()
     deps = [{"dependency": "SAP API availability", "description": "Needed for data export.", "status": "Confirmed"}]
     assert rs._add_dependency_register_section(doc, deps) is True
-    assert any(p.text.startswith("Status key:") for p in doc.paragraphs)
+    assert any(p.text == "Status key:" for p in doc.paragraphs)
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Confirmed -- verified to be available/in place" in bullets
+    assert "At Risk -- verification raised a concern" in bullets
 
 
 def test_glossary_section_includes_a_lead_in_paragraph():
