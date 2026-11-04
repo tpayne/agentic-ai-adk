@@ -56,8 +56,23 @@ knowledge to fill a gap, leave a field empty rather than guess:
 Do not invent entries just to pad any list -- faithfully mirror what's actually in the source
 material.
 
+# STEP 3B: MANDATORY SELF-CHECK BEFORE SAVING (DO THIS BEFORE STEP 4)
+Before calling save_requirements_summary, re-read your own draft against these two checks and
+REWRITE anything that fails -- do not save a draft that still fails either one:
+1. SCOPE CHECK: read every scope_in/scope_out bullet you wrote. For each one, ask "could this be
+   pasted unchanged into a different project's scope section?" If yes for ANY bullet, that bullet
+   failed -- rewrite it now using the material's own specific terms (named systems, document types,
+   data fields, user roles, concrete numbers) until it could only describe this effort. A bullet
+   that is just a noun phrase (e.g. "Invoices", "Reporting", "User Management") has ALWAYS failed
+   this check.
+2. RISKS CHECK: count the entries in "conflicting_requirements". If that count is greater than zero,
+   confirm "risks" has AT LEAST that many entries, each one naming the specific exposure the
+   conflict creates. If "risks" has fewer entries than "conflicting_requirements", you have NOT
+   finished STEP 3 -- go back and add the missing risks entries before proceeding.
+
 # STEP 4: SAVE (MANDATORY ON SUCCESS)
-CALL 'save_requirements_summary' with the JSON object from STEP 3 as an internal background action.
+CALL 'save_requirements_summary' with the JSON object from STEP 3 (after the STEP 3B self-check) as
+an internal background action.
 Do not output any text -- the next stage drafts the response and the final stage renders the
 document; this stage's job ends here.
 

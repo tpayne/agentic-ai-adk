@@ -86,6 +86,32 @@ class TestRouter1eNoLongerHardStops:
         assert "no prior Section 8 run -- the pipeline analyzes ./rfp-docs itself first" in text
 
 
+class TestMandatorySelfCheckBeforeSaving:
+    # Instruction strengthening alone (self-check criteria embedded in
+    # field descriptions) proved insufficient in live testing -- Scope
+    # bullets stayed one-line and Risks stayed empty even after a server
+    # restart. This locks in the follow-up fix: an explicit, mandatory
+    # self-check step the agent must run and act on before saving,
+    # across every path that drafts a requirements summary.
+    def test_requirements_summary_agent_has_the_self_check_step(self):
+        text = _instruction_text("common/requirements_summary_agent.txt")
+        assert "STEP 2F: MANDATORY SELF-CHECK BEFORE SAVING" in text
+        assert "SCOPE CHECK" in text
+        assert "RISKS CHECK" in text
+
+    def test_requirements_synthesis_agent_has_the_self_check_step(self):
+        text = _instruction_text("common/requirements_synthesis_agent.txt")
+        assert "STEP 2F: MANDATORY SELF-CHECK BEFORE SAVING" in text
+        assert "SCOPE CHECK" in text
+        assert "RISKS CHECK" in text
+
+    def test_ensure_requirements_summary_agent_has_the_self_check_step(self):
+        text = _instruction_text("common/ensure_requirements_summary_agent.txt")
+        assert "STEP 3B: MANDATORY SELF-CHECK BEFORE SAVING" in text
+        assert "SCOPE CHECK" in text
+        assert "RISKS CHECK" in text
+
+
 class TestProposalResponseAgentDefersMessagingToTheNewStage:
     def test_instructions_no_longer_tell_the_drafting_agent_to_speak_on_not_found(self):
         text = _instruction_text("common/proposal_response_agent.txt")

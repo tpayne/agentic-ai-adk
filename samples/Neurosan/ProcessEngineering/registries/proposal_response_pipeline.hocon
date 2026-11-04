@@ -69,9 +69,15 @@ Your first action MUST be to call your load_requirements_summary tool.
   requirements_summary.hocon's own instructions document (extract only what the material actually
   states, do not reason from general domain knowledge to fill a gap, leave a field empty rather than
   guess) -- including a "name" field (a short, SPECIFIC, contextual title for this requirements
-  document, e.g. the client/project name actually present in the material). Call your
-  save_requirements_summary tool with that object, then continue to STEP 1B in this SAME turn --
-  do not stop and ask the user to run a separate request.
+  document, e.g. the client/project name actually present in the material). Before calling
+  save_requirements_summary, re-read your own draft against these two checks and REWRITE anything
+  that fails: (1) SCOPE CHECK -- for each scope_in/scope_out bullet, ask "could this be pasted
+  unchanged into a different project's scope section?"; if yes, rewrite it using the material's own
+  specific terms until it could only describe this effort (a bare noun phrase like "Invoices" has
+  ALWAYS failed this check). (2) RISKS CHECK -- "risks" must have AT LEAST as many entries as
+  "conflicting_requirements", each naming the specific exposure the conflict creates. Call your
+  save_requirements_summary tool with that object (after this self-check), then continue to STEP 1B
+  in this SAME turn -- do not stop and ask the user to run a separate request.
 - If "inquiry" does NOT name any directory, reply that there is no saved requirements summary yet,
   and that you need either a directory of RFP/proposal files to analyze (give one in this same
   request, e.g. "respond to the RFP in ./rfp-docs...") or a prior requirements summarization

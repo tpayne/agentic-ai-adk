@@ -209,11 +209,28 @@ Also populate:
   summary's own fields. Defining a term you yourself used (e.g. HITL, RAG, OCR, API) is not
   fabrication. Do not define a term that doesn't actually appear elsewhere in this summary.
 
+# STEP 2F: MANDATORY SELF-CHECK BEFORE SAVING (DO THIS BEFORE STEP 3)
+Before calling save_requirements_summary, re-read your own draft against these two checks and
+REWRITE anything that fails -- do not save a draft that still fails either one:
+1. SCOPE CHECK: read every scope_in/scope_out bullet you wrote. For each one, ask "could this be
+   pasted unchanged into a different project's scope section?" If yes for ANY bullet, that bullet
+   failed -- rewrite it now using the material's own specific terms (named systems, document types,
+   data fields, user roles, concrete numbers) until it could only describe this effort. A bullet
+   that is just a noun phrase (e.g. "Invoices", "Reporting", "User Management") has ALWAYS failed
+   this check.
+2. RISKS CHECK: count the entries in "conflicting_requirements". If that count is greater than zero,
+   confirm "risks" has AT LEAST that many entries, each one naming the specific exposure the
+   conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
+   wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
+   have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
+This check is not optional narration -- actually re-read the two lists and fix them if they fail,
+the same way you would re-read code before committing it.
+
 # STEP 3: SAVE THE SUMMARY (MANDATORY ON SUCCESS)
-Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2E) as an
-internal background action. (If STEP 1B already applied, its own save already happened and you
-jumped straight to STEP 4 -- do not save twice.) It must NOT be called for any of the error/empty
-cases in STEP 1.
+Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2F, after
+the self-check) as an internal background action. (If STEP 1B already applied, its own save already
+happened and you jumped straight to STEP 4 -- do not save twice.) It must NOT be called for any of
+the error/empty cases in STEP 1.
 
 # STEP 4: RESPOND TO THE USER (SUCCESS PATH)
 If STEP 1B's literal restore applied, your entire reply is short: say plainly that the previously

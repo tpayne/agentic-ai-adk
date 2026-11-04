@@ -44,7 +44,14 @@ def test_pipeline_tools_array_includes_the_new_tools():
 def test_pipeline_has_the_auto_analyze_step():
     text = PIPELINE_HOCON.read_text(encoding="utf-8")
     assert "STEP 1A: ANALYZE REQUIREMENTS NOW IF NONE SAVED YET" in text
-    assert "continue to STEP 1B in this SAME turn" in text
+    assert "then continue to STEP 1B" in text
+    assert "do not stop and ask the user to run a separate request" in text
+
+
+def test_pipeline_auto_analyze_step_includes_the_mandatory_self_check():
+    text = PIPELINE_HOCON.read_text(encoding="utf-8")
+    assert "SCOPE CHECK" in text
+    assert "RISKS CHECK" in text
 
 
 def test_router_1d_no_longer_excludes_directory_based_requests():
