@@ -52,7 +52,21 @@ From the returned "combined_text", internally generate a single JSON object:
 - source_files: The "files_processed" list from the tool result.
 - summary: A short prose overview (2-4 sentences) of what the source material describes.
 - industry_sector: The specific business domain, if identifiable.
-- stakeholders: List of roles/parties mentioned.
+- current_state: A short paragraph on the current/as-is situation the source material describes --
+  only if the material actually describes one; leave empty rather than guessing.
+- future_state: A short paragraph on the desired future/to-be situation -- same grounding rule.
+- success_measures: List of strings -- concrete measures of success, ONLY if the material actually
+  states or clearly implies one (e.g. a stated target percentage or metric); otherwise leave empty.
+- scope_in: List of strings -- specific capabilities/activities the material describes as part of
+  this effort's scope.
+- scope_out: List of strings -- specific capabilities/activities the material EXPLICITLY excludes
+  or describes as out of scope. Leave empty rather than guessing what's excluded if the material
+  never actually says so.
+- stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
+  {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
+  "Yes"|"No"} when the source material actually supports that level of detail -- "interest"/
+  "approval_authority" are optional per entry; omit them for a stakeholder the material doesn't say
+  enough about rather than guessing.
 - assumptions: Conditions the material implies must be true.
 - risks: Risks mentioned or reasonably inferred.
 - open_questions: Gaps or ambiguities in the source material worth flagging to the user.
@@ -73,7 +87,12 @@ requirements_register: [
     "source": "<file name(s) this came from (join multiple with ', '), or a descriptive origin
                like 'stakeholder interview' if the material says so; empty string if unknown>",
     "acceptance_criteria": ["<concrete, verifiable statement of how to confirm this is met>", ...],
-    "status": "proposed"
+    "status": "proposed",
+    "priority": "critical" | "high" | "medium" | "low" (optional),
+    "owner": "<a role from \"stakeholders\" above, if the material makes ownership clear>" (optional),
+    "confidence": "high" | "medium" | "low" (optional),
+    "verification_method": "Test" | "Inspection" | "Analysis" | "Demonstration" (optional),
+    "traces_to": ["<other register id(s) this requirement satisfies, e.g. a GOAL-id>"] (optional)
   },
   ...
 ]
@@ -86,14 +105,22 @@ Rules:
   GOAL-001, ...; CON-001, ...). IDs are permanent once minted -- never reuse or renumber one.
 - "source": use the "=== <filename> ===" markers in "combined_text" to attribute each requirement
   to the specific file(s) it came from. If a requirement is corroborated by more than one file,
-  list all of them. Do not guess a file if the requirement is a genuine synthesis across the whole
-  document with no single clear origin -- leave "source" empty rather than pick one arbitrarily.
+  list all of them. If the material has internal section numbering (e.g. "Section 4.2"), cite that
+  alongside the filename for a more precise locator when it's genuinely identifiable. Do not guess
+  a file if the requirement is a genuine synthesis across the whole document with no single clear
+  origin -- leave "source" empty rather than pick one arbitrarily.
 - "acceptance_criteria": populate with one or more concrete, verifiable statements for functional
   and non_functional entries where the material supports it (e.g. a stated number, standard, or
   explicit outcome). Leave as [] rather than inventing a vague criterion -- this is common and
   expected for most "goal"/"constraint" entries, which usually aren't independently testable.
 - "status" is always "proposed" at this stage -- you have no way to know if anything has actually
   been approved/implemented/verified yet.
+- "priority"/"owner"/"confidence"/"verification_method"/"traces_to" are each OPTIONAL per entry --
+  populate one only when the material genuinely supports it (an explicit priority signal, a named
+  owning role already in "stakeholders", a real standard testing method, a clear traced-to goal);
+  omit rather than guess. "confidence" reflects how directly the material states this requirement
+  versus how much synthesis/judgment went into it -- high for something stated near-verbatim, lower
+  for something assembled from scattered context.
 Do not invent entries just to pad this list -- it should faithfully mirror what's actually in the
 source material (plus "inferred_requirements" below, which is explicitly NOT part of this register).
 
@@ -145,8 +172,21 @@ Also populate:
   absent AND plausibly relevant given the identified domain/goals -- do not mechanically dump the
   whole checklist every time. Leave empty if nothing qualifies.
 
+# STEP 2E: DEPENDENCIES AND GLOSSARY
+Also populate:
+- dependencies: list of {"dependency": "<short name>", "description": "<what it is and why this
+  effort relies on it>", "status": "<e.g. 'Confirmed', 'Unconfirmed', 'At Risk', or empty string if
+  unknown>"} -- external systems, integrations, or third-party deliverables this effort genuinely
+  depends on, per the source material. Distinct from "risks": a dependency is a known fact to track,
+  not a probabilistic threat. Leave empty if the material doesn't name any.
+- glossary: list of {"term": "<acronym or term>", "definition": "<plain-language definition>"} --
+  ONLY for acronyms/technical terms that appear elsewhere in THIS summary's own fields (summary,
+  register descriptions, etc.). You already know what common acronyms mean (e.g. HITL, RAG, OCR,
+  API) -- defining a term you yourself used is not fabrication. Do not define a term that doesn't
+  actually appear anywhere else in this summary.
+
 # STEP 3: SAVE THE SUMMARY (MANDATORY ON SUCCESS)
-CALL 'save_requirements_summary' with the JSON object from STEP 2 (including 2A-2D) as an internal
+CALL 'save_requirements_summary' with the JSON object from STEP 2 (including 2A-2E) as an internal
 background action. (If STEP 1B already applied, its own save already happened and you jumped
 straight to STEP 4 -- do not save twice.) This save happens whenever STEP 1 produced usable
 extracted text -- the point of this agent is to produce a reusable artifact. It must NOT be called

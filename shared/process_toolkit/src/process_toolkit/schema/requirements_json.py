@@ -36,6 +36,11 @@ REQUIREMENTS_SUMMARY_TEMPLATE: Dict[str, Any] = {
     "source_files": [],
     "summary": "",
     "industry_sector": "",
+    "current_state": "",
+    "future_state": "",
+    "success_measures": [],
+    "scope_in": [],
+    "scope_out": [],
     "stakeholders": [],
     "assumptions": [],
     "risks": [],
@@ -48,6 +53,11 @@ REQUIREMENTS_SUMMARY_TEMPLATE: Dict[str, Any] = {
             "source": "",
             "acceptance_criteria": [],
             "status": "proposed",
+            "priority": "medium",
+            "owner": "",
+            "confidence": "",
+            "verification_method": "",
+            "traces_to": [],
         }
     ],
     "requirement_priorities": [
@@ -70,6 +80,8 @@ REQUIREMENTS_SUMMARY_TEMPLATE: Dict[str, Any] = {
         }
     ],
     "coverage_gaps": [{"category": "", "description": ""}],
+    "dependencies": [{"dependency": "", "description": "", "status": ""}],
+    "glossary": [{"term": "", "definition": ""}],
 }
 
 
@@ -141,6 +153,19 @@ def validate_requirements_summary(json_content: Any) -> Dict[str, Any]:
                 "location": f"requirements_register[{index}].description",
                 "issue": "A description is required",
             })
+
+    # traces_to is embedded per-entry (unlike the other cross-reference
+    # lists below, which are separate top-level lists) -- checked in its
+    # own pass since it needs the full seen_ids set built above first.
+    for index, item in enumerate(register):
+        if not isinstance(item, dict):
+            continue
+        for ref_id in item.get("traces_to") or []:
+            if ref_id not in seen_ids:
+                issues.append({
+                    "location": f"requirements_register[{index}].traces_to",
+                    "issue": f"References unknown requirement id '{ref_id}'",
+                })
 
     # Soft cross-reference checks -- these lists SHOULD name a real
     # register id; a dangling reference is a quality issue worth

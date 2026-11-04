@@ -76,7 +76,18 @@ Internally generate a single JSON object:
 - source_files: the "files_processed" list from STEP 0, or [] if none was given.
 - summary: a short prose overview (2-4 sentences) of the product/system/initiative being described.
 - industry_sector: the specific domain (e.g. "Pharmaceuticals", "Payments").
-- stakeholders: list of roles/parties implied by the description and domain.
+- current_state: a short paragraph on the current/as-is situation, ONLY if the description actually
+  describes one; leave empty rather than guessing.
+- future_state: a short paragraph on the desired future/to-be situation the description implies.
+- success_measures: list of strings -- concrete measures of success, ONLY if actually stated or
+  clearly implied; otherwise leave empty.
+- scope_in: list of strings -- specific capabilities/activities the description places in scope.
+- scope_out: list of strings -- specific capabilities/activities the description EXPLICITLY
+  excludes. Leave empty rather than guessing if the description never says so.
+- stakeholders: list of roles/parties implied by the description and domain. Each entry MAY be a
+  plain string, or an object {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low",
+  "approval_authority": "Yes"|"No"} when the description actually supports that detail -- optional
+  per entry.
 - assumptions: conditions you are reasoning from, including which regulatory/standards frameworks
   you applied and why.
 - risks: risks implied by the domain/description.
@@ -95,11 +106,19 @@ requirements_register: [
     "type": "functional" | "non_functional" | "goal" | "constraint",
     "description": "<the requirement/goal/constraint text>",
     "source": "<the specific standard/framework this requirement is grounded in (e.g. 'FDA 21 CFR
-               Part 211 (US)', 'MHRA GMP guidance (UK)', 'ICH Q-series guidelines'), or 'synthesized
-               from request description' when it comes from the description itself rather than a
-               named standard; empty string only if genuinely neither applies>",
+               Part 211 (US)', 'MHRA GMP guidance (UK)', 'ICH Q-series guidelines'); when it comes
+               from the user's OWN request text rather than a named standard, point at what in the
+               request it came from as specifically as you genuinely can (e.g. \"the user's
+               request -- stated budget constraint\") rather than a generic catch-all phrase -- only
+               fall back to generic 'synthesized from request description' if the request text
+               truly has no identifiable part to point at; empty string only if neither applies>",
     "acceptance_criteria": ["<concrete, verifiable statement of how to confirm this is met>", ...],
-    "status": "proposed"
+    "status": "proposed",
+    "priority": "critical" | "high" | "medium" | "low" (optional),
+    "owner": "<a role from \"stakeholders\" above, if the description makes ownership clear>" (optional),
+    "confidence": "high" | "medium" | "low" (optional),
+    "verification_method": "Test" | "Inspection" | "Analysis" | "Demonstration" (optional),
+    "traces_to": ["<other register id(s) this requirement satisfies, e.g. a GOAL-id>"] (optional)
   },
   ...
 ]
@@ -112,6 +131,8 @@ Rules:
 - "acceptance_criteria": populate wherever the domain/standards knowledge supports one; leave [] rather
   than inventing a vague criterion.
 - "status" is always "proposed" at this stage.
+- "priority"/"owner"/"confidence"/"verification_method"/"traces_to" are each OPTIONAL per entry --
+  populate one only when genuinely supported; omit rather than guess.
 Cover the domain's standard compliance phases where applicable (e.g. for a regulated product under
 development: development/design controls, testing/validation, manufacturing/quality, and
 post-market/pharmacovigilance or monitoring obligations) -- do not invent entries beyond what the
@@ -145,8 +166,17 @@ Control, Availability, Performance & Scalability, Observability, Usability & Acc
 Integration & Interoperability, Data Retention & Lifecycle) where applicable. Only flag a category
 that is BOTH absent AND plausibly relevant. Leave empty if nothing qualifies.
 
+# STEP 2E: DEPENDENCIES AND GLOSSARY
+Also populate:
+- dependencies: list of {"dependency", "description", "status"} -- external systems, integrations,
+  or third-party deliverables this effort genuinely depends on. Distinct from "risks": a dependency
+  is a known fact to track, not a probabilistic threat. Leave empty if none apply.
+- glossary: list of {"term", "definition"} -- ONLY for acronyms/terms that appear elsewhere in THIS
+  summary's own fields. Defining a term you yourself used is not fabrication. Do not define a term
+  that doesn't actually appear elsewhere in this summary.
+
 # STEP 3: SAVE THE SUMMARY (MANDATORY)
-Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2D) as an
+Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2E) as an
 internal background action.
 
 # STEP 4: RENDER THE DOCUMENT (MANDATORY)
@@ -196,7 +226,7 @@ label inferred_requirements explicitly as NOT part of the formal register.
                     "properties": {
                         "summary": {
                             "type": "object",
-                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps)."
+                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, current_state, future_state, success_measures, scope_in, scope_out, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps, dependencies, glossary)."
                         }
                     },
                     "required": ["summary"]

@@ -135,6 +135,11 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "source_files": ["rfp.pdf"],
     "summary": "Requirements for a vendor onboarding portal.",
     "industry_sector": "Retail",
+    "current_state": "Vendors are onboarded manually via email and spreadsheets.",
+    "future_state": "Vendors self-register through a portal with automated validation.",
+    "success_measures": ["50% reduction in onboarding time."],
+    "scope_in": ["Vendor self-service registration."],
+    "scope_out": ["Vendor payment processing."],
     "stakeholders": ["Procurement Lead", "Legal"],
     "assumptions": ["Vendors already have a tax id."],
     "risks": ["Vendor data may be incomplete."],
@@ -142,7 +147,8 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "requirements_register": [
         {"id": "FR-001", "type": "functional", "description": "Allow vendor registration.",
          "source": "rfp.pdf", "acceptance_criteria": ["A vendor can submit a registration form."],
-         "status": "proposed"},
+         "status": "proposed", "priority": "high", "owner": "Delivery Lead",
+         "confidence": "high", "verification_method": "Test", "traces_to": ["NFR-001"]},
         {"id": "NFR-001", "type": "non_functional", "description": "Respond within 2 seconds.",
          "source": "rfp.pdf", "acceptance_criteria": ["p95 latency < 2s"], "status": "proposed"},
     ],
@@ -154,6 +160,9 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "requirements_needing_clarification": [],
     "inferred_requirements": [],
     "coverage_gaps": [{"category": "Data Privacy & Compliance", "description": "No retention policy stated."}],
+    "dependencies": [{"dependency": "SAP API availability", "description": "Needed for data export.",
+                       "status": "Confirmed"}],
+    "glossary": [{"term": "RFP", "definition": "Request for Proposal."}],
 }
 
 
@@ -167,20 +176,35 @@ class TestRequirementsDocumentGeneration:
 
         out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
         doc = docx.Document(out_path)
-        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
-        assert "1.0 Introduction and Purpose" in headings
-        assert "2.0 Stakeholders" in headings
-        assert "3.0 Requirements Register" in headings
-        assert "4.0 Requirement Priorities" in headings
+        h1 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        h2 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        headings = h1 + h2
+
+        assert "1.0 Introduction and Purpose" in h1
+        assert any("Business Context" in h for h in h1)
+        assert any("Current State" in h for h in h2)
+        assert any("Success Measures" in h for h in h2)
+        assert any("Scope" in h for h in h1)
+        assert any("In Scope" in h for h in h2)
+        assert any("Out of Scope" in h for h in h2)
+        assert any("Stakeholders" in h for h in h1)
+        assert any("Requirements Register" in h for h in h1)
+        assert any("Requirements Traceability & Verification" in h for h in h1)
+        assert any("Requirement Priorities" in h for h in h1)
         # Conflicting/clarification/inferred are empty in this sample --
         # must not render a heading for a section with nothing to show.
         assert not any("Conflicting Requirements" in h for h in headings)
         assert not any("Needing Clarification" in h for h in headings)
         assert not any("Inferred Requirements" in h for h in headings)
         assert any("Coverage Gaps" in h for h in headings)
-        # No diagram, no fabricated glossary.
-        assert not any("Glossary" in h for h in headings)
+        assert any("Dependency Register" in h for h in headings)
+        assert any("Glossary" in h for h in headings)
+        # No diagram.
         assert not any("Architecture Flow Diagram" in h for h in headings)
+        # 8 tables: version history, requirements register (functional +
+        # non_functional type buckets = 2 tables), traceability,
+        # priorities, coverage gaps, dependency register, glossary.
+        assert len(doc.tables) == 8
 
     def test_no_blank_pages_in_a_generated_requirements_document(self):
         with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:

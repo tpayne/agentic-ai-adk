@@ -1,6 +1,8 @@
 import docx
 
-from process_toolkit.docgen.content import _resolve_index_references, _add_process_steps_section
+from process_toolkit.docgen.content import (
+    _resolve_index_references, _add_process_steps_section, _add_stakeholders_section,
+)
 
 
 def _all_text(doc):
@@ -110,3 +112,59 @@ class TestAddProcessStepsSectionResolvesIndexReferences:
 
         text = _all_text(doc)
         assert any("Direct risk." in t for t in text)
+
+
+class TestStakeholdersSection:
+    """_add_stakeholders_section -- shared across process/design/
+    architecture/requirements documents. Confirms the base 2-column
+    shape is unchanged for callers that don't populate interest/
+    approval_authority, and that both columns appear (independently)
+    when at least one stakeholder entry actually has that data."""
+
+    def test_is_a_noop_when_empty(self):
+        doc = docx.Document()
+        assert _add_stakeholders_section(doc, None) is False
+        assert _add_stakeholders_section(doc, []) is False
+
+    def test_plain_string_list_renders_as_bullets_not_a_table(self):
+        doc = docx.Document()
+        assert _add_stakeholders_section(doc, ["Legal SME", "Contract Manager"]) is True
+        assert doc.tables == []
+        bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+        assert bullets == ["Legal SME", "Contract Manager"]
+
+    def test_dict_list_without_interest_or_authority_renders_the_original_two_columns(self):
+        doc = docx.Document()
+        stakeholders = [{"name": "Legal SME", "responsibilities": ["Review contract clauses."]}]
+        assert _add_stakeholders_section(doc, stakeholders) is True
+        table = doc.tables[0]
+        assert [c.text for c in table.rows[0].cells] == ["Stakeholder", "Responsibilities"]
+        assert table.rows[1].cells[0].text == "Legal SME"
+
+    def test_interest_and_approval_authority_columns_appear_when_present(self):
+        doc = docx.Document()
+        stakeholders = [{
+            "name": "Contract Manager", "responsibilities": ["Owns the business relationship."],
+            "interest": "High", "approval_authority": "Yes",
+        }]
+        assert _add_stakeholders_section(doc, stakeholders) is True
+        table = doc.tables[0]
+        assert [c.text for c in table.rows[0].cells] == [
+            "Stakeholder", "Responsibilities", "Interest", "Approval Authority",
+        ]
+        assert table.rows[1].cells[2].text == "High"
+        assert table.rows[1].cells[3].text == "Yes"
+
+    def test_a_row_missing_interest_still_renders_a_blank_cell_not_a_column_shift(self):
+        # One stakeholder has "interest", another doesn't -- the column
+        # still appears (since at least one entry has it), and the
+        # entry without it gets a blank cell rather than misaligned data.
+        doc = docx.Document()
+        stakeholders = [
+            {"name": "Contract Manager", "interest": "High"},
+            {"name": "Legal SME"},
+        ]
+        assert _add_stakeholders_section(doc, stakeholders) is True
+        table = doc.tables[0]
+        assert table.rows[1].cells[2].text == "High"
+        assert table.rows[2].cells[2].text == ""

@@ -74,12 +74,17 @@ from process_toolkit.docgen.design_sections import (
 )
 from process_toolkit.docgen.requirements_sections import (
     _add_requirements_overview_section,
+    _add_business_context_section,
+    _add_scope_section,
     _add_requirements_register_section,
+    _add_traceability_section,
     _add_requirement_priorities_section,
     _add_conflicting_requirements_section,
     _add_requirements_needing_clarification_section,
     _add_inferred_requirements_section,
     _add_coverage_gaps_section,
+    _add_dependency_register_section,
+    _add_glossary_section,
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
@@ -441,13 +446,14 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     Builds the requirements-tracking document into `doc` and saves it.
     Requirements-schema counterpart to _build_process_document/
     _build_design_document -- renders requirements_summary.json's own
-    fields directly (see requirements_sections.py). Deliberately NO
-    diagram section (a requirements register has no flow/architecture
-    diagram, unlike process/design) and NO fabricated Glossary (unlike
-    the process document's own hardcoded 4-term fallback glossary --
-    requirements_summary.json has no field to source one from, and this
-    pipeline's convention is to never fabricate a section with no
-    backing data, same as the design document's own glossary handling).
+    fields directly (see requirements_sections.py). No diagram section (a
+    requirements register has no flow/architecture diagram, unlike
+    process/design). Glossary IS rendered here (unlike the deliberate
+    no-fabrication exclusion this docstring used to describe) -- but only
+    when "glossary" is actually populated, and only with terms the
+    agent's own drafted content introduced, not a fabricated section with
+    no backing data; same conditional convention as every other optional
+    section here.
 
     requirements_summary.json has no title/name field of its own -- `name`
     is whatever the caller passed as `process_name`.
@@ -461,13 +467,16 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     requirements_needing_clarification = data.get("requirements_needing_clarification")
     inferred_requirements = data.get("inferred_requirements")
     coverage_gaps = data.get("coverage_gaps")
+    dependencies = data.get("dependencies")
+    glossary = data.get("glossary")
 
     consumed_keys = {
         "source_directory", "source_files", "summary", "industry_sector",
+        "current_state", "future_state", "success_measures", "scope_in", "scope_out",
         "stakeholders", "assumptions", "risks", "open_questions",
         "requirements_register", "requirement_priorities",
         "conflicting_requirements", "requirements_needing_clarification",
-        "inferred_requirements", "coverage_gaps",
+        "inferred_requirements", "coverage_gaps", "dependencies", "glossary",
         # Legacy old-format fields (is_old_format_requirements_summary) --
         # already rendered by _add_requirements_register_section's own
         # old-format branch when present, so they must not also reappear
@@ -514,16 +523,28 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     rendered = True  # Introduction and Purpose always renders unconditionally.
     _add_requirements_overview_section(doc, data)
 
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_business_context_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_scope_section(doc, data)
+
     if stakeholders:
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_stakeholders_section(
-            doc, stakeholders, heading="2.0 Stakeholders", subject_noun="requirements effort",
+            doc, stakeholders, heading="4.0 Stakeholders", subject_noun="requirements effort",
         )
 
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_requirements_register_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_traceability_section(doc, data)
 
     if requirement_priorities:
         if rendered:
@@ -551,6 +572,16 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_coverage_gaps_section(doc, coverage_gaps)
+
+    if dependencies:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_dependency_register_section(doc, dependencies)
+
+    if glossary:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_glossary_section(doc, glossary)
 
     if rendered:
         add_iso_page_break(doc)
