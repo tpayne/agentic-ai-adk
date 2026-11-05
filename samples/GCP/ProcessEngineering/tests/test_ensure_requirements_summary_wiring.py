@@ -28,9 +28,13 @@ def _router_text() -> str:
 
 
 class TestEnsureRequirementsSummaryAgent:
-    def test_agent_has_the_three_expected_tools(self):
+    def test_agent_has_the_four_expected_tools(self):
+        from google.adk.tools import AgentTool
         from process_agents.common.ensure_requirements_summary_agent import (
             ensure_requirements_summary_agent,
+        )
+        from process_agents.common.requirements_chunk_extractor_agent import (
+            requirements_chunk_extractor_agent,
         )
         from process_agents.common.utils import (
             load_requirements_summary,
@@ -38,11 +42,19 @@ class TestEnsureRequirementsSummaryAgent:
             save_requirements_summary,
         )
 
-        assert set(ensure_requirements_summary_agent.tools) == {
+        plain_tools = {
+            t for t in ensure_requirements_summary_agent.tools if not isinstance(t, AgentTool)
+        }
+        assert plain_tools == {
             load_requirements_summary,
             load_directory_context,
             save_requirements_summary,
         }
+        agent_tools = [
+            t for t in ensure_requirements_summary_agent.tools if isinstance(t, AgentTool)
+        ]
+        assert len(agent_tools) == 1
+        assert agent_tools[0].agent is requirements_chunk_extractor_agent
 
     def test_agent_is_the_first_stage_of_the_proposal_response_pipeline(self):
         from process_agents.common.proposal_response_pipeline_agent import proposal_response_pipeline

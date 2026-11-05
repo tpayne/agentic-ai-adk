@@ -22,7 +22,7 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pdf/eml/msg/xls/xlsx/xml/json) that already
+I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json) that already
 describe an existing business process, and import their content directly into this toolkit's own
 structured process JSON -- not a fresh design from a brief, an extraction of what's actually in the
 documents. If the directory contains a process_data.json previously downloaded from this same

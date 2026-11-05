@@ -371,11 +371,31 @@ Look at "inquiry".
   content ("files_processed" empty), reply with that specific problem and STOP -- do not fabricate
   a summary.
 
+# STEP 2B: MULTI-CHUNK EXTRACTION (ONLY WHEN "chunk_count" > 1)
+If STEP 2's load_directory_context result has "chunk_count" equal to 1, skip this step and proceed
+to STEP 3 using "combined_text" exactly as before. If "chunk_count" is greater than 1, the source
+material is too large to extract from in one pass: for EACH entry in "chunks", in order, call
+Requirements_Chunk_Extractor_Agent with that chunk's own text as your inquiry, PASSED THROUGH
+VERBATIM -- once per chunk, never skipping one. Collect all N partial-extraction results before
+proceeding. SELF-CHECK before STEP 3: confirm you called Requirements_Chunk_Extractor_Agent
+exactly "chunk_count" times -- if fewer, go back and process the remaining chunks first.
+
 # STEP 3: SYNTHESIZE THE REQUIREMENTS SUMMARY (SAME DISCIPLINE AS REQUIREMENTS_SUMMARY_AGENT)
-From the returned "combined_text", internally generate a single JSON object using EXACTLY the same
-grounded-extraction discipline and field shape requirements_summary.hocon's own instructions
-document -- extract only what the material actually states, do not reason from general domain
-knowledge to fill a gap, leave a field empty rather than guess:
+If STEP 2B did NOT run ("chunk_count" was 1), generate the JSON object below directly from the
+returned "combined_text". If STEP 2B DID run, you are REDUCING the N partial extractions it
+collected into one final summary instead: merge every partial's own requirements_register/
+inferred_requirements/dependencies/glossary entries into one list each, renumbering ids
+sequentially and globally, deduplicating any entry two adjacent chunks both independently
+extracted (expected, due to the deliberate chunk overlap -- keep one copy); union stakeholders/
+assumptions/risks/open_questions/scope_in/scope_out across all partials; build the holistic fields
+(name/industry_sector/current_state/future_state/success_measures) from every partial's own
+"chunk_summary" together -- see requirements_summary.hocon's own STEP 2 reduce-path instructions
+for the full rationale.
+
+Either way, internally generate a single JSON object using EXACTLY the same grounded-extraction
+discipline and field shape requirements_summary.hocon's own instructions document -- extract only
+what the material actually states, do not reason from general domain knowledge to fill a gap,
+leave a field empty rather than guess:
 - name: a short, SPECIFIC, contextual title -- the client/project/system name actually present in
   the source material, not a generic label.
 - source_directory, source_files, summary, industry_sector, current_state, future_state,
@@ -412,7 +432,7 @@ Reply with a short confirmation (one or two sentences -- the caller will give th
 narrative later) that a requirements summary was synthesized and saved, naming its own "name"
 field.
 """,
-            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary"]
+            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary", "/requirements_chunk_extractor"]
         },
 
         {

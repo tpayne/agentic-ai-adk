@@ -15,19 +15,25 @@
 # which the narrative-only agents never do.
 
 from google.genai import types
+from google.adk.tools import AgentTool
 
 from ..common.utils import load_directory_context, save_requirements_summary
 from ..common.agent_wrappers import ProcessLlmAgent
+from ..common.requirements_chunk_extractor_agent import requirements_chunk_extractor_agent
 
 requirements_summary_agent = ProcessLlmAgent(
     name="Requirements_Summary_Agent",
     description=(
-        "Reads the files in a directory (.txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx), "
+        "Reads the files in a directory (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx), "
         "summarizes the requirements found in them, and saves a reusable requirements "
         "summary for a LATER process/design/cloudarch creation request to pick up. "
         "Does not create or modify a process, design document, or cloud architecture itself."
     ),
     instruction_file="common/requirements_summary_agent.txt",
-    tools=[load_directory_context, save_requirements_summary],
+    tools=[
+        load_directory_context,
+        save_requirements_summary,
+        AgentTool(requirements_chunk_extractor_agent),
+    ],
     generate_content_config=types.GenerateContentConfig(temperature=0.2, top_p=1),
 )

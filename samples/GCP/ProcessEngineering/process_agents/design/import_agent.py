@@ -19,7 +19,7 @@ from ..common.agent_wrappers import ProcessLlmAgent
 design_import_agent = ProcessLlmAgent(
     name="Design_Import_Agent",
     description=(
-        "Reads a directory of source documents (.txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx) that "
+        "Reads a directory of source documents (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx) that "
         "already describe an existing architectural/technical design (HLD, LLD, or Combined), and "
         "imports their content directly into this toolkit's own structured design JSON -- not a "
         "fresh design from a brief, an extraction of what's actually in the documents."

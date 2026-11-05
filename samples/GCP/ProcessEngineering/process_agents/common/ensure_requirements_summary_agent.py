@@ -11,8 +11,11 @@
 # grounded-extraction discipline) instead of making the user run a
 # separate request first; if neither, it asks for one and stops.
 
+from google.adk.tools import AgentTool
+
 from ..common.utils import load_directory_context, save_requirements_summary, load_requirements_summary
 from ..common.agent_wrappers import ProcessLlmAgent
+from ..common.requirements_chunk_extractor_agent import requirements_chunk_extractor_agent
 
 ensure_requirements_summary_agent = ProcessLlmAgent(
     name="Ensure_Requirements_Summary_Agent",
@@ -22,5 +25,10 @@ ensure_requirements_summary_agent = ProcessLlmAgent(
         "itself if the request already named a directory and none is saved yet."
     ),
     instruction_file="common/ensure_requirements_summary_agent.txt",
-    tools=[load_requirements_summary, load_directory_context, save_requirements_summary],
+    tools=[
+        load_requirements_summary,
+        load_directory_context,
+        save_requirements_summary,
+        AgentTool(requirements_chunk_extractor_agent),
+    ],
 )

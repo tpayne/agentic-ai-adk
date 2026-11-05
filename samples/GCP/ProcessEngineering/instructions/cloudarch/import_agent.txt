@@ -6,7 +6,7 @@ generating or redesigning one. The directory you're given contains a real drawio
 -- your only job is to find it and persist it exactly as-is.
 
 # AVAILABLE TOOLS:
-- load_directory_context: Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
+- load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
   directly inside a given directory and returns their combined extracted text.
 - load_drawio: Loads the most recently saved cloud architecture diagram, if any.
 - restore_drawio_xml: Persists an already-complete drawio/mxGraph XML document verbatim as the

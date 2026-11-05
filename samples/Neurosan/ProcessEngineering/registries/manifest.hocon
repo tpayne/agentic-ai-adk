@@ -15,6 +15,7 @@
     # ProcessEngineering port (from samples/GCP/ProcessEngineering, the ADK sample).
     #
     "requirements_summary.hocon": true,
+    "requirements_chunk_extractor.hocon": true,
     "requirements_consultant.hocon": true,
     "requirements_reviewer.hocon": true,
     "requirements_simulation_query.hocon": true,

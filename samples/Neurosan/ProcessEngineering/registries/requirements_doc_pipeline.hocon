@@ -77,6 +77,21 @@ reference at all, skip this step entirely.
   well-established domain/regulatory knowledge, as this agent always has. Directory content, when
   present, is additional context alongside (not instead of) the description.
 
+# STEP 0C: MULTI-CHUNK EXTRACTION (GROUNDED EXTRACTION MODE ONLY, "chunk_count" > 1)
+This step applies ONLY in GROUNDED EXTRACTION MODE (STEP 0B) -- SYNTHESIS MODE always reasons from
+the inline description in a single pass and never needs this, even when a directory was ALSO read
+as supplementary background. In GROUNDED EXTRACTION MODE, if STEP 0's load_directory_context result
+has "chunk_count" equal to 1, skip this step and proceed to STEP 1/2 using "combined_text" exactly
+as before -- this is the common case for a normal-sized directory.
+
+If "chunk_count" is greater than 1 (GROUNDED EXTRACTION MODE, large directory), the source material
+is too large to extract from in one pass. For EACH entry in the result's "chunks" list, in order,
+call Requirements_Chunk_Extractor_Agent with that chunk's own text as your inquiry, PASSED THROUGH
+VERBATIM -- once per chunk, never skipping one, never combining two chunks into a single call.
+Collect every one of the N returned partial-extraction JSON objects before proceeding to STEP 2.
+SELF-CHECK before STEP 2: confirm you called Requirements_Chunk_Extractor_Agent exactly
+"chunk_count" times -- if fewer, go back now and process the remaining chunks first.
+
 # STEP 1: CHECK FOR SOMETHING CONCRETE TO REASON ABOUT (MANDATORY)
 If, after STEP 0/0B, you have neither a directory's extracted content nor a genuine inline
 description to work from (e.g. "inquiry" names a product/system/initiative but gives you nothing
@@ -93,6 +108,17 @@ description" in each field's instruction as "the directory's own extracted text,
 from what it actually states, not from general domain knowledge, exactly as Requirements_Summary_
 Agent's own STEP 2 instructions require. In SYNTHESIS MODE, follow each field's instruction exactly
 as written below.
+
+If STEP 0C ran (GROUNDED EXTRACTION MODE with multiple chunks), you are REDUCING N partial
+extractions into one final summary, not reading raw source text again: merge every partial's own
+requirements_register/inferred_requirements/dependencies/glossary entries into one list each,
+renumbering ids sequentially and globally (not restarting per chunk), deduplicating any entry two
+ADJACENT chunks both independently extracted (expected, routine, due to the deliberate chunk
+overlap -- keep one copy). Union stakeholders/assumptions/risks/open_questions/scope_in/scope_out
+across all partials the same way. Build the holistic fields (name/industry_sector/current_state/
+future_state/success_measures) from every partial's own "chunk_summary" together, exactly as
+Requirements_Summary_Agent's own STEP 2 reduce-path instructions describe -- see that file for the
+full rationale.
 
 Internally generate a single JSON object:
 - name: a short, SPECIFIC, contextual title for this requirements document -- the product/system/
@@ -267,7 +293,7 @@ generated and saved. If "conflicting_requirements", "requirements_needing_clarif
 briefly in its own short paragraph, same as Requirements_Summary_Agent's own reply convention --
 label inferred_requirements explicitly as NOT part of the formal register.
 """,
-            "tools": ["load_directory_context", "save_requirements_summary", "regenerate_document"]
+            "tools": ["load_directory_context", "save_requirements_summary", "regenerate_document", "/requirements_chunk_extractor"]
         },
 
         {
