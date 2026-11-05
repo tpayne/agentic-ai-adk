@@ -39,6 +39,8 @@ from .requirements_reviewer_agent import requirements_reviewer_agent
 from .requirements_simulation_agent import requirements_simulation_query_agent
 from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from .proposal_response_pipeline_agent import proposal_response_pipeline
+from .proposal_response_consultant_agent import proposal_response_consultant_agent
+from .proposal_response_reviewer_agent import proposal_response_reviewer_agent
 from ..process.scenario_agent import scenario_tester_agent
 from ..design.scenario_design_agent import design_scenario_tester_agent
 from ..process.simulation_agent import simulation_agent

@@ -1,0 +1,225 @@
+# ============================================================
+# RM / RtP robustness test script
+#
+# Run from samples/Neurosan/ProcessEngineering:
+#   uv run python cli.py -f examples/rm_rtp_cli_test_commands.txt
+#
+# Exercises Requirements Management (RM) and Response to Proposal (RtP)
+# end to end: missing/empty-directory edge cases, document generation,
+# consultant queries, quality review, and reviewer apply-mode (identify
+# issues -> fix them -> regenerate), both as a combined "review and fix"
+# request and as a separate later-turn "update the document" request.
+# Also covers a two-turn clarification follow-through (a bare creation
+# request answered with a clarifying question, then actually proceeding
+# once the missing details are supplied), domain-crossover disambiguation
+# (a saved requirements summary must not bleed into an unrelated
+# process-domain question), and literal restore/re-upload for both RM
+# (a directory containing a previously-downloaded requirements_summary.json)
+# and RtP (JSON pasted/attached directly in the request text) -- two
+# genuinely different mechanisms, each exercised in its own shape.
+#
+# Test fixtures used (already in this repo), referenced below by path RELATIVE
+# to samples/Neurosan/ProcessEngineering (this script's own required cwd --
+# deliberately not an absolute, machine-specific path, since this repo is
+# public):
+#   - ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/
+#     MetroLink_RFP_Package -- the real RFP + addendum
+#   - .../RequirementsManagement/Healthcare_Referral_Baseline -- a second,
+#     independent RM example, used for the one-shot file-based creation test
+#   - .../ResponseToProposal/04_Bidder_Offering_Brief_Harborlight_Digital.pdf --
+#     the bidder's own offering brief. proposal_response_agent has no tool
+#     to read a PDF itself, so its content is paraphrased inline below as
+#     the "our offering" description, exactly as a real user would type it
+#     after reading the brief -- the brief's own last page ("How to use in
+#     a proposal-response test") confirms this is the intended usage, and
+#     explicitly calls for TBD pricing and no invented certifications/
+#     references, which doubles as a built-in fabrication-avoidance test.
+#
+# Session state in this CLI is a mix of in-memory conversation (reset by
+# "clear") and on-disk saved JSON (output/requirements_summary.json,
+# output/proposal_response.json, independent of "clear"). The $ resets
+# below delete the on-disk state at specific points so the NOT_FOUND/
+# empty-directory negative cases, and the RtP auto-analyze positive case,
+# are exercised against a genuinely clean slate rather than leftover
+# state from an earlier run of this same script.
+# ============================================================
+
+$ rm -f output/requirements_summary.json output/proposal_response.json
+$ rm -f output/*.docx
+$ mkdir -p /tmp/rm_test_empty_dir
+$ rm -rf /tmp/rm_test_missing_dir
+sleep 1
+
+# ------------------------------------------------------------
+# PART A -- negative / edge cases (nothing saved yet)
+# ------------------------------------------------------------
+
+# A1. NEGATIVE: directory that does not exist at all
+Read the files in /tmp/rm_test_missing_dir and summarize the requirements.
+
+# A2. NEGATIVE: directory that exists but has no files in it
+Read the files in /tmp/rm_test_empty_dir and summarize the requirements.
+
+# A3. NEGATIVE: ask for a proposal response with nothing saved yet and no directory given
+Draft our response to this proposal. We offer a configurable supplier onboarding portal.
+
+# A4. NEGATIVE: regenerate a requirements document before anything has ever been created
+Regenerate the requirements document.
+
+# A5. NEGATIVE: regenerate a proposal response document before anything has ever been created
+Regenerate the proposal response document.
+
+# A6. NEGATIVE: bare, underspecified creation request -- should ask a clarifying question, not fabricate
+Create a requirements document.
+
+# A6-FOLLOWUP: CLARIFICATION FOLLOW-THROUGH -- confirms the system actually proceeds once the
+# missing details are supplied in the NEXT turn, rather than asking again or still refusing. This
+# save gets overwritten by Part B's own summarize step below, so it doesn't affect later state.
+It's for a new patient referral scheduling system for a mid-sized dental clinic chain in the US, \
+needs to comply with HIPAA, and should let patients book, reschedule, and cancel appointments \
+online.
+
+# Clean up the document this just rendered so it doesn't show up as a stray leftover in later
+# "list" checks below -- this test is about the clarification exchange, not document generation.
+$ rm -f output/*.docx
+
+# A7. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
+Can you take a look at this and tell me what you think?
+
+# ------------------------------------------------------------
+# PART B -- RM positive flow (standalone summarize, against the real RFP)
+# ------------------------------------------------------------
+
+# B1. POSITIVE: standalone "just summarize" against the real MetroLink RFP package
+Read the files in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
+and summarize the requirements.
+
+# B2-B7. RM consultant queries against the saved summary
+What's in the saved requirements summary?
+Are there any conflicting requirements in the saved summary?
+What's the priority of the requirements we extracted?
+Which requirements need further clarification?
+What inferred or derived requirements were identified?
+What coverage gaps were flagged?
+
+# B8. Quality review, READ-ONLY (no fix requested -- must not touch the saved summary)
+Review the requirements for quality.
+
+# B9. Quality review AND fix in the SAME request (functional + non-functional issues)
+Review the requirements for quality and fix any issues you find, including any functional \
+or non-functional requirements that are vague, untestable, or missing acceptance criteria.
+
+# B10. SEPARATE follow-up turn: a specific fix request, not combined with "review" this time
+Update the requirements summary so NFR-006 (the recovery point objective requirement) has a \
+status of "needs rework" given the conflict with the stated backup cadence, and tell me exactly \
+what you changed.
+
+# B11. POSITIVE: document generation -- confirms the applied fixes show up, and the title/filename
+# reflect the saved summary's own "name" field rather than a generic default.
+Regenerate the requirements document.
+
+list
+
+# ------------------------------------------------------------
+# PART C -- RtP positive + negative flow (built on the MetroLink summary from Part B)
+# ------------------------------------------------------------
+
+# C1. Force a clean slate so the next request genuinely has nothing saved yet,
+# to exercise the auto-analyze path rather than reusing Part B's summary.
+$ rm -f output/requirements_summary.json output/proposal_response.json
+
+# C2. POSITIVE: combined "analyze the RFP AND draft our response" in ONE request, with no
+# prior summarization step -- exercises the pipeline's own auto-analyze stage end to end.
+Analyze the RFP in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
+and draft our response. We are Harborlight Digital, a mid-sized technology consultancy. We \
+propose a configurable supplier onboarding portal: an authenticated supplier portal with \
+save-and-resume applications, document upload and validation, staff review queues, approval \
+routing, expiry reminders, and a full audit history. We integrate with the customer's finance \
+platform via API or scheduled encrypted file transfer, with the exact connector and field \
+mapping confirmed during technical discovery. Supplier documents are stored in a \
+customer-managed collaboration repository, with the customer owning the retention schedule and \
+legal hold decisions. We propose deploying into a customer-controlled UK-region cloud \
+subscription, subject to architecture review. Delivery follows four phases: Discovery, \
+Configuration, Integration and Migration, and Assurance and Launch, including accessibility \
+testing, UAT, training, and controlled cutover. Our support model includes a service desk with \
+severity classification agreed with the customer, monthly service reporting, and \
+keyboard/assistive-technology accessibility testing in our test plan -- formal conformance \
+audits are out of scope unless separately commissioned. We do not replace the customer's \
+finance platform, do not provide legal/tax/financial advice, and do not include migration of \
+historical closed supplier records. Use TBD for all pricing figures -- do not invent prices. We \
+hold no specific certifications and have no named customer references to cite in this response.
+
+# C3-C6. RtP consultant queries against the saved response
+What's in the saved proposal response?
+What's our compliance status on the recovery point objective requirement?
+What's the pricing approach in the response?
+What open questions or unaddressed items were flagged for the client?
+
+# C7. Quality review, READ-ONLY -- checks for overstated compliance claims, thin sections,
+# and anything that reads as fabricated (given the brief explicitly forbade invented prices/certs).
+Review the proposal response for quality.
+
+# C8. Quality review AND fix in the SAME request
+Review the proposal response for quality and fix any issues you find, including any \
+compliance_matrix entries whose claimed status overstates what the response text actually supports.
+
+# C9. SEPARATE follow-up turn: a specific fix request, not combined with "review" this time
+Update the proposal response so the pricing approach explicitly states all figures are TBD \
+pending commercial discussions, and tell me exactly what you changed.
+
+# C10. POSITIVE: document generation -- confirms the rendered file keeps the response's own
+# name/identity (the original bug: regeneration used to produce a differently-named file).
+Regenerate the proposal response document.
+
+# "list" shows the actual generated filename (derived from the response's own
+# "name" field, not predictable in advance here) -- confirm manually it is NOT
+# the generic "Proposal_Response.docx" default, then "download <that name>
+# /tmp/rm_test_empty_dir" interactively if you want to inspect the file.
+list
+
+# ------------------------------------------------------------
+# PART D -- RM one-shot file-based creation (independent example, tests the
+# router fix for "review these files and create a document" actually rendering)
+# ------------------------------------------------------------
+
+$ rm -f output/requirements_summary.json
+
+# D1. POSITIVE: the exact combined phrasing that used to silently stop at a chat summary
+# instead of also rendering a document.
+Review the documents in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/Healthcare_Referral_Baseline \
+and create a requirements management document.
+
+list
+
+# ------------------------------------------------------------
+# PART E -- domain disambiguation and literal restore (re-upload)
+# ------------------------------------------------------------
+
+# E1. DOMAIN CROSSOVER: a bare "requirements of THIS PROCESS" question, with no mention of "the
+# saved requirements summary," asks about a DIFFERENT artifact (a live business process) -- never
+# created anywhere in this script. The correct answer is "no process found," NOT a description of
+# the Healthcare_Referral_Baseline requirements_register Part D just saved -- confirms the router
+# doesn't let a saved requirements summary bleed into an unrelated process-domain question just
+# because something happens to be saved.
+What are the requirements of this process?
+
+# E2. LITERAL RESTORE (RM): re-uploading a previously-downloaded requirements_summary.json must
+# restore it VERBATIM rather than re-synthesizing it as prose -- a real, documented capability
+# never exercised above. Copy the summary Part D just saved into its own directory first, as
+# "requirements_summary.json" -- the exact filename the restore check looks for.
+$ mkdir -p /tmp/rm_test_restore_dir
+$ cp output/requirements_summary.json /tmp/rm_test_restore_dir/requirements_summary.json
+$ rm -f output/requirements_summary.json
+Import the requirements summary in /tmp/rm_test_restore_dir.
+
+# E3. LITERAL RESTORE (RtP): proposal_response_agent's own restore check looks for JSON pasted or
+# attached directly in the request text (recognized by a "compliance_matrix" key), not a directory
+# read -- a genuinely different mechanism from E2 above, so it needs its own, differently-shaped
+# test. A minimal object is enough to exercise the mechanism itself.
+Here is our proposal_response.json to resume -- please restore it: {"name": "Restored Test Response", "summary": "A minimal restored response for testing the literal-restore mechanism.", "compliance_matrix": [{"requirement_id": "TEST-001", "requirement_text": "Test requirement.", "requirement_type": "functional", "response_status": "Fully Compliant", "response": "Restored verbatim.", "evidence_ref": ""}]}
+
+# ------------------------------------------------------------
+# cleanup
+# ------------------------------------------------------------
+$ rm -rf /tmp/rm_test_empty_dir /tmp/rm_test_missing_dir /tmp/rm_test_restore_dir
+exit

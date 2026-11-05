@@ -64,3 +64,20 @@ def load_proposal_response(state: Optional[StateLike] = None) -> Dict[str, Any]:
         return response
     except Exception as e:
         return {"status": "ERROR", "error": str(e)}
+
+
+def update_proposal_response(patch: Dict[str, Any], state: Optional[StateLike] = None) -> str:
+    """Shallow-merges `patch` onto the existing saved proposal response
+    (patch keys overwrite, untouched keys survive) and re-persists via
+    save_proposal_response -- for a reviewer agent applying targeted
+    corrections rather than re-drafting the whole document."""
+    if not isinstance(patch, dict):
+        return "ERROR: patch must be a JSON object."
+
+    existing = load_proposal_response(state)
+    if not isinstance(existing, dict) or existing.get("status") in ("NOT_FOUND", "ERROR"):
+        return "ERROR: No existing proposal response to update -- save one first."
+
+    existing.pop("status", None)
+    existing.update(patch)
+    return save_proposal_response(existing, state)

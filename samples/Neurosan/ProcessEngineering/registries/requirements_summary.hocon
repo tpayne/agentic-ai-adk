@@ -75,16 +75,53 @@ freshly synthesized.
 
 # STEP 2: SYNTHESIZE THE REQUIREMENTS SUMMARY
 From the returned "combined_text", internally generate a single JSON object:
+- name: A short, SPECIFIC, contextual title for this requirements document -- the client, project,
+  or system name actually present in the source material (e.g. "MetroLink Digital Procurement and
+  Vendor Onboarding Requirements Specification"), not a generic label like "Requirements
+  Specification". This becomes the document's own title AND filename, including when it is later
+  regenerated from this saved summary alone (a fresh request with no memory of this conversation) --
+  so it must be self-sufficient. Fall back to a generic default only if the material genuinely names
+  nothing identifiable.
 - source_directory: The directory path you were given.
 - source_files: The "files_processed" list from the tool result.
 - summary: A short prose overview (2-4 sentences) of what the source material describes.
 - industry_sector: The specific business domain, if identifiable.
-- stakeholders: List of roles/parties mentioned.
-- assumptions: Conditions the material implies must be true.
-- risks: Risks mentioned or reasonably inferred.
-- open_questions: Gaps or ambiguities in the source material worth flagging to the user.
+- current_state: A real paragraph (not a one-liner) on the current/as-is situation -- who does what
+  today, with what systems/process, and what pain points the material itself calls out. ONLY if the
+  material actually describes one; leave empty rather than guessing. When it IS covered, give it the
+  same level of detail you would for "our_understanding" in a proposal response -- several sentences
+  grounded in specifics, not a generic one-sentence gloss.
+- future_state: A real paragraph (same bar as current_state) on the desired future/to-be situation
+  -- same grounding rule.
+- success_measures: List of strings -- concrete measures of success, ONLY if the material actually
+  states or clearly implies one; otherwise leave empty.
+- scope_in: List of strings -- SPECIFIC capabilities/activities/systems the material describes as in
+  scope. Each bullet should name a concrete thing, not a generic one-or-two word label -- a reader
+  with no other context should understand what the bullet actually covers. Self-check before writing
+  each bullet: if it could be pasted unchanged into a DIFFERENT project's scope section without
+  reading oddly, it is too generic -- rewrite it using the material's own specific terms (named
+  systems, document types, data fields, user roles) until it could ONLY describe this effort.
+- scope_out: List of strings -- SPECIFIC capabilities/activities the material EXPLICITLY excludes,
+  same concreteness bar and self-check as scope_in. Leave empty rather than guessing if the material
+  never actually says so.
+- stakeholders: List of roles/parties mentioned. Each entry MAY be a plain string, or an object
+  {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low", "approval_authority":
+  "Yes"|"No"} when the material actually supports that level of detail -- optional per entry.
+- assumptions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict, unlike
+  conflicting_requirements below). Conditions the material implies must be true.
+- risks: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Risks mentioned or
+  reasonably inferred -- including, MANDATORILY, one entry for EVERY tension or conflict you yourself
+  flag elsewhere in this same summary (see "conflicting_requirements" below -- a flagged conflict
+  always implies a risk until it's resolved, not optional cross-referencing). Worked example: a
+  stated hard Recovery Point Objective alongside operational detail that implies only periodic/batch
+  backups is not just a conflicting_requirements entry -- it directly implies a risks entry (a
+  single string) naming the resulting data-loss exposure.
+- open_questions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Gaps or
+  ambiguities in the source material worth flagging to the user.
 Stay grounded in the extracted text -- do not invent specifics the material doesn't support. It is
-fine for a list to be short or empty if the material genuinely doesn't cover that area.
+fine for a list to be short or empty if the material genuinely doesn't cover that area. IMPORTANT:
+"assumptions", "risks", and "open_questions" are just as important as every field above and below
+them -- do not let them shrink or go empty just because there are now more fields to populate.
 
 # STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
 Instead of separate flat lists for goals/functional/non-functional/constraints, every atomic
@@ -100,7 +137,12 @@ requirements_register: [
     "source": "<file name(s) this came from (join multiple with ', '), or a descriptive origin
                like 'stakeholder interview' if the material says so; empty string if unknown>",
     "acceptance_criteria": ["<concrete, verifiable statement of how to confirm this is met>", ...],
-    "status": "proposed"
+    "status": "proposed",
+    "priority": "critical" | "high" | "medium" | "low" (optional),
+    "owner": "<a role from \"stakeholders\" above, if the material makes ownership clear>" (optional),
+    "confidence": "high" | "medium" | "low" (optional),
+    "verification_method": "Test" | "Inspection" | "Analysis" | "Demonstration" (optional),
+    "traces_to": ["<other register id(s) this requirement satisfies, e.g. a GOAL-id>"] (optional)
   },
   ...
 ]
@@ -113,12 +155,17 @@ Rules:
   GOAL-001, ...; CON-001, ...). IDs are permanent once minted -- never reuse or renumber one.
 - "source": use the "=== <filename> ===" markers in "combined_text" to attribute each requirement
   to the specific file(s) it came from. If a requirement is corroborated by more than one file,
-  list all of them. Do not guess a file if the requirement is a genuine synthesis across the whole
-  document with no single clear origin -- leave "source" empty rather than pick one arbitrarily.
+  list all of them. If the material has internal section numbering, cite that alongside the
+  filename for a more precise locator when genuinely identifiable. Do not guess a file if the
+  requirement is a genuine synthesis across the whole document with no single clear origin -- leave
+  "source" empty rather than pick one arbitrarily.
 - "acceptance_criteria": populate with one or more concrete, verifiable statements for functional
   and non_functional entries where the material supports it. Leave as [] rather than inventing a
   vague criterion -- this is common and expected for most "goal"/"constraint" entries.
 - "status" is always "proposed" at this stage.
+- "priority"/"owner"/"confidence"/"verification_method"/"traces_to" are each OPTIONAL per entry --
+  populate one only when genuinely supported; omit rather than guess. "confidence" reflects how
+  directly the material states this requirement versus how much synthesis went into it.
 Do not invent entries just to pad this list -- it should faithfully mirror what's actually in the
 source material (plus "inferred_requirements" below, which is explicitly NOT part of this register).
 
@@ -129,7 +176,8 @@ Across the requirements_register, populate:
   signals relative importance.
 - conflicting_requirements: list of {"requirement_ids": [...], "requirements_text": [...],
   "description", "recommendation"} -- for any pair/group of entries that cannot both be fully
-  satisfied as stated.
+  satisfied as stated. Every entry you add here MUST also produce a corresponding "risks" entry
+  above -- a flagged conflict always implies a risk until it's resolved.
 - requirements_needing_clarification: list of {"requirement_id", "requirement_text", "question"} --
   for any entry that is vague or missing information needed to act on it.
 These three lists are a genuine analytical judgment, NOT a mandatory minimum -- leave a list EMPTY
@@ -152,11 +200,43 @@ Performance & Scalability, Observability & Monitoring, Usability & Accessibility
 Interoperability, Data Retention & Lifecycle. Only flag a category that is BOTH absent AND
 plausibly relevant. Leave empty if nothing qualifies.
 
+# STEP 2E: DEPENDENCIES AND GLOSSARY
+Also populate:
+- dependencies: list of {"dependency", "description", "status": "Confirmed"|"Unconfirmed"|"At
+  Risk"|""} -- external systems, integrations, or third-party deliverables this effort genuinely
+  depends on, per the source material. "status" MUST be one of exactly these three values, or empty
+  string if truly unknown -- do not invent any other status word. Distinct from "risks": a
+  dependency is a known fact to track, not a probabilistic threat. Leave empty if the material
+  doesn't name any.
+- glossary: list of {"term", "definition"} -- ONLY for acronyms/terms that appear elsewhere in THIS
+  summary's own fields. Defining a term you yourself used (e.g. HITL, RAG, OCR, API) is not
+  fabrication. Do not define a term that doesn't actually appear elsewhere in this summary.
+
+# STEP 2F: MANDATORY SELF-CHECK BEFORE SAVING (DO THIS BEFORE STEP 3)
+Before calling save_requirements_summary, re-read your own draft against these two checks and
+REWRITE anything that fails -- do not save a draft that still fails either one:
+1. SCOPE CHECK: read every scope_in/scope_out bullet you wrote. For each one, ask "could this be
+   pasted unchanged into a different project's scope section?" If yes for ANY bullet, that bullet
+   failed -- rewrite it now using the material's own specific terms (named systems, document types,
+   data fields, user roles, concrete numbers) until it could only describe this effort. A bullet
+   that is just a noun phrase (e.g. "Invoices", "Reporting", "User Management") has ALWAYS failed
+   this check.
+2. RISKS CHECK: count the entries in "conflicting_requirements". If that count is greater than zero,
+   confirm "risks" has AT LEAST that many entries, each one naming the specific exposure the
+   conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
+   wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
+   have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
+3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
+   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
+   as objects, rewrite each one as a single plain-string sentence before saving.
+This check is not optional narration -- actually re-read the lists and fix them if they fail,
+the same way you would re-read code before committing it.
+
 # STEP 3: SAVE THE SUMMARY (MANDATORY ON SUCCESS)
-Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2D) as an
-internal background action. (If STEP 1B already applied, its own save already happened and you
-jumped straight to STEP 4 -- do not save twice.) It must NOT be called for any of the error/empty
-cases in STEP 1.
+Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2F, after
+the self-check) as an internal background action. (If STEP 1B already applied, its own save already
+happened and you jumped straight to STEP 4 -- do not save twice.) It must NOT be called for any of
+the error/empty cases in STEP 1.
 
 # STEP 4: RESPOND TO THE USER (SUCCESS PATH)
 If STEP 1B's literal restore applied, your entire reply is short: say plainly that the previously
@@ -217,7 +297,7 @@ needs, or coverage gaps will be carried forward into that generation step.
                     "properties": {
                         "summary": {
                             "type": "object",
-                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps)."
+                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, current_state, future_state, success_measures, scope_in, scope_out, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps, dependencies, glossary)."
                         }
                     },
                     "required": ["summary"]

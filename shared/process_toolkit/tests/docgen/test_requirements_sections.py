@@ -25,6 +25,87 @@ def test_overview_section_renders_assumptions_risks_and_open_questions_as_subsec
     assert headings == ["1.1 Assumptions", "1.2 Risks", "1.3 Open Questions"]
 
 
+def test_overview_section_coerces_dict_shaped_risks_and_open_questions_to_text():
+    # Regression: an agent sometimes drifts to writing "risks"/"open_questions"
+    # entries as {"description"/"question": ...} objects (pattern-matching
+    # the object shape neighboring fields like conflicting_requirements
+    # use), even though these two fields are documented as plain strings.
+    # A strict isinstance(v, str) filter silently dropped every such entry,
+    # making the WHOLE 1.2/1.3 subsection vanish even though the agent had
+    # genuinely written good content -- confirmed directly against a real
+    # saved requirements_summary.json produced during live testing.
+    doc = docx.Document()
+    data = {
+        "risks": [{"description": "Up to a 24-hour data loss window against a 15-minute RPO target."}],
+        "open_questions": [
+            {"question": "What is the retention schedule?", "requirement_id": "NFR-003"},
+        ],
+    }
+    assert rs._add_requirements_overview_section(doc, data) is True
+    headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+    assert headings == ["1.1 Risks", "1.2 Open Questions"]
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Up to a 24-hour data loss window against a 15-minute RPO target." in bullets
+    assert "What is the retention schedule?" in bullets
+
+
+def test_overview_section_renders_source_files_as_bullets_not_a_comma_list():
+    doc = docx.Document()
+    data = {"source_directory": "./vendor-docs", "source_files": ["rfp.pdf", "addendum.pdf"]}
+    assert rs._add_requirements_overview_section(doc, data) is True
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert bullets == ["rfp.pdf", "addendum.pdf"]
+    assert not any("rfp.pdf, addendum.pdf" in p.text for p in doc.paragraphs)
+
+
+def test_overview_section_renders_source_directory_with_no_files():
+    doc = docx.Document()
+    data = {"source_directory": "./vendor-docs"}
+    assert rs._add_requirements_overview_section(doc, data) is True
+    assert any("./vendor-docs" in p.text for p in doc.paragraphs)
+
+
+def test_business_context_section_is_a_noop_when_every_subsection_is_empty():
+    doc = docx.Document()
+    assert rs._add_business_context_section(doc, {}) is False
+    assert not any(p.style and p.style.name == "Heading 1" for p in doc.paragraphs)
+
+
+def test_business_context_section_renders_present_subsections_only():
+    doc = docx.Document()
+    data = {"current_state": "Manual data entry today.", "success_measures": ["50% less manual effort."]}
+    assert rs._add_business_context_section(doc, data) is True
+    headings = [p.text for p in doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+    assert headings == ["2.0 Business Context", "2.1 Current State", "2.3 Success Measures"]
+
+
+def test_business_context_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    data = {"current_state": "Manual data entry today."}
+    assert rs._add_business_context_section(doc, data) is True
+    assert any("situation driving this effort" in p.text for p in doc.paragraphs)
+
+
+def test_scope_section_is_a_noop_when_both_lists_are_empty():
+    doc = docx.Document()
+    assert rs._add_scope_section(doc, {}) is False
+
+
+def test_scope_section_renders_in_and_out_of_scope():
+    doc = docx.Document()
+    data = {"scope_in": ["Contract extraction."], "scope_out": ["Contract generation."]}
+    assert rs._add_scope_section(doc, data) is True
+    headings = [p.text for p in doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+    assert headings == ["3.0 Scope", "3.1 In Scope", "3.2 Out of Scope"]
+
+
+def test_scope_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    data = {"scope_in": ["Contract extraction."]}
+    assert rs._add_scope_section(doc, data) is True
+    assert any("boundaries of this effort" in p.text for p in doc.paragraphs)
+
+
 def test_requirements_register_section_is_a_noop_with_nothing_present():
     doc = docx.Document()
     assert rs._add_requirements_register_section(doc, {}) is False
@@ -47,8 +128,8 @@ def test_requirements_register_section_splits_by_type():
     assert rs._add_requirements_register_section(doc, data) is True
     headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
     assert headings == [
-        "3.1 Functional Requirements", "3.2 Non-Functional Requirements",
-        "3.3 Goals and Objectives", "3.4 Constraints",
+        "5.1 Functional Requirements", "5.2 Non-Functional Requirements",
+        "5.3 Goals and Objectives", "5.4 Constraints",
     ]
     assert len(doc.tables) == 4
 
@@ -58,6 +139,72 @@ def test_requirements_register_table_uses_na_for_a_missing_id():
     rs._add_requirements_register_table(doc, [{"type": "functional", "description": "x"}])
     table = doc.tables[0]
     assert table.rows[1].cells[0].text == "N/A"
+
+
+def test_requirements_register_table_includes_a_priority_column():
+    doc = docx.Document()
+    rs._add_requirements_register_table(doc, [
+        {"id": "FR-001", "type": "functional", "description": "x", "priority": "high"},
+    ])
+    table = doc.tables[0]
+    assert [c.text for c in table.rows[0].cells] == [
+        "ID", "Description", "Priority", "Source", "Acceptance Criteria", "Status",
+    ]
+    assert table.rows[1].cells[2].text == "High"
+
+
+def test_requirements_register_table_falls_back_to_priority_lookup_when_own_field_empty():
+    doc = docx.Document()
+    rs._add_requirements_register_table(
+        doc,
+        [{"id": "FR-001", "type": "functional", "description": "x"}],
+        priority_lookup={"FR-001": "critical"},
+    )
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Critical"
+
+
+def test_requirements_register_table_prefers_its_own_priority_over_the_lookup():
+    doc = docx.Document()
+    rs._add_requirements_register_table(
+        doc,
+        [{"id": "FR-001", "type": "functional", "description": "x", "priority": "low"}],
+        priority_lookup={"FR-001": "critical"},
+    )
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Low"
+
+
+def test_requirements_register_section_builds_priority_lookup_from_requirement_priorities():
+    doc = docx.Document()
+    data = {
+        "requirements_register": [
+            {"id": "FR-001", "type": "functional", "description": "x"},
+        ],
+        "requirement_priorities": [
+            {"requirement_id": "FR-001", "priority": "high"},
+        ],
+    }
+    assert rs._add_requirements_register_section(doc, data) is True
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "High"
+
+
+def test_requirements_register_table_defaults_priority_to_medium_when_nowhere_populated():
+    doc = docx.Document()
+    rs._add_requirements_register_table(doc, [{"id": "FR-001", "type": "functional", "description": "x"}])
+    table = doc.tables[0]
+    assert table.rows[1].cells[2].text == "Medium"
+
+
+def test_requirements_register_section_includes_a_status_key_legend():
+    doc = docx.Document()
+    data = {"requirements_register": [{"id": "FR-001", "type": "functional", "description": "x"}]}
+    assert rs._add_requirements_register_section(doc, data) is True
+    assert any(p.text == "Status key:" for p in doc.paragraphs)
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Proposed -- not yet reviewed" in bullets
+    assert "Rejected -- will not be implemented" in bullets
 
 
 def test_old_format_summary_renders_plain_bullets_not_a_table():
@@ -70,6 +217,32 @@ def test_old_format_summary_renders_plain_bullets_not_a_table():
     assert doc.tables == []
     bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
     assert bullets == ["Allow login.", "Allow logout.", "Must be fast."]
+
+
+def test_traceability_section_is_a_noop_when_no_entry_has_traceability_data():
+    doc = docx.Document()
+    data = {"requirements_register": [{"id": "FR-001", "type": "functional", "description": "x"}]}
+    assert rs._add_traceability_section(doc, data) is False
+
+
+def test_traceability_section_renders_only_entries_with_data():
+    doc = docx.Document()
+    data = {
+        "requirements_register": [
+            {"id": "FR-001", "type": "functional", "description": "x",
+             "traces_to": ["GOAL-001"], "owner": "Delivery Lead",
+             "verification_method": "Test", "confidence": "high"},
+            {"id": "FR-002", "type": "functional", "description": "y"},
+        ],
+    }
+    assert rs._add_traceability_section(doc, data) is True
+    table = doc.tables[0]
+    assert len(table.rows) == 2  # header + the one entry with data
+    assert table.rows[1].cells[0].text == "FR-001"
+    assert table.rows[1].cells[1].text == "GOAL-001"
+    assert table.rows[1].cells[2].text == "Delivery Lead"
+    assert table.rows[1].cells[3].text == "Test"
+    assert table.rows[1].cells[4].text == "High"
 
 
 def test_requirement_priorities_section_sorts_by_priority_then_id():
@@ -127,11 +300,66 @@ def test_coverage_gaps_section_sorts_alphabetically():
     assert table.rows[2].cells[0].text == "Security"
 
 
+def test_dependency_register_section_is_a_noop_when_empty():
+    doc = docx.Document()
+    assert rs._add_dependency_register_section(doc, None) is False
+
+
+def test_dependency_register_section_renders_a_table():
+    doc = docx.Document()
+    deps = [{"dependency": "SAP API availability", "description": "Needed for data export.", "status": "Confirmed"}]
+    assert rs._add_dependency_register_section(doc, deps) is True
+    table = doc.tables[0]
+    assert table.rows[1].cells[0].text == "SAP API availability"
+    assert table.rows[1].cells[2].text == "Confirmed"
+
+
+def test_dependency_register_section_includes_a_status_key_legend():
+    doc = docx.Document()
+    deps = [{"dependency": "SAP API availability", "description": "Needed for data export.", "status": "Confirmed"}]
+    assert rs._add_dependency_register_section(doc, deps) is True
+    assert any(p.text == "Status key:" for p in doc.paragraphs)
+    bullets = [p.text for p in doc.paragraphs if p.style and p.style.name == "List Bullet"]
+    assert "Confirmed -- verified to be available/in place" in bullets
+    assert "At Risk -- verification raised a concern" in bullets
+
+
+def test_glossary_section_includes_a_lead_in_paragraph():
+    doc = docx.Document()
+    glossary = [{"term": "RAG", "definition": "Retrieval Augmented Generation."}]
+    assert rs._add_glossary_section(doc, glossary) is True
+    assert any("defines acronyms and terms" in p.text for p in doc.paragraphs)
+
+
+def test_glossary_section_is_a_noop_when_empty():
+    doc = docx.Document()
+    assert rs._add_glossary_section(doc, None) is False
+
+
+def test_glossary_section_sorts_alphabetically_and_skips_entries_without_a_term():
+    doc = docx.Document()
+    glossary = [
+        {"term": "RAG", "definition": "Retrieval Augmented Generation."},
+        {"term": "HITL", "definition": "Human-in-the-Loop."},
+        {"definition": "no term, must be skipped"},
+    ]
+    assert rs._add_glossary_section(doc, glossary) is True
+    table = doc.tables[0]
+    assert table.rows[1].cells[0].text == "HITL"
+    assert table.rows[2].cells[0].text == "RAG"
+    assert len(table.rows) == 3  # header + 2 valid entries
+
+
 def test_all_section_renderers_are_noops_on_empty_input():
     doc = docx.Document()
+    assert rs._add_business_context_section(doc, {}) is False
+    assert rs._add_scope_section(doc, {}) is False
+    assert rs._add_traceability_section(doc, {}) is False
     assert rs._add_requirement_priorities_section(doc, None) is False
     assert rs._add_conflicting_requirements_section(doc, None) is False
     assert rs._add_requirements_needing_clarification_section(doc, None) is False
     assert rs._add_inferred_requirements_section(doc, None) is False
     assert rs._add_coverage_gaps_section(doc, None) is False
+    assert rs._add_dependency_register_section(doc, None) is False
+    assert rs._add_glossary_section(doc, None) is False
     assert doc.tables == []

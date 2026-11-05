@@ -52,15 +52,16 @@ def test_router_references_the_new_network():
     assert '"/proposal_response_pipeline"' in text
 
 
-def test_router_1e_exists_and_requires_a_saved_requirements_summary():
+def test_router_1e_exists_and_describes_both_requirements_summary_sources():
     # The real functional gap this feature closes: there is no
     # requirements-domain creation path for drafting a RESPONSE to
-    # someone else's requirements -- 1e fills that in, with a hard
-    # prerequisite (unlike 1a/1b/1d) that a requirements summary must
-    # already exist.
+    # someone else's requirements -- 1e fills that in. Can reuse an
+    # already-saved summary, or analyze a directory of RFP/proposal files
+    # itself -- no longer a hard "must already be saved" prerequisite
+    # that forces a separate Section 7 request.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert "### 1e. PROPOSAL RESPONSE DOCUMENT CREATION" in text
-    assert "this rule has a hard prerequisite" in text
+    assert "analyzing them itself first" in text
 
 
 def test_router_distinguishes_1e_from_1d():

@@ -1,0 +1,402 @@
+{
+  "inferred_requirements": [
+    {
+      "id": "INF-001",
+      "category": "functional",
+      "derived_from": [
+        "AM-02"
+      ],
+      "requirement": "The system must support the migration of up to 10,000 active supplier records from the current manual/legacy systems.",
+      "acceptance_criteria": [
+        "The system successfully imports 10,000 active records with zero data loss and validated field mapping."
+      ],
+      "rationale": "The RFP and Addendum 02 explicitly increase the migration scope to 10,000 active records."
+    },
+    {
+      "category": "functional",
+      "requirement": "The system must identify and report on incomplete applications to allow management of the onboarding performance goal.",
+      "derived_from": [
+        "GOAL-001"
+      ],
+      "rationale": "The Addendum clarifies that the 6-day onboarding clock starts only when the application is complete, implying a need to track completeness.",
+      "id": "INF-002",
+      "acceptance_criteria": [
+        "The system provides a dashboard or report showing the duration an application has been in 'Incomplete' status."
+      ]
+    }
+  ],
+  "future_state": "The desired future state is a secure digital procurement and vendor onboarding service that provides a consistent and auditable experience for both suppliers and internal reviewers. The system will automate workflows, integrate with core business systems (Microsoft 365 and Finance), and reduce the median onboarding time to no more than 6 business days, while ensuring all data remains within the UK.",
+  "stakeholders": [
+    {
+      "interest": "High",
+      "name": "MetroLink Regional Transit Authority",
+      "approval_authority": "Yes",
+      "role": "Issuing Organization"
+    },
+    {
+      "role": "Primary Contact and Reviewer",
+      "approval_authority": "Yes",
+      "name": "Procurement Office",
+      "interest": "High"
+    },
+    {
+      "name": "Finance Team",
+      "interest": "High",
+      "role": "Integration Stakeholder and Reviewer",
+      "approval_authority": "No"
+    },
+    {
+      "approval_authority": "No",
+      "interest": "Medium",
+      "name": "Risk Team",
+      "role": "Reviewer"
+    },
+    {
+      "approval_authority": "No",
+      "name": "Suppliers/Applicants",
+      "interest": "High",
+      "role": "Portal Users"
+    },
+    {
+      "interest": "Medium",
+      "approval_authority": "No",
+      "role": "Escalation Point for Overdue Reviews",
+      "name": "Procurement Manager"
+    }
+  ],
+  "scope_in": [
+    "Responsive supplier portal with save-and-resume registration (30-day window) for organization, tax, and banking data.",
+    "Automated validation of mandatory fields and document expiry dates for supplier applications.",
+    "Configurable approval workflows based on supplier category and estimated annual spend.",
+    "Integration with MetroLink's Microsoft 365 SharePoint environment for document storage and metadata mapping.",
+    "Integration with the existing finance system for syncing approved supplier master data via API or file exchange.",
+    "Automated renewal notifications at 90, 60, and 30-day intervals for insurance and certifications.",
+    "Migration of up to 10,000 active supplier records from current manual systems.",
+    "Discovery, design, configuration, UAT, training, and 60 days of hypercare support."
+  ],
+  "conflicting_requirements": [
+    {
+      "requirements_text": [
+        "15-minute recovery point objective",
+        "backups are taken nightly"
+      ],
+      "description": "The RFP specifies a 15-minute Recovery Point Objective (RPO) in NFR-006, but the operational appendix mentions nightly backups, which are insufficient to meet a 15-minute RPO.",
+      "recommendation": "Bidders must identify the discrepancy, state the recovery point their proposed service can support, and price any option needed to meet the 15-minute requirement.",
+      "requirement_ids": [
+        "NFR-006"
+      ]
+    }
+  ],
+  "requirements_needing_clarification": [
+    {
+      "question": "The RFP states the retention schedule is to be confirmed; this is needed to configure the NFR-003 requirement.",
+      "requirement_text": "Support configurable retention and legal hold.",
+      "requirement_id": "NFR-003"
+    },
+    {
+      "requirement_id": "FR-006",
+      "question": "The folder structure and metadata mapping for SharePoint must be defined to implement the integration.",
+      "requirement_text": "Exact folder taxonomy and metadata mapping will be agreed during discovery."
+    }
+  ],
+  "dependencies": [
+    {
+      "status": "Confirmed",
+      "description": "The solution depends on access to the Authority's approved Microsoft 365 tenant for document storage and metadata mapping.",
+      "dependency": "Microsoft 365 Tenant (SharePoint)"
+    },
+    {
+      "status": "Confirmed",
+      "description": "Integration with the existing finance system via API or controlled file exchange is required for syncing approved supplier master data.",
+      "dependency": "Existing Finance System"
+    },
+    {
+      "description": "Availability of Procurement, Finance, and Risk staff for discovery, design approval, and User Acceptance Testing (UAT).",
+      "status": "Unconfirmed",
+      "dependency": "MetroLink Subject Matter Experts"
+    }
+  ],
+  "source_files": [
+    "01_RFP_MetroLink_Digital_Procurement.pdf",
+    "03_Addendum_02_MetroLink_Clarifications.pdf"
+  ],
+  "industry_sector": "Public Sector / Transportation",
+  "name": "MetroLink Digital Procurement and Vendor Onboarding Requirements",
+  "source_directory": "/var/folders/d1/qp3s8ktj41x6r5tnvdn26ft40000gn/T/process_architect_attachments_25272_1127574d0",
+  "open_questions": [
+    {
+      "question": "What is the precise retention schedule for supplier data?",
+      "requirement_text": "Support configurable retention and legal hold.",
+      "requirement_id": "NFR-003"
+    },
+    {
+      "requirement_id": "FR-006",
+      "question": "What is the exact folder taxonomy and metadata mapping required for the SharePoint integration?",
+      "requirement_text": "Import approved supplier documents from a designated SharePoint library."
+    },
+    {
+      "question": "How will the 15-minute RPO be achieved given the conflicting statement regarding nightly backups?",
+      "requirement_text": "Recovery point objective of 15 minutes.",
+      "requirement_id": "NFR-006"
+    },
+    {
+      "requirement_id": "FR-007",
+      "question": "Which specific finance system is currently in use, and what are its API/file exchange technical specifications?",
+      "requirement_text": "Send approved supplier master data to the existing finance system."
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "description": "While UK data residency is specified, detailed requirements for UK GDPR rights (e.g., right to erasure, data portability) and specific data processing agreements are not fully detailed.",
+      "category": "Data Privacy & Compliance"
+    },
+    {
+      "category": "Integration & Interoperability",
+      "description": "The specific finance system and its API/file exchange specifications are not named, creating uncertainty for the integration design."
+    }
+  ],
+  "requirement_priorities": [
+    {
+      "requirement_text": "Reduce median time from complete supplier application to onboarding decision from 12 to 6 business days.",
+      "rationale": "This is the primary business outcome and performance target for the entire project.",
+      "requirement_id": "GOAL-001",
+      "priority": "critical"
+    },
+    {
+      "priority": "critical",
+      "requirement_text": "Integration with the existing finance system for supplier master data.",
+      "rationale": "Essential for financial operations and ensuring the solution replaces the manual data entry into finance tools.",
+      "requirement_id": "FR-007"
+    },
+    {
+      "priority": "critical",
+      "requirement_id": "NFR-002",
+      "rationale": "Necessary to meet public sector security and data protection standards.",
+      "requirement_text": "Encryption, role-based access, multi-factor authentication, and logging of privileged access."
+    },
+    {
+      "requirement_text": "Supplier and financial data must remain in a cloud region located in the United Kingdom.",
+      "rationale": "Strict regulatory and procurement requirement for data residency within the UK.",
+      "priority": "critical",
+      "requirement_id": "CON-001"
+    }
+  ],
+  "success_measures": [
+    "Reduction in median onboarding time from 12 to 6 business days within six months.",
+    "Achievement of 99.9% monthly availability (excluding 4h maintenance).",
+    "95% of portal pages loading within 3 seconds for 250 concurrent users.",
+    "Successful migration of 10,000 active supplier records with validated data integrity."
+  ],
+  "current_state": "MetroLink Regional Transit Authority currently manages supplier registration, due diligence, contract documents, and renewal reminders through a manual process involving email, shared drives, and separate finance tools. This fragmented approach results in a median onboarding time of 12 business days and lacks a centralized, auditable view of supplier status and compliance.",
+  "assumptions": [
+    "The solution will be hosted in a cloud region located in the United Kingdom as per CON-001 and AM-04.",
+    "Microsoft 365 and the existing Finance environments are stable and accessible for the required integrations (FR-006, FR-007).",
+    "MetroLink will provide a data dictionary and sample extract for the migration of active supplier records during the discovery phase.",
+    "The system must support a normal business load of up to 250 concurrent users as specified in NFR-005."
+  ],
+  "risks": [
+    {
+      "description": "There is a direct conflict between the 15-minute RPO and the nightly backup frequency mentioned in the RFP. If unresolved, this creates a risk of significant data loss (up to 24 hours) in a disaster scenario, violating the stated requirement."
+    },
+    {
+      "description": "The 6-business-day onboarding goal is at risk if the system does not clearly report incomplete applications, as the performance clock only starts upon completion."
+    },
+    {
+      "description": "Data residency compliance is at risk if subprocessors or support staff access data from outside the UK without explicit disclosure and approval."
+    },
+    {
+      "description": "Budget overrun risk if the migration of 10,000 records or the finance integration proves more complex than the indicative budget allows."
+    }
+  ],
+  "glossary": [
+    {
+      "definition": "Recovery Point Objective; the maximum acceptable amount of data loss measured in time.",
+      "term": "RPO"
+    },
+    {
+      "definition": "Recovery Time Objective; the maximum acceptable duration of service downtime.",
+      "term": "RTO"
+    },
+    {
+      "term": "WCAG",
+      "definition": "Web Content Accessibility Guidelines; a set of recommendations for making Web content more accessible."
+    },
+    {
+      "term": "RBAC",
+      "definition": "Role-Based Access Control; a method of regulating access to computer or network resources based on the roles of individual users."
+    },
+    {
+      "term": "MFA",
+      "definition": "Multi-Factor Authentication; an electronic authentication method in which a user is granted access only after successfully presenting two or more pieces of evidence."
+    }
+  ],
+  "scope_out": [
+    "Replacement or modification of the existing finance system.",
+    "Migration of historical closed supplier records.",
+    "Automated final decision-making on supplier eligibility (must be a manual employee decision).",
+    "Hardware procurement or on-premises hosting infrastructure."
+  ],
+  "summary": "MetroLink Regional Transit Authority is procuring a digital procurement and vendor onboarding service to replace manual, email-based processes. The solution will manage the full supplier lifecycle, integrate with Microsoft 365 and existing finance systems, and ensure strict UK data residency.",
+  "requirements_register": [
+    {
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2",
+      "status": "proposed",
+      "type": "goal",
+      "id": "GOAL-001",
+      "acceptance_criteria": [
+        "Median time for 100 consecutive completed applications is <= 6 business days."
+      ],
+      "description": "Reduce median time from complete supplier application to onboarding decision from 12 business days to no more than 6 business days within six months of launch."
+    },
+    {
+      "id": "FR-001",
+      "type": "functional",
+      "acceptance_criteria": [
+        "Supplier can save an application, log out, and resume within 30 days with all data intact."
+      ],
+      "description": "Provide a responsive supplier portal with save-and-resume registration for at least 30 calendar days, organization details, tax and banking data, contact roles, and document uploads.",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2, 03_Addendum_02_MetroLink_Clarifications.pdf p.2",
+      "status": "proposed"
+    },
+    {
+      "type": "functional",
+      "description": "Validate mandatory fields and document expiry dates; route complete applications to Procurement, Finance, and Risk reviewers.",
+      "acceptance_criteria": [
+        "Applications with missing mandatory fields or expired documents are prevented from submission."
+      ],
+      "id": "FR-002",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2",
+      "status": "proposed"
+    },
+    {
+      "acceptance_criteria": [
+        "Workflow correctly routes based on supplier category and spend thresholds."
+      ],
+      "status": "proposed",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2",
+      "description": "Support configurable approval paths by supplier category and estimated annual spend, recording approver, decision, timestamp, and comments.",
+      "id": "FR-003",
+      "type": "functional"
+    },
+    {
+      "acceptance_criteria": [
+        "Alerts are triggered at 90, 60, and 30 days; escalation occurs after 5 days overdue."
+      ],
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2",
+      "status": "proposed",
+      "description": "Notify supplier and owner at 90, 60, and 30 days before insurance/certification expiry; escalate overdue reviews after 5 business days.",
+      "type": "functional",
+      "id": "FR-004"
+    },
+    {
+      "description": "Maintain a searchable history of application changes and decisions; allow export of supplier records and audit history.",
+      "acceptance_criteria": [
+        "Staff can search history and export a full record in CSV or PDF format."
+      ],
+      "id": "FR-005",
+      "type": "functional",
+      "status": "proposed",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.2"
+    },
+    {
+      "acceptance_criteria": [
+        "Final records are successfully stored in the MetroLink SharePoint tenant with correct metadata."
+      ],
+      "description": "Import approved supplier documents from and store final records in the Authority's approved Microsoft 365 SharePoint tenant.",
+      "status": "proposed",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3",
+      "type": "functional",
+      "id": "FR-006"
+    },
+    {
+      "acceptance_criteria": [
+        "Data is successfully transmitted to the finance system with retry and duplicate detection logs."
+      ],
+      "id": "FR-007",
+      "type": "functional",
+      "description": "Send approved supplier master data to the existing finance system through a supported API or controlled file exchange.",
+      "status": "proposed",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3"
+    },
+    {
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3, 03_Addendum_02_MetroLink_Clarifications.pdf p.1",
+      "status": "proposed",
+      "acceptance_criteria": [
+        "Monthly uptime is >= 99.9%, excluding maintenance windows (max 4h/month, 5 days notice)."
+      ],
+      "id": "NFR-001",
+      "description": "Achieve 99.9% monthly availability, excluding maintenance windows notified at least 5 business days in advance (up to 4 hours per month).",
+      "type": "non_functional"
+    },
+    {
+      "type": "non_functional",
+      "id": "NFR-002",
+      "acceptance_criteria": [
+        "MFA is required for all staff logins; logs show encryption-at-rest is enabled."
+      ],
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3",
+      "status": "proposed",
+      "description": "Encrypt information in transit and at rest; enforce role-based access and multi-factor authentication for staff; log privileged access."
+    },
+    {
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3",
+      "status": "proposed",
+      "description": "Collect only necessary information; support configurable retention and legal hold.",
+      "type": "non_functional",
+      "id": "NFR-003",
+      "acceptance_criteria": [
+        "System supports legal holds and automated deletion based on a configurable schedule."
+      ]
+    },
+    {
+      "id": "NFR-004",
+      "type": "non_functional",
+      "description": "Supplier portal and staff screens must conform to WCAG 2.2 AA and support keyboard-only operation.",
+      "acceptance_criteria": [
+        "Portal passes a WCAG 2.2 AA audit and keyboard-only navigation test."
+      ],
+      "status": "proposed",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3"
+    },
+    {
+      "acceptance_criteria": [
+        "95% of pages load in <= 3 seconds during a 250-user load test."
+      ],
+      "id": "NFR-005",
+      "type": "non_functional",
+      "description": "95% of portal pages must load within 3 seconds for a load of up to 250 concurrent users.",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.4",
+      "status": "proposed"
+    },
+    {
+      "description": "Achieve a recovery point objective (RPO) of 15 minutes and a recovery time objective (RTO) of 4 hours.",
+      "id": "NFR-006",
+      "acceptance_criteria": [
+        "System can be restored with no more than 15 minutes of data loss."
+      ],
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3-4, 03_Addendum_02_MetroLink_Clarifications.pdf p.3",
+      "status": "proposed",
+      "type": "non_functional"
+    },
+    {
+      "id": "CON-001",
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.3, 03_Addendum_02_MetroLink_Clarifications.pdf p.1",
+      "status": "proposed",
+      "type": "constraint",
+      "description": "Supplier and financial data, backups, logs, and support access must remain in a cloud region located in the United Kingdom.",
+      "acceptance_criteria": [
+        "Primary data, backups, logs, and support sessions are verified to be hosted/accessed within the UK."
+      ]
+    },
+    {
+      "source": "01_RFP_MetroLink_Digital_Procurement.pdf p.4",
+      "status": "proposed",
+      "id": "CON-002",
+      "acceptance_criteria": [
+        "Total implementation costs do not exceed GBP 240,000 excluding VAT."
+      ],
+      "type": "constraint",
+      "description": "Implementation budget ceiling of GBP 240,000 excluding VAT."
+    }
+  ]
+}

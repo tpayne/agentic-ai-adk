@@ -45,11 +45,15 @@ class TestAgentsUseTheCanonicalLoadRequirementsSummaryTool:
         assert load_requirements_summary in requirements_consultant_agent.tools
         assert load_requirements_summary in requirements_simulation_query_agent.tools
 
-    def test_neither_new_agent_has_a_save_or_loop_control_tool(self):
+    def test_neither_new_agent_has_a_loop_control_tool(self):
+        # Requirements_Reviewer_Agent now also carries update_requirements_summary
+        # (Part C's intent-gated apply-mode tool) -- it still has no save/
+        # creation tool or loop_control/iteration_feedback machinery.
         from process_agents.common.requirements_reviewer_agent import requirements_reviewer_agent
         from process_agents.common.requirements_simulation_agent import requirements_simulation_query_agent
+        from process_agents.common.utils import load_requirements_summary, update_requirements_summary
 
-        assert len(requirements_reviewer_agent.tools) == 1
+        assert set(requirements_reviewer_agent.tools) == {load_requirements_summary, update_requirements_summary}
         assert len(requirements_simulation_query_agent.tools) == 1
 
 

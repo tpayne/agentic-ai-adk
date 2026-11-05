@@ -135,6 +135,11 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "source_files": ["rfp.pdf"],
     "summary": "Requirements for a vendor onboarding portal.",
     "industry_sector": "Retail",
+    "current_state": "Vendors are onboarded manually via email and spreadsheets.",
+    "future_state": "Vendors self-register through a portal with automated validation.",
+    "success_measures": ["50% reduction in onboarding time."],
+    "scope_in": ["Vendor self-service registration."],
+    "scope_out": ["Vendor payment processing."],
     "stakeholders": ["Procurement Lead", "Legal"],
     "assumptions": ["Vendors already have a tax id."],
     "risks": ["Vendor data may be incomplete."],
@@ -142,7 +147,8 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "requirements_register": [
         {"id": "FR-001", "type": "functional", "description": "Allow vendor registration.",
          "source": "rfp.pdf", "acceptance_criteria": ["A vendor can submit a registration form."],
-         "status": "proposed"},
+         "status": "proposed", "priority": "high", "owner": "Delivery Lead",
+         "confidence": "high", "verification_method": "Test", "traces_to": ["NFR-001"]},
         {"id": "NFR-001", "type": "non_functional", "description": "Respond within 2 seconds.",
          "source": "rfp.pdf", "acceptance_criteria": ["p95 latency < 2s"], "status": "proposed"},
     ],
@@ -154,6 +160,9 @@ SAMPLE_REQUIREMENTS_SUMMARY = {
     "requirements_needing_clarification": [],
     "inferred_requirements": [],
     "coverage_gaps": [{"category": "Data Privacy & Compliance", "description": "No retention policy stated."}],
+    "dependencies": [{"dependency": "SAP API availability", "description": "Needed for data export.",
+                       "status": "Confirmed"}],
+    "glossary": [{"term": "RFP", "definition": "Request for Proposal."}],
 }
 
 
@@ -167,20 +176,35 @@ class TestRequirementsDocumentGeneration:
 
         out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
         doc = docx.Document(out_path)
-        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
-        assert "1.0 Introduction and Purpose" in headings
-        assert "2.0 Stakeholders" in headings
-        assert "3.0 Requirements Register" in headings
-        assert "4.0 Requirement Priorities" in headings
+        h1 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        h2 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        headings = h1 + h2
+
+        assert "1.0 Introduction and Purpose" in h1
+        assert any("Business Context" in h for h in h1)
+        assert any("Current State" in h for h in h2)
+        assert any("Success Measures" in h for h in h2)
+        assert any("Scope" in h for h in h1)
+        assert any("In Scope" in h for h in h2)
+        assert any("Out of Scope" in h for h in h2)
+        assert any("Stakeholders" in h for h in h1)
+        assert any("Requirements Register" in h for h in h1)
+        assert any("Requirements Traceability & Verification" in h for h in h1)
+        assert any("Requirement Priorities" in h for h in h1)
         # Conflicting/clarification/inferred are empty in this sample --
         # must not render a heading for a section with nothing to show.
         assert not any("Conflicting Requirements" in h for h in headings)
         assert not any("Needing Clarification" in h for h in headings)
         assert not any("Inferred Requirements" in h for h in headings)
         assert any("Coverage Gaps" in h for h in headings)
-        # No diagram, no fabricated glossary.
-        assert not any("Glossary" in h for h in headings)
+        assert any("Dependency Register" in h for h in headings)
+        assert any("Glossary" in h for h in headings)
+        # No diagram.
         assert not any("Architecture Flow Diagram" in h for h in headings)
+        # 8 tables: version history, requirements register (functional +
+        # non_functional type buckets = 2 tables), traceability,
+        # priorities, coverage gaps, dependency register, glossary.
+        assert len(doc.tables) == 8
 
     def test_no_blank_pages_in_a_generated_requirements_document(self):
         with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
@@ -205,12 +229,48 @@ class TestRequirementsDocumentGeneration:
         assert result.startswith("ERROR:")
         assert PROCESS_JSON_FILENAME in result
 
+    def test_regenerating_with_nothing_saved_yet_is_clean_no_traceback_printed(self, capsys):
+        # "Regenerate the requirements document" before anything has ever
+        # been created is a routine, fully-expected condition (confirmed
+        # directly via a live CLI session) -- not a genuine crash. It must
+        # not dump a full Python traceback to the console/log the way an
+        # unexpected failure would.
+        result = create_standard_doc_from_file("X", schema_type="requirements")
+        assert result.startswith("ERROR:")
+        assert "No such file" in result
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    def test_the_saved_summarys_own_name_field_wins_over_the_process_name_argument(self):
+        # Mirrors _build_process_document's own data.get("process_name", process_name)
+        # precedence -- without this, a later standalone "regenerate the
+        # document" request (a fresh agent turn with no memory of the
+        # original drafting conversation) has no way to recover the
+        # original title.
+        data = dict(SAMPLE_REQUIREMENTS_SUMMARY)
+        data["name"] = "Acme Vendor Onboarding Requirements Specification"
+        with open(paths.output_path(REQUIREMENTS_SUMMARY_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Fallback Title", schema_type="requirements")
+        assert result.startswith("SUCCESS:")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert "Acme_Vendor_Onboarding_Requirements_Specification" in out_path
+
+        doc = docx.Document(out_path)
+        cover_page_text = [p.text for p in doc.paragraphs][:3]
+        assert any("Acme Vendor Onboarding Requirements Specification" in t for t in cover_page_text)
+
 
 SAMPLE_PROPOSAL_RESPONSE = {
     "summary": "Our response to the vendor onboarding portal RFP.",
     "our_understanding": "You need a self-service vendor registration portal with fast response times.",
     "solution_summary": "A cloud-native, self-service vendor portal integrated with the client's own ERP.",
     "expected_outcomes": ["Reduced vendor onboarding time.", "Fewer manual data-entry errors."],
+    "benefits_realisation": [
+        {"benefit": "Cost Reduction", "measure": "Manual onboarding effort", "expected_outcome": "50% reduction."},
+    ],
     "proposed_solution": "A cloud-native portal built on our existing vendor management platform.",
     "architecture_components": [
         {"name": "Vendor Portal UI", "description": "Self-service registration frontend.",
@@ -251,6 +311,7 @@ SAMPLE_PROPOSAL_RESPONSE = {
         {"phase": "Phase 2: Build & Integrate", "timing": "Weeks 5-10",
          "deliverable": "ERP integration live in staging.", "acceptance_criteria": "UAT passed."},
     ],
+    "transition_to_bau": "A two-week knowledge-transfer period with shadow support precedes full handover.",
     "governance_framework": "A joint steering committee meets monthly to review progress and risks.",
     "raci_matrix": [
         {"activity": "Architecture sign-off", "responsible": "Delivery Lead", "accountable": "Client Sponsor",
@@ -259,7 +320,10 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "escalation_path": ["Tier 1: Delivery Lead.", "Tier 2: Engagement Director."],
     "meeting_cadence": [{"meeting": "Steering Committee", "frequency": "Monthly", "attendees": "Sponsors, Delivery Lead"}],
     "team_structure": [{"role": "Delivery Lead", "allocation": "50% FTE"}],
-    "key_personnel": [{"role": "Delivery Lead", "responsibilities": "Overall delivery accountability."}],
+    "key_personnel": [
+        {"role": "Delivery Lead", "responsibilities": "Overall delivery accountability.",
+         "experience": "12 years in enterprise delivery.", "certifications": "PMP"},
+    ],
     "skills_and_certifications": ["Azure Solutions Architect Expert."],
     "case_studies": [
         {"title": "Retail Vendor Portal Rollout", "context": "A national retailer.",
@@ -271,6 +335,11 @@ SAMPLE_PROPOSAL_RESPONSE = {
     "client_dependencies": ["Client provides timely access to ERP sandbox credentials."],
     "risks_and_mitigations": [{"risk": "Data migration delays.", "mitigation": "Phased cutover plan."}],
     "qualifications": "Our team has delivered 12 similar vendor portals in the retail sector.",
+    "company_overview": "Founded in 2012, headquartered in Austin, with 200+ employees.",
+    "relevant_experience": "Two similar vendor-portal engagements delivered in the retail sector.",
+    "certifications_overview": "SOC 2 Type II certified; ISO 27001 aligned.",
+    "delivery_capability": "A dedicated delivery practice of 40+ consultants across three regions.",
+    "future_roadmap": ["Predictive vendor-risk scoring.", "Copilot-assisted onboarding review."],
     "pricing_approach": "Fixed-price implementation plus a per-seat annual subscription.",
     "pricing_table": [
         {"item": "Implementation", "basis": "One-time", "price": "TBD"},
@@ -299,10 +368,14 @@ class TestProposalResponseDocumentGeneration:
 
         assert "1.0 Executive Summary" in h1
         assert any("Understanding of Client Objectives" in h for h in h2)
-        assert any("Summary of Proposed Solution" in h for h in h2)
-        assert any("Differentiators & Value Proposition" in h for h in h2)
         assert any("Expected Outcomes & ROI" in h for h in h2)
-        assert "2.0 Proposed Solution" in h1
+        assert any("Benefits Realisation" in h for h in h2)
+        assert any("Summary of Proposed Solution" in h for h in h2)
+        assert any("Why We Are Best Placed to Deliver" in h for h in h1)
+        assert any("Differentiators & Value Proposition" in h for h in h2)
+        assert any("Industry / Domain Expertise" in h for h in h2)
+        assert any("Domain-Specific Accelerators" in h for h in h2)
+        assert any("Proposed Solution" in h for h in h1)
         assert any("Solution Architecture" in h for h in h1)
         assert any("Scope of Work & Boundaries" in h for h in h1)
         assert any("Services in Scope" in h for h in h2)
@@ -313,8 +386,8 @@ class TestProposalResponseDocumentGeneration:
         assert any("Key Technical Constraints" in h for h in h2)
         assert any("Compliance Matrix" in h for h in h1)
         assert any("Delivery & Engagement Approach" in h for h in h1)
-        assert any("Industry / Domain Expertise" in h for h in h2)
         assert any("Mobilisation & Phased Roadmap" in h for h in h2)
+        assert any("Transition to Business-As-Usual" in h for h in h2)
         assert any("Governance Model, Roles & Responsibilities" in h for h in h1)
         assert any("RACI Matrix" in h for h in h2)
         assert any("Indicative Profiles & Team Structure" in h for h in h1)
@@ -322,6 +395,11 @@ class TestProposalResponseDocumentGeneration:
         assert any("Relevant Success Stories & References" in h for h in h1)
         assert any("Case Studies" in h for h in h2)
         assert any("Qualifications" in h for h in h1)
+        assert any("Company Overview" in h for h in h2)
+        assert any("Relevant Experience" in h for h in h2)
+        assert any("Certifications" in h for h in h2)
+        assert any("Delivery Capability" in h for h in h2)
+        assert any("Future Roadmap & Innovation" in h for h in h1)
         assert any("Key Assumptions & Dependencies" in h for h in h1)
         assert any("Project Assumptions" in h for h in h2)
         assert any("Client Responsibilities & Dependencies" in h for h in h2)
@@ -332,13 +410,13 @@ class TestProposalResponseDocumentGeneration:
         assert any("Rate Cards & Change Control" in h for h in h2)
         assert any("Open Questions" in h for h in h1)
         assert any("Unaddressed Items" in h for h in h1)
-        # The solution-architecture diagram embeds as a real inline image.
-        assert len(doc.inline_shapes) >= 1
-        # 11 tables: version history, architecture components, compliance
-        # matrix, SLAs/KPIs, implementation plan, RACI matrix, meeting
-        # cadence, team structure, key personnel, risks and mitigations,
-        # pricing table.
-        assert len(doc.tables) == 11
+        # Two embedded diagrams: solution architecture + mobilisation roadmap.
+        assert len(doc.inline_shapes) == 2
+        # 12 tables: version history, architecture components, compliance
+        # matrix, benefits realisation, SLAs/KPIs, implementation plan,
+        # RACI matrix, meeting cadence, team structure, key personnel,
+        # risks and mitigations, pricing table.
+        assert len(doc.tables) == 12
         # Still no fabricated glossary, and not the process/design-style
         # flow diagram heading (a different section entirely).
         assert not any("Glossary" in h for h in headings)
@@ -358,7 +436,9 @@ class TestProposalResponseDocumentGeneration:
         doc = docx.Document(out_path)
         headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
         assert not any("Solution Architecture" in h for h in headings)
-        assert len(doc.inline_shapes) == 0
+        # The mobilisation-roadmap diagram still embeds -- it's driven by
+        # implementation_plan, not architecture_components.
+        assert len(doc.inline_shapes) == 1
 
     def test_no_implementation_plan_section_when_absent(self):
         # Same no-fabrication guarantee as architecture_components: no
@@ -399,3 +479,24 @@ class TestProposalResponseDocumentGeneration:
         result = create_standard_doc_from_file("X", schema_type=None)
         assert result.startswith("ERROR:")
         assert PROCESS_JSON_FILENAME in result
+
+    def test_the_saved_responses_own_name_field_wins_over_the_process_name_argument(self):
+        # Root-cause fix for the RTP-regeneration-loses-identity bug: a
+        # saved proposal_response.json never had a name field, so a later
+        # standalone "regenerate the document" request (a fresh agent
+        # turn with no memory of the original drafting conversation) had
+        # no way to recover the original title/filename and produced a
+        # differently-named file that read as a brand-new document.
+        data = dict(SAMPLE_PROPOSAL_RESPONSE)
+        data["name"] = "Harborlight Digital Supplier Portal Proposal Response"
+        with open(paths.output_path(PROPOSAL_RESPONSE_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Proposal_Response", schema_type="proposal_response")
+        assert result.startswith("SUCCESS:")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert "Harborlight_Digital_Supplier_Portal_Proposal_Response" in out_path
+
+        doc = docx.Document(out_path)
+        cover_page_text = [p.text for p in doc.paragraphs][:3]
+        assert any("Harborlight Digital Supplier Portal Proposal Response" in t for t in cover_page_text)

@@ -48,7 +48,14 @@ subprocess, from whatever process JSON is already saved on disk. I never re-run 
 design, compliance, or simulation, and I never modify the saved process_data.json itself -- each
 step's own expanded subprocess flow is written to its own file instead. Tell me to regenerate the
 subprocesses.
-"""
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request to regenerate subprocesses. Not otherwise used -- this agent's own static \"command\" kickoff string drives the fixed sequence below regardless of wording."}
+                    },
+                    "required": ["inquiry"]
+                }
             },
 
             "command": "Drive subprocess expansion now.",

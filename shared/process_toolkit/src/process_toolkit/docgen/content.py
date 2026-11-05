@@ -185,7 +185,12 @@ def _add_stakeholders_section(
     subject_noun: str = "process",
 ) -> bool:
     """Stakeholders — ISO formatted. Returns True if it rendered anything,
-    False on a no-op."""
+    False on a no-op. The table is 2 columns (Stakeholder/Responsibilities)
+    by default; Interest and Approval Authority columns are added ONLY
+    when at least one stakeholder entry actually carries that data, so
+    every OTHER caller of this shared renderer (process/design/
+    architecture documents, none of which populate these two fields)
+    renders byte-for-byte the same as before."""
     try:
         if not stakeholders or not isinstance(stakeholders, list):
             return False
@@ -202,10 +207,19 @@ def _add_stakeholders_section(
             doc.add_paragraph()
             return True
 
-        table = doc.add_table(rows=1, cols=2)
-        hdr = table.rows[0].cells
-        hdr[0].text = "Stakeholder"
-        hdr[1].text = "Responsibilities"
+        dict_stakeholders = [s for s in stakeholders if isinstance(s, dict)]
+        has_interest = any(s.get("interest") for s in dict_stakeholders)
+        has_authority = any(s.get("approval_authority") for s in dict_stakeholders)
+
+        headers = ["Stakeholder", "Responsibilities"]
+        if has_interest:
+            headers.append("Interest")
+        if has_authority:
+            headers.append("Approval Authority")
+
+        table = doc.add_table(rows=1, cols=len(headers))
+        for idx, label in enumerate(headers):
+            table.rows[0].cells[idx].text = label
 
         for s in stakeholders:
             if not isinstance(s, dict):
@@ -244,6 +258,13 @@ def _add_stakeholders_section(
                 row[1].text = "\n".join(str(x) for x in responsibilities)
             else:
                 row[1].text = str(responsibilities)
+            col = 2
+            if has_interest:
+                row[col].text = str(s.get("interest") or "")
+                col += 1
+            if has_authority:
+                row[col].text = str(s.get("approval_authority") or "")
+                col += 1
 
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()

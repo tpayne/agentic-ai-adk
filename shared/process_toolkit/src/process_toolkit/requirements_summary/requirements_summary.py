@@ -63,3 +63,20 @@ def load_requirements_summary(state: Optional[StateLike] = None) -> Dict[str, An
         return summary
     except Exception as e:
         return {"status": "ERROR", "error": str(e)}
+
+
+def update_requirements_summary(patch: Dict[str, Any], state: Optional[StateLike] = None) -> str:
+    """Shallow-merges `patch` onto the existing saved requirements summary
+    (patch keys overwrite, untouched keys survive) and re-persists via
+    save_requirements_summary -- for a reviewer agent applying targeted
+    corrections rather than re-synthesizing the whole document."""
+    if not isinstance(patch, dict):
+        return "ERROR: patch must be a JSON object."
+
+    existing = load_requirements_summary(state)
+    if not isinstance(existing, dict) or existing.get("status") in ("NOT_FOUND", "ERROR"):
+        return "ERROR: No existing requirements summary to update -- save one first."
+
+    existing.pop("status", None)
+    existing.update(patch)
+    return save_requirements_summary(existing, state)

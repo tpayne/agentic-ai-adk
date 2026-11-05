@@ -65,7 +65,7 @@ class TestRouterInstructions:
 
     def test_router_1d_is_distinct_from_file_based_summarization_and_regeneration(self):
         text = _router_text()
-        assert "### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)" in text
+        assert "### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION OR FROM FILES)" in text
         assert "is Section 1d (Requirements_Doc_Pipeline), not this section" in text
 
     def test_multi_intent_priority_mentions_the_new_pipeline(self):

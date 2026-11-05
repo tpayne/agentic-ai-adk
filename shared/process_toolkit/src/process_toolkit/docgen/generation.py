@@ -74,15 +74,21 @@ from process_toolkit.docgen.design_sections import (
 )
 from process_toolkit.docgen.requirements_sections import (
     _add_requirements_overview_section,
+    _add_business_context_section,
+    _add_scope_section,
     _add_requirements_register_section,
+    _add_traceability_section,
     _add_requirement_priorities_section,
     _add_conflicting_requirements_section,
     _add_requirements_needing_clarification_section,
     _add_inferred_requirements_section,
     _add_coverage_gaps_section,
+    _add_dependency_register_section,
+    _add_glossary_section,
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
+    _add_win_themes_section,
     _add_proposed_solution_section,
     _add_solution_architecture_section,
     _add_scope_of_work_section,
@@ -92,6 +98,7 @@ from process_toolkit.docgen.proposal_response_sections import (
     _add_team_profiles_section,
     _add_success_stories_section,
     _add_qualifications_section,
+    _add_future_roadmap_section,
     _add_assumptions_dependencies_section,
     _add_commercial_proposal_section,
     _add_open_questions_section,
@@ -221,6 +228,15 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
             data_filename = PROCESS_JSON_FILENAME
 
         data_path = paths.output_path(data_filename)
+        if not os.path.exists(data_path):
+            # A routine, fully-expected condition (nothing has been
+            # created/saved yet for this schema type -- the standard
+            # "regenerate before anything exists" case) -- return the
+            # same "ERROR: ... No such file ..." shape callers already
+            # match on, without the traceback.print_exc() below, which
+            # is reserved for genuinely unexpected failures.
+            return f"ERROR: No such file or directory: '{data_path}'"
+
         with open(data_path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
@@ -439,18 +455,25 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     Builds the requirements-tracking document into `doc` and saves it.
     Requirements-schema counterpart to _build_process_document/
     _build_design_document -- renders requirements_summary.json's own
-    fields directly (see requirements_sections.py). Deliberately NO
-    diagram section (a requirements register has no flow/architecture
-    diagram, unlike process/design) and NO fabricated Glossary (unlike
-    the process document's own hardcoded 4-term fallback glossary --
-    requirements_summary.json has no field to source one from, and this
-    pipeline's convention is to never fabricate a section with no
-    backing data, same as the design document's own glossary handling).
+    fields directly (see requirements_sections.py). No diagram section (a
+    requirements register has no flow/architecture diagram, unlike
+    process/design). Glossary IS rendered here (unlike the deliberate
+    no-fabrication exclusion this docstring used to describe) -- but only
+    when "glossary" is actually populated, and only with terms the
+    agent's own drafted content introduced, not a fabricated section with
+    no backing data; same conditional convention as every other optional
+    section here.
 
-    requirements_summary.json has no title/name field of its own -- `name`
-    is whatever the caller passed as `process_name`.
+    requirements_summary.json's own "name" field wins when present (set by
+    the drafting agent from the source material/description) -- `process_name`
+    is only a fallback for legacy data saved before this field existed.
+    Same precedence _build_process_document already gives "process_name"
+    and _build_design_document gives "document_metadata.title" -- without
+    it, a later standalone "regenerate the document" request (a fresh
+    agent turn with no memory of the original drafting conversation) has
+    no way to recover the original title.
     """
-    name = str(process_name)
+    name = str(data.get("name") or process_name)
     sector = data.get("industry_sector") or "N/A"
 
     stakeholders = data.get("stakeholders")
@@ -459,13 +482,16 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     requirements_needing_clarification = data.get("requirements_needing_clarification")
     inferred_requirements = data.get("inferred_requirements")
     coverage_gaps = data.get("coverage_gaps")
+    dependencies = data.get("dependencies")
+    glossary = data.get("glossary")
 
     consumed_keys = {
-        "source_directory", "source_files", "summary", "industry_sector",
+        "name", "source_directory", "source_files", "summary", "industry_sector",
+        "current_state", "future_state", "success_measures", "scope_in", "scope_out",
         "stakeholders", "assumptions", "risks", "open_questions",
         "requirements_register", "requirement_priorities",
         "conflicting_requirements", "requirements_needing_clarification",
-        "inferred_requirements", "coverage_gaps",
+        "inferred_requirements", "coverage_gaps", "dependencies", "glossary",
         # Legacy old-format fields (is_old_format_requirements_summary) --
         # already rendered by _add_requirements_register_section's own
         # old-format branch when present, so they must not also reappear
@@ -512,16 +538,28 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     rendered = True  # Introduction and Purpose always renders unconditionally.
     _add_requirements_overview_section(doc, data)
 
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_business_context_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_scope_section(doc, data)
+
     if stakeholders:
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_stakeholders_section(
-            doc, stakeholders, heading="2.0 Stakeholders", subject_noun="requirements effort",
+            doc, stakeholders, heading="4.0 Stakeholders", subject_noun="requirements effort",
         )
 
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_requirements_register_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_traceability_section(doc, data)
 
     if requirement_priorities:
         if rendered:
@@ -549,6 +587,16 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_coverage_gaps_section(doc, coverage_gaps)
+
+    if dependencies:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_dependency_register_section(doc, dependencies)
+
+    if glossary:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_glossary_section(doc, glossary)
 
     if rendered:
         add_iso_page_break(doc)
@@ -579,19 +627,30 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     requirements_sections.py applies to its own Glossary; it's simply
     conditional on the agent having actually populated the field, same
     as every other optional section here. Still NO fabricated Glossary.
-    Also renders a much fuller enterprise-RTP table of contents: Scope of
-    Work & Boundaries, Delivery & Engagement Approach, Governance Model,
-    Indicative Profiles & Team Structure, and Relevant Success Stories &
-    References are each a single container section holding several
+    Also renders a much fuller enterprise-RTP table of contents: Why We
+    Are Best Placed to Deliver (a consolidated "win themes" section),
+    Scope of Work & Boundaries, Delivery & Engagement Approach (now
+    including a visual mobilisation-roadmap diagram and a Transition-to-
+    BAU subsection), Governance Model, Indicative Profiles & Team
+    Structure, Relevant Success Stories & References, a restructured
+    multi-subsection Qualifications section, and Future Roadmap &
+    Innovation are each a single container section holding several
     independently-optional Heading-2 subsections (see
     proposal_response_sections.py's own `_add_scope_of_work_section` and
     siblings) -- structural patterns consistently present in real
     competitive RFP responses that pure narrative alone doesn't capture.
 
-    proposal_response.json has no title/name field of its own -- `name`
-    is whatever the caller passed as `process_name`.
+    proposal_response.json's own "name" field wins when present (set by
+    the drafting agent from the RFP/requirements summary it drafted
+    against) -- `process_name` is only a fallback for legacy data saved
+    before this field existed. Same precedence _build_process_document
+    already gives "process_name" -- without it, a later standalone
+    "regenerate the document" request (a fresh agent turn with no memory
+    of the original drafting conversation) has no way to recover the
+    original title, and produces a differently-named file that reads as
+    a brand-new document rather than an update to the existing one.
     """
-    name = str(process_name)
+    name = str(data.get("name") or process_name)
 
     architecture_components = data.get("architecture_components")
     compliance_matrix = data.get("compliance_matrix")
@@ -599,17 +658,19 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     unaddressed_items = data.get("unaddressed_items")
 
     consumed_keys = {
-        "summary", "our_understanding", "solution_summary", "expected_outcomes",
-        "proposed_solution", "architecture_components",
+        "name", "summary", "our_understanding", "expected_outcomes", "benefits_realisation",
+        "solution_summary", "proposed_solution", "architecture_components",
         "services_in_scope", "environments_covered", "deliverables", "out_of_scope",
         "technical_constraints", "differentiators", "compliance_matrix",
         "domain_expertise", "domain_accelerators", "core_delivery_approach",
         "platform_approach", "quality_validation_approach", "automation_approach",
         "environment_setup", "tooling_stack", "slas_and_kpis", "implementation_plan",
-        "governance_framework", "raci_matrix", "escalation_path", "meeting_cadence",
-        "team_structure", "key_personnel", "skills_and_certifications",
+        "transition_to_bau", "governance_framework", "raci_matrix", "escalation_path",
+        "meeting_cadence", "team_structure", "key_personnel", "skills_and_certifications",
         "case_studies", "measurable_outcomes",
-        "qualifications", "assumptions", "client_dependencies", "risks_and_mitigations",
+        "qualifications", "company_overview", "relevant_experience",
+        "certifications_overview", "delivery_capability", "future_roadmap",
+        "assumptions", "client_dependencies", "risks_and_mitigations",
         "pricing_approach", "pricing_table", "ongoing_costs_approach",
         "rate_card_and_change_control", "open_questions_for_client", "unaddressed_items",
     }
@@ -654,6 +715,10 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     if rendered:
         add_iso_page_break(doc)
+    rendered = _add_win_themes_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
     rendered = _add_proposed_solution_section(doc, data)
 
     if architecture_components:
@@ -672,7 +737,7 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
 
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_delivery_approach_section(doc, data)
+    rendered = _add_delivery_approach_section(doc, data, name)
 
     if rendered:
         add_iso_page_break(doc)
@@ -689,6 +754,10 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_qualifications_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_future_roadmap_section(doc, data.get("future_roadmap"))
 
     if rendered:
         add_iso_page_break(doc)

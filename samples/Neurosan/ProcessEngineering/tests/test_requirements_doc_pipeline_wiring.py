@@ -59,8 +59,8 @@ def test_router_1d_is_distinct_from_file_based_summarization_and_regeneration():
     # never renders a document) and Section 9 (regenerates an EXISTING
     # summary only).
     text = ROUTER_HOCON.read_text(encoding="utf-8")
-    assert "### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION)" in text
-    assert "is 1d (Requirements_Doc_Pipeline), not this section" in text
+    assert "### 1d. REQUIREMENTS DOCUMENT CREATION (FROM A DESCRIPTION OR FROM FILES)" in text
+    assert "not this section, even when it also uses the word" in text
 
 
 def test_multi_intent_priority_mentions_the_new_pipeline():
