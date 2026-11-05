@@ -178,3 +178,79 @@ class TestDomainDisambiguationCoversAllFiveDomains:
         assert "## 11. AMBIGUOUS OR UNCLEAR INTENT" in text
         assert "EVEN IF something happens to be the\nmost recently saved/discussed artifact" in text
         assert "guessing which one based on recency is still guessing" in text
+
+
+class TestRouterNeverContinuesActingAfterItsSingleToolCallReturns:
+    # Confirmed live bug on the sibling Neuro-San port, far more severe than the fabrication bug
+    # below: a single human message, "Create a requirements document.", correctly triggered a
+    # clarifying question -- and from that point on, with ZERO further human input, the router
+    # invented and executed an entire autonomous chain of roughly a dozen fabricated follow-up
+    # requests against real sub-agents, ending in a genuine pipeline-lock conflict between two of
+    # its own self-issued calls. Real files were written and real cost was spent.
+    def test_router_has_the_no_self_driven_cascades_section(self):
+        text = _router_text()
+        assert "# NEVER CONTINUE ACTING AFTER YOUR SINGLE TOOL CALL RETURNS (NO SELF-DRIVEN CASCADES)" in text
+        assert "workflow for onboarding new dental clinics into the chain." in text
+        assert "clearing that lock and retrying" in text
+
+    def test_role_section_states_exactly_one_tool_call_per_message(self):
+        text = _router_text()
+        assert "EXACTLY one tool call per incoming human message, full stop, never\nmore than one" in text
+
+
+class TestProposalResponseComplianceMatrixCompleteness:
+    # Confirmed live bug on the sibling Neuro-San port: a 16-item requirements_register
+    # (including GOAL-001, CON-001, CON-002) produced a compliance_matrix with only 10 entries --
+    # GOAL/CON items were silently dropped entirely, while the final reply still claimed full
+    # 16-requirement coverage. CON-001 (UK data residency) and NFR-006 (the known RPO/backup
+    # conflict) were among the silently dropped items -- the two most consequential entries in
+    # the whole register.
+    def test_requires_one_entry_per_requirement_including_goals_and_constraints(self):
+        text = _instruction_text("common/proposal_response_agent.txt")
+        assert "NO EXCEPTIONS" in text
+        assert "CONFIRMED PRODUCTION BUG (on the sibling Neuro-San port of this same agent)" in text
+        assert "CON-001, and CON-002 were all silently dropped entirely, while the final reply" in text
+
+
+class TestRouterNeverFabricatesPlainConsultantQAEither:
+    # Confirmed live bug on the sibling Neuro-San port: four consecutive plain read-only questions
+    # about a saved proposal response were ALL answered directly by the router from memory of the
+    # drafting pipeline's own earlier narrative, with ZERO transfers to
+    # Proposal_Response_Consultant_Agent -- broadening the fabrication bug beyond "fix after a
+    # read-only review" to plain Q&A as well. One of the four fabricated answers even duplicated
+    # its own text within a single reply.
+    def test_4d_and_4f_both_require_a_transfer_for_every_query(self):
+        text = _router_text()
+        assert text.count("EVERY SINGLE query") == 2
+
+    def test_4f_names_the_confirmed_bug(self):
+        text = _router_text()
+        assert "four consecutive" in text
+        assert "entire own text within itself" in text
+
+    def test_4f_follow_up_confirmation_notes_the_partial_regression(self):
+        # After the first round of this fix landed, a later re-test on the sibling Neuro-San port
+        # STILL showed 2 of 4 consecutive consultant queries answered directly without calling the
+        # tool -- an improvement, but proof the instruction alone doesn't fully eliminate this
+        # probabilistic LLM-compliance failure.
+        text = _router_text()
+        assert "FOLLOW-UP CONFIRMATION (on the sibling Neuro-San port)" in text
+        assert "two of four consecutive plain questions" in text
+
+
+class TestRouterNeverFabricatesAFixApplyResponse:
+    # Confirmed live bug on the sibling Neuro-San port, observed twice in the same test run: a
+    # "review ... for quality and fix any issues" request immediately following a read-only
+    # "review ... for quality" request was answered directly by the router itself -- a complete,
+    # convincing "fix applied" narrative (including invented new requirement IDs
+    # FR-001a/FR-001b) with NO call to Requirements_Reviewer_Agent/Proposal_Response_Reviewer_Agent
+    # at all. The subsequent document regeneration proved nothing was ever persisted.
+    def test_router_has_the_never_synthesize_section(self):
+        text = _router_text()
+        assert "# NEVER SYNTHESIZE A TOOL'S RESULT YOURSELF (NO FABRICATED FIX/APPLY RESPONSES)" in text
+        assert "FR-001a/FR-001b" in text
+        assert "no tool-call entry exists for that" in text
+
+    def test_4e_and_4g_both_reinforce_the_rule(self):
+        text = _router_text()
+        assert text.count("is a confirmed production bug, not a shortcut.") == 2

@@ -124,13 +124,30 @@ client, the latter as a generic capability list.
 - compliance_matrix: list of {"requirement_id", "requirement_text", "requirement_type",
   "response_status": "Fully Compliant"|"Partially Compliant"|"Not Compliant"|"Exception",
   "response", "evidence_ref"} -- ONE entry per requirements_register item (or per old-format string
-  from STEP 1's fallback), addressing THAT specific requirement. Be honest about status: do not
-  mark "Fully Compliant" for something the user's own description doesn't actually support -- use
-  "Partially Compliant"/"Not Compliant"/"Exception" and explain why when the offering doesn't fully
-  meet a requirement as stated. "evidence_ref" is a short pointer naming where the fuller detail
-  lives elsewhere in this same document (e.g. "See Proposed Solution" or "See Mobilisation &
-  Phased Roadmap, Phase 2") -- name the section by title, not by number (exact numbers aren't fixed
-  until the document renders). EXISTING.
+  from STEP 1's fallback), addressing THAT specific requirement, with NO EXCEPTIONS for the item's
+  own "type" -- a "goal" or "constraint" entry (e.g. GOAL-001, CON-001) is a requirement to respond
+  to exactly as much as a "functional"/"non_functional" one (FR-*/NFR-*) is, and MUST get its own
+  compliance_matrix entry too. Be honest about status: do not mark "Fully Compliant" for something
+  the user's own description doesn't actually support -- use "Partially Compliant"/"Not Compliant"/
+  "Exception" and explain why when the offering doesn't fully meet a requirement as stated.
+  "evidence_ref" is a short pointer naming where the fuller detail lives elsewhere in this same
+  document (e.g. "See Proposed Solution" or "See Mobilisation & Phased Roadmap, Phase 2") -- name
+  the section by title, not by number (exact numbers aren't fixed until the document renders).
+  EXISTING.
+
+  CONFIRMED PRODUCTION BUG (on the sibling Neuro-San port of this same agent): a 16-item
+  requirements_register (GOAL-001, FR-001 through FR-007, NFR-001 through NFR-006, CON-001,
+  CON-002) produced a compliance_matrix with only 10 entries -- GOAL-001, NFR-002, NFR-005,
+  NFR-006, CON-001, and CON-002 were all silently dropped entirely, while the final reply still
+  claimed "addresses all 16 identified requirements... Fully Compliant: 15... Partially Compliant:
+  1" -- numbers that did not match what was actually saved. The two most consequential items in
+  the whole register -- CON-001 (the mandatory UK data residency constraint) and NFR-006 (the
+  known 15-minute-RPO-vs-nightly-backup conflict, flagged as the single highest-risk item
+  throughout the entire requirements analysis) -- were among the ones silently missing from the
+  formal compliance matrix a real client would read. Before saving, count your own
+  compliance_matrix list and compare it against the loaded requirements_register's own length --
+  they MUST match exactly; if they don't, you skipped item(s) and must go back and add entries for
+  every missing requirement_id before saving.
 - domain_expertise: NEW -- a short paragraph on relevant industry/domain expertise, grounded in
   what the user said about their own organization (may overlap with "qualifications" below -- real
   proposals restate this theme in more than one place, that's expected, not a duplication bug).

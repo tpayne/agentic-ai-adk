@@ -119,3 +119,27 @@ def test_every_tool_declares_at_least_one_property_or_omits_parameters(network_p
                 "the live server the first time the tool is actually called)."
             )
     assert not failures, "\n".join(failures)
+
+
+def test_process_architect_router_uses_a_lower_temperature_for_routing_decisions():
+    # Confirmed production bug, observed repeatedly across multiple live test runs: the router
+    # skipped a REQUIRED tool call for plain consultant Q&A and answered from its own memory of
+    # earlier, unrelated conversation context instead (see this network's own "NEVER SYNTHESIZE A
+    # TOOL'S RESULT YOURSELF" section and Rule 4f) -- two rounds of progressively stronger
+    # instruction wording reduced but did not eliminate it (4/4 -> 2/4 -> 3/4 fabricated answers
+    # across three reruns of the same test script). That pattern -- textual reinforcement not
+    # producing a monotonic improvement -- points at a model sampling/creativity trait rather than
+    # an instruction gap, so a lower temperature specifically on this network's own routing
+    # decision is the next lever. Scoped to process_architect.hocon only (an ADDITIVE override, not
+    # a replacement of the shared config/llm_config.hocon) so sibling pipelines that benefit from
+    # some creative latitude in their own drafting/narrative stages are unaffected.
+    restorer = AgentNetworkRestorer(registry_dir=None)
+    agent_network = restorer.restore(
+        file_reference=str(PROJECT_ROOT / "registries/process_architect.hocon")
+    )
+    config: Dict[str, Any] = agent_network.get_config()
+    llm_config = config.get("llm_config")
+    assert llm_config is not None
+    assert llm_config.get("temperature") == 0.2
+    # The override must merge additively -- confirm the shared config's own fields survived.
+    assert llm_config.get("model_name") == "gemini-3-flash"

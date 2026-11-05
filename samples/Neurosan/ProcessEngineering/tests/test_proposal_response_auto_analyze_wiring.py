@@ -148,3 +148,69 @@ def test_rule_10_ambiguous_intent_rejects_recency_based_defaulting():
     assert "## 10. AMBIGUOUS OR UNCLEAR INTENT" in text
     assert "EVEN IF something happens to be the\nmost recently saved/discussed artifact" in text
     assert "guessing which one based on recency is still guessing" in text
+
+
+def test_router_never_continues_acting_after_its_single_tool_call_returns():
+    # Confirmed live bug, far more severe than the fabrication bug above: a single human message,
+    # "Create a requirements document.", correctly triggered a clarifying question -- and from
+    # that point on, with ZERO further human input, the router invented and executed an entire
+    # autonomous chain of roughly a dozen fabricated follow-up requests against real sub-agents
+    # (a self-written project description, review/fix calls, document regenerations, a proposal
+    # response for a scenario nobody asked for, and a self-issued process-creation request drawn
+    # from this router's own sample_queries text), ending in a genuine pipeline-lock conflict
+    # between two of its own self-issued calls. Real files were written and real cost was spent.
+    text = ROUTER_HOCON.read_text(encoding="utf-8")
+    assert "# NEVER CONTINUE ACTING AFTER YOUR SINGLE TOOL CALL RETURNS (NO SELF-DRIVEN CASCADES)" in text
+    assert "workflow for onboarding new dental clinics into the chain." in text
+    assert "clearing that lock and retrying" in text
+    assert "EXACTLY one tool call per incoming human message, full stop, never more than one" in text
+
+
+def test_pipeline_requires_one_compliance_matrix_entry_per_requirement_including_goals_and_constraints():
+    # Confirmed live bug: a 16-item requirements_register (including GOAL-001, CON-001, CON-002)
+    # produced a compliance_matrix with only 10 entries -- GOAL/CON items were silently dropped
+    # entirely, while the final reply still claimed full 16-requirement coverage. CON-001 (UK data
+    # residency) and NFR-006 (the known RPO/backup conflict) were among the silently dropped items
+    # -- the two most consequential entries in the whole register.
+    text = PIPELINE_HOCON.read_text(encoding="utf-8")
+    assert "NO EXCEPTIONS" in text
+    assert "CONFIRMED PRODUCTION BUG: a 16-item requirements_register" in text
+    assert "GOAL-001, NFR-002, NFR-005, NFR-006, CON-001, and CON-002 were all silently dropped entirely," in text
+
+
+def test_router_never_fabricates_plain_consultant_qa_either():
+    # Confirmed live bug: four consecutive plain read-only questions about a saved proposal
+    # response ("What's in the saved proposal response?", compliance status, pricing, open
+    # questions) were ALL answered directly by the router from memory of the drafting pipeline's
+    # own earlier narrative, with ZERO calls to Proposal_Response_Consultant_Agent -- broadening
+    # the fabrication bug beyond the "fix after a read-only review" case to plain Q&A as well. One
+    # of the four fabricated answers even duplicated its own text within a single reply.
+    text = ROUTER_HOCON.read_text(encoding="utf-8")
+    assert text.count("EVERY SINGLE query") == 2
+    assert "CONFIRMED PRODUCTION BUG: four consecutive plain questions" in text
+    assert "duplicated its entire own text within itself" in text
+    assert "What open questions or unaddressed items were flagged for the client?" in text
+
+
+def test_4f_follow_up_confirmation_notes_the_partial_regression():
+    # After the first round of this fix landed, a later re-test STILL showed 2 of 4 consecutive
+    # consultant queries answered directly without calling the tool -- an improvement, but proof
+    # the instruction alone doesn't fully eliminate this probabilistic LLM-compliance failure.
+    text = ROUTER_HOCON.read_text(encoding="utf-8")
+    assert "FOLLOW-UP CONFIRMATION: after the above fix was first applied" in text
+    assert "two of" in text
+    assert "no amount of relevant context already sitting in your" in text
+
+
+def test_router_never_fabricates_a_fix_apply_response_without_calling_the_tool():
+    # Confirmed live bug, observed twice in the same test run: a "review ... for quality and fix
+    # any issues" request immediately following a read-only "review ... for quality" request was
+    # answered directly by the router itself -- a complete, convincing "fix applied" narrative
+    # (including invented new requirement IDs FR-001a/FR-001b) with NO call to
+    # Requirements_Reviewer_Agent/Proposal_Response_Reviewer_Agent at all. The subsequent document
+    # regeneration proved nothing was ever persisted.
+    text = ROUTER_HOCON.read_text(encoding="utf-8")
+    assert "# NEVER SYNTHESIZE A TOOL'S RESULT YOURSELF (NO FABRICATED FIX/APPLY RESPONSES)" in text
+    assert "FR-001a/FR-001b" in text
+    assert "no tool_start/tool_end entry exists for that turn in the" in text
+    assert text.count("is a confirmed production bug, not a shortcut.") == 2
