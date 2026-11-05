@@ -465,6 +465,39 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     release_pipeline_lock(token)
 
 
+def _dedupe_doubled_answer(text: Optional[str]) -> Optional[str]:
+    """Defensive safety net for an occasionally-observed response quirk:
+    the final compiled answer arrives as the exact same block of text
+    repeated twice back-to-back with NO separator at all between the two
+    copies -- confirmed directly against a real transcript (e.g. "...and
+    performance targets (NFR-001 and NFR-005).The following coverage gap
+    was identified..." with zero whitespace at the join). That specific
+    signature -- byte-for-byte identical halves, zero separator -- only
+    happens when something concatenated the same string with itself; a
+    model genuinely restating its own answer would have SOME separator
+    (a sentence break, a "to summarize", at minimum a newline). Neither
+    this project's own ChatSession nor neuro-san's own BasicMessage
+    Processor/AnswerMessageProcessor ever concatenate successive answer
+    chunks (AnswerMessageProcessor.process_message does a plain `self.
+    answer = text` overwrite, confirmed directly against its source) --
+    so this already arrives doubled from upstream of this client. Rather
+    than chase a root cause across a third-party streaming pipeline,
+    detect and collapse the exact-doubled shape before it ever reaches
+    the user -- a confusing repeated answer is strictly worse than this
+    collapsing a rare, legitimate exact-duplicate-content answer (which
+    would be a bizarre thing for an agent to say unprompted anyway)."""
+    if not text:
+        return text
+    length = len(text)
+    if length < 2 or length % 2 != 0:
+        return text
+    half = length // 2
+    first, second = text[:half], text[half:]
+    if first and first == second:
+        return first
+    return text
+
+
 class ChatSession:
     """One underlying neuro-san direct session against an agent network,
     plus the request/response state (chat_context, sly_data) that must be
@@ -710,7 +743,7 @@ class ChatSession:
                         json.dumps(token_accounting) if token_accounting else None,
                     )
 
-                return state.get("last_chat_response") or ""
+                return _dedupe_doubled_answer(state.get("last_chat_response")) or ""
             finally:
                 _release_any_leftover_pipeline_lock(self.sly_data)
 
@@ -833,7 +866,7 @@ class ChatSession:
                         _trace_logger.info(
                             "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
                         )
-                    yield {"status": "stopped", "response": last_compiled_answer or ""}
+                    yield {"status": "stopped", "response": _dedupe_doubled_answer(last_compiled_answer) or ""}
                     return
 
                 self.chat_context = processor.get_chat_context()
@@ -860,7 +893,11 @@ class ChatSession:
                         json.dumps(token_accounting) if token_accounting else None,
                     )
 
-                yield {"status": "done", "response": last_compiled_answer or "", "usage": self.last_usage}
+                yield {
+                    "status": "done",
+                    "response": _dedupe_doubled_answer(last_compiled_answer) or "",
+                    "usage": self.last_usage,
+                }
             finally:
                 _release_any_leftover_pipeline_lock(self.sly_data)
 

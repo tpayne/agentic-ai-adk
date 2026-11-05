@@ -228,6 +228,15 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
             data_filename = PROCESS_JSON_FILENAME
 
         data_path = paths.output_path(data_filename)
+        if not os.path.exists(data_path):
+            # A routine, fully-expected condition (nothing has been
+            # created/saved yet for this schema type -- the standard
+            # "regenerate before anything exists" case) -- return the
+            # same "ERROR: ... No such file ..." shape callers already
+            # match on, without the traceback.print_exc() below, which
+            # is reserved for genuinely unexpected failures.
+            return f"ERROR: No such file or directory: '{data_path}'"
+
         with open(data_path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 

@@ -229,6 +229,19 @@ class TestRequirementsDocumentGeneration:
         assert result.startswith("ERROR:")
         assert PROCESS_JSON_FILENAME in result
 
+    def test_regenerating_with_nothing_saved_yet_is_clean_no_traceback_printed(self, capsys):
+        # "Regenerate the requirements document" before anything has ever
+        # been created is a routine, fully-expected condition (confirmed
+        # directly via a live CLI session) -- not a genuine crash. It must
+        # not dump a full Python traceback to the console/log the way an
+        # unexpected failure would.
+        result = create_standard_doc_from_file("X", schema_type="requirements")
+        assert result.startswith("ERROR:")
+        assert "No such file" in result
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
     def test_the_saved_summarys_own_name_field_wins_over_the_process_name_argument(self):
         # Mirrors _build_process_document's own data.get("process_name", process_name)
         # precedence -- without this, a later standalone "regenerate the
