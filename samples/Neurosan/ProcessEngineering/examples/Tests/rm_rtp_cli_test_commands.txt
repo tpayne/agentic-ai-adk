@@ -9,12 +9,24 @@
 # consultant queries, quality review, and reviewer apply-mode (identify
 # issues -> fix them -> regenerate), both as a combined "review and fix"
 # request and as a separate later-turn "update the document" request.
+# Also covers a two-turn clarification follow-through (a bare creation
+# request answered with a clarifying question, then actually proceeding
+# once the missing details are supplied), domain-crossover disambiguation
+# (a saved requirements summary must not bleed into an unrelated
+# process-domain question), and literal restore/re-upload for both RM
+# (a directory containing a previously-downloaded requirements_summary.json)
+# and RtP (JSON pasted/attached directly in the request text) -- two
+# genuinely different mechanisms, each exercised in its own shape.
 #
-# Test fixtures used (already in this repo):
-#   - RequirementsManagement/MetroLink_RFP_Package -- the real RFP + addendum
-#   - RequirementsManagement/Healthcare_Referral_Baseline -- a second,
+# Test fixtures used (already in this repo), referenced below by path RELATIVE
+# to samples/Neurosan/ProcessEngineering (this script's own required cwd --
+# deliberately not an absolute, machine-specific path, since this repo is
+# public):
+#   - ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/
+#     MetroLink_RFP_Package -- the real RFP + addendum
+#   - .../RequirementsManagement/Healthcare_Referral_Baseline -- a second,
 #     independent RM example, used for the one-shot file-based creation test
-#   - ResponseToProposal/04_Bidder_Offering_Brief_Harborlight_Digital.pdf --
+#   - .../ResponseToProposal/04_Bidder_Offering_Brief_Harborlight_Digital.pdf --
 #     the bidder's own offering brief. proposal_response_agent has no tool
 #     to read a PDF itself, so its content is paraphrased inline below as
 #     the "our offering" description, exactly as a real user would type it
@@ -60,6 +72,17 @@ Regenerate the proposal response document.
 # A6. NEGATIVE: bare, underspecified creation request -- should ask a clarifying question, not fabricate
 Create a requirements document.
 
+# A6-FOLLOWUP: CLARIFICATION FOLLOW-THROUGH -- confirms the system actually proceeds once the
+# missing details are supplied in the NEXT turn, rather than asking again or still refusing. This
+# save gets overwritten by Part B's own summarize step below, so it doesn't affect later state.
+It's for a new patient referral scheduling system for a mid-sized dental clinic chain in the US, \
+needs to comply with HIPAA, and should let patients book, reschedule, and cancel appointments \
+online.
+
+# Clean up the document this just rendered so it doesn't show up as a stray leftover in later
+# "list" checks below -- this test is about the clarification exchange, not document generation.
+$ rm -f output/*.docx
+
 # A7. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
 Can you take a look at this and tell me what you think?
 
@@ -68,7 +91,7 @@ Can you take a look at this and tell me what you think?
 # ------------------------------------------------------------
 
 # B1. POSITIVE: standalone "just summarize" against the real MetroLink RFP package
-Read the files in /Users/alexgray/Work/agentic-ai-adk/samples/GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
+Read the files in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
 and summarize the requirements.
 
 # B2-B7. RM consultant queries against the saved summary
@@ -107,7 +130,7 @@ $ rm -f output/requirements_summary.json output/proposal_response.json
 
 # C2. POSITIVE: combined "analyze the RFP AND draft our response" in ONE request, with no
 # prior summarization step -- exercises the pipeline's own auto-analyze stage end to end.
-Analyze the RFP in /Users/alexgray/Work/agentic-ai-adk/samples/GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
+Analyze the RFP in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/MetroLink_RFP_Package \
 and draft our response. We are Harborlight Digital, a mid-sized technology consultancy. We \
 propose a configurable supplier onboarding portal: an authenticated supplier portal with \
 save-and-resume applications, document upload and validation, staff review queues, approval \
@@ -163,13 +186,40 @@ $ rm -f output/requirements_summary.json
 
 # D1. POSITIVE: the exact combined phrasing that used to silently stop at a chat summary
 # instead of also rendering a document.
-Review the documents in /Users/alexgray/Work/agentic-ai-adk/samples/GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/Healthcare_Referral_Baseline \
+Review the documents in ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/Healthcare_Referral_Baseline \
 and create a requirements management document.
 
 list
 
 # ------------------------------------------------------------
+# PART E -- domain disambiguation and literal restore (re-upload)
+# ------------------------------------------------------------
+
+# E1. DOMAIN CROSSOVER: a bare "requirements of THIS PROCESS" question, with no mention of "the
+# saved requirements summary," asks about a DIFFERENT artifact (a live business process) -- never
+# created anywhere in this script. The correct answer is "no process found," NOT a description of
+# the Healthcare_Referral_Baseline requirements_register Part D just saved -- confirms the router
+# doesn't let a saved requirements summary bleed into an unrelated process-domain question just
+# because something happens to be saved.
+What are the requirements of this process?
+
+# E2. LITERAL RESTORE (RM): re-uploading a previously-downloaded requirements_summary.json must
+# restore it VERBATIM rather than re-synthesizing it as prose -- a real, documented capability
+# never exercised above. Copy the summary Part D just saved into its own directory first, as
+# "requirements_summary.json" -- the exact filename the restore check looks for.
+$ mkdir -p /tmp/rm_test_restore_dir
+$ cp output/requirements_summary.json /tmp/rm_test_restore_dir/requirements_summary.json
+$ rm -f output/requirements_summary.json
+Import the requirements summary in /tmp/rm_test_restore_dir.
+
+# E3. LITERAL RESTORE (RtP): proposal_response_agent's own restore check looks for JSON pasted or
+# attached directly in the request text (recognized by a "compliance_matrix" key), not a directory
+# read -- a genuinely different mechanism from E2 above, so it needs its own, differently-shaped
+# test. A minimal object is enough to exercise the mechanism itself.
+Here is our proposal_response.json to resume -- please restore it: {"name": "Restored Test Response", "summary": "A minimal restored response for testing the literal-restore mechanism.", "compliance_matrix": [{"requirement_id": "TEST-001", "requirement_text": "Test requirement.", "requirement_type": "functional", "response_status": "Fully Compliant", "response": "Restored verbatim.", "evidence_ref": ""}]}
+
+# ------------------------------------------------------------
 # cleanup
 # ------------------------------------------------------------
-$ rm -rf /tmp/rm_test_empty_dir /tmp/rm_test_missing_dir
+$ rm -rf /tmp/rm_test_empty_dir /tmp/rm_test_missing_dir /tmp/rm_test_restore_dir
 exit

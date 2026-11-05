@@ -80,3 +80,18 @@ def test_both_reviewer_networks_carry_the_intent_gated_apply_mode_instructions()
         text = hocon_path.read_text(encoding="utf-8")
         assert "APPLY MODE" in text
         assert "By default you are READ-ONLY" in text or "By default I am read-only" in text
+
+
+def test_both_reviewer_networks_produce_one_combined_reply_in_apply_mode():
+    # Confirmed live bug: the old instructions had a separate "REPLY"
+    # section (full audit report, closing with a one-line verdict) and a
+    # separate "APPLY MODE... report exactly what changed" instruction --
+    # stacked, not merged. In apply mode the agent dutifully produced
+    # BOTH blocks back to back, and wherever they got joined dropped the
+    # paragraph break entirely (e.g. "...final solution scoping."**I have
+    # updated the proposal response as requested." with zero separator).
+    for hocon_path in (REQUIREMENTS_REVIEWER_HOCON, PROPOSAL_RESPONSE_REVIEWER_HOCON):
+        text = hocon_path.read_text(encoding="utf-8")
+        assert "do NOT produce both;" in text
+        assert "redundant, disjointed" in text
+        assert "one coherent" in text

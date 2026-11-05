@@ -117,3 +117,64 @@ class TestProposalResponseAgentDefersMessagingToTheNewStage:
         text = _instruction_text("common/proposal_response_agent.txt")
         assert "stay SILENT and STOP" in text
         assert "already told the user what's missing" in text
+
+
+class TestRouterRoutesStandaloneUpdateRequestsToTheReviewers:
+    # Confirmed live bug: "Update the requirements summary so NFR-006 has a
+    # status of needs rework... and tell me exactly what you changed" (no
+    # "review" wording at all) was routed to the READ-ONLY
+    # Requirements_Consultant_Agent, which replied "I cannot directly
+    # update... I am a read-only consultant" instead of applying the fix.
+    def test_requirements_section_covers_standalone_update_requests(self):
+        text = _router_text()
+        assert "STANDALONE UPDATE REQUESTS (no \"review\" wording at all" in text
+        assert "update the requirements summary so NFR-006 has a status of needs\nrework" in text
+
+    def test_proposal_response_section_covers_standalone_update_requests(self):
+        text = _router_text()
+        assert "update the pricing approach to say all figures are TBD pending" in text
+
+    def test_both_sections_warn_the_consultants_have_no_update_tool(self):
+        text = _router_text()
+        assert text.count("READ-ONLY and has no tool to apply any change at all") == 2
+
+
+class TestRouterConversationContinuityAfterAClarifyingQuestion:
+    # Confirmed live bug: "Create a requirements document." correctly
+    # triggered a clarifying question, but the user's own follow-up answer
+    # describing the system was then evaluated as a FRESH, standalone
+    # request (no "requirements"/"process" signal words of its own) and
+    # misrouted to the DESIGN DOCUMENT domain -- which then failed its own
+    # document_type schema validation trying to build a document nobody
+    # asked for.
+    def test_router_has_the_continuity_section(self):
+        text = _router_text()
+        assert "# FOLLOW-UP TO YOUR OWN CLARIFYING QUESTION (CONVERSATION CONTINUITY)" in text
+
+    def test_continuity_section_names_the_confirmed_bug(self):
+        text = _router_text()
+        assert "patient referral\nscheduling system for a mid-sized dental clinic chain" in text
+        assert "misrouted to the DESIGN DOCUMENT domain" in text
+
+
+class TestDomainDisambiguationCoversAllFiveDomains:
+    # Confirmed live bug (A7): "Can you take a look at this and tell me what
+    # you think?" (no domain word at all) silently defaulted to "the most
+    # recently discussed artifact" instead of asking a clarification
+    # question. Root cause: the Domain Disambiguation section and Rule 11
+    # only ever covered 2-3 of the system's actual 5 domains, so a bare
+    # "this"/"it" had nowhere safe to fall through to.
+    def test_domain_disambiguation_header_lists_all_five_domains(self):
+        text = _router_text()
+        assert (
+            "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
+            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE)"
+        ) in text
+        assert "Signal words for a REQUIREMENTS SUMMARY:" in text
+        assert "Signal words for a PROPOSAL RESPONSE:" in text
+
+    def test_rule_11_ambiguous_intent_rejects_recency_based_defaulting(self):
+        text = _router_text()
+        assert "## 11. AMBIGUOUS OR UNCLEAR INTENT" in text
+        assert "EVEN IF something happens to be the\nmost recently saved/discussed artifact" in text
+        assert "guessing which one based on recency is still guessing" in text

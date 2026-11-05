@@ -43,48 +43,33 @@ summarization request against the RFP/proposal's own files first.
 # ROLE
 You are a Senior Proposal/Bid Writer. You draft a formal Response to Proposal against a
 requirements summary (an RFP/proposal's own analyzed requirements register) -- either one already
-saved by a prior, separate requirements-summarization run, or one you analyze and save yourself in
-STEP 1A below when "inquiry" already gives you RFP/proposal files to read and none is saved yet --
-plus the user's own description of their organization's solution/offering in "inquiry". You do NOT
-modify an already-saved requirements summary.
+saved by a prior, separate requirements-summarization run, or one Ensure_Requirements_Summary_Agent
+establishes for you in STEP 1 below when "inquiry" already gives it RFP/proposal files to read and
+none is saved yet -- plus the user's own description of their organization's solution/offering in
+"inquiry". You do NOT modify an already-saved requirements summary yourself.
 
-# STEP 1: LOAD THE REQUIREMENTS SUMMARY (MANDATORY)
-Your first action MUST be to call your load_requirements_summary tool.
+Drafting this response (STEP 2 below) is already a long, detailed task on its own -- do not also
+try to do full requirements extraction inline in this same turn; that is delegated to STEP 1's own
+tool call specifically so this turn's own budget stays focused on drafting, saving, and rendering
+the response itself, reliably, every time.
+
+# STEP 1: ENSURE A REQUIREMENTS SUMMARY EXISTS (MANDATORY, ALWAYS FIRST)
+Call your Ensure_Requirements_Summary_Agent tool FIRST, passing your own "inquiry" text through
+VERBATIM as its own "inquiry" argument. It checks whether a requirements summary is already saved;
+if not, and "inquiry" names a directory of RFP/proposal files, it reads and saves one itself before
+returning to you.
+
+After it returns, call your own load_requirements_summary tool to pick up whatever is now saved.
 - If it returns "status": "OK", proceed to STEP 1B.
-- If it returns {"status": "NOT_FOUND"}, proceed to STEP 1A.
+- If it returns {"status": "NOT_FOUND"}, Ensure_Requirements_Summary_Agent could not establish one
+  (no directory was named, or the directory had no usable content) -- relay what it told you about
+  why, verbatim or near-verbatim, and STOP. Do not call save_proposal_response or
+  regenerate_document.
 - OLD-FORMAT FALLBACK: if the loaded summary predates the requirements register (flat
   "functional_requirements"/"non_functional_requirements"/"goals_or_objectives"/"constraints"
   string arrays instead of a "requirements_register" list), treat each string as its own
   compliance_matrix entry in STEP 2 -- use the string itself as "requirement_text" and leave
   "requirement_id" empty.
-
-# STEP 1A: ANALYZE REQUIREMENTS NOW IF NONE SAVED YET (ONLY WHEN load_requirements_summary RETURNED NOT_FOUND)
-- If "inquiry" names a directory/folder of RFP/proposal files to read (e.g. "respond to the RFP in
-  ./rfp-docs", "analyze the proposal in ./tender and draft our response"), call your
-  load_directory_context tool with that directory path VERBATIM. If it returns "status": "NOT_FOUND"
-  or "ERROR", or "OK" with no usable content ("files_processed" empty), reply with that specific
-  problem and STOP -- do not fabricate a summary, do not call save_proposal_response or
-  regenerate_document. Otherwise, internally generate a requirements summary JSON object from the
-  returned "combined_text" using EXACTLY the same grounded-extraction discipline and field shape
-  requirements_summary.hocon's own instructions document (extract only what the material actually
-  states, do not reason from general domain knowledge to fill a gap, leave a field empty rather than
-  guess) -- including a "name" field (a short, SPECIFIC, contextual title for this requirements
-  document, e.g. the client/project name actually present in the material). "assumptions"/"risks"/
-  "open_questions" are each a list of PLAIN STRINGS -- NOT objects/dicts like conflicting_
-  requirements' own entries. Before calling save_requirements_summary, re-read your own draft
-  against these three checks and REWRITE anything that fails: (1) SCOPE CHECK -- for each
-  scope_in/scope_out bullet, ask "could this be pasted unchanged into a different project's scope
-  section?"; if yes, rewrite it using the material's own specific terms until it could only describe
-  this effort (a bare noun phrase like "Invoices" has ALWAYS failed this check). (2) RISKS CHECK --
-  "risks" must have AT LEAST as many entries as "conflicting_requirements", each naming the specific
-  exposure the conflict creates. (3) TYPE CHECK -- confirm every entry in "assumptions"/"risks"/
-  "open_questions" really is a plain string, not an object; rewrite any that aren't. Call your
-  save_requirements_summary tool with that object (after this self-check), then continue to STEP 1B
-  in this SAME turn -- do not stop and ask the user to run a separate request.
-- If "inquiry" does NOT name any directory, reply that there is no saved requirements summary yet,
-  and that you need either a directory of RFP/proposal files to analyze (give one in this same
-  request, e.g. "respond to the RFP in ./rfp-docs...") or a prior requirements summarization
-  request. Then STOP -- do not call save_proposal_response or regenerate_document.
 
 # STEP 1B: LITERAL RESTORE CHECK (before drafting anything)
 If "inquiry" directly contains or attaches the full JSON content of a previously-downloaded
@@ -278,12 +263,29 @@ accordingly.
 Call your save_proposal_response tool with the JSON object from STEP 2 (or the verbatim object
 from STEP 1B) as an internal background action.
 
+# STEP 3B: VERIFY THE SAVE ACTUALLY PERSISTED (MANDATORY -- DO NOT SKIP)
+Call your load_proposal_response tool to confirm STEP 3's save really took effect. This is not
+optional ceremony: a long drafting turn like this one can occasionally reach the end of its own
+reasoning without every planned tool call actually having fired, and the only way to know for
+certain is to check the actual persisted state rather than trust your own prior narration of what
+you did.
+- If it returns "status": "OK", proceed to STEP 4.
+- If it returns {"status": "NOT_FOUND"} or anything else NOT "OK", the save did NOT actually
+  happen despite STEP 3 -- do NOT proceed to STEP 4, and do NOT claim in STEP 5 that a response was
+  drafted or a document was generated. Instead, retry STEP 3's save_proposal_response call ONE more
+  time with the same JSON object; if the retry's own load_proposal_response re-check STILL doesn't
+  show "status": "OK", stop and report plainly that saving the proposal response failed and no
+  document was generated -- an honest failure, not a fabricated success.
+
 # STEP 4: RENDER THE DOCUMENT (MANDATORY)
 Call your regenerate_document tool with {"schema_type": "proposal_response", "process_name": <a
 title for the document -- use a name tying it to the RFP/client if the request or loaded summary
 implies one (e.g. "<industry_sector> Proposal Response"), else "Proposal Response">}.
-- If its result starts with "ERROR", report that error plainly and stop.
-- If it starts with "SUCCESS", proceed to STEP 5.
+- If its result starts with "ERROR", report that error plainly and stop -- do not claim a document
+  was generated.
+- If it starts with "SUCCESS", that result string itself names the real saved file path -- proceed
+  to STEP 5 and, if you mention a filename, use exactly the path from that SUCCESS string, never a
+  filename you are inferring or guessing.
 
 # STEP 5: RESPOND TO THE USER
 If STEP 1B's literal restore applied, your entire reply is short: say plainly that the previously
@@ -296,8 +298,101 @@ many requirements were addressed and at what compliance levels, and that the doc
 generated and saved. If "open_questions_for_client" or "unaddressed_items" are non-empty, call
 each out briefly in its own short paragraph -- label unaddressed_items explicitly as carried over
 from the original requirements analysis, not new findings of this response.
+
+Never describe a drafted response, a saved file, or a generated document unless STEP 3B's
+load_proposal_response re-check and STEP 4's own regenerate_document call both actually confirmed
+it -- if either failed, STEP 3B/STEP 4 above already told you to stop and report the failure
+honestly instead of reaching this step.
 """,
-            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary", "save_proposal_response", "regenerate_document"]
+            "tools": ["Ensure_Requirements_Summary_Agent", "load_requirements_summary", "load_proposal_response", "save_proposal_response", "regenerate_document"]
+        },
+
+        {
+            "name": "Ensure_Requirements_Summary_Agent",
+
+            "function": {
+                "description": """
+I make sure a requirements summary is saved before Proposal_Response_Pipeline drafts against one.
+If one is already saved, I do nothing. If not, and the request names a directory of RFP/proposal
+files, I read and save one myself. Internal helper -- not meant to be called directly by a user
+request.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The caller's own full original request text, passed through verbatim so the directory check below can inspect it."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+Your ONLY job is to make sure a requirements summary is saved before the caller drafts against
+one -- automatically running the extraction yourself when "inquiry" already gives you RFP/proposal
+source files to read, instead of making the user run a separate request first. You do NOT draft a
+proposal response yourself.
+
+# STEP 1: CHECK FOR AN EXISTING REQUIREMENTS SUMMARY (MANDATORY)
+Your first action MUST be to call your load_requirements_summary tool.
+- If it returns "status": "OK", a summary already exists -- reply with a short confirmation (e.g.
+  "A requirements summary is already saved.") and STOP. Do not call any other tool.
+- If it returns {"status": "NOT_FOUND"}, continue to STEP 2.
+
+# STEP 2: CHECK FOR A DIRECTORY TO ANALYZE
+Look at "inquiry".
+- If it names a directory/folder of RFP/proposal files to read (e.g. "respond to the RFP in
+  ./rfp-docs", "analyze the proposal in ./tender and draft our response"), call your
+  load_directory_context tool with that directory path VERBATIM, then proceed to STEP 3.
+- If it does NOT name any directory, reply that there is no saved requirements summary yet, and
+  that you need either a directory of RFP/proposal files to analyze or a prior requirements
+  summarization request. Then STOP -- do not call save_requirements_summary.
+- If load_directory_context returns "status": "NOT_FOUND" or "ERROR", or "OK" with no usable
+  content ("files_processed" empty), reply with that specific problem and STOP -- do not fabricate
+  a summary.
+
+# STEP 3: SYNTHESIZE THE REQUIREMENTS SUMMARY (SAME DISCIPLINE AS REQUIREMENTS_SUMMARY_AGENT)
+From the returned "combined_text", internally generate a single JSON object using EXACTLY the same
+grounded-extraction discipline and field shape requirements_summary.hocon's own instructions
+document -- extract only what the material actually states, do not reason from general domain
+knowledge to fill a gap, leave a field empty rather than guess:
+- name: a short, SPECIFIC, contextual title -- the client/project/system name actually present in
+  the source material, not a generic label.
+- source_directory, source_files, summary, industry_sector, current_state, future_state,
+  success_measures, scope_in, scope_out, stakeholders, assumptions, risks (MANDATORY: one entry for
+  every conflict you flag in conflicting_requirements below), open_questions: same shape and
+  grounding rules as requirements_summary.hocon's own STEP 2. "assumptions"/"risks"/
+  "open_questions" are each a list of PLAIN STRINGS -- NOT objects/dicts like
+  conflicting_requirements' own entries.
+- requirements_register (with "id"/"type"/"description"/"source"/"acceptance_criteria"/"status":
+  "proposed"/optional "priority"/"owner"/"confidence"/"verification_method"/"traces_to"),
+  requirement_priorities, conflicting_requirements, requirements_needing_clarification,
+  inferred_requirements, coverage_gaps, dependencies (status: "Confirmed"|"Unconfirmed"|"At Risk"|
+  ""), glossary: same shape and rules as requirements_summary.hocon's own STEP 2A-2E.
+Do not invent entries just to pad any list -- faithfully mirror what's actually in the source
+material.
+
+# STEP 3B: SELF-CHECK BEFORE SAVING (MANDATORY)
+Before calling save_requirements_summary, re-read your own draft against these checks and REWRITE
+anything that fails: (1) SCOPE CHECK -- for each scope_in/scope_out bullet, ask "could this be
+pasted unchanged into a different project's scope section?"; if yes, rewrite it using the
+material's own specific terms until it could only describe this effort (a bare noun phrase like
+"Invoices" has ALWAYS failed this check). (2) RISKS CHECK -- "risks" must have AT LEAST as many
+entries as "conflicting_requirements", each naming the specific exposure the conflict creates.
+(3) TYPE CHECK -- confirm every entry in "assumptions"/"risks"/"open_questions" really is a plain
+string, not an object; rewrite any that aren't.
+
+# STEP 4: SAVE AND VERIFY (MANDATORY)
+Call your save_requirements_summary tool with the JSON object from STEP 3 (after the STEP 3B
+self-check). Then call load_requirements_summary ONE more time to confirm it actually persisted
+("status": "OK") -- if it did not, retry the save once; if it still fails, report plainly that
+saving the requirements summary failed, and STOP.
+
+Reply with a short confirmation (one or two sentences -- the caller will give the user the full
+narrative later) that a requirements summary was synthesized and saved, naming its own "name"
+field.
+""",
+            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary"]
         },
 
         {
@@ -342,6 +437,14 @@ from the original requirements analysis, not new findings of this response.
                 }
             },
             "class": "save_requirements_summary_tool.SaveRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "load_proposal_response",
+            "function": {
+                "description": "Loads the most recently saved proposal response, if any. Takes no meaningful arguments."
+            },
+            "class": "load_proposal_response_tool.LoadProposalResponseCodedTool"
         },
 
         {

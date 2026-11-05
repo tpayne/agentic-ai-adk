@@ -81,3 +81,19 @@ class TestRouterInstructions:
         text = _router_text()
         assert "saved proposal response → Proposal_Response_Consultant_Agent" in text
         assert "proposal response quality → Proposal_Response_Reviewer_Agent" in text
+
+
+def test_both_reviewer_agents_produce_one_combined_reply_in_apply_mode():
+    # Confirmed live bug (sibling neuro-san port, identical instruction
+    # pattern): a separate "REPLY" section (full audit report, closing
+    # with a one-line verdict) and a separate "APPLY MODE... report
+    # exactly what changed" instruction were stacked, not merged. In
+    # apply mode the agent dutifully produced BOTH blocks back to back,
+    # and wherever they got joined dropped the paragraph break entirely
+    # (e.g. "...final solution scoping."**I have updated the proposal
+    # response as requested." with zero separator).
+    for relative_path in ("common/requirements_reviewer_agent.txt", "common/proposal_response_reviewer_agent.txt"):
+        text = _instruction_text(relative_path)
+        assert "do NOT produce both;" in text
+        assert "redundant, disjointed" in text
+        assert "one coherent" in text
