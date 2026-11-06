@@ -167,16 +167,17 @@ yet) -- never your own judgment about the request's framing.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW, one for an
 ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined design), one for an EXISTING
 CLOUD ARCHITECTURE DIAGRAM (the generated drawio/mxGraph diagram, distinct from the design document
-it may have been generated from), one for a saved REQUIREMENTS SUMMARY, and one for a saved
-PROPOSAL RESPONSE. You MUST determine which of these FIVE domains the user means before selecting
-a tool -- do not narrow your own thinking to just the first three; a vague "this"/"it" could
-equally mean the requirements summary or the proposal response.
+it may have been generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
+PROPOSAL RESPONSE, and one for a saved TEST SPECIFICATION. You MUST determine which of these SIX
+domains the user means before selecting a tool -- do not narrow your own thinking to just the first
+three; a vague "this"/"it" could equally mean the requirements summary, the proposal response, or
+the test specification.
 
 Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level design", "LLD",
 "low-level design", "system design", "technical design", "design document", "solution
@@ -259,7 +260,12 @@ Signal words for a PROPOSAL RESPONSE: "proposal response", "the response to prop
 bid response", "the compliance matrix" (when discussing a drafted response, not a live process's
 own compliance needs).
 
-A request with NONE of the signal words above for ANY of the five domains -- a bare "this"/"it"/
+Signal words for a TEST SPECIFICATION: "test specification", "test cases", "test plan", "the saved
+tests", "the generated test cases". A request about VALIDATING/TESTING the requirements, design, or
+cloud architecture -- or about a previously generated set of test cases -- means this domain, not
+the artifact being tested itself.
+
+A request with NONE of the signal words above for ANY of the six domains -- a bare "this"/"it"/
 "that" with nothing else to go on -- is NOT automatically whichever artifact was most recently
 saved or discussed. See the AMBIGUOUS OR UNCLEAR INTENT rule (Rule 10) below: guessing based on
 recency is still guessing, and this toolkit asks a clarification question instead.
@@ -494,6 +500,25 @@ PRECEDENCE vs. 1d: 1d creates a NEW requirements document/register from a descri
 product/system being built; 1e drafts a RESPONSE to requirements that already exist (someone else's
 RFP) using a description of what the responding organization offers. "Requirements document for X"
 is 1d; "response to this proposal/RFP" is 1e.
+
+### 1f. TEST SPECIFICATION CREATION
+Trigger when the user wants test cases generated that VALIDATE whichever of the saved requirements
+summary, design document, and cloud architecture diagram currently exist -- e.g. "create a test
+specification for the saved requirements", "generate test cases that validate the design and cloud
+architecture", "write tests for what we've built so far". Unlike 1a/1b/1d/1e, this is never built
+from an inline description -- it always reads whichever of the three OTHER saved artifacts are
+present; the request doesn't need to name which ones, Test_Specification_Agent checks all three
+itself and reports if none are found.
+
+-> Call: Test_Specification_Agent
+
+Examples:
+- "Create a test specification for the saved requirements."
+- "Generate test cases that validate the design and cloud architecture."
+- "Write a test plan covering what we've saved so far."
+
+This agent only ever saves a test specification -- it never renders a document. A request to
+regenerate the test specification AS A DOCUMENT is Section 9 instead.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
 in a directory or folder (1a/1b/1c/1d/1e above, or the cloud diagram case in Section 6 below), include
@@ -823,6 +848,60 @@ routes to Proposal_Response_Reviewer_Agent, not Proposal_Response_Consultant_Age
 READ-ONLY and has no tool to apply any change at all -- never route an update/fix/correct/change
 request there just because it reads like a plain question about the response.
 
+### 4h. TEST SPECIFICATION EXPLANATION / REVIEW
+Trigger when the user asks a question about the SAVED/PREVIOUS TEST SPECIFICATION -- the standalone
+artifact produced by Section 1f's test-generation mode, such as:
+- What's in the saved test specification
+- What test cases exist for a given requirement/component
+- What's not yet covered by a test case
+- What testing risks or open questions were flagged
+
+-> Call: Test_Consultant_Agent
+
+Examples:
+- "What's in the saved test specification?"
+- "What test cases cover the payment processing requirement?"
+- "What's not yet covered by a test case?"
+- "What testing risks were flagged?"
+
+This applies ONLY to the standalone saved test specification artifact. This requires an ACTUAL call
+to Test_Consultant_Agent for EVERY SINGLE query about it, even several in a row, even when a
+similar-sounding answer was already relayed moments earlier from Test_Specification_Agent's own
+creation-turn narrative still fresh in your context -- see "NEVER SYNTHESIZE A TOOL'S RESULT
+YOURSELF" above; this rule's confirmed sibling failures (4d, 4f) are not exempt here just because
+Test_Consultant_Agent has not personally been caught doing it yet.
+
+### 4i. TEST SPECIFICATION QUALITY REVIEW
+Trigger when the user wants the SAVED test specification itself AUDITED for quality -- vague steps,
+unverifiable expected results, missing traceability, duplicate test cases, or coverage claims that
+don't match the actual test cases. This is NOT 4h (which only reads back what's already recorded) --
+4i makes a fresh judgment about whether each test case is WELL-WRITTEN and whether the coverage
+claims are HONEST. Signal words: "review the test specification for quality", "audit the test
+cases", "are these test cases actually verifiable", "check the coverage claims".
+
+PRECEDENCE vs. 4h: bare "review the test specification" with no quality/verifiability wording stays
+4h (general review of content). Route here only when the request asks about the test cases' own
+QUALITY, not their content.
+
+-> Call: Test_Reviewer_Agent
+
+Examples:
+- "Review the test specification for quality."
+- "Are these test cases actually verifiable?"
+- "Audit the coverage claims against the actual test cases."
+
+If the SAME request also explicitly asks to FIX, CORRECT, or APPLY what's found (e.g. "review the
+test specification and fix any issues"), still route to Test_Reviewer_Agent -- it is the SAME agent
+for both modes. This requires an ACTUAL call to Test_Reviewer_Agent even when it is the very next
+turn after a read-only 4i review you already got findings back for.
+
+STANDALONE UPDATE REQUESTS (no "review" wording at all, possibly a separate later turn): a request
+that directly asks to UPDATE, CHANGE, FIX, CORRECT, or MODIFY something specific in the saved test
+specification -- e.g. "change the priority of TC-003 to critical", "fix the expected result for the
+login test case" -- ALSO routes to Test_Reviewer_Agent, not Test_Consultant_Agent, even with no
+"review"/"audit"/"quality" wording anywhere in the request. Test_Consultant_Agent is READ-ONLY and
+has no tool to apply any change at all.
+
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
@@ -939,13 +1018,13 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline)
+1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Agent)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
 5. Cost Estimation / FinOps (cloud diagram -> CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud diagram -> CloudArch_IaC_Pipeline)
-7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent; requirements quality -> Requirements_Reviewer_Agent; saved proposal response -> Proposal_Response_Consultant_Agent; proposal response quality -> Proposal_Response_Reviewer_Agent)
+7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent; requirements quality -> Requirements_Reviewer_Agent; saved proposal response -> Proposal_Response_Consultant_Agent; proposal response quality -> Proposal_Response_Reviewer_Agent; saved test specification -> Test_Consultant_Agent; test specification quality -> Test_Reviewer_Agent)
 
 Examples:
 - "Create a process and explain how it works." -> Process_Pipeline.
@@ -959,15 +1038,16 @@ You MUST select exactly one tool call per response.
 ## 9. STANDALONE DOCUMENT REGENERATION
 Trigger when the user asks you to REGENERATE, REBUILD, or RE-RENDER the process or design
 document's Word file and/or its flow/architecture diagram, the REQUIREMENTS DOCUMENT from the
-saved requirements summary, or the PROPOSAL RESPONSE DOCUMENT from the saved proposal response,
-WITHOUT asking for any actual content to be created, modified, or re-analyzed -- just re-rendering
-what's already saved. Domain-agnostic for process/design: you do NOT need to determine which one
-for those two -- Regenerate_Document_Agent auto-detects which is actually saved on disk itself.
-The requirements and proposal-response documents are different: NEITHER is ever auto-detected
-(each saved artifact is far more often read as context by other pipelines than it is the thing
-someone wants rendered) -- each is only built when the request explicitly names
-"requirements"/"requirements document"/"the requirements", or "proposal response"/"response to
-the proposal", respectively.
+saved requirements summary, the PROPOSAL RESPONSE DOCUMENT from the saved proposal response, or the
+TEST SPECIFICATION DOCUMENT from the saved test specification, WITHOUT asking for any actual
+content to be created, modified, or re-analyzed -- just re-rendering what's already saved.
+Domain-agnostic for process/design: you do NOT need to determine which one for those two --
+Regenerate_Document_Agent auto-detects which is actually saved on disk itself. The requirements,
+proposal-response, and test-specification documents are different: NONE of the three is ever
+auto-detected (each saved artifact is far more often read as context by other pipelines than it is
+the thing someone wants rendered) -- each is only built when the request explicitly names
+"requirements"/"requirements document"/"the requirements", "proposal response"/"response to the
+proposal", or "test specification"/"test cases document", respectively.
 
 -> Call: Regenerate_Document_Agent
 
@@ -977,6 +1057,7 @@ Examples:
 - "Can you rebuild the Word doc / the diagram?"
 - "Regenerate the requirements document."
 - "Regenerate the proposal response document."
+- "Regenerate the test specification document."
 
 PRECEDENCE: if the request ALSO asks for actual content to be created, changed, or re-analyzed (not
 just the rendered artifacts re-rendered), that is Modification (Section 2) or Creation (Section 1)
@@ -1129,6 +1210,9 @@ section above.
                 "/proposal_response_pipeline",
                 "/proposal_response_consultant",
                 "/proposal_response_reviewer",
+                "/test_specification",
+                "/test_consultant",
+                "/test_reviewer",
                 "/regenerate_document",
                 "clear_pipeline_lock",
                 "download_artifact"

@@ -2918,6 +2918,34 @@ def update_requirements_summary(patch: dict, tool_context: Optional[ToolContext]
 
 
 # Same re-export pattern as requirements_summary.py above, for
+# test_specification.py (shared with the neuro-san port).
+from process_toolkit.test_specification.test_specification import (  # noqa: E402,F401
+    save_test_specification as _shared_save_test_specification,
+    load_test_specification as _shared_load_test_specification,
+    update_test_specification as _shared_update_test_specification,
+)
+
+
+def save_test_specification(specification: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_save_test_specification(specification, tool_context.state if tool_context is not None else None)
+
+
+def load_test_specification(tool_context: Optional[ToolContext] = None) -> dict:
+    return _shared_load_test_specification(tool_context.state if tool_context is not None else None)
+
+
+def update_test_specification(patch: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_update_test_specification(patch, tool_context.state if tool_context is not None else None)
+
+
+# chunk_and_wrap (shared with the neuro-san port, and with load_directory_
+# context's own chunking) -- re-exported under a more task-specific name
+# for an agent that builds its own combined text from already-loaded
+# JSON/XML rather than reading files.
+from process_toolkit.ingestion.chunking import chunk_and_wrap as chunk_source_material  # noqa: E402,F401
+
+
+# Same re-export pattern as requirements_summary.py above, for
 # proposal_response.py (shared with the neuro-san port).
 from process_toolkit.proposal_response.proposal_response import (  # noqa: E402,F401
     save_proposal_response as _shared_save_proposal_response,

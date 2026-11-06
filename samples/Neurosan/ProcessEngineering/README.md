@@ -18,12 +18,13 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 - Answers questions, runs **"what-if" scenarios**, and **simulates** resilience/scalability/security/latency against an existing process, design, or diagram.
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
+- **Drafts a formal Response to Proposal/RFP** against a saved (or self-analyzed) requirements summary, and **generates a traceable test specification** — test cases with coverage-gap analysis — validating whichever of the saved requirements, design, and cloud architecture currently exist.
 
 ---
 
 ## 🕸️ Agent Networks
 
-This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers all 23 (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
+This suite is built from a set of neuro-san agent networks — each one invocable directly (`--agent <name>`, or `ns chat <name>`) or routed to automatically by the top-level `process_architect` front-man. The table below covers the main entry points (full detail is in [Agent inventory](TECHNICAL_NOTES.md#agent-inventory)):
 
 | Network | What it is | What it does | Sub-agents it uses |
 | :--- | :--- | :--- | :--- |
@@ -47,8 +48,17 @@ This suite is built from a set of neuro-san agent networks — each one invocabl
 | `cloudarch_attack_simulation_query` | Attack simulation (`CloudArch_Attack_Simulation_Query_Agent`) | Runs an adversarial attack-path simulation over an existing diagram. Analysis-only. | — |
 | `cloudarch_finops` | Cost estimator (`CloudArch_FinOps_Agent`) | Estimates monthly cost and recommends optimizations for an existing diagram. | — |
 | `cloudarch_iac` | IaC generation pipeline (`CloudArch_IaC_Pipeline`) | Generates validated Infrastructure-as-Code (Terraform/CloudFormation/ARM-Bicep/Pulumi/CDK) implementing an existing diagram, then zips it for download. | `CloudArch_IaC_Agent`, `CloudArch_IaC_Validator_Agent` |
-| `requirements_summary` | Requirements summarizer (`Requirements_Summary_Agent`) | Reads a directory of files and saves a structured, traceable requirements summary. | — |
+| `requirements_summary` | Requirements summarizer (`Requirements_Summary_Agent`) | Reads a directory of files and saves a structured, traceable requirements summary. | `/requirements_chunk_extractor` |
 | `requirements_consultant` | Requirements consultant (`Requirements_Consultant_Agent`) | Answers questions about the saved requirements summary. | — |
+| `requirements_reviewer` | Requirements reviewer (`Requirements_Reviewer_Agent`) | Audits the saved requirements summary for quality (SRS/ISO-29148 criteria); fixes only when explicitly asked. | — |
+| `requirements_simulation_query` | Requirements simulation query (`Requirements_Simulation_Query_Agent`) | Runs a fresh completeness/gap analysis against the saved requirements summary. | — |
+| `requirements_doc_pipeline` | Creation pipeline (`Requirements_Doc_Pipeline`) | Synthesizes a brand-new requirements register from a description (or files) and renders the requirements document. | — |
+| `proposal_response_pipeline` | Creation pipeline (`Proposal_Response_Pipeline`) | Drafts a formal Response to Proposal against a saved (or self-analyzed) requirements summary and renders the document. | — |
+| `proposal_response_consultant` | Proposal response consultant (`Proposal_Response_Consultant_Agent`) | Answers questions about the saved proposal response. | — |
+| `proposal_response_reviewer` | Proposal response reviewer (`Proposal_Response_Reviewer_Agent`) | Audits the saved proposal response for honesty/substance; fixes only when explicitly asked. | — |
+| `test_specification` | Test specification generator (`Test_Specification_Agent`) | Reads whichever of the saved requirements/design/cloud architecture exist and generates a traceable test specification with coverage-gap analysis. | `/test_case_chunk_generator` |
+| `test_consultant` | Test specification consultant (`Test_Consultant_Agent`) | Answers questions about the saved test specification. | — |
+| `test_reviewer` | Test specification reviewer (`Test_Reviewer_Agent`) | Audits the saved test specification for quality (verifiability, traceability, coverage honesty); fixes only when explicitly asked. | — |
 | `regenerate_document` | Document regenerator (`Regenerate_Document_Agent`) | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | — |
 | `process_subprocess_regenerate` | Subprocess regenerator (`Subprocess_Driver_Agent_Main`) | Expands every top-level step of an already-saved process into its own detailed level-2/3 subprocess — no re-analysis, no process regeneration. | `Subprocess_Generator_Agent_Main` |
 
@@ -62,6 +72,8 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - Flow/architecture diagrams (level 1 and 2 process diagrams, or a cloud architecture diagram) as embedded images and, for cloud diagrams, editable drawio/mxGraph XML.
 - The underlying structured data (`process_data.json` / `design_data.json`) — versionable, queryable, and reusable as input for later updates, scenarios, or simulations.
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
+- A saved proposal response (`proposal_response.json`) when you draft a Response to Proposal/RFP.
+- A saved, traceable test specification (`test_specification.json`) when you generate test cases validating the saved requirements/design/cloud architecture.
 
 ---
 

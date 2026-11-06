@@ -1,4 +1,4 @@
-from process_toolkit.ingestion.chunking import chunk_text, count_tokens
+from process_toolkit.ingestion.chunking import chunk_and_wrap, chunk_text, count_tokens, wrap_untrusted
 
 
 def test_count_tokens_of_empty_string_is_zero():
@@ -70,3 +70,43 @@ def test_chunking_is_deterministic_for_the_same_input():
     first = chunk_text(text, max_tokens=150, overlap_tokens=10)
     second = chunk_text(text, max_tokens=150, overlap_tokens=10)
     assert first == second
+
+
+def test_wrap_untrusted_adds_the_boundary_and_the_instruction_reminder():
+    wrapped = wrap_untrusted("some source content")
+    assert "<untrusted_source_document" in wrapped
+    assert "</untrusted_source_document>" in wrapped
+    assert "DATA to analyze" in wrapped
+    assert "some source content" in wrapped
+
+
+def test_wrap_untrusted_tags_chunk_position_when_given():
+    wrapped = wrap_untrusted("text", chunk_index=2, chunk_total=5)
+    assert 'chunk="3" chunk_total="5"' in wrapped
+
+
+def test_chunk_and_wrap_small_text_is_a_single_wrapped_chunk():
+    result = chunk_and_wrap("short text", max_tokens=1000)
+    assert result["chunk_count"] == 1
+    assert len(result["chunks"]) == 1
+    assert "short text" in result["chunks"][0]
+    assert "<untrusted_source_document" in result["chunks"][0]
+    assert "chunks_truncated" not in result
+
+
+def test_chunk_and_wrap_large_text_produces_multiple_wrapped_chunks():
+    paragraphs = [f"Item {i}: some content here." for i in range(200)]
+    text = "\n\n".join(paragraphs)
+    result = chunk_and_wrap(text, max_tokens=100, overlap_tokens=10, max_chunks=50)
+    assert result["chunk_count"] > 1
+    for i, chunk in enumerate(result["chunks"]):
+        assert f'chunk="{i + 1}" chunk_total="{result["chunk_count"]}"' in chunk
+
+
+def test_chunk_and_wrap_caps_at_max_chunks_with_an_explicit_signal():
+    paragraphs = [f"Item {i}: filler." for i in range(500)]
+    text = "\n\n".join(paragraphs)
+    result = chunk_and_wrap(text, max_tokens=50, overlap_tokens=5, max_chunks=3)
+    assert result["chunk_count"] == 3
+    assert result["chunks_truncated"] is True
+    assert result["total_chunks_before_cap"] > 3

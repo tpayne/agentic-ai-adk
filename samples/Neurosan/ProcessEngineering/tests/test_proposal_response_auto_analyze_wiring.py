@@ -132,15 +132,17 @@ def test_domain_disambiguation_covers_all_five_domains_not_just_three():
     # you think?" (no domain word at all) silently defaulted to "the most
     # recently discussed artifact" instead of asking a clarification
     # question. Root cause: the Domain Disambiguation section and Rule 10
-    # only ever covered 2-3 of the system's actual 5 domains, so a bare
-    # "this"/"it" had nowhere safe to fall through to.
+    # only ever covered 2-3 of the system's actual domains, so a bare
+    # "this"/"it" had nowhere safe to fall through to. A sixth domain (TEST
+    # SPECIFICATION) was added later, in the same spot, under the same rule.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert (
         "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE)"
+        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)"
     ) in text
     assert "Signal words for a REQUIREMENTS SUMMARY:" in text
     assert "Signal words for a PROPOSAL RESPONSE:" in text
+    assert "Signal words for a TEST SPECIFICATION:" in text
 
 
 def test_rule_10_ambiguous_intent_rejects_recency_based_defaulting():
@@ -186,7 +188,9 @@ def test_router_never_fabricates_plain_consultant_qa_either():
     # the fabrication bug beyond the "fix after a read-only review" case to plain Q&A as well. One
     # of the four fabricated answers even duplicated its own text within a single reply.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
-    assert text.count("EVERY SINGLE query") == 2
+    # 2 from the original proposal-response fix (4f) plus 1 more added later
+    # for the test-specification domain's own analogous rule (4h).
+    assert text.count("EVERY SINGLE query") == 3
     assert "CONFIRMED PRODUCTION BUG: four consecutive plain questions" in text
     assert "duplicated its entire own text within itself" in text
     assert "What open questions or unaddressed items were flagged for the client?" in text
