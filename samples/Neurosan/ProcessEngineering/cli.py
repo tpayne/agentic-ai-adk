@@ -1884,6 +1884,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
+            "test_specification": "test_specification.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1892,7 +1893,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', or 'cloudarch'."
                 ),
             }), 400
 
@@ -2009,6 +2010,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
+            "test_specification": "test_specification.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -2016,7 +2018,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "or 'proposal_response'."
+                    "'proposal_response', or 'test_specification'."
                 ),
             }), 400
         with paths.use_session(_web_session_id_for_get_request()):

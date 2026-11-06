@@ -177,13 +177,15 @@ class TestDomainDisambiguationCoversAllFiveDomains:
     # only ever covered 2-3 of the system's actual 5 domains, so a bare
     # "this"/"it" had nowhere safe to fall through to.
     def test_domain_disambiguation_header_lists_all_five_domains(self):
+        # A sixth domain (TEST SPECIFICATION) was added later, in the same spot, under the same rule.
         text = _router_text()
         assert (
             "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE)"
+            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)"
         ) in text
         assert "Signal words for a REQUIREMENTS SUMMARY:" in text
         assert "Signal words for a PROPOSAL RESPONSE:" in text
+        assert "Signal words for a TEST SPECIFICATION:" in text
 
     def test_rule_11_ambiguous_intent_rejects_recency_based_defaulting(self):
         text = _router_text()
@@ -232,8 +234,10 @@ class TestRouterNeverFabricatesPlainConsultantQAEither:
     # read-only review" to plain Q&A as well. One of the four fabricated answers even duplicated
     # its own text within a single reply.
     def test_4d_and_4f_both_require_a_transfer_for_every_query(self):
+        # 2 from the original proposal-response fix (4d/4f) plus 1 more added later for the
+        # test-specification domain's own analogous rule (4h).
         text = _router_text()
-        assert text.count("EVERY SINGLE query") == 2
+        assert text.count("EVERY SINGLE query") == 3
 
     def test_4f_names_the_confirmed_bug(self):
         text = _router_text()

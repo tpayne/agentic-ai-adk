@@ -80,7 +80,8 @@ This neuro-san network suite provides:
 - **Design Consultant & Scenario Testing**: `design_consultant`'s `Design_Consultant_Agent` answers general questions about an existing design document (ownership, component responsibilities, requirements clarification), while `design_scenario_tester`'s `Design_Scenario_Tester` reasons through "what-if" scenarios (e.g. "what if the payments region goes down?") by tracing impact through the dependency and integration-point graph — handing off to the simulation network for any quantitative estimate.
 - **File-Based Requirements Extraction (opt-in)**: Any process, design-document, or cloud-architecture creation/refinement request can source its requirements from a directory of files instead of (or alongside) direct chat text — just ask, e.g. *"read the files in ./vendor-docs and create a process for onboarding new vendors."* `load_directory_context` extracts and combines text from every `.txt`/`.md`/`.docx`/`.pptx`/`.pdf`/`.eml`/`.msg`/`.xls`/`.xlsx`/`.xml`/`.json` file directly inside the given directory using pure-Python extractors (no system binaries required). This is strictly opt-in — absent that explicit phrasing, no network ever reads a directory on its own.
 - **Standalone Requirements Summarization & Consultation**: `requirements_summary`'s `Requirements_Summary_Agent` can read a directory of files on its own — without running a full creation pipeline — synthesize a structured requirements summary, report it in plain language in chat, and save it to `output/requirements_summary.json` for later reuse (e.g. *"read the files in ./vendor-docs and summarize the requirements"*). `requirements_consultant`'s `Requirements_Consultant_Agent` then lets you ask follow-up questions about that saved summary at any time (e.g. *"what's in the saved requirements summary?"*), and any later process/design/architecture creation request can reuse it instead of re-reading the original documents by saying so explicitly (e.g. *"create a process using the saved requirements summary"*). `requirements_reviewer`'s `Requirements_Reviewer_Agent` audits that saved summary for quality (SRS/ISO-29148 criteria), `requirements_simulation_query`'s `Requirements_Simulation_Query_Agent` runs a fresh completeness/gap analysis against it, and `requirements_doc_pipeline`'s `Requirements_Doc_Pipeline` synthesizes a brand-new register from a plain-language description and renders it as an ISO/IEC/IEEE 29148-style requirements document in one call.
-- **Proposal Response Generation**: Given an already-saved requirements summary (produced by summarizing an RFP/proposal's own files) and a description of your organization's solution/offering, `proposal_response_pipeline`'s `Proposal_Response_Pipeline` drafts a formal Response to Proposal — a point-by-point compliance matrix addressing every requirement, proposed solution, differentiators, qualifications, risks and mitigations, and pricing approach — grounded in general bid/proposal-management best practice (APMP's Proposal Management Body of Knowledge, Shipley Associates' capture/proposal method) rather than a single named standard, and renders the final Word document in one call (e.g. *"respond to this proposal — our solution offers a cloud-native vendor portal with 24/7 support"*). Never fabricates pricing figures, certifications, or client-specific facts beyond what the request actually provides.
+- **Proposal Response Generation**: Given an already-saved requirements summary (produced by summarizing an RFP/proposal's own files) and a description of your organization's solution/offering, `proposal_response_pipeline`'s `Proposal_Response_Pipeline` drafts a formal Response to Proposal — a point-by-point compliance matrix addressing every requirement, proposed solution, differentiators, qualifications, risks and mitigations, and pricing approach — grounded in general bid/proposal-management best practice (APMP's Proposal Management Body of Knowledge, Shipley Associates' capture/proposal method) rather than a single named standard, and renders the final Word document in one call (e.g. *"respond to this proposal — our solution offers a cloud-native vendor portal with 24/7 support"*). If no requirements summary is saved yet and the same request also names a directory of RFP/proposal files, the pipeline analyzes them itself first, in the same turn — no separate standalone requirements-extraction request needed. Never fabricates pricing figures, certifications, or client-specific facts beyond what the request actually provides. `proposal_response_consultant`'s `Proposal_Response_Consultant_Agent` answers follow-up questions about the saved response, and `proposal_response_reviewer`'s `Proposal_Response_Reviewer_Agent` audits it for honesty and substance, applying mechanical corrections only when explicitly asked to fix as well as review.
+- **Test Specification Generation**: `test_specification`'s `Test_Specification_Agent` reads whichever of a saved requirements summary, design document, and cloud architecture diagram currently exist (none, one, two, or all three — it checks all of them itself and reports if none are found) and generates a structured, traceable test specification validating them: test cases with concrete steps and a specific pass/fail expected result, traceability (`traces_to`) back to the exact requirement id or component name each one targets, and a coverage-gap analysis (`coverage_summary`) listing every requirement/component as either covered or not-covered per source artifact. Large combined source material is handled the same map-reduce way as `requirements_summary` — `test_case_chunk_generator`'s `Test_Case_Chunk_Generator_Agent` generates test cases from one bounded chunk at a time, and the results are merged, deduplicated, and globally renumbered. Mirrors `Requirements_Summary_Agent`'s own standalone, save-only shape: it never renders a document itself (that's a separate "regenerate the test specification document" request through `regenerate_document`). `test_consultant`'s `Test_Consultant_Agent` answers follow-up questions about the saved specification, and `test_reviewer`'s `Test_Reviewer_Agent` audits it for quality, applying mechanical corrections only when explicitly asked to fix as well as review.
 - **Importing/Restoring Already-Existing Process/Design Documents or a Cloud Architecture Diagram**: Distinct from the directory-based requirements extraction above (which treats a directory's contents as *background* for a *new* process/design the user describes in the same request), `process_import`/`design_import`/`cloudarch_import` treat the directory's contents as an **already-finished** artifact to bring into the toolkit as-is — no brief, no fresh design decisions. Point `process_import`/`design_import` at a directory (e.g. *"import the process documented in ./legacy-sops as a process document"*, *"load the design in ./old-hld-doc and bring it into the toolkit"*) and it reads every supported file, normalizes the content against the real `process_data.json`/`design_data.json` schema (inferring only what the material clearly implies, never inventing steps/components it doesn't support), determines the design document's type (HLD/LLD/Combined) when relevant, validates against the same structural rules every other generator uses, and persists the result — asking first if doing so would overwrite an existing baseline. `cloudarch_import` is simpler and stricter: there's no prose to extract from, so it looks for a file that's already valid drawio/mxGraph XML (typically one previously downloaded via `GET /artifacts/cloudarch/download`, re-attached) and persists it **VERBATIM** — no re-derivation at all — after the same overwrite-confirmation step. An attachment literally named `cloudarch_drawio.xml` (or a request like *"use this architectural diagram for further questions"*) routes here, not to `design_import`, even though a diagram and a design document sound similar. Once imported, the artifact is immediately available to every other network in its own domain (consultant, scenario testing, simulation, updates) exactly as if it had been generated from scratch.
 - **Requirements-Quality Analysis**: Both the standalone summarizer and the pipeline's own analysis agents flag: requirements that conflict with each other (`conflicting_requirements`), requirements too vague to act on (`requirements_needing_clarification`), relative priority (`requirement_priorities` — critical/high/medium/low), important requirements that are *not* stated in the source material but can reasonably be inferred (`inferred_requirements` — always clearly labeled as inferred and **never used by a generation pipeline unless the request explicitly asks to include them**), and entire standard categories (security, disaster recovery, data privacy, etc.) the source material never addresses at all (`coverage_gaps`). All of this is surfaced in chat, saved to the requirements JSON, and carried into the design/process/diagramming pipelines so generation agents can resolve trade-offs using priority rather than guessing.
 - **Requirement Traceability Register**: Every atomic requirement identified during analysis gets a stable id (`FR-001`/`NFR-001`/`GOAL-001`/`CON-001`, or `INF-001` for an inferred one), a record of which source file it came from, and one or more concrete acceptance criteria. For the design-document pipeline, this register is mapped directly into the design schema's `requirements.functional_requirements`/`requirements.non_functional_requirements`/`requirements.traceability_matrix` sections, giving every generated design document real, ISO/IEC/IEEE 29148-style requirement traceability.
@@ -702,9 +703,10 @@ calls this in practice.
 
 ### Process/Design artifacts
 
-`GET /artifacts/<name>` (`name` is `process`, `design`, `requirements`, or `proposal_response`)
-returns this project's own current `output/process_data.json`, `output/design_data.json`,
-`output/requirements_summary.json`, or `output/proposal_response.json`, parsed:
+`GET /artifacts/<name>` (`name` is `process`, `design`, `requirements`, `proposal_response`, or
+`test_specification`) returns this project's own current `output/process_data.json`,
+`output/design_data.json`, `output/requirements_summary.json`, `output/proposal_response.json`, or
+`output/test_specification.json`, parsed:
 
 ```json
 {"status": "ok", "name": "process", "data": { "...": "..." }}
@@ -760,6 +762,7 @@ GET /artifacts/process/download                 # the real process_data.json byt
 GET /artifacts/design/download                  # the real design_data.json bytes, as an attachment
 GET /artifacts/requirements/download             # the real requirements_summary.json bytes, as an attachment
 GET /artifacts/proposal_response/download        # the real proposal_response.json bytes, as an attachment
+GET /artifacts/test_specification/download       # the real test_specification.json bytes, as an attachment
 ```
 
 A generated document's filename is never fixed -- each one is named after whatever process/design
@@ -800,6 +803,16 @@ calls `save_proposal_response` directly, with no review loop to bypass), which r
 **verbatim** rather than re-drafting it. Also no JSON Schema validation on the save path (see
 `process_toolkit.schema.proposal_response_json`); any JSON object containing a `compliance_matrix`
 key is accepted as-is.
+
+**Downloading (but not resuming) a test specification**: `GET /artifacts/test_specification/
+download` (web client: the same tab's dropdown, set to **Test Specification JSON**) saves the
+exact, current `test_specification.json`. Unlike the four artifacts above, this one is
+**download-only** -- `Test_Specification_Agent` never reads a directory or an uploaded file at all
+(it only ever reads the already-saved requirements/design/cloudarch artifacts directly), so there is
+no literal-restore step anywhere in its own instructions to recognize a re-attached
+`test_specification.json`. Re-attaching it to a later chat turn has no special handling; it is not
+currently possible to resume a test specification the way a process/design/requirements summary/
+proposal response can be.
 
 The cloud architecture diagram works the same way: `GET /artifacts/cloudarch/download` (web client:
 the **Cloud Architecture** tab's own "Download XML" button) saves the exact, current
@@ -1088,6 +1101,91 @@ concrete acceptance criteria where testable.
   "including any inferred requirements" phrasing is required to opt in — otherwise inferred/derived
   requirements are never used to drive scope, by design.)*
 
+### Reviewing Requirements Quality
+
+- "Review the requirements for quality."
+- "Are these requirements reasonable?"
+- "Audit the saved requirements against SRS best practice."
+- "Review the requirements and fix any issues you find." *(`requirements_reviewer` is intent-gated —
+  read-only by default, applies only mechanical, well-grounded corrections when the request
+  explicitly asks for a fix as well as a review.)*
+
+---
+
+## Sample Prompts — Requirements Document Creation & Proposal Responses
+
+These prompts synthesize a brand-new requirements register (`requirements_doc_pipeline`) or draft a
+formal Response to Proposal/RFP (`proposal_response_pipeline`), as opposed to the standalone
+file-reading mode above.
+
+### Creating a Requirements Document
+
+- "Create a requirements document for a new payments API, covering PCI-DSS and GDPR."
+- "Draft a requirements register for an onboard flight-safety system, grounded in DO-178C."
+- "Review the documents in ./rfp-docs and create a requirements management document."
+
+### Drafting a Proposal Response
+
+- "Respond to this RFP -- our solution offers a cloud-native vendor portal with 24/7 support and a
+  proven track record in retail." *(after the RFP's requirements were already summarized)*
+- "Draft our proposal response. We propose a fixed-price implementation plus an annual subscription."
+- "Analyze the RFP in ./rfp-docs and draft our response -- we offer a cloud-native vendor portal with
+  24/7 support." *(no prior requirements-summary run needed -- the pipeline analyzes the directory
+  itself first, in the same turn.)*
+
+### Reviewing a Saved Proposal Response
+
+- "What's in the saved proposal response?"
+- "What's our compliance status on FR-003?"
+- "What's the pricing approach in the response?"
+- "What open questions were flagged for the client?"
+- "Review the proposal response for quality." / "Audit the compliance matrix for honesty."
+- "Review the proposal response and fix any issues you find." *(same intent-gated read-only-by-default
+  behavior as the requirements reviewer, above.)*
+
+---
+
+## Sample Prompts — Test Specification
+
+These prompts use `test_specification`, `test_consultant`, and `test_reviewer` to generate, review,
+and audit test cases that validate whichever of the saved requirements summary, design document,
+and cloud architecture diagram currently exist. Unlike the creation prompts above,
+`Test_Specification_Agent` never takes an inline description -- it always reads whichever of the
+three other saved artifacts are present, and reports if none are found.
+
+### Generating a Test Specification
+
+- "Create a test specification for the saved requirements."
+- "Generate test cases that validate the design and cloud architecture."
+- "Write a test plan covering what we've saved so far."
+
+Each run reports which source artifacts it tested against, how many test cases it generated and of
+what types, and any coverage gaps/risks/open questions, then saves a structured, traceable test
+specification to `output/test_specification.json` -- every test case gets a stable id (`TC-*`), a
+concrete expected result, and a `traces_to` pointing at the specific requirement/component it
+validates.
+
+### Reviewing a Saved Test Specification
+
+- "What's in the saved test specification?"
+- "What test cases cover the payment processing requirement?"
+- "What's not yet covered by a test case?"
+- "What testing risks were flagged?"
+
+### Auditing Test Specification Quality
+
+- "Review the test specification for quality."
+- "Are these test cases actually verifiable?"
+- "Audit the coverage claims against the actual test cases."
+- "Review the test specification and fix any issues you find." *(same intent-gated
+  read-only-by-default behavior as the other reviewer agents.)*
+
+### Regenerating the Test Specification Document
+
+- "Regenerate the test specification document." *(`Test_Specification_Agent` itself only ever saves
+  the JSON -- rendering the Word document is a separate request through `Regenerate_Document_Agent`,
+  same as the requirements and proposal-response documents.)*
+
 ---
 
 ## Sample Prompts — Importing Existing Process/Design Documents
@@ -1228,6 +1326,13 @@ The following table outlines the alignment of the design document JSON generated
 3. **Security/Compliance:** A control-coverage checklist plus a tally of `compliance_and_standards.applicable_standards[].compliance_status` produces evidence relevant to ISO/IEC 27001 and the standards declared in `security_architecture.compliance_standards[]`.
 4. **Latency:** Declared `quality_attributes[]` performance targets cross-checked against the deepest dependency chain in the component graph produce evidence relevant to ISO/IEC 25010's Time Behaviour sub-characteristic.
 
+### Test Specification Standards Alignment
+
+| Standard | Description | Alignment Level | JSON Evidence / Logic |
+| :--- | :--- | :--- | :--- |
+| **ISO/IEC/IEEE 29119** | Software Testing — test design, test cases, and test documentation | **High** | `test_cases[]` (stable `TC-*` ids, `preconditions`, `steps`, `expected_result`, `priority`, `verification_method`) map directly to 29119's test-case specification elements; `coverage_summary` provides the traceability evidence 29119 expects between test items and the requirements/design/architecture they validate. |
+| **ISO/IEC/IEEE 29148** | Systems and Software Engineering — Requirements Engineering | **Medium-High** | `test_cases[].traces_to` closes the loop back to the `FR-*`/`NFR-*`/`GOAL-*`/`CON-*` ids in `requirements_summary.json`'s own 29148-aligned register, giving each requirement a verification method as 29148 itself expects. |
+
 ---
 
 ## Agent inventory
@@ -1245,12 +1350,19 @@ networks out of the box.
 
 | Registry file | Purpose | Front-man agent | Direct sub-agents |
 | :--- | :--- | :--- | :--- |
-| `requirements_summary.hocon` | Reads a directory of files and produces/saves a structured, traceable requirements summary; also recognizes and restores a re-uploaded `requirements_summary.json` verbatim instead of re-summarizing it. | `Requirements_Summary_Agent` | — |
+| `requirements_summary.hocon` | Reads a directory of files and produces/saves a structured, traceable requirements summary; also recognizes and restores a re-uploaded `requirements_summary.json` verbatim instead of re-summarizing it. | `Requirements_Summary_Agent` | `/requirements_chunk_extractor` |
+| `requirements_chunk_extractor.hocon` | Extracts requirements from ONE bounded, token-budgeted, untrusted-data-wrapped chunk of a larger directory/description -- the MAP half of a map-reduce strategy for oversized source material; never invoked directly by a user request. | `Requirements_Chunk_Extractor_Agent` | — |
 | `requirements_consultant.hocon` | Answers questions about the saved requirements summary. | `Requirements_Consultant_Agent` | — |
 | `requirements_reviewer.hocon` | Audits the saved requirements summary against classic SRS/ISO-29148 "good requirement" criteria and flags vague/compound/untestable/duplicate/conflicting requirements with specific feedback. | `Requirements_Reviewer_Agent` | — |
 | `requirements_simulation_query.hocon` | Runs a fresh completeness/gap analysis against the saved requirements summary, reconciling with (not restating) whatever `coverage_gaps`/`inferred_requirements` extraction already flagged. | `Requirements_Simulation_Query_Agent` | — |
 | `requirements_doc_pipeline.hocon` | Synthesizes a brand-new requirements register directly from a description (no directory, no already-saved summary required) and renders the final ISO/IEC/IEEE 29148-style requirements document in one call. | `Requirements_Doc_Pipeline` | — |
 | `proposal_response_pipeline.hocon` | Drafts a formal Response to Proposal (point-by-point compliance matrix, proposed solution, qualifications, risks, pricing approach) against an already-saved requirements summary plus a description of the responding organization's offering, and renders the final document in one call. | `Proposal_Response_Pipeline` | — |
+| `proposal_response_consultant.hocon` | Answers questions about a previously-saved proposal response. | `Proposal_Response_Consultant_Agent` | — |
+| `proposal_response_reviewer.hocon` | Audits a previously-saved proposal response for honesty and substance -- fabricated compliance claims, thin placeholder sections, unsupported pricing. | `Proposal_Response_Reviewer_Agent` | — |
+| `test_specification.hocon` | Reads whichever of a saved requirements summary, design document, and cloud architecture diagram are present, generates test cases validating them (with traceability and a coverage gap analysis), and persists the result. | `Test_Specification_Agent` | `/test_case_chunk_generator` |
+| `test_case_chunk_generator.hocon` | Generates test cases from ONE CHUNK of a larger combined requirements/design/cloud-architecture payload -- the MAP half of `Test_Specification_Agent`'s own map-reduce strategy; never invoked directly by a user request. | `Test_Case_Chunk_Generator_Agent` | — |
+| `test_consultant.hocon` | Answers questions about a previously-saved test specification. | `Test_Consultant_Agent` | — |
+| `test_reviewer.hocon` | Audits a previously-saved test specification for quality -- vague steps, unverifiable expected results, missing traceability, duplicate test cases, dishonest coverage claims. | `Test_Reviewer_Agent` | — |
 | `process_import.hocon` | Imports an already-existing business process document directly into `process_data.json` -- or, if the uploaded file is literally a previously-downloaded `process_data.json`, restores it verbatim instead of re-extracting it. | `Process_Import_Agent` | — |
 | `design_import.hocon` | Imports an already-existing design document (HLD/LLD/Combined) directly into `design_data.json` -- or, if the uploaded file is literally a previously-downloaded `design_data.json`, restores it verbatim instead of re-extracting it. | `Design_Import_Agent` | — |
 | `cloudarch.hocon` | Generates/refines a cloud architecture diagram via a deterministic layout engine, audited by a reviewer agent. | `CloudArch_Pipeline` | `CloudArch_Agent`, `CloudArch_Reviewer_Agent` |
@@ -1272,7 +1384,7 @@ networks out of the box.
 | `design_simulation_query.hocon` | Runs the composite resilience/scalability/security/latency simulation over an existing design document. | `Design_Architecture_Simulation_Query_Agent` | — |
 | `regenerate_document.hocon` | Regenerates only the diagram and final Word document from whatever is already on disk -- no re-analysis, no review. | `Regenerate_Document_Agent` | — |
 | `process_subprocess_regenerate.hocon` | Expands every top-level step of an already-saved process into its own detailed level-2/3 subprocess -- no re-analysis, no process regeneration. Standalone equivalent of `process.hocon`'s own `Subprocess_Driver_Agent`/`Subprocess_Generator_Agent`, reusing the same `subprocess_tool` CodedTool classes. | `Subprocess_Driver_Agent_Main` | `Subprocess_Generator_Agent_Main` |
-| `process_architect.hocon` | Top-level front-man routing a request to whichever network above fits it. | `Process_Architect_Orchestrator` | All 27 networks above, referenced as `/process`, `/process_import`, `/process_update`, `/process_consultant`, `/process_scenario_tester`, `/process_simulation_query`, `/process_subprocess_regenerate`, `/design`, `/design_import`, `/design_update`, `/design_consultant`, `/design_scenario_tester`, `/design_simulation_query`, `/cloudarch`, `/cloudarch_import`, `/cloudarch_consultant`, `/cloudarch_simulation_query`, `/cloudarch_attack_simulation_query`, `/cloudarch_finops`, `/cloudarch_iac`, `/requirements_summary`, `/requirements_consultant`, `/requirements_reviewer`, `/requirements_simulation_query`, `/requirements_doc_pipeline`, `/proposal_response_pipeline`, `/regenerate_document` |
+| `process_architect.hocon` | Top-level front-man routing a request to whichever network above fits it. | `Process_Architect_Orchestrator` | All networks above directly reachable from a user request, referenced as `/process`, `/process_import`, `/process_update`, `/process_consultant`, `/process_scenario_tester`, `/process_simulation_query`, `/process_subprocess_regenerate`, `/design`, `/design_import`, `/design_update`, `/design_consultant`, `/design_scenario_tester`, `/design_simulation_query`, `/cloudarch`, `/cloudarch_import`, `/cloudarch_consultant`, `/cloudarch_simulation_query`, `/cloudarch_attack_simulation_query`, `/cloudarch_finops`, `/cloudarch_iac`, `/requirements_summary`, `/requirements_consultant`, `/requirements_reviewer`, `/requirements_simulation_query`, `/requirements_doc_pipeline`, `/proposal_response_pipeline`, `/proposal_response_consultant`, `/proposal_response_reviewer`, `/test_specification`, `/test_consultant`, `/test_reviewer`, `/regenerate_document` -- NOT `/requirements_chunk_extractor` or `/test_case_chunk_generator`, which are only ever reached indirectly, as a sub-agent tool of `/requirements_summary`/`/test_specification` respectively |
 
 ---
 

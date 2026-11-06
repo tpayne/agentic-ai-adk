@@ -14,6 +14,7 @@ from process_toolkit import paths
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
+from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -500,3 +501,115 @@ class TestProposalResponseDocumentGeneration:
         doc = docx.Document(out_path)
         cover_page_text = [p.text for p in doc.paragraphs][:3]
         assert any("Harborlight Digital Supplier Portal Proposal Response" in t for t in cover_page_text)
+
+
+SAMPLE_TEST_SPECIFICATION = {
+    "name": "MetroLink Vendor Onboarding Test Specification",
+    "source_requirements_used": True,
+    "source_design_used": True,
+    "source_cloudarch_used": False,
+    "summary": "Validates the MetroLink vendor onboarding requirements and design.",
+    "test_approach": "A mix of scripted functional tests and exploratory non-functional testing.",
+    "test_environment": "A staging environment mirroring the production UK-region deployment.",
+    "test_cases": [
+        {
+            "id": "TC-001", "type": "functional", "title": "Supplier registration",
+            "description": "A new supplier can register and save progress.",
+            "preconditions": ["Supplier portal is deployed."],
+            "steps": ["Open the portal", "Start a new registration", "Save and exit"],
+            "test_data": "supplier_email: vendor@example.com",
+            "expected_result": "The in-progress application is retrievable within 30 days.",
+            "acceptance_criteria": ["Application state persists across sessions."],
+            "priority": "critical", "status": "proposed",
+            "traces_to": ["FR-001"], "source_artifact": "requirements",
+            "verification_method": "Manual Test", "owner": "QA Lead",
+        },
+        {
+            "id": "NFR-TC-001", "type": "non_functional", "title": "Availability",
+            "description": "The portal meets its monthly availability target.",
+            "expected_result": "99.9% uptime measured over a full month.",
+            "priority": "high", "status": "proposed",
+            "traces_to": ["NFR-001"], "source_artifact": "requirements",
+        },
+    ],
+    "coverage_summary": {
+        "requirements_covered": ["FR-001", "NFR-001"],
+        "requirements_not_covered": ["CON-002"],
+        "design_components_covered": ["SupplierPortal"],
+        "design_components_not_covered": [],
+        "cloudarch_components_covered": [],
+        "cloudarch_components_not_covered": [],
+    },
+    "risks": ["Test data volumes may not reflect the real 10,000-record migration."],
+    "open_questions": ["Which browsers must be covered for the portal UI?"],
+    "dependencies": [{"dependency": "Staging environment", "description": "Mirrors production.",
+                       "status": "Confirmed"}],
+    "glossary": [{"term": "UAT", "definition": "User Acceptance Testing."}],
+}
+
+
+class TestTestSpecificationDocumentGeneration:
+    def test_generates_a_test_specification_document(self):
+        with open(paths.output_path(TEST_SPECIFICATION_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_TEST_SPECIFICATION, f)
+
+        result = create_standard_doc_from_file("MetroLink Test Specification", schema_type="test_specification")
+        assert result.startswith("SUCCESS:")
+
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        doc = docx.Document(out_path)
+        h1 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        h2 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        headings = h1 + h2
+
+        assert "1.0 Introduction and Purpose" in h1
+        assert any("Test Approach" in h for h in h2)
+        assert any("Test Environment" in h for h in h2)
+        assert any("Risks" in h for h in h2)
+        assert any("Open Questions" in h for h in h2)
+        assert any("Test Cases Register" in h for h in h1)
+        assert any("Functional Tests" in h for h in h2)
+        assert any("Non-Functional Tests" in h for h in h2)
+        assert not any("Security Tests" in h for h in headings)
+        assert any("Coverage Summary" in h for h in h1)
+        assert any("Dependency Register" in h for h in headings)
+        assert any("Glossary" in h for h in headings)
+        assert not any("Architecture Flow Diagram" in h for h in headings)
+
+    def test_no_blank_pages_in_a_generated_test_specification_document(self):
+        with open(paths.output_path(TEST_SPECIFICATION_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_TEST_SPECIFICATION, f)
+
+        result = create_standard_doc_from_file("MetroLink Test Specification", schema_type="test_specification")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        gaps = _blank_page_gaps(out_path)
+        assert gaps == [], f"found {len(gaps)} fully blank page(s) at break-index pairs {gaps}"
+
+    def test_test_specification_is_reachable_only_via_an_explicit_schema_type(self):
+        with open(paths.output_path(TEST_SPECIFICATION_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(SAMPLE_TEST_SPECIFICATION, f)
+
+        assert detect_schema_type_from_disk() == "process"
+
+        result = create_standard_doc_from_file("X", schema_type=None)
+        assert result.startswith("ERROR:")
+        assert PROCESS_JSON_FILENAME in result
+
+    def test_regenerating_with_nothing_saved_yet_is_clean_no_traceback_printed(self, capsys):
+        result = create_standard_doc_from_file("X", schema_type="test_specification")
+        assert result.startswith("ERROR:")
+        assert "No such file" in result
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    def test_the_saved_specifications_own_name_field_wins_over_the_process_name_argument(self):
+        data = dict(SAMPLE_TEST_SPECIFICATION)
+        data["name"] = "Acme Vendor Onboarding Test Specification"
+        with open(paths.output_path(TEST_SPECIFICATION_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        result = create_standard_doc_from_file("Fallback Title", schema_type="test_specification")
+        assert result.startswith("SUCCESS:")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert "Acme_Vendor_Onboarding_Test_Specification" in out_path

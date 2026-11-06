@@ -254,6 +254,9 @@ from .agent_registry import (
     requirements_reviewer_agent,
     requirements_simulation_query_agent,
     requirements_doc_pipeline,
+    test_specification_agent,
+    test_consultant_agent,
+    test_reviewer_agent,
     proposal_response_pipeline,
     proposal_response_consultant_agent,
     proposal_response_reviewer_agent,
@@ -319,6 +322,9 @@ root_agent = ProcessLlmAgent(
         requirements_reviewer_agent,
         requirements_simulation_query_agent,
         requirements_doc_pipeline,
+        test_specification_agent,
+        test_consultant_agent,
+        test_reviewer_agent,
         proposal_response_pipeline,
         proposal_response_consultant_agent,
         proposal_response_reviewer_agent,
@@ -1639,6 +1645,7 @@ def build_web_app(https: bool = True):
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
+            "test_specification": "test_specification.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1647,7 +1654,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', or 'cloudarch'."
                 ),
             }), 400
 
@@ -1777,6 +1784,7 @@ def build_web_app(https: bool = True):
             "design": "design_data.json",
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
+            "test_specification": "test_specification.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -1784,7 +1792,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "or 'proposal_response'."
+                    "'proposal_response', or 'test_specification'."
                 ),
             }), 400
         with toolkit_paths.use_session(_web_session_id_for_get_request()):

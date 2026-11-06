@@ -12,12 +12,13 @@ YOUR TASK:
 - If this tool exposes a schema_type parameter AND the user's own request for this turn explicitly
   names which document it means ("the process document"/"the business process" vs. "the design
   document"/"the architecture"/"HLD"/"LLD" vs. "the requirements"/"the requirements document" vs.
-  "the proposal response"/"the response to the proposal"), also pass schema_type="process",
-  schema_type="design", schema_type="requirements", or schema_type="proposal_response" accordingly.
-  Otherwise call it without schema_type (either the tool has no such parameter to set, or the
-  request doesn't name a domain). Requirements and proposal-response documents are NEVER
-  auto-detected -- only pass schema_type="requirements"/"proposal_response" when the request
-  explicitly names one.
+  "the proposal response"/"the response to the proposal" vs. "the test specification"/"the test
+  cases document"), also pass schema_type="process", schema_type="design",
+  schema_type="requirements", schema_type="proposal_response", or schema_type="test_specification"
+  accordingly. Otherwise call it without schema_type (either the tool has no such parameter to set,
+  or the request doesn't name a domain). Requirements, proposal-response, and test-specification
+  documents are NEVER auto-detected -- only pass schema_type="requirements"/"proposal_response"/
+  "test_specification" when the request explicitly names one.
 - The function will:
     * Load the resolved baseline (output/process_data.json or output/design_data.json)
     * Build a professional, structured Word document

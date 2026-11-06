@@ -27,6 +27,7 @@ from process_toolkit.filenames import safe_filename_component
 from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
 from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
+from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
@@ -85,6 +86,13 @@ from process_toolkit.docgen.requirements_sections import (
     _add_coverage_gaps_section,
     _add_dependency_register_section,
     _add_glossary_section,
+)
+from process_toolkit.docgen.test_specification_sections import (
+    _add_test_specification_overview_section,
+    _add_test_cases_register_section,
+    _add_coverage_summary_section,
+    _add_test_dependency_register_section,
+    _add_test_specification_glossary_section,
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
@@ -222,6 +230,8 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
             data_filename = REQUIREMENTS_SUMMARY_FILENAME
         elif resolved_type == "proposal_response":
             data_filename = PROPOSAL_RESPONSE_FILENAME
+        elif resolved_type == "test_specification":
+            data_filename = TEST_SPECIFICATION_FILENAME
         elif resolved_type == "design":
             data_filename = DESIGN_JSON_FILENAME
         else:
@@ -249,6 +259,8 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
             out_path = _build_requirements_document(doc, data, process_name)
         elif resolved_type == "proposal_response":
             out_path = _build_proposal_response_document(doc, data, process_name)
+        elif resolved_type == "test_specification":
+            out_path = _build_test_specification_document(doc, data, process_name)
         elif resolved_type == "design":
             out_path = _build_design_document(doc, data, process_name)
         else:
@@ -606,6 +618,98 @@ def _build_requirements_document(doc: docx.Document, data: dict, process_name: s
     # rendered above -- same mechanism _build_design_document already
     # uses, needed for the same reason (conditional sections mean fixed
     # literal numbers would collide/gap).
+    _renumber_design_document_headings(doc)
+
+    # Save
+    out_path = paths.output_path(f"{safe_filename_component(name)}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _build_test_specification_document(doc: docx.Document, data: dict, process_name: str) -> str:
+    """
+    Builds the test-specification document into `doc` and saves it.
+    Requirements-schema sibling of _build_requirements_document -- renders
+    test_specification.json's own fields directly (see
+    test_specification_sections.py). No diagram section, same reasoning as
+    the requirements document (a test register has no flow/architecture
+    diagram of its own).
+
+    test_specification.json's own "name" field wins when present (set by
+    the drafting agent from whichever source artifacts it read) --
+    `process_name` is only a fallback, same precedence
+    _build_requirements_document already gives its own "name" field.
+    """
+    name = str(data.get("name") or process_name)
+
+    dependencies = data.get("dependencies")
+    glossary = data.get("glossary")
+
+    consumed_keys = {
+        "name", "source_requirements_used", "source_design_used", "source_cloudarch_used",
+        "summary", "test_approach", "test_environment", "test_cases", "coverage_summary",
+        "risks", "open_questions", "dependencies", "glossary",
+    }
+
+    # ---- COVER PAGE ----
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(name)
+    run.bold = True
+    run.font.size = Pt(28)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run("Test Specification").font.size = Pt(18)
+
+    doc.add_paragraph()
+    doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    add_iso_page_break(doc)
+
+    # ---- DOCUMENT CONTROL + TOC ----
+    _add_version_history_table(
+        doc, version="1.0", author="QA/Test Analyst",
+        description="Initial generated test specification",
+    )
+
+    add_iso_page_break(doc)
+    doc.add_heading("Table of Contents", level=1)
+    _add_table_of_contents(doc)
+
+    add_iso_page_break(doc)
+
+    # ---- MAIN SECTIONS ----
+    # Section numbers are intentionally left un-normalized here, same
+    # reasoning as _build_requirements_document: _renumber_design_
+    # document_headings fixes them all in one pass from the final actual
+    # set of headings, right before saving, since which sections render
+    # depends on what's actually present in the source JSON.
+    rendered = True  # Introduction and Purpose always renders unconditionally.
+    _add_test_specification_overview_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_test_cases_register_section(doc, data)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_coverage_summary_section(doc, data)
+
+    if dependencies:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_test_dependency_register_section(doc, dependencies)
+
+    if glossary:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_test_specification_glossary_section(doc, glossary)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, consumed_keys)
+
     _renumber_design_document_headings(doc)
 
     # Save

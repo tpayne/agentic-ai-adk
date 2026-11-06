@@ -25,13 +25,14 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Regenerates the current process/design/requirements/proposal-response document (and, for process/design, its flow diagram) from whatever is already saved on disk -- no re-analysis, no compliance/simulation review, just re-rendering the existing content.",
-        "tags": ["process", "design", "requirements", "proposal-response", "process-engineering-port"],
+        "description": "Regenerates the current process/design/requirements/proposal-response/test-specification document (and, for process/design, its flow diagram) from whatever is already saved on disk -- no re-analysis, no compliance/simulation review, just re-rendering the existing content.",
+        "tags": ["process", "design", "requirements", "proposal-response", "test-specification", "process-engineering-port"],
         "sample_queries": [
             "Please regenerate the process document.",
             "Regenerate the design document.",
             "Regenerate the requirements document.",
-            "Regenerate the proposal response document."
+            "Regenerate the proposal response document.",
+            "Regenerate the test specification document."
         ]
     },
 
@@ -42,9 +43,10 @@
             "function": {
                 "description": """
 I regenerate ONLY the final Word document (and, for process/design, its flow/architecture diagram)
-for the current process, design, requirements summary, or proposal response -- from whatever is
-already saved on disk. I never re-run analysis, design generation, or compliance/simulation
-review, and I never change the saved content itself. Tell me to regenerate the document.
+for the current process, design, requirements summary, proposal response, or test specification --
+from whatever is already saved on disk. I never re-run analysis, design generation, or
+compliance/simulation review, and I never change the saved content itself. Tell me to regenerate
+the document.
 """,
                 "parameters": {
                     "type": "object",
@@ -74,32 +76,39 @@ Before calling either tool, check whether "inquiry" itself names a domain:
   explicit "requirements" mention reaches this branch.
 - If it explicitly says "proposal response" / "response to the proposal" / "the proposal response",
   schema_type = "proposal_response" -- same reasoning as "requirements", NEVER auto-detected.
+- If it explicitly says "test specification" / "test cases document" / "the test specification",
+  schema_type = "test_specification" -- same reasoning as "requirements", NEVER auto-detected.
+  UNLIKE "requirements"/"proposal_response", the saved test_specification.json DOES have its own
+  "name" field (set by Test_Specification_Agent), so no fallback title needs inventing for it.
 - Otherwise (a generic "regenerate the document" with no domain named), leave schema_type unset --
   do NOT guess. This case falls back to whichever single file actually exists on disk (process or
-  design only -- never requirements/proposal_response); if BOTH a process and a design document
-  exist and the request is this generic, that is a genuinely ambiguous request -- regenerate
-  whichever the most recent turns in this conversation were about, or if that's unclear too, ask
-  the user to say "the process document" or "the design document".
+  design only -- never requirements/proposal_response/test_specification); if BOTH a process and a
+  design document exist and the request is this generic, that is a genuinely ambiguous request --
+  regenerate whichever the most recent turns in this conversation were about, or if that's unclear
+  too, ask the user to say "the process document" or "the design document".
 
 # SEQUENCE
-1. If schema_type is "requirements" or "proposal_response", SKIP this step entirely -- neither a
-   requirements register nor a proposal response has a flow/architecture diagram to regenerate --
-   and go straight to step 2. Otherwise, call regenerate_flow_diagram, passing {"schema_type": ...}
-   if you determined one above (omit the argument entirely otherwise). ALWAYS produces some
-   diagram, even a minimal placeholder when nothing real is saved yet for that domain -- so its own
-   result alone does NOT tell you whether a real document exists to regenerate. Always proceed to
-   step 2 regardless of what this returns.
+1. If schema_type is "requirements", "proposal_response", or "test_specification", SKIP this step
+   entirely -- none of the three has a flow/architecture diagram to regenerate -- and go straight to
+   step 2. Otherwise, call regenerate_flow_diagram, passing {"schema_type": ...} if you determined
+   one above (omit the argument entirely otherwise). ALWAYS produces some diagram, even a minimal
+   placeholder when nothing real is saved yet for that domain -- so its own result alone does NOT
+   tell you whether a real document exists to regenerate. Always proceed to step 2 regardless of
+   what this returns.
 2. Call regenerate_document with the SAME schema_type determination (no "process_name" argument
    needed -- the saved JSON's own name/title takes precedence over the fallback, except for
    "requirements"/"proposal_response", neither of which has a title field at all -- pass a
    reasonable title yourself, e.g. "<industry_sector> Requirements Specification" or
    "<industry_sector> Proposal Response" if the loaded data names a sector, else "Requirements
-   Specification"/"Proposal Response"). This is the real check: if its result starts with "ERROR",
-   there is no actual saved document of that type yet -- reply that there is nothing to regenerate,
-   and that they should create one first (e.g. "create a process for ..." / "create a design
-   document for ..." / "read the files in <directory> and summarize the requirements" / "respond to
-   this proposal ..."). If it starts with "SUCCESS", report that the document was regenerated from
-   the current saved content (and, for process/design, that the flow diagram was too).
+   Specification"/"Proposal Response". "test_specification" DOES have its own "name" field, so no
+   fallback title is needed for it -- pass "process_name" only as a harmless default if you have
+   nothing better). This is the real check: if its result starts with "ERROR", there is no actual
+   saved document of that type yet -- reply that there is nothing to regenerate, and that they
+   should create one first (e.g. "create a process for ..." / "create a design document for ..." /
+   "read the files in <directory> and summarize the requirements" / "respond to this proposal ..." /
+   "create a test specification for the saved requirements"). If it starts with "SUCCESS", report
+   that the document was regenerated from the current saved content (and, for process/design, that
+   the flow diagram was too).
 
 Plain prose only in your final reply -- no raw JSON, tool names, or internal field names.
 """,
@@ -126,18 +135,18 @@ Plain prose only in your final reply -- no raw JSON, tool names, or internal fie
         {
             "name": "regenerate_document",
             "function": {
-                "description": "Regenerates the final Word document from whichever process/design/requirements/proposal-response JSON is already saved on disk.",
+                "description": "Regenerates the final Word document from whichever process/design/requirements/proposal-response/test-specification JSON is already saved on disk.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "schema_type": {
                             "type": "string",
-                            "enum": ["process", "design", "requirements", "proposal_response"],
-                            "description": "Pass this when the user's own request names which document they mean. \"requirements\"/\"proposal_response\" must ALWAYS be passed explicitly -- neither is ever auto-detected. Omit this entirely only for a genuinely generic process/design request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
+                            "enum": ["process", "design", "requirements", "proposal_response", "test_specification"],
+                            "description": "Pass this when the user's own request names which document they mean. \"requirements\"/\"proposal_response\"/\"test_specification\" must ALWAYS be passed explicitly -- none of the three is ever auto-detected. Omit this entirely only for a genuinely generic process/design request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
                         },
                         "process_name": {
                             "type": "string",
-                            "description": "Optional fallback document title, used only if the saved JSON itself has no name/title (always required in practice for schema_type=\"requirements\"/\"proposal_response\", neither of which has a title field at all)."
+                            "description": "Optional fallback document title, used only if the saved JSON itself has no name/title (always required in practice for schema_type=\"requirements\"/\"proposal_response\", neither of which has a title field at all; test_specification has its own \"name\" field so this is just a harmless default for it)."
                         }
                     }
                 }
