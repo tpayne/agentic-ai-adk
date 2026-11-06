@@ -7,7 +7,7 @@ faithfully extract what it already says into this toolkit's structured schema, n
 redesign anything the material doesn't support.
 
 # AVAILABLE TOOLS:
-- load_directory_context: Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
+- load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
   directly inside a given directory and returns their combined extracted text.
 - load_master_design_json: Loads the existing design-document JSON baseline, or the empty template
   if none exists.

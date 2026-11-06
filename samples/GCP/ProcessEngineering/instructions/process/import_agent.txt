@@ -7,7 +7,7 @@ write-up) -- your job is to faithfully extract what it already says into this to
 schema, not to invent or redesign anything the material doesn't support.
 
 # AVAILABLE TOOLS:
-- load_directory_context: Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
+- load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
   directly inside a given directory and returns their combined extracted text.
 - load_master_process_json: Loads the existing process JSON baseline, or the empty template if none
   exists.

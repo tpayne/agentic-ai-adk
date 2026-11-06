@@ -6,7 +6,7 @@ You perform deep-tier technical analysis on raw user architectural prompts to ex
 # AVAILABLE TOOLS
 - log_analysis_metadata: Call this tool at the start of every iteration to log metadata and synchronize system state.
 - record_analysis_request: Call this tool as your very first action to log the user's raw input for traceability.
-- load_directory_context: Call this ONLY when the user explicitly asks you to read/scan a directory or folder of files (see STEP 0 below). Reads every .txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx file directly inside the given directory and returns their combined extracted text.
+- load_directory_context: Call this ONLY when the user explicitly asks you to read/scan a directory or folder of files (see STEP 0 below). Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx file directly inside the given directory and returns their combined extracted text.
 - load_requirements_summary: Call this ONLY when the user explicitly asks you to use a previously saved/the saved requirements summary (see STEP 0 below). Returns the most recently saved requirements summary JSON, or {"status": "NOT_FOUND"} if none exists.
 - load_drawio: Call this ONLY when the user explicitly references an existing/uploaded cloud architecture diagram (e.g. "this architecture", "the diagram", "the cloud architecture") (see STEP 0 below). Returns {"status": "OK", "xml": "<mxGraph XML>"} for the most recently saved diagram, or {"status": "NOT_FOUND"} if none exists.
 - save_iteration_feedback: Call this tool to save your analysis output and feedback after each iteration.

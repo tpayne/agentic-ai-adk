@@ -18,6 +18,7 @@ from neuro_san.internals.graph.persistence.agent_network_restorer import AgentNe
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTED_NETWORKS = [
     "registries/requirements_summary.hocon",
+    "registries/requirements_chunk_extractor.hocon",
     "registries/requirements_consultant.hocon",
     "registries/requirements_reviewer.hocon",
     "registries/requirements_simulation_query.hocon",

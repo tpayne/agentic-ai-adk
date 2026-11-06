@@ -82,6 +82,72 @@ def test_extracts_txt_and_docx_and_skips_legacy_doc():
     assert "re-save as .docx" in skipped["legacy.doc"]
 
 
+def test_extracts_pptx_and_skips_legacy_ppt():
+    from pptx import Presentation
+
+    with tempfile.TemporaryDirectory() as d:
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        slide.shapes.title.text = "Vendor Onboarding Requirements"
+        body = slide.placeholders[1]
+        body.text_frame.text = "Suppliers must complete KYC checks within 5 business days."
+        prs.save(str(Path(d) / "overview.pptx"))
+
+        (Path(d) / "legacy.ppt").write_text("ignored -- old binary format")
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == ["overview.pptx"]
+    assert "Vendor Onboarding Requirements" in result["combined_text"]
+    assert "KYC checks within 5 business days" in result["combined_text"]
+    assert "[Slide 1]" in result["combined_text"]
+
+    skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
+    assert "legacy.ppt" in skipped
+    assert "re-save as .pptx" in skipped["legacy.ppt"]
+
+
+def test_pptx_table_text_is_extracted_not_silently_dropped():
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    with tempfile.TemporaryDirectory() as d:
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
+        table_shape = slide.shapes.add_table(
+            rows=2, cols=2, left=Inches(1), top=Inches(1), width=Inches(4), height=Inches(2)
+        )
+        table = table_shape.table
+        table.cell(0, 0).text = "REQ-1"
+        table.cell(0, 1).text = "Support SSO login"
+        table.cell(1, 0).text = "REQ-2"
+        table.cell(1, 1).text = "Encrypt data at rest"
+        prs.save(str(Path(d) / "requirements.pptx"))
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert "Support SSO login" in result["combined_text"]
+    assert "Encrypt data at rest" in result["combined_text"]
+
+
+def test_blank_pptx_has_no_extractable_text_and_is_skipped():
+    from pptx import Presentation
+
+    with tempfile.TemporaryDirectory() as d:
+        prs = Presentation()
+        prs.slides.add_slide(prs.slide_layouts[6])  # blank layout, no shapes with text
+        prs.save(str(Path(d) / "blank.pptx"))
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == []
+    skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
+    assert skipped.get("blank.pptx") == "no extractable text"
+
+
 def test_docx_table_text_is_extracted_not_silently_dropped():
     import docx
 
@@ -238,6 +304,106 @@ def test_combined_text_is_truncated_past_the_configured_limit():
     assert result["status"] == "OK"
     assert result.get("truncated") is True
     assert "truncated at 100 characters" in result["combined_text"]
+
+
+class TestUntrustedDataFraming:
+    """Every existing caller that already keys off combined_text directly
+    (process/design/cloudarch import and analysis agents) must keep
+    working unchanged -- these wrapping markers only ADD text around the
+    content those agents already substring-search for, never alter it."""
+
+    def test_combined_text_is_wrapped_in_an_explicit_untrusted_data_boundary(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "notes.txt").write_text("Vendor onboarding requires KYC checks.")
+            result = load_directory_context(d)
+
+        assert result["status"] == "OK"
+        assert "<untrusted_source_document" in result["combined_text"]
+        assert "</untrusted_source_document>" in result["combined_text"]
+        assert "DATA to analyze" in result["combined_text"]
+        # The underlying content itself is still there, byte-for-byte --
+        # only wrapped, not altered.
+        assert "KYC checks" in result["combined_text"]
+        assert "=== notes.txt ===" in result["combined_text"]
+
+    def test_empty_directory_combined_text_is_not_wrapped(self):
+        with tempfile.TemporaryDirectory() as d:
+            result = load_directory_context(d)
+
+        assert result["status"] == "OK"
+        assert result["combined_text"] == ""
+
+
+class TestChunksField:
+    """"chunks" is new and additive -- existing callers that only ever
+    read "combined_text" are entirely unaffected by its presence."""
+
+    def test_small_directory_produces_exactly_one_chunk(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "notes.txt").write_text("Vendor onboarding requires KYC checks.")
+            result = load_directory_context(d)
+
+        assert result["chunk_count"] == 1
+        assert len(result["chunks"]) == 1
+        assert "KYC checks" in result["chunks"][0]
+        assert "<untrusted_source_document" in result["chunks"][0]
+        assert 'chunk="1" chunk_total="1"' in result["chunks"][0]
+
+    def test_large_directory_produces_multiple_chunks_covering_all_content(self):
+        with tempfile.TemporaryDirectory() as d:
+            paragraphs = [f"Requirement FR-{i:03d}: the system shall do thing number {i}." for i in range(400)]
+            (Path(d) / "big.txt").write_text("\n\n".join(paragraphs))
+
+            # max_chunks raised well above what this content needs -- this test is
+            # isolating "splitting loses no content," not the separate max_chunks cap
+            # behavior (see test_chunks_exceeding_max_chunks_are_capped_with_an_explicit_signal).
+            result = load_directory_context(d, chunk_max_tokens=200, chunk_overlap_tokens=20, max_chunks=100)
+
+        assert result["status"] == "OK"
+        assert result["chunk_count"] > 1
+        assert len(result["chunks"]) == result["chunk_count"]
+        for i, chunk in enumerate(result["chunks"]):
+            assert f'chunk="{i + 1}" chunk_total="{result["chunk_count"]}"' in chunk
+        # No content lost -- every requirement must appear in at least one chunk.
+        for para in paragraphs:
+            assert any(para in chunk for chunk in result["chunks"]), f"lost: {para}"
+
+    def test_chunks_are_not_truncated_the_way_combined_text_still_is(self):
+        # "chunks" splits the FULL text; "combined_text" stays capped at
+        # max_chars for its own existing callers. A directory whose
+        # content exceeds max_chars but fits comfortably within one
+        # chunk's token budget must show truncated combined_text but
+        # complete, untruncated chunks.
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "big.txt").write_text("word " * 2000)  # ~10000 chars, well over a small max_chars
+
+            result = load_directory_context(d, max_chars=100, chunk_max_tokens=50000)
+
+        assert result.get("truncated") is True
+        assert "truncated at 100 characters" in result["combined_text"]
+        assert result["chunk_count"] == 1
+        assert "truncated at 100 characters" not in result["chunks"][0]
+        assert result["chunks"][0].count("word") >= 2000
+
+    def test_chunks_exceeding_max_chunks_are_capped_with_an_explicit_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            paragraphs = [f"Requirement FR-{i:03d}: filler text to take up space." for i in range(500)]
+            (Path(d) / "big.txt").write_text("\n\n".join(paragraphs))
+
+            result = load_directory_context(d, chunk_max_tokens=50, chunk_overlap_tokens=5, max_chunks=3)
+
+        assert result["status"] == "OK"
+        assert result["chunk_count"] == 3
+        assert len(result["chunks"]) == 3
+        assert result.get("chunks_truncated") is True
+        assert result["total_chunks_before_cap"] > 3
+
+    def test_empty_directory_has_zero_chunks(self):
+        with tempfile.TemporaryDirectory() as d:
+            result = load_directory_context(d)
+
+        assert result["chunk_count"] == 0
+        assert result["chunks"] == []
 
 
 class TestStageAttachmentsToDirectory:

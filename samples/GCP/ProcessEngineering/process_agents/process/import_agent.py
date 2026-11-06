@@ -18,7 +18,7 @@ from ..common.agent_wrappers import ProcessLlmAgent
 process_import_agent = ProcessLlmAgent(
     name="Process_Import_Agent",
     description=(
-        "Reads a directory of source documents (.txt/.md/.docx/.pdf/.eml/.msg/.xls/.xlsx) that "
+        "Reads a directory of source documents (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx) that "
         "already describe an existing business process, and imports their content directly into "
         "this toolkit's own structured process JSON -- not a fresh design from a brief, an "
         "extraction of what's actually in the documents."

@@ -14,8 +14,11 @@ import logging
 
 logger = logging.getLogger("ProcessArchitect.RequirementsSynthesis")
 
+from google.adk.tools import AgentTool
+
 from ..common.utils import load_directory_context, save_requirements_summary
 from ..common.agent_wrappers import ProcessLlmAgent
+from ..common.requirements_chunk_extractor_agent import requirements_chunk_extractor_agent
 
 requirements_synthesis_agent = ProcessLlmAgent(
     name="Requirements_Synthesis_Agent",
@@ -25,5 +28,9 @@ requirements_synthesis_agent = ProcessLlmAgent(
         "and saves it for the pipeline's own next stage to render as a document."
     ),
     instruction_file="common/requirements_synthesis_agent.txt",
-    tools=[load_directory_context, save_requirements_summary],
+    tools=[
+        load_directory_context,
+        save_requirements_summary,
+        AgentTool(requirements_chunk_extractor_agent),
+    ],
 )

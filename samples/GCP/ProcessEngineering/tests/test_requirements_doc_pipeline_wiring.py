@@ -47,7 +47,10 @@ class TestPipelineComposition:
     def test_synthesis_agent_has_no_doc_rendering_tool(self):
         from process_agents.common.requirements_synthesis_agent import requirements_synthesis_agent
 
-        assert len(requirements_synthesis_agent.tools) == 2  # load_directory_context, save_requirements_summary
+        # load_directory_context, save_requirements_summary, and the
+        # Requirements_Chunk_Extractor_Agent map-reduce tool -- none of
+        # these render a document themselves.
+        assert len(requirements_synthesis_agent.tools) == 3
 
 
 class TestRootAgentWiring:
