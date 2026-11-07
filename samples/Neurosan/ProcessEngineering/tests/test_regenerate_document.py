@@ -116,7 +116,10 @@ class TestRegenerateDocumentCodedTool:
 
         doc_result = RegenerateDocumentCodedTool().invoke({"schema_type": "design"}, {})
         assert doc_result.startswith("SUCCESS:")
-        out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Service.docx")
+        # An effectively-empty design (no high_level_design/low_level_design
+        # content at all) resolves to a single HLD-only file, same as
+        # today's "Document Overview always renders" fallback.
+        out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Service_HLD.docx")
         assert os.path.exists(out_path), f"expected the DESIGN document, not the process one -- {out_path} missing"
 
         diagram_result = RegenerateFlowDiagramCodedTool().invoke({"schema_type": "design"}, {})

@@ -87,6 +87,19 @@ Before calling either tool, check whether "inquiry" itself names a domain:
   regenerate whichever the most recent turns in this conversation were about, or if that's unclear
   too, ask the user to say "the process document" or "the design document".
 
+# DETERMINE design_variant (ONLY relevant when schema_type is, or will resolve to, "design")
+The High-Level Design and Low-Level Design are always SEPARATE documents (never one combined file)
+-- check whether "inquiry" names which one it wants:
+- If it explicitly asks for only the HLD / High-Level Design (and does not also mention the
+  LLD/Low-Level Design or "combined"/"both"), design_variant = "hld".
+- If it explicitly asks for only the LLD / Low-Level Design (and does not also mention the
+  HLD/High-Level Design or "combined"/"both"), design_variant = "lld".
+- Otherwise -- it asks for "the design document(s)", "HLD and LLD", "combined", "both", or simply
+  doesn't specify -- leave design_variant unset (regenerates whichever of the two the saved design
+  data actually supports; typically both).
+This determination is meaningless for every other schema_type -- do not set design_variant at all
+when schema_type is "process"/"requirements"/"proposal_response"/"test_specification".
+
 # SEQUENCE
 1. If schema_type is "requirements", "proposal_response", or "test_specification", SKIP this step
    entirely -- none of the three has a flow/architecture diagram to regenerate -- and go straight to
@@ -95,8 +108,9 @@ Before calling either tool, check whether "inquiry" itself names a domain:
    placeholder when nothing real is saved yet for that domain -- so its own result alone does NOT
    tell you whether a real document exists to regenerate. Always proceed to step 2 regardless of
    what this returns.
-2. Call regenerate_document with the SAME schema_type determination (no "process_name" argument
-   needed -- the saved JSON's own name/title takes precedence over the fallback, except for
+2. Call regenerate_document with the SAME schema_type determination, plus design_variant if you
+   determined one above and schema_type is "design" (no "process_name" argument needed -- the saved
+   JSON's own name/title takes precedence over the fallback, except for
    "requirements"/"proposal_response", neither of which has a title field at all -- pass a
    reasonable title yourself, e.g. "<industry_sector> Requirements Specification" or
    "<industry_sector> Proposal Response" if the loaded data names a sector, else "Requirements
@@ -108,7 +122,9 @@ Before calling either tool, check whether "inquiry" itself names a domain:
    "read the files in <directory> and summarize the requirements" / "respond to this proposal ..." /
    "create a test specification for the saved requirements"). If it starts with "SUCCESS", report
    that the document was regenerated from the current saved content (and, for process/design, that
-   the flow diagram was too).
+   the flow diagram was too) -- for "design", the SUCCESS text itself names which document(s) were
+   actually produced ("...saved at <path>" for one, "...saved -- HLD: <path>; LLD: <path>" for
+   both); relay that, don't assume both always exist.
 
 Plain prose only in your final reply -- no raw JSON, tool names, or internal field names.
 """,
@@ -147,6 +163,11 @@ Plain prose only in your final reply -- no raw JSON, tool names, or internal fie
                         "process_name": {
                             "type": "string",
                             "description": "Optional fallback document title, used only if the saved JSON itself has no name/title (always required in practice for schema_type=\"requirements\"/\"proposal_response\", neither of which has a title field at all; test_specification has its own \"name\" field so this is just a harmless default for it)."
+                        },
+                        "design_variant": {
+                            "type": "string",
+                            "enum": ["hld", "lld", "both"],
+                            "description": "Only meaningful when schema_type is \"design\". Which of the two separate design documents to regenerate -- the High-Level Design, the Low-Level Design, or both. Omit to regenerate both (or whichever of the two the current design data actually contains, if only one does)."
                         }
                     }
                 }

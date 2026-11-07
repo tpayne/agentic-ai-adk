@@ -12,7 +12,11 @@ class GenerateDesignDocumentCodedTool(CodedTool):
     """Generates a structured, ISO-formatted Word document from the
     current design-document JSON. "process_name" is an optional fallback
     title -- the design JSON's own document_metadata.title/system_name
-    takes precedence.
+    takes precedence. "design_variant" ("hld"|"lld"|"both", default
+    "both") selects which document(s) to render -- design generation now
+    always produces the HLD and LLD as two SEPARATE documents rather than
+    one combined file (see process_toolkit.docgen.generation's own
+    _build_design_documents).
 
     This is design.hocon/design_update.hocon's own genuine last step
     (reset_loop_state -> generate/review loop -> flow diagram -> THIS) --
@@ -23,7 +27,9 @@ class GenerateDesignDocumentCodedTool(CodedTool):
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         fallback_name = args.get("process_name") or "Design"
-        result = create_standard_doc_from_file(fallback_name, schema_type="design")
+        result = create_standard_doc_from_file(
+            fallback_name, schema_type="design", design_variant=args.get("design_variant"),
+        )
         if isinstance(result, str) and result.startswith("SUCCESS:"):
             token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
             stop_pipeline_lock_heartbeat(token)

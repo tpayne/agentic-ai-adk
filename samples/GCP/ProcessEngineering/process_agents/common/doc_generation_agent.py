@@ -18,6 +18,7 @@ from .utils_agent import release_pipeline_lock_for_turn
 def create_standard_doc_from_file(
     process_name: str = "Process",
     schema_type: Optional[str] = None,
+    design_variant: Optional[str] = None,
     tool_context: Optional[ToolContext] = None,
 ) -> str:
     """Same contract as process_toolkit.docgen.generation's own function of
@@ -34,8 +35,14 @@ def create_standard_doc_from_file(
     on every loop iteration, not just the final one, so must NOT release
     the lock itself. tool_context is auto-injected by ADK and excluded
     from the LLM-facing schema -- the LLM still just calls this with
-    process_name, exactly as the instruction file describes."""
-    result = _shared_create_standard_doc_from_file(process_name, schema_type)
+    process_name, exactly as the instruction file describes.
+
+    design_variant ("hld"|"lld"|"both", default "both") is only meaningful
+    when schema_type is (or resolves to) "design" -- harmless/ignored
+    otherwise. Selects which of the two separate design documents to
+    render (see process_toolkit.docgen.generation's own
+    _build_design_documents)."""
+    result = _shared_create_standard_doc_from_file(process_name, schema_type, design_variant)
     if isinstance(result, str) and result.startswith("SUCCESS:"):
         release_pipeline_lock_for_turn(tool_context)
     return result

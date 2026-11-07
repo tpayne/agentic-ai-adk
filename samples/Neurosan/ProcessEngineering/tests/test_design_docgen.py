@@ -159,29 +159,45 @@ def test_infer_edges_accepts_source_component_target_component_as_a_fallback():
     assert ("Checkout Service", "API Gateway") in edges
 
 
-def test_create_standard_doc_from_file_builds_a_real_design_docx_with_expected_sections():
+def test_create_standard_doc_from_file_builds_real_hld_and_lld_docx_files_with_expected_sections():
+    # Design generation now always produces the HLD and LLD as two SEPARATE
+    # documents (see generation.py's _build_hld_document/_build_lld_
+    # document), not one combined file -- default design_variant="both"
+    # renders both since SAMPLE_DESIGN has both sections populated.
     _write_sample_design_json()
 
     result = create_standard_doc_from_file("Checkout", schema_type="design")
 
-    assert result.startswith("SUCCESS:")
-    out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx")
-    assert os.path.exists(out_path)
+    assert result.startswith("SUCCESS: Professional documents saved -- HLD: ")
+    hld_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_HLD.docx")
+    lld_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx")
+    assert os.path.exists(hld_path)
+    assert os.path.exists(lld_path)
 
-    doc = docx.Document(out_path)
-    assert len(doc.inline_shapes) == 1
+    hld_doc = docx.Document(hld_path)
+    assert len(hld_doc.inline_shapes) == 1  # the architecture flow diagram -- HLD-only
     assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "checkout_combined_design_flow.png"))
-    heading_texts = [
-        p.text for p in doc.paragraphs
+    hld_headings = [
+        p.text for p in hld_doc.paragraphs
         if p.style is not None and p.style.name == "Heading 1"
     ]
-    assert "1.0 Executive Summary" in heading_texts
-    assert "2.0 Stakeholders and Responsibilities" in heading_texts
-    assert "3.0 Requirements" in heading_texts
-    assert "4.0 System Context" in heading_texts
-    assert "5.0 Architecture Description" in heading_texts
-    assert any(h.endswith("Low-Level Design") for h in heading_texts)
-    assert any(h.endswith("Glossary and References") for h in heading_texts)
+    assert "1.0 Executive Summary" in hld_headings
+    assert "2.0 Stakeholders and Responsibilities" in hld_headings
+    assert "3.0 Requirements" in hld_headings
+    assert "4.0 System Context" in hld_headings
+    assert "5.0 Architecture Description" in hld_headings
+    assert any(h.endswith("Glossary and References") for h in hld_headings)
+    assert not any(h.endswith("Low-Level Design") for h in hld_headings)
+
+    lld_doc = docx.Document(lld_path)
+    assert len(lld_doc.inline_shapes) == 0  # no flow diagram, no sequence_flows in this sample
+    lld_headings = [
+        p.text for p in lld_doc.paragraphs
+        if p.style is not None and p.style.name == "Heading 1"
+    ]
+    assert "1.0 Low-Level Design" in lld_headings
+    assert any(h.endswith("Glossary and References") for h in lld_headings)
+    assert not any("Stakeholders" in h or "Architecture Description" in h for h in lld_headings)
 
 
 def test_design_document_renders_existing_prose_sequence_flows_as_images():
@@ -202,8 +218,10 @@ def test_design_document_renders_existing_prose_sequence_flows_as_images():
     result = create_standard_doc_from_file("Checkout", schema_type="design")
 
     assert result.startswith("SUCCESS:")
-    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
-    assert len(doc.inline_shapes) == 2
+    # Sequence diagrams are Low-Level Design content -- the LLD file only
+    # (the HLD file separately gets its own one architecture flow diagram).
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx"))
+    assert len(doc.inline_shapes) == 1
     assert os.path.isfile(os.path.join(paths.OUTPUT_DIR, "uml_diagrams", "backup-execution.png"))
 
 
@@ -234,7 +252,7 @@ def test_sequence_flow_using_legacy_name_key_gets_a_descriptive_filename_and_hea
     )
     assert not os.path.isfile(os.path.join(paths.OUTPUT_DIR, "uml_diagrams", "diagram.png"))
 
-    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx"))
     heading_texts = [p.text for p in doc.paragraphs if p.style is not None and p.style.name == "Heading 3"]
     assert "Centralized Backup Execution" in heading_texts
     assert "Diagram" not in heading_texts
@@ -264,8 +282,8 @@ def test_two_untitled_unnamed_flows_on_different_components_do_not_collide():
     assert os.path.isfile(os.path.join(uml_dir, "checkout_service-diagram.png"))
     assert os.path.isfile(os.path.join(uml_dir, "payment_service-diagram.png"))
 
-    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
-    assert len(doc.inline_shapes) == 3  # flow diagram + one per component's sequence diagram
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx"))
+    assert len(doc.inline_shapes) == 2  # one per component's sequence diagram -- no flow diagram here
 
 
 def test_design_document_preserves_context_roles_and_stakeholder_concerns():
@@ -279,7 +297,9 @@ def test_design_document_preserves_context_roles_and_stakeholder_concerns():
     result = create_standard_doc_from_file("Checkout", schema_type="design")
 
     assert result.startswith("SUCCESS:")
-    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
+    # Stakeholders and system context are High-Level Design content -- the
+    # HLD file only.
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_HLD.docx"))
     cells = [cell.text for table in doc.tables for row in table.rows for cell in row.cells]
     assert "Manages platform accounts." in cells
     stakeholder_details = next(cell for cell in cells if "Concerns:" in cell)
@@ -324,7 +344,17 @@ def test_generate_design_document_coded_tool_invoke():
     tool = GenerateDesignDocumentCodedTool()
     result = tool.invoke({}, {})
     assert result.startswith("SUCCESS:")
-    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design.docx"))
+    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_HLD.docx"))
+    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx"))
+
+
+def test_generate_design_document_coded_tool_respects_an_explicit_design_variant():
+    _write_sample_design_json()
+    tool = GenerateDesignDocumentCodedTool()
+    result = tool.invoke({"design_variant": "hld"}, {})
+    assert result.startswith("SUCCESS: Professional document saved at ")
+    assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_HLD.docx"))
+    assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Combined_Design_LLD.docx"))
 
 
 def test_create_standard_doc_from_file_auto_detects_design_schema_from_disk():
@@ -448,13 +478,23 @@ def test_real_world_design_doc_handles_every_observed_field_divergence():
     _write_real_world_design_json()
 
     result = create_standard_doc_from_file("Secure RDS", schema_type="design")
-    assert result.startswith("SUCCESS:")
+    assert result.startswith("SUCCESS: Professional documents saved -- HLD: ")
 
-    out_path = os.path.join(paths.OUTPUT_DIR, "Secure_AWS_RDS_Design.docx")
-    doc = docx.Document(out_path)
+    hld_path = os.path.join(paths.OUTPUT_DIR, "Secure_AWS_RDS_Design_HLD.docx")
+    lld_path = os.path.join(paths.OUTPUT_DIR, "Secure_AWS_RDS_Design_LLD.docx")
+    hld_doc = docx.Document(hld_path)
+    lld_doc = docx.Document(lld_path)
 
-    body_text = "\n".join(p.text for p in doc.paragraphs)
-    flat_cells = [cell for row in _all_table_rows(doc) for cell in row]
+    # Most of this real-world content is High-Level Design material; combine
+    # both documents' own text/cells for the assertions below rather than
+    # pin every single field to one file or the other -- what matters here
+    # is that none of these real-world field-name divergences got silently
+    # dropped anywhere, not which of the two documents each landed in.
+    body_text = "\n".join(p.text for p in hld_doc.paragraphs) + "\n" + "\n".join(p.text for p in lld_doc.paragraphs)
+    flat_cells = (
+        [cell for row in _all_table_rows(hld_doc) for cell in row]
+        + [cell for row in _all_table_rows(lld_doc) for cell in row]
+    )
 
     # business_context: context_statement/strategic_objectives recovered.
     assert "The system provides a secure, managed relational database environment on AWS." in body_text
@@ -465,7 +505,7 @@ def test_real_world_design_doc_handles_every_observed_field_divergence():
     # check exact paragraph text, since a substring check would also
     # (correctly) match inside the real, full-sentence bullet below.
     assert "High availability, automated patching, and storage auto-scaling." in body_text
-    paragraph_texts = [p.text for p in doc.paragraphs]
+    paragraph_texts = [p.text for p in hld_doc.paragraphs] + [p.text for p in lld_doc.paragraphs]
     assert "• H" not in paragraph_texts
     assert "• i" not in paragraph_texts
 
@@ -544,9 +584,13 @@ def test_low_level_design_sequence_flow_renders_a_real_uml_diagram():
         json.dump(data, f)
 
     result = create_standard_doc_from_file("Checkout", schema_type="design")
-    assert result.startswith("SUCCESS:")
+    # No high_level_design/architecture_description content at all in this
+    # sample -- the default "both" resolution cleanly resolves to an
+    # LLD-only build (a single file, not a combined/HLD one).
+    assert result.startswith("SUCCESS: Professional document saved at ")
+    assert result.endswith("Checkout_Design_LLD.docx")
 
-    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Design.docx"))
+    doc = docx.Document(os.path.join(paths.OUTPUT_DIR, "Checkout_Design_LLD.docx"))
     body_text = "\n".join(p.text for p in doc.paragraphs)
 
     assert len(doc.inline_shapes) >= 1

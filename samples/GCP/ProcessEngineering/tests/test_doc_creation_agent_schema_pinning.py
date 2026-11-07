@@ -153,9 +153,26 @@ class TestDocGenerationPinning:
         result = agent.tools[0]()
 
         assert result.startswith("SUCCESS:")
-        out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Service.docx")
+        # This fixture's design has no high_level_design/low_level_design
+        # content at all -- resolves to a single HLD-only file, same as
+        # today's "Document Overview always renders" fallback (see
+        # process_toolkit.docgen.generation's own _resolve_design_variant).
+        out_path = os.path.join(paths.OUTPUT_DIR, "Checkout_Service_HLD.docx")
         assert os.path.exists(out_path), f"expected the DESIGN document, not the process one -- {out_path} missing"
         assert docx.Document(out_path).paragraphs
+
+    def test_pinned_design_tool_exposes_design_variant_and_can_pin_to_lld_explicitly(self):
+        from process_agents.common.doc_creation_agent import build_doc_generation_instance
+
+        _write_design_json()
+        agent = build_doc_generation_instance("design")
+        sig = inspect.signature(agent.tools[0])
+        assert "design_variant" in sig.parameters
+
+        # Explicit "lld" against a design with no low_level_design content
+        # is a hard error -- there is nothing to render.
+        result = agent.tools[0](design_variant="lld")
+        assert result.startswith("ERROR:")
 
     def test_pinned_process_tool_ignores_a_coexisting_design_document(self):
         from process_agents.common.doc_creation_agent import build_doc_generation_instance

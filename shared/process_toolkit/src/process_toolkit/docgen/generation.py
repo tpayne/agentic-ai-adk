@@ -206,7 +206,9 @@ def _apply_global_styles(doc: docx.Document):
 # MAIN DOCUMENT GENERATION
 # ============================================================
 
-def create_standard_doc_from_file(process_name: str = "Process", schema_type: Optional[str] = None) -> str:
+def create_standard_doc_from_file(
+    process_name: str = "Process", schema_type: Optional[str] = None, design_variant: Optional[str] = None,
+) -> str:
     """
     Generate a structured, ISO-formatted Word document from the master
     JSON (output/process_data.json, output/design_data.json,
@@ -221,6 +223,11 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
     this way). A requirements or proposal-response document is only ever
     built when schema_type="requirements"/"proposal_response" is passed
     explicitly.
+
+    `design_variant` ("hld"|"lld"|"both", default "both") is only
+    meaningful when `resolved_type == "design"` -- see
+    _build_design_documents's own docstring. Ignored for every other
+    schema type.
     """
     logger.debug(f"Creating document for process: {process_name}...")
 
@@ -252,6 +259,12 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
 
         data = raw_data.get("process_design") if isinstance(raw_data, dict) and "process_design" in raw_data else raw_data
 
+        # Design documents build their own Document()/apply_theme() per
+        # file (one or two), unlike every other schema type below, which
+        # share a single document -- see _build_design_documents.
+        if resolved_type == "design":
+            return _build_design_documents(data, process_name, design_variant)
+
         doc = docx.Document()
         apply_theme(doc)
 
@@ -261,8 +274,6 @@ def create_standard_doc_from_file(process_name: str = "Process", schema_type: Op
             out_path = _build_proposal_response_document(doc, data, process_name)
         elif resolved_type == "test_specification":
             out_path = _build_test_specification_document(doc, data, process_name)
-        elif resolved_type == "design":
-            out_path = _build_design_document(doc, data, process_name)
         else:
             out_path = _build_process_document(doc, data, process_name)
 
@@ -896,94 +907,65 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     return out_path
 
 
-def _add_part_divider(doc: docx.Document, label: str) -> bool:
-    """
-    Adds a visually distinct 'Part' divider heading, used to physically
-    separate the high-level architecture (HLD) sections of a combined
-    design document from the low-level design (LLD) implementation
-    detail that follows. Always renders (no data-dependent no-op).
-    """
+class _DesignMeta:
+    """Small bag of cover-page/title fields derived from document_metadata,
+    shared by both _build_hld_document and _build_lld_document so the two
+    can never silently diverge on how they compute a design's own title."""
+
+    __slots__ = ("name", "system_label", "version", "doc_type", "sector")
+
+    def __init__(self, data: dict, process_name: str):
+        metadata = data.get("document_metadata") or {}
+        self.name = str(metadata.get("title") or metadata.get("system_name") or process_name)
+        # Short system name for diagram hub labels -- "name" above is the
+        # full document TITLE (a whole sentence), fine for a cover page but
+        # unreadable as a diagram node label. "system_name" is the short
+        # form meant for exactly this.
+        self.system_label = str(metadata.get("system_name") or self.name)
+        self.version = str(metadata.get("version", "1.0"))
+        self.doc_type = str(metadata.get("document_type", "Design"))
+        self.sector = metadata.get("industry_sector", "N/A")
+
+
+# Every top-level design_data.json key this renderer knows how to handle,
+# across BOTH the HLD and LLD documents -- reused verbatim, unmodified, by
+# both _build_hld_document and _build_lld_document. This is deliberate:
+# each document only RENDERS its own half of this set, but both must keep
+# the FULL set out of their own "Additional Data" catch-all, or else e.g.
+# low_level_design would wrongly dump as raw JSON into the HLD document
+# (and vice versa) instead of simply not appearing there at all.
+_DESIGN_CONSUMED_KEYS = {
+    "document_metadata", "business_context", "architecture_description",
+    "requirements", "system_context", "high_level_design",
+    "low_level_design", "quality_attributes", "compliance_and_standards",
+    "risk_register", "governance_requirements", "continuous_improvement",
+    "glossary_and_references", "review_and_governance", "appendix",
+}
+
+
+def _add_design_cover_and_toc(doc: docx.Document, meta: _DesignMeta, subtitle: str) -> None:
+    """Cover page + Document Control (version history) + Table of
+    Contents -- identical structure for the HLD and LLD documents, just a
+    different subtitle (e.g. "High-Level Design Document")."""
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(220)
-    run = p.add_run(label)
-    run.bold = True
-    run.font.size = Pt(24)
-    return True
-
-
-def _build_design_document(doc: docx.Document, data: dict, process_name: str) -> str:
-    """
-    Builds a foundational ISO-formatted design (HLD/LLD/Combined) document
-    into `doc` and saves it. Design-schema counterpart to
-    _build_process_document.
-
-    Deliberately foundation-level, not a full bespoke renderer for every
-    nested design_document_schema.json section the way the process
-    document has hand-crafted, data-shape-specific renderers for every
-    field: most sections go through _render_generic_value, which already
-    produces proper ISO-formatted Word tables/lists for any dict/
-    list-of-dict/list-of-string shape. Sections with a bespoke renderer
-    (requirements, system context, quality attributes, compliance and
-    standards, risk register, architecture analysis, low-level design,
-    glossary and references) live in design_sections.py.
-    """
-    metadata = data.get("document_metadata") or {}
-
-    name = str(metadata.get("title") or metadata.get("system_name") or process_name)
-    # Short system name for diagram hub labels -- "name" above is the full
-    # document TITLE (a whole sentence), fine for a cover page but
-    # unreadable as a diagram node label. "system_name" is the short form
-    # meant for exactly this.
-    system_label = str(metadata.get("system_name") or name)
-    version = str(metadata.get("version", "1.0"))
-    doc_type = str(metadata.get("document_type", "Design"))
-    sector = metadata.get("industry_sector", "N/A")
-
-    architecture_description = data.get("architecture_description") or {}
-    stakeholders = architecture_description.get("stakeholders")
-
-    requirements = data.get("requirements")
-    system_context = data.get("system_context")
-    high_level_design = data.get("high_level_design") or {}
-    low_level_design = data.get("low_level_design")
-    quality_attributes = data.get("quality_attributes")
-    compliance_and_standards = data.get("compliance_and_standards")
-    risk_register = data.get("risk_register")
-    governance_requirements = data.get("governance_requirements")
-    continuous_improvement = data.get("continuous_improvement")
-    glossary_and_references = data.get("glossary_and_references")
-    appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
-
-    consumed_keys = {
-        "document_metadata", "business_context", "architecture_description",
-        "requirements", "system_context", "high_level_design",
-        "low_level_design", "quality_attributes", "compliance_and_standards",
-        "risk_register", "governance_requirements", "continuous_improvement",
-        "glossary_and_references", "review_and_governance", "appendix",
-    }
-
-    # ---- COVER PAGE ----
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(name)
+    run = p.add_run(meta.name)
     run.bold = True
     run.font.size = Pt(28)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.add_run(f"{doc_type} Design Document").font.size = Pt(18)
+    p.add_run(subtitle).font.size = Pt(18)
 
     doc.add_paragraph()
-    doc.add_paragraph(f"Industry / Domain: {sector}")
-    doc.add_paragraph(f"Version: {version}")
+    doc.add_paragraph(f"Industry / Domain: {meta.sector}")
+    doc.add_paragraph(f"Version: {meta.version}")
     doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     add_iso_page_break(doc)
 
-    # ---- DOCUMENT CONTROL + TOC ----
     _add_version_history_table(
-        doc, version=version, author="Design Architect",
+        doc, version=meta.version, author="Design Architect",
         description="Initial generated design specification",
     )
 
@@ -993,7 +975,66 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
 
     add_iso_page_break(doc)
 
-    # ---- MAIN SECTIONS ----
+
+def _add_design_trailing_sections(doc: docx.Document, data: dict, rendered: bool) -> bool:
+    """Glossary and References, Appendix, and Additional Data -- the
+    sections common to BOTH the HLD and LLD documents, duplicated into
+    each so either one is genuinely self-contained/standalone-usable on
+    its own. Returns the updated `rendered` flag."""
+    glossary_and_references = data.get("glossary_and_references")
+    appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
+
+    if glossary_and_references:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_glossary_and_references_section(
+            doc, glossary_and_references, heading="11.0 Glossary and References"
+        )
+
+    if appendix:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_appendix_from_json(doc, appendix, subject_noun="architecture")
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, _DESIGN_CONSUMED_KEYS)
+
+    # _add_glossary is the process document's fallback glossary (four
+    # hardcoded process-specific terms) -- not called here at all. A
+    # design document with no glossary_and_references data of its own
+    # should simply have no glossary section, the same way every diagram/
+    # table renderer elsewhere in this pipeline withholds a section rather
+    # than fabricating one.
+    return rendered
+
+
+def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_lld_companion: bool) -> str:
+    """
+    Builds the High-Level Design document: business context, requirements,
+    stakeholders, system context, architecture description/detail, the
+    architecture flow diagram, quality attributes, compliance, risk
+    register, governance, and continuous improvement -- everything a
+    reader needs to review and approve the design, as a standalone
+    document. `has_lld_companion` controls whether the opening overview
+    mentions a separate Low-Level Design document exists alongside it.
+    """
+    meta = _DesignMeta(data, process_name)
+
+    architecture_description = data.get("architecture_description") or {}
+    stakeholders = architecture_description.get("stakeholders")
+
+    requirements = data.get("requirements")
+    system_context = data.get("system_context")
+    high_level_design = data.get("high_level_design") or {}
+    quality_attributes = data.get("quality_attributes")
+    compliance_and_standards = data.get("compliance_and_standards")
+    risk_register = data.get("risk_register")
+    governance_requirements = data.get("governance_requirements")
+    continuous_improvement = data.get("continuous_improvement")
+
+    _add_design_cover_and_toc(doc, meta, "High-Level Design Document")
+
     # Every section below is only page-broken from the NEXT one if it
     # actually rendered something (see `rendered` tracking) -- an
     # unconditional break both after a no-op section and before the next
@@ -1003,18 +1044,9 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     # Section numbers are intentionally left un-normalized here;
     # _renumber_design_document_headings fixes them all in one pass from
     # the final actual set of headings, right before saving.
-    #
-    # Sections are grouped into two visually divided parts rather than raw
-    # JSON key order: Part I is everything a reader needs to approve the
-    # design; Part II is everything an implementing engineer needs to
-    # build it.
-
-    # ---------------- PART I: HIGH-LEVEL ARCHITECTURE (HLD) ----------------
-    _add_part_divider(doc, "PART I: HIGH-LEVEL ARCHITECTURE (HLD)")
-    add_iso_page_break(doc)
 
     rendered = True  # Document Overview always renders unconditionally.
-    _add_design_overview_section(doc, data)
+    _add_design_overview_section(doc, data, has_lld_companion=has_lld_companion)
 
     if stakeholders:
         if rendered:
@@ -1030,7 +1062,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_system_context_section(
-            doc, system_context, heading="4.0 System Context", system_name=system_label
+            doc, system_context, heading="4.0 System Context", system_name=meta.system_label
         )
 
     if architecture_description:
@@ -1045,7 +1077,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
         for key in ("concerns", "viewpoints", "views"):
             value = architecture_description.get(key)
             if value:
-                _render_generic_value(doc, value, label=key.replace("_", " ").title(), system_name=system_label)
+                _render_generic_value(doc, value, label=key.replace("_", " ").title(), system_name=meta.system_label)
 
         architecture_analysis = architecture_description.get("architecture_analysis")
         if architecture_analysis:
@@ -1060,12 +1092,7 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     # _render_generic_value (the same generic fallback every other
     # schema-conforming-but-not-specially-handled section in this
     # document uses), labeled so a reader can tell which schema field
-    # each came from. Previously high_level_design was only ever added to
-    # consumed_keys (to keep it out of Appendix B) and never actually
-    # rendered anywhere in the document body at all -- a complete,
-    # silent loss of real content (e.g. a real design's actual security
-    # architecture prose) confirmed directly against a real generated
-    # document.
+    # each came from.
     if isinstance(high_level_design, dict) and high_level_design:
         hld_sections = [
             ("solution_overview", "Solution Overview"),
@@ -1092,17 +1119,18 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
             )
             for key, label in present:
                 _render_generic_value(
-                    doc, high_level_design[key], label=label, level=3, system_name=system_label
+                    doc, high_level_design[key], label=label, level=3, system_name=meta.system_label
                 )
             rendered = True
 
     # Generate and embed the architecture/component diagram directly from
     # design_data.json so this document does not depend on an earlier tool
-    # call having created the image.
+    # call having created the image. HLD-only -- it diagrams
+    # high_level_design's own components/integration points.
     if rendered:
         add_iso_page_break(doc)
     rendered = _add_flowchart_section(
-        doc, name, heading="6.0 Architecture Flow Diagram",
+        doc, meta.name, heading="6.0 Architecture Flow Diagram",
         caption=(
             "This section provides a high-level visualization of the "
             "architecture and the flow between its major components."
@@ -1145,54 +1173,137 @@ def _build_design_document(doc: docx.Document, data: dict, process_name: str) ->
     # review_and_governance (review_history/change_log/approval_workflow)
     # is deliberately NOT rendered -- it's fabricated by the generating
     # LLM with no grounding (invented reviewer names, invented dates) and
-    # adds no value. It stays in `consumed_keys` so it doesn't reappear
-    # via the Appendix B leftover-data catch-all below.
+    # adds no value. It stays in _DESIGN_CONSUMED_KEYS so it doesn't
+    # reappear via the Appendix B leftover-data catch-all below.
 
-    # ---------------- PART II: LOW-LEVEL DESIGN (LLD) ----------------
-    if rendered:
-        add_iso_page_break(doc)
-    rendered = _add_part_divider(doc, "PART II: LOW-LEVEL DESIGN (LLD)")
+    rendered = _add_design_trailing_sections(doc, data, rendered)
 
-    if low_level_design:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_low_level_design_section(
-            doc, low_level_design, heading="5.0 Low-Level Design", system_name=system_label
-        )
-
-    if glossary_and_references:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_glossary_and_references_section(
-            doc, glossary_and_references, heading="11.0 Glossary and References"
-        )
-
-    # Appendices
-    if appendix:
-        if rendered:
-            add_iso_page_break(doc)
-        rendered = _add_appendix_from_json(doc, appendix, subject_noun="architecture")
-        consumed_keys.add("appendix")
-
-    if rendered:
-        add_iso_page_break(doc)
-    rendered = _add_additional_data_section(doc, data, consumed_keys)
-
-    # _add_glossary is the process document's fallback glossary (four
-    # hardcoded process-specific terms) -- not called here at all. A
-    # design document with no glossary_and_references data of its own
-    # should simply have no glossary section, the same way every diagram/
-    # table renderer elsewhere in this pipeline withholds a section rather
-    # than fabricating one.
-
-    # Fix up section numbers/appendix letters from the final set of
-    # headings that actually got rendered above.
     _renumber_design_document_headings(doc)
 
-    # Save
-    out_path = paths.output_path(f"{safe_filename_component(name)}.docx")
+    out_path = paths.output_path(f"{safe_filename_component(meta.name + ' HLD')}.docx")
     doc.save(out_path)
     return out_path
+
+
+def _build_lld_document(doc: docx.Document, data: dict, process_name: str, has_hld_companion: bool) -> str:
+    """
+    Builds the Low-Level Design document: implementation-ready component
+    detail (interfaces, data models, sequence flows, configuration,
+    operations) for an implementing engineer, as a standalone document.
+    `has_hld_companion` controls whether the Low-Level Design section's
+    own intro mentions a separate High-Level Design document exists
+    alongside it. Caller guarantees `data.get("low_level_design")` is
+    truthy before calling this (see _resolve_design_variant).
+    """
+    meta = _DesignMeta(data, process_name)
+    low_level_design = data.get("low_level_design")
+
+    _add_design_cover_and_toc(doc, meta, "Low-Level Design Document")
+
+    rendered = _add_low_level_design_section(
+        doc, low_level_design, heading="1.0 Low-Level Design", system_name=meta.system_label,
+        has_hld_companion=has_hld_companion,
+    )
+
+    rendered = _add_design_trailing_sections(doc, data, rendered)
+
+    _renumber_design_document_headings(doc)
+
+    out_path = paths.output_path(f"{safe_filename_component(meta.name + ' LLD')}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _resolve_design_variant(design_variant: Optional[str], data: dict):
+    """
+    Resolves which design document(s) to build: {"hld"}, {"lld"}, or
+    {"hld", "lld"} -- or an "ERROR: ..." string for an invalid/unsatisfiable
+    request. `design_variant` is "hld"|"lld"|"both", case-insensitive;
+    None/"" is treated as "both".
+
+    "both" (the default) means "whichever of the two the data actually
+    supports" -- the same implicit behavior the single combined document
+    used to express via in-file section gating, now expressed as file
+    selection. If neither high_level_design nor low_level_design has any
+    real content, falls back to building the HLD document alone (an
+    effectively-empty design still gets a Document Overview/Cover, same
+    as today).
+
+    An explicitly-requested "lld" with no low_level_design content present
+    is a hard error -- a document titled "Low-Level Design" with nothing
+    in it would be actively misleading, not just thin. "hld" has no
+    equivalent hard-empty case: Document Overview/Cover always render.
+    """
+    variant = (design_variant or "both").strip().lower()
+    if variant not in ("hld", "lld", "both"):
+        return f"ERROR: Unrecognized design_variant '{design_variant}' -- expected 'hld', 'lld', or 'both'."
+
+    has_hld = bool(data.get("high_level_design")) or bool((data.get("architecture_description") or {}))
+    has_lld = bool(data.get("low_level_design"))
+
+    if variant == "hld":
+        return {"hld"}
+    if variant == "lld":
+        if not has_lld:
+            return "ERROR: Cannot build a Low-Level Design document -- no low_level_design content is present in the saved design data."
+        return {"lld"}
+
+    # "both": whichever of the two the data actually supports.
+    result = set()
+    if has_hld or not has_lld:
+        # Always include "hld" unless the data is LLD-only (has_lld but
+        # genuinely nothing HLD-shaped) -- mirrors today's "Document
+        # Overview always renders" fallback for an otherwise-empty design.
+        result.add("hld")
+    if has_lld:
+        result.add("lld")
+    return result or {"hld"}
+
+
+def _format_design_build_result(results: dict) -> str:
+    """Formats the SUCCESS string for _build_design_documents. A single
+    file keeps today's exact "SUCCESS: Professional document saved at
+    {path}" shape (so every existing "parse the one path out of a SUCCESS
+    string" instruction convention on both ports keeps working unchanged).
+    A two-file result uses a deliberately distinct shape -- plural
+    "documents", a different separator -- so it can never be silently
+    mis-parsed by something expecting the singular phrase."""
+    if set(results) == {"hld", "lld"}:
+        return f"SUCCESS: Professional documents saved -- HLD: {results['hld']}; LLD: {results['lld']}"
+    if results:
+        return f"SUCCESS: Professional document saved at {next(iter(results.values()))}"
+    return "ERROR: No document variant was selected to build."  # unreachable given the resolver above
+
+
+def _build_design_documents(data: dict, process_name: str, design_variant: Optional[str]) -> str:
+    """
+    Builds and saves the HLD document, the LLD document, or both,
+    depending on `design_variant` -- the design-schema counterpart to
+    _build_process_document, except it may produce one OR two .docx files
+    (whereas every other schema type in this module produces exactly one).
+    Deliberately foundation-level, not a full bespoke renderer for every
+    nested design_document_schema.json section the way the process
+    document has hand-crafted, data-shape-specific renderers for every
+    field: most sections go through _render_generic_value. Sections with
+    a bespoke renderer (requirements, system context, quality attributes,
+    compliance and standards, risk register, architecture analysis,
+    low-level design, glossary and references) live in design_sections.py.
+    """
+    variant = _resolve_design_variant(design_variant, data)
+    if isinstance(variant, str):
+        return variant  # already an "ERROR: ..." string
+
+    results = {}
+    if "hld" in variant:
+        doc = docx.Document()
+        apply_theme(doc)
+        results["hld"] = _build_hld_document(doc, data, process_name, has_lld_companion=("lld" in variant))
+    if "lld" in variant:
+        doc = docx.Document()
+        apply_theme(doc)
+        results["lld"] = _build_lld_document(doc, data, process_name, has_hld_companion=("hld" in variant))
+
+    return _format_design_build_result(results)
 
 
 # ============================================================

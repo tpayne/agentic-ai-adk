@@ -37,19 +37,36 @@ def _shared_generate_clean_diagram_pin(schema_type: str) -> str:
 
 
 def _pinned_create_standard_doc_from_file(schema_type: str):
+    # schema_type == "design" is the one case with a genuine second choice
+    # for the LLM to make at render time: which of the two SEPARATE design
+    # documents (HLD/LLD/both) to produce (see process_toolkit.docgen.
+    # generation's own _build_design_documents). Every other schema_type's
+    # own inner closure keeps its existing, design_variant-free signature
+    # unchanged -- the model must never see a parameter that's meaningless
+    # for the document it's actually rendering.
+    if schema_type == "design":
+        def create_standard_doc_from_file(
+            process_name: str = "Process",
+            design_variant: Optional[str] = None,
+            tool_context: Optional[ToolContext] = None,
+        ) -> str:
+            """Generates the final Word document(s) from the current saved design baseline -- the High-Level Design, the Low-Level Design, or both as SEPARATE documents. process_name is an optional fallback title. design_variant ("hld"|"lld"|"both", default "both") selects which document(s) to render."""
+            return _shared_create_standard_doc_from_file_pin(process_name, schema_type, design_variant, tool_context)
+        return create_standard_doc_from_file
+
     def create_standard_doc_from_file(
         process_name: str = "Process",
         tool_context: Optional[ToolContext] = None,
     ) -> str:
         """Generates the final Word document from the current saved baseline. process_name is an optional fallback title."""
-        return _shared_create_standard_doc_from_file_pin(process_name, schema_type, tool_context)
+        return _shared_create_standard_doc_from_file_pin(process_name, schema_type, None, tool_context)
     return create_standard_doc_from_file
 
 
 def _shared_create_standard_doc_from_file_pin(
-    process_name: str, schema_type: str, tool_context: Optional[ToolContext]
+    process_name: str, schema_type: str, design_variant: Optional[str], tool_context: Optional[ToolContext]
 ) -> str:
-    return create_standard_doc_from_file(process_name, schema_type, tool_context)
+    return create_standard_doc_from_file(process_name, schema_type, design_variant, tool_context)
 
 
 def build_edge_inference_instance(schema_type: Optional[str] = None):
