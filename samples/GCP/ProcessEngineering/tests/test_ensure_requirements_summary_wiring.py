@@ -84,8 +84,10 @@ class TestRouter1dNoLongerContradictsSection8:
         assert "Review the documents in ./rfp-docs and create a requirements management document." in text
 
     def test_directory_context_note_now_lists_1d_and_1e(self):
+        # 1f (test specification) was added later, in the same spot, once it also gained
+        # the ability to self-extract a requirements summary from a named directory.
         text = _router_text()
-        assert "(1a/1b/1c/1d/1e above, or the cloud diagram case in Section 7 below)" in text
+        assert "(1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 7 below)" in text
 
 
 class TestRouter1eNoLongerHardStops:
