@@ -773,6 +773,30 @@ class TestDesignDocumentGeneration:
         lld_text = "\n".join(p.text for p in docx.Document(lld_path).paragraphs)
         assert "Additional Data" not in lld_text or "high_level_design" not in lld_text.lower()
 
+    def test_a_stray_duplicate_top_level_key_does_not_also_dump_into_additional_data(self):
+        # Confirmed as a real bug via a live-generated document: a
+        # generating agent persisted availability_and_resilience a SECOND
+        # time as its own stray TOP-LEVEL key (schema-invalid -- it only
+        # belongs nested under high_level_design), so Additional Data
+        # dumped the exact same RTO/RPO content a second time, right after
+        # 5.1 Architecture Detail had already rendered it properly. A
+        # genuinely novel top-level key (not a schema-nested-only name)
+        # must still reach Additional Data -- this is a targeted
+        # dedup, not a general content filter.
+        data = dict(SAMPLE_DESIGN)
+        data["high_level_design"] = dict(data["high_level_design"])
+        data["high_level_design"]["availability_and_resilience"] = {"rto": "4 hours", "rpo": "12 hours"}
+        data["availability_and_resilience"] = {"rto": "4 hours", "rpo": "12 hours"}
+        data["internal_notes"] = "A genuinely new field not in the schema at all."
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="hld")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        texts = [p.text for p in docx.Document(out_path).paragraphs]
+
+        assert sum(1 for t in texts if t.strip().startswith("RTO:")) <= 1
+        assert any("genuinely new field" in t for t in texts)
+
     def test_title_baked_in_doc_type_label_is_stripped_from_both_filenames_and_cover_titles(self):
         # A generator/import agent sometimes bakes its own doc-type label
         # into document_metadata.title (e.g. "High-Level Design: X" or

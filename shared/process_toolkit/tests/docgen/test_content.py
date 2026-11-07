@@ -2,6 +2,7 @@ import docx
 
 from process_toolkit.docgen.content import (
     _resolve_index_references, _add_process_steps_section, _add_stakeholders_section,
+    _add_design_overview_section, _render_generic_value,
 )
 
 
@@ -168,3 +169,98 @@ class TestStakeholdersSection:
         table = doc.tables[0]
         assert table.rows[1].cells[2].text == "High"
         assert table.rows[2].cells[2].text == ""
+
+
+class TestDesignOverviewSectionBusinessContextLists:
+    """Confirmed as a real bug via a live-generated document: objectives/
+    business_drivers/assumptions/constraints entries shaped as
+    {"description": "...", "type": "..."} (the real schema shape, not a
+    bare string) rendered as literal Python dict repr -- "{'description':
+    'Enforce uniform backup processes...'}" -- because this section used
+    str(item) directly instead of _item_text(item, "description"), unlike
+    every sibling list-of-dict renderer elsewhere in this module."""
+
+    def test_dict_shaped_business_context_entries_render_as_plain_text_not_dict_repr(self):
+        doc = docx.Document()
+        data = {
+            "document_metadata": {"system_name": "X"},
+            "business_context": {
+                "purpose": "Test purpose.",
+                "objectives": [{"description": "Enforce uniform backup processes."}],
+                "business_drivers": [{"description": "Ensure data resilience."}],
+                "assumptions": [{"type": "infrastructure", "description": "Landing zone follows best practices."}],
+                "constraints": [{"description": "Must use AWS Backup.", "type": "technical"}],
+            },
+        }
+        _add_design_overview_section(doc, data)
+        texts = [p.text for p in doc.paragraphs]
+        assert "Enforce uniform backup processes." in texts
+        assert "Ensure data resilience." in texts
+        assert "Landing zone follows best practices." in texts
+        assert "Must use AWS Backup." in texts
+        assert not any("{'description'" in t or '{"description"' in t for t in texts)
+
+    def test_bare_string_business_context_entries_still_render_unchanged(self):
+        # _item_text falls back to str(item) for non-dict entries, so the
+        # older/simpler plain-string schema shape keeps working too.
+        doc = docx.Document()
+        data = {
+            "document_metadata": {},
+            "business_context": {"objectives": ["Reduce latency."]},
+        }
+        _add_design_overview_section(doc, data)
+        texts = [p.text for p in doc.paragraphs]
+        assert "Reduce latency." in texts
+
+
+class TestRenderGenericValueAcronymLabels:
+    """Confirmed as a real bug via a live-generated document: a dict field
+    like availability_and_resilience's own {"rto": ..., "rpo": ...}
+    rendered as "Rto: 4 hours" / "Rpo: 12 hours" -- str.title() uppercases
+    only each word's first letter, which is wrong for an acronym. Every
+    dict-of-scalars value renders through the SAME merged_labels/
+    combined_label path (even a dict with no duplicate values -- see
+    _render_generic_value's own merged_labels construction), so this single
+    path covers both the common case and the "two keys share one value"
+    merge case."""
+
+    def test_acronym_keys_render_fully_capitalized_not_title_cased(self):
+        doc = docx.Document()
+        _render_generic_value(
+            doc, {"rto": "4 hours", "rpo": "12 hours", "backup_strategy": "daily"}, label="Availability"
+        )
+        texts = [p.text for p in doc.paragraphs]
+        assert any(t.startswith("RTO: 4 hours") for t in texts)
+        assert any(t.startswith("RPO: 12 hours") for t in texts)
+        assert any(t.startswith("Backup Strategy: daily") for t in texts)
+
+    def test_duplicate_valued_acronym_keys_merge_into_a_combined_label(self):
+        # Two keys sharing the exact same text value get merged into one
+        # "KEY1 / KEY2:" line (merged_labels) -- confirmed this specific
+        # path (not just the single-key path) also uses the acronym-aware
+        # label, since a prior fix attempt broke ONLY this path (a regex
+        # substitution corrupted the "kk" loop variable here specifically).
+        doc = docx.Document()
+        _render_generic_value(doc, {"rto": "4 hours", "sla": "4 hours"})
+        texts = [p.text for p in doc.paragraphs]
+        assert any(t.startswith("RTO / SLA: 4 hours") for t in texts)
+
+
+class TestDesignOverviewSectionDocumentTypeLabel:
+    """Confirmed as a real bug via a live-generated document: the HLD
+    document's own body text printed "Document Type: Combined" -- the raw
+    document_metadata.document_type value -- even though design
+    generation always persists document_type="Combined" in the underlying
+    JSON regardless of which file(s) actually get rendered (see
+    generation.py's own _build_design_documents), and this function only
+    ever builds the HLD half (_build_lld_document never calls it). A
+    reader of just the HLD file seeing "Document Type: Combined" with no
+    LLD file in sight is misleading."""
+
+    def test_document_type_always_shows_high_level_design_not_the_raw_json_value(self):
+        doc = docx.Document()
+        data = {"document_metadata": {"document_type": "Combined"}, "business_context": {}}
+        _add_design_overview_section(doc, data)
+        texts = [p.text for p in doc.paragraphs]
+        assert "Document Type: High-Level Design" in texts
+        assert not any("Document Type: Combined" in t for t in texts)

@@ -11,6 +11,7 @@ page breaks around a silent no-op -- the same convention every other
 section-adding function in this pipeline follows.
 """
 
+import os
 import re
 import traceback
 
@@ -28,6 +29,7 @@ from process_toolkit.docgen.content import (
     _stringify_nested,
     _add_prose_field,
 )
+from process_toolkit.docgen.uml_diagrams import generate_uml_diagram
 
 # ============================================================
 # Shared sort helpers
@@ -594,6 +596,373 @@ def _add_architecture_analysis(doc: docx.Document, architecture_analysis, level:
 
             doc.add_paragraph()
 
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def _add_viewpoints_and_views_section(
+    doc: docx.Document, viewpoints, views, level: int = 2, system_name: str = None, high_level_design: dict = None,
+) -> bool:
+    """Architecture viewpoints and the views that realize them (ISO/IEC/
+    IEEE 42010). Each view is grouped under the viewpoint it declares via
+    its own viewpoint-reference field (matched against each viewpoint's
+    own name, case/whitespace-insensitive), so a reader sees WHY a view
+    exists (its viewpoint's own concerns/stakeholders) directly alongside
+    WHAT the view documents, rather than two independently rendered,
+    uncorrelated lists -- confirmed as a real gap via a live-generated
+    document, where Viewpoints and Views rendered as two separate generic
+    tables with no structural link between them even though the schema's
+    own cross-reference field exists precisely to express it.
+
+    design_document_schema.json's own template uses "viewpoint_name"/
+    "concerns_addressed"/"stakeholders_addressed"/"view_name"/
+    "viewpoint_ref", but a live model instead used the shorter "name"/
+    "concerns"/"stakeholders"/"name"/"viewpoint" for the exact same
+    content -- confirmed directly against a real generated document,
+    where this function's FIRST version (checking only the schema's own
+    verbose key names) found nothing at all: every viewpoint rendered as
+    a bare "Viewpoint" placeholder heading with no description/concerns/
+    stakeholders, and every view fell through to "Other Views" since no
+    viewpoint_ref ever matched. Every field below tries both shapes.
+
+    A view whose viewpoint reference doesn't match any known viewpoint
+    (or is missing/misspelled) still renders in full, grouped under a
+    trailing "Other Views" heading -- a broken cross-reference never means
+    the view's own content is silently dropped."""
+    try:
+        viewpoints = [v for v in (viewpoints or []) if isinstance(v, dict)]
+        views = [v for v in (views or []) if isinstance(v, dict)]
+        if not viewpoints and not views:
+            return False
+
+        heading_level = min(max(level, 1), 6)
+        sub_level = min(heading_level + 1, 6)
+
+        def _norm(value) -> str:
+            return str(value or "").strip().lower()
+
+        def _viewpoint_name(vp: dict):
+            return vp.get("viewpoint_name") or vp.get("name")
+
+        def _view_name(view: dict):
+            return view.get("view_name") or view.get("name")
+
+        def _view_ref(view: dict):
+            return view.get("viewpoint_ref") or view.get("viewpoint")
+
+        viewpoint_name_by_key = {
+            _norm(_viewpoint_name(vp)): _viewpoint_name(vp)
+            for vp in viewpoints if _viewpoint_name(vp)
+        }
+        views_by_viewpoint: dict = {}
+        unmapped_views = []
+        for view in views:
+            ref = _norm(_view_ref(view))
+            matched_name = viewpoint_name_by_key.get(ref) if ref else None
+            if matched_name:
+                views_by_viewpoint.setdefault(matched_name, []).append(view)
+            else:
+                unmapped_views.append(view)
+
+        if viewpoints:
+            doc.add_heading("Viewpoints", level=heading_level)
+        for vp in viewpoints:
+            name = _viewpoint_name(vp) or "Viewpoint"
+            doc.add_heading(str(name), level=sub_level)
+
+            description = vp.get("description")
+            if description:
+                doc.add_paragraph(str(description))
+
+            for fields, label in (
+                (("concerns_addressed", "concerns"), "Concerns Addressed"),
+                (("stakeholders_addressed", "stakeholders"), "Stakeholders Addressed"),
+            ):
+                value = next((vp.get(f) for f in fields if vp.get(f)), None)
+                _add_bulleted_group(doc, label, value, indent_inches=0.0)
+
+            standard = vp.get("applicable_standard") or vp.get("standard")
+            if standard:
+                p = doc.add_paragraph()
+                p.add_run("Applicable Standard: ").bold = True
+                p.add_run(str(standard))
+
+            own_views = views_by_viewpoint.get(name, [])
+            if own_views:
+                p = doc.add_paragraph()
+                p.paragraph_format.space_before = Pt(8)
+                p.add_run("Views realizing this viewpoint:").bold = True
+                for view in own_views:
+                    _add_view_entry(
+                        doc, view, level=sub_level + 1, system_name=system_name, high_level_design=high_level_design,
+                    )
+
+            doc.add_paragraph()
+
+        if unmapped_views:
+            doc.add_heading("Other Views", level=heading_level)
+            doc.add_paragraph(
+                "The following views did not reference one of the viewpoints defined above."
+            )
+            for view in unmapped_views:
+                _add_view_entry(
+                    doc, view, level=sub_level, system_name=system_name, high_level_design=high_level_design,
+                )
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# Keyword -> real, already-existing high_level_design data most views
+# with that kind of name are actually describing. Confirmed as a real
+# gap via a live-generated document: a generating agent never populates
+# views[].elements/diagrams on the view itself, so EVERY view fell
+# through to the honest-but-unhelpful fallback note, even for a "Logical
+# View"/"Deployment View" whose own content already exists elsewhere in
+# the same design JSON (components/integration_points, deployment_
+# topology.environments) and is ALREADY drawn once for the overall
+# "Architecture Flow Diagram". This is never fabrication -- it only
+# chooses WHICH of that real data to visualize for a given view, the
+# same "dispatch by data shape, not by an unreliable tag" principle
+# generate_uml_diagram's own docstring already explains for diagram_type.
+# A view whose own name/purpose doesn't match any of these (e.g. a
+# "Process View" describing a sequence of events, for which no
+# high_level_design-level data source exists) still gets the honest
+# fallback note -- this is a short, deliberately conservative list, not
+# a guess-anything heuristic.
+_VIEW_NAME_TO_HLD_CONTEXT_KEYWORDS = (
+    (("deployment", "topology", "infrastructure", "physical"), "deployment"),
+    (("logical", "component", "integration"), "logical"),
+)
+
+
+def _infer_view_context_from_high_level_design(view: dict, high_level_design: dict):
+    """Returns a context dict generate_uml_diagram can draw a real diagram
+    from, inferred from the view's own name/description keywords, or None
+    if nothing in high_level_design plausibly matches."""
+    if not isinstance(high_level_design, dict) or not high_level_design:
+        return None
+
+    haystack = f"{view.get('view_name') or view.get('name') or ''} {view.get('description') or ''}".lower()
+
+    for keywords, kind in _VIEW_NAME_TO_HLD_CONTEXT_KEYWORDS:
+        if any(kw in haystack for kw in keywords):
+            if kind == "deployment":
+                environments = (high_level_design.get("deployment_topology") or {}).get("environments")
+                if environments:
+                    return {"environments": environments}
+            elif kind == "logical":
+                integration_points = high_level_design.get("integration_points")
+                if integration_points:
+                    return {"integration_points": integration_points}
+    return None
+
+
+def _add_view_entry(
+    doc: docx.Document, view: dict, level: int = 4, system_name: str = None, high_level_design: dict = None,
+) -> None:
+    """A single view: name (a real heading, not just a bold run -- matches
+    the rest of this document's own heading hierarchy, confirmed as a
+    real readability gap via a live-generated document), description, and
+    -- if the view's own schema fields support it -- a REAL generated
+    diagram, not just a text label. Tries, in order:
+      1. An explicit diagrams[] descriptor list (the schema's own field
+         for this, rendered the same way every other diagram descriptor
+         in this document is).
+      2. Auto-generating a node-grid diagram directly from the view's own
+         elements[] list (generate_uml_diagram's existing "elements ->
+         node grid" branch -- no new diagram-drawing code needed).
+      3. Inferring, from the view's own name/description, which of
+         high_level_design's ALREADY-REAL data (components/integration_
+         points, deployment_topology.environments) it's actually
+         describing, and drawing THAT -- see
+         _infer_view_context_from_high_level_design.
+    If none of these apply, no diagram (and no placeholder note) renders
+    for this view -- confirmed via direct user feedback that a cluster of
+    "[Diagram not yet generated]" notes across several views in the same
+    short section reads as broken/unfinished, not honest. The view's own
+    name/description are real content and still always render regardless."""
+    heading_level = min(max(level, 1), 6)
+    name = view.get("view_name") or view.get("name") or "View"
+    doc.add_heading(str(name), level=heading_level)
+
+    description = view.get("description")
+    if description:
+        doc.add_paragraph(str(description))
+
+    diagrams = [d for d in (view.get("diagrams") or []) if isinstance(d, dict)]
+    if diagrams:
+        for d in diagrams:
+            _render_diagram_descriptor(doc, d, level=min(heading_level + 1, 6), context=view, system_name=system_name)
+        return
+
+    diagram_path = generate_uml_diagram(view, view, system_name=system_name)
+    if not diagram_path:
+        inferred_context = _infer_view_context_from_high_level_design(view, high_level_design)
+        if inferred_context:
+            diagram_path = generate_uml_diagram(view, inferred_context, system_name=system_name)
+
+    if diagram_path and os.path.exists(diagram_path):
+        doc.add_picture(diagram_path, width=Inches(5.5))
+        doc.add_paragraph()
+    # No "[Diagram not yet generated]" placeholder note here -- confirmed
+    # via direct user feedback that a cluster of these (one per view with
+    # no diagram, several views in the same short section) reads as
+    # broken/unfinished rather than honest, unlike the single-diagram
+    # case elsewhere in this document (_render_diagram_descriptor's own
+    # fallback) that this was originally modeled on. The view's own
+    # name/description above is real content either way and is never
+    # dropped -- only the empty placeholder for a diagram that doesn't
+    # exist is omitted.
+
+
+def _add_hld_components_section(doc: docx.Document, components, heading: str = "Components", level: int = 3) -> bool:
+    """high_level_design.components -- each rendered with a FIXED,
+    consistent field order (Type, Owner, Technology Stack, Interfaces,
+    Dependencies) regardless of the order fields happen to appear in the
+    source JSON. Confirmed as a real readability bug via a live-generated
+    document: the generic fallback renderer this replaced showed each
+    component's OWN JSON key order, so "Dependencies" rendered as the
+    very FIRST line for one component (whichever key the agent happened
+    to emit second) and didn't appear at all for a sibling component with
+    none -- a reader comparing several components side by side had no
+    stable place to look for any given field."""
+    try:
+        components = [c for c in (components or []) if isinstance(c, dict)]
+        if not components:
+            return False
+
+        heading_level = min(max(level, 1), 6)
+        sub_level = min(heading_level + 1, 6)
+
+        doc.add_heading(heading, level=heading_level)
+        for c in components:
+            name = c.get("component_name") or c.get("name") or "Component"
+            doc.add_heading(str(name), level=sub_level)
+
+            description = c.get("description")
+            if description:
+                doc.add_paragraph(str(description))
+
+            for field, label in (("type", "Type"), ("owner", "Owner")):
+                value = c.get(field)
+                if value:
+                    p = doc.add_paragraph()
+                    p.add_run(f"{label}: ").bold = True
+                    p.add_run(str(value))
+
+            for field, label in (
+                ("technology_stack", "Technology Stack"),
+                ("interfaces", "Interfaces"),
+                ("dependencies", "Dependencies"),
+            ):
+                _add_bulleted_group(doc, label, c.get(field), indent_inches=0.0)
+
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def _add_integration_points_table(
+    doc: docx.Document, integration_points, heading: str = "Integration Points", level: int = 3,
+) -> bool:
+    """high_level_design.integration_points -- same few fields repeated
+    per entry (Source, Target, Integration Pattern, Protocol,
+    Description), so a table reads it far more clearly at a glance than
+    the generic fallback's own repeated bold-label prose blocks did,
+    matching how every other similarly-shaped list in this document
+    (Requirements, External Systems, Risk Register) already renders."""
+    try:
+        items = [i for i in (integration_points or []) if isinstance(i, dict)]
+        if not items:
+            return False
+
+        heading_level = min(max(level, 1), 6)
+        doc.add_heading(heading, level=heading_level)
+
+        candidate_cols = [
+            ("source", "Source"),
+            ("target", "Target"),
+            ("integration_pattern", "Integration Pattern"),
+            ("protocol", "Protocol"),
+            ("description", "Description"),
+        ]
+
+        def _value(item: dict, key: str):
+            # "source_component"/"target_component" is a confirmed
+            # real synonym the design agent sometimes invents by analogy
+            # with component_name -- same fallback generate_uml_diagram's
+            # own integration_points branch already applies.
+            return item.get(key) or item.get(f"{key}_component")
+
+        present_cols = [col for col in candidate_cols if any(_value(item, col[0]) for item in items)] or [candidate_cols[0]]
+
+        table = doc.add_table(rows=1, cols=len(present_cols))
+        _set_header_row(table, [label for _, label in present_cols])
+        for item in items:
+            row = table.add_row().cells
+            for idx, (key, _) in enumerate(present_cols):
+                row[idx].text = str(_value(item, key) or "")
+        apply_iso_table_formatting(table, doc)
+        doc.add_paragraph()
+
+        data_flow_overviews = [item.get("data_flow_overview") for item in items if item.get("data_flow_overview")]
+        if data_flow_overviews:
+            p = doc.add_paragraph()
+            p.add_run("Data Flow Overview: ").bold = True
+            p.add_run(" ".join(str(v) for v in data_flow_overviews))
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def _add_technology_stack_table(
+    doc: docx.Document, technology_stack, heading: str = "Technology Stack", level: int = 3,
+) -> bool:
+    """high_level_design.technology_stack -- the same 5 fields
+    (Technology, Category, Version, License, Justification) repeated per
+    entry, exactly the shape a table presents far more scannably than
+    the generic fallback's own repeated bold-label prose blocks."""
+    try:
+        items = [t for t in (technology_stack or []) if isinstance(t, dict)]
+        if not items:
+            return False
+
+        heading_level = min(max(level, 1), 6)
+        doc.add_heading(heading, level=heading_level)
+
+        candidate_cols = [
+            ("technology", "Technology"),
+            ("category", "Category"),
+            ("version", "Version"),
+            ("license", "License"),
+            ("justification", "Justification"),
+        ]
+        present_cols = [col for col in candidate_cols if any(item.get(col[0]) for item in items)] or [candidate_cols[0]]
+
+        table = doc.add_table(rows=1, cols=len(present_cols))
+        _set_header_row(table, [label for _, label in present_cols])
+        for item in items:
+            row = table.add_row().cells
+            for idx, (key, _) in enumerate(present_cols):
+                row[idx].text = str(item.get(key, ""))
+        apply_iso_table_formatting(table, doc)
+        doc.add_paragraph()
         return True
 
     except Exception:

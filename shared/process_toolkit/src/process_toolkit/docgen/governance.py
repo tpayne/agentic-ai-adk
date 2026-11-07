@@ -10,6 +10,7 @@ from process_toolkit.docgen.structure import (
     _add_header,
     _add_bullet,
     _item_text,
+    _label_from_key,
     apply_iso_table_formatting,
 )
 from process_toolkit.docgen.content import _render_generic_value
@@ -47,7 +48,7 @@ def _add_governance_requirements_section(
 
     if isinstance(items, dict):
         for category, value in items.items():
-            label = str(category).replace("_", " ").title()
+            label = _label_from_key(category)
             p = doc.add_paragraph()
             p.add_run(f"{label}:").bold = True
             values = value if isinstance(value, list) else [value]
@@ -206,7 +207,7 @@ def _add_continuous_improvement_section(
 
     if isinstance(items, dict):
         for category, value in items.items():
-            label = str(category).replace("_", " ").title()
+            label = _label_from_key(category)
             p = doc.add_paragraph()
             p.add_run(f"{label}:").bold = True
             values = value if isinstance(value, list) else [value]
@@ -252,7 +253,7 @@ def _add_appendix_from_json(
         doc.add_paragraph(f"The following appendix contains reference materials related to the {subject_noun}:")
 
         for key, val in appendix.items():
-            section_title = str(key).replace("_", " ").title()
+            section_title = _label_from_key(key)
             doc.add_heading(section_title, level=2)
 
             if isinstance(val, dict):

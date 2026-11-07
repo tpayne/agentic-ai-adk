@@ -95,6 +95,32 @@ def _add_bullet(doc, text, indent=False):
     p.add_run(f"• {text}")
 
 
+# JSON field keys this renderer generates a heading/label from via
+# _label_from_key -- several are acronyms whose every letter must stay
+# capitalized ("rto" -> "RTO", not "Rto"). Confirmed as a real bug via a
+# live-generated document: key.replace("_", " ").title() -- used
+# throughout this module and generation.py to turn a schema field name
+# into a human-readable label -- naively title-cases every word, which is
+# correct for an ordinary field name but wrong for an acronym (str.title()
+# only uppercases each word's FIRST letter). Extend this set as new
+# acronym-bearing field names turn up in real generated documents.
+_ACRONYM_WORDS = {
+    "rto", "rpo", "api", "sla", "kms", "iam", "hld", "lld", "uml", "iso",
+    "iec", "ieee", "pci", "dss", "gdpr", "sox", "rest", "http", "https",
+    "json", "xml", "url", "id", "cpu", "aws", "gcp", "sql", "ci", "cd",
+    "mvp", "roi", "kpi", "sso", "mfa", "cmk", "scp", "vpc", "iac", "waf",
+    "cidr", "dns", "tls", "ssl", "jwt",
+}
+
+
+def _label_from_key(key: str) -> str:
+    """Turns a snake_case JSON field key into a human-readable label for a
+    heading/bold-run prefix, title-casing ordinary words but keeping a
+    known acronym fully capitalized (RTO, not Rto) -- see _ACRONYM_WORDS."""
+    words = str(key).replace("_", " ").split(" ")
+    return " ".join(w.upper() if w.lower() in _ACRONYM_WORDS else w.capitalize() for w in words)
+
+
 def _item_text(item, *content_keys: str) -> str:
     """
     Returns a displayable string for one entry of a list field the source

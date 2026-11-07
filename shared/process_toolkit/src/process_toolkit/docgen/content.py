@@ -18,6 +18,7 @@ from process_toolkit.docgen.structure import (
     _add_header,
     _add_bullet,
     _item_text,
+    _label_from_key,
     apply_iso_table_formatting,
     add_iso_page_break,
 )
@@ -87,7 +88,7 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
             value = data.get(key)
             if value:
                 p = doc.add_paragraph()
-                r = p.add_run(f"{key.replace('_', ' ').title()}: ")
+                r = p.add_run(f"{_label_from_key(key)}: ")
                 r.bold = True
                 p.add_run(str(value))
 
@@ -170,15 +171,25 @@ def _add_design_overview_section(doc: docx.Document, data: dict, has_lld_compani
                 doc.add_heading(f"1.{subsection} {label}", level=2)
                 subsection += 1
                 for item in value:
-                    doc.add_paragraph(str(item), style="List Bullet")
+                    doc.add_paragraph(_item_text(item, "description"), style="List Bullet")
 
+        # document_type is shown as "High-Level Design", never the raw
+        # document_metadata.document_type value -- this function only ever
+        # builds the HLD document (design generation always persists
+        # document_type="Combined" in the underlying JSON regardless of
+        # which file(s) actually get rendered -- see generation.py's own
+        # _build_design_documents), so printing that raw value verbatim in
+        # the body of a document that's actually just the HLD half would
+        # be actively misleading. Confirmed as a real bug via a
+        # live-generated document.
+        overridden = {"document_type": "High-Level Design"}
         for key, label in [
             ("system_name", "System Name"),
             ("industry_sector", "Industry Sector"),
             ("document_type", "Document Type"),
             ("template_standard", "Template Standard"),
         ]:
-            value = metadata.get(key)
+            value = overridden.get(key) or metadata.get(key)
             if value:
                 p = doc.add_paragraph()
                 r = p.add_run(f"{label}: ")
@@ -381,11 +392,11 @@ def _add_process_steps_section(
         if isinstance(value, dict):
             for k, v in value.items():
                 if isinstance(v, list):
-                    _add_bullet(doc, f"{k.replace('_',' ').title()}:", indent)
+                    _add_bullet(doc, f"{_label_from_key(k)}:", indent)
                     for item in v:
                         _add_bullet(doc, item, indent=True)
                 else:
-                    _add_bullet(doc, f"{k.replace('_',' ').title()}: {v}", indent)
+                    _add_bullet(doc, f"{_label_from_key(k)}: {v}", indent)
 
         elif isinstance(value, list):
             for item in value:
@@ -497,11 +508,11 @@ def _add_subprocess_section(doc, step_index: int, step_name: str, subprocess_jso
         if isinstance(value, dict):
             for k, v in value.items():
                 if isinstance(v, list):
-                    _add_bullet(doc, f"{k.replace('_',' ').title()}:", indent)
+                    _add_bullet(doc, f"{_label_from_key(k)}:", indent)
                     for item in v:
                         _add_bullet(doc, item, indent=True)
                 else:
-                    _add_bullet(doc, f"{k.replace('_',' ').title()}: {v}", indent)
+                    _add_bullet(doc, f"{_label_from_key(k)}: {v}", indent)
 
         elif isinstance(value, list):
             for item in value:
@@ -600,7 +611,7 @@ def _stringify_nested(value, indent: int = 0) -> str:
         for k, v in value.items():
             if v in (None, "", [], {}):
                 continue
-            key_label = str(k).replace("_", " ").title()
+            key_label = _label_from_key(k)
             nested = _stringify_nested(v, indent + 1)
             if not nested:
                 continue
@@ -681,7 +692,7 @@ def _render_diagram_descriptor(
         return
 
     diagram_type = d.get("diagram_type")
-    label = str(diagram_type).replace("_", " ").title() if diagram_type else "Diagram"
+    label = _label_from_key(diagram_type) if diagram_type else "Diagram"
     note = doc.add_paragraph()
     note_run = note.add_run(f"[{label} not yet generated for this document.]")
     note_run.italic = True
@@ -768,7 +779,7 @@ def _render_generic_value(
                         structured_fields[key] = v
                     else:
                         text = _stringify_nested(v)
-                        _add_prose_field(doc, key.replace("_", " ").title(), text)
+                        _add_prose_field(doc, _label_from_key(key), text)
                 doc.add_paragraph()
                 for key, v in structured_fields.items():
                     if isinstance(v, dict) and _looks_like_diagram_descriptor(v):
@@ -777,14 +788,14 @@ def _render_generic_value(
                         )
                     elif isinstance(v, list) and v and all(_looks_like_diagram_descriptor(x) for x in v):
                         if key:
-                            doc.add_heading(key.replace("_", " ").title(), level=min(card_level + 1, 6))
+                            doc.add_heading(_label_from_key(key), level=min(card_level + 1, 6))
                         for diag in v:
                             _render_diagram_descriptor(
                                 doc, diag, card_level + 2, context=item, system_name=system_name
                             )
                     else:
                         _render_generic_value(
-                            doc, v, label=key.replace("_", " ").title(), level=card_level + 1,
+                            doc, v, label=_label_from_key(key), level=card_level + 1,
                             system_name=system_name,
                         )
             return
@@ -792,7 +803,7 @@ def _render_generic_value(
         table = doc.add_table(rows=1, cols=len(ordered_keys))
         hdr = table.rows[0].cells
         for i, key in enumerate(ordered_keys):
-            hdr[i].text = key.replace("_", " ").title()
+            hdr[i].text = _label_from_key(key)
 
         for item in value:
             row = table.add_row().cells
@@ -846,7 +857,7 @@ def _render_generic_value(
             if k in duplicate_of:
                 continue
             combined_label = " / ".join(
-                kk.replace("_", " ").title() for kk in merged_labels[k]
+                _label_from_key(kk) for kk in merged_labels[k]
             )
             _add_prose_field(doc, combined_label, texts[k])
 
@@ -861,7 +872,7 @@ def _render_generic_value(
                 continue
 
             if isinstance(v, list) and v and all(_looks_like_diagram_descriptor(x) for x in v):
-                doc.add_heading(k.replace("_", " ").title(), level=min(heading_level + 1, 6))
+                doc.add_heading(_label_from_key(k), level=min(heading_level + 1, 6))
                 for diag in v:
                     _render_diagram_descriptor(
                         doc, diag, heading_level + 2, context=value, system_name=system_name
@@ -869,7 +880,7 @@ def _render_generic_value(
                 continue
 
             _render_generic_value(
-                doc, v, label=k.replace("_", " ").title(), level=heading_level + 1,
+                doc, v, label=_label_from_key(k), level=heading_level + 1,
                 system_name=system_name,
             )
 

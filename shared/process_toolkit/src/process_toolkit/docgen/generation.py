@@ -29,10 +29,12 @@ from process_toolkit.schema.process_json import DESIGN_JSON_FILENAME
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
+from process_toolkit.schema.design_json import DESIGN_TEMPLATE
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
     _add_version_history_table,
     _add_table_of_contents,
+    _label_from_key,
     add_iso_page_break,
 )
 from process_toolkit.docgen.content import (
@@ -70,6 +72,10 @@ from process_toolkit.docgen.design_sections import (
     _add_compliance_and_standards_section,
     _add_risk_register_section,
     _add_architecture_analysis,
+    _add_viewpoints_and_views_section,
+    _add_hld_components_section,
+    _add_integration_points_table,
+    _add_technology_stack_table,
     _add_low_level_design_section,
     _add_glossary_and_references_section,
 )
@@ -972,6 +978,27 @@ _DESIGN_CONSUMED_KEYS = {
     "glossary_and_references", "review_and_governance", "appendix",
 }
 
+# Field names that only belong NESTED under high_level_design/
+# low_level_design per DESIGN_TEMPLATE (e.g. "availability_and_resilience"
+# with its own "rto"/"rpo") -- derived from the template itself rather
+# than hardcoded, so it stays in sync with it. Confirmed as a real bug via
+# a live-generated document: a generating agent persisted
+# availability_and_resilience a SECOND time as its own stray TOP-LEVEL
+# key, duplicating the exact same RTO/RPO/backup-strategy content already
+# rendered in 5.1 Architecture Detail -- _DESIGN_CONSUMED_KEYS alone
+# didn't catch this (the stray key's NAME was never a real top-level
+# schema field, so it was never in that set either), and the Additional
+# Data appendix then dumped it a second time since it looked, by the
+# top-level-only consumed-keys check, like genuinely novel leftover data.
+# A top-level key sharing a name that ONLY makes schema sense nested is,
+# by definition, not novel data -- it's a stray duplicate, so it's
+# excluded here too (unlike a genuinely new top-level key, which still
+# correctly reaches Additional Data -- this never drops real content).
+_DESIGN_NESTED_ONLY_KEYS = (
+    set(DESIGN_TEMPLATE.get("high_level_design", {}).keys())
+    | set(DESIGN_TEMPLATE.get("low_level_design", {}).keys())
+) - _DESIGN_CONSUMED_KEYS
+
 
 def _add_design_cover_and_toc(doc: docx.Document, meta: _DesignMeta, subtitle: str) -> None:
     """Cover page + Document Control (version history) + Table of
@@ -1028,7 +1055,7 @@ def _add_design_trailing_sections(doc: docx.Document, data: dict, rendered: bool
 
     if rendered:
         add_iso_page_break(doc)
-    rendered = _add_additional_data_section(doc, data, _DESIGN_CONSUMED_KEYS)
+    rendered = _add_additional_data_section(doc, data, _DESIGN_CONSUMED_KEYS | _DESIGN_NESTED_ONLY_KEYS)
 
     # _add_glossary is the process document's fallback glossary (four
     # hardcoded process-specific terms) -- not called here at all. A
@@ -1104,10 +1131,18 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
             "for this design (ISO/IEC/IEEE 42010), and the analysis behind "
             "the recommended approach."
         )
-        for key in ("concerns", "viewpoints", "views"):
-            value = architecture_description.get(key)
-            if value:
-                _render_generic_value(doc, value, label=key.replace("_", " ").title(), system_name=meta.system_label)
+        concerns = architecture_description.get("concerns")
+        if concerns:
+            _render_generic_value(doc, concerns, label="Concerns", system_name=meta.system_label)
+
+        # Dedicated renderer (not the generic fallback) -- groups each
+        # view under the viewpoint it actually references via
+        # viewpoint_ref, making the correlation structural rather than
+        # two independently-rendered, uncorrelated lists.
+        _add_viewpoints_and_views_section(
+            doc, architecture_description.get("viewpoints"), architecture_description.get("views"), level=3,
+            system_name=meta.system_label, high_level_design=high_level_design,
+        )
 
         architecture_analysis = architecture_description.get("architecture_analysis")
         if architecture_analysis:
@@ -1117,13 +1152,28 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
 
     # high_level_design's own architectural detail -- components,
     # integration points, deployment topology, security/scalability/
-    # availability characteristics, and architecture-level risks. None of
-    # these have a bespoke renderer of their own; they go through
+    # availability characteristics, and architecture-level risks.
+    # components/integration_points/technology_stack each have a
+    # dedicated renderer (consistent field order for components; a real
+    # table for the other two, since they're the same few fields repeated
+    # per entry) -- confirmed as a real readability gap via a
+    # live-generated document where all three fell through to the generic
+    # fallback and rendered as inconsistently-ordered/non-tabular prose.
+    # Every other key here has no bespoke renderer and goes through
     # _render_generic_value (the same generic fallback every other
     # schema-conforming-but-not-specially-handled section in this
     # document uses), labeled so a reader can tell which schema field
     # each came from.
     if isinstance(high_level_design, dict) and high_level_design:
+        bespoke_hld_renderers = {
+            "components": lambda: _add_hld_components_section(doc, high_level_design["components"], level=3),
+            "integration_points": lambda: _add_integration_points_table(
+                doc, high_level_design["integration_points"], level=3
+            ),
+            "technology_stack": lambda: _add_technology_stack_table(
+                doc, high_level_design["technology_stack"], level=3
+            ),
+        }
         hld_sections = [
             ("solution_overview", "Solution Overview"),
             ("architecture_style", "Architecture Style"),
@@ -1148,9 +1198,12 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
                 "security, scalability, and availability characteristics."
             )
             for key, label in present:
-                _render_generic_value(
-                    doc, high_level_design[key], label=label, level=3, system_name=meta.system_label
-                )
+                if key in bespoke_hld_renderers:
+                    bespoke_hld_renderers[key]()
+                else:
+                    _render_generic_value(
+                        doc, high_level_design[key], label=label, level=3, system_name=meta.system_label
+                    )
             rendered = True
 
     # Generate and embed the architecture/component diagram directly from

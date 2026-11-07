@@ -513,7 +513,10 @@ def test_real_world_design_doc_handles_every_observed_field_divergence():
     assert "Security Groups enforcing least privilege." in body_text
     assert "Elastic scaling via Aurora storage auto-scaling." in body_text
     assert "Multi-AZ failover." in body_text
-    assert "Routes traffic." in body_text
+    # Integration Points now renders as a table (Source/Target/Integration
+    # Pattern/Protocol/Description columns) rather than repeated prose
+    # blocks -- "Routes traffic." lives in a cell, not a paragraph.
+    assert "Routes traffic." in flat_cells or "Routes traffic." in body_text
     assert "Credential Exposure" in flat_cells or "Credential Exposure" in body_text
 
     # low_level_design: hld_component_name recognized as the component name.
