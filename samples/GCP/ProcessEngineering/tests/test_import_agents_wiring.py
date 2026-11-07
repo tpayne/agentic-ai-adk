@@ -87,6 +87,27 @@ class ImportAgentsWiringTest(unittest.TestCase):
         for name in ("load_directory_context", "load_master_design_json", "validate_design_json", "persist_final_design_json"):
             self.assertIn(name, text, f"design/import_agent.txt does not mention {name}")
 
+    def test_design_import_forbids_populating_the_other_variant_when_a_type_is_explicit(self):
+        # Confirmed as a real bug via live testing: importing a directory with
+        # an explicit "High-Level Design only -- no low-level design content,
+        # none should be invented" request still ended up with enough
+        # low_level_design content for an LLD Word document to render
+        # successfully, when the explicit request should have made that
+        # impossible (see process_toolkit.docgen.generation's own
+        # _resolve_design_variant, which treats ANY truthy low_level_design as
+        # real content). STEP 4's general "infer a reasonable value" guidance
+        # was silently overriding the document_type-implied scope -- this
+        # HARD RULE makes the exclusion explicit and gives it precedence.
+        text = _instruction_text("design/import_agent.txt")
+        self.assertIn("HARD RULE, NO EXCEPTIONS", text)
+        idx = text.index("HARD RULE, NO EXCEPTIONS")
+        rule_text = text[idx:idx + 800]
+        self.assertIn('document_type is "HLD"', rule_text)
+        self.assertIn("low_level_design key", rule_text)
+        self.assertIn("MUST be entirely absent", rule_text)
+        self.assertIn('document_type is "LLD"', rule_text)
+        self.assertIn("high_level_design MUST be entirely absent", rule_text)
+
     def test_cloudarch_import_agent_tools_and_instructions(self):
         # Regression coverage: an uploaded cloudarch_drawio.xml with a
         # request like "use this architectural diagram for further

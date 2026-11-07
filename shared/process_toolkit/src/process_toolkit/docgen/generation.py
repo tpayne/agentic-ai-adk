@@ -907,6 +907,35 @@ def _build_proposal_response_document(doc: docx.Document, data: dict, process_na
     return out_path
 
 
+# A document_metadata.title/system_name sometimes bakes in a doc-type label
+# the generator/import agent chose for itself -- e.g. "High-Level Design:
+# Checkout Service" or "Returns Processing Service High-Level Design".
+# Harmless when there was only one combined file; now that this SAME name is
+# shared as the cover-page title AND the filename stem for BOTH the HLD and
+# LLD documents, a baked-in label is actively misleading on whichever of the
+# two it doesn't belong to (e.g. an "...LLD.docx" file titled "High-Level
+# Design: ..."). Strip it from either end before use.
+# Deliberately does NOT include bare "combined design" -- that phrase alone
+# is plausible as an intentional, non-redundant title (confirmed against a
+# real pre-existing test fixture titled "Checkout Combined Design"); only
+# "combined" wording that explicitly ALSO names HLD/LLD is unambiguously a
+# doc-type label rather than part of the name itself.
+_DESIGN_DOC_TYPE_LABEL = r"(?:high[- ]level design|low[- ]level design|combined hld/?lld design|hld|lld)"
+_DESIGN_TITLE_LEADING_LABEL_RE = re.compile(
+    rf"^\s*{_DESIGN_DOC_TYPE_LABEL}\s*(?:document)?\s*[:\-]?\s*", re.IGNORECASE
+)
+_DESIGN_TITLE_TRAILING_LABEL_RE = re.compile(
+    rf"\s*[:\-]?\s*{_DESIGN_DOC_TYPE_LABEL}\s*(?:document)?\s*$", re.IGNORECASE
+)
+
+
+def _strip_design_doc_type_label(title: str) -> str:
+    stripped = _DESIGN_TITLE_LEADING_LABEL_RE.sub("", title, count=1)
+    stripped = _DESIGN_TITLE_TRAILING_LABEL_RE.sub("", stripped, count=1)
+    stripped = stripped.strip(" :-")
+    return stripped or title
+
+
 class _DesignMeta:
     """Small bag of cover-page/title fields derived from document_metadata,
     shared by both _build_hld_document and _build_lld_document so the two
@@ -916,12 +945,13 @@ class _DesignMeta:
 
     def __init__(self, data: dict, process_name: str):
         metadata = data.get("document_metadata") or {}
-        self.name = str(metadata.get("title") or metadata.get("system_name") or process_name)
+        raw_name = str(metadata.get("title") or metadata.get("system_name") or process_name)
+        self.name = _strip_design_doc_type_label(raw_name)
         # Short system name for diagram hub labels -- "name" above is the
         # full document TITLE (a whole sentence), fine for a cover page but
         # unreadable as a diagram node label. "system_name" is the short
         # form meant for exactly this.
-        self.system_label = str(metadata.get("system_name") or self.name)
+        self.system_label = _strip_design_doc_type_label(str(metadata.get("system_name") or self.name))
         self.version = str(metadata.get("version", "1.0"))
         self.doc_type = str(metadata.get("document_type", "Design"))
         self.sector = metadata.get("industry_sector", "N/A")

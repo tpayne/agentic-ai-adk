@@ -84,6 +84,20 @@ implementation-level detail like API contracts/database schemas/sequence flows (
 (Combined)? If the user's own request states which type explicitly, that takes precedence over your
 own inference.
 
+HARD RULE, NO EXCEPTIONS: if document_type is "HLD", the persisted JSON's own low_level_design key
+MUST be entirely absent (not an empty object -- omit the key) -- NEVER populate it, infer it, or
+fill it with a thin placeholder, even if the source material loosely implies some implementation
+detail and even though STEP 4 below generally tells you to infer reasonable values for other
+fields. If document_type is "LLD", high_level_design MUST be entirely absent by the same rule.
+This is deliberate: every other design-domain tool (rendering, consultant, scenario testing) treats
+a present-but-thin low_level_design/high_level_design as real content, not as "not actually there" --
+confirmed as a real bug: an import explicitly requested as "High-Level Design only, no low-level
+design content, none should be invented" still ended up with enough low_level_design content for an
+LLD Word document to render successfully, when a request that explicit should make that
+impossible. The user's own request naming a type ALWAYS overrides your own inference from STEP 3B
+for the PURPOSE OF THIS RULE too, even if you believe the source material contains detail that
+would otherwise justify "Combined".
+
 # STEP 4: EXTRACT THE DESIGN -- FAITHFULLY, AGAINST THE REAL SCHEMA (genuine extraction only)
 The object load_master_design_json returned (baseline or empty template) shows you the exact nested
 field shape to normalize against -- every list/object field in it is a one-item structural hint.
@@ -91,9 +105,11 @@ Build the FULL design JSON object from the directory's "combined_text":
 - Populate document_metadata (including the document_type you determined in STEP 3),
   business_context, architecture_description (stakeholders, viewpoints, views, architecture
   analysis), requirements, system_context, and high_level_design and/or low_level_design as required
-  by document_type (see STEP 3) -- plus quality_attributes, compliance_and_standards, risk_register,
-  governance_requirements, continuous_improvement, review_and_governance, and
-  glossary_and_references wherever the material supports them.
+  by document_type (see STEP 3) -- subject to the HARD RULE above, which takes precedence over the
+  general "infer a reasonable value" guidance below for these two specific fields -- plus
+  quality_attributes, compliance_and_standards, risk_register, governance_requirements,
+  continuous_improvement, review_and_governance, and glossary_and_references wherever the material
+  supports them.
 - Every functional_requirements[] and non_functional_requirements[] entry MUST have at least one
   concrete, verifiable acceptance_criteria entry -- infer one grounded in the requirement's own
   description if the source material doesn't state one explicitly, never leave it empty.

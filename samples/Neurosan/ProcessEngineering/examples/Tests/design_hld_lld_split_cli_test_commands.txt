@@ -45,7 +45,7 @@
 # ============================================================
 
 $ rm -f output/design_data.json output/requirements_summary.json output/cloudarch_drawio.xml
-$ rm -f output/*.docx
+$ rm -f output/*.docx output/*.png output/*.json
 sleep 1
 
 # ------------------------------------------------------------

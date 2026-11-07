@@ -773,6 +773,44 @@ class TestDesignDocumentGeneration:
         lld_text = "\n".join(p.text for p in docx.Document(lld_path).paragraphs)
         assert "Additional Data" not in lld_text or "high_level_design" not in lld_text.lower()
 
+    def test_title_baked_in_doc_type_label_is_stripped_from_both_filenames_and_cover_titles(self):
+        # A generator/import agent sometimes bakes its own doc-type label
+        # into document_metadata.title (e.g. "High-Level Design: X" or
+        # "X High-Level Design") -- harmless for one combined file, but
+        # actively misleading once that SAME title is shared by both the
+        # HLD and LLD documents (an "...LLD.docx" file titled "High-Level
+        # Design: X" is self-contradictory). Confirmed via live testing --
+        # see generation.py's _strip_design_doc_type_label.
+        data = dict(SAMPLE_DESIGN)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "High-Level Design: Checkout Orchestration Service"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design")
+        assert result.startswith("SUCCESS: Professional documents saved -- HLD: ")
+        hld_path = result.split("HLD: ", 1)[1].split("; LLD: ", 1)[0]
+        lld_path = result.split("; LLD: ", 1)[1]
+        assert hld_path.endswith("Checkout_Orchestration_Service_HLD.docx")
+        assert lld_path.endswith("Checkout_Orchestration_Service_LLD.docx")
+
+        hld_cover_title = docx.Document(hld_path).paragraphs[0].text
+        lld_cover_title = docx.Document(lld_path).paragraphs[0].text
+        assert hld_cover_title == "Checkout Orchestration Service"
+        assert lld_cover_title == "Checkout Orchestration Service"
+
+    def test_title_with_a_trailing_doc_type_label_is_also_stripped(self):
+        data = dict(SAMPLE_DESIGN)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "Returns Processing Service High-Level Design"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="hld")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Returns_Processing_Service_HLD.docx")
+
     def test_design_is_still_auto_detectable_from_disk_unlike_the_narrative_only_schema_types(self):
         # Unlike requirements/proposal_response/test_specification (never
         # auto-discovered, by design), "design" is one of the two schema

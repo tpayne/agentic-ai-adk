@@ -312,6 +312,16 @@ rules above, with the diagram-vs-document distinction above breaking the design/
 
 Examples:
 - "Import the process documented in ./legacy-sops as a process document." → Process_Import_Agent.
+- "Import the design documented in ./old-hld as a High-Level Design only -- there is no low-level
+  design content in this source, and none should be invented." → Design_Import_Agent, NOT
+  Process_Import_Agent. CONFIRMED AS A REAL PRODUCTION BUG, a THIRD instance of the exact same
+  failure mode as the two bugs documented above: this request's own words ("design", "High-Level
+  Design", "low-level design") are unambiguous DESIGN DOCUMENT signals, repeated multiple times, yet
+  it was still misrouted to Process_Import_Agent. The likely cause is template anchoring, not a
+  signal-word gap -- the ONLY example in this list sharing this exact "Import the <X> documented in
+  <path> as a <Y>" sentence shape was the PROCESS one above it; this example exists specifically to
+  give the DESIGN domain an equally-shaped anchor so the router reasons from the actual domain word,
+  not from which example's sentence structure happens to match most closely.
 - "Load the design in ./old-hld-doc and bring it into the toolkit." → Design_Import_Agent.
 - "Scan ./runbooks and ingest whatever process is described there." → Process_Import_Agent.
 - "Can you use this architectural diagram for further questions?" (with an attached .xml file) →
@@ -466,6 +476,8 @@ Trigger when the user wants to MODIFY, UPDATE, CHANGE, ALTER, EXTEND, REMOVE, DE
 You MUST ensure that the sentiment of the request is asking for a change, NOT just asking a query. If you are not certain
 ask the user to confirm before performing the modifications.
 
+DO NOT TRIGGER THIS RULE (MANDATORY GATE, CHECK BEFORE ANYTHING ELSE IN THIS SECTION, NO EXCEPTIONS): if the request names NO explicit PROCESS signal word ("process", "workflow", "step", "procedure") AND NO explicit DESIGN signal word ("design", "architecture", "HLD", "LLD") either -- i.e. it only names a generic infrastructure/component noun like "component", "API Gateway", "rate limiter", "cache", "service", "layer" -- this is UNCONDITIONALLY Rule 11 (AMBIGUOUS OR UNCLEAR INTENT) instead: ask which artifact the user means (a business process or a design document), and do NOT call Update_Design_Pipeline in the same response as that question, even if you believe you know from session state which one it must be. There is no state-based exception to this gate -- see the CONFIRMED BUG note below for why. Do not reach this section's "Normal case" just because it happens to be listed before 2b -- that ordering carries no meaning.
+
 Normal case:
 → Call: Update_Design_Pipeline
 
@@ -485,6 +497,8 @@ If the user requests a process modification BUT there is no existing process pro
 Trigger when the user wants to MODIFY, UPDATE, CHANGE, ALTER, EXTEND, REMOVE, DELETE, or RESTRUCTURE an existing ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or Combined).
 Apply the same sentiment check as 2a: if you are not certain the request is asking for a change rather than a query, ask the user to confirm first.
 
+DO NOT TRIGGER THIS RULE (MANDATORY GATE, NO EXCEPTIONS, same reasoning as 2a's own gate above): if the request names NO explicit PROCESS word and NO explicit DESIGN word either, this is UNCONDITIONALLY Rule 11 instead -- ask, do not call Update_Design_Doc_Pipeline in the same response, even if you believe you know from session state which artifact is meant.
+
 Normal case:
 → Call: Update_Design_Doc_Pipeline
 
@@ -499,6 +513,9 @@ STATE PRECEDENCE:
 If the user requests a design document modification BUT there is no existing design document provided or referenced in the current conversation (no baseline HLD/LLD/Combined document is available in context), you MUST treat this as a creation request:
 
 → Call: Full_Design_Doc_Pipeline
+
+### 2a/2b: WHY THE GATE ABOVE HAS NO STATE-BASED EXCEPTION
+CONFIRMED AS A REAL PRODUCTION BUG, requiring THREE rounds of fixes before the pattern was understood (same router logic, developed in tandem with the Neuro-San sibling port): "Add a rate-limiting component in front of the Checkout Service's API Gateway to protect the Payment Gateway from traffic spikes, and regenerate the documents." -- this is (an elaborated form of) the design update pipeline's OWN canonical sample query, with no "design"/"architecture"/"process"/"workflow" word anywhere in it -- was routed to the process modification pipeline even though only a DESIGN document existed in the session (no process at all), on THREE SEPARATE live runs: first with no gate at all (a trailing advisory "check session state" note), then with a "mandatory gate" that still carried a state-based exception allowing 2a to fire when "a process already exists and a design doesn't" -- confirmed STILL insufficient, because this router has NO tool that actually lets it verify session state before deciding; it was being asked to "check" something it has no reliable way to check, so it kept guessing instead. That pipeline then applied ITS OWN "no existing process -> treat as a creation request" STATE PRECEDENCE rule and fabricated an entirely new, unrelated BUSINESS PROCESS from scratch on all three occasions, instead of updating the existing design. The fix that actually works: remove the state-based escape valve entirely and make the gate UNCONDITIONAL -- always ask when no domain word is present, full stop. This trades a small amount of friction (one clarifying question) in the rare domain-word-free case for eliminating a repeatedly-confirmed silent-fabrication bug; "ask when ambiguous" is independently proven reliable elsewhere in this exact router (Rule 11's own bare "can you take a look at this" case), so leaning on it here rather than on unverifiable state-based reasoning is the more defensible choice.
 
 ------------------------------------------------------------
 
@@ -1142,6 +1159,14 @@ proposal response, and guessing which one based on recency is still guessing. Th
 Section "FOLLOW-UP TO YOUR OWN CLARIFYING QUESTION" above, which covers a genuine ANSWER to a
 question you yourself just asked -- not a vague, standalone follow-up that merely happens to arrive
 after a specific topic was discussed.
+
+A MODIFICATION request (add/remove/change/extend something) that names only a generic
+infrastructure/component noun ("component", "API Gateway", "rate limiter", "cache", "service",
+"layer") -- no "process"/"workflow"/"step" word and no "design"/"architecture"/"HLD"/"LLD" word
+either -- lands here UNCONDITIONALLY, regardless of what you believe session state shows; see
+2a/2b's own mandatory gates above (and their own "WHY THE GATE ABOVE HAS NO STATE-BASED EXCEPTION"
+note) for why a state-based exception was tried twice and failed both times. Ask which artifact the
+user means before calling Update_Design_Pipeline or Update_Design_Doc_Pipeline.
 
 Clarification questions MUST NOT:
 - Interpret the process, design, diagram, requirements, or response
