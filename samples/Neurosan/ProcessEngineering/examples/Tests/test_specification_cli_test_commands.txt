@@ -4,19 +4,22 @@
 # Run from samples/Neurosan/ProcessEngineering:
 #   uv run python cli.py -f examples/Tests/test_specification_cli_test_commands.txt
 #
-# Exercises Test_Specification_Agent, Test_Consultant_Agent, and
+# Exercises Test_Specification_Pipeline, Test_Consultant_Agent, and
 # Test_Reviewer_Agent end to end: missing-source edge cases, generation
-# against one/two/three saved source artifacts, consultant queries,
-# quality review (read-only and apply-mode fix), a separate later-turn
-# standalone fix request, document regeneration, domain-crossover
-# disambiguation (a saved test specification must not bleed into an
-# unrelated requirements-domain question, and vice versa), and a
-# bare-ambiguous-intent clarification check.
+# against one/two/three saved source artifacts, a combined "import the
+# requirements from a file AND create a test specification" multi-intent
+# request (Part I -- the exact shape of a CONFIRMED LIVE BUG: this used
+# to only ever do the import half, silently dropping the test-spec half),
+# consultant queries, quality review (read-only and apply-mode fix), a
+# separate later-turn standalone fix request, document regeneration,
+# domain-crossover disambiguation (a saved test specification must not
+# bleed into an unrelated requirements-domain question, and vice versa),
+# and a bare-ambiguous-intent clarification check.
 #
-# Unlike rm_rtp_cli_test_commands.txt, this script does NOT depend on any
-# pre-existing fixture files -- Test_Specification_Agent's own three
-# source artifacts (a saved requirements summary, design document, and
-# cloud architecture diagram) are built FRESH, in order, from one
+# Unlike rm_rtp_cli_test_commands.txt, Parts A-H below do NOT depend on
+# any pre-existing fixture files -- Test_Specification_Pipeline's own
+# three source artifacts (a saved requirements summary, design document,
+# and cloud architecture diagram) are built FRESH, in order, from one
 # consistent fictional brief (a corporate travel-booking and
 # expense-reconciliation platform), so the generated test cases trace to
 # real, topically-coherent requirement ids and component names rather
@@ -24,7 +27,11 @@
 # runs the REAL requirements/design/cloud-architecture creation
 # pipelines, each a genuine multi-agent generate/review loop -- expect
 # this script to take considerably longer end to end than
-# rm_rtp_cli_test_commands.txt's own already-long run.
+# rm_rtp_cli_test_commands.txt's own already-long run. Part I, at the
+# end, DOES use a real fixture (the same Healthcare_Referral_Baseline PDF
+# rm_rtp_cli_test_commands.txt's own Part D already uses), since it's
+# specifically testing the file-based auto-extraction path, not topical
+# coherence across all three source artifacts.
 #
 # Session state in this CLI is a mix of in-memory conversation (reset by
 # "clear") and on-disk saved JSON (output/requirements_summary.json,
@@ -65,7 +72,7 @@ Can you take a look at this and tell me what you think?
 
 # B1. Synthesize and save a requirements register from a plain-language description (no files
 # needed -- Requirements_Doc_Pipeline saves to the same requirements_summary.json state
-# Test_Specification_Agent itself reads), and render the requirements document in the same call.
+# Test_Specification_Pipeline itself reads), and render the requirements document in the same call.
 Create a requirements document for a new corporate travel-booking and expense-reconciliation \
 platform called TravelLedger, for a mid-sized professional-services firm. It needs to let \
 employees book flights/hotels/rail through a managed travel desk, submit expense claims with \
@@ -90,8 +97,10 @@ list
 # ------------------------------------------------------------
 
 # C1. POSITIVE: all three source artifacts exist -- confirms source_requirements_used,
-# source_design_used, and source_cloudarch_used all come back true, and test cases trace to
-# real ids/component names from Part B rather than anything invented.
+# source_design_used, and source_cloudarch_used all come back true, test cases trace to real
+# ids/component names from Part B rather than anything invented, AND a Word document is rendered
+# in this SAME call (CONFIRMED LIVE BUG: this used to only ever save the JSON, never render a
+# document, even on an explicit "create a test specification" request).
 Create a test specification for the saved requirements, design, and cloud architecture.
 
 # ------------------------------------------------------------
@@ -123,8 +132,9 @@ conflict is marked as critical priority, and tell me exactly what you changed.
 # PART F -- document regeneration
 # ------------------------------------------------------------
 
-# F1. POSITIVE: document generation -- confirms the applied fixes show up, and the title/filename
-# reflect the specification's own "name" field rather than a generic default.
+# F1. POSITIVE: re-rendering AFTER the Part E fixes (C1 already rendered once) -- confirms the
+# applied fixes show up, and the title/filename reflect the specification's own "name" field
+# rather than a generic default.
 Regenerate the test specification document.
 
 list
@@ -134,7 +144,7 @@ list
 # ------------------------------------------------------------
 
 # G1. Drop the design and cloud-architecture artifacts, keep only the requirements summary, and
-# force a fresh generation -- confirms Test_Specification_Agent handles ANY subset of its three
+# force a fresh generation -- confirms Test_Specification_Pipeline handles ANY subset of its three
 # sources gracefully (source_design_used/source_cloudarch_used both false, and their own
 # coverage_summary lists both empty) rather than requiring all three or erroring.
 $ rm -f output/design_data.json output/cloudarch_drawio.xml output/test_specification.json
@@ -154,6 +164,36 @@ What's in the saved requirements summary?
 # H2. DOMAIN CROSSOVER (the reverse direction): a question naming "the saved test specification"
 # must route to Test_Consultant_Agent, NOT Requirements_Consultant_Agent, even immediately after
 # H1's own requirements-domain answer.
+What's in the saved test specification?
+
+# ------------------------------------------------------------
+# PART I -- combined "import requirements from a file AND create a test specification" request
+# (CONFIRMED LIVE BUG: this exact shape used to only ever do the import half, silently dropping
+# the test-specification half of the request entirely)
+# ------------------------------------------------------------
+
+# I1. Clean slate so this exercises the auto-extract path genuinely, not a leftover summary from
+# Part H above.
+$ rm -f output/requirements_summary.json output/design_data.json output/cloudarch_drawio.xml output/test_specification.json
+$ rm -f output/*.docx
+
+# I2. POSITIVE: a SINGLE request combining a directory-based requirements import with a test
+# specification creation request -- the real-world phrasing that exposed this bug. Must result in
+# BOTH halves happening in the SAME turn: Ensure_Requirements_Summary_Agent reads and saves a
+# requirements summary from the real fixture below, THEN Test_Specification_Pipeline generates
+# test cases against it and renders the document -- not just the import, and not a request asking
+# the user to run a separate requirements-summarization turn first.
+Import the requirements from ../../GCP/ProcessEngineering/examples/TestSamples/RequirementsManagement/Healthcare_Referral_Baseline \
+and create a test specification that can be used to drive TDD for the system implementation.
+
+list
+
+# I3. Confirm the self-extracted requirements summary is real and queryable, not a side effect
+# that silently failed.
+What's in the saved requirements summary?
+
+# I4. Confirm the test specification itself traces to the real requirement ids I3 just confirmed,
+# not something fabricated independently of what was actually imported.
 What's in the saved test specification?
 
 # ------------------------------------------------------------

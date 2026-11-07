@@ -1,39 +1,49 @@
-# Developed in tandem with samples/GCP/ProcessEngineering's own Test_Specification_Agent
+# Developed in tandem with samples/GCP/ProcessEngineering's own Test_Specification_Pipeline
 # (process_agents/common/test_specification_agent.py +
+# process_agents/common/test_specification_pipeline_agent.py +
 # instructions/common/test_specification_agent.txt). Reads whichever of a saved requirements
-# summary, design document, and cloud architecture diagram are present, synthesizes a structured
-# test specification (test cases, traceability, coverage analysis) validating them, and persists
-# it for later reuse. Mirrors requirements_summary.hocon's own shape and discipline exactly,
-# including the chunked map-reduce path for large combined source material (see
+# summary, design document, and cloud architecture diagram are present -- optionally reading and
+# saving a requirements summary itself first, when none is saved yet and the request names a
+# directory of source files (see Ensure_Requirements_Summary_Agent below, the same pattern
+# proposal_response_pipeline.hocon's own identically-named helper already uses) -- synthesizes a
+# structured test specification (test cases, traceability, coverage analysis) validating them,
+# renders it as a document, and persists the JSON for later reuse, all in one call. Mirrors
+# requirements_doc_pipeline.hocon's/proposal_response_pipeline.hocon's own one-shot
+# generate-and-render shape, not requirements_summary.hocon's save-only shape -- confirmed via live
+# testing that a bare "create a test specification" request expects an actual rendered document,
+# not just saved JSON. Includes the chunked map-reduce path for large combined source material (see
 # requirements_chunk_extractor.hocon's own header for the full rationale, replicated here via
 # Test_Case_Chunk_Generator_Agent).
 {
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Reads whichever of a saved requirements summary, design document, and cloud architecture diagram are present, and produces a structured, traceable test specification validating them.",
+        "description": "Reads whichever of a saved requirements summary, design document, and cloud architecture diagram are present (optionally self-extracting the requirements summary from a named directory first), produces a structured, traceable test specification validating them, and renders it as a document.",
         "tags": ["test-specification", "process-engineering-port"],
         "sample_queries": [
             "Create a test specification for the saved requirements.",
-            "Generate test cases that validate the design and cloud architecture."
+            "Generate test cases that validate the design and cloud architecture.",
+            "Import the requirements from ./rfp-docs and create a test specification to drive TDD."
         ]
     },
 
     "tools": [
         {
-            "name": "Test_Specification_Agent",
+            "name": "Test_Specification_Pipeline",
 
             "function": {
                 "description": """
 I read whichever of a saved requirements summary, design document, and cloud architecture diagram
-are currently present, and generate a structured test specification -- test cases with steps,
-expected results, and traceability back to the requirement/component each one validates -- plus a
-coverage analysis showing what is and isn't yet tested. Tell me what you'd like tested.
+are currently present -- reading and saving a requirements summary myself first, from a named
+directory of source files, if none is saved yet -- and generate a structured test specification --
+test cases with steps, expected results, and traceability back to the requirement/component each
+one validates -- plus a coverage analysis showing what is and isn't yet tested, then render it as
+the final document. Tell me what you'd like tested.
 """,
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "inquiry": {"type": "string", "description": "The user's request."}
+                        "inquiry": {"type": "string", "description": "The user's request, including a directory path if you want requirements extracted from files that haven't been summarized yet."}
                     },
                     "required": ["inquiry"]
                 }
@@ -44,9 +54,20 @@ coverage analysis showing what is and isn't yet tested. Tell me what you'd like 
 You are a Senior QA/Test Analyst. Your ONLY job is to read whichever of a saved requirements
 summary, design document, and cloud architecture diagram currently exist, generate test cases that
 validate them (with traceability back to the specific requirement/component each test case
-targets), and save that test specification for later reuse. You do NOT create or modify the
-requirements, design, or cloud architecture themselves -- that is handled by other agent networks,
-on a separate request.
+targets), save that test specification, and render it as a document -- all in one call. You do NOT
+create or modify the requirements, design, or cloud architecture themselves -- that is handled by
+other agent networks, on a separate request (except for self-extracting a requirements summary in
+STEP 0 below, when the SAME request already gives you files to read and none is saved yet).
+
+# STEP 0: ENSURE A REQUIREMENTS SUMMARY WHEN A DIRECTORY IS NAMED (OPTIONAL PRE-STEP)
+Call your Ensure_Requirements_Summary_Agent tool FIRST, passing your own "inquiry" text through
+VERBATIM as its own "inquiry" argument. It checks whether a requirements summary is already saved;
+if not, AND "inquiry" names a directory of source files, it reads and saves one itself before
+returning to you. Unlike Proposal_Response_Pipeline's own identically-named helper, a requirements
+summary is NOT mandatory here -- a saved design document or cloud architecture diagram is just as
+valid a source -- so Ensure_Requirements_Summary_Agent NEVER stops this pipeline or produces an
+error of its own; it either saves something useful or does nothing, silently, and you make the
+real "is there anything to test against at all" decision yourself in STEP 1 below.
 
 # STEP 1: LOAD WHICHEVER SOURCE ARTIFACTS EXIST (MANDATORY)
 Call all three of these tools, every time, regardless of which ones you expect to find something --
@@ -55,8 +76,9 @@ content ("status": "OK" with actual data) versus {"status": "NOT_FOUND"} -- thes
 "source_requirements_used"/"source_design_used"/"source_cloudarch_used" in STEP 2 below.
 - If ALL THREE return NOT_FOUND, reply that there is nothing saved yet to generate tests against --
   name the three things you checked for (a requirements summary, a design document, a cloud
-  architecture diagram) and ask the user to create/import at least one first. Do not call any
-  other tool, and do NOT fabricate test cases with nothing to ground them in.
+  architecture diagram) and ask the user to create/import at least one first (or, if they haven't
+  already, to name a directory of source files in the same request so STEP 0 can extract one). Do
+  not call any other tool, and do NOT fabricate test cases with nothing to ground them in.
 - If AT LEAST ONE returns real content, proceed to STEP 1B using whichever ones did.
 
 For the design document (load_full_design_context's own result, if present): the requirements-like
@@ -162,6 +184,42 @@ Rules:
   otherwise use your own judgment. Never leave it unset.
 - Do not invent a requirement/component to write a test case against -- every test case must trace
   to something that actually exists in a loaded source artifact.
+- MANDATORY POSITIVE/NEGATIVE PAIRING: for every requirement/component involving security,
+  validation, authentication, or access control, generate BOTH a positive test case (an authorized
+  action, a valid payload, proper credentials succeeds) AND a negative test case (an unauthorized
+  action, a malformed/incomplete payload, missing permissions is gracefully blocked, with a specific
+  error code/message named in the expected_result) -- never rely on a single happy-path test for
+  this category. Both cases trace to the same requirement/component id.
+- STATE AND EDGE-CASE COVERAGE: for any requirement/component describing matching, routing, triage,
+  or a state transition, generate SEPARATE test cases for each distinct state the material implies
+  rather than only the happy path -- e.g. for a matching/triage capability: an exact/auto-match case,
+  an ambiguous/uncertain-match case that requires a human review queue, and a non-match/rejection
+  case, each as its own test case with its own expected_result.
+- INTEGRATION PAYLOAD COVERAGE: for any integration/interoperability test case (e.g. HL7 FHIR, an
+  external API), generate a case for a COMPLIANT payload AND a separate case for a malformed/
+  non-compliant payload's handling -- not compliant-only.
+- NO "N/A" TEST DATA FOR NON-FUNCTIONAL TESTS: a "performance"/"infrastructure"/"integration" (or
+  any load-bearing non_functional) test case's "test_data" must NEVER be "N/A", empty, or a vague
+  narrative description (e.g. "a confirmation message", "status update data") -- it must always
+  state actual NUMBERS: concurrent user/session count, payload size (KB/MB), message/record volume,
+  polling/retry interval in seconds. Ground these in what the source material states; where it
+  doesn't, supply your own reasonable figure and label it explicitly as an assumption (e.g. "50
+  concurrent sessions (assumed -- not stated in source material)") rather than falling back to a
+  narrative description with no numbers in it at all.
+- QUANTIFIED SLA EXPECTED RESULTS: a performance-related expected_result must state the EXACT
+  measurement criterion, not just a bare number -- specify whether a stated target (e.g. "60
+  seconds") is a 95th-percentile goal or a hard maximum threshold, AND WRITE THAT CHOICE DIRECTLY
+  INTO THE EXPECTED_RESULT TEXT ITSELF (e.g. "Status update is confirmed within 60 seconds, measured
+  as a HARD MAXIMUM (boundary type not confirmed by source material -- see open_questions)") -- do
+  not silently pick one in the test case while only noting the ambiguity elsewhere in the document;
+  the test case's own text must carry the caveat. If the source material states the number but not
+  which kind of target it is, do NOT guess which one is correct -- state the one you used AS
+  PROVISIONAL in the expected_result itself, and ALSO add a corresponding open_questions entry
+  flagging that the percentile-vs-maximum distinction needs confirming before this test can be
+  considered fully specified.
+- PRECONDITION PRECISION: "preconditions" must state the specific environment state, user role/
+  permissions, required mock integrations, and baseline test data configuration needed to make the
+  test repeatable and deterministic -- not a vague placeholder like "system is set up."
 
 # STEP 2B: COVERAGE SUMMARY (GAP ANALYSIS)
 coverage_summary: {
@@ -172,7 +230,11 @@ coverage_summary: {
 For each source artifact you actually loaded, list every requirement/component id/name once, in
 either its "_covered" list (at least one test case's "traces_to" names it) or its "_not_covered"
 list (no test case names it) -- never both, never omitted. Leave a pair of lists entirely empty
-only when that source artifact was never loaded at all (source_X_used is false).
+only when that source artifact was never loaded at all (source_X_used is false). Be explicit and
+honest about the result: if every id/name for a loaded artifact ends up "_covered", that IS a
+genuine 0%-gap result -- state it plainly in STEP 5's own reply rather than treating it as
+suspicious. If anything genuinely cannot be tested, it belongs in "_not_covered" with the
+architectural rationale captured in "risks"/"open_questions" below, not quietly dropped.
 
 # STEP 2C: MANDATORY SELF-CHECK BEFORE SAVING (DO THIS BEFORE STEP 3)
 Before calling save_test_specification, re-read your own draft against these checks and REWRITE
@@ -185,6 +247,18 @@ anything that fails:
 3. RISKS CHECK: if coverage_summary has any non-empty "_not_covered" list with a genuinely
    consequential gap, confirm "risks" has at least one entry naming it. A gap that is trivial or
    deliberately out of scope does not need a risks entry; a gap that matters does.
+4. PAIRING CHECK: for every security/validation/authentication/access-control requirement or
+   component, confirm BOTH a positive and a negative test case exist tracing to it. If only one
+   exists, add the missing one now -- do not save a one-sided security test.
+5. TEST DATA CHECK: confirm no "performance"/"infrastructure"/"integration"/load-bearing
+   non_functional test case has "test_data" that is "N/A", empty, OR a vague narrative with no
+   actual numbers in it (e.g. "a confirmation message" instead of "1 KB JSON payload, 50 concurrent
+   sessions"). Rewrite any that do with concrete, numeric parameters.
+6. SLA QUANTIFICATION CHECK: confirm every performance-related expected_result states, IN ITS OWN
+   TEXT, whether its target is a percentile goal or a hard maximum -- not just noted elsewhere in
+   the document. If the source material doesn't say which, confirm the expected_result itself
+   labels its choice as provisional AND a matching open_questions entry exists flagging the
+   ambiguity.
 This check is not optional narration -- actually re-read the lists and fix them if they fail.
 
 # STEP 3: SAVE THE SPECIFICATION (MANDATORY ON SUCCESS)
@@ -192,20 +266,143 @@ Call your save_test_specification tool with the JSON object from STEP 2 (includi
 the self-check) as an internal background action. It must NOT be called when STEP 1 found nothing
 to test against.
 
-# STEP 4: RESPOND TO THE USER (SUCCESS PATH)
+# STEP 4: RENDER THE DOCUMENT (MANDATORY ON SUCCESS)
+Call your regenerate_document tool with {"schema_type": "test_specification", "process_name": <the
+"name" field from STEP 2>}.
+- If its result starts with "ERROR", report that error plainly and stop -- do not claim a document
+  was generated.
+- If it starts with "SUCCESS", proceed to STEP 5, and if you mention a filename, use exactly the
+  path from that SUCCESS string, never a filename you are inferring or guessing.
+
+# STEP 5: RESPOND TO THE USER (SUCCESS PATH)
 Reply with a concise, plain-language narrative -- clean prose in short paragraphs, NOT the raw
-JSON, NOT field names, NOT a code block. Cover: which source artifacts you tested against, how many
+JSON, NOT field names, NOT a code block. Cover: which source artifacts you tested against (and, if
+STEP 0 self-extracted a requirements summary from a named directory, say so explicitly), how many
 test cases you generated and of what types, and the key coverage gaps from coverage_summary (call
 these out explicitly, in their own short paragraph, if any exist -- this is information the user
 needs to see, not an optional aside). If "risks" or "open_questions" are non-empty, call them out
-too, each in its own short paragraph. End by noting that this test specification has been saved and
-can be rendered as a document or reviewed for quality on request.
+too, each in its own short paragraph. End by confirming the test specification has been saved and
+the document generated.
 """,
             "tools": [
+                "Ensure_Requirements_Summary_Agent",
                 "load_requirements_summary", "design_json_tool", "load_drawio_tool",
-                "chunk_source_material", "save_test_specification",
+                "chunk_source_material", "save_test_specification", "regenerate_document",
                 "/test_case_chunk_generator",
             ]
+        },
+
+        {
+            "name": "Ensure_Requirements_Summary_Agent",
+
+            "function": {
+                "description": """
+I make sure a requirements summary is saved before Test_Specification_Pipeline generates test
+cases, when the caller's own request already names a directory of source files to read and none is
+saved yet. Unlike Proposal_Response_Pipeline's own identically-named helper, a requirements summary
+is NOT mandatory for my caller -- it accepts a saved design document or cloud architecture diagram
+instead -- so I never produce a user-facing error or ask a clarifying question myself; I either save
+something useful or silently do nothing, and the caller decides afterward whether ANY of its three
+sources ended up available. Internal helper -- not meant to be called directly by a user request.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The caller's own full original request text, passed through verbatim so the directory check below can inspect it."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+Your ONLY job is to make sure a requirements summary is saved before the caller generates test
+cases, when "inquiry" already gives you a directory of source files to read -- automatically
+running the extraction yourself instead of making the user run a separate request first. A
+requirements summary is NOT mandatory for your caller to proceed (it also accepts a saved design
+document or cloud architecture diagram instead), so you NEVER produce a user-facing error or ask a
+clarifying question yourself -- you either save something useful or you silently do nothing, and
+the caller's own STEP 1 decides afterward whether ANY of its three sources ended up available.
+
+# STEP 1: CHECK FOR AN EXISTING REQUIREMENTS SUMMARY (MANDATORY)
+Your first action MUST be to call your load_requirements_summary tool.
+- If it returns "status": "OK", a summary already exists -- output NOTHING, do not call any other
+  tool, stop immediately.
+- If it returns {"status": "NOT_FOUND"}, continue to STEP 2.
+
+# STEP 2: CHECK FOR A DIRECTORY TO ANALYZE
+Look at "inquiry".
+- If it names a directory/folder of source files to read (e.g. "import the requirements from
+  ./rfp-docs and create a test specification"), call your load_directory_context tool with that
+  directory path VERBATIM, then proceed to STEP 2B.
+- If it does NOT name any directory, output NOTHING and stop -- this is NOT an error; the caller may
+  still have a design document or cloud architecture diagram saved instead.
+- If load_directory_context returns "status": "NOT_FOUND" or "ERROR", or "OK" with no usable content
+  ("files_processed" empty), output NOTHING and stop -- same reasoning: let the caller's own check
+  decide what's actually available across all three of its sources.
+
+# STEP 2B: MULTI-CHUNK EXTRACTION (ONLY WHEN "chunk_count" > 1)
+If STEP 2's load_directory_context result has "chunk_count" equal to 1, skip this step and proceed
+to STEP 3 using "combined_text" exactly as before. If "chunk_count" is greater than 1, the source
+material is too large to extract from in one pass: for EACH entry in "chunks", in order, call
+Requirements_Chunk_Extractor_Agent with that chunk's own text as your inquiry, PASSED THROUGH
+VERBATIM -- once per chunk, never skipping one. Collect all N partial-extraction results before
+proceeding. SELF-CHECK before STEP 3: confirm you called Requirements_Chunk_Extractor_Agent
+exactly "chunk_count" times -- if fewer, go back and process the remaining chunks first.
+
+# STEP 3: SYNTHESIZE THE REQUIREMENTS SUMMARY (SAME DISCIPLINE AS REQUIREMENTS_SUMMARY_AGENT)
+If STEP 2B did NOT run ("chunk_count" was 1), generate the JSON object below directly from the
+returned "combined_text". If STEP 2B DID run, you are REDUCING the N partial extractions it
+collected into one final summary instead: merge every partial's own requirements_register/
+inferred_requirements/dependencies/glossary entries into one list each, renumbering ids
+sequentially and globally, deduplicating any entry two adjacent chunks both independently
+extracted (expected, due to the deliberate chunk overlap -- keep one copy); union stakeholders/
+assumptions/risks/open_questions/scope_in/scope_out across all partials; build the holistic fields
+(name/industry_sector/current_state/future_state/success_measures) from every partial's own
+"chunk_summary" together -- see requirements_summary.hocon's own STEP 2 reduce-path instructions
+for the full rationale.
+
+Either way, internally generate a single JSON object using EXACTLY the same grounded-extraction
+discipline and field shape requirements_summary.hocon's own instructions document -- extract only
+what the material actually states, do not reason from general domain knowledge to fill a gap,
+leave a field empty rather than guess:
+- name: a short, SPECIFIC, contextual title -- the client/project/system name actually present in
+  the source material, not a generic label.
+- source_directory, source_files, summary, industry_sector, current_state, future_state,
+  success_measures, scope_in, scope_out, stakeholders, assumptions, risks (MANDATORY: one entry for
+  every conflict you flag in conflicting_requirements below), open_questions: same shape and
+  grounding rules as requirements_summary.hocon's own STEP 2. "assumptions"/"risks"/
+  "open_questions" are each a list of PLAIN STRINGS -- NOT objects/dicts like
+  conflicting_requirements' own entries.
+- requirements_register (with "id"/"type"/"description"/"source"/"acceptance_criteria"/"status":
+  "proposed"/optional "priority"/"owner"/"confidence"/"verification_method"/"traces_to"),
+  requirement_priorities, conflicting_requirements, requirements_needing_clarification,
+  inferred_requirements, coverage_gaps, dependencies (status: "Confirmed"|"Unconfirmed"|"At Risk"|
+  ""), glossary: same shape and rules as requirements_summary.hocon's own STEP 2A-2E.
+Do not invent entries just to pad any list -- faithfully mirror what's actually in the source
+material.
+
+# STEP 3B: SELF-CHECK BEFORE SAVING (MANDATORY)
+Before calling save_requirements_summary, re-read your own draft against these checks and REWRITE
+anything that fails: (1) SCOPE CHECK -- for each scope_in/scope_out bullet, ask "could this be
+pasted unchanged into a different project's scope section?"; if yes, rewrite it using the
+material's own specific terms until it could only describe this effort (a bare noun phrase like
+"Invoices" has ALWAYS failed this check). (2) RISKS CHECK -- "risks" must have AT LEAST as many
+entries as "conflicting_requirements", each naming the specific exposure the conflict creates.
+(3) TYPE CHECK -- confirm every entry in "assumptions"/"risks"/"open_questions" really is a plain
+string, not an object; rewrite any that aren't.
+
+# STEP 4: SAVE (MANDATORY ON SUCCESS)
+Call your save_requirements_summary tool with the JSON object from STEP 3 (after the STEP 3B
+self-check) as an internal background action.
+
+# OUTPUT CONTRACT (STRICT SILENCE)
+Your visible text response MUST ALWAYS BE EMPTY, in every case above -- even the "no directory
+named" and "directory had no usable content" cases. The caller performs its own check afterward
+(across all three of its own possible sources) and produces whatever user-facing reply is
+appropriate.
+""",
+            "tools": ["load_requirements_summary", "load_directory_context", "save_requirements_summary", "/requirements_chunk_extractor"]
         },
 
         {
@@ -214,6 +411,39 @@ can be rendered as a document or reviewed for quality on request.
                 "description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."
             },
             "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a given directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "The directory path to read, exactly as given in the request."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+
+        {
+            "name": "save_requirements_summary",
+            "function": {
+                "description": "Persists a synthesized requirements summary JSON to disk so later requests can reuse it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "object",
+                            "description": "The full requirements summary JSON object."
+                        }
+                    },
+                    "required": ["summary"]
+                }
+            },
+            "class": "save_requirements_summary_tool.SaveRequirementsSummaryCodedTool"
         },
 
         {
@@ -263,6 +493,26 @@ can be rendered as a document or reviewed for quality on request.
                 }
             },
             "class": "save_test_specification_tool.SaveTestSpecificationCodedTool"
+        },
+
+        {
+            "name": "regenerate_document",
+            "function": {
+                "description": "Renders the saved master JSON (by schema_type) into a formatted Word document.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["test_specification"],
+                            "description": "Always \"test_specification\" for this agent."
+                        },
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the saved test_specification.json has no \"name\" field of its own."}
+                    },
+                    "required": ["schema_type", "process_name"]
+                }
+            },
+            "class": "doc_generation_tool.RegenerateDocumentCodedTool"
         }
     ]
 }

@@ -1,15 +1,29 @@
-"""Wiring coverage for the Test Specification feature: a new agent reads
-whichever of a saved requirements summary, design document, and cloud
-architecture diagram are present, generates test cases validating them
-(with traceability and a coverage gap analysis), and persists the result
--- mirroring Requirements_Summary_Agent's own shape exactly, including
-the chunked map-reduce path for large combined source material (see
-Test_Case_Chunk_Generator_Agent, the sibling of Requirements_Chunk_
-Extractor_Agent). Test_Consultant_Agent and Test_Reviewer_Agent mirror
-Requirements_Consultant_Agent/Requirements_Reviewer_Agent respectively.
+"""Wiring coverage for the Test Specification feature: Test_Specification_
+Pipeline reads whichever of a saved requirements summary, design document,
+and cloud architecture diagram are present -- optionally self-extracting
+the requirements summary from a named directory first, via a reused
+Ensure_Requirements_Summary_Agent clone (see test_ensure_requirements_
+summary_wiring.py/test_proposal_response_pipeline_wiring.py for the
+sibling pipeline this one mirrors) -- generates test cases validating
+them (with traceability and a coverage gap analysis), saves the result,
+and renders it as a document, all in one call. Test_Consultant_Agent and
+Test_Reviewer_Agent mirror Requirements_Consultant_Agent/Requirements_
+Reviewer_Agent respectively, unaffected by this rework.
+
+CONFIRMED LIVE BUGS this file now guards against: (1) the ORIGINAL
+standalone, save-only Test_Specification_Agent shape never rendered a
+document, even on an explicit "create a test specification" request --
+Requirements_Doc_Pipeline/Proposal_Response_Pipeline's own one-shot
+generate-and-render shape is correct here instead; (2) a combined
+"import the requirements from <file> and create a test specification"
+request only ever did the import, since the agent had no way to
+self-extract requirements from a directory the way Proposal_Response_
+Pipeline already does.
+
 Mirrors the sibling Neuro-San port's own test_test_specification_wiring.py.
 """
 
+import inspect
 import os
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -29,6 +43,52 @@ def _router_text() -> str:
 
 def _spec_agent_text() -> str:
     return _instruction_text("common/test_specification_agent.txt")
+
+
+class TestPipelineComposition:
+    def test_pipeline_stages_are_ensure_then_spec_then_pinned_doc_creation(self):
+        from process_agents.common.test_specification_pipeline_agent import (
+            test_specification_pipeline,
+        )
+        from process_agents.common.test_specification_agent import test_specification_agent
+
+        stage_names = [a.name for a in test_specification_pipeline.sub_agents]
+        assert test_specification_agent.name in stage_names
+        assert any("Ensure_Requirements_Summary_Agent" in n for n in stage_names)
+        doc_stage = next(
+            a for a in test_specification_pipeline.sub_agents if "Test_Specification_Doc_Creation" in a.name
+        )
+        # Pinned to schema_type="test_specification" -- same mechanism as every
+        # other one-shot generate-and-render pipeline (confirmed in
+        # test_doc_creation_agent_schema_pinning.py): the LLM-facing tool has no
+        # schema_type parameter to see or override.
+        doc_tool = doc_stage.pipeline.sub_agents[1].tools[0]
+        sig = inspect.signature(doc_tool)
+        assert "schema_type" not in sig.parameters
+
+    def test_mute_unmute_and_ensure_clones_are_not_the_shared_singletons(self):
+        # Regression guard: reusing the shared mute_agent/unmute_agent/
+        # ensure_requirements_summary_agent singletons directly raises an ADK
+        # single-parent ValidationError (Proposal_Response_Pipeline already
+        # claims them) -- confirmed and fixed for every other pipeline in this
+        # codebase; this one must use its own fresh clones the same way.
+        from process_agents.common.test_specification_pipeline_agent import (
+            test_specification_pipeline,
+            mute_agent_instance,
+            unmute_agent_instance,
+            ensure_requirements_summary_agent_instance,
+        )
+        from process_agents.common.utils_agent import mute_agent, unmute_agent
+        from process_agents.common.ensure_requirements_summary_agent import (
+            ensure_requirements_summary_agent,
+        )
+
+        assert mute_agent_instance is not mute_agent
+        assert unmute_agent_instance is not unmute_agent
+        assert ensure_requirements_summary_agent_instance is not ensure_requirements_summary_agent
+        assert mute_agent_instance in test_specification_pipeline.sub_agents
+        assert unmute_agent_instance in test_specification_pipeline.sub_agents
+        assert ensure_requirements_summary_agent_instance in test_specification_pipeline.sub_agents
 
 
 class TestTestSpecificationAgent:
@@ -97,15 +157,43 @@ class TestTestSpecificationAgent:
 
     def test_requires_a_source_before_generating_anything(self):
         text = _spec_agent_text()
-        assert "do NOT fabricate test cases with nothing to ground them in" in text
+        assert "do NOT fabricate test cases with nothing to ground" in text
 
-    def test_does_not_render_a_document_itself(self):
-        # Standalone, save-only shape mirroring Requirements_Summary_Agent --
-        # rendering is deferred to a separate, later request through the
-        # generic Create_Doc_Agent/schema_type mechanism.
+    def test_is_silent_on_success_deferring_to_the_render_stage(self):
+        # CONFIRMED LIVE BUG: this agent used to produce its own rich narrative
+        # and never rendered a document. It is now a silent middle pipeline
+        # stage (same OUTPUT CONTRACT convention as requirements_synthesis_
+        # agent.txt/proposal_response_agent.txt) -- the pipeline's own LAST
+        # stage (Doc_Creation_Agent) produces the user-visible confirmation.
         text = _spec_agent_text()
-        assert "create_standard_doc_from_file" not in text
-        assert "can be rendered as a document or reviewed for quality on request" in text
+        assert "OUTPUT CONTRACT (STRICT SILENCE)" in text
+        assert "the pipeline's own next stage renders the document" in text
+
+    def test_requires_positive_and_negative_pairing_for_security_requirements(self):
+        text = _spec_agent_text()
+        assert "MANDATORY POSITIVE/NEGATIVE PAIRING" in text
+        assert "PAIRING CHECK" in text
+
+    def test_requires_state_and_edge_case_coverage_not_just_the_happy_path(self):
+        text = _spec_agent_text()
+        assert "STATE AND EDGE-CASE COVERAGE" in text
+        assert "ambiguous/uncertain-match" in text
+
+    def test_bans_na_test_data_and_requires_quantified_sla_criteria(self):
+        text = _spec_agent_text()
+        assert 'NO "N/A" TEST DATA FOR NON-FUNCTIONAL TESTS' in text
+        assert "QUANTIFIED SLA EXPECTED RESULTS" in text
+        assert "TEST DATA CHECK" in text
+        assert "SLA QUANTIFICATION CHECK" in text
+
+    def test_the_nothing_saved_case_is_the_one_exception_to_silence(self):
+        # Unlike proposal_response_agent.txt (whose own NOT_FOUND case is
+        # always already covered by its preceding Ensure stage), this agent's
+        # Ensure stage deliberately never reports an error of its own (a
+        # requirements summary isn't mandatory here) -- so this agent itself
+        # MUST be the one to tell the user when all three sources are missing.
+        text = _spec_agent_text()
+        assert "this is the ONE exception to the OUTPUT CONTRACT below" in text
 
 
 class TestTestCaseChunkGeneratorAgent:
@@ -171,15 +259,31 @@ class TestTestReviewerAgent:
         assert "GENUINE TRACEABILITY" in text
         assert "COVERAGE HONESTY" in text
 
+    def test_quality_criteria_cover_pairing_state_coverage_and_quantified_sla(self):
+        text = _instruction_text("common/test_reviewer_agent.txt")
+        assert "POSITIVE/NEGATIVE PAIRING" in text
+        assert "STATE AND EDGE-CASE COVERAGE" in text
+        assert 'CONCRETE, NON-"N/A" TEST DATA' in text
+        assert "QUANTIFIED SLA CRITERIA" in text
+
 
 class TestRootAgentWiring:
-    def test_all_three_new_agents_are_in_root_agent_sub_agents(self):
+    def test_pipeline_and_consultant_and_reviewer_are_in_root_agent_sub_agents(self):
         from process_agents.common.agent import root_agent
 
         names = [a.name for a in root_agent.sub_agents]
-        assert "Test_Specification_Agent" in names
+        assert "Test_Specification_Pipeline" in names
         assert "Test_Consultant_Agent" in names
         assert "Test_Reviewer_Agent" in names
+
+    def test_bare_leaf_agent_is_not_itself_a_root_sub_agent(self):
+        # Only Test_Specification_Pipeline (the wrapper) is root-registered --
+        # same convention as Proposal_Response_Agent/Requirements_Synthesis_Agent,
+        # neither of which is separately root-registered either.
+        from process_agents.common.agent import root_agent
+
+        names = [a.name for a in root_agent.sub_agents]
+        assert "Test_Specification_Agent" not in names
 
     def test_chunk_generator_is_not_a_root_sub_agent(self):
         # Only ever called via AgentTool from Test_Specification_Agent,
@@ -191,9 +295,9 @@ class TestRootAgentWiring:
 
 
 class TestRouterInstructions:
-    def test_router_references_all_three_new_agents(self):
+    def test_router_references_the_pipeline_and_both_siblings(self):
         text = _router_text()
-        assert "Test_Specification_Agent" in text
+        assert "Test_Specification_Pipeline" in text
         assert "Test_Consultant_Agent" in text
         assert "Test_Reviewer_Agent" in text
 
@@ -209,11 +313,18 @@ class TestRouterInstructions:
         text = _router_text()
         assert "PRECEDENCE vs. 4h" in text
 
-    def test_router_multi_intent_priority_mentions_all_three_new_agents(self):
+    def test_router_multi_intent_priority_mentions_all_three(self):
         text = _router_text()
-        assert "test specification validating the saved requirements/design/cloud architecture → Test_Specification_Agent" in text
+        assert "test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline" in text
         assert "saved test specification → Test_Consultant_Agent" in text
         assert "test specification quality → Test_Reviewer_Agent" in text
+
+    def test_directory_context_note_lists_1f(self):
+        # CONFIRMED LIVE BUG: "import the requirements from <file> and create a test
+        # specification" only did the import -- 1f needed the same directory
+        # pass-through DIRECTORY-CONTEXT REQUESTS already gives 1a-1e.
+        text = _router_text()
+        assert "(1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 7 below)" in text
 
     def test_document_regeneration_section_names_the_test_specification(self):
         text = _router_text()

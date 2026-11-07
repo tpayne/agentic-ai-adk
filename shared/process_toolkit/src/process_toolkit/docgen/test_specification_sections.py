@@ -188,13 +188,37 @@ def _add_test_cases_register_section(
 # 3.0 COVERAGE SUMMARY
 # ============================================================
 
+def _add_coverage_table(doc: docx.Document, covered, not_covered) -> None:
+    """One row per id/name, sorted naturally, with its own Status column
+    ("Covered"/"Not Covered") -- same one-row-per-item table convention
+    every other register in this document uses, replacing the earlier
+    bold-label/comma-separated-paragraph rendering (hard to scan once a
+    list runs long)."""
+    headers = ["Status", "ID / Component"]
+    table = doc.add_table(rows=1, cols=len(headers))
+    _set_header_row(table, headers)
+
+    for item in sorted(covered, key=_natural_sort_key):
+        row = table.add_row().cells
+        row[0].text = "Covered"
+        row[1].text = str(item)
+    for item in sorted(not_covered, key=_natural_sort_key):
+        row = table.add_row().cells
+        row[0].text = "Not Covered"
+        row[1].text = str(item)
+
+    apply_iso_table_formatting(table, doc)
+    doc.add_paragraph()
+
+
 def _add_coverage_summary_section(
     doc: docx.Document, data: dict, heading: str = "3.0 Coverage Summary",
 ) -> bool:
     """3.0 Coverage Summary -- for each source artifact that was actually
     used, which of its requirements/components have at least one tracing
-    test case, and which don't. A no-op container when "coverage_summary"
-    is absent or every one of its six lists is empty."""
+    test case, and which don't, as a Status/ID table. A no-op container
+    when "coverage_summary" is absent or every one of its six lists is
+    empty."""
     try:
         coverage = data.get("coverage_summary")
         if not isinstance(coverage, dict) or not any(coverage.get(k) for k in (
@@ -223,14 +247,7 @@ def _add_coverage_summary_section(
                 continue
             doc.add_heading(f"{lead}.{subsection} {label}", level=2)
             subsection += 1
-            if covered:
-                p = doc.add_paragraph()
-                p.add_run("Covered: ").bold = True
-                p.add_run(", ".join(sorted(covered)))
-            if not_covered:
-                p = doc.add_paragraph()
-                p.add_run("Not Covered: ").bold = True
-                p.add_run(", ".join(sorted(not_covered)))
+            _add_coverage_table(doc, covered, not_covered)
 
         return True
     except Exception:

@@ -1,14 +1,19 @@
 # process_agents/common/test_specification_agent.py
 #
-# Standalone, on-demand counterpart to requirements_summary_agent.py:
-# reads whichever of a saved requirements summary, design document, and
-# cloud architecture diagram are present, synthesizes a structured test
-# specification (test cases, traceability, coverage gap analysis)
-# validating them, and saves it for later reuse. Same standalone,
-# save-only shape as Requirements_Summary_Agent -- it does NOT render a
-# document itself; that is deferred to a separate, later "regenerate the
-# test specification document" request through the existing generic
-# Regenerate_Document_Agent/regenerate_document mechanism.
+# Middle stage of Test_Specification_Pipeline (see
+# test_specification_pipeline_agent.py): reads whichever of a saved
+# requirements summary, design document, and cloud architecture diagram
+# are present (a prior pipeline stage, Ensure_Requirements_Summary_Agent,
+# may have just self-extracted the requirements summary from a named
+# directory), synthesizes a structured test specification (test cases,
+# traceability, coverage gap analysis) validating them, and saves it.
+# Does NOT render a document itself, and does NOT produce the user-visible
+# reply -- same OUTPUT CONTRACT (STRICT SILENCE) convention as
+# requirements_synthesis_agent.py/proposal_response_agent.py; the
+# pipeline's own LAST stage (Doc_Creation_Agent) does both, confirmed via
+# live testing that a bare "create a test specification" request expects
+# an actual rendered document, not just saved JSON (the earlier,
+# standalone shape this module briefly had).
 #
 # Includes the same chunked map-reduce path as Requirements_Summary_Agent
 # for large combined source material, via Test_Case_Chunk_Generator_Agent
@@ -34,11 +39,13 @@ from ..common.test_case_chunk_generator_agent import test_case_chunk_generator_a
 test_specification_agent = ProcessLlmAgent(
     name="Test_Specification_Agent",
     description=(
-        "Reads whichever of a saved requirements summary, design document, and cloud "
-        "architecture diagram are currently present, generates test cases that validate "
-        "them (with traceability back to the specific requirement/component each test case "
-        "targets), and saves a reusable test specification. Does not create or modify the "
-        "requirements, design, or cloud architecture themselves."
+        "Internal pipeline stage: reads whichever of a saved requirements summary, design "
+        "document, and cloud architecture diagram are currently present, generates test "
+        "cases that validate them (with traceability back to the specific requirement/"
+        "component each test case targets), and saves a reusable test specification. Does "
+        "not create or modify the requirements, design, or cloud architecture themselves, "
+        "and does not render a document itself -- Test_Specification_Pipeline's own later "
+        "stage does that."
     ),
     instruction_file="common/test_specification_agent.txt",
     tools=[

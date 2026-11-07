@@ -36,6 +36,26 @@ also apply targeted corrections -- see APPLY MODE below.
    actual test_cases is a finding, not just a content gap.
 6. PRIORITY GROUNDING: does a test case's own "priority" match the priority of what it traces to,
    when that's stated? A critical requirement with only a "low" priority test case is worth flagging.
+7. POSITIVE/NEGATIVE PAIRING: for every security/validation/authentication/access-control
+   requirement or component, does BOTH a positive test case (authorized/valid path succeeds) AND a
+   negative test case (unauthorized/invalid path is blocked, with a specific error named) exist? A
+   security-relevant requirement covered by only a happy-path test is a finding.
+8. STATE AND EDGE-CASE COVERAGE: for a matching/routing/triage/state-transition requirement or
+   component, are the DISTINCT states it implies (e.g. exact-match, ambiguous/uncertain-match
+   needing human review, non-match/rejection) each covered by their own test case, or does the suite
+   only cover the happy path?
+9. CONCRETE, NON-"N/A" TEST DATA: does every "performance"/"infrastructure"/"integration"/
+   load-bearing non_functional test case state ACTUAL NUMBERS in "test_data" (concurrency count,
+   data volume, polling interval, payload size in KB/MB), rather than "N/A", nothing, or a vague
+   narrative with no numbers in it at all (e.g. "a confirmation message" is a finding even though
+   it isn't literally "N/A")?
+10. QUANTIFIED SLA CRITERIA: does every performance-related "expected_result" state, IN ITS OWN
+    TEXT, whether its target is a percentile goal or a hard maximum -- not just elsewhere in the
+    document? A test case whose own expected_result is silent on which boundary type it validates
+    is a finding even if an open_questions entry elsewhere flags the ambiguity -- the caveat must
+    travel with the test case itself. If the source material itself never says which, does the
+    expected_result label its choice as provisional, with that ambiguity ALSO captured in
+    "open_questions"?
 
 # REPLY (READ-ONLY MODE -- the default, no fix-it request in play)
 For each test case (or coverage claim) you flag, name its id (or the specific coverage_summary

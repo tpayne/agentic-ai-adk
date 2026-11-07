@@ -91,8 +91,10 @@ def test_router_1d_example_covers_the_review_and_create_phrasing():
 
 
 def test_directory_context_note_now_lists_1d_and_1e():
+    # 1f (test specification) was added later, in the same spot, once it also gained
+    # the ability to self-extract a requirements summary from a named directory.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
-    assert "(1a/1b/1c/1d/1e above, or the cloud diagram case in Section 6 below)" in text
+    assert "(1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 6 below)" in text
 
 
 def test_router_1e_example_covers_the_combined_analyze_and_draft_phrasing():

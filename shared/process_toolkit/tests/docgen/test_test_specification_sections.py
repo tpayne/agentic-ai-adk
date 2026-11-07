@@ -142,11 +142,20 @@ def test_coverage_summary_section_renders_covered_and_not_covered_per_artifact()
     assert headings == [
         "3.1 Requirements Coverage", "3.2 Design Coverage", "3.3 Cloud Architecture Coverage",
     ]
-    text = "\n".join(p.text for p in doc.paragraphs)
-    assert "FR-001" in text
-    assert "NFR-003" in text
-    assert "AuthService" in text
-    assert "LoadBalancer" in text
+    # Rendered as a Status/ID table (not prose paragraphs) so a long coverage list stays scannable.
+    assert len(doc.tables) == 3
+    table_text = "\n".join(
+        cell.text for table in doc.tables for row in table.rows for cell in row.cells
+    )
+    assert "FR-001" in table_text
+    assert "NFR-003" in table_text
+    assert "AuthService" in table_text
+    assert "LoadBalancer" in table_text
+
+    requirements_table = doc.tables[0]
+    assert [c.text for c in requirements_table.rows[0].cells] == ["Status", "ID / Component"]
+    assert [c.text for c in requirements_table.rows[1].cells] == ["Covered", "FR-001"]
+    assert [c.text for c in requirements_table.rows[2].cells] == ["Not Covered", "NFR-003"]
 
 
 def test_dependency_register_section_is_a_noop_when_empty():

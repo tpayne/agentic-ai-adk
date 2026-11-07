@@ -72,7 +72,7 @@ def test_chunk_generator_is_deliberately_not_a_top_level_router_tool():
 class TestTestSpecificationAgent:
     def test_agent_exists_with_the_expected_name(self):
         text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
-        assert '"name": "Test_Specification_Agent"' in text
+        assert '"name": "Test_Specification_Pipeline"' in text
 
     def test_loads_all_three_possible_source_artifacts(self):
         text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
@@ -120,13 +120,57 @@ class TestTestSpecificationAgent:
         text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
         assert "do NOT fabricate test cases with nothing to ground them in" in text
 
-    def test_tools_list_includes_the_chunk_generator_but_not_a_render_tool(self):
-        # Mirrors Requirements_Summary_Agent's own standalone, save-only shape --
-        # rendering is deferred to a separate, later request through the generic
-        # Regenerate_Document_Agent / regenerate_document mechanism on each port.
+    def test_tools_list_includes_the_chunk_generator_and_the_render_tool(self):
+        # CONFIRMED LIVE BUG: this network originally mirrored Requirements_
+        # Summary_Agent's own standalone, save-only shape (no render tool),
+        # deferring document generation to a separate, later request. Live
+        # testing showed this is the WRONG shape for test specifications --
+        # a bare "create a test specification" request expects an actual
+        # rendered document, same as Requirements_Doc_Pipeline/Proposal_
+        # Response_Pipeline's own one-shot generate-and-render behavior.
         text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
         assert '"/test_case_chunk_generator"' in text
-        assert '"regenerate_document"' not in text
+        assert '"regenerate_document"' in text
+
+    def test_has_the_render_document_step(self):
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert "# STEP 4: RENDER THE DOCUMENT (MANDATORY ON SUCCESS)" in text
+        assert '"schema_type": "test_specification"' in text
+
+    def test_has_the_ensure_requirements_pre_step_and_it_is_optional_not_mandatory(self):
+        # CONFIRMED LIVE BUG: "import the requirements from <file> and create a test
+        # specification" only ever did the import, dropping the test-specification
+        # half of the request entirely -- Test_Specification_Pipeline had no way to
+        # self-serve a directory-based requirements extraction the way Proposal_
+        # Response_Pipeline already does via its own Ensure_Requirements_Summary_Agent.
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert "# STEP 0: ENSURE A REQUIREMENTS SUMMARY WHEN A DIRECTORY IS NAMED" in text
+        assert "Ensure_Requirements_Summary_Agent" in text
+        # Unlike Proposal_Response_Pipeline's own identically-named helper, this one
+        # must NEVER hard-stop the caller -- a design/cloudarch source is just as valid.
+        assert "NEVER stops this pipeline or produces an\nerror of its own" in text
+
+    def test_ensure_sub_agent_is_silent_and_never_blocks_on_a_missing_directory(self):
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert "OUTPUT CONTRACT (STRICT SILENCE)" in text
+        assert 'output NOTHING and stop -- this is NOT an error' in text
+
+    def test_requires_positive_and_negative_pairing_for_security_requirements(self):
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert "MANDATORY POSITIVE/NEGATIVE PAIRING" in text
+        assert "PAIRING CHECK" in text
+
+    def test_requires_state_and_edge_case_coverage_not_just_the_happy_path(self):
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert "STATE AND EDGE-CASE COVERAGE" in text
+        assert "ambiguous/uncertain-match" in text
+
+    def test_bans_na_test_data_and_requires_quantified_sla_criteria(self):
+        text = TEST_SPECIFICATION_HOCON.read_text(encoding="utf-8")
+        assert 'NO "N/A" TEST DATA FOR NON-FUNCTIONAL TESTS' in text
+        assert "QUANTIFIED SLA EXPECTED RESULTS" in text
+        assert "TEST DATA CHECK" in text
+        assert "SLA QUANTIFICATION CHECK" in text
 
 
 class TestTestCaseChunkGeneratorAgent:
@@ -186,3 +230,10 @@ class TestTestReviewerAgent:
         assert "VERIFIABLE" in text
         assert "GENUINE TRACEABILITY" in text
         assert "COVERAGE HONESTY" in text
+
+    def test_quality_criteria_cover_pairing_state_coverage_and_quantified_sla(self):
+        text = TEST_REVIEWER_HOCON.read_text(encoding="utf-8")
+        assert "POSITIVE/NEGATIVE PAIRING" in text
+        assert "STATE AND EDGE-CASE COVERAGE" in text
+        assert 'CONCRETE, NON-"N/A" TEST DATA' in text
+        assert "QUANTIFIED SLA CRITERIA" in text
