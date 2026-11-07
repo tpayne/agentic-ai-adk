@@ -623,7 +623,7 @@ def _component_name(component: dict) -> str:
 
 def _add_low_level_design_section(
     doc: docx.Document, low_level_design: dict, heading: str = "12.0 Low-Level Design",
-    system_name: str = None,
+    system_name: str = None, has_hld_companion: bool = False,
 ) -> bool:
     """Low-Level Design, grouped by design discipline (runtime flows,
     component design, interfaces, configuration, operations, and
@@ -641,6 +641,13 @@ def _add_low_level_design_section(
     are read defensively via .get() with plausible alternate spellings,
     since the generating agent may elaborate components with additional
     LLD-specific fields the strict schema doesn't enumerate.
+
+    `has_hld_companion`: this section is the sole content of a standalone
+    Low-Level Design document (see generation.py's _build_lld_document).
+    When a High-Level Design document is ALSO being produced in the same
+    call, the intro paragraph points the reader to it; otherwise it
+    describes this document's own organization without assuming one
+    exists.
     """
     try:
         if not isinstance(low_level_design, dict) or not low_level_design:
@@ -663,13 +670,23 @@ def _add_low_level_design_section(
         lead = _leading_number(heading, default=12)
 
         doc.add_heading(heading, level=1)
-        doc.add_paragraph(
-            "This part elaborates the High-Level Design (Part I) into "
-            "implementation-ready detail, organised by design discipline -- "
-            "runtime behaviour, component design, interfaces, configuration, "
-            "and operations -- so a reviewer interested in one discipline can "
-            "find it in one place rather than across every component section."
-        )
+        if has_hld_companion:
+            doc.add_paragraph(
+                "This document elaborates the system's High-Level Design -- "
+                "published as a separate companion document -- into "
+                "implementation-ready detail, organised by design discipline -- "
+                "runtime behaviour, component design, interfaces, configuration, "
+                "and operations -- so a reviewer interested in one discipline can "
+                "find it in one place rather than across every component section."
+            )
+        else:
+            doc.add_paragraph(
+                "This document presents the Low-Level Design: implementation-ready "
+                "detail for this system, organised by design discipline -- runtime "
+                "behaviour, component design, interfaces, configuration, and "
+                "operations -- so a reviewer interested in one discipline can find "
+                "it in one place rather than across every component section."
+            )
 
         subsection = 1
         rendered_any = False

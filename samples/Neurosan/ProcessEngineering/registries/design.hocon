@@ -30,7 +30,8 @@
         "description": "Generates or refines an architectural design document (HLD/LLD/Combined), audited by compliance and simulation review before it is finalized.",
         "tags": ["design", "process-engineering-port"],
         "sample_queries": [
-            "Create a Combined HLD/LLD design document for a checkout microservice."
+            "Create a Combined HLD/LLD design document for a checkout microservice.",
+            "Create just the High-Level Design for a checkout microservice."
         ]
     },
 
@@ -102,18 +103,34 @@ whatever design_data.json currently holds, approved or not, and skipping them is
 Call both now, regardless of "reason".
 8. Call generate_design_flow_diagram once (no arguments) to render a component/integration diagram
    of the current design.
-9. Call generate_design_document once, passing the design's own system/title name as
-   "process_name", to produce the final ISO-formatted Word document. Its result is a plain string
-   starting with either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
-10. Report the outcome in plain language: if "reason" was "APPROVED", say the design document was
-   created/updated and passed compliance and architecture-simulation review. If "MAX_ITERATIONS",
-   say a design was produced but still has open review feedback after the maximum number of
-   revision passes. Only say a Word document was produced if step 9's own result actually started
-   with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document could
-   not be generated and why (using the error's own text), even though a design and diagram were
-   produced. NEVER claim a document was produced "either way" when the tool itself reported
-   otherwise -- confirmed as a real production bug: a prior version of this instruction asserted
-   success unconditionally regardless of what generate_design_document actually returned.
+8b. DETERMINE design_variant from the ORIGINAL user request text (the "inquiry" argument this
+   pipeline was itself invoked with, NOT anything Design_Doc_Analysis_Agent/the generator stages
+   returned): if it explicitly asks for only the HLD / High-Level Design (and does not also mention
+   the LLD/Low-Level Design or "combined"/"both"), design_variant="hld". If it explicitly asks for
+   only the LLD / Low-Level Design (and does not also mention the HLD/High-Level Design or
+   "combined"/"both"), design_variant="lld". Otherwise -- it asks for "a design document", "HLD and
+   LLD", "combined", "both", or simply doesn't specify -- design_variant="both" (or omit the
+   argument entirely in step 9; same effect). Design generation ITSELF (steps 3-7 above) is
+   unaffected by this choice -- it always produces both the high-level and low-level design content,
+   exactly as it does today; this choice only controls which document(s) get RENDERED in step 9.
+9. Call generate_design_document once, passing the design's own system/title name as "process_name"
+   and the design_variant determined in step 8b, to produce the final ISO-formatted Word document(s)
+   -- the High-Level Design and Low-Level Design are now always SEPARATE documents, never one
+   combined file. Its result is a plain string starting with either "SUCCESS:" or "ERROR:" --
+   remember which one it was for step 10. A "SUCCESS:" result names which document(s) were actually
+   produced ("Professional document saved at <path>" for one, "Professional documents saved -- HLD:
+   <path>; LLD: <path>" for both) -- relay that, not an assumption that both always exist.
+10. Report the outcome in plain language: if "reason" was "APPROVED", say the design document(s)
+   were created/updated and passed compliance and architecture-simulation review. If
+   "MAX_ITERATIONS", say a design was produced but still has open review feedback after the maximum
+   number of revision passes. Only say a Word document was produced if step 9's own result actually
+   started with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word
+   document could not be generated and why (using the error's own text), even though a design and
+   diagram were produced. Say which document(s) were actually produced (HLD only, LLD only, or both)
+   based on step 9's own result text, never assuming both exist just because design generation
+   itself always covers both. NEVER claim a document was produced "either way" when the tool itself
+   reported otherwise -- confirmed as a real production bug: a prior version of this instruction
+   asserted success unconditionally regardless of what generate_design_document actually returned.
    NEVER describe the design's own content -- architecture style, technologies, components -- from
    your own general knowledge, guess, or what would sound plausible. You have not read the design
    JSON yourself; you only know what reason/step 8's/step 9's own tool results actually said. If
@@ -664,11 +681,16 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
         {
             "name": "generate_design_document",
             "function": {
-                "description": "Generates a structured, ISO-formatted Word document from the current design document.",
+                "description": "Generates a structured, ISO-formatted Word document from the current design document -- the High-Level Design, the Low-Level Design, or both as SEPARATE documents.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "process_name": {"type": "string", "description": "Fallback document title, used only if the design JSON itself has no title/system_name."}
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the design JSON itself has no title/system_name."},
+                        "design_variant": {
+                            "type": "string",
+                            "enum": ["hld", "lld", "both"],
+                            "description": "Which document(s) to render: the High-Level Design, the Low-Level Design, or both. Omit to render both (or whichever of the two the current design data actually contains, if only one does)."
+                        }
                     },
                     "required": ["process_name"]
                 }

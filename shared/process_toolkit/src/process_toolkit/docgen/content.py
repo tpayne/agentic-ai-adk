@@ -99,13 +99,20 @@ def _add_overview_section(doc: docx.Document, data: dict) -> None:
 # 1.0 DESIGN DOCUMENT OVERVIEW (design schema counterpart)
 # ============================================================
 
-def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
+def _add_design_overview_section(doc: docx.Document, data: dict, has_lld_companion: bool = False) -> None:
     """1.0 Executive Summary — ISO formatted, design-schema counterpart to
     _add_overview_section. Built from document_metadata + business_context
     (design_document_schema.json's shape) rather than process's flat
-    purpose/scope/introduction fields. Opens with a short "Document
-    Structure" paragraph (Part I/Part II map) before the detailed
-    scope/objectives/business-drivers/assumptions/constraints content."""
+    purpose/scope/introduction fields.
+
+    `has_lld_companion`: this is the High-Level Design document, built
+    standalone (design generation now always produces two SEPARATE
+    documents rather than one combined file -- see generation.py's
+    _build_hld_document/_build_lld_document). When a Low-Level Design
+    document is ALSO being produced in this same call, a short "Document
+    Structure" subsection points the reader to it; when this HLD document
+    is the only one being produced, that subsection is dropped entirely --
+    there is no companion to orient the reader toward."""
     try:
         doc.add_heading("1.0 Executive Summary", level=1)
 
@@ -125,15 +132,17 @@ def _add_design_overview_section(doc: docx.Document, data: dict) -> None:
 
         subsection = 1
 
-        doc.add_heading(f"1.{subsection} Document Structure", level=2)
-        subsection += 1
-        doc.add_paragraph(
-            "This document is organized in two parts. Part I presents the "
-            "business context, requirements, and architecture at a level "
-            "suitable for review and approval. Part II provides the "
-            "low-level design detail an implementing engineer needs to build "
-            "it."
-        )
+        if has_lld_companion:
+            doc.add_heading(f"1.{subsection} Document Structure", level=2)
+            subsection += 1
+            doc.add_paragraph(
+                "This document presents the High-Level Design: the business "
+                "context, requirements, and architecture for this system, at a "
+                "level suitable for review and approval. The corresponding "
+                "Low-Level Design -- implementation-ready detail for engineers "
+                "building this system -- is published as a separate companion "
+                "document."
+            )
 
         scope = business_context.get("scope")
         if scope:

@@ -87,3 +87,25 @@ def test_manifest_registers_both_import_networks():
     manifest_text = (PROJECT_ROOT / "registries" / "manifest.hocon").read_text(encoding="utf-8")
     assert '"process_import.hocon"' in manifest_text
     assert '"design_import.hocon"' in manifest_text
+
+
+def test_design_import_forbids_populating_the_other_variant_when_a_type_is_explicit():
+    # Confirmed as a real bug via live testing: importing a directory with an
+    # explicit "High-Level Design only -- no low-level design content, none
+    # should be invented" request still ended up with enough low_level_design
+    # content for an LLD Word document to render successfully, when the
+    # explicit request should have made that impossible (see
+    # process_toolkit.docgen.generation's own _resolve_design_variant, which
+    # treats ANY truthy low_level_design as real content). STEP 4's general
+    # "infer a reasonable value" guidance was silently overriding the
+    # document_type-implied scope -- this HARD RULE makes the exclusion
+    # explicit and gives it precedence.
+    text = (PROJECT_ROOT / "registries" / "design_import.hocon").read_text(encoding="utf-8")
+    assert "HARD RULE, NO EXCEPTIONS" in text
+    idx = text.index("HARD RULE, NO EXCEPTIONS")
+    rule_text = text[idx:idx + 800]
+    assert 'document_type is "HLD"' in rule_text
+    assert "low_level_design key" in rule_text
+    assert "MUST be entirely absent" in rule_text
+    assert 'document_type is "LLD"' in rule_text
+    assert "high_level_design MUST be entirely absent" in rule_text
