@@ -11,7 +11,9 @@ import docx
 from docx.oxml.ns import qn
 
 from process_toolkit import paths
-from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME, detect_schema_type_from_disk
+from process_toolkit.schema.process_json import (
+    PROCESS_JSON_FILENAME, DESIGN_JSON_FILENAME, detect_schema_type_from_disk,
+)
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
@@ -613,3 +615,186 @@ class TestTestSpecificationDocumentGeneration:
         assert result.startswith("SUCCESS:")
         out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
         assert "Acme_Vendor_Onboarding_Test_Specification" in out_path
+
+
+SAMPLE_DESIGN = {
+    "document_metadata": {
+        "title": "Checkout Service Design", "system_name": "Checkout",
+        "version": "1.0", "document_type": "Combined", "industry_sector": "Retail",
+    },
+    "business_context": {"purpose": "Modernize the checkout experience."},
+    "architecture_description": {
+        "stakeholders": [{"name": "Jane Doe", "role": "Product Owner"}],
+        "concerns": ["Scalability under Black Friday load."],
+        "architecture_analysis": {"approach": "Event-driven microservices."},
+    },
+    "requirements": {"functional_requirements": [{"id": "FR-1", "description": "Users can check out."}]},
+    "system_context": {"external_systems": [{"name": "Payments API"}]},
+    "high_level_design": {
+        "solution_overview": "A microservice-based checkout flow.",
+        "components": [{"component_name": "Checkout API"}],
+        "security_architecture": "OAuth2 + mTLS between services.",
+    },
+    "low_level_design": {
+        "components": [
+            {"component_name": "Checkout API", "hld_component_name": "Checkout API",
+             "responsibilities": ["Process payment"]},
+        ],
+    },
+    "quality_attributes": [{"characteristic": "Performance", "measure_method": "Load test", "target": "Sub-second response"}],
+    "compliance_and_standards": {
+        "applicable_standards": [{"standard": "PCI-DSS", "compliance_status": "Compliant"}],
+    },
+    "risk_register": [{"risk": "Payment gateway outage", "impact": "High"}],
+    "governance_requirements": {"review_cadence": "Quarterly architecture review."},
+    "continuous_improvement": {"approach": "Retrospective after each major release."},
+    "glossary_and_references": {"glossary": [{"term": "API", "definition": "Application Programming Interface"}]},
+    "appendix": {"reference_architecture": {"summary": "See the platform reference architecture."}},
+}
+
+
+class TestDesignDocumentGeneration:
+    """Design documents are split into two SEPARATE .docx files (HLD and
+    LLD) instead of one combined document -- see generation.py's
+    _build_design_documents/_build_hld_document/_build_lld_document.
+    design_variant ("hld"|"lld"|"both", default "both") selects which."""
+
+    def _write_sample(self, data=None):
+        with open(paths.output_path(DESIGN_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data or SAMPLE_DESIGN, f)
+
+    def test_default_both_variant_produces_two_files_with_the_expected_sections(self):
+        self._write_sample()
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design")
+        assert result.startswith("SUCCESS: Professional documents saved -- HLD: ")
+        assert "; LLD: " in result
+
+        hld_path = result.split("HLD: ", 1)[1].split("; LLD: ", 1)[0]
+        lld_path = result.split("; LLD: ", 1)[1]
+        assert hld_path.endswith("Checkout_Service_Design_HLD.docx")
+        assert lld_path.endswith("Checkout_Service_Design_LLD.docx")
+
+        hld_doc = docx.Document(hld_path)
+        hld_h1 = [p.text for p in hld_doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        hld_h2 = [p.text for p in hld_doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        hld_headings = hld_h1 + hld_h2
+        assert any("Executive Summary" in h for h in hld_h1)
+        assert any("Document Structure" in h for h in hld_h2)  # has_lld_companion=True
+        assert any("Stakeholders" in h for h in hld_headings)
+        assert any("Requirements" in h for h in hld_headings)
+        assert any("System Context" in h for h in hld_headings)
+        assert any("Architecture Description" in h for h in hld_headings)
+        assert any("Architecture Detail" in h for h in hld_headings)
+        assert any("Architecture Flow Diagram" in h for h in hld_headings)
+        assert any("Quality Attributes" in h for h in hld_headings)
+        assert any("Compliance" in h for h in hld_headings)
+        assert any("Risk Register" in h for h in hld_headings)
+        assert any("Glossary" in h for h in hld_headings)
+        assert not any("Low-Level Design" in h for h in hld_headings)
+        assert not any("PART I" in h or "PART II" in h for h in hld_headings)
+
+        lld_doc = docx.Document(lld_path)
+        lld_h1 = [p.text for p in lld_doc.paragraphs if p.style and p.style.name == "Heading 1"]
+        lld_headings = lld_h1
+        assert "1.0 Low-Level Design" in lld_h1
+        assert any("Glossary" in h for h in lld_headings)
+        assert not any("Stakeholders" in h for h in lld_headings)
+        assert not any("Architecture Flow Diagram" in h for h in lld_headings)
+        assert not any("PART I" in h or "PART II" in h for h in lld_headings)
+
+    def test_explicit_hld_variant_produces_only_the_hld_file(self):
+        self._write_sample()
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="hld")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        assert "; LLD: " not in result
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Checkout_Service_Design_HLD.docx")
+
+        doc = docx.Document(out_path)
+        h2 = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        # Built alone (no LLD companion this call) -- the "Document
+        # Structure" pointer-to-companion subsection must not appear.
+        assert not any("Document Structure" in h for h in h2)
+
+    def test_explicit_lld_variant_produces_only_the_lld_file(self):
+        self._write_sample()
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="lld")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Checkout_Service_Design_LLD.docx")
+
+        doc = docx.Document(out_path)
+        paragraphs = [p.text for p in doc.paragraphs]
+        idx = paragraphs.index("1.0 Low-Level Design")
+        # Built alone (no HLD companion this call) -- the intro must not
+        # reference a companion HLD document.
+        assert "companion" not in paragraphs[idx + 1].lower()
+
+    def test_explicit_lld_variant_errors_when_no_low_level_design_present(self):
+        data = dict(SAMPLE_DESIGN)
+        del data["low_level_design"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="lld")
+        assert result.startswith("ERROR:")
+        assert "low_level_design" in result
+
+    def test_unrecognized_design_variant_is_a_clean_error(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="design", design_variant="bogus")
+        assert result.startswith("ERROR:")
+        assert "bogus" in result
+
+    def test_both_variant_with_only_hld_content_produces_one_hld_file(self):
+        data = dict(SAMPLE_DESIGN)
+        del data["low_level_design"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="design")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Checkout_Service_Design_HLD.docx")
+
+    def test_neither_document_leaks_the_others_content_into_additional_data(self):
+        # consumed_keys is shared, unmodified, between both builders --
+        # low_level_design must never appear as a raw-JSON dump in the HLD
+        # document's Additional Data section, and vice versa.
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="design")
+        hld_path = result.split("HLD: ", 1)[1].split("; LLD: ", 1)[0]
+        lld_path = result.split("; LLD: ", 1)[1]
+
+        hld_text = "\n".join(p.text for p in docx.Document(hld_path).paragraphs)
+        assert "Additional Data" not in hld_text or "low_level_design" not in hld_text.lower()
+
+        lld_text = "\n".join(p.text for p in docx.Document(lld_path).paragraphs)
+        assert "Additional Data" not in lld_text or "high_level_design" not in lld_text.lower()
+
+    def test_design_is_still_auto_detectable_from_disk_unlike_the_narrative_only_schema_types(self):
+        # Unlike requirements/proposal_response/test_specification (never
+        # auto-discovered, by design), "design" is one of the two schema
+        # types detect_schema_type_from_disk() legitimately resolves to --
+        # this split feature doesn't change that.
+        self._write_sample()
+        assert detect_schema_type_from_disk() == "design"
+        result = create_standard_doc_from_file("Checkout")  # schema_type omitted entirely
+        assert result.startswith("SUCCESS:")
+
+    def test_regenerating_with_nothing_saved_yet_is_clean_no_traceback_printed(self, capsys):
+        result = create_standard_doc_from_file("X", schema_type="design")
+        assert result.startswith("ERROR:")
+        assert "No such file" in result
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.out
+        assert "Traceback" not in captured.err
+
+    def test_no_blank_pages_in_either_generated_design_document(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="design")
+        hld_path = result.split("HLD: ", 1)[1].split("; LLD: ", 1)[0]
+        lld_path = result.split("; LLD: ", 1)[1]
+        assert _blank_page_gaps(hld_path) == []
+        assert _blank_page_gaps(lld_path) == []

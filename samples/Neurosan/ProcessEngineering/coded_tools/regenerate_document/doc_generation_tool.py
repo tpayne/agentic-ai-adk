@@ -42,11 +42,19 @@ class RegenerateDocumentCodedTool(CodedTool):
     file is actually on disk -- correct only when at most one of the two
     exists, since the auto-detect fallback always resolves to "process"
     whenever both do. Returns "ERROR: ..." (containing "No such file") if
-    the resolved file doesn't exist yet -- there is nothing to regenerate."""
+    the resolved file doesn't exist yet -- there is nothing to regenerate.
+
+    "design_variant" ("hld"|"lld"|"both", default "both") is only
+    meaningful when schema_type is (or resolves to) "design" -- harmless/
+    ignored otherwise. Selects which of the two separate design documents
+    to regenerate (see process_toolkit.docgen.generation's own
+    _build_design_documents)."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         name = args.get("process_name") or "Process"
-        result = create_standard_doc_from_file(name, schema_type=args.get("schema_type"))
+        result = create_standard_doc_from_file(
+            name, schema_type=args.get("schema_type"), design_variant=args.get("design_variant"),
+        )
         if isinstance(result, str) and result.startswith("SUCCESS:"):
             token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
             stop_pipeline_lock_heartbeat(token)

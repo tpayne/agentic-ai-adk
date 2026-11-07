@@ -5,6 +5,33 @@ import docx
 from process_toolkit.docgen import design_sections
 
 
+def test_low_level_design_intro_never_assumes_a_companion_hld_document_exists_by_default():
+    # Regression guard: design generation now always produces the HLD and
+    # LLD as two SEPARATE documents (see generation.py's _build_hld_
+    # document/_build_lld_document), not one combined file with a "Part I"/
+    # "Part II" split -- this section's own intro must not reference
+    # "Part I" unconditionally the way it used to when it was always
+    # nested after an HLD part in the same document.
+    doc = docx.Document()
+    design_sections._add_low_level_design_section(
+        doc, {"components": [{"component_name": "X"}]}, heading="1.0 Low-Level Design",
+    )
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Part I" not in text
+    assert "companion" not in text.lower()
+
+
+def test_low_level_design_intro_mentions_the_companion_hld_document_when_told_one_exists():
+    doc = docx.Document()
+    design_sections._add_low_level_design_section(
+        doc, {"components": [{"component_name": "X"}]}, heading="1.0 Low-Level Design",
+        has_hld_companion=True,
+    )
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "companion" in text.lower()
+    assert "Part I" not in text  # the old "(Part I)" phrasing is gone even in this mode
+
+
 def test_requirements_table_shows_na_for_a_missing_id():
     # Regression test: a requirement record missing "id" (confirmed
     # directly against a real generated design document whose

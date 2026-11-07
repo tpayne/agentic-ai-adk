@@ -360,6 +360,11 @@ creation verb at all), is NOT this rule -- see the ATTACHED-FILE OVERRIDE above 
 cloud-architecture-diagram case; do not build a brand-new design document just because a diagram
 was attached and the word "architecture" appears somewhere in the request.
 
+The pipeline itself determines, from this same request wording, whether to render just the HLD,
+just the LLD, or both as separate Word documents -- the High-Level Design and Low-Level Design are
+always SEPARATE documents, never one combined file. You do not need to do anything differently here
+regardless of which of the three the user asked for; just forward the request as-is.
+
 You MUST NOT outline or describe the process or design yourself, in either case.
 
 ### 1c. IMPORTING/RESTORING AN ALREADY-EXISTING PROCESS, DESIGN DOCUMENT, OR CLOUD ARCHITECTURE DIAGRAM
@@ -1066,6 +1071,11 @@ Examples:
 - "Regenerate the requirements document."
 - "Regenerate the proposal response document."
 - "Regenerate the test specification document."
+- "Please regenerate just the HLD."
+
+The High-Level Design and Low-Level Design are always SEPARATE documents, never one combined file
+-- Regenerate_Document_Agent itself determines, from this same request wording, whether to
+regenerate just the HLD, just the LLD, or both; you do not need to do anything differently here.
 
 PRECEDENCE: if the request ALSO asks for actual content to be created, changed, or re-analyzed (not
 just the rendered artifacts re-rendered), that is Modification (Section 2) or Creation (Section 1)
