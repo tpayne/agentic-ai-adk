@@ -94,7 +94,9 @@ def test_reports_nothing_generated_yet_when_output_is_empty(dest_dir):
 
 def test_reports_an_error_for_an_unwritable_destination(dest_dir):
     _write_output_file("Vendor_Onboarding.docx")
-    bogus_dest = dest_dir / "does" / "not" / "exist" / "out.docx"
+    blocker = dest_dir / "not-a-directory"
+    blocker.write_text("blocker", encoding="utf-8")
+    bogus_dest = blocker / "out.docx"
 
     result = DownloadArtifactCodedTool().invoke(
         {"target": "Vendor_Onboarding.docx", "destination": str(bogus_dest)}, {},

@@ -125,9 +125,36 @@ class TestCopyArtifactToDestination:
         assert result == str(dest_dir / "Vendor_Onboarding.docx")
         assert (dest_dir / "Vendor_Onboarding.docx").read_bytes() == b"real bytes"
 
+    def test_creates_a_nonexistent_directory_without_an_extension(self, tmp_path):
+        _write_output_file("Vendor_Onboarding.docx", b"real bytes")
+        dest_dir = tmp_path / "downloads"
+
+        result = copy_artifact_to_destination("Vendor_Onboarding.docx", str(dest_dir))
+
+        assert result == str(dest_dir / "Vendor_Onboarding.docx")
+        assert (dest_dir / "Vendor_Onboarding.docx").read_bytes() == b"real bytes"
+
+    def test_does_not_overwrite_a_file_when_directory_is_requested(self, tmp_path):
+        _write_output_file("Vendor_Onboarding.docx", b"real bytes")
+        destination = tmp_path / "downloads"
+        destination.write_bytes(b"existing file")
+
+        with pytest.raises(ValueError, match="is a file, not a directory"):
+            copy_artifact_to_destination("Vendor_Onboarding.docx", str(destination))
+        assert destination.read_bytes() == b"existing file"
+
     def test_copies_to_a_full_target_file_path(self, tmp_path):
         _write_output_file("Vendor_Onboarding.docx", b"real bytes")
         dest_file = tmp_path / "renamed.docx"
+
+        result = copy_artifact_to_destination("Vendor_Onboarding.docx", str(dest_file))
+
+        assert result == str(dest_file)
+        assert dest_file.read_bytes() == b"real bytes"
+
+    def test_creates_parent_directory_for_a_full_target_file_path(self, tmp_path):
+        _write_output_file("Vendor_Onboarding.docx", b"real bytes")
+        dest_file = tmp_path / "downloads" / "renamed.docx"
 
         result = copy_artifact_to_destination("Vendor_Onboarding.docx", str(dest_file))
 

@@ -199,6 +199,27 @@ class TestListAndDownloadControlLines:
         assert copied.read_bytes() == b"fake docx bytes"
         assert "Downloaded" in capsys.readouterr().out
 
+    def test_download_creates_a_nonexistent_directory_destination(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "portfolio_backlog.xlsx").write_bytes(b"fake workbook bytes")
+        cwd_dir = tmp_path / "cwd"
+        cwd_dir.mkdir()
+        monkeypatch.chdir(cwd_dir)
+
+        asyncio.run(
+            cli.handle_logical_line(
+                "download portfolio_backlog.xlsx downloads",
+                [_StubSession()],
+                "process_architect",
+            )
+        )
+
+        copied = cwd_dir / "downloads" / "portfolio_backlog.xlsx"
+        assert copied.read_bytes() == b"fake workbook bytes"
+        assert f"Downloaded 'portfolio_backlog.xlsx' to {copied}" in capsys.readouterr().out
+
     def test_download_defaults_to_the_current_working_directory(self, monkeypatch, tmp_path, capsys):
         monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
         output_dir = tmp_path / "output"

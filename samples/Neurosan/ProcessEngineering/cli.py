@@ -172,6 +172,7 @@ from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_h
 from process_toolkit.session_purge import purge_session, start_session_purge_thread  # noqa: E402
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
+    copy_artifact_to_destination,
     list_output_documents,
     portfolio_backlog_workbook_exists,
     safe_output_file_path,
@@ -994,9 +995,10 @@ def _handle_download_control_line(line: str) -> None:
     /artifacts/.../download Flask routes below since a browser has no
     direct filesystem access). `filename` is whatever "list" just showed
     (a generated .docx, or "cloudarch_drawio.xml"); `destination`
-    defaults to the current working directory, and may itself be either
-    a directory (the file is copied in under its own name) or a full
-    target file path."""
+    defaults to the current working directory. Existing folders and
+    folder paths without a filename extension are created as needed; a
+    destination with a filename extension is treated as a full target
+    file path."""
     parts = line.split(maxsplit=2)
     if len(parts) < 2:
         display_text("Usage: download <filename> [destination]", kind="error")
@@ -1004,18 +1006,10 @@ def _handle_download_control_line(line: str) -> None:
     filename = parts[1]
     destination = os.path.expanduser(parts[2]) if len(parts) > 2 else "."
 
-    source_path = safe_output_file_path(filename)
-    if source_path is None:
-        display_text(
-            f"No generated file named '{filename}' in output/. Use 'list' to see what's available.",
-            kind="error",
-        )
-        return
-    dest_path = os.path.join(destination, os.path.basename(source_path)) if os.path.isdir(destination) else destination
     try:
-        shutil.copy2(source_path, dest_path)
-        display_text(f"[Action]: Downloaded '{os.path.basename(source_path)}' to {dest_path}")
-    except OSError as e:
+        dest_path = copy_artifact_to_destination(filename, destination)
+        display_text(f"[Action]: Downloaded '{os.path.basename(dest_path)}' to {dest_path}")
+    except (ValueError, OSError) as e:
         display_text(f"Could not copy '{filename}' to '{destination}': {e}", kind="error")
 
 

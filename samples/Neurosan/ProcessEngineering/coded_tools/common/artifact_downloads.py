@@ -146,23 +146,37 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
 def copy_artifact_to_destination(filename: str, destination: str) -> str:
     """
     Copies `filename` (resolved via safe_output_file_path -- must already
-    be a real file in output/) to `destination`, which may be an existing
-    directory (the file keeps its own basename) or a full target file
-    path. Returns the actual final path copied to.
+    be a real file in output/) to `destination`. Existing directories,
+    paths with a trailing separator, and paths without a filename
+    extension are treated as directories and created if needed; the file
+    keeps its own basename there. A path with an extension is treated as
+    a target file path. Returns the absolute final path copied to.
 
     Raises ValueError if `filename` doesn't resolve to a real file inside
     output/ (including a path-traversal attempt); propagates any OSError
-    the copy itself raises (e.g. an unwritable/nonexistent destination
-    directory) uncaught, for the caller to report in its own idiom.
+    the copy itself raises for the caller to report in its own idiom.
     """
     source_path = safe_output_file_path(filename)
     if source_path is None:
         raise ValueError(f"No generated file named '{filename}' in output/.")
-    destination = os.path.expanduser(destination or ".")
-    dest_path = (
-        os.path.join(destination, os.path.basename(source_path))
-        if os.path.isdir(destination)
-        else destination
+    raw_destination = os.path.expanduser(destination or ".")
+    has_trailing_separator = raw_destination.endswith(os.sep) or (
+        os.altsep is not None and raw_destination.endswith(os.altsep)
     )
+    destination = os.path.abspath(raw_destination)
+    destination_name = os.path.basename(os.path.normpath(destination))
+    is_directory = (
+        os.path.isdir(destination)
+        or has_trailing_separator
+        or not os.path.splitext(destination_name)[1]
+    )
+    if is_directory:
+        if os.path.exists(destination) and not os.path.isdir(destination):
+            raise ValueError(f"Destination '{destination}' is a file, not a directory.")
+        os.makedirs(destination, exist_ok=True)
+        dest_path = os.path.join(destination, os.path.basename(source_path))
+    else:
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        dest_path = destination
     shutil.copy2(source_path, dest_path)
     return dest_path
