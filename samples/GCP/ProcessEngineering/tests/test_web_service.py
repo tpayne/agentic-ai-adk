@@ -990,6 +990,12 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["data"], {"compliance_matrix": []})
 
+    def test_portfolio_backlog_artifact_name_maps_to_backlog_json(self):
+        self._write("portfolio_backlog.json", '{"epics": []}')
+        response = self.client.get("/artifacts/portfolio_backlog", headers=self._authorized_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"], {"epics": []})
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self):
         self._write("cloudarch_drawio.xml", "<mxfile><diagram>stuff</diagram></mxfile>")
         response = self.client.get("/artifacts/cloudarch", headers=self._authorized_headers())
@@ -1128,6 +1134,29 @@ class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, b'{"compliance_matrix": []}')
         self.assertIn("proposal_response.json", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_portfolio_backlog_json_as_a_real_attachment(self):
+        self._write("portfolio_backlog.json", '{"epics": []}')
+        response = self.client.get(
+            "/artifacts/portfolio_backlog/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b'{"epics": []}')
+        self.assertIn("portfolio_backlog.json", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_portfolio_backlog_workbook_as_an_xlsx_attachment(self):
+        self._write("portfolio_backlog.xlsx", "workbook bytes")
+        response = self.client.get(
+            "/artifacts/portfolio_backlog_workbook/download",
+            headers=self._authorized_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"workbook bytes")
+        self.assertEqual(
+            response.mimetype,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("portfolio_backlog.xlsx", response.headers.get("Content-Disposition", ""))
 
     def test_404s_when_not_yet_generated(self):
         response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())

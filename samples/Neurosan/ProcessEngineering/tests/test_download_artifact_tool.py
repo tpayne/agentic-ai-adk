@@ -49,6 +49,18 @@ def test_downloads_the_cloudarch_diagram_by_keyword(dest_dir):
     assert (dest_dir / "cloudarch_drawio.xml").read_bytes() == b"<mxfile></mxfile>"
 
 
+def test_downloads_the_backlog_workbook_by_keyword(dest_dir):
+    _write_output_file("portfolio_backlog.xlsx", b"workbook bytes")
+
+    result = DownloadArtifactCodedTool().invoke(
+        {"target": "the SAFe backlog workbook", "destination": str(dest_dir)}, {},
+    )
+
+    assert result["status"] == "OK"
+    assert result["filename"] == "portfolio_backlog.xlsx"
+    assert (dest_dir / "portfolio_backlog.xlsx").read_bytes() == b"workbook bytes"
+
+
 def test_downloads_the_most_recent_document_when_target_is_omitted(dest_dir):
     _write_output_file("Vendor_Onboarding.docx", b"doc bytes")
 
@@ -62,6 +74,7 @@ def test_downloads_the_most_recent_document_when_target_is_omitted(dest_dir):
 def test_reports_what_is_available_when_target_does_not_match(dest_dir):
     _write_output_file("Vendor_Onboarding.docx")
     _write_output_file("cloudarch_drawio.xml")
+    _write_output_file("portfolio_backlog.xlsx")
 
     result = DownloadArtifactCodedTool().invoke(
         {"target": "something unrelated", "destination": str(dest_dir)}, {},
@@ -69,6 +82,7 @@ def test_reports_what_is_available_when_target_does_not_match(dest_dir):
 
     assert result["status"] == "ERROR"
     assert "Vendor_Onboarding.docx" in result["message"]
+    assert "portfolio_backlog.xlsx" in result["message"]
     assert "cloud architecture diagram" in result["message"]
 
 

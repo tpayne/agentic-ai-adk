@@ -82,6 +82,14 @@ class TestResolveArtifactTarget:
     def test_cloudarch_keyword_resolves_to_none_when_the_diagram_does_not_exist(self):
         assert resolve_artifact_target("diagram") is None
 
+    def test_backlog_keyword_resolves_to_workbook_when_it_exists(self):
+        _write_output_file("portfolio_backlog.xlsx")
+        for phrase in ("backlog", "SAFe portfolio backlog workbook", "WSJF"):
+            assert resolve_artifact_target(phrase) == "portfolio_backlog.xlsx"
+
+    def test_backlog_keyword_resolves_to_none_when_workbook_does_not_exist(self):
+        assert resolve_artifact_target("backlog") is None
+
     def test_exact_filename_match(self):
         _write_output_file("Vendor_Onboarding.docx")
         assert resolve_artifact_target("Vendor_Onboarding.docx") == "Vendor_Onboarding.docx"

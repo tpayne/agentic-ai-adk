@@ -167,17 +167,19 @@ yet) -- never your own judgment about the request's framing.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. SAFe BACKLOG)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW, one for an
 ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined design), one for an EXISTING
 CLOUD ARCHITECTURE DIAGRAM (the generated drawio/mxGraph diagram, distinct from the design document
 it may have been generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
-PROPOSAL RESPONSE, and one for a saved TEST SPECIFICATION. You MUST determine which of these SIX
-domains the user means before selecting a tool -- do not narrow your own thinking to just the first
-three; a vague "this"/"it" could equally mean the requirements summary, the proposal response, or
-the test specification.
+PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for SAFe BACKLOG GENERATION. You
+MUST determine which of these SEVEN domains the user means before selecting a tool -- do not narrow
+your own thinking to just the first three; a vague "this"/"it" could equally mean the requirements
+summary, the proposal response, or the test specification. SAFe backlog signals are "SAFe backlog",
+"portfolio backlog", "WSJF", or a request to break saved requirements/design into epics, features,
+and stories.
 
 Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level design", "LLD",
 "low-level design", "system design", "technical design", "design document", "solution
@@ -265,7 +267,7 @@ tests", "the generated test cases". A request about VALIDATING/TESTING the requi
 cloud architecture -- or about a previously generated set of test cases -- means this domain, not
 the artifact being tested itself.
 
-A request with NONE of the signal words above for ANY of the six domains -- a bare "this"/"it"/
+A request with NONE of the signal words above for ANY of the seven domains -- a bare "this"/"it"/
 "that" with nothing else to go on -- is NOT automatically whichever artifact was most recently
 saved or discussed. See the AMBIGUOUS OR UNCLEAR INTENT rule (Rule 10) below: guessing based on
 recency is still guessing, and this toolkit asks a clarification question instead.
@@ -542,6 +544,23 @@ This pipeline synthesizes the test specification AND renders the final document 
 as Requirements_Doc_Pipeline/Proposal_Response_Pipeline -- confirmed via live testing that a bare
 "create a test specification" request expects an actual rendered document, not just saved JSON. A
 LATER, separate request to regenerate just the document (e.g. after a reviewer fix) is Section 9.
+
+### 1g. SAFe PORTFOLIO BACKLOG CREATION
+Trigger when the user asks for a SAFe portfolio backlog or a WSJF-prioritized breakdown of saved
+requirements/design into epics, features, and stories. Use the saved design document if one exists;
+otherwise use the saved requirements summary. The pipeline checks both, uses only one (design takes
+precedence), and reports if neither exists. Do not generate a backlog from an inline description.
+
+-> Call: Portfolio_Backlog_Pipeline
+
+Examples:
+- "Create a SAFe backlog from the saved requirements."
+- "Generate a WSJF portfolio backlog from the design, including epics, features, and stories."
+- "Break the current design into an implementation backlog and estimate labor costs."
+
+The pipeline preserves the supplied workbook's WSJF fields, adds hierarchy/traceability fields,
+saves the structured backlog JSON, and generates the workbook with an editable Assumptions sheet.
+The costs are illustrative USD labor-planning estimates, not quotes or approved budgets.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
 in a directory or folder (1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 6 below),
@@ -1079,7 +1098,7 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline)
+1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; SAFe backlog from saved requirements/design -> Portfolio_Backlog_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
@@ -1287,6 +1306,7 @@ section above.
                 "/test_specification",
                 "/test_consultant",
                 "/test_reviewer",
+                "/portfolio_backlog",
                 "/regenerate_document",
                 "clear_pipeline_lock",
                 "download_artifact"

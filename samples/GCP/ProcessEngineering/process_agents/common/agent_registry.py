@@ -39,6 +39,7 @@ from .requirements_reviewer_agent import requirements_reviewer_agent
 from .requirements_simulation_agent import requirements_simulation_query_agent
 from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from .test_specification_pipeline_agent import test_specification_pipeline
+from .portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline
 from .test_consultant_agent import test_consultant_agent
 from .test_reviewer_agent import test_reviewer_agent
 from .proposal_response_pipeline_agent import proposal_response_pipeline

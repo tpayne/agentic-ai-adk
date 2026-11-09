@@ -25,6 +25,7 @@ from werkzeug.utils import safe_join
 
 from process_toolkit import paths as toolkit_paths
 from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
+from process_toolkit.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
 
@@ -35,6 +36,11 @@ def cloudarch_diagram_exists() -> bool:
     to know this without reaching into toolkit_paths.output_dir()
     themselves."""
     return os.path.isfile(os.path.join(toolkit_paths.output_dir(), CLOUDARCH_FILENAME))
+
+
+def portfolio_backlog_workbook_exists() -> bool:
+    """Whether the generated SAFe portfolio backlog workbook is available."""
+    return os.path.isfile(os.path.join(toolkit_paths.output_dir(), PORTFOLIO_BACKLOG_WORKBOOK_FILENAME))
 
 
 def list_output_documents() -> List[Dict[str, Any]]:
@@ -110,6 +116,8 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     - A target string containing "cloudarch"/"diagram"/"architecture"/
       "xml" (case-insensitive) resolves to the cloud architecture
       diagram, if one has been generated.
+    - A target mentioning "backlog", "WSJF", or the portfolio backlog
+      workbook filename resolves to that workbook, if it has been generated.
     - A target matching an existing document's filename exactly, or as a
       case-insensitive substring, resolves to that document.
     - An empty/None target resolves to the most-recently-generated
@@ -124,6 +132,12 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
         return IAC_ZIP_FILENAME if iac_zip_exists() else None
     if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
         return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
+    if normalized and any(word in normalized for word in ("backlog", "wsjf", PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)):
+        return (
+            PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
+            if portfolio_backlog_workbook_exists()
+            else None
+        )
 
     docs = list_output_documents()
     if not normalized:

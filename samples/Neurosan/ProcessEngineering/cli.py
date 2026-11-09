@@ -173,6 +173,7 @@ from process_toolkit.session_purge import purge_session, start_session_purge_thr
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
     list_output_documents,
+    portfolio_backlog_workbook_exists,
     safe_output_file_path,
 )
 from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
@@ -969,6 +970,11 @@ def _display_output_document_listing() -> None:
         stat = os.stat(cloudarch_path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
         lines.append(f"  cloudarch_drawio.xml  ({stat.st_size:,} bytes, modified {modified})")
+    if portfolio_backlog_workbook_exists():
+        backlog_path = os.path.join(paths.output_dir(), "portfolio_backlog.xlsx")
+        stat = os.stat(backlog_path)
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        lines.append(f"  portfolio_backlog.xlsx  ({stat.st_size:,} bytes, modified {modified})")
     if iac_zip_exists():
         iac_path = os.path.join(paths.output_dir(), IAC_ZIP_FILENAME)
         stat = os.stat(iac_path)
@@ -1885,6 +1891,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
+            "portfolio_backlog": "portfolio_backlog.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1893,7 +1900,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'cloudarch'."
                 ),
             }), 400
 
@@ -1990,6 +1997,25 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 404
         return send_file(path, as_attachment=True, download_name=IAC_ZIP_FILENAME, mimetype="application/zip")
 
+    @web_app.route("/artifacts/portfolio_backlog_workbook/download", methods=["GET"])
+    def download_portfolio_backlog_workbook():
+        """Downloads the generated SAFe backlog workbook for this web session."""
+        filename = "portfolio_backlog.xlsx"
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), filename)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {filename} found yet -- run the portfolio backlog pipeline first.",
+            }), 404
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
@@ -2011,6 +2037,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
+            "portfolio_backlog": "portfolio_backlog.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -2018,7 +2045,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', or 'test_specification'."
+                    "'proposal_response', 'test_specification', or 'portfolio_backlog'."
                 ),
             }), 400
         with paths.use_session(_web_session_id_for_get_request()):

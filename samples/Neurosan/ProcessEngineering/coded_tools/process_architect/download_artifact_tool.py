@@ -7,14 +7,15 @@ from coded_tools.common.artifact_downloads import (
     cloudarch_exists,
     copy_artifact_to_destination,
     list_output_documents,
+    portfolio_backlog_workbook_exists,
     resolve_artifact_target,
 )
 
 
 class DownloadArtifactCodedTool(CodedTool):
     """Saves a copy of a generated artifact (the cloud architecture
-    diagram, or a generated Word document) to a local filesystem path on
-    the machine this agent process is running on.
+    diagram, SAFe backlog workbook, or Word document) to a local
+    filesystem path on the machine this agent process is running on.
 
     Call this when the user explicitly asks to download/save/export/copy
     a generated artifact to a specific location (e.g. "download the cloud
@@ -60,6 +61,8 @@ class DownloadArtifactCodedTool(CodedTool):
 
     def _not_found_message(self, target: Any) -> str:
         available = [doc["filename"] for doc in list_output_documents()]
+        if portfolio_backlog_workbook_exists():
+            available.insert(0, "the SAFe portfolio backlog workbook (portfolio_backlog.xlsx)")
         if cloudarch_exists():
             available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
         listing = ", ".join(available) if available else "nothing has been generated yet"
