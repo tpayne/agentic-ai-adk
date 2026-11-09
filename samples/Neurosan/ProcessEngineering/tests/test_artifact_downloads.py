@@ -134,6 +134,18 @@ class TestCopyArtifactToDestination:
         assert result == str(dest_dir / "Vendor_Onboarding.docx")
         assert (dest_dir / "Vendor_Onboarding.docx").read_bytes() == b"real bytes"
 
+    def test_downloads_aliases_resolve_to_users_home_downloads(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        _write_output_file("Vendor_Onboarding.docx", b"real bytes")
+
+        for destination in ("downloads", "Downloads folder", "../output/downloads"):
+            result = copy_artifact_to_destination("Vendor_Onboarding.docx", destination)
+            expected = home / "Downloads" / "Vendor_Onboarding.docx"
+            assert result == str(expected)
+            assert expected.read_bytes() == b"real bytes"
+
     def test_does_not_overwrite_a_file_when_directory_is_requested(self, tmp_path):
         _write_output_file("Vendor_Onboarding.docx", b"real bytes")
         destination = tmp_path / "downloads"

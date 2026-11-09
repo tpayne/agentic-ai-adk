@@ -159,7 +159,7 @@ def copy_artifact_to_destination(filename: str, destination: str) -> str:
     source_path = safe_output_file_path(filename)
     if source_path is None:
         raise ValueError(f"No generated file named '{filename}' in output/.")
-    raw_destination = os.path.expanduser(destination or ".")
+    raw_destination = _normalize_download_destination(destination)
     has_trailing_separator = raw_destination.endswith(os.sep) or (
         os.altsep is not None and raw_destination.endswith(os.altsep)
     )
@@ -180,3 +180,26 @@ def copy_artifact_to_destination(filename: str, destination: str) -> str:
         dest_path = destination
     shutil.copy2(source_path, dest_path)
     return dest_path
+
+
+def _normalize_download_destination(destination: str) -> str:
+    """Map a natural Downloads-folder request to the user's home Downloads."""
+    raw_destination = os.path.expanduser((destination or ".").strip())
+    alias = raw_destination.casefold().strip().rstrip("/\\")
+    if alias in {
+        "downloads",
+        "download folder",
+        "downloads folder",
+        "download directory",
+        "downloads directory",
+        "the downloads folder",
+        "the downloads directory",
+        "my downloads folder",
+        "my downloads directory",
+    }:
+        return os.path.join(os.path.expanduser("~"), "Downloads")
+
+    normalized_parts = os.path.normpath(raw_destination).replace("\\", "/").casefold().split("/")
+    if not os.path.isabs(raw_destination) and normalized_parts[-2:] == ["output", "downloads"]:
+        return os.path.join(os.path.expanduser("~"), "Downloads")
+    return raw_destination

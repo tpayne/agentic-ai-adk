@@ -1253,6 +1253,11 @@ tool) with:
     "infrastructure"/"infra" for the generated IaC zip, the exact filename if
     they named one, or left empty for a vague "the document"/"it" (resolves
     to whichever was generated most recently).
+If the user says "Downloads folder" or "Downloads directory" without providing
+a different explicit path, set `destination` to `~/Downloads`. Never infer a
+Downloads directory beneath the project, its `output/` directory, or the
+current working directory. After success, report the exact destination returned
+by the tool.
 This is DIFFERENT from a request to just generate/update a diagram or document
 (which goes through the normal pipeline tools, and saves to this project's own
 output/ directory, not a user-chosen path) -- only call `download_artifact`

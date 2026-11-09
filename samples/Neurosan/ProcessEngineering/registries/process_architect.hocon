@@ -1248,7 +1248,7 @@ architecture diagram, a generated IaC zip, SAFe WSJF backlog workbook, or genera
 specific local location (e.g. "download the cloud architecture diagram to /tmp", "save the design doc
 to my Desktop", "export it to ~/Downloads/report.docx", "save the Terraform zip to ~/Downloads"),
 call the tool `download_artifact` directly (it is one of YOUR OWN tools below, not a sub-network) with:
-  - "destination" set to the path they gave, exactly as they gave it.
+  - "destination" set to the explicit path they gave, exactly as they gave it.
   - "target" describing which artifact -- a phrase containing "cloudarch"/"diagram"/"architecture"
     for the cloud architecture diagram, a phrase containing "iac"/"terraform"/"cloudformation"/
     "pulumi"/"infrastructure"/"infra" for the generated IaC zip, a phrase containing "backlog"/"WSJF"
@@ -1257,6 +1257,9 @@ call the tool `download_artifact` directly (it is one of YOUR OWN tools below, n
 When the tool reports success, state the exact destination path from its returned message. Do not
 claim the file was saved to the user's Downloads folder unless the returned path confirms that
 location.
+If the user says "Downloads folder" or "Downloads directory" without providing a different explicit
+path, set "destination" to "~/Downloads". Never infer a Downloads directory beneath the project,
+its output/ directory, or the current working directory.
 This is DIFFERENT from a request to just generate/update a diagram or document (which goes through
 the normal pipeline tools above, and saves to this project's own output/ directory, not a
 user-chosen path) -- only call `download_artifact` when the user is asking for a COPY somewhere
