@@ -48,7 +48,7 @@ The JSON object passed to save_iteration_feedback MUST follow this structure:
       "instruction": "Clear instructions on what architectural modification, control, or mapping is needed to enforce compliance. Instructions MUST be specific and actionable.",
       "metadata": {
         "risk_level": "High|Medium|Low",
-        "category": "Regulatory|Security|Quality_ISO25010|C4_Model|Data_Integrity|Infrastructure"
+        "category": "Regulatory|Security|Quality_ISO25010|C4_Model|Data_Integrity|Infrastructure|Traceability|Interface_Completeness|Decision_Record"
       }
     }
   ]
@@ -61,7 +61,7 @@ When the architecture is compliant, pass this JSON object to save_iteration_feed
 
 {
   "status": "COMPLIANCE APPROVED",
-  "notes": "The architecture design fully satisfies all standards across ISO/IEC/IEEE 42010, ISO/IEC 25010, C4/arc42, security threat models, and specified domain constraints."
+  "notes": "The architecture design fully satisfies all standards across ISO/IEC/IEEE 42010, ISO/IEC 25010, C4/arc42, security threat models, specified domain constraints, and the completeness and traceability checks (interface completeness, requirement traceability, quality attribute grounding, decision recording)."
 }
 
 This JSON MUST NOT appear in chat. It MUST appear ONLY inside the tool call.
@@ -78,6 +78,11 @@ Evaluate the loaded JSON design across the following dimensions:
    - Component interactions forming a dependency graph MUST remain a Directed Acyclic Graph (DAG) without circular runtime bindings.
 4. Regulatory & Operational Constraints:
    - Evaluate specific mandates (GDPR, HIPAA, PCI DSS, DAMA, SOC 2) ONLY if present in the metadata, constraints block, or domain scope. Excluded frameworks MUST NOT be flagged.
+5. Completeness & Traceability (apply every time, not just on request — a design that is internally consistent but decision-light or untraceable is NOT compliant):
+   - Interface Completeness: any low_level_design.components[].api_specifications[] or low_level_design.interface_contracts[] entry with a blank (or missing) "authentication" or "error_handling" field is a defect — flag it by exact location (e.g. low_level_design.components[2].api_specifications[0].authentication). A genuinely internal-only interface with no auth boundary may state "None (internal network, no external exposure)" instead of leaving it blank — that is a real, considered answer, not a gap. Leaving it blank never is.
+   - Requirement Traceability (both directions): any high_level_design.components[] or low_level_design.components[] entry with NO "satisfies_requirements" AND no plausible reason one doesn't apply (e.g. it's a cross-cutting/structural component like a shared gateway, not tied to one requirement) is a defect. Separately, any requirements.functional_requirements[]/non_functional_requirements[] id that appears in NEITHER any component's "satisfies_requirements" list is an orphan requirement — also a defect. Name the specific missing id(s) in the instruction.
+   - Quality Attribute Grounding: any quality_attributes[] entry whose "description" does not name which component or architectural mechanism actually satisfies it (stating a target number alone, e.g. "99.9% availability", with no architectural mechanism tied to achieving it) is a defect.
+   - Decision Recording: if architecture_description.architecture_analysis[] contains 2 or more entries with real alternatives/strengths/weaknesses discussed (i.e. a genuine decision was reasoned about), but architecture_decisions[] is empty or has fewer entries than there are analysis entries with a stated "recommendation", that is a defect — the decision was made but never persisted as a traceable record. The fix instruction must point to the SPECIFIC architecture_analysis entry(ies) needing a corresponding architecture_decisions[] entry, not a generic "add more ADRs" note.
 
 # TOOL USAGE RULES
 - Tool calls must contain only valid JSON arguments.

@@ -140,6 +140,21 @@
             }
         ]
     },
+    "architecture_decisions": [
+        {
+            "id": "ADR-001",
+            "title": "string",
+            "context": "string",
+            "decision": "string",
+            "alternatives_considered": [
+                {
+                    "option": "string",
+                    "rejected_because": "string"
+                }
+            ],
+            "consequences": "string"
+        }
+    ],
     "requirements": {
         "functional_requirements": [
             {
@@ -219,7 +234,10 @@
                 "dependencies": [
                     "string"
                 ],
-                "owner": "string"
+                "owner": "string",
+                "satisfies_requirements": [
+                    "string"
+                ]
             }
         ],
         "integration_points": [
@@ -391,7 +409,10 @@
                     ]
                 },
                 "unit_test_strategy": "string",
-                "code_standards_reference": "string"
+                "code_standards_reference": "string",
+                "satisfies_requirements": [
+                    "string"
+                ]
             }
         ],
         "database_design": [
@@ -515,6 +536,26 @@
             ]
         }
     ],
+    "operational_readiness": {
+        "ownership": {
+            "team": "string",
+            "contact": "string"
+        },
+        "support_model": "string",
+        "escalation_path": "string",
+        "monitoring_strategy": "string",
+        "alerting_strategy": "string",
+        "maintenance_activities": [
+            "string"
+        ],
+        "runbooks": [
+            {
+                "title": "string",
+                "trigger": "string",
+                "reference": "string"
+            }
+        ]
+    },
     "glossary_and_references": {
         "glossary": [
             {
@@ -574,7 +615,13 @@
                 }
             ],
             "approval_date": "string"
-        }
+        },
+        "sign_off_criteria": [
+            "string"
+        ],
+        "reconsideration_triggers": [
+            "string"
+        ]
     },
     "appendix": {}
 }
