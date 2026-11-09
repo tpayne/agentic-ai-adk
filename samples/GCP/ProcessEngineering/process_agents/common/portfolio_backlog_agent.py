@@ -1,4 +1,4 @@
-"""Builds and persists a traceable SAFe backlog from saved requirements or design JSON."""
+"""Builds and persists a traceable SAFe WSJF backlog from saved requirements or design JSON."""
 
 from ..common.utils import (
     load_full_design_context,

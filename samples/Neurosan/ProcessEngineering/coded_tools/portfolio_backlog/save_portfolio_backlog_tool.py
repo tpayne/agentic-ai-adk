@@ -1,4 +1,4 @@
-"""Persists a portfolio backlog and renders its SAFe XLSX workbook."""
+"""Persists a SAFe WSJF backlog and renders its XLSX workbook."""
 
 import asyncio
 from typing import Any, Dict, Union

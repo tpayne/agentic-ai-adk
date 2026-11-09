@@ -136,17 +136,17 @@ def test_domain_disambiguation_covers_all_seven_domains():
     # question. Root cause: the Domain Disambiguation section and Rule 10
     # only ever covered 2-3 of the system's actual domains, so a bare
     # "this"/"it" had nowhere safe to fall through to. A sixth domain (TEST
-    # SPECIFICATION) and seventh domain (SAFe BACKLOG) were added later, in
+    # SPECIFICATION) and seventh domain (SAFe WSJF BACKLOG) were added later, in
     # the same spot, under the same rule.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert (
         "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. SAFe BACKLOG)"
+        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. SAFe WSJF BACKLOG)"
     ) in text
     assert "Signal words for a REQUIREMENTS SUMMARY:" in text
     assert "Signal words for a PROPOSAL RESPONSE:" in text
     assert "Signal words for a TEST SPECIFICATION:" in text
-    assert "SAFe backlog" in text
+    assert "SAFe WSJF backlog" in text
 
 
 def test_rule_10_ambiguous_intent_rejects_recency_based_defaulting():

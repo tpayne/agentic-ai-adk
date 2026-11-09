@@ -1,4 +1,4 @@
-"""Persist a traceable SAFe backlog and render it from the supplied workbook template."""
+"""Persist a traceable SAFe WSJF backlog and render it from the supplied workbook template."""
 
 import copy
 import json
@@ -15,7 +15,7 @@ from process_toolkit import paths
 PORTFOLIO_BACKLOG_FILENAME = "portfolio_backlog.json"
 PORTFOLIO_BACKLOG_WORKBOOK_FILENAME = "portfolio_backlog.xlsx"
 STATE_KEY = "portfolio_backlog"
-TEMPLATE_FILENAME = "SAFe_4.5_WSJF_Portfolio_Backlog.xlsx"
+TEMPLATE_FILENAME = "SAFe_WSJF_Portfolio_Backlog.xlsx"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", TEMPLATE_FILENAME)
 FIBONACCI_SIZES = {1, 2, 3, 5, 8, 13, 20}
 StateLike = MutableMapping[str, Any]
@@ -224,10 +224,10 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
 
 def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], str, str]], path: str) -> None:
     if not os.path.isfile(TEMPLATE_PATH):
-        raise FileNotFoundError(f"SAFe backlog workbook template is missing: {TEMPLATE_PATH}")
+        raise FileNotFoundError(f"SAFe WSJF backlog workbook template is missing: {TEMPLATE_PATH}")
 
     workbook = load_workbook(TEMPLATE_PATH)
-    sheet = workbook["Portfolio Backlog & WSJF"]
+    sheet = workbook["SAFe WSJF Backlog"]
     summary_styles = [
         copy.copy(sheet.cell(16, column)._style) for column in range(1, 12)
     ]
@@ -396,12 +396,12 @@ def save_portfolio_backlog(
         if state is not None:
             state[STATE_KEY] = backlog
         return (
-            f"SUCCESS: Portfolio backlog saved to {json_path}; "
+            f"SUCCESS: SAFe WSJF backlog saved to {json_path}; "
             f"SAFe workbook generated at {workbook_path} "
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
-        return f"ERROR: Could not save portfolio backlog: {error}"
+        return f"ERROR: Could not save SAFe WSJF backlog: {error}"
 
 
 def load_portfolio_backlog(state: Optional[StateLike] = None) -> Dict[str, Any]:

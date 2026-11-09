@@ -1993,7 +1993,7 @@ def build_web_app(agent_name: str, https: bool = True):
 
     @web_app.route("/artifacts/portfolio_backlog_workbook/download", methods=["GET"])
     def download_portfolio_backlog_workbook():
-        """Downloads the generated SAFe backlog workbook for this web session."""
+        """Downloads the generated SAFe WSJF backlog workbook for this web session."""
         filename = "portfolio_backlog.xlsx"
         with paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(paths.output_dir(), filename)
@@ -2001,7 +2001,7 @@ def build_web_app(agent_name: str, https: bool = True):
         if not exists:
             return jsonify({
                 "status": "error",
-                "error": f"No {filename} found yet -- run the portfolio backlog pipeline first.",
+                "error": f"No {filename} found yet -- run the SAFe WSJF backlog pipeline first.",
             }), 404
         return send_file(
             path,

@@ -1,4 +1,4 @@
-"""One-shot pipeline for generating the SAFe portfolio backlog workbook."""
+"""One-shot pipeline for generating the SAFe WSJF backlog workbook."""
 
 from google.adk.agents import SequentialAgent
 

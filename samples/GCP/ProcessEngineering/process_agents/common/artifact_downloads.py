@@ -39,7 +39,7 @@ def cloudarch_diagram_exists() -> bool:
 
 
 def portfolio_backlog_workbook_exists() -> bool:
-    """Whether the generated SAFe portfolio backlog workbook is available."""
+    """Whether the generated SAFe WSJF backlog workbook is available."""
     return os.path.isfile(os.path.join(toolkit_paths.output_dir(), PORTFOLIO_BACKLOG_WORKBOOK_FILENAME))
 
 

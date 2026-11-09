@@ -85,7 +85,7 @@ class TestResolveArtifactTarget:
 
     def test_backlog_keyword_resolves_to_workbook_when_it_exists(self):
         _write_output_file("portfolio_backlog.xlsx")
-        for phrase in ("backlog", "SAFe portfolio backlog workbook", "WSJF"):
+        for phrase in ("backlog", "SAFe WSJF backlog workbook", "WSJF"):
             assert artifact_downloads.resolve_artifact_target(phrase) == "portfolio_backlog.xlsx"
 
     def test_backlog_keyword_resolves_to_none_when_workbook_does_not_exist(self):

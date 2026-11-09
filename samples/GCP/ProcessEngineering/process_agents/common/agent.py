@@ -1766,7 +1766,7 @@ def build_web_app(https: bool = True):
 
     @web_app.route("/artifacts/portfolio_backlog_workbook/download", methods=["GET"])
     def download_portfolio_backlog_workbook():
-        """Downloads the generated SAFe backlog workbook for this web session."""
+        """Downloads the generated SAFe WSJF backlog workbook for this web session."""
         from process_toolkit import paths as toolkit_paths
 
         filename = "portfolio_backlog.xlsx"
@@ -1776,7 +1776,7 @@ def build_web_app(https: bool = True):
         if not exists:
             return jsonify({
                 "status": "error",
-                "error": f"No {filename} found yet -- run the portfolio backlog pipeline first.",
+                "error": f"No {filename} found yet -- run the SAFe WSJF backlog pipeline first.",
             }), 404
         return send_file(
             path,

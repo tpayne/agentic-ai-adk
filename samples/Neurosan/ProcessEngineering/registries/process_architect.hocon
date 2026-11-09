@@ -167,17 +167,17 @@ yet) -- never your own judgment about the request's framing.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. SAFe BACKLOG)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. SAFe WSJF BACKLOG)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW, one for an
 ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined design), one for an EXISTING
 CLOUD ARCHITECTURE DIAGRAM (the generated drawio/mxGraph diagram, distinct from the design document
 it may have been generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
-PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for SAFe BACKLOG GENERATION. You
+PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for SAFe WSJF BACKLOG GENERATION. You
 MUST determine which of these SEVEN domains the user means before selecting a tool -- do not narrow
 your own thinking to just the first three; a vague "this"/"it" could equally mean the requirements
-summary, the proposal response, or the test specification. SAFe backlog signals are "SAFe backlog",
+summary, the proposal response, or the test specification. SAFe WSJF backlog signals are "SAFe WSJF backlog",
 "portfolio backlog", "WSJF", or a request to break saved requirements/design into epics, features,
 and stories.
 
@@ -545,8 +545,8 @@ as Requirements_Doc_Pipeline/Proposal_Response_Pipeline -- confirmed via live te
 "create a test specification" request expects an actual rendered document, not just saved JSON. A
 LATER, separate request to regenerate just the document (e.g. after a reviewer fix) is Section 9.
 
-### 1g. SAFe PORTFOLIO BACKLOG CREATION
-Trigger when the user asks for a SAFe portfolio backlog or a WSJF-prioritized breakdown of saved
+### 1g. SAFe WSJF BACKLOG CREATION
+Trigger when the user asks for a SAFe WSJF backlog or a WSJF-prioritized breakdown of saved
 requirements/design into epics, features, and stories. Use the saved design document if one exists;
 otherwise use the saved requirements summary. The pipeline checks both, uses only one (design takes
 precedence), and reports if neither exists. Do not generate a backlog from an inline description.
@@ -554,8 +554,8 @@ precedence), and reports if neither exists. Do not generate a backlog from an in
 -> Call: Portfolio_Backlog_Pipeline
 
 Examples:
-- "Create a SAFe backlog from the saved requirements."
-- "Generate a WSJF portfolio backlog from the design, including epics, features, and stories."
+- "Create a SAFe WSJF backlog from the saved requirements."
+- "Generate a SAFe WSJF backlog from the design, including epics, features, and stories."
 - "Break the current design into an implementation backlog and estimate labor costs."
 
 The pipeline preserves the supplied workbook's WSJF fields, adds hierarchy/traceability fields,
@@ -1098,7 +1098,7 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; SAFe backlog from saved requirements/design -> Portfolio_Backlog_Pipeline)
+1. Creation (process -> Process_Pipeline; design document -> Design_Doc_Pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; SAFe WSJF backlog from saved requirements/design -> Portfolio_Backlog_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
 3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
@@ -1244,7 +1244,7 @@ tool failed, say that plainly rather than guessing a plausible-sounding reason.
 # DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
 ------------------------------------------------------------
 If the user explicitly asks to download/save/export/copy a generated artifact (the cloud
-architecture diagram, a generated IaC zip, SAFe backlog workbook, or generated Word document) to a
+architecture diagram, a generated IaC zip, SAFe WSJF backlog workbook, or generated Word document) to a
 specific local location (e.g. "download the cloud architecture diagram to /tmp", "save the design doc
 to my Desktop", "export it to ~/Downloads/report.docx", "save the Terraform zip to ~/Downloads"),
 call the tool `download_artifact` directly (it is one of YOUR OWN tools below, not a sub-network) with:
@@ -1325,7 +1325,7 @@ section above.
         {
             "name": "download_artifact",
             "function": {
-                "description": "Saves a copy of a generated artifact (the cloud architecture diagram, a generated IaC zip, SAFe backlog workbook, or generated Word document) to a local filesystem path on the machine this agent is running on. Use ONLY on the user's own explicit request to download/save/export/copy a generated artifact to a specific location.",
+                "description": "Saves a copy of a generated artifact (the cloud architecture diagram, a generated IaC zip, SAFe WSJF backlog workbook, or generated Word document) to a local filesystem path on the machine this agent is running on. Use ONLY on the user's own explicit request to download/save/export/copy a generated artifact to a specific location.",
                 "parameters": {
                     "type": "object",
                     "properties": {

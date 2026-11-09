@@ -79,12 +79,13 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
         assert json.load(file)["name"] == backlog["name"]
 
     workbook = load_workbook(paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME), data_only=False)
-    sheet = workbook["Portfolio Backlog & WSJF"]
+    sheet = workbook["SAFe WSJF Backlog"]
     assert workbook.sheetnames == [
-        "Portfolio Backlog & WSJF",
-        "SAFe 4.5 WSJF Guide",
+        "SAFe WSJF Backlog",
+        "SAFe WSJF Guide",
         "Assumptions",
     ]
+    assert sheet["A1"].value == "SAFe WSJF Backlog"
     assert sheet["A5"].value == "Work Item ID"
     assert sheet["L6"].value == "Epic"
     assert sheet["L7"].value == "Feature"
@@ -112,8 +113,8 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     chart = sheet._charts[0]
     assert chart.anchor._from.row + 1 == 12
     assert chart.visible_cells_only is False
-    assert chart.series[0].cat.strRef.f == "'Portfolio Backlog & WSJF'!$T$2:$T$2"
-    assert chart.series[0].val.numRef.f == "'Portfolio Backlog & WSJF'!$U$2:$U$2"
+    assert chart.series[0].cat.strRef.f == "'SAFe WSJF Backlog'!$T$2:$T$2"
+    assert chart.series[0].val.numRef.f == "'SAFe WSJF Backlog'!$U$2:$U$2"
 
     assumptions = workbook["Assumptions"]
     assert assumptions["B4"].value == "USD"
@@ -176,11 +177,11 @@ def test_workbook_expands_beyond_template_rows_without_losing_summary_formulas()
 
     assert result.startswith("SUCCESS:")
     workbook = load_workbook(paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME), data_only=False)
-    sheet = workbook["Portfolio Backlog & WSJF"]
+    sheet = workbook["SAFe WSJF Backlog"]
     assert sheet["A17"].value == "STORY-004"
     assert sheet["K17"].value.endswith("$J$17,\">\"&J17)")
     assert sheet["Q18"].value == '=SUMIF($L$6:$L$17,"Epic",$Q$6:$Q$17)'
     chart = sheet._charts[0]
     assert chart.anchor._from.row + 1 == 21
-    assert chart.series[0].cat.strRef.f == "'Portfolio Backlog & WSJF'!$T$2:$T$5"
-    assert chart.series[0].val.numRef.f == "'Portfolio Backlog & WSJF'!$U$2:$U$5"
+    assert chart.series[0].cat.strRef.f == "'SAFe WSJF Backlog'!$T$2:$T$5"
+    assert chart.series[0].val.numRef.f == "'SAFe WSJF Backlog'!$U$2:$U$5"

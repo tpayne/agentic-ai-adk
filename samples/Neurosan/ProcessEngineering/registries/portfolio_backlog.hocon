@@ -2,11 +2,11 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Builds a traceable SAFe epic/feature/story backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied WSJF workbook with editable USD assumptions.",
+        "description": "Builds a traceable SAFe WSJF epic/feature/story backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied workbook with editable USD assumptions.",
         "tags": ["safe-backlog", "wsjf", "process-engineering"],
         "sample_queries": [
-            "Create a SAFe backlog from the saved requirements.",
-            "Generate a WSJF portfolio backlog from the design, including epics, features, and stories.",
+            "Create a SAFe WSJF backlog from the saved requirements.",
+            "Generate a SAFe WSJF backlog from the design, including epics, features, and stories.",
             "Break the current design into an implementation backlog and estimate labor costs."
         ]
     },
@@ -15,7 +15,7 @@
         {
             "name": "Portfolio_Backlog_Pipeline",
             "function": {
-                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable SAFe backlog workbook with WSJF formulas and editable USD cost assumptions.",
+                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable SAFe WSJF backlog workbook with WSJF formulas and editable USD cost assumptions.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -26,8 +26,8 @@
             },
             "instructions": """
 # ROLE
-Generate one traceable SAFe portfolio backlog from one saved source artifact, and save it with
-the supplied SAFe workbook template. Do not invent requirements or imply that illustrative costs
+Generate one traceable SAFe WSJF backlog from one saved source artifact, and save it with
+the supplied SAFe WSJF workbook template. Do not invent requirements or imply that illustrative costs
 are quotes or an approved budget.
 
 # SOURCE SELECTION
@@ -96,13 +96,13 @@ contingency defaults. They are not quotes or an approved budget.
         {
             "name": "save_portfolio_backlog",
             "function": {
-                "description": "Persists the generated portfolio backlog JSON and renders the SAFe WSJF workbook.",
+                "description": "Persists the generated SAFe WSJF backlog JSON and workbook.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "backlog": {
                             "type": "object",
-                            "description": "The complete portfolio backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
+                            "description": "The complete SAFe WSJF backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
                         }
                     },
                     "required": ["backlog"]

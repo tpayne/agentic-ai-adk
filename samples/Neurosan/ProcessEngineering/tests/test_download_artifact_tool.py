@@ -53,7 +53,7 @@ def test_downloads_the_backlog_workbook_by_keyword(dest_dir):
     _write_output_file("portfolio_backlog.xlsx", b"workbook bytes")
 
     result = DownloadArtifactCodedTool().invoke(
-        {"target": "the SAFe backlog workbook", "destination": str(dest_dir)}, {},
+        {"target": "the SAFe WSJF backlog workbook", "destination": str(dest_dir)}, {},
     )
 
     assert result["status"] == "OK"

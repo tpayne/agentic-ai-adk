@@ -1,1 +1,1 @@
-"""Coded tools for SAFe portfolio backlog generation."""
+"""Coded tools for SAFe WSJF backlog generation."""

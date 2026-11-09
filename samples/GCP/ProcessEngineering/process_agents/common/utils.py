@@ -2938,7 +2938,7 @@ def update_test_specification(patch: dict, tool_context: Optional[ToolContext] =
     return _shared_update_test_specification(patch, tool_context.state if tool_context is not None else None)
 
 
-# SAFe backlog persistence and workbook rendering -- shared with the
+# SAFe WSJF backlog persistence and workbook rendering -- shared with the
 # neuro-san port so both frameworks produce the same template-based XLSX.
 from process_toolkit.portfolio_backlog.portfolio_backlog import (  # noqa: E402
     load_portfolio_backlog as _shared_load_portfolio_backlog,

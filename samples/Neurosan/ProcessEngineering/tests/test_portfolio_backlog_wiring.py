@@ -16,8 +16,8 @@ def test_router_routes_and_enables_backlog_network():
     tools_text = text[tools_start:text.index("]", tools_start)]
 
     assert '"/portfolio_backlog"' in tools_text
-    assert "### 1g. SAFe PORTFOLIO BACKLOG CREATION" in text
-    assert "SAFe backlog from saved requirements/design -> Portfolio_Backlog_Pipeline" in text
+    assert "### 1g. SAFe WSJF BACKLOG CREATION" in text
+    assert "SAFe WSJF backlog from saved requirements/design -> Portfolio_Backlog_Pipeline" in text
 
 
 def test_backlog_network_loads_one_source_and_writes_the_workbook():
