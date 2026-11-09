@@ -7,6 +7,7 @@ import tempfile
 from typing import Any, Dict, MutableMapping, Optional
 
 from openpyxl import load_workbook
+from openpyxl.chart.data_source import StrRef
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from process_toolkit import paths
@@ -20,6 +21,10 @@ FIBONACCI_SIZES = {1, 2, 3, 5, 8, 13, 20}
 StateLike = MutableMapping[str, Any]
 
 _DATA_START_ROW = 6
+_CHART_DATA_START_ROW = 2
+_CHART_CATEGORY_COLUMN = 20
+_CHART_VALUE_COLUMN = 21
+_DATA_ROW_FILL = PatternFill("solid", fgColor="FFFFFF")
 _HEADERS = [
     "Work Item ID",
     "Work Item Name",
@@ -124,6 +129,30 @@ def _copy_row_style(sheet, source_row: int, target_row: int, max_column: int) ->
             target.number_format = source.number_format
     if source_row in sheet.row_dimensions:
         sheet.row_dimensions[target_row].height = sheet.row_dimensions[source_row].height
+
+
+def _write_epic_chart_data(sheet, rows: list[tuple[dict[str, Any], str, str]]) -> tuple[str, str]:
+    chart_row = _CHART_DATA_START_ROW
+    for data_offset, (item, item_type, _) in enumerate(rows):
+        if item_type != "Epic":
+            continue
+        data_row = _DATA_START_ROW + data_offset
+        sheet.cell(chart_row, _CHART_CATEGORY_COLUMN, f"=A{data_row}")
+        sheet.cell(chart_row, _CHART_VALUE_COLUMN, f"=J{data_row}")
+        chart_row += 1
+
+    sheet.column_dimensions[sheet.cell(1, _CHART_CATEGORY_COLUMN).column_letter].hidden = True
+    sheet.column_dimensions[sheet.cell(1, _CHART_VALUE_COLUMN).column_letter].hidden = True
+    last_chart_row = chart_row - 1
+    category_range = (
+        f"'{sheet.title}'!${sheet.cell(1, _CHART_CATEGORY_COLUMN).column_letter}"
+        f"${_CHART_DATA_START_ROW}:${sheet.cell(1, _CHART_CATEGORY_COLUMN).column_letter}${last_chart_row}"
+    )
+    value_range = (
+        f"'{sheet.title}'!${sheet.cell(1, _CHART_VALUE_COLUMN).column_letter}"
+        f"${_CHART_DATA_START_ROW}:${sheet.cell(1, _CHART_VALUE_COLUMN).column_letter}${last_chart_row}"
+    )
+    return category_range, value_range
 
 
 def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
@@ -258,6 +287,11 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             sheet.cell(row_number, column).value = value
             if column >= 14:
                 sheet.cell(row_number, column).alignment = Alignment(wrap_text=True, vertical="top")
+            sheet.cell(row_number, column).fill = copy.copy(_DATA_ROW_FILL)
+
+        state_font = copy.copy(sheet.cell(row_number, 4).font)
+        state_font.color = "1F1F1F"
+        sheet.cell(row_number, 4).font = state_font
 
         if item_type == "Story":
             sheet.cell(
@@ -289,6 +323,17 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     )
     sheet.cell(summary_row, 17).number_format = '"$"#,##0.00'
     sheet.cell(summary_row, 18).value = "Portfolio total sums epics only to avoid double-counting features and stories."
+
+    category_range, value_range = _write_epic_chart_data(sheet, rows)
+    for chart in sheet._charts:
+        chart.anchor = f"A{summary_row + 3}"
+        chart.visible_cells_only = False
+        for series in chart.series:
+            if series.cat is not None:
+                series.cat.numRef = None
+                series.cat.strRef = StrRef(f=category_range)
+            if series.val is not None and series.val.numRef is not None:
+                series.val.numRef.f = value_range
 
     sheet.auto_filter.ref = f"A5:R{last_data_row}"
     sheet.freeze_panes = "A6"

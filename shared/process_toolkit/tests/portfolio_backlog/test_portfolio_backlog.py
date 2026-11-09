@@ -100,6 +100,20 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert sheet["Q7"].value == "=SUMIF($M$6:$M$8,A7,$Q$6:$Q$8)"
     assert sheet["Q6"].value == "=SUMIF($M$6:$M$8,A6,$Q$6:$Q$8)"
     assert sheet["Q9"].value.startswith('=SUMIF($L$6:$L$8,"Epic"')
+    assert {
+        (sheet.cell(row, column).fill.fill_type, sheet.cell(row, column).fill.fgColor.rgb)
+        for row in range(6, 9)
+        for column in range(1, 19)
+    } == {("solid", "00FFFFFF")}
+    assert sheet["T2"].value == "=A6"
+    assert sheet["U2"].value == "=J6"
+    assert sheet.column_dimensions["T"].hidden
+    assert sheet.column_dimensions["U"].hidden
+    chart = sheet._charts[0]
+    assert chart.anchor._from.row + 1 == 12
+    assert chart.visible_cells_only is False
+    assert chart.series[0].cat.strRef.f == "'Portfolio Backlog & WSJF'!$T$2:$T$2"
+    assert chart.series[0].val.numRef.f == "'Portfolio Backlog & WSJF'!$U$2:$U$2"
 
     assumptions = workbook["Assumptions"]
     assert assumptions["B4"].value == "USD"
@@ -166,3 +180,7 @@ def test_workbook_expands_beyond_template_rows_without_losing_summary_formulas()
     assert sheet["A17"].value == "STORY-004"
     assert sheet["K17"].value.endswith("$J$17,\">\"&J17)")
     assert sheet["Q18"].value == '=SUMIF($L$6:$L$17,"Epic",$Q$6:$Q$17)'
+    chart = sheet._charts[0]
+    assert chart.anchor._from.row + 1 == 21
+    assert chart.series[0].cat.strRef.f == "'Portfolio Backlog & WSJF'!$T$2:$T$5"
+    assert chart.series[0].val.numRef.f == "'Portfolio Backlog & WSJF'!$U$2:$U$5"
