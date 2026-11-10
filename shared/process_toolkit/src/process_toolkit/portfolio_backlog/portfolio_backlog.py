@@ -274,8 +274,8 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
         ),
         (
             "Role mix and daily rates",
-            "See linked role assumptions below",
-            "Editable role names, effort mix, and illustrative USD daily rates are maintained on the separate Role Rates worksheet.",
+            "See Role Rates worksheet",
+            "Editable role names, effort mix, and illustrative USD daily rates are maintained only on the separate Role Rates worksheet.",
         ),
     ]
     for assumption in assumptions:
@@ -287,32 +287,6 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
     for cell in ("B13", "B14", "B15"):
         sheet[cell].number_format = "0.00"
 
-    rate_table_header = 28
-    for column, header in enumerate(
-        ["Person", "Delivery Role", "Effort Mix", "Daily Rate (USD)", "Rate Basis"], start=1
-    ):
-        cell = sheet.cell(rate_table_header, column, header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="4472C4")
-        cell.alignment = Alignment(wrap_text=True, vertical="center")
-    for row_number, source_row in enumerate(range(5, 11), start=rate_table_header + 1):
-        sheet.cell(row_number, 1, f"='Role Rates'!A{source_row}")
-        sheet.cell(row_number, 2, f"='Role Rates'!B{source_row}")
-        sheet.cell(row_number, 3, f"='Role Rates'!C{source_row}")
-        sheet.cell(row_number, 4, f"='Role Rates'!D{source_row}")
-        sheet.cell(row_number, 5, f"='Role Rates'!F{source_row}")
-        sheet.cell(row_number, 3).number_format = "0%"
-        sheet.cell(row_number, 4).number_format = '"$"#,##0.00'
-    sheet.cell(rate_table_header + 7, 1, "Effort mix total")
-    sheet.cell(rate_table_header + 7, 3, "=SUM(C29:C34)")
-    sheet.cell(rate_table_header + 7, 3).number_format = "0%"
-    sheet.cell(rate_table_header + 8, 1, "Weighted daily rate")
-    sheet.cell(rate_table_header + 8, 4, "=B5")
-    sheet.cell(rate_table_header + 8, 4).number_format = '"$"#,##0.00'
-    for row_number in (rate_table_header + 7, rate_table_header + 8):
-        for cell in sheet[row_number][:4]:
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill("solid", fgColor="D9EAF7")
     for cell in sheet[3][:3]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="4472C4")
@@ -320,11 +294,9 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
     for row in sheet.iter_rows(min_row=4, max_row=sheet.max_row, min_col=1, max_col=3):
         for cell in row:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
-    sheet.column_dimensions["A"].width = 50
+    sheet.column_dimensions["A"].width = 45
     sheet.column_dimensions["B"].width = 55
-    sheet.column_dimensions["C"].width = 24
-    sheet.column_dimensions["D"].width = 24
-    sheet.column_dimensions["E"].width = 70
+    sheet.column_dimensions["C"].width = 90
     sheet.freeze_panes = "A4"
 
 

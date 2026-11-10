@@ -146,17 +146,12 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert assumptions["A22"].value == "Default work item state"
     assert assumptions["A23"].value == "Default strategic theme"
     assert "not a quote" in assumptions["B10"].value
-    assert assumptions["A28"].value == "Person"
-    assert assumptions["B28"].value == "Delivery Role"
-    assert assumptions["C28"].value == "Effort Mix"
-    assert assumptions["D28"].value == "Daily Rate (USD)"
-    assert assumptions["A29"].value == "='Role Rates'!A5"
-    assert assumptions["B29"].value == "='Role Rates'!B5"
-    assert assumptions["C29"].value == "='Role Rates'!C5"
-    assert assumptions["D29"].value == "='Role Rates'!D5"
-    assert assumptions["E29"].value == "='Role Rates'!F5"
-    assert assumptions["C35"].value == "=SUM(C29:C34)"
-    assert assumptions["D36"].value == "=B5"
+    assert assumptions["B24"].value == "See Role Rates worksheet"
+    assert assumptions["C24"].value == (
+        "Editable role names, effort mix, and illustrative USD daily rates are "
+        "maintained only on the separate Role Rates worksheet."
+    )
+    assert all(assumptions.cell(row, column).value is None for row in range(28, 37) for column in range(1, 6))
     assert [assumptions.cell(row, 1).value for row in range(4, 13)] == [
         "Currency",
         "Blended fully-loaded delivery cost per person-day",
