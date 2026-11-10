@@ -21,6 +21,7 @@ PORTED_NETWORKS = [
     "registries/requirements_chunk_extractor.hocon",
     "registries/requirements_consultant.hocon",
     "registries/test_specification.hocon",
+    "registries/portfolio_backlog.hocon",
     "registries/test_case_chunk_generator.hocon",
     "registries/test_consultant.hocon",
     "registries/test_reviewer.hocon",

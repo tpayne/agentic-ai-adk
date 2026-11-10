@@ -173,10 +173,12 @@ class TestListAndDownloadControlLines:
         output_dir.mkdir()
         (output_dir / "Vendor_Onboarding.docx").write_bytes(b"fake docx")
         (output_dir / "cloudarch_drawio.xml").write_text("<mxfile></mxfile>", encoding="utf-8")
+        (output_dir / "portfolio_backlog.xlsx").write_bytes(b"fake workbook")
         asyncio.run(cli.handle_logical_line("list", [_StubSession()], "process_architect"))
         out = capsys.readouterr().out
         assert "Vendor_Onboarding.docx" in out
         assert "cloudarch_drawio.xml" in out
+        assert "portfolio_backlog.xlsx" in out
 
     def test_download_copies_the_file_to_the_given_destination(self, monkeypatch, tmp_path, capsys):
         monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
@@ -196,6 +198,27 @@ class TestListAndDownloadControlLines:
         copied = dest_dir / "Vendor_Onboarding.docx"
         assert copied.read_bytes() == b"fake docx bytes"
         assert "Downloaded" in capsys.readouterr().out
+
+    def test_download_creates_a_nonexistent_directory_destination(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "portfolio_backlog.xlsx").write_bytes(b"fake workbook bytes")
+        cwd_dir = tmp_path / "cwd"
+        cwd_dir.mkdir()
+        monkeypatch.chdir(cwd_dir)
+
+        asyncio.run(
+            cli.handle_logical_line(
+                "download portfolio_backlog.xlsx downloads",
+                [_StubSession()],
+                "process_architect",
+            )
+        )
+
+        copied = cwd_dir / "downloads" / "portfolio_backlog.xlsx"
+        assert copied.read_bytes() == b"fake workbook bytes"
+        assert f"Downloaded 'portfolio_backlog.xlsx' to {copied}" in capsys.readouterr().out
 
     def test_download_defaults_to_the_current_working_directory(self, monkeypatch, tmp_path, capsys):
         monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
@@ -1324,6 +1347,12 @@ class TestArtifactRoute:
         assert resp.status_code == 200
         assert resp.get_json()["data"] == {"compliance_matrix": []}
 
+    def test_portfolio_backlog_artifact_name_maps_to_backlog_json(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog.json": '{"epics": []}'})
+        resp = client.get("/artifacts/portfolio_backlog")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"epics": []}
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self, monkeypatch, tmp_path):
         client = self._build_client(
             monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile><diagram>stuff</diagram></mxfile>"}
@@ -1451,6 +1480,21 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.status_code == 200
         assert resp.data == b'{"compliance_matrix": []}'
         assert "proposal_response.json" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_portfolio_backlog_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog.json": '{"epics": []}'})
+        resp = client.get("/artifacts/portfolio_backlog/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"epics": []}'
+        assert "portfolio_backlog.json" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_portfolio_backlog_workbook_as_an_xlsx_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog.xlsx": "workbook bytes"})
+        resp = client.get("/artifacts/portfolio_backlog_workbook/download")
+        assert resp.status_code == 200
+        assert resp.data == b"workbook bytes"
+        assert resp.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert "portfolio_backlog.xlsx" in resp.headers.get("Content-Disposition", "")
 
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)

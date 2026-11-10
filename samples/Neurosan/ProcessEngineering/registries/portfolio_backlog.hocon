@@ -1,0 +1,117 @@
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Builds a traceable Enterprise Agile Portfolio Backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied workbook with editable USD assumptions.",
+        "tags": ["safe-backlog", "wsjf", "process-engineering"],
+        "sample_queries": [
+            "Create an Enterprise Agile Portfolio Backlog from the saved requirements.",
+            "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories.",
+            "Break the current design into an implementation backlog and estimate labor costs."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Portfolio_Backlog_Pipeline",
+            "function": {
+                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable Enterprise Agile Portfolio Backlog workbook with WSJF formulas and editable USD cost assumptions.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+Generate one traceable Enterprise Agile Portfolio Backlog from one saved source artifact, and save it with
+the supplied Enterprise Agile Portfolio Backlog workbook template. Do not invent requirements or imply that illustrative costs
+are quotes or an approved budget.
+
+# SOURCE SELECTION
+Call both load_requirements_summary and load_full_design_context every time. Stop and report
+explicitly if either returns status ERROR. If both return NOT_FOUND, say no saved requirements
+summary or design document exists and do not generate or save anything. If a design exists, use it
+as the sole source; it takes precedence over a requirements summary and must not be merged with it.
+Otherwise use the requirements summary. Do not substitute cloud architecture or inline text for
+the required saved source.
+
+For design, inspect the returned master_process, including requirements, high_level_design.components,
+low_level_design.components, interfaces, constraints, and operating/deployment details when present.
+For requirements, inspect requirements_register and its scope, stakeholders, dependencies, risks,
+assumptions, and open questions. Preserve exact source requirement IDs and design component names in
+traces_to. Do not assume missing fields exist.
+
+# BACKLOG
+Save one JSON object with name, summary, source_artifact (exactly "design" or
+"requirements_summary"), source_name, and a non-empty epics array. Nest non-empty features under
+epics and non-empty stories under features. Give every item a unique id with EPIC-001, FEAT-001,
+or STORY-001 prefixes, plus title, description, strategic_theme, non-empty traces_to, priority_components,
+and job_size. Every story also needs a non-empty acceptance_criteria array of observable pass/fail
+outcomes.
+
+priority_components must contain integer user_business_value, time_criticality, and risk_reduction
+scores. Each component and job_size must use only the modified Fibonacci values [1, 2, 3, 5, 8, 13,
+20]. State defaults to In Analysis unless the selected source explicitly gives a lifecycle state.
+Scores are relative planning judgments, never currency. Cover material security, privacy, access
+control, integration, resilience, migration, and operational work when present in the source.
+Create enabler work only when needed to deliver source-backed scope. Do not invent commitments,
+dates, team capacity, project-specific rates, licenses, or cloud costs.
+
+Before saving, verify unique IDs, valid score scales, traceability for every item, testable story
+acceptance criteria, and that each epic has a feature and each feature has a story.
+
+# SAVE AND RESPONSE
+Call save_portfolio_backlog with the complete backlog JSON. If the result starts with ERROR, report
+the error and do not claim success. Otherwise report the chosen source, epic/feature/story counts,
+and the exact JSON/workbook paths returned. Costs are illustrative USD delivery-labor planning
+estimates; the workbook's Assumptions worksheet retains the estimate method, effort-per-point, and
+contingency assumptions, while the separate Role Rates worksheet lists the TBD people, role mix, and
+illustrative daily rates. Each backlog line item identifies its costed role mix or indicates that it
+rolls up child-item costs. Clearly call out that names/rates and estimates must be validated before
+funding decisions. They are not quotes or an approved budget.
+""",
+            "tools": [
+                "load_requirements_summary",
+                "design_json_tool",
+                "save_portfolio_backlog"
+            ]
+        },
+
+        {
+            "name": "load_requirements_summary",
+            "function": {
+                "description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."
+            },
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+
+        {
+            "name": "design_json_tool",
+            "function": {
+                "description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."
+            },
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+
+        {
+            "name": "save_portfolio_backlog",
+            "function": {
+                "description": "Persists the generated Enterprise Agile Portfolio Backlog JSON and workbook.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "backlog": {
+                            "type": "object",
+                            "description": "The complete Enterprise Agile Portfolio Backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
+                        }
+                    },
+                    "required": ["backlog"]
+                }
+            },
+            "class": "save_portfolio_backlog_tool.SavePortfolioBacklogCodedTool"
+        }
+    ]
+}

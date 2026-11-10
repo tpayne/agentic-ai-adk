@@ -46,6 +46,16 @@ def test_downloads_the_cloudarch_diagram_by_keyword(dest_dir):
     assert (dest_dir / "cloudarch_drawio.xml").read_bytes() == b"<mxfile></mxfile>"
 
 
+def test_downloads_the_backlog_workbook_by_keyword(dest_dir):
+    _write_output_file("portfolio_backlog.xlsx", b"workbook bytes")
+
+    result = download_artifact(target="the Enterprise Agile Portfolio Backlog workbook", destination=str(dest_dir))
+
+    assert result.startswith("SUCCESS:")
+    assert "portfolio_backlog.xlsx" in result
+    assert (dest_dir / "portfolio_backlog.xlsx").read_bytes() == b"workbook bytes"
+
+
 def test_downloads_the_most_recent_document_when_target_is_omitted(dest_dir):
     _write_output_file("Vendor_Onboarding.docx", b"doc bytes")
 
@@ -58,11 +68,13 @@ def test_downloads_the_most_recent_document_when_target_is_omitted(dest_dir):
 def test_reports_what_is_available_when_target_does_not_match(dest_dir):
     _write_output_file("Vendor_Onboarding.docx")
     _write_output_file("cloudarch_drawio.xml")
+    _write_output_file("portfolio_backlog.xlsx")
 
     result = download_artifact(target="something unrelated", destination=str(dest_dir))
 
     assert result.startswith("ERROR:")
     assert "Vendor_Onboarding.docx" in result
+    assert "portfolio_backlog.xlsx" in result
     assert "cloud architecture diagram" in result
 
 
@@ -74,7 +86,9 @@ def test_reports_nothing_generated_yet_when_output_is_empty(dest_dir):
 
 def test_reports_an_error_for_an_unwritable_destination(dest_dir):
     _write_output_file("Vendor_Onboarding.docx")
-    bogus_dest = dest_dir / "does" / "not" / "exist" / "out.docx"
+    blocker = dest_dir / "not-a-directory"
+    blocker.write_text("blocker", encoding="utf-8")
+    bogus_dest = blocker / "out.docx"
 
     result = download_artifact(target="Vendor_Onboarding.docx", destination=str(bogus_dest))
 

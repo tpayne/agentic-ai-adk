@@ -2938,6 +2938,26 @@ def update_test_specification(patch: dict, tool_context: Optional[ToolContext] =
     return _shared_update_test_specification(patch, tool_context.state if tool_context is not None else None)
 
 
+# Enterprise Agile Portfolio Backlog persistence and workbook rendering -- shared with the
+# neuro-san port so both frameworks produce the same template-based XLSX.
+from process_toolkit.portfolio_backlog.portfolio_backlog import (  # noqa: E402
+    load_portfolio_backlog as _shared_load_portfolio_backlog,
+    save_portfolio_backlog as _shared_save_portfolio_backlog,
+)
+
+
+def save_portfolio_backlog(backlog: dict, tool_context: Optional[ToolContext] = None) -> str:
+    return _shared_save_portfolio_backlog(
+        backlog, tool_context.state if tool_context is not None else None
+    )
+
+
+def load_portfolio_backlog(tool_context: Optional[ToolContext] = None) -> dict:
+    return _shared_load_portfolio_backlog(
+        tool_context.state if tool_context is not None else None
+    )
+
+
 # chunk_and_wrap (shared with the neuro-san port, and with load_directory_
 # context's own chunking) -- re-exported under a more task-specific name
 # for an agent that builds its own combined text from already-loaded

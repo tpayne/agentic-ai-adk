@@ -25,6 +25,7 @@ from werkzeug.utils import safe_join
 
 from process_toolkit import paths as toolkit_paths
 from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
+from process_toolkit.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
 
@@ -35,6 +36,11 @@ def cloudarch_diagram_exists() -> bool:
     to know this without reaching into toolkit_paths.output_dir()
     themselves."""
     return os.path.isfile(os.path.join(toolkit_paths.output_dir(), CLOUDARCH_FILENAME))
+
+
+def portfolio_backlog_workbook_exists() -> bool:
+    """Whether the generated Enterprise Agile Portfolio Backlog workbook is available."""
+    return os.path.isfile(os.path.join(toolkit_paths.output_dir(), PORTFOLIO_BACKLOG_WORKBOOK_FILENAME))
 
 
 def list_output_documents() -> List[Dict[str, Any]]:
@@ -110,6 +116,8 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     - A target string containing "cloudarch"/"diagram"/"architecture"/
       "xml" (case-insensitive) resolves to the cloud architecture
       diagram, if one has been generated.
+    - A target mentioning "backlog", "WSJF", or the portfolio backlog
+      workbook filename resolves to that workbook, if it has been generated.
     - A target matching an existing document's filename exactly, or as a
       case-insensitive substring, resolves to that document.
     - An empty/None target resolves to the most-recently-generated
@@ -124,6 +132,12 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
         return IAC_ZIP_FILENAME if iac_zip_exists() else None
     if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
         return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
+    if normalized and any(word in normalized for word in ("backlog", "wsjf", PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)):
+        return (
+            PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
+            if portfolio_backlog_workbook_exists()
+            else None
+        )
 
     docs = list_output_documents()
     if not normalized:
@@ -137,23 +151,59 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
 def copy_artifact_to_destination(filename: str, destination: str) -> str:
     """
     Copies `filename` (resolved via safe_output_file_path -- must already
-    be a real file in output/) to `destination`, which may be an existing
-    directory (the file keeps its own basename) or a full target file
-    path. Returns the actual final path copied to.
+    be a real file in output/) to `destination`. Existing directories,
+    paths with a trailing separator, and paths without a filename
+    extension are treated as directories and created if needed; the file
+    keeps its own basename there. A path with an extension is treated as
+    a target file path. Returns the absolute final path copied to.
 
     Raises ValueError if `filename` doesn't resolve to a real file inside
     output/ (including a path-traversal attempt); propagates any OSError
-    the copy itself raises (e.g. an unwritable/nonexistent destination
-    directory) uncaught, for the caller to report in its own idiom.
+    the copy itself raises for the caller to report in its own idiom.
     """
     source_path = safe_output_file_path(filename)
     if source_path is None:
         raise ValueError(f"No generated file named '{filename}' in output/.")
-    destination = os.path.expanduser(destination or ".")
-    dest_path = (
-        os.path.join(destination, os.path.basename(source_path))
-        if os.path.isdir(destination)
-        else destination
+    raw_destination = _normalize_download_destination(destination)
+    has_trailing_separator = raw_destination.endswith(os.sep) or (
+        os.altsep is not None and raw_destination.endswith(os.altsep)
     )
+    destination = os.path.abspath(raw_destination)
+    destination_name = os.path.basename(os.path.normpath(destination))
+    is_directory = (
+        os.path.isdir(destination)
+        or has_trailing_separator
+        or not os.path.splitext(destination_name)[1]
+    )
+    if is_directory:
+        if os.path.exists(destination) and not os.path.isdir(destination):
+            raise ValueError(f"Destination '{destination}' is a file, not a directory.")
+        os.makedirs(destination, exist_ok=True)
+        dest_path = os.path.join(destination, os.path.basename(source_path))
+    else:
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        dest_path = destination
     shutil.copy2(source_path, dest_path)
     return dest_path
+
+
+def _normalize_download_destination(destination: str) -> str:
+    """Map a natural Downloads-folder request to the user's home Downloads."""
+    raw_destination = os.path.expanduser((destination or ".").strip())
+    alias = raw_destination.casefold().strip().rstrip("/\\")
+    if alias in {
+        "download folder",
+        "downloads folder",
+        "download directory",
+        "downloads directory",
+        "the downloads folder",
+        "the downloads directory",
+        "my downloads folder",
+        "my downloads directory",
+    }:
+        return os.path.join(os.path.expanduser("~"), "Downloads")
+
+    normalized_parts = os.path.normpath(raw_destination).replace("\\", "/").casefold().split("/")
+    if not os.path.isabs(raw_destination) and normalized_parts[-2:] == ["output", "downloads"]:
+        return os.path.join(os.path.expanduser("~"), "Downloads")
+    return raw_destination
