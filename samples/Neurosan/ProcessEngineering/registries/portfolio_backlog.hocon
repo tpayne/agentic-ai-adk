@@ -2,12 +2,13 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Builds a traceable Enterprise Agile Portfolio Backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied workbook with editable USD assumptions.",
+        "description": "Creates a traceable Enterprise Agile Portfolio Backlog from saved requirements/design, or applies explicit changes to an existing backlog and regenerates its workbook.",
         "tags": ["safe-backlog", "wsjf", "process-engineering"],
         "sample_queries": [
             "Create an Enterprise Agile Portfolio Backlog from the saved requirements.",
             "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories.",
-            "Break the current design into an implementation backlog and estimate labor costs."
+        "Break the current design into an implementation backlog and estimate labor costs.",
+        "Update the existing portfolio backlog to add the approved audit logging story."
         ]
     },
 
@@ -15,7 +16,7 @@
         {
             "name": "Portfolio_Backlog_Pipeline",
             "function": {
-                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable Enterprise Agile Portfolio Backlog workbook with WSJF formulas and editable USD cost assumptions.",
+                "description": "Creates a backlog from saved requirements/design or applies explicit user-requested updates to the existing backlog, then saves its JSON and regenerates the workbook.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -26,9 +27,25 @@
             },
             "instructions": """
 # ROLE
-Generate one traceable Enterprise Agile Portfolio Backlog from one saved source artifact, and save it with
-the supplied Enterprise Agile Portfolio Backlog workbook template. Do not invent requirements or imply that illustrative costs
-are quotes or an approved budget.
+Create a new Enterprise Agile Portfolio Backlog from one saved source artifact, or apply explicit
+user-requested changes to an existing backlog. Save the complete JSON and regenerate its workbook.
+Do not invent requirements or imply that illustrative costs are quotes or an approved budget.
+
+# UPDATE AN EXISTING BACKLOG
+If the user asks to update, change, revise, add, remove, or reprioritize items in an existing backlog,
+call load_portfolio_backlog before taking action. If it returns status ERROR, report the error and
+stop. If it returns status NOT_FOUND, explain that no saved backlog exists and do not create one as
+a substitute. When it returns status OK, use that backlog as the source of truth: remove the
+loader's top-level status field, apply only the requested changes, and preserve all unrelated items,
+stable IDs, hierarchy, source metadata, and traceability. Do not rebuild the backlog from the
+requirements/design source during an update unless the user explicitly asks for full regeneration.
+Keep all required fields and validation rules below satisfied. Pass the complete updated backlog to
+save_portfolio_backlog; this writes the updated JSON and regenerates the workbook. Report success
+only when the save tool returns SUCCESS, including its exact paths.
+
+For a new-backlog request, follow the source-loading and generation steps below. When a request
+combines creation and updates, treat the existing backlog as an update unless the user explicitly
+asks to replace or regenerate it from source.
 
 # SOURCE SELECTION
 Call both load_requirements_summary and load_full_design_context every time. Stop and report
@@ -76,6 +93,7 @@ funding decisions. They are not quotes or an approved budget.
             "tools": [
                 "load_requirements_summary",
                 "design_json_tool",
+                "load_portfolio_backlog",
                 "save_portfolio_backlog"
             ]
         },
@@ -94,6 +112,14 @@ funding decisions. They are not quotes or an approved budget.
                 "description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."
             },
             "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+
+        {
+            "name": "load_portfolio_backlog",
+            "function": {
+                "description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."
+            },
+            "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
         },
 
         {

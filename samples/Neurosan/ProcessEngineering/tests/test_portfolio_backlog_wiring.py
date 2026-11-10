@@ -16,8 +16,8 @@ def test_router_routes_and_enables_backlog_network():
     tools_text = text[tools_start:text.index("]", tools_start)]
 
     assert '"/portfolio_backlog"' in tools_text
-    assert "### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION" in text
-    assert "Enterprise Agile Portfolio Backlog from saved requirements/design -> Portfolio_Backlog_Pipeline" in text
+    assert "### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE" in text
+    assert "Enterprise Agile Portfolio Backlog creation or update -> Portfolio_Backlog_Pipeline" in text
 
 
 def test_backlog_network_loads_one_source_and_writes_the_workbook():
@@ -32,6 +32,9 @@ def test_backlog_network_loads_one_source_and_writes_the_workbook():
     assert "priority_components" in text
     assert "acceptance_criteria" in text
     assert "Assumptions worksheet" in text
+    assert "load_portfolio_backlog" in text
+    assert "loader's top-level status field" in text
+    assert "preserve all unrelated items" in text
 
 
 def test_coded_tool_delegates_to_shared_backlog_persistence():
@@ -43,6 +46,32 @@ def test_coded_tool_delegates_to_shared_backlog_persistence():
     ).read_text(encoding="utf-8")
     assert "process_toolkit.portfolio_backlog.portfolio_backlog" in text
     assert "save_portfolio_backlog(backlog, sly_data)" in text
+
+
+def test_load_coded_tool_delegates_to_shared_backlog_loader():
+    text = (
+        PROJECT_ROOT
+        / "coded_tools"
+        / "portfolio_backlog"
+        / "load_portfolio_backlog_tool.py"
+    ).read_text(encoding="utf-8")
+    assert "process_toolkit.portfolio_backlog.portfolio_backlog" in text
+    assert "load_portfolio_backlog(sly_data)" in text
+
+
+def test_load_coded_tool_returns_saved_backlog_from_session_state():
+    from coded_tools.portfolio_backlog.load_portfolio_backlog_tool import (
+        LoadPortfolioBacklogCodedTool,
+    )
+
+    backlog = {"name": "Existing backlog", "epics": []}
+
+    result = LoadPortfolioBacklogCodedTool().invoke(
+        {}, {"portfolio_backlog": backlog}
+    )
+
+    assert result["status"] == "OK"
+    assert result["name"] == "Existing backlog"
 
 
 def test_web_artifact_routes_expose_backlog_json_and_workbook():

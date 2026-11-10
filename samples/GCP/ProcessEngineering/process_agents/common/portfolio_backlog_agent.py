@@ -2,6 +2,7 @@
 
 from ..common.utils import (
     load_full_design_context,
+    load_portfolio_backlog,
     load_requirements_summary,
     save_portfolio_backlog,
 )
@@ -18,6 +19,7 @@ portfolio_backlog_agent = ProcessLlmAgent(
     tools=[
         load_requirements_summary,
         load_full_design_context,
+        load_portfolio_backlog,
         save_portfolio_backlog,
     ],
 )

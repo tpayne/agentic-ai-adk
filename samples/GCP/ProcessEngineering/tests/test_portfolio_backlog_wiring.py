@@ -14,6 +14,7 @@ def test_pipeline_registers_backlog_agent_and_source_tools():
     from process_agents.common.portfolio_backlog_agent import portfolio_backlog_agent
     from process_agents.common.utils import (
         load_full_design_context,
+        load_portfolio_backlog,
         load_requirements_summary,
         save_portfolio_backlog,
     )
@@ -21,6 +22,7 @@ def test_pipeline_registers_backlog_agent_and_source_tools():
     assert portfolio_backlog_agent in portfolio_backlog_pipeline.sub_agents
     assert {
         load_full_design_context,
+        load_portfolio_backlog,
         load_requirements_summary,
         save_portfolio_backlog,
     } <= set(portfolio_backlog_agent.tools)
@@ -46,9 +48,11 @@ def test_root_router_routes_specific_enterprise_agile_backlog_requests():
     text = _read("instructions/common/agent.txt")
 
     assert "Enterprise Agile Portfolio Backlog signals are" in text
-    assert "### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION" in text
+    assert "### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE" in text
     assert "→ Call: Portfolio_Backlog_Pipeline" in text
-    assert "Enterprise Agile Portfolio Backlog from saved requirements/design → Portfolio_Backlog_Pipeline" in text
+    assert "loads and modifies the" in text
+    assert "`portfolio_backlog.json`" in text
+    assert "Enterprise Agile Portfolio Backlog creation or update → Portfolio_Backlog_Pipeline" in text
 
 
 def test_web_artifact_routes_expose_backlog_json_and_workbook():

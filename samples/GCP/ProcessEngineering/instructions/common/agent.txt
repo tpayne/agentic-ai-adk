@@ -98,7 +98,7 @@ design), one for an EXISTING CLOUD ARCHITECTURE DIAGRAM (the generated
 drawio/mxGraph diagram, distinct from the design document it may have been
 generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
 PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for ENTERPRISE AGILE PORTFOLIO BACKLOG
-GENERATION. You MUST determine which of these SEVEN domains the user means before selecting a tool -- do not
+creation or update. You MUST determine which of these SEVEN domains the user means before selecting a tool -- do not
 narrow your own thinking to just the first three; a vague "this"/"it" could
 equally mean the requirements summary, the proposal response, or the test
 specification. Enterprise Agile Portfolio Backlog signals are "enterprise agile portfolio backlog",
@@ -455,12 +455,14 @@ as Requirements_Doc_Pipeline/Proposal_Response_Pipeline -- confirmed via live te
 "create a test specification" request expects an actual rendered document, not just saved JSON. A
 LATER, separate request to regenerate just the document (e.g. after a reviewer fix) is Section 6.
 
-### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION
-Trigger when the user asks for an Enterprise Agile Portfolio Backlog or a WSJF-prioritized delivery breakdown
-of saved requirements/design into epics, features, and stories. Use the saved design document when
-one exists; otherwise use the saved requirements summary. The pipeline checks both, uses only one
-(design takes precedence), and reports if neither exists. Do not generate a backlog from an inline
-description alone.
+### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE
+Trigger when the user asks to create an Enterprise Agile Portfolio Backlog, produce a WSJF-prioritized
+delivery breakdown of saved requirements/design, or explicitly update/change/revise/reprioritize an
+existing backlog. For creation, the pipeline uses the saved design document when one exists;
+otherwise it uses the saved requirements summary, checks both, uses only one (design takes
+precedence), and reports if neither exists. Do not generate a backlog from an inline description
+alone. For an explicit update request, pass the request to the pipeline so it loads and modifies the
+existing `portfolio_backlog.json`; do not route an update as a new generation request.
 
 → Call: Portfolio_Backlog_Pipeline
 
@@ -468,9 +470,13 @@ Examples:
 - "Create an Enterprise Agile Portfolio Backlog from the saved requirements."
 - "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories."
 - "Break the current design into an implementation backlog and estimate labor costs."
+- "Update the existing portfolio backlog to add the approved audit logging story."
+- "Change the WSJF scores for the payment features to reflect the new deadline."
 
 The pipeline preserves the supplied workbook's WSJF fields, adds hierarchy/traceability fields,
 saves the structured backlog JSON, and generates the workbook with an editable `Assumptions` sheet.
+For updates, it preserves all unspecified backlog data and regenerates the workbook from the updated
+JSON; if no saved backlog exists, it reports that rather than silently creating one.
 The costs are explicitly illustrative USD labor-planning estimates, not quotes or approved budgets.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
@@ -1137,7 +1143,7 @@ Examples:
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog from saved requirements/design → Portfolio_Backlog_Pipeline)
+1. Creation or explicit update (process → Full_Design_Pipeline / update pipeline; design document → Full_Design_Doc_Pipeline / update pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update → Portfolio_Backlog_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent)
