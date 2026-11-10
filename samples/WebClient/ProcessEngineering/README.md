@@ -25,10 +25,12 @@ POST   /chat                    {"query": "...", "session_id": "..." (optional)}
                                  -> {"status": "ok", "session_id": "...", "query": "...", "response": "..."}
 POST   /chat/stream              same body; text/event-stream of progress/delta/done events instead
 DELETE /chat/<session_id>       -> {"status": "ok", "session_id": "...", "cleared": true|false}
-GET    /artifacts/<name>        "process", "design", "requirements", or "proposal_response" ->
+GET    /artifacts/<name>        "process", "design", "requirements", "proposal_response",
+                                 "test_specification", or "portfolio_backlog" ->
                                  {"status": "ok", "name": "...", "data": {...the parsed
                                  output/process_data.json / design_data.json /
-                                 requirements_summary.json / proposal_response.json...}};
+                                 requirements_summary.json / proposal_response.json /
+                                 test_specification.json / portfolio_backlog.json...}};
                                  "cloudarch" -> same envelope, but "data" is the raw
                                  output/cloudarch_drawio.xml TEXT instead of parsed JSON; 404 if
                                  that pipeline hasn't produced an artifact yet

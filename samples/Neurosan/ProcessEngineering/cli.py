@@ -1853,15 +1853,16 @@ def build_web_app(agent_name: str, https: bool = True):
         """
         Read-only access to this web session's own output/<session_id>/
         process_data.json, design_data.json, requirements_summary.json,
-        proposal_response.json, or cloudarch_drawio.xml (or flat output/
+        proposal_response.json, test_specification.json,
+        portfolio_backlog.json, or cloudarch_drawio.xml (or flat output/
         for a caller with no session id at all -- e.g. a direct API
         caller that never went through POST /chat first), resolved via a
         `session_id` query parameter (see _web_session_id_for_get_request's
         own docstring for why a query parameter, not just the session
         cookie, matters here) -- a plain GET has no JSON body of its own
         to carry a session_id in the way POST /chat does. Powers the web
-        client's "Process / Design / Requirements / Proposal Response"
-        and "Cloud Architecture" tabs -- a hierarchical/diagram viewer of
+        client's artifact browser and "Cloud Architecture" tab -- a
+        hierarchical/diagram viewer of
         whichever pipeline's current artifact. The ADK port's
         build_web_app has an identical route, and both keep these files
         at the identical relative path, so the client's fetch logic
@@ -2014,7 +2015,8 @@ def build_web_app(agent_name: str, https: bool = True):
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
         process_data.json, design_data.json, requirements_summary.json,
-        or proposal_response.json as a real file attachment (as opposed
+        proposal_response.json, test_specification.json, or
+        portfolio_backlog.json as a real file attachment (as opposed
         to GET /artifacts/<name> above, which returns it JSON-wrapped for
         the client's own data-explorer viewer) -- structurally identical
         to download_cloudarch above, just for the other artifact kinds.
@@ -2023,8 +2025,8 @@ def build_web_app(agent_name: str, https: bool = True):
         own instructions for how an attachment literally named
         process_data.json/design_data.json is recognized and restored
         verbatim rather than re-extracted, and Requirements_Summary_Agent's/
-        Proposal_Response_Pipeline's own literal-restore STEPs for
-        requirements_summary.json/proposal_response.json."""
+        Proposal_Response_Pipeline's own literal-restore STEPs for the
+        corresponding JSON files."""
         filenames = {
             "process": "process_data.json",
             "design": "design_data.json",

@@ -1353,6 +1353,14 @@ class TestArtifactRoute:
         assert resp.status_code == 200
         assert resp.get_json()["data"] == {"epics": []}
 
+    def test_test_specification_artifact_name_maps_to_test_specification_json(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"test_specification.json": '{"test_cases": []}'}
+        )
+        resp = client.get("/artifacts/test_specification")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"test_cases": []}
+
     def test_cloudarch_artifact_name_maps_to_cloudarch_drawio_xml_and_returns_raw_text(self, monkeypatch, tmp_path):
         client = self._build_client(
             monkeypatch, tmp_path, {"cloudarch_drawio.xml": "<mxfile><diagram>stuff</diagram></mxfile>"}
@@ -1487,6 +1495,15 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.status_code == 200
         assert resp.data == b'{"epics": []}'
         assert "portfolio_backlog.json" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_test_specification_json_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(
+            monkeypatch, tmp_path, {"test_specification.json": '{"test_cases": []}'}
+        )
+        resp = client.get("/artifacts/test_specification/download")
+        assert resp.status_code == 200
+        assert resp.data == b'{"test_cases": []}'
+        assert "test_specification.json" in resp.headers.get("Content-Disposition", "")
 
     def test_downloads_portfolio_backlog_workbook_as_an_xlsx_attachment(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog.xlsx": "workbook bytes"})
