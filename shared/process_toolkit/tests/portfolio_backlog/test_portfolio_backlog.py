@@ -101,7 +101,10 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert "'Role Rates'!$B$8" in sheet["S8"].value
     assert 'TEXT(\'Role Rates\'!$C$5,"0%")' in sheet["S8"].value
     assert sheet["S6"].value == "Rolled up from child items; see story-level roles."
-    assert sheet["H8"].value == "=SUM(E8:G8)"
+    assert sheet["H8"].value == (
+        "=E8*'Assumptions'!$B$13+F8*'Assumptions'!$B$14"
+        "+G8*'Assumptions'!$B$15"
+    )
     assert sheet["J8"].value == "=IFERROR(H8/I8,0)"
     assert sheet["K8"].value.startswith("=1+COUNTIFS(")
     assert sheet["Q8"].value == (
@@ -132,7 +135,28 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert assumptions["B5"].value == "=SUM('Role Rates'!E5:E10)"
     assert assumptions["B6"].value == 1.5
     assert assumptions["B7"].value == 0.2
+    assert assumptions["B13"].value == 1.0
+    assert assumptions["B14"].value == 1.0
+    assert assumptions["B15"].value == 1.0
+    assert assumptions["A16"].value == "Priority score scale"
+    assert assumptions["A17"].value == "Priority score basis"
+    assert assumptions["A19"].value == "Cost of Delay formula"
+    assert assumptions["A20"].value == "WSJF formula"
+    assert assumptions["A21"].value == "WSJF rank scope and ties"
+    assert assumptions["A22"].value == "Default work item state"
+    assert assumptions["A23"].value == "Default strategic theme"
     assert "not a quote" in assumptions["B10"].value
+    assert assumptions["A28"].value == "Person"
+    assert assumptions["B28"].value == "Delivery Role"
+    assert assumptions["C28"].value == "Effort Mix"
+    assert assumptions["D28"].value == "Daily Rate (USD)"
+    assert assumptions["A29"].value == "='Role Rates'!A5"
+    assert assumptions["B29"].value == "='Role Rates'!B5"
+    assert assumptions["C29"].value == "='Role Rates'!C5"
+    assert assumptions["D29"].value == "='Role Rates'!D5"
+    assert assumptions["E29"].value == "='Role Rates'!F5"
+    assert assumptions["C35"].value == "=SUM(C29:C34)"
+    assert assumptions["D36"].value == "=B5"
     assert [assumptions.cell(row, 1).value for row in range(4, 13)] == [
         "Currency",
         "Blended fully-loaded delivery cost per person-day",
@@ -144,8 +168,6 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
         "Source artifact",
         "Source name",
     ]
-    assert assumptions["A13"].value is None
-    assert assumptions["A14"].value is None
 
     role_rates = workbook["Role Rates"]
     assert role_rates["A4"].value == "Person"

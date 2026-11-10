@@ -74,7 +74,7 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 - A saved proposal response (`proposal_response.json`) when you draft a Response to Proposal/RFP.
 - A saved, traceable test specification (`test_specification.json`) when you generate test cases validating the saved requirements/design/cloud architecture.
-- A saved Enterprise Agile Portfolio Backlog (`portfolio_backlog.json`) and workbook (`portfolio_backlog.xlsx`) with WSJF formulas and editable `Assumptions` and `Role Rates` worksheets. Initial cost defaults are illustrative: $1,200 per fully loaded person-day, 1.5 person-days per story point, and 20% contingency. These are labor-planning estimates, not quotes.
+- A saved Enterprise Agile Portfolio Backlog (`portfolio_backlog.json`) and workbook (`portfolio_backlog.xlsx`) with formula-driven Cost of Delay, WSJF scores/ranks, roll-up costs, and editable assumptions. The `Assumptions` sheet documents scoring rules/defaults and links to the role-mix/rate inputs on `Role Rates`. Initial cost defaults are illustrative: $1,200 per fully loaded person-day, 1.5 person-days per story point, and 20% contingency. These are labor-planning estimates, not quotes.
 
 ---
 
