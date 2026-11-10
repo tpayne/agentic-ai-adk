@@ -1,4 +1,4 @@
-"""Persist a traceable SAFe WSJF backlog and render it from the supplied workbook template."""
+"""Persist an Enterprise Agile Portfolio Backlog and render its workbook."""
 
 import copy
 import json
@@ -15,7 +15,7 @@ from process_toolkit import paths
 PORTFOLIO_BACKLOG_FILENAME = "portfolio_backlog.json"
 PORTFOLIO_BACKLOG_WORKBOOK_FILENAME = "portfolio_backlog.xlsx"
 STATE_KEY = "portfolio_backlog"
-TEMPLATE_FILENAME = "SAFe_WSJF_Portfolio_Backlog.xlsx"
+TEMPLATE_FILENAME = "Enterprise_Agile_Portfolio_Backlog.xlsx"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", TEMPLATE_FILENAME)
 FIBONACCI_SIZES = {1, 2, 3, 5, 8, 13, 20}
 StateLike = MutableMapping[str, Any]
@@ -25,6 +25,20 @@ _CHART_DATA_START_ROW = 2
 _CHART_CATEGORY_COLUMN = 20
 _CHART_VALUE_COLUMN = 21
 _DATA_ROW_FILL = PatternFill("solid", fgColor="FFFFFF")
+_ROLE_COSTING_DEFAULTS = [
+    ("TBD", "Product Owner", 0.10, 1200, "Illustrative default; replace with the approved rate card."),
+    ("TBD", "Business Analyst", 0.15, 1000, "Illustrative default; replace with the approved rate card."),
+    ("TBD", "Solution Architect", 0.10, 1500, "Illustrative default; replace with the approved rate card."),
+    ("TBD", "Software Engineer", 0.40, 1275, "Illustrative default; replace with the approved rate card."),
+    ("TBD", "QA Engineer", 0.15, 1000, "Illustrative default; replace with the approved rate card."),
+    (
+        "TBD",
+        "DevOps / Platform Engineer",
+        0.10,
+        1200,
+        "Illustrative default; replace with the approved rate card.",
+    ),
+]
 _HEADERS = [
     "Work Item ID",
     "Work Item Name",
@@ -44,6 +58,7 @@ _HEADERS = [
     "Acceptance Criteria",
     "Cost Estimate (USD)",
     "Cost Basis / Notes",
+    "Costed Roles",
 ]
 
 
@@ -172,8 +187,8 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
         ("Currency", "USD", "All cost estimates are illustrative planning estimates in US dollars."),
         (
             "Blended fully-loaded delivery cost per person-day",
-            1200,
-            "Editable default covering delivery labor; replace with the team's loaded rate.",
+            "=SUM('Role Rates'!E5:E10)",
+            "Weighted rate calculated from the editable people/role mix on the Role Rates tab.",
         ),
         (
             "Effort per story point (person-days)",
@@ -187,7 +202,7 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
         ),
         (
             "Story-level cost formula",
-            "Job Size x effort per point x blended daily rate x (1 + contingency)",
+            "Job Size x effort per point x role-mix weighted daily rate x (1 + contingency)",
             "Features and epics roll up child costs; their costs are not estimated a second time.",
         ),
         (
@@ -209,7 +224,7 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
     sheet["B5"].number_format = '"$"#,##0.00'
     sheet["B6"].number_format = "0.00"
     sheet["B7"].number_format = "0%"
-    for cell in sheet[3]:
+    for cell in sheet[3][:3]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="4472C4")
         cell.alignment = Alignment(wrap_text=True, vertical="center")
@@ -222,12 +237,77 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
     sheet.freeze_panes = "A4"
 
 
+def _write_role_rates_sheet(workbook) -> None:
+    if "Role Rates" in workbook.sheetnames:
+        del workbook["Role Rates"]
+    sheet = workbook.create_sheet("Role Rates")
+    sheet.merge_cells("A1:F1")
+    sheet["A1"] = "Illustrative Role-Based Rate Card"
+    sheet["A1"].font = Font(bold=True, size=16, color="FFFFFF")
+    sheet["A1"].fill = PatternFill("solid", fgColor="17365D")
+    sheet["A1"].alignment = Alignment(vertical="center")
+    sheet.row_dimensions[1].height = 30
+    sheet.merge_cells("A2:F2")
+    sheet["A2"] = (
+        "Replace TBD names and illustrative rates/mix with approved project inputs. "
+        "Story costs use this weighted role mix."
+    )
+    sheet["A2"].alignment = Alignment(wrap_text=True, vertical="top")
+    sheet.row_dimensions[2].height = 34
+    role_headers = [
+        "Person",
+        "Delivery Role",
+        "Effort Mix",
+        "Daily Rate (USD)",
+        "Weighted Rate Contribution (USD/day)",
+        "Rate Basis",
+    ]
+    for column, header in enumerate(role_headers, start=1):
+        cell = sheet.cell(4, column, header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="4472C4")
+        cell.alignment = Alignment(wrap_text=True, vertical="center")
+    sheet.row_dimensions[4].height = 32
+    for row_number, role_costing in enumerate(_ROLE_COSTING_DEFAULTS, start=5):
+        for column, value in enumerate(role_costing[:4], start=1):
+            sheet.cell(row_number, column, value)
+        sheet.cell(row_number, 6, role_costing[4])
+        sheet.cell(
+            row_number,
+            5,
+            f"=IFERROR(C{row_number}/SUM($C$5:$C$10)*D{row_number},0)",
+        )
+        sheet.cell(row_number, 3).number_format = "0%"
+        sheet.cell(row_number, 4).number_format = '"$"#,##0.00'
+        sheet.cell(row_number, 5).number_format = '"$"#,##0.00'
+        for cell in sheet[row_number][:6]:
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    sheet.cell(11, 1, "Total / Weighted Rate")
+    sheet.cell(11, 3, "=SUM(C5:C10)")
+    sheet.cell(11, 5, "=SUM(E5:E10)")
+    sheet.cell(11, 3).number_format = "0%"
+    sheet.cell(11, 5).number_format = '"$"#,##0.00'
+    for cell in sheet[11][:6]:
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill("solid", fgColor="D9EAF7")
+    sheet.auto_filter.ref = "A4:F10"
+    sheet.column_dimensions["A"].width = 30
+    sheet.column_dimensions["B"].width = 32
+    sheet.column_dimensions["C"].width = 18
+    sheet.column_dimensions["D"].width = 22
+    sheet.column_dimensions["E"].width = 28
+    sheet.column_dimensions["F"].width = 52
+    sheet.freeze_panes = "A5"
+
+
 def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], str, str]], path: str) -> None:
     if not os.path.isfile(TEMPLATE_PATH):
-        raise FileNotFoundError(f"SAFe WSJF backlog workbook template is missing: {TEMPLATE_PATH}")
+        raise FileNotFoundError(f"Enterprise Agile Portfolio Backlog template is missing: {TEMPLATE_PATH}")
 
     workbook = load_workbook(TEMPLATE_PATH)
-    sheet = workbook["SAFe WSJF Backlog"]
+    sheet = workbook["Enterprise Agile Backlog"]
+    for row_number in range(1, 4):
+        sheet.cell(row_number, 4).fill = PatternFill(fill_type=None)
     summary_styles = [
         copy.copy(sheet.cell(16, column)._style) for column in range(1, 12)
     ]
@@ -246,8 +326,8 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     sheet["L4"] = "Hierarchy"
     sheet.merge_cells("N4:P4")
     sheet["N4"] = "Traceability & Delivery"
-    sheet.merge_cells("Q4:R4")
-    sheet["Q4"] = "Planning Cost"
+    sheet.merge_cells("Q4:S4")
+    sheet["Q4"] = "Planning Cost & Staffing"
     for column in (12, 14, 17):
         sheet.cell(4, column)._style = copy.copy(sheet["J4"]._style)
     for column, header in enumerate(_HEADERS, start=1):
@@ -263,6 +343,15 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
 
         components = item["priority_components"]
         criteria = item.get("acceptance_criteria", [])
+        if item_type == "Story":
+            role_refs = [
+                f"'Role Rates'!$A${row}&\" - \"&'Role Rates'!$B${row}"
+                f"&\" (\"&TEXT('Role Rates'!$C${row},\"0%\")&\")\""
+                for row in range(5, 11)
+            ]
+            costed_roles = "=" + '&"; "&'.join(role_refs)
+        else:
+            costed_roles = "Rolled up from child items; see story-level roles."
         values = [
             item["id"],
             item["title"],
@@ -282,6 +371,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             "\n".join(f"- {criterion}" for criterion in criteria),
             None,
             item.get("cost_notes", "Planning estimate; see editable assumptions."),
+            costed_roles,
         ]
         for column, value in enumerate(values, start=1):
             sheet.cell(row_number, column).value = value
@@ -297,7 +387,9 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             sheet.cell(
                 row_number,
                 17,
-                f"=I{row_number}*'Assumptions'!$B$5*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)",
+                f"=I{row_number}*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)"
+                "*IFERROR(SUMPRODUCT('Role Rates'!$C$5:$C$10,'Role Rates'!$D$5:$D$10)"
+                "/SUM('Role Rates'!$C$5:$C$10),0)",
             )
         else:
             sheet.cell(
@@ -323,6 +415,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     )
     sheet.cell(summary_row, 17).number_format = '"$"#,##0.00'
     sheet.cell(summary_row, 18).value = "Portfolio total sums epics only to avoid double-counting features and stories."
+    sheet.cell(summary_row, 19).value = "Story costs use the Role Rates tab mix."
 
     category_range, value_range = _write_epic_chart_data(sheet, rows)
     for chart in sheet._charts:
@@ -335,7 +428,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             if series.val is not None and series.val.numRef is not None:
                 series.val.numRef.f = value_range
 
-    sheet.auto_filter.ref = f"A5:R{last_data_row}"
+    sheet.auto_filter.ref = f"A5:S{last_data_row}"
     sheet.freeze_panes = "A6"
     sheet.column_dimensions["A"].width = 16
     sheet.column_dimensions["B"].width = 34
@@ -347,10 +440,12 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     sheet.column_dimensions["P"].width = 55
     sheet.column_dimensions["Q"].width = 22
     sheet.column_dimensions["R"].width = 38
+    sheet.column_dimensions["S"].width = 64
     for row_number in range(_DATA_START_ROW, last_data_row + 1):
         sheet.row_dimensions[row_number].height = 48
 
     _write_assumptions_sheet(workbook, backlog)
+    _write_role_rates_sheet(workbook)
     workbook.calculation.fullCalcOnLoad = True
     workbook.calculation.forceFullCalc = True
     workbook.calculation.calcMode = "auto"
@@ -396,12 +491,12 @@ def save_portfolio_backlog(
         if state is not None:
             state[STATE_KEY] = backlog
         return (
-            f"SUCCESS: SAFe WSJF backlog saved to {json_path}; "
-            f"SAFe workbook generated at {workbook_path} "
+            f"SUCCESS: Enterprise Agile Portfolio Backlog saved to {json_path}; "
+            f"workbook generated at {workbook_path} "
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
-        return f"ERROR: Could not save SAFe WSJF backlog: {error}"
+        return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
 
 
 def load_portfolio_backlog(state: Optional[StateLike] = None) -> Dict[str, Any]:

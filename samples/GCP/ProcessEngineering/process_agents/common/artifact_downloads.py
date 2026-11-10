@@ -39,7 +39,7 @@ def cloudarch_diagram_exists() -> bool:
 
 
 def portfolio_backlog_workbook_exists() -> bool:
-    """Whether the generated SAFe WSJF backlog workbook is available."""
+    """Whether the generated Enterprise Agile Portfolio Backlog workbook is available."""
     return os.path.isfile(os.path.join(toolkit_paths.output_dir(), PORTFOLIO_BACKLOG_WORKBOOK_FILENAME))
 
 
@@ -192,7 +192,6 @@ def _normalize_download_destination(destination: str) -> str:
     raw_destination = os.path.expanduser((destination or ".").strip())
     alias = raw_destination.casefold().strip().rstrip("/\\")
     if alias in {
-        "downloads",
         "download folder",
         "downloads folder",
         "download directory",

@@ -85,7 +85,7 @@ class TestResolveArtifactTarget:
 
     def test_backlog_keyword_resolves_to_workbook_when_it_exists(self):
         _write_output_file("portfolio_backlog.xlsx")
-        for phrase in ("backlog", "SAFe WSJF backlog workbook", "WSJF"):
+        for phrase in ("backlog", "Enterprise Agile Portfolio Backlog workbook", "WSJF"):
             assert artifact_downloads.resolve_artifact_target(phrase) == "portfolio_backlog.xlsx"
 
     def test_backlog_keyword_resolves_to_none_when_workbook_does_not_exist(self):
@@ -150,13 +150,23 @@ class TestCopyArtifactToDestination:
         monkeypatch.setenv("HOME", str(home))
         _write_output_file("Vendor_Onboarding.docx", b"real bytes")
 
-        for destination in ("downloads", "Downloads folder", "../output/downloads"):
+        for destination in ("Downloads folder", "downloads directory", "../output/downloads"):
             result = artifact_downloads.copy_artifact_to_destination(
                 "Vendor_Onboarding.docx", destination,
             )
             expected = home / "Downloads" / "Vendor_Onboarding.docx"
             assert result == str(expected)
             assert expected.read_bytes() == b"real bytes"
+
+    def test_literal_downloads_path_remains_relative(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        _write_output_file("Vendor_Onboarding.docx", b"real bytes")
+
+        result = artifact_downloads.copy_artifact_to_destination("Vendor_Onboarding.docx", "downloads")
+
+        expected = tmp_path / "downloads" / "Vendor_Onboarding.docx"
+        assert result == str(expected)
+        assert expected.read_bytes() == b"real bytes"
 
     def test_does_not_overwrite_a_file_when_directory_is_requested(self, tmp_path):
         _write_output_file("Vendor_Onboarding.docx", b"real bytes")

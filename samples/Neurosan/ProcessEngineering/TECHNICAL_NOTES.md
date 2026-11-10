@@ -577,7 +577,7 @@ The service exposes:
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
 | `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
 | `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
-| `GET` | `/artifacts/portfolio_backlog_workbook/download` | Download the generated `portfolio_backlog.xlsx` SAFe workbook as a real file attachment. |
+| `GET` | `/artifacts/portfolio_backlog_workbook/download` | Download the generated `portfolio_backlog.xlsx` Enterprise Agile Portfolio Backlog workbook as a real file attachment. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |
 | `GET` | `/artifacts/cloudarch/download` | Download `output/cloudarch_drawio.xml` as a real file attachment (vs. `GET /artifacts/cloudarch`'s JSON-wrapped string, for the web client's own renderer). |
@@ -765,7 +765,7 @@ GET /artifacts/requirements/download             # the real requirements_summary
 GET /artifacts/proposal_response/download        # the real proposal_response.json bytes, as an attachment
 GET /artifacts/test_specification/download       # the real test_specification.json bytes, as an attachment
 GET /artifacts/portfolio_backlog/download        # the real portfolio_backlog.json bytes, as an attachment
-GET /artifacts/portfolio_backlog_workbook/download # the generated SAFe XLSX workbook
+GET /artifacts/portfolio_backlog_workbook/download # the generated Enterprise Agile Portfolio Backlog workbook
 ```
 
 A generated document's filename is never fixed -- each one is named after whatever process/design

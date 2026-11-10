@@ -79,13 +79,15 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
         assert json.load(file)["name"] == backlog["name"]
 
     workbook = load_workbook(paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME), data_only=False)
-    sheet = workbook["SAFe WSJF Backlog"]
+    sheet = workbook["Enterprise Agile Backlog"]
     assert workbook.sheetnames == [
-        "SAFe WSJF Backlog",
-        "SAFe WSJF Guide",
+        "Enterprise Agile Backlog",
+        "Portfolio Backlog Guide",
         "Assumptions",
+        "Role Rates",
     ]
-    assert sheet["A1"].value == "SAFe WSJF Backlog"
+    assert sheet["A1"].value == "Enterprise Agile Portfolio Backlog"
+    assert all(sheet[f"D{row}"].fill.fill_type is None for row in range(1, 4))
     assert sheet["A5"].value == "Work Item ID"
     assert sheet["L6"].value == "Epic"
     assert sheet["L7"].value == "Feature"
@@ -94,17 +96,26 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert sheet["M8"].value == "FEAT-001"
     assert sheet["N8"].value == "FR-001"
     assert sheet["P8"].value.startswith("- A vendor can save")
+    assert sheet["S5"].value == "Costed Roles"
+    assert "Role Rates" in sheet["S8"].value
+    assert "'Role Rates'!$B$8" in sheet["S8"].value
+    assert 'TEXT(\'Role Rates\'!$C$5,"0%")' in sheet["S8"].value
+    assert sheet["S6"].value == "Rolled up from child items; see story-level roles."
     assert sheet["H8"].value == "=SUM(E8:G8)"
     assert sheet["J8"].value == "=IFERROR(H8/I8,0)"
     assert sheet["K8"].value.startswith("=1+COUNTIFS(")
-    assert sheet["Q8"].value == "=I8*'Assumptions'!$B$5*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)"
+    assert sheet["Q8"].value == (
+        "=I8*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)"
+        "*IFERROR(SUMPRODUCT('Role Rates'!$C$5:$C$10,'Role Rates'!$D$5:$D$10)"
+        "/SUM('Role Rates'!$C$5:$C$10),0)"
+    )
     assert sheet["Q7"].value == "=SUMIF($M$6:$M$8,A7,$Q$6:$Q$8)"
     assert sheet["Q6"].value == "=SUMIF($M$6:$M$8,A6,$Q$6:$Q$8)"
     assert sheet["Q9"].value.startswith('=SUMIF($L$6:$L$8,"Epic"')
     assert {
         (sheet.cell(row, column).fill.fill_type, sheet.cell(row, column).fill.fgColor.rgb)
         for row in range(6, 9)
-        for column in range(1, 19)
+        for column in range(1, 20)
     } == {("solid", "00FFFFFF")}
     assert sheet["T2"].value == "=A6"
     assert sheet["U2"].value == "=J6"
@@ -113,15 +124,57 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     chart = sheet._charts[0]
     assert chart.anchor._from.row + 1 == 12
     assert chart.visible_cells_only is False
-    assert chart.series[0].cat.strRef.f == "'SAFe WSJF Backlog'!$T$2:$T$2"
-    assert chart.series[0].val.numRef.f == "'SAFe WSJF Backlog'!$U$2:$U$2"
+    assert chart.series[0].cat.strRef.f == "'Enterprise Agile Backlog'!$T$2:$T$2"
+    assert chart.series[0].val.numRef.f == "'Enterprise Agile Backlog'!$U$2:$U$2"
 
     assumptions = workbook["Assumptions"]
     assert assumptions["B4"].value == "USD"
-    assert assumptions["B5"].value == 1200
+    assert assumptions["B5"].value == "=SUM('Role Rates'!E5:E10)"
     assert assumptions["B6"].value == 1.5
     assert assumptions["B7"].value == 0.2
     assert "not a quote" in assumptions["B10"].value
+    assert [assumptions.cell(row, 1).value for row in range(4, 13)] == [
+        "Currency",
+        "Blended fully-loaded delivery cost per person-day",
+        "Effort per story point (person-days)",
+        "Contingency uplift",
+        "Story-level cost formula",
+        "Estimate scope",
+        "Estimate status",
+        "Source artifact",
+        "Source name",
+    ]
+    assert assumptions["A13"].value is None
+    assert assumptions["A14"].value is None
+
+    role_rates = workbook["Role Rates"]
+    assert role_rates["A4"].value == "Person"
+    assert role_rates["B4"].value == "Delivery Role"
+    assert role_rates["C4"].value == "Effort Mix"
+    assert role_rates["D4"].value == "Daily Rate (USD)"
+    assert role_rates["E4"].value == "Weighted Rate Contribution (USD/day)"
+    assert [role_rates.cell(row, 2).value for row in range(5, 11)] == [
+        "Product Owner",
+        "Business Analyst",
+        "Solution Architect",
+        "Software Engineer",
+        "QA Engineer",
+        "DevOps / Platform Engineer",
+    ]
+    assert all(role_rates.cell(row, 1).value == "TBD" for row in range(5, 11))
+    assert role_rates["F4"].value == "Rate Basis"
+    assert sum(role_rates.cell(row, 3).value for row in range(5, 11)) == 1.0
+    assert sum(
+        role_rates.cell(row, 3).value * role_rates.cell(row, 4).value
+        for row in range(5, 11)
+    ) == 1200
+    assert role_rates["E5"].value == "=IFERROR(C5/SUM($C$5:$C$10)*D5,0)"
+    assert all(
+        role_rates.cell(row, 6).value.startswith("Illustrative default")
+        for row in range(5, 11)
+    )
+    assert role_rates["C11"].value == "=SUM(C5:C10)"
+    assert role_rates["E11"].value == "=SUM(E5:E10)"
 
 
 def test_save_rejects_invalid_size_and_does_not_create_artifacts():
@@ -177,11 +230,11 @@ def test_workbook_expands_beyond_template_rows_without_losing_summary_formulas()
 
     assert result.startswith("SUCCESS:")
     workbook = load_workbook(paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME), data_only=False)
-    sheet = workbook["SAFe WSJF Backlog"]
+    sheet = workbook["Enterprise Agile Backlog"]
     assert sheet["A17"].value == "STORY-004"
     assert sheet["K17"].value.endswith("$J$17,\">\"&J17)")
     assert sheet["Q18"].value == '=SUMIF($L$6:$L$17,"Epic",$Q$6:$Q$17)'
     chart = sheet._charts[0]
     assert chart.anchor._from.row + 1 == 21
-    assert chart.series[0].cat.strRef.f == "'SAFe WSJF Backlog'!$T$2:$T$5"
-    assert chart.series[0].val.numRef.f == "'SAFe WSJF Backlog'!$U$2:$U$5"
+    assert chart.series[0].cat.strRef.f == "'Enterprise Agile Backlog'!$T$2:$T$5"
+    assert chart.series[0].val.numRef.f == "'Enterprise Agile Backlog'!$U$2:$U$5"

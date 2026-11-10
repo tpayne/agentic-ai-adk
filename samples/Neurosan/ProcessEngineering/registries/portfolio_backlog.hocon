@@ -2,11 +2,11 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Builds a traceable SAFe WSJF epic/feature/story backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied workbook with editable USD assumptions.",
+        "description": "Builds a traceable Enterprise Agile Portfolio Backlog from the saved design document or, if absent, the saved requirements summary, then generates the supplied workbook with editable USD assumptions.",
         "tags": ["safe-backlog", "wsjf", "process-engineering"],
         "sample_queries": [
-            "Create a SAFe WSJF backlog from the saved requirements.",
-            "Generate a SAFe WSJF backlog from the design, including epics, features, and stories.",
+            "Create an Enterprise Agile Portfolio Backlog from the saved requirements.",
+            "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories.",
             "Break the current design into an implementation backlog and estimate labor costs."
         ]
     },
@@ -15,7 +15,7 @@
         {
             "name": "Portfolio_Backlog_Pipeline",
             "function": {
-                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable SAFe WSJF backlog workbook with WSJF formulas and editable USD cost assumptions.",
+                "description": "Reads the saved design document, or the saved requirements summary if no design exists, and creates a traceable Enterprise Agile Portfolio Backlog workbook with WSJF formulas and editable USD cost assumptions.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -26,8 +26,8 @@
             },
             "instructions": """
 # ROLE
-Generate one traceable SAFe WSJF backlog from one saved source artifact, and save it with
-the supplied SAFe WSJF workbook template. Do not invent requirements or imply that illustrative costs
+Generate one traceable Enterprise Agile Portfolio Backlog from one saved source artifact, and save it with
+the supplied Enterprise Agile Portfolio Backlog workbook template. Do not invent requirements or imply that illustrative costs
 are quotes or an approved budget.
 
 # SOURCE SELECTION
@@ -58,7 +58,7 @@ scores. Each component and job_size must use only the modified Fibonacci values 
 Scores are relative planning judgments, never currency. Cover material security, privacy, access
 control, integration, resilience, migration, and operational work when present in the source.
 Create enabler work only when needed to deliver source-backed scope. Do not invent commitments,
-dates, team capacity, rates, licenses, or cloud costs.
+dates, team capacity, project-specific rates, licenses, or cloud costs.
 
 Before saving, verify unique IDs, valid score scales, traceability for every item, testable story
 acceptance criteria, and that each epic has a feature and each feature has a story.
@@ -67,8 +67,11 @@ acceptance criteria, and that each epic has a feature and each feature has a sto
 Call save_portfolio_backlog with the complete backlog JSON. If the result starts with ERROR, report
 the error and do not claim success. Otherwise report the chosen source, epic/feature/story counts,
 and the exact JSON/workbook paths returned. Costs are illustrative USD delivery-labor planning
-estimates; the workbook's Assumptions worksheet provides editable rate, effort-per-point, and
-contingency defaults. They are not quotes or an approved budget.
+estimates; the workbook's Assumptions worksheet retains the estimate method, effort-per-point, and
+contingency assumptions, while the separate Role Rates worksheet lists the TBD people, role mix, and
+illustrative daily rates. Each backlog line item identifies its costed role mix or indicates that it
+rolls up child-item costs. Clearly call out that names/rates and estimates must be validated before
+funding decisions. They are not quotes or an approved budget.
 """,
             "tools": [
                 "load_requirements_summary",
@@ -96,13 +99,13 @@ contingency defaults. They are not quotes or an approved budget.
         {
             "name": "save_portfolio_backlog",
             "function": {
-                "description": "Persists the generated SAFe WSJF backlog JSON and workbook.",
+                "description": "Persists the generated Enterprise Agile Portfolio Backlog JSON and workbook.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "backlog": {
                             "type": "object",
-                            "description": "The complete SAFe WSJF backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
+                            "description": "The complete Enterprise Agile Portfolio Backlog with nested epics, features, stories, source traceability, priority scores, and acceptance criteria."
                         }
                     },
                     "required": ["backlog"]

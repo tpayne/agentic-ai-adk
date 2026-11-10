@@ -42,13 +42,13 @@ def test_backlog_instructions_define_source_precedence_and_quality_contract():
     assert "budget." in text
 
 
-def test_root_router_routes_specific_safe_backlog_requests():
+def test_root_router_routes_specific_enterprise_agile_backlog_requests():
     text = _read("instructions/common/agent.txt")
 
-    assert "SAFe WSJF backlog signals are" in text
-    assert "### 1g. SAFe WSJF BACKLOG CREATION" in text
+    assert "Enterprise Agile Portfolio Backlog signals are" in text
+    assert "### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION" in text
     assert "→ Call: Portfolio_Backlog_Pipeline" in text
-    assert "SAFe WSJF backlog from saved requirements/design → Portfolio_Backlog_Pipeline" in text
+    assert "Enterprise Agile Portfolio Backlog from saved requirements/design → Portfolio_Backlog_Pipeline" in text
 
 
 def test_web_artifact_routes_expose_backlog_json_and_workbook():

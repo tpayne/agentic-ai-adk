@@ -1,4 +1,4 @@
-"""Shared SAFe portfolio-backlog generation and persistence."""
+"""Shared Enterprise Agile Portfolio Backlog generation and persistence."""
 
 from .portfolio_backlog import (
     load_portfolio_backlog,

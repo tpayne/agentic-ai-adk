@@ -17,7 +17,7 @@ It's based on Google ADK but uses `LiteLlm` under the hood, so you can point it 
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
 - **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
 - **Drafts a formal Response to Proposal/RFP** against a saved (or self-analyzed) requirements summary, and **generates a traceable test specification** — test cases with coverage-gap analysis — validating whichever of the saved requirements, design, and cloud architecture currently exist.
-- **Generates a SAFe WSJF backlog** from the saved design or, if none exists, the saved requirements summary — with traceable epics/features/stories, WSJF scoring, and a template-based Excel workbook with editable USD costing assumptions.
+- **Generates an Enterprise Agile Portfolio Backlog** from the saved design or, if none exists, the saved requirements summary — with traceable epics/features/stories, WSJF scoring, and a template-based Excel workbook with editable USD costing assumptions.
 
 ---
 
@@ -56,7 +56,7 @@ This suite is built from a set of ADK agent pipelines — each one a focused pip
 | `Proposal_Response_Consultant_Agent` | Proposal response consultant | Answers questions about the saved proposal response. | — |
 | `Proposal_Response_Reviewer_Agent` | Proposal response reviewer | Audits the saved proposal response for honesty/substance; fixes only when explicitly asked. | — |
 | `Test_Specification_Pipeline` | Test specification generator | Reads whichever of the saved requirements/design/cloud architecture exist (self-extracting the requirements summary from a named directory first, if none is saved yet), generates a traceable test specification with coverage-gap analysis, and renders the final document. | `Ensure_Requirements_Summary_Agent`, `Test_Specification_Agent`, `Test_Case_Chunk_Generator_Agent`, `Doc_Creation_Agent` |
-| `Portfolio_Backlog_Pipeline` | SAFe WSJF backlog generator | Uses the saved design, or the saved requirements summary when no design exists, to create traceable epics, features, and stories in the SAFe WSJF workbook template, with editable illustrative USD costing assumptions. | `Portfolio_Backlog_Agent` |
+| `Portfolio_Backlog_Pipeline` | Enterprise Agile Portfolio Backlog generator | Uses the saved design, or the saved requirements summary when no design exists, to create traceable epics, features, and stories in the Enterprise Agile Portfolio Backlog workbook template, with editable illustrative USD costing assumptions. | `Portfolio_Backlog_Agent` |
 | `Test_Consultant_Agent` | Test specification consultant | Answers questions about the saved test specification. | — |
 | `Test_Reviewer_Agent` | Test specification reviewer | Audits the saved test specification for quality (verifiability, traceability, coverage honesty); fixes only when explicitly asked. | — |
 | `Create_Doc_Agent` | Document regenerator | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | `Edge_Inference_Agent`, `Document_Generation_Agent` |
@@ -74,7 +74,7 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 - A saved proposal response (`proposal_response.json`) when you draft a Response to Proposal/RFP.
 - A saved, traceable test specification (`test_specification.json`) when you generate test cases validating the saved requirements/design/cloud architecture.
-- A saved SAFe WSJF backlog (`portfolio_backlog.json`) and workbook (`portfolio_backlog.xlsx`) with WSJF formulas and an editable `Assumptions` worksheet. Initial cost defaults are illustrative: $1,200 per fully loaded person-day, 1.5 person-days per story point, and 20% contingency. These are labor-planning estimates, not quotes.
+- A saved Enterprise Agile Portfolio Backlog (`portfolio_backlog.json`) and workbook (`portfolio_backlog.xlsx`) with WSJF formulas and editable `Assumptions` and `Role Rates` worksheets. Initial cost defaults are illustrative: $1,200 per fully loaded person-day, 1.5 person-days per story point, and 20% contingency. These are labor-planning estimates, not quotes.
 
 ---
 

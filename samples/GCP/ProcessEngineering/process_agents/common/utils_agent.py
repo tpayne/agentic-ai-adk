@@ -208,7 +208,7 @@ def clear_pipeline_lock() -> str:
 
 def download_artifact(target: str = "", destination: str = "") -> str:
     """Saves a copy of a generated artifact (the cloud architecture
-    diagram, generated IaC zip, SAFe WSJF backlog workbook, or Word document)
+    diagram, generated IaC zip, Enterprise Agile Portfolio Backlog workbook, or Word document)
     to a local filesystem path on the machine this agent process is running on.
 
     Call this when the user explicitly asks to download/save/export/copy
@@ -252,7 +252,7 @@ def download_artifact(target: str = "", destination: str = "") -> str:
     if filename is None:
         available = [doc["filename"] for doc in list_output_documents()]
         if portfolio_backlog_workbook_exists():
-            available.insert(0, "the SAFe WSJF backlog workbook (portfolio_backlog.xlsx)")
+            available.insert(0, "the Enterprise Agile Portfolio Backlog workbook (portfolio_backlog.xlsx)")
         if cloudarch_diagram_exists():
             available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
         listing = ", ".join(available) if available else "nothing has been generated yet"
