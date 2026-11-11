@@ -23,9 +23,22 @@ class LoopControlCodedTool(_SharedLoopControlCodedTool):
     other network re-exports unwrapped."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        result = super().invoke(args, sly_data)
+        # Release on a genuine STOP verdict (unchanged) -- but ALSO on an
+        # exception from the shared decision logic itself, which would
+        # otherwise leak the lock for up to run_lock.
+        # DEFAULT_STALE_AFTER_SECONDS (20 minutes), exactly the confirmed
+        # stuck-lock bug fixed on every OTHER pipeline's own finalize tool
+        # (see design/doc_generation_tool.py's docstring). Must NOT
+        # release on a normal CONTINUE verdict -- the pipeline is still
+        # mid-loop and genuinely still holds (and needs) the lock then.
+        token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        try:
+            result = super().invoke(args, sly_data)
+        except Exception:
+            stop_pipeline_lock_heartbeat(token)
+            release_pipeline_lock(token)
+            raise
         if isinstance(result, dict) and result.get("verdict") == "STOP":
-            token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
             stop_pipeline_lock_heartbeat(token)
             release_pipeline_lock(token)
         return result

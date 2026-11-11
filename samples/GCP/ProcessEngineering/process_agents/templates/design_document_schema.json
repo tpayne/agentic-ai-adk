@@ -1359,6 +1359,27 @@
               "description": {
                 "type": "string"
               },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "key_design_decisions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scope_and_operational_boundaries": {
+                "type": "string"
+              },
+              "technology_stack": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "class_design": {
                 "type": "object",
                 "properties": {

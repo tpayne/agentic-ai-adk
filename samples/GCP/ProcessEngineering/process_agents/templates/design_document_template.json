@@ -327,6 +327,16 @@
                 "component_name": "string",
                 "module_name": "string",
                 "description": "string",
+                "dependencies": [
+                    "string"
+                ],
+                "key_design_decisions": [
+                    "string"
+                ],
+                "scope_and_operational_boundaries": "string",
+                "technology_stack": [
+                    "string"
+                ],
                 "class_design": {
                     "diagram": {
                         "diagram_id": "string",

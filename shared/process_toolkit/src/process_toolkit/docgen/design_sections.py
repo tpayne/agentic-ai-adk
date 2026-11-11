@@ -100,15 +100,87 @@ def _add_requirements_table(doc: docx.Document, items, include_category: bool) -
     doc.add_paragraph()
 
 
+def _add_requirements_traceability_table(
+    doc: docx.Document, requirements: dict, high_level_design: dict, low_level_design: dict,
+) -> bool:
+    """Requirements Traceability -- joins every functional/non-functional
+    requirement (by id) against (a) the "satisfies_requirements" list on
+    every high_level_design/low_level_design component, reversed into
+    requirement_id -> [component names], and (b)
+    requirements.traceability_matrix[]'s own verification_method for that
+    same id. Three columns: Requirement, Satisfying Component(s),
+    Verification Method -- a column with no source data shows "—" rather
+    than the row being omitted, so a reviewer sees an unsatisfied or
+    unverified requirement directly instead of it silently disappearing.
+    No-ops (returns False) if neither a component's satisfies_requirements
+    nor the traceability_matrix has anything to show -- a bare requirements
+    table with every cell reading "—" would add noise, not traceability."""
+    functional = [r for r in (requirements.get("functional_requirements") or []) if isinstance(r, dict)]
+    non_functional = [r for r in (requirements.get("non_functional_requirements") or []) if isinstance(r, dict)]
+    all_reqs = functional + non_functional
+    if not all_reqs:
+        return False
+
+    satisfying = {}
+    for comp_list in (
+        (high_level_design or {}).get("components"),
+        (low_level_design or {}).get("components"),
+    ):
+        for comp in (comp_list or []):
+            if not isinstance(comp, dict):
+                continue
+            name = _component_name(comp)
+            for rid in (comp.get("satisfies_requirements") or []):
+                satisfying.setdefault(str(rid), []).append(name)
+
+    verification = {}
+    for entry in (requirements.get("traceability_matrix") or []):
+        if isinstance(entry, dict) and entry.get("requirement_id"):
+            verification[str(entry["requirement_id"])] = entry.get("verification_method")
+
+    if not satisfying and not verification:
+        return False
+
+    doc.add_paragraph(
+        "This table traces each requirement to the component(s) that satisfy "
+        "it and the method by which it is verified, so a reviewer can confirm "
+        "no requirement has been left unaddressed or unverified."
+    )
+
+    all_reqs = sorted(all_reqs, key=lambda r: _natural_sort_key(r.get("id")))
+
+    headers = ["Requirement", "Satisfying Component(s)", "Verification Method"]
+    table = doc.add_table(rows=1, cols=len(headers))
+    _set_header_row(table, headers)
+
+    for r in all_reqs:
+        rid = str(r.get("id") or "")
+        row = table.add_row().cells
+        row[0].text = rid or "N/A"
+        comps = satisfying.get(rid)
+        row[1].text = ", ".join(dict.fromkeys(comps)) if comps else "—"
+        method = verification.get(rid)
+        row[2].text = str(method).replace("_", " ").title() if method else "—"
+
+    apply_iso_table_formatting(table, doc)
+    doc.add_paragraph()
+    return True
+
+
 def _add_requirements_section(
     doc: docx.Document, requirements: dict, heading: str = "3.0 Requirements",
+    high_level_design: dict = None, low_level_design: dict = None,
 ) -> bool:
     """3.0 Requirements -- ISO/IEC/IEEE 29148 style. Functional and
     non-functional requirements each get their own opening paragraph and
     a fixed-column, X.X-numbered table (id/priority/description/
     acceptance criteria, plus a category column derived from the
     ISO/IEC 25010 characteristic for non-functional requirements), sorted
-    by id then priority."""
+    by id then priority. If `high_level_design`/`low_level_design` are
+    given, a final Requirements Traceability subsection joins requirements
+    against each component's own satisfies_requirements and the
+    traceability_matrix's verification_method (see
+    _add_requirements_traceability_table)."""
     try:
         if not isinstance(requirements, dict) or not requirements:
             return False
@@ -149,6 +221,17 @@ def _add_requirements_section(
                 "(ISO/IEC 25010)."
             )
             _add_requirements_table(doc, non_functional, include_category=True)
+
+        if high_level_design is not None or low_level_design is not None:
+            heading_pos = doc.add_heading(f"{lead}.{subsection} Requirements Traceability", level=2)
+            rendered = _add_requirements_traceability_table(
+                doc, requirements, high_level_design or {}, low_level_design or {}
+            )
+            if not rendered:
+                # No satisfies_requirements/traceability_matrix data to show --
+                # remove the heading just added rather than leaving an empty
+                # "Requirements Traceability" subsection with nothing under it.
+                heading_pos._element.getparent().remove(heading_pos._element)
 
         return True
 
@@ -593,6 +676,78 @@ def _add_architecture_analysis(doc: docx.Document, architecture_analysis, level:
                 p.paragraph_format.space_before = Pt(10)
                 p.add_run("Recommendation: ").bold = True
                 p.add_run(str(recommendation))
+
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def _add_architecture_decisions_section(
+    doc: docx.Document, architecture_decisions, heading: str = "5.2 Architecture Decisions",
+) -> bool:
+    """Architecture Decision Records -- one per real recommendation reached
+    in architecture_analysis above, persisted so a reader can trace WHY a
+    choice was made, not just WHAT exists. Deliberately has no status/
+    date/decided-by column: design_document_schema.json's own comment on
+    its earlier, removed "architecture_rationale"/decisionRecord field
+    documents that giving the generating agent one produced fabricated
+    decision-meeting content, so the schema simply carries no such field
+    for this renderer to show."""
+    try:
+        items = [d for d in (architecture_decisions or []) if isinstance(d, dict)]
+        if not items:
+            return False
+
+        doc.add_heading(heading, level=2)
+        doc.add_paragraph(
+            "The following records the key architectural decisions made for this "
+            "design, the alternatives considered, and the consequences each one "
+            "commits the design to."
+        )
+
+        items = sorted(items, key=lambda d: _natural_sort_key(d.get("id")))
+
+        for item in items:
+            decision_id = item.get("id")
+            title = item.get("title") or "Decision"
+            heading_text = f"{decision_id}: {title}" if decision_id else str(title)
+            doc.add_heading(heading_text, level=3)
+
+            context = item.get("context")
+            if context:
+                p = doc.add_paragraph()
+                p.add_run("Context: ").bold = True
+                p.add_run(str(context))
+
+            decision = item.get("decision")
+            if decision:
+                p = doc.add_paragraph()
+                p.add_run("Decision: ").bold = True
+                p.add_run(str(decision))
+
+            alternatives = [
+                a for a in (item.get("alternatives_considered") or []) if isinstance(a, dict)
+            ]
+            if alternatives:
+                p = doc.add_paragraph()
+                p.paragraph_format.space_before = Pt(6)
+                p.add_run("Alternatives Considered:").bold = True
+                for alt in alternatives:
+                    option = alt.get("option") or "Alternative"
+                    rejected_because = alt.get("rejected_because")
+                    text = f"{option} -- rejected because {rejected_because}" if rejected_because else str(option)
+                    _bullet_at(doc, text, indent_inches=0.0)
+
+            consequences = item.get("consequences")
+            if consequences:
+                p = doc.add_paragraph()
+                p.paragraph_format.space_before = Pt(6)
+                p.add_run("Consequences: ").bold = True
+                p.add_run(str(consequences))
 
             doc.add_paragraph()
 
@@ -1221,6 +1376,125 @@ def _add_low_level_design_section(
             rendered_any = True
 
         return rendered_any
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+# ============================================================
+# OPERATIONAL READINESS
+# ============================================================
+
+def _add_operational_readiness_section(
+    doc: docx.Document, operational_readiness: dict, heading: str = "10.0 Operational Readiness",
+) -> bool:
+    """Operational Readiness -- ownership/support/escalation/monitoring/
+    alerting for running this design day-to-day, plus any runbooks. A
+    design that only names failure modes (risk_register/
+    risks_and_mitigations) with no response model for them is not
+    actually operationally ready; this section is where that response
+    model lives. No-ops on an empty/absent dict -- same convention as
+    every other optional top-level design section here."""
+    try:
+        if not isinstance(operational_readiness, dict) or not operational_readiness:
+            return False
+
+        fields = (
+            operational_readiness.get("support_model"),
+            operational_readiness.get("escalation_path"),
+            operational_readiness.get("monitoring_strategy"),
+            operational_readiness.get("alerting_strategy"),
+            operational_readiness.get("maintenance_activities"),
+            operational_readiness.get("runbooks"),
+        )
+        ownership = operational_readiness.get("ownership")
+        if not any(fields) and not (isinstance(ownership, dict) and any(ownership.values())):
+            return False
+
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This section describes how this design is owned, supported, and "
+            "monitored once in operation, and the runbooks available for "
+            "responding to its known failure modes."
+        )
+
+        if isinstance(ownership, dict) and any(ownership.values()):
+            team = ownership.get("team")
+            contact = ownership.get("contact")
+            p = doc.add_paragraph()
+            p.add_run("Ownership: ").bold = True
+            p.add_run(", ".join(str(v) for v in (team, contact) if v) or "—")
+
+        for key, label in (
+            ("support_model", "Support Model"),
+            ("escalation_path", "Escalation Path"),
+            ("monitoring_strategy", "Monitoring Strategy"),
+            ("alerting_strategy", "Alerting Strategy"),
+        ):
+            value = operational_readiness.get(key)
+            if value:
+                p = doc.add_paragraph()
+                p.add_run(f"{label}: ").bold = True
+                p.add_run(str(value))
+
+        _add_bulleted_group(doc, "Maintenance Activities", operational_readiness.get("maintenance_activities"), indent_inches=0.0)
+
+        runbooks = [r for r in (operational_readiness.get("runbooks") or []) if isinstance(r, dict)]
+        if runbooks:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            p.add_run("Runbooks").bold = True
+
+            headers = ["Title", "Trigger", "Reference"]
+            table = doc.add_table(rows=1, cols=len(headers))
+            _set_header_row(table, headers)
+            for rb in runbooks:
+                row = table.add_row().cells
+                row[0].text = str(rb.get("title", ""))
+                row[1].text = str(rb.get("trigger", ""))
+                row[2].text = str(rb.get("reference", "") or "—")
+            apply_iso_table_formatting(table, doc)
+            doc.add_paragraph()
+
+        return True
+
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
+def _add_review_governance_checklist_section(
+    doc: docx.Document, review_and_governance: dict, heading: str = "19.0 Review and Governance",
+) -> bool:
+    """review_and_governance's "sign_off_criteria"/"reconsideration_triggers"
+    only -- NOT review_history/change_log/approval_workflow, which describe
+    events (reviews, approvals) that have not happened yet and are
+    deliberately left unrendered elsewhere to avoid displaying fabricated
+    reviewer names/dates. sign_off_criteria/reconsideration_triggers are
+    forward-looking design statements (what a reviewer would check, what
+    would make this design worth revisiting), not a record of an event,
+    so they are real, groundable content with nothing to fabricate."""
+    try:
+        if not isinstance(review_and_governance, dict) or not review_and_governance:
+            return False
+
+        sign_off = [s for s in (review_and_governance.get("sign_off_criteria") or []) if isinstance(s, str) and s.strip()]
+        triggers = [s for s in (review_and_governance.get("reconsideration_triggers") or []) if isinstance(s, str) and s.strip()]
+        if not sign_off and not triggers:
+            return False
+
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(
+            "This section lists the criteria a reviewer would check before "
+            "signing off on this design, and the conditions that would make "
+            "this design worth reconsidering."
+        )
+
+        _add_bulleted_group(doc, "Sign-Off Criteria", sign_off, indent_inches=0.0)
+        _add_bulleted_group(doc, "Reconsideration Triggers", triggers, indent_inches=0.0)
+
+        return True
 
     except Exception:
         traceback.print_exc()

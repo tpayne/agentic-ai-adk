@@ -15,19 +15,28 @@ class GenerateProcessDocumentCodedTool(CodedTool):
 
     This is process.hocon/process_update.hocon's own genuine last step
     (reset_loop_state -> generate/review loop -> subprocess expansion ->
-    flow diagram -> THIS) -- on success, also releases the shared output/
-    directory's pipeline lock (see process_toolkit.run_lock).
-    release_pipeline_lock(None) is a safe no-op for any OTHER caller that
-    never acquired a lock in the first place (none currently does)."""
+    flow diagram -> THIS) -- releases the shared output/ directory's
+    pipeline lock (see process_toolkit.run_lock) UNCONDITIONALLY, success
+    or failure. release_pipeline_lock(None) is a safe no-op for any OTHER
+    caller that never acquired a lock in the first place (none currently
+    does).
+
+    CONFIRMED PRODUCTION BUG (data corruption) on the design-document
+    equivalent of this tool, fixed here too: releasing only on a
+    "SUCCESS:"-prefixed result leaves the lock stuck -- for up to
+    run_lock.DEFAULT_STALE_AFTER_SECONDS (20 minutes) -- on any exception
+    or legitimate non-SUCCESS return. A `finally` block guarantees the
+    release always fires, matching the ADK port's own equivalent fix
+    (process_agents.common.utils_agent.release_pipeline_lock_after_run)."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        process_name = args.get("process_name") or "Process"
-        result = create_standard_doc_from_file(process_name, schema_type="process")
-        if isinstance(result, str) and result.startswith("SUCCESS:"):
-            token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        try:
+            process_name = args.get("process_name") or "Process"
+            return create_standard_doc_from_file(process_name, schema_type="process")
+        finally:
             stop_pipeline_lock_heartbeat(token)
             release_pipeline_lock(token)
-        return result
 
     async def async_invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return await asyncio.to_thread(self.invoke, args, sly_data)

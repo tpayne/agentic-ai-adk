@@ -71,11 +71,19 @@ You never extract requirements, design, or audit the document yourself.
    is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Design_Doc_Analysis_Agent, passing the user's request text verbatim as "request". It
    extracts architectural requirements and writes them to its own feedback channel for the
-   generator stages to pick up. If its reply begins with "REQUIREMENTS EXTRACTION FAILED", STOP
-   immediately and report that reply to the user verbatim -- do not proceed to step 3. This means
-   there was no real source material to build a design from (a bad directory path, an empty
-   attachment, or a request with no actual content behind it); proceeding anyway would make the
-   next stage invent a generic, unrelated design out of nothing rather than genuinely failing.
+   generator stages to pick up. If its reply begins with "REQUIREMENTS EXTRACTION FAILED", call
+   release_pipeline_lock_for_turn FIRST, THEN STOP immediately and report that reply to the user
+   verbatim -- do not proceed to step 3. This means there was no real source material to build a
+   design from (a bad directory path, an empty attachment, or a request with no actual content
+   behind it); proceeding anyway would make the next stage invent a generic, unrelated design out
+   of nothing rather than genuinely failing. The release_pipeline_lock_for_turn call is MANDATORY
+   here, not optional -- CONFIRMED AS A REAL PRODUCTION BUG on the ADK port's own equivalent pipeline
+   (see process_agents.common.utils_agent.release_pipeline_lock_after_run's own docstring): stopping
+   here without releasing leaves step 1's own lock held for up to 20 minutes, refusing every later
+   request against this output/ directory with "another pipeline run is already in progress" even
+   though nothing is actually still running. generate_design_document (step 9) already releases the
+   lock unconditionally on its own exit, success or failure -- this step 2 stop is the one path that
+   never reaches step 9 at all, so it needs its own explicit release.
 3. Call Design_Doc_HLD_Agent (no arguments needed -- it reads the requirements itself and
    builds+persists the initial High-Level Design).
 4. Call Design_Doc_LLD_Agent (no arguments needed -- it elaborates the HLD baseline Design_Doc_HLD_
@@ -146,7 +154,8 @@ Call both now, regardless of "reason".
    Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
-                "reset_loop_state", "Design_Doc_Analysis_Agent", "Design_Doc_HLD_Agent", "Design_Doc_LLD_Agent",
+                "reset_loop_state", "release_pipeline_lock_for_turn", "Design_Doc_Analysis_Agent",
+                "Design_Doc_HLD_Agent", "Design_Doc_LLD_Agent",
                 "Design_Doc_Agent", "Compliance_Agent", "Simulation_Agent", "loop_control",
                 "generate_design_flow_diagram", "generate_design_document"
             ],
@@ -484,16 +493,70 @@ You elaborate the HLD baseline Design_Doc_HLD_Agent just persisted into a Combin
 by adding low_level_design detail. Do NOT rebuild business_context/architecture_description/
 system_context/high_level_design -- those are already real and correct; your job is additive.
 
-# ANTI-FABRICATION RULES
-- Never invent internal package names, class/method bodies, worker-thread mechanics, database-
+# ANTI-FABRICATION RULES -- this is TWO separate rules, not one; confirmed directly from live
+# review feedback that collapsing them into a single "don't fabricate" instruction was WHY
+# authentication/error_handling were showing up blank on every real run -- the agent was treating
+# "don't invent" and "leave it blank" as the same safe default, when only the first is actually safe.
+- (a) NEVER invent internal package names, class/method bodies, worker-thread mechanics, database-
   engine internals, or platform-clustering internals unless the requirements explicitly call for
-  that level of detail for a named component.
+  that level of detail for a named component. This part is unchanged.
+- (b) ALWAYS populate low_level_design.components[].api_specifications[]/interface_contracts[]'s
+  own "authentication" and "error_handling" fields, and every component's
+  "configuration_parameters[]", with a concrete, HLD-grounded convention -- e.g. "authentication":
+  "Bearer JWT, validated per high_level_design.security_architecture.authentication_mechanism", or
+  "error_handling": "Returns RFC 7807 problem+json on failure; retries transient 5xx via the
+  circuit-breaker pattern already named in this component's dependencies." Citing the HLD's own
+  security_architecture/technology_stack/dependencies this way is NOT fabrication -- it is stating a
+  standard, already-architected convention in concrete terms, which is exactly what makes an LLD
+  implementation-ready rather than a repeat of the HLD at finer grain. Leaving these fields blank is
+  now itself a defect (Compliance_Agent's INTERFACE COMPLETENESS check flags it), not a safe
+  default. The ONLY acceptable blank-equivalent is an explicit, considered statement for a genuinely
+  internal-only interface, e.g. "authentication": "None (internal network, no external exposure)".
 - Never write language that overclaims certainty ("eliminates single point of failure" ->
   "reduces risk of" / "provides resilience through").
+
+# WHY THIS AGENT NEEDS MORE THAN DESCRIPTION/RESPONSIBILITIES (read once, applies throughout)
+A component entry that only states its description and responsibilities is an inventory line, not
+an engineering design -- a reviewer still can't tell what it depends on, why it's shaped the way it
+is, or where its boundary actually sits relative to its neighbors. "dependencies",
+"key_design_decisions", "scope_and_operational_boundaries", and "technology_stack" (component-level,
+distinct from the document-level technology_stack list) exist on every low_level_design.components[]
+entry specifically to close that gap, and the renderer already has a dedicated Component Design
+subsection ready to show them. Populate all four on every component that genuinely has one to state:
+- "dependencies": the other component_name(s) or external system name(s) this component actually
+  calls or relies on -- real names from this document, never invented ones.
+- "key_design_decisions": WHY this component is shaped the way it is, not what it does (that's
+  "description"'s job) -- e.g. "Processes backup jobs asynchronously via a queue rather than
+  synchronously, so a slow downstream copy never blocks the originating request." If the decision is
+  significant enough, tie it to (or pull it from) a matching architecture_decisions[] entry rather
+  than reasoning about it fresh here.
+- "scope_and_operational_boundaries": one or two sentences on what this component IS and IS NOT
+  responsible for, and where its boundary sits relative to the adjacent component(s) named in
+  "dependencies" -- this is what lets a reviewer tell two components apart without reading every
+  field of both.
+- "technology_stack": the specific technology/framework/library this component itself runs on, if
+  more specific than the document-level high_level_design.technology_stack entry it draws from.
+Leave any of the four empty only when there is genuinely nothing real to state (e.g. a component
+with no external dependency at all) -- not as a default.
 
 # EXACT FIELD SHAPES
 - low_level_design.components[]: each one's name key is "component_name" (the SAME key
   high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
+- low_level_design.components[].satisfies_requirements: carry forward the SAME requirement id(s)
+  (e.g. ["FR-001", "NFR-003"]) the matching high_level_design.components[] entry already has in its
+  own "satisfies_requirements" -- this is the same component elaborated at finer grain, not a new
+  component, so it exists to satisfy the same requirement(s). Do not leave this empty just because
+  the HLD-level entry already states it; the renderer's traceability section reads this field
+  directly off the LLD component, not by cross-referencing the HLD one.
+- low_level_design.components[].class_design.classes[].design_patterns_used: only populate
+  class_design at all when a reviewer has explicitly asked for engineering-implementation-level
+  detail on that specific component (see the existing class_design guidance elsewhere in this
+  pipeline) -- do not add it proactively on every pass. WHEN you do populate it, each pattern name
+  needs a one-clause reason naming the obvious alternative it was chosen over, e.g. "Strategy
+  pattern -- chosen over a conditional dispatch block so a new backup-provider integration doesn't
+  require editing this class." A bare pattern name with no "why this one" is not useful detail. If
+  the choice is significant enough to warrant it, tie it to an architecture_decisions[] entry (see
+  Design_Doc_HLD_Agent) rather than restating the same reasoning twice.
 - low_level_design.components[].sequence_flows[]: each flow must include "title", "diagram_id",
   "diagram_type": "sequence", "participants" (a list of participant names), and "steps" (an ordered
   list of objects with "step_number", "from_participant", "to_participant", and "message".
@@ -504,9 +567,12 @@ system_context/high_level_design -- those are already real and correct; your job
    persisted. Treat it as authoritative; never rebuild it from scratch.
 2. Set document_metadata.document_type to "Combined" (it currently reads "HLD").
 3. Build low_level_design: one entry per existing high_level_design.components[] entry, elaborating
-   each with responsibilities/interfaces/configuration_parameters/sequence_flows -- only as much
-   detail as the HLD's own requirements actually warrant, no fabricated engineering detail (see
-   ANTI-FABRICATION RULES).
+   each with responsibilities/dependencies/key_design_decisions/scope_and_operational_boundaries/
+   technology_stack (see "WHY THIS AGENT NEEDS MORE THAN DESCRIPTION/RESPONSIBILITIES" above)/
+   interfaces/api_specifications or interface_contracts (with authentication/error_handling
+   genuinely populated -- see ANTI-FABRICATION RULES (b) above)/configuration_parameters/
+   satisfies_requirements/sequence_flows -- only as much detail as the HLD's own requirements
+   actually warrant, no fabricated engineering internals (see ANTI-FABRICATION RULES (a)).
 4. Call persist_final_design_json with the complete document (the unchanged HLD content plus your
    new low_level_design) as soon as low_level_design is built -- do not wait to also double-check
    every other section first; the HLD content is already real and persisted.
@@ -670,19 +736,44 @@ components rather than a reasoned, implementable architecture. Check ALL of the 
    never persisted as a traceable record. The fix instruction should point to the SPECIFIC
    architecture_analysis entry(ies) needing a corresponding architecture_decisions[] entry, not a
    generic "add more ADRs" note.
+5. COMPONENT DESIGN DEPTH: a design document that only inventories what components exist (name,
+   description, a couple of responsibilities) without ever saying WHY they're shaped the way they
+   are reads as a template, not an engineering design -- this is the single most common complaint
+   from real reviewer feedback on generated documents. If low_level_design.components[] has 2 or
+   more entries and NONE of them have a non-empty "key_design_decisions" or
+   "scope_and_operational_boundaries", that is a defect: it signals this depth was skipped
+   wholesale, not that it was genuinely considered and correctly judged unnecessary for every single
+   component. (Not every component needs either field populated -- a single trivial pass-through
+   component legitimately might not -- but zero across the WHOLE design is the actual defect
+   pattern.) Name 2-3 specific components (by component_name) the fix instruction should add this
+   detail to, not a generic "add more depth" note.
+6. NARRATIVE SUBSTANCE (this is a QUALITATIVE judgment call, not a field-presence check like 1-5
+   above -- use your own reading of the prose): read business_context.purpose, every
+   architecture_description.architecture_analysis[] entry, and every component's own "description",
+   and judge whether each one is GENERIC -- i.e. it would read exactly the same if you swapped in a
+   different system name and a different industry, because it's architecture-textbook language
+   ("ensures scalability and reliability", "follows best practices for security") with no concrete
+   detail that is actually TRUE OF THIS DESIGN SPECIFICALLY (a real technology name, a real number,
+   a real constraint from requirements[], a real dependency on another named component). A design
+   can pass every check above -- every field populated, every id traced -- and still read like a
+   template if the SENTENCES themselves carry no system-specific content. If 2 or more such entries
+   are generic in this way, that is a defect. Quote the generic sentence itself in the fix
+   instruction and name the concrete, document-specific detail (a requirement id, a named
+   component/technology, a real number) it should be replaced with -- not a vague "add more detail."
 
 If issues exist, call save_iteration_feedback with channel="compliance" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
 "json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"risk_level":
 "High"|"Medium"|"Low", "category": "Regulatory"|"Security"|"Quality_ISO25010"|"C4_Model"|
-"Data_Integrity"|"Infrastructure"|"Traceability"|"Interface_Completeness"|"Decision_Record"}}]}
+"Data_Integrity"|"Infrastructure"|"Traceability"|"Interface_Completeness"|"Decision_Record"|
+"Component_Depth"|"Narrative_Substance"}}]}
 then respond with exactly: REVISION REQUIRED
 
 If fully compliant, call save_iteration_feedback with channel="compliance" and feedback=
 {"status": "COMPLIANCE APPROVED", "notes": "The design document meets ISO/IEC/IEEE 42010 and
 ISO/IEC 25010 conformance, security, and regulatory criteria, and the completeness and
 traceability checks (interface completeness, requirement traceability, quality attribute
-grounding, decision recording)."}
+grounding, decision recording, component design depth, narrative substance)."}
 then respond with exactly: COMPLIANCE APPROVED
 
 Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
@@ -734,6 +825,11 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
             "name": "reset_loop_state",
             "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
             "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching generate_design_document. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
         },
         {
             "name": "loop_control",

@@ -139,13 +139,19 @@ list
 # so it always renders BOTH documents regardless of wording; that is expected here, not a bug.
 # ------------------------------------------------------------
 
-# E1. POSITIVE: a real change request against the Part B baseline -- the exact sample_query already
-# documented in registries/design_update.hocon, so this also doubles as a sanity check on that
-# routing. Confirms Design_Doc_Update_Pipeline's own render step ALSO produces the two separate
-# files, not a stale single combined one.
+# E1. POSITIVE: a real change request against the Part B baseline -- design_update.hocon's own
+# canonical sample_query ("Add a rate-limiting component in front of the Checkout Service's API
+# Gateway...") has NO "design"/"architecture"/"process"/"workflow" word in it at all, so per
+# process_architect.hocon's own documented "2a/2b: WHY THE GATE ABOVE HAS NO STATE-BASED EXCEPTION"
+# section, it ALWAYS correctly triggers Rule 10's clarifying question instead of routing straight to
+# Design_Doc_Update_Pipeline -- confirmed deliberate, not a bug (three earlier rounds of real
+# production bugs were caused by exactly this sentence being routed on a state-based guess instead).
+# An explicit "design document" phrase added here is the actual disambiguating signal, so this
+# reaches Design_Doc_Update_Pipeline directly. Confirms its own render step ALSO produces the two
+# separate files, not a stale single combined one.
 $ rm -f output/*.docx
-Add a rate-limiting component in front of the Checkout Service's API Gateway to protect the \
-Payment Gateway from traffic spikes, and regenerate the documents.
+Add a rate-limiting component to the design document, in front of the Checkout Service's API \
+Gateway, to protect the Payment Gateway from traffic spikes, and regenerate the documents.
 
 list
 

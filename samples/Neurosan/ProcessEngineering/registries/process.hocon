@@ -64,11 +64,19 @@ all. Step 7 MUST fully complete (its result message received) before you call st
    is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call Analysis_Agent, passing the user's request text verbatim as "request". It extracts
    requirements and writes them to its own feedback channel for Design_Agent to pick up. If its
-   reply begins with "REQUIREMENTS EXTRACTION FAILED", STOP immediately and report that reply to
-   the user verbatim -- do not proceed to step 3. This means there was no real source material to
-   build a process from (a bad directory path, an empty attachment, or a request with no actual
-   content behind it); proceeding anyway would make Design_Agent invent a generic, unrelated
-   process out of nothing rather than genuinely failing.
+   reply begins with "REQUIREMENTS EXTRACTION FAILED", call release_pipeline_lock_for_turn FIRST,
+   THEN STOP immediately and report that reply to the user verbatim -- do not proceed to step 3.
+   This means there was no real source material to build a process from (a bad directory path, an
+   empty attachment, or a request with no actual content behind it); proceeding anyway would make
+   Design_Agent invent a generic, unrelated process out of nothing rather than genuinely failing.
+   The release_pipeline_lock_for_turn call is MANDATORY here, not optional -- CONFIRMED AS A REAL
+   PRODUCTION BUG on the ADK port's own equivalent pipeline (see process_agents.common.utils_agent.
+   release_pipeline_lock_after_run's own docstring): stopping here without releasing leaves step
+   1's own lock held for up to 20 minutes, refusing every later request against this output/
+   directory with "another pipeline run is already in progress" even though nothing is actually
+   still running. generate_process_document (the final step) already releases the lock
+   unconditionally on its own exit, success or failure -- this step 2 stop is the one path that
+   never reaches it at all, so it needs its own explicit release.
 3. Call Design_Agent (no arguments needed -- it reads the requirements and any prior review
    feedback itself).
 4. Call Compliance_Agent (no arguments -- it loads the current design itself).
@@ -116,7 +124,8 @@ whatever is currently on disk. Call all three now, regardless of "reason".
     Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
-                "reset_loop_state", "Analysis_Agent", "Design_Agent", "Compliance_Agent", "Simulation_Agent",
+                "reset_loop_state", "release_pipeline_lock_for_turn", "Analysis_Agent", "Design_Agent",
+                "Compliance_Agent", "Simulation_Agent",
                 "loop_control", "Subprocess_Driver_Agent", "generate_process_flow_diagram", "generate_process_document"
             ],
             # Summarizes this agent's own growing tool-call history once it
@@ -425,6 +434,11 @@ Do not output the subprocess JSON as chat text -- it belongs only inside the too
             "name": "reset_loop_state",
             "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
             "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching generate_process_document. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
         },
         {
             "name": "loop_control",

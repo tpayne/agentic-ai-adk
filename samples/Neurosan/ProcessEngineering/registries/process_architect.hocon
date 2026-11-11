@@ -1224,21 +1224,38 @@ which pipeline held the lock and for how long, if it reports one) back to the us
 language, then stop -- do not also attempt the user's original request in the same response; let
 them ask again once the lock is cleared.
 
-## AUTOMATIC CLEAR-AND-RETRY ON A LOCK CONFLICT
+## NEVER AUTO-CLEAR ON A LOCK CONFLICT (CONFIRMED PRODUCTION BUG -- DATA CORRUPTION)
 If a sub-network tool call you yourself just made comes back with a lock-conflict error (any
 message to the effect that another pipeline run/process is already in progress, or is still
-finalizing files, in the output directory):
-1. Call `clear_pipeline_lock` yourself, without asking the user first.
-2. Retry the EXACT SAME tool call you just made -- same tool, same arguments -- exactly once.
-3. If that retry succeeds, continue normally -- the user should see the actual result of their
-   original request, not a detour about a lock.
-4. If the retry ALSO fails with a lock conflict, STOP retrying (do not loop) and relay the retry's
-   own exact error message to the user verbatim (see the rule below) -- do not call
-   `clear_pipeline_lock` a second time in the same response.
+finalizing files, in the output directory): relay that error message to the user verbatim (see
+"NEVER INVENT AN EXPLANATION FOR A LOCK ERROR" below) and STOP -- do NOT call `clear_pipeline_lock`
+yourself, and do NOT retry the tool call. This is the ONLY safe behavior; a previous version of
+this rule auto-cleared and retried, and that is now confirmed to actively CAUSE data corruption,
+not just an unnecessary detour:
 
-This auto-clear-and-retry is specifically for a conflict surfacing DURING a pipeline attempt -- it
-does not change the EXPLICIT REQUEST case above, and does not apply when the user is just asking a
-question with no pipeline call involved.
+`acquire_pipeline_lock` (process_toolkit/run_lock.py) already has its OWN self-healing staleness
+check built in -- a lock older than DEFAULT_STALE_AFTER_SECONDS (20 minutes) is reclaimed
+automatically, with no `clear_pipeline_lock` call needed at all. That means a lock-conflict error
+can ONLY ever surface when the lock is FRESH -- i.e. exactly when another pipeline run is
+genuinely, actively still in progress. Auto-clearing on EVERY lock-conflict error therefore does
+not "recover from a stuck lock" (a genuinely stuck/abandoned lock already self-heals without any
+help) -- it ALWAYS force-kills a real, live, still-finishing run and lets a second run start
+writing to the same output/ files while the first is still mid-write. `run_lock.py`'s own
+docstring predicts exactly this failure mode ("one run's final JSON can overwrite another's") --
+and it has now been observed for real: a user's request to create a Combined HLD/LLD design for a
+"Checkout Service" hit a lock conflict, auto-cleared, retried, and the retried run DID build a real
+Checkout Service design -- but the ACTUAL file that ended up persisted to output/design_data.json
+was an entirely unrelated "Nexus-Log Observability Platform" design (confirmed: every later
+consultant query in the same session, explicitly asking about the Checkout Service, answered from
+that wrong, unrelated design instead) -- the two interleaved runs' writes corrupted each other
+exactly as predicted, and the wrong one won the race. Clearing a lock without verifying its holder
+has genuinely stopped is only ever safe when a human, with first-hand knowledge that nothing of
+theirs is still running, explicitly asks for it -- see EXPLICIT REQUEST above, which is the ONLY
+path that may call `clear_pipeline_lock` at all now.
+
+If you need to retry the user's original request after relaying a lock-conflict error, that retry
+must come from the user's own next message, not from you -- by then enough time will genuinely
+have passed, or the user will have confirmed via the EXPLICIT REQUEST path that it's safe.
 
 ## NEVER INVENT AN EXPLANATION FOR A LOCK ERROR
 Whether relaying an unresolved conflict (step 4 above) or any other tool error, you MUST relay the

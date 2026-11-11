@@ -174,6 +174,22 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
         "components": [
             {
                 "component_name": "", "description": "", "responsibilities": [],
+                # These four were already named in both ports' LLD/combined
+                # agent instructions (dependencies/key_design_decisions/
+                # scope_and_operational_boundaries/technology_stack) and
+                # already rendered by _add_low_level_design_section's own
+                # Component Design subsection -- but were missing from this
+                # schema entirely. Confirmed as a real bug: on GCP, where
+                # low_level_design.components[] carries "additionalProperties":
+                # false, an agent actually following those instructions would
+                # have had validate_design_json reject the document outright,
+                # forcing this exact content -- the decision-grade reasoning a
+                # reviewer most needs from an LLD -- to be stripped before it
+                # could ever persist.
+                "dependencies": [],
+                "key_design_decisions": [],
+                "scope_and_operational_boundaries": "",
+                "technology_stack": [],
                 # Same field, same purpose as high_level_design.components[]'s
                 # own satisfies_requirements -- repeated here (not just
                 # inherited from the matching HLD component) since an LLD

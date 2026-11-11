@@ -331,3 +331,219 @@ class TestTechnologyStackTable:
     def test_no_op_on_empty_input(self):
         doc = docx.Document()
         assert design_sections._add_technology_stack_table(doc, []) is False
+
+
+class TestArchitectureDecisionsSection:
+    """architecture_decisions[] has deliberately no status/date/decided_by
+    column -- design_document_schema.json's own comment documents that an
+    earlier, near-identical field was removed because it produced
+    fabricated decision-meeting content; this renderer simply has no such
+    field to show, by design, not by oversight."""
+
+    def test_renders_id_context_decision_alternatives_and_consequences(self):
+        doc = docx.Document()
+        decisions = [{
+            "id": "ADR-001", "title": "Event-Driven vs. Synchronous Checkout",
+            "context": "NFR-001 requires sub-second latency.",
+            "decision": "Adopt event-driven microservices.",
+            "alternatives_considered": [
+                {"option": "Monolith", "rejected_because": "Does not scale under peak load."},
+            ],
+            "consequences": "Requires eventual-consistency handling.",
+        }]
+        assert design_sections._add_architecture_decisions_section(doc, decisions) is True
+        text = "\n".join(p.text for p in doc.paragraphs)
+        assert "ADR-001: Event-Driven vs. Synchronous Checkout" in text
+        assert "NFR-001 requires sub-second latency." in text
+        assert "Adopt event-driven microservices." in text
+        assert "Monolith -- rejected because Does not scale under peak load." in text
+        assert "Requires eventual-consistency handling." in text
+        # No status/date/decided_by field exists on the schema for this --
+        # confirm the renderer never fabricates one even if asked to show it.
+        assert "Status" not in text
+        assert "Decided By" not in text
+
+    def test_entries_are_sorted_by_id(self):
+        doc = docx.Document()
+        decisions = [
+            {"id": "ADR-002", "title": "Second"},
+            {"id": "ADR-001", "title": "First"},
+        ]
+        design_sections._add_architecture_decisions_section(doc, decisions)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 3"]
+        assert headings == ["ADR-001: First", "ADR-002: Second"]
+
+    def test_no_op_on_empty_input(self):
+        doc = docx.Document()
+        assert design_sections._add_architecture_decisions_section(doc, []) is False
+        assert not doc.paragraphs
+
+
+class TestRequirementsTraceabilityTable:
+    """Joins requirements[] against each component's own
+    satisfies_requirements AND requirements.traceability_matrix[]'s own
+    verification_method -- shows "—" for a column with no source data
+    rather than omitting the row, so a reviewer sees the gap directly."""
+
+    def _requirements(self):
+        return {
+            "functional_requirements": [{"id": "FR-001", "description": "x"}],
+            "non_functional_requirements": [{"id": "NFR-001", "description": "y"}],
+        }
+
+    def test_joins_satisfies_requirements_and_verification_method(self):
+        doc = docx.Document()
+        requirements = dict(self._requirements())
+        requirements["traceability_matrix"] = [
+            {"requirement_id": "FR-001", "design_element_id": "Checkout API", "verification_method": "test"},
+        ]
+        high_level_design = {"components": [
+            {"component_name": "Checkout API", "satisfies_requirements": ["FR-001", "NFR-001"]},
+        ]}
+        assert design_sections._add_requirements_traceability_table(
+            doc, requirements, high_level_design, {}
+        ) is True
+        table = doc.tables[0]
+        rows = {row.cells[0].text: [c.text for c in row.cells] for row in table.rows[1:]}
+        assert rows["FR-001"] == ["FR-001", "Checkout API", "Test"]
+        # NFR-001 is satisfied by the component but has no traceability_matrix
+        # entry -- the verification method column shows the gap, not a blank.
+        assert rows["NFR-001"] == ["NFR-001", "Checkout API", "—"]
+
+    def test_shows_em_dash_for_an_unsatisfied_requirement(self):
+        doc = docx.Document()
+        requirements = {"functional_requirements": [{"id": "FR-001", "description": "x"}]}
+        high_level_design = {"components": [{"component_name": "Other", "satisfies_requirements": ["FR-999"]}]}
+        design_sections._add_requirements_traceability_table(doc, requirements, high_level_design, {})
+        table = doc.tables[0]
+        row = table.rows[1]
+        assert row.cells[0].text == "FR-001"
+        assert row.cells[1].text == "—"
+        assert row.cells[2].text == "—"
+
+    def test_low_level_design_components_are_also_joined(self):
+        doc = docx.Document()
+        requirements = {"functional_requirements": [{"id": "FR-001", "description": "x"}]}
+        low_level_design = {"components": [
+            {"component_name": "Checkout API", "satisfies_requirements": ["FR-001"]},
+        ]}
+        design_sections._add_requirements_traceability_table(doc, requirements, {}, low_level_design)
+        table = doc.tables[0]
+        assert table.rows[1].cells[1].text == "Checkout API"
+
+    def test_no_op_when_neither_satisfies_requirements_nor_traceability_matrix_present(self):
+        doc = docx.Document()
+        requirements = self._requirements()
+        assert design_sections._add_requirements_traceability_table(doc, requirements, {}, {}) is False
+        assert not doc.tables
+
+    def test_no_op_on_no_requirements(self):
+        doc = docx.Document()
+        assert design_sections._add_requirements_traceability_table(doc, {}, {}, {}) is False
+
+
+class TestRequirementsSectionTraceabilitySubsection:
+    """_add_requirements_section's own integration of the traceability
+    table as a trailing numbered subsection."""
+
+    def test_traceability_subsection_appears_when_data_present(self):
+        doc = docx.Document()
+        requirements = {
+            "functional_requirements": [{"id": "FR-001", "description": "x"}],
+        }
+        high_level_design = {"components": [
+            {"component_name": "Checkout API", "satisfies_requirements": ["FR-001"]},
+        ]}
+        design_sections._add_requirements_section(
+            doc, requirements, heading="3.0 Requirements",
+            high_level_design=high_level_design, low_level_design={},
+        )
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        assert "3.2 Requirements Traceability" in headings
+        assert len(doc.tables) == 2  # functional requirements table + traceability table
+
+    def test_traceability_heading_is_removed_when_nothing_to_show(self):
+        # Confirms the heading added speculatively is cleaned up again
+        # rather than left dangling above an empty subsection when neither
+        # satisfies_requirements nor traceability_matrix has any data.
+        doc = docx.Document()
+        requirements = {"functional_requirements": [{"id": "FR-001", "description": "x"}]}
+        design_sections._add_requirements_section(
+            doc, requirements, heading="3.0 Requirements",
+            high_level_design={}, low_level_design={},
+        )
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        assert "3.2 Requirements Traceability" not in headings
+        assert len(doc.tables) == 1  # only the functional requirements table
+
+    def test_no_traceability_subsection_when_design_args_not_passed(self):
+        doc = docx.Document()
+        requirements = {"functional_requirements": [{"id": "FR-001", "description": "x"}]}
+        design_sections._add_requirements_section(doc, requirements, heading="3.0 Requirements")
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name == "Heading 2"]
+        assert "Requirements Traceability" not in "\n".join(headings)
+
+
+class TestOperationalReadinessSection:
+    def test_renders_ownership_support_fields_and_runbooks_table(self):
+        doc = docx.Document()
+        data = {
+            "ownership": {"team": "Checkout Platform Team", "contact": "checkout-team@example.com"},
+            "support_model": "24/7 on-call rotation.",
+            "escalation_path": "PagerDuty -> On-Call -> Lead.",
+            "monitoring_strategy": "CheckoutFailed events monitored via CloudWatch.",
+            "alerting_strategy": "Alert on failure rate > 1%.",
+            "maintenance_activities": ["Quarterly upgrade window."],
+            "runbooks": [{"title": "Outage", "trigger": "Failure spike", "reference": "runbooks/outage.md"}],
+        }
+        assert design_sections._add_operational_readiness_section(doc, data) is True
+        text = "\n".join(p.text for p in doc.paragraphs)
+        assert "Checkout Platform Team" in text
+        assert "checkout-team@example.com" in text
+        assert "24/7 on-call rotation." in text
+        assert "PagerDuty -> On-Call -> Lead." in text
+        assert "Quarterly upgrade window." in text
+        table = doc.tables[0]
+        assert table.rows[0].cells[0].text == "Title"
+        assert table.rows[1].cells[0].text == "Outage"
+
+    def test_no_op_on_empty_input(self):
+        doc = docx.Document()
+        assert design_sections._add_operational_readiness_section(doc, {}) is False
+        assert not doc.paragraphs
+
+    def test_no_op_when_all_fields_are_empty(self):
+        doc = docx.Document()
+        data = {"ownership": {"team": "", "contact": ""}, "support_model": "", "maintenance_activities": []}
+        assert design_sections._add_operational_readiness_section(doc, data) is False
+
+
+class TestReviewGovernanceChecklistSection:
+    """Only sign_off_criteria/reconsideration_triggers render -- NOT
+    review_history/change_log/approval_workflow, which stay unrendered
+    elsewhere to avoid displaying fabricated reviewer names/dates."""
+
+    def test_renders_sign_off_criteria_and_reconsideration_triggers(self):
+        doc = docx.Document()
+        data = {
+            "sign_off_criteria": ["All NFR targets demonstrated via load test."],
+            "reconsideration_triggers": ["Checkout volume exceeds 3x current peak."],
+        }
+        assert design_sections._add_review_governance_checklist_section(doc, data) is True
+        text = "\n".join(p.text for p in doc.paragraphs)
+        assert "All NFR targets demonstrated via load test." in text
+        assert "Checkout volume exceeds 3x current peak." in text
+
+    def test_review_history_and_approval_workflow_are_never_rendered(self):
+        doc = docx.Document()
+        data = {
+            "review_history": [{"reviewer": "Jane Doe", "date": "2026-01-01", "status": "approved"}],
+            "approval_workflow": {"current_status": "approved"},
+            "change_log": [{"version": "1.0", "author": "Someone"}],
+        }
+        assert design_sections._add_review_governance_checklist_section(doc, data) is False
+        assert not doc.paragraphs
+
+    def test_no_op_on_empty_input(self):
+        doc = docx.Document()
+        assert design_sections._add_review_governance_checklist_section(doc, {}) is False
