@@ -88,10 +88,16 @@ def validate_subprocess_flow(flow: Dict[str, Any]) -> Dict[str, Any]:
 def save_subprocess_flow(step_name: str, flow: Dict[str, Any]) -> Dict[str, Any]:
     validation = validate_subprocess_flow(flow)
     if not validation["valid"]:
-        # WARNING, not DEBUG: same reasoning as persist_final_json -- this
-        # is the diagnostic for "why is this step's subprocess missing or
-        # generic-looking in the document," visible without raising LOGLEVEL.
-        logger.warning(
+        # INFO, not WARNING: same reasoning as persist_final_json/
+        # persist_final_design_json -- this fires on every mid-process
+        # validate-and-retry attempt, not just a final, persistent
+        # failure, and was confirmed as real console noise during normal,
+        # ultimately-successful runs. Still fully captured in the log file
+        # at the default LOGLEVEL (INFO) as the diagnostic for "why is
+        # this step's subprocess missing or generic-looking in the
+        # document" -- only the console (fixed at WARNING+) no longer
+        # shows it on every routine retry.
+        logger.info(
             "Subprocess_Generator_Agent's flow for step %r failed validation, nothing persisted: %s",
             step_name, validation["issues"],
         )

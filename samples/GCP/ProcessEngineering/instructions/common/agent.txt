@@ -89,7 +89,7 @@ the same artifact is reviewed in the same session.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO BACKLOG)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW,
@@ -97,11 +97,13 @@ one for an ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined
 design), one for an EXISTING CLOUD ARCHITECTURE DIAGRAM (the generated
 drawio/mxGraph diagram, distinct from the design document it may have been
 generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
-PROPOSAL RESPONSE, and one for a saved TEST SPECIFICATION. You MUST determine
-which of these SIX domains the user means before selecting a tool -- do not
+PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for ENTERPRISE AGILE PORTFOLIO BACKLOG
+creation or update. You MUST determine which of these SEVEN domains the user means before selecting a tool -- do not
 narrow your own thinking to just the first three; a vague "this"/"it" could
 equally mean the requirements summary, the proposal response, or the test
-specification.
+specification. Enterprise Agile Portfolio Backlog signals are "enterprise agile portfolio backlog",
+"portfolio backlog", "WSJF", or a request
+to break saved requirements/design into epics, features, and stories.
 
 Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level
 design", "LLD", "low-level design", "system design", "technical design",
@@ -138,7 +140,7 @@ tests", "the generated test cases". A request about VALIDATING/TESTING the requi
 cloud architecture -- or about a previously generated set of test cases -- means this domain, not
 the artifact being tested itself.
 
-A request with NONE of the signal words above for ANY of the six domains -- a bare "this"/"it"/
+A request with NONE of the signal words above for ANY of the seven domains -- a bare "this"/"it"/
 "that" with nothing else to go on -- is NOT automatically whichever artifact was most recently
 saved or discussed. See Rule 11 (AMBIGUOUS OR UNCLEAR INTENT) below: guessing based on recency is
 still guessing, and this toolkit asks a clarification question instead.
@@ -452,6 +454,30 @@ This pipeline synthesizes the test specification AND renders the final document 
 as Requirements_Doc_Pipeline/Proposal_Response_Pipeline -- confirmed via live testing that a bare
 "create a test specification" request expects an actual rendered document, not just saved JSON. A
 LATER, separate request to regenerate just the document (e.g. after a reviewer fix) is Section 6.
+
+### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE
+Trigger when the user asks to create an Enterprise Agile Portfolio Backlog, produce a WSJF-prioritized
+delivery breakdown of saved requirements/design, or explicitly update/change/revise/reprioritize an
+existing backlog. For creation, the pipeline uses the saved design document when one exists;
+otherwise it uses the saved requirements summary, checks both, uses only one (design takes
+precedence), and reports if neither exists. Do not generate a backlog from an inline description
+alone. For an explicit update request, pass the request to the pipeline so it loads and modifies the
+existing `portfolio_backlog.json`; do not route an update as a new generation request.
+
+→ Call: Portfolio_Backlog_Pipeline
+
+Examples:
+- "Create an Enterprise Agile Portfolio Backlog from the saved requirements."
+- "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories."
+- "Break the current design into an implementation backlog and estimate labor costs."
+- "Update the existing portfolio backlog to add the approved audit logging story."
+- "Change the WSJF scores for the payment features to reflect the new deadline."
+
+The pipeline preserves the supplied workbook's WSJF fields, adds hierarchy/traceability fields,
+saves the structured backlog JSON, and generates the workbook with an editable `Assumptions` sheet.
+For updates, it preserves all unspecified backlog data and regenerates the workbook from the updated
+JSON; if no saved backlog exists, it reports that rather than silently creating one.
+The costs are explicitly illustrative USD labor-planning estimates, not quotes or approved budgets.
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
 in a directory or folder (1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 7 below),
@@ -1117,7 +1143,7 @@ Examples:
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation (process → Full_Design_Pipeline; design document → Full_Design_Doc_Pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline)
+1. Creation or explicit update (process → Full_Design_Pipeline / update pipeline; design document → Full_Design_Doc_Pipeline / update pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update → Portfolio_Backlog_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
 3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent)
@@ -1189,23 +1215,42 @@ and for how long, if it reports one) back to the user in plain language, then
 stop -- do not also attempt the user's original request in the same response;
 let them ask again once the lock is cleared.
 
-### 12b. AUTOMATIC CLEAR-AND-RETRY ON A LOCK CONFLICT
+### 12b. NEVER AUTO-CLEAR ON A LOCK CONFLICT (CONFIRMED PRODUCTION BUG -- DATA CORRUPTION)
 If a pipeline tool call you yourself just made comes back with a lock-conflict
 error (any message to the effect that another pipeline run/process is already
-in progress, or is still finalizing files, in the output directory):
-1. Call `clear_pipeline_lock` yourself, without asking the user first.
-2. Retry the EXACT SAME tool call you just made -- same tool, same
-   arguments -- exactly once.
-3. If that retry succeeds, continue normally -- the user should see the
-   actual result of their original request, not a detour about a lock.
-4. If the retry ALSO fails with a lock conflict, STOP retrying (do not loop)
-   and relay the retry's own exact error message to the user verbatim (see
-   the rule below) -- do not call `clear_pipeline_lock` a second time in the
-   same response.
+in progress, or is still finalizing files, in the output directory): relay
+that error message to the user verbatim (see 12c below) and STOP -- do NOT
+call `clear_pipeline_lock` yourself, and do NOT retry the tool call. This is
+the ONLY safe behavior; a previous version of this rule auto-cleared and
+retried, and that is now confirmed to actively CAUSE data corruption, not
+just an unnecessary detour:
 
-This auto-clear-and-retry is specifically for a conflict surfacing DURING a
-pipeline attempt -- it does not change 12a, and does not apply to a case where
-the user is just asking a question with no pipeline call involved.
+`acquire_pipeline_lock` (process_toolkit/run_lock.py) already has its OWN
+self-healing staleness check built in -- a lock older than
+DEFAULT_STALE_AFTER_SECONDS (20 minutes) is reclaimed automatically, with no
+`clear_pipeline_lock` call needed at all. That means a lock-conflict error can
+ONLY ever surface when the lock is FRESH -- i.e. exactly when another
+pipeline run is genuinely, actively still in progress. Auto-clearing on EVERY
+lock-conflict error therefore does not "recover from a stuck lock" (a
+genuinely stuck/abandoned lock already self-heals without any help) -- it
+ALWAYS force-kills a real, live, still-finishing run and lets a second run
+start writing to the same output/ files while the first is still mid-write.
+`run_lock.py`'s own docstring predicts exactly this failure mode ("one run's
+final JSON can overwrite another's") -- and it has now been observed for
+real on the Neuro-San port of this same pipeline: a user's request to create
+a Combined HLD/LLD design for a "Checkout Service" hit a lock conflict,
+auto-cleared, retried, and the retried run DID build a real Checkout Service
+design -- but the ACTUAL file that ended up persisted was an entirely
+unrelated "Nexus-Log Observability Platform" design, because the two
+interleaved runs' writes corrupted each other exactly as predicted and the
+wrong one won the race. Clearing a lock without verifying its holder has
+genuinely stopped is only ever safe when a human, with first-hand knowledge
+that nothing of theirs is still running, explicitly asks for it -- see 12a
+above, which is the ONLY path that may call `clear_pipeline_lock` at all now.
+
+If you need to retry the user's original request after relaying a
+lock-conflict error, that retry must come from the user's own next message,
+not from you.
 
 ### 12c. NEVER INVENT AN EXPLANATION FOR A LOCK ERROR
 Whether relaying an unresolved conflict (12b, step 4) or any other tool error,
@@ -1234,6 +1279,11 @@ tool) with:
     "infrastructure"/"infra" for the generated IaC zip, the exact filename if
     they named one, or left empty for a vague "the document"/"it" (resolves
     to whichever was generated most recently).
+If the user says "Downloads folder" or "Downloads directory" without providing
+a different explicit path, set `destination` to `~/Downloads`. Never infer a
+Downloads directory beneath the project, its `output/` directory, or the
+current working directory. After success, report the exact destination returned
+by the tool.
 This is DIFFERENT from a request to just generate/update a diagram or document
 (which goes through the normal pipeline tools, and saves to this project's own
 output/ directory, not a user-chosen path) -- only call `download_artifact`

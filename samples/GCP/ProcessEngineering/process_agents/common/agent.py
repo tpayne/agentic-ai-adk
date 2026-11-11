@@ -255,6 +255,7 @@ from .agent_registry import (
     requirements_simulation_query_agent,
     requirements_doc_pipeline,
     test_specification_pipeline,
+    portfolio_backlog_pipeline,
     test_consultant_agent,
     test_reviewer_agent,
     proposal_response_pipeline,
@@ -323,6 +324,7 @@ root_agent = ProcessLlmAgent(
         requirements_simulation_query_agent,
         requirements_doc_pipeline,
         test_specification_pipeline,
+        portfolio_backlog_pipeline,
         test_consultant_agent,
         test_reviewer_agent,
         proposal_response_pipeline,
@@ -1611,15 +1613,16 @@ def build_web_app(https: bool = True):
         """
         Read-only access to this web session's own output/<session_id>/
         process_data.json, design_data.json, requirements_summary.json,
-        proposal_response.json, or cloudarch_drawio.xml (or flat output/
+        proposal_response.json, test_specification.json,
+        portfolio_backlog.json, or cloudarch_drawio.xml (or flat output/
         for a caller with no session id at all -- e.g. a direct API
         caller that never went through POST /chat first), resolved via a
         `session_id` query parameter (see _web_session_id_for_get_request's
         own docstring for why a query parameter, not just the session
         cookie, matters here) -- a plain GET has no JSON body of its own
         to carry a session_id in the way POST /chat does. Powers the web
-        client's "Process / Design / Requirements / Proposal Response"
-        and "Cloud Architecture" tabs -- a hierarchical/diagram viewer of
+        client's artifact browser and "Cloud Architecture" tab -- a
+        hierarchical/diagram viewer of
         whichever pipeline's current artifact. Both backends serve this the same
         way (the neuro-san port's build_web_app has an identical route)
         and both keep these files at an identical relative path, so the
@@ -1646,6 +1649,7 @@ def build_web_app(https: bool = True):
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
+            "portfolio_backlog": "portfolio_backlog.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1654,7 +1658,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'cloudarch'."
                 ),
             }), 400
 
@@ -1761,11 +1765,33 @@ def build_web_app(https: bool = True):
             }), 404
         return send_file(path, as_attachment=True, download_name=IAC_ZIP_FILENAME, mimetype="application/zip")
 
+    @web_app.route("/artifacts/portfolio_backlog_workbook/download", methods=["GET"])
+    def download_portfolio_backlog_workbook():
+        """Downloads the generated Enterprise Agile Portfolio Backlog workbook for this web session."""
+        from process_toolkit import paths as toolkit_paths
+
+        filename = "portfolio_backlog.xlsx"
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), filename)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {filename} found yet -- run the Enterprise Agile Portfolio Backlog pipeline first.",
+            }), 404
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
         process_data.json, design_data.json, requirements_summary.json,
-        or proposal_response.json as a real file attachment (as opposed
+        proposal_response.json, test_specification.json, or
+        portfolio_backlog.json as a real file attachment (as opposed
         to GET /artifacts/<name> above, which returns it JSON-wrapped for
         the client's own data-explorer viewer) -- structurally identical
         to download_cloudarch above, just for the other artifact kinds.
@@ -1775,8 +1801,8 @@ def build_web_app(https: bool = True):
         own instructions for how an attachment literally named
         process_data.json/design_data.json is recognized and restored
         verbatim rather than re-extracted, and Requirements_Summary_Agent's/
-        Proposal_Response_Agent's own literal-restore STEPs for
-        requirements_summary.json/proposal_response.json."""
+        Proposal_Response_Agent's own literal-restore STEPs for the
+        corresponding JSON files."""
         from process_toolkit import paths as toolkit_paths
 
         filenames = {
@@ -1785,6 +1811,7 @@ def build_web_app(https: bool = True):
             "requirements": "requirements_summary.json",
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
+            "portfolio_backlog": "portfolio_backlog.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -1792,7 +1819,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', or 'test_specification'."
+                    "'proposal_response', 'test_specification', or 'portfolio_backlog'."
                 ),
             }), 400
         with toolkit_paths.use_session(_web_session_id_for_get_request()):

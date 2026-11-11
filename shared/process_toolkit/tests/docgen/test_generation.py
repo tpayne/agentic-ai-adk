@@ -779,7 +779,7 @@ class TestDesignDocumentGeneration:
         # time as its own stray TOP-LEVEL key (schema-invalid -- it only
         # belongs nested under high_level_design), so Additional Data
         # dumped the exact same RTO/RPO content a second time, right after
-        # 5.1 Architecture Detail had already rendered it properly. A
+        # 5.2 Architecture Detail had already rendered it properly. A
         # genuinely novel top-level key (not a schema-nested-only name)
         # must still reach Additional Data -- this is a targeted
         # dedup, not a general content filter.

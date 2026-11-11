@@ -70,6 +70,32 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             }
         ],
     },
+    # A numbered, traceable record of each major architectural choice --
+    # distinct from architecture_analysis above, which is the REASONING
+    # (strengths/weaknesses/alternatives/recommendation for one approach);
+    # an entry here is the actual DECISION that reasoning led to, so a
+    # later reader can find "why does this design use X" by id ("see
+    # ADR-002") instead of re-reading prose to reconstruct it.
+    # "alternatives_considered" pulls directly from the corresponding
+    # architecture_analysis entry's own "alternatives"/"strengths"/
+    # "weaknesses" -- this is persisting a decision already being
+    # reasoned about, not a new reasoning step.
+    #
+    # Deliberately has NO "status" or "date" field -- the GCP port's own
+    # design_document_schema.json documents EXACTLY this shape being
+    # removed once already (id/title/status/context/decision/
+    # consequences/alternatives_considered/date/decided_by), because
+    # framing this as a record of a decision MEETING produced fabricated
+    # dates and approvers: the generating agent has no such meeting to
+    # draw on. This is the agent's own analysis-turned-decision, not a
+    # minuted one, so it carries only fields the agent can actually know.
+    "architecture_decisions": [
+        {
+            "id": "ADR-001", "title": "", "context": "", "decision": "",
+            "alternatives_considered": [{"option": "", "rejected_because": ""}],
+            "consequences": "",
+        }
+    ],
     "requirements": {
         "functional_requirements": [
             {"id": "", "description": "", "priority": "", "source": "", "acceptance_criteria": [], "status": ""}
@@ -80,6 +106,21 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
                 "metric": "", "target": "", "measurement_method": "", "priority": "",
                 "acceptance_criteria": [],
             }
+        ],
+        # Matches the GCP port's own design_document_schema.json exactly
+        # (process_agents/templates/design_document_schema.json) -- that
+        # port's own generation agents have instructed populating this for
+        # some time, but the shared renderer never had a section for it,
+        # so every real traceability_matrix entry a live run produced was
+        # silently dropped. Confirmed directly against the GCP schema
+        # file and its own agent instructions, not assumed. Distinct from
+        # each component's own "satisfies_requirements" (added above) --
+        # that's a lightweight inline cross-reference on the component
+        # itself; this is the dedicated Requirement -> Design Element ->
+        # Verification Method matrix, carrying the verification_method
+        # nuance satisfies_requirements alone can't express.
+        "traceability_matrix": [
+            {"requirement_id": "", "design_element_id": "", "verification_method": "test"}
         ],
     },
     "system_context": {
@@ -96,6 +137,13 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             {
                 "component_name": "", "description": "", "dependencies": [], "type": "",
                 "technology_stack": [], "interfaces": [], "owner": "",
+                # Which functional_requirements[]/non_functional_requirements[]
+                # id(s) this component exists to satisfy, e.g. ["FR-001",
+                # "NFR-003"] -- the one field that makes requirement ->
+                # architecture traceability possible at all. Empty is valid
+                # for a purely structural/supporting component with no
+                # direct requirement of its own.
+                "satisfies_requirements": [],
             }
         ],
         "integration_points": [{"source": "", "target": "", "integration_pattern": "", "protocol": "", "description": ""}],
@@ -126,6 +174,28 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
         "components": [
             {
                 "component_name": "", "description": "", "responsibilities": [],
+                # These four were already named in both ports' LLD/combined
+                # agent instructions (dependencies/key_design_decisions/
+                # scope_and_operational_boundaries/technology_stack) and
+                # already rendered by _add_low_level_design_section's own
+                # Component Design subsection -- but were missing from this
+                # schema entirely. Confirmed as a real bug: on GCP, where
+                # low_level_design.components[] carries "additionalProperties":
+                # false, an agent actually following those instructions would
+                # have had validate_design_json reject the document outright,
+                # forcing this exact content -- the decision-grade reasoning a
+                # reviewer most needs from an LLD -- to be stripped before it
+                # could ever persist.
+                "dependencies": [],
+                "key_design_decisions": [],
+                "scope_and_operational_boundaries": "",
+                "technology_stack": [],
+                # Same field, same purpose as high_level_design.components[]'s
+                # own satisfies_requirements -- repeated here (not just
+                # inherited from the matching HLD component) since an LLD
+                # component can be elaborated with its own, more granular
+                # requirement mapping than its HLD counterpart had.
+                "satisfies_requirements": [],
                 "configuration_parameters": [{"name": "", "type": "", "default_value": "", "description": ""}],
                 "api_specifications": [
                     {
@@ -199,6 +269,21 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
     ],
     "governance_requirements": [],
     "continuous_improvement": [{"review_frequency": "", "improvement_inputs": []}],
+    # Who runs this once it's live -- distinct from risk_register (which
+    # names failure modes) and from continuous_improvement (which is
+    # periodic review cadence, not day-to-day operation). Without this, a
+    # design can name a risk ("cross-account copy failure") with no
+    # corresponding response model (who gets paged, how it's escalated,
+    # what the runbook says to do).
+    "operational_readiness": {
+        "ownership": {"team": "", "contact": ""},
+        "support_model": "",
+        "escalation_path": "",
+        "monitoring_strategy": "",
+        "alerting_strategy": "",
+        "maintenance_activities": [],
+        "runbooks": [{"title": "", "trigger": "", "reference": ""}],
+    },
     # Present in the ADK original's own template but missing from this
     # port's version until now -- restored for parity.
     "review_and_governance": {
@@ -214,6 +299,12 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
             "approvers": [{"name": "", "role": "", "organization": "", "contact": ""}],
             "approval_date": "",
         },
+        # What a reviewer actually checks before signing off, and what
+        # would trigger reopening an already-approved design -- without
+        # these, "approved" has no stated basis and can't be challenged
+        # or revisited on principled grounds later.
+        "sign_off_criteria": [],
+        "reconsideration_triggers": [],
     },
     "glossary_and_references": {
         "glossary": [{"term": "", "definition": ""}],
@@ -345,7 +436,16 @@ def persist_final_design_json(json_content: Any) -> str:
 
     validation = validate_design_json(json_content)
     if not validation["valid"]:
-        logger.warning("Design_Agent's design JSON failed validation, nothing persisted: %s", validation["issues"])
+        # INFO, not WARNING: this fires on every mid-process validate-and-
+        # retry attempt the generating agent makes, not just a final,
+        # persistent failure -- confirmed directly as real console noise
+        # during normal, ultimately-successful runs (the agent typically
+        # self-corrects within a few retries). Still fully captured in the
+        # log file at the default LOGLEVEL (INFO) for diagnosing "why does
+        # the generated document look thin/wrong" after the fact -- it's
+        # only the interactive console (fixed at WARNING+ regardless of
+        # LOGLEVEL) that no longer shows it on every routine retry.
+        logger.info("Design_Agent's design JSON failed validation, nothing persisted: %s", validation["issues"])
         return f"ERROR: JSON failed validation: {validation['issues']}"
 
     path = paths.output_path(DESIGN_JSON_FILENAME)

@@ -301,6 +301,54 @@
       ],
       "additionalProperties": false
     },
+    "architectureDecision": {
+      "type": "object",
+      "description": "A numbered, traceable record of what a matching architectureAnalysis entry's own reasoning concluded -- distinct from architectureAnalysis itself, which is the reasoning (strengths/weaknesses/alternatives/recommendation). This is NOT a reintroduction of the removed ADR-style decisionRecord documented on architectureAnalysis above -- it deliberately carries none of the status/date/decided_by fields that caused that one to produce fabricated decision-meeting content. Only fields the agent can actually know from its own analysis exist here.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "e.g. ADR-001, sequential and stable within this document."
+        },
+        "title": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string",
+          "description": "The forces/requirements that made this decision necessary."
+        },
+        "decision": {
+          "type": "string"
+        },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "option": {
+                "type": "string"
+              },
+              "rejected_because": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "option",
+              "rejected_because"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "consequences": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "decision"
+      ],
+      "additionalProperties": false
+    },
     "diagramReference": {
       "type": "object",
       "properties": {
@@ -423,6 +471,13 @@
         },
         "owner": {
           "type": "string"
+        },
+        "satisfies_requirements": {
+          "type": "array",
+          "description": "requirements.functional_requirements[]/non_functional_requirements[] id(s) (e.g. \"FR-001\") this component exists to satisfy -- the field that makes requirement-to-architecture traceability possible.",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -965,13 +1020,20 @@
         },
         "architecture_analysis": {
           "type": "array",
-          "description": "Analysis of the architecture(s) considered for this design -- description/strengths/weaknesses/risks, alternatives, and a recommendation per concern. Replaces the earlier ADR-style architecture_decisions/architecture_rationale (see $defs.architectureAnalysis).",
+          "description": "Analysis of the architecture(s) considered for this design -- description/strengths/weaknesses/risks, alternatives, and a recommendation per concern (see $defs.architectureAnalysis). The top-level architecture_decisions property persists what this reasoning concluded, in the safe (no status/date/decided_by) shape documented on $defs.architectureDecision.",
           "items": {
             "$ref": "#/$defs/architectureAnalysis"
           }
         }
       },
       "additionalProperties": false
+    },
+    "architecture_decisions": {
+      "type": "array",
+      "description": "One entry per architecture_description.architecture_analysis[] entry that reached a real recommendation between genuine alternatives -- persists the decision that reasoning concluded, so a reader can trace \"why does this design use X\" by id instead of re-reading prose. See $defs.architectureDecision for the exact (deliberately status/date-free) shape.",
+      "items": {
+        "$ref": "#/$defs/architectureDecision"
+      }
     },
     "requirements": {
       "type": "object",
@@ -1297,6 +1359,27 @@
               "description": {
                 "type": "string"
               },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "key_design_decisions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scope_and_operational_boundaries": {
+                "type": "string"
+              },
+              "technology_stack": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "class_design": {
                 "type": "object",
                 "properties": {
@@ -1413,6 +1496,13 @@
               },
               "code_standards_reference": {
                 "type": "string"
+              },
+              "satisfies_requirements": {
+                "type": "array",
+                "description": "Same field, same purpose as high_level_design.components[]'s own satisfies_requirements -- repeated here since an LLD component can be elaborated with its own, more granular requirement mapping than its HLD counterpart had.",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
@@ -1579,6 +1669,64 @@
         "additionalProperties": false
       }
     },
+    "operational_readiness": {
+      "type": "object",
+      "description": "Who runs this once it's live -- distinct from risk_register (which names failure modes) and continuous_improvement (periodic review cadence, not day-to-day operation).",
+      "properties": {
+        "ownership": {
+          "type": "object",
+          "properties": {
+            "team": {
+              "type": "string"
+            },
+            "contact": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "support_model": {
+          "type": "string"
+        },
+        "escalation_path": {
+          "type": "string"
+        },
+        "monitoring_strategy": {
+          "type": "string"
+        },
+        "alerting_strategy": {
+          "type": "string"
+        },
+        "maintenance_activities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runbooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "trigger": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "glossary_and_references": {
       "type": "object",
       "properties": {
@@ -1680,6 +1828,20 @@
             }
           },
           "additionalProperties": false
+        },
+        "sign_off_criteria": {
+          "type": "array",
+          "description": "What a reviewer actually checks before signing off -- unlike review_history/change_log/approval_workflow, this is a forward-looking design statement (like a requirement's own acceptance_criteria), not a record of an event that has happened yet, so it IS populated at generation time.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reconsideration_triggers": {
+          "type": "array",
+          "description": "What would make this design worth reopening/revisiting -- also forward-looking, also populated at generation time.",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

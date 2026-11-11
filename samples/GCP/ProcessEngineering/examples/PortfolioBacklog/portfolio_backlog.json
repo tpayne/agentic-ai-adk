@@ -1,0 +1,304 @@
+{
+  "summary": "This backlog outlines the implementation of a centralized, secure, and resilient AWS Backup framework for RDS and DynamoDB resources across a multi-tenant platform.",
+  "source_artifact": "requirements_summary",
+  "source_name": "Cloudscaler RDS Backup Framework Requirements",
+  "epics": [
+    {
+      "traces_to": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "id": "EPIC-001",
+      "title": "Centralized Backup Framework",
+      "strategic_theme": "Resilience & Compliance",
+      "priority_components": {
+        "user_business_value": 20,
+        "time_criticality": 5,
+        "risk_reduction": 13
+      },
+      "description": "Establish a centralized multi-tenanted platform backup framework using AWS Backup to enforce consistent data protection across all tenant accounts.",
+      "state": "In Analysis",
+      "features": [
+        {
+          "job_size": 5,
+          "description": "Implement the governance and policy enforcement mechanisms required to manage backups across multiple AWS accounts within the organization.",
+          "traces_to": [
+            "FR-001",
+            "NFR-001"
+          ],
+          "strategic_theme": "Governance & Compliance",
+          "title": "Multi-tenant AWS Backup Governance",
+          "id": "FEAT-001",
+          "state": "In Analysis",
+          "priority_components": {
+            "risk_reduction": 8,
+            "user_business_value": 13,
+            "time_criticality": 5
+          },
+          "stories": [
+            {
+              "job_size": 5,
+              "acceptance_criteria": [
+                "Verify that a centralized AWS Backup policy is applied to all accounts in the AWS Organization.",
+                "Confirm RDS and DynamoDB resources are successfully identified for backup inclusion via tags or other identifiers."
+              ],
+              "title": "Deploy Centralized Backup Policies",
+              "description": "As a Platform Administrator, I want to deploy centralized backup policies so that all tenant data resources are automatically included in the backup framework.",
+              "strategic_theme": "Data Governance",
+              "traces_to": [
+                "FR-001"
+              ],
+              "priority_components": {
+                "risk_reduction": 5,
+                "user_business_value": 8,
+                "time_criticality": 5
+              },
+              "id": "STORY-001",
+              "state": "In Analysis"
+            },
+            {
+              "priority_components": {
+                "risk_reduction": 8,
+                "time_criticality": 3,
+                "user_business_value": 5
+              },
+              "job_size": 3,
+              "state": "In Analysis",
+              "strategic_theme": "Security Compliance",
+              "traces_to": [
+                "NFR-001"
+              ],
+              "id": "STORY-002",
+              "description": "As a Platform Administrator, I want to prevent tenants from modifying backup configurations so that the integrity of the backup framework is maintained.",
+              "acceptance_criteria": [
+                "Attempting to modify the AWS Backup configuration from a tenant-level DevOps role results in an 'Access Denied' error."
+              ],
+              "title": "Enforce Backup Configuration Lockdown"
+            },
+            {
+              "state": "In Analysis",
+              "traces_to": [
+                "FR-001"
+              ],
+              "id": "STORY-003",
+              "job_size": 2,
+              "acceptance_criteria": [
+                "Confirm that RDS and DynamoDB resources with the specified backup tags are correctly picked up by the AWS Backup plan."
+              ],
+              "description": "As a Tenant Engineer, I want to tag my resources for backup inclusion so that I can control which data resources are protected by the central framework.",
+              "priority_components": {
+                "user_business_value": 5,
+                "risk_reduction": 3,
+                "time_criticality": 2
+              },
+              "strategic_theme": "Operational Efficiency",
+              "title": "Implement Resource Tagging for Backups"
+            }
+          ]
+        }
+      ],
+      "job_size": 8
+    },
+    {
+      "state": "In Analysis",
+      "features": [
+        {
+          "id": "FEAT-002",
+          "traces_to": [
+            "FR-002",
+            "NFR-004",
+            "INF-001"
+          ],
+          "state": "In Analysis",
+          "priority_components": {
+            "user_business_value": 13,
+            "risk_reduction": 13,
+            "time_criticality": 8
+          },
+          "strategic_theme": "Security & Isolation",
+          "stories": [
+            {
+              "job_size": 5,
+              "state": "In Analysis",
+              "acceptance_criteria": [
+                "Confirm that a backup vault in a separate AWS account contains copies of backups from the workload accounts.",
+                "Verify that tenant IAM roles have no 'Write' or 'Delete' permissions on the backup vault in the dedicated account."
+              ],
+              "priority_components": {
+                "user_business_value": 8,
+                "risk_reduction": 13,
+                "time_criticality": 8
+              },
+              "traces_to": [
+                "FR-002"
+              ],
+              "description": "As a Platform Administrator, I want to store backup copies in a dedicated account so that they are protected from accidental or malicious deletion in the source account.",
+              "id": "STORY-004",
+              "title": "Provision Isolated Backup Vaults",
+              "strategic_theme": "Data Protection"
+            },
+            {
+              "strategic_theme": "Security Compliance",
+              "job_size": 5,
+              "description": "As a Security Architect, I want to use independent KMS keys for backup encryption so that the deletion of source keys does not impact the ability to recover data.",
+              "acceptance_criteria": [
+                "Verify that the KMS key ID used for the backup in the dedicated account is different from the key ID used for the source instance.",
+                "Confirm tenants do not have 'kms:Decrypt' or 'kms:DescribeKey' permissions for the backup keys."
+              ],
+              "state": "In Analysis",
+              "id": "STORY-005",
+              "traces_to": [
+                "NFR-004"
+              ],
+              "priority_components": {
+                "risk_reduction": 8,
+                "user_business_value": 8,
+                "time_criticality": 5
+              },
+              "title": "Configure Independent KMS Encryption"
+            },
+            {
+              "state": "In Analysis",
+              "strategic_theme": "Security Compliance",
+              "description": "As a Platform Administrator, I want to restrict KMS key deletion via SCPs so that the keys required for data recovery cannot be destroyed.",
+              "priority_components": {
+                "time_criticality": 5,
+                "risk_reduction": 13,
+                "user_business_value": 5
+              },
+              "id": "STORY-006",
+              "title": "Implement SCPs for Key Protection",
+              "acceptance_criteria": [
+                "Verify that a Service Control Policy (SCP) prevents 'kms:ScheduleKeyDeletion' for the backup CMKs by tenant roles."
+              ],
+              "traces_to": [
+                "INF-001"
+              ],
+              "job_size": 3
+            }
+          ],
+          "job_size": 8,
+          "description": "Set up the cross-account infrastructure and encryption controls to isolate backup data from the source workload accounts.",
+          "title": "Secure Cross-Account Vault & Encryption"
+        }
+      ],
+      "job_size": 13,
+      "title": "Cross-Account Backup Storage & Security",
+      "priority_components": {
+        "risk_reduction": 20,
+        "user_business_value": 13,
+        "time_criticality": 8
+      },
+      "strategic_theme": "Data Security",
+      "id": "EPIC-002",
+      "traces_to": [
+        "FR-002",
+        "NFR-004",
+        "INF-001"
+      ],
+      "description": "Ensure backups are stored in a dedicated, secure platform account with independent encryption keys to prevent data loss from tenant-level compromises."
+    },
+    {
+      "features": [
+        {
+          "title": "Lifecycle & Recovery Management",
+          "description": "Implement automated retention policies and documented restoration processes to meet RPO and compliance targets.",
+          "stories": [
+            {
+              "acceptance_criteria": [
+                "Verify that production workload backups remain available in the local account for a minimum of 30 days."
+              ],
+              "state": "In Analysis",
+              "id": "STORY-007",
+              "job_size": 2,
+              "traces_to": [
+                "NFR-002"
+              ],
+              "description": "As a Compliance Officer, I want production backups to be retained for 30 days to meet operational and regulatory requirements.",
+              "title": "Configure Production Retention Policies",
+              "strategic_theme": "Compliance",
+              "priority_components": {
+                "risk_reduction": 5,
+                "user_business_value": 5,
+                "time_criticality": 8
+              }
+            },
+            {
+              "id": "STORY-008",
+              "priority_components": {
+                "risk_reduction": 3,
+                "user_business_value": 3,
+                "time_criticality": 5
+              },
+              "title": "Configure Non-Prod Retention Policies",
+              "strategic_theme": "Operational Efficiency",
+              "job_size": 2,
+              "traces_to": [
+                "NFR-003"
+              ],
+              "state": "In Analysis",
+              "description": "As a DevOps Engineer, I want non-production backups to be retained for 15 days to support development and testing needs.",
+              "acceptance_criteria": [
+                "Verify that non-production workload backups remain available in the local account for a minimum of 15 days."
+              ]
+            },
+            {
+              "priority_components": {
+                "time_criticality": 13,
+                "user_business_value": 8,
+                "risk_reduction": 8
+              },
+              "strategic_theme": "Business Continuity",
+              "description": "As a Business Owner, I want a defined restore process so that data can be recovered within 12 hours in the event of a failure.",
+              "id": "STORY-009",
+              "traces_to": [
+                "FR-003",
+                "NFR-005"
+              ],
+              "state": "In Analysis",
+              "acceptance_criteria": [
+                "A documented and tested procedure for restoring an RDS/DynamoDB instance from the dedicated backup account exists.",
+                "Confirm that the backup schedule frequency is sufficient to meet a 12-hour Recovery Point Objective (RPO)."
+              ],
+              "title": "Document and Test Restore Process",
+              "job_size": 5
+            }
+          ],
+          "state": "In Analysis",
+          "strategic_theme": "Business Continuity",
+          "priority_components": {
+            "time_criticality": 13,
+            "user_business_value": 8,
+            "risk_reduction": 8
+          },
+          "job_size": 5,
+          "traces_to": [
+            "FR-003",
+            "NFR-002",
+            "NFR-003",
+            "NFR-005"
+          ],
+          "id": "FEAT-003"
+        }
+      ],
+      "id": "EPIC-003",
+      "strategic_theme": "Operational Resilience",
+      "traces_to": [
+        "FR-003",
+        "NFR-002",
+        "NFR-003",
+        "NFR-005"
+      ],
+      "priority_components": {
+        "user_business_value": 8,
+        "risk_reduction": 8,
+        "time_criticality": 13
+      },
+      "job_size": 8,
+      "title": "Data Retention & Recovery",
+      "description": "Manage the lifecycle of backup data and establish recovery procedures to meet business continuity requirements.",
+      "state": "In Analysis"
+    }
+  ],
+  "name": "Cloudscaler RDS Backup Framework Portfolio Backlog"
+}

@@ -51,15 +51,23 @@ class RegenerateDocumentCodedTool(CodedTool):
     _build_design_documents)."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        name = args.get("process_name") or "Process"
-        result = create_standard_doc_from_file(
-            name, schema_type=args.get("schema_type"), design_variant=args.get("design_variant"),
-        )
-        if isinstance(result, str) and result.startswith("SUCCESS:"):
-            token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        # Unconditional release in `finally`, even though this tool's own
+        # network normally never acquires a lock in the first place
+        # (release_pipeline_lock(None)/stop_pipeline_lock_heartbeat(None)
+        # are documented safe no-ops) -- matches every other pipeline's
+        # own finalize-tool fix (see design/doc_generation_tool.py's
+        # docstring for the confirmed stuck-lock bug a success-only
+        # release caused) rather than relying on this tool being the one
+        # exception to the rule.
+        token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        try:
+            name = args.get("process_name") or "Process"
+            return create_standard_doc_from_file(
+                name, schema_type=args.get("schema_type"), design_variant=args.get("design_variant"),
+            )
+        finally:
             stop_pipeline_lock_heartbeat(token)
             release_pipeline_lock(token)
-        return result
 
     async def async_invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return await asyncio.to_thread(self.invoke, args, sly_data)

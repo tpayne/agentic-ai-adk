@@ -19,6 +19,7 @@
     "requirements_consultant.hocon": true,
     "test_case_chunk_generator.hocon": true,
     "test_specification.hocon": true,
+    "portfolio_backlog.hocon": true,
     "test_consultant.hocon": true,
     "test_reviewer.hocon": true,
     "requirements_reviewer.hocon": true,

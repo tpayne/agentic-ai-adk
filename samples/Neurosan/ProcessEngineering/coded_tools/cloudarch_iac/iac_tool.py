@@ -58,20 +58,32 @@ class ZipIacFilesCodedTool(CodedTool):
     """Zips the currently-saved IaC files into output/<session>/
     cloudarch_iac.zip. This is CloudArch_IaC_Pipeline's own genuine last
     guaranteed step (reset_loop_state -> generate/validate loop -> THIS)
-    -- on success, also releases the shared output/ directory's pipeline
-    lock (see process_toolkit.run_lock), same pattern as design.hocon's
-    own GenerateDesignDocumentCodedTool. release_pipeline_lock(None) is a
-    safe no-op for any other caller that never acquired a lock."""
+    -- releases the shared output/ directory's pipeline lock (see
+    process_toolkit.run_lock) UNCONDITIONALLY, success or failure, same
+    pattern as design.hocon's own GenerateDesignDocumentCodedTool.
+    release_pipeline_lock(None) is a safe no-op for any other caller that
+    never acquired a lock.
+
+    CONFIRMED PRODUCTION BUG (data corruption) on the design-document
+    equivalent of this tool, fixed here too: the previous version only
+    released on the success path, leaving the FileNotFoundError branch
+    (and any other exception) to leak the lock for up to
+    run_lock.DEFAULT_STALE_AFTER_SECONDS (20 minutes). A `finally` block
+    guarantees the release always fires, matching the ADK port's own
+    equivalent fix (process_agents.common.utils_agent.
+    release_pipeline_lock_after_run)."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        try:
-            zip_path = zip_iac_files()
-        except FileNotFoundError as e:
-            return {"status": "ERROR", "message": str(e)}
         token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
-        stop_pipeline_lock_heartbeat(token)
-        release_pipeline_lock(token)
-        return {"status": "OK", "zip_path": zip_path}
+        try:
+            try:
+                zip_path = zip_iac_files()
+            except FileNotFoundError as e:
+                return {"status": "ERROR", "message": str(e)}
+            return {"status": "OK", "zip_path": zip_path}
+        finally:
+            stop_pipeline_lock_heartbeat(token)
+            release_pipeline_lock(token)
 
     async def async_invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         return await asyncio.to_thread(self.invoke, args, sly_data)

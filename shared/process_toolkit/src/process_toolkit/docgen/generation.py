@@ -72,11 +72,14 @@ from process_toolkit.docgen.design_sections import (
     _add_compliance_and_standards_section,
     _add_risk_register_section,
     _add_architecture_analysis,
+    _add_architecture_decisions_section,
     _add_viewpoints_and_views_section,
     _add_hld_components_section,
     _add_integration_points_table,
     _add_technology_stack_table,
     _add_low_level_design_section,
+    _add_operational_readiness_section,
+    _add_review_governance_checklist_section,
     _add_glossary_and_references_section,
 )
 from process_toolkit.docgen.requirements_sections import (
@@ -972,9 +975,10 @@ class _DesignMeta:
 # (and vice versa) instead of simply not appearing there at all.
 _DESIGN_CONSUMED_KEYS = {
     "document_metadata", "business_context", "architecture_description",
-    "requirements", "system_context", "high_level_design",
-    "low_level_design", "quality_attributes", "compliance_and_standards",
-    "risk_register", "governance_requirements", "continuous_improvement",
+    "architecture_decisions", "requirements", "system_context",
+    "high_level_design", "low_level_design", "quality_attributes",
+    "compliance_and_standards", "risk_register", "governance_requirements",
+    "continuous_improvement", "operational_readiness",
     "glossary_and_references", "review_and_governance", "appendix",
 }
 
@@ -985,7 +989,7 @@ _DESIGN_CONSUMED_KEYS = {
 # a live-generated document: a generating agent persisted
 # availability_and_resilience a SECOND time as its own stray TOP-LEVEL
 # key, duplicating the exact same RTO/RPO/backup-strategy content already
-# rendered in 5.1 Architecture Detail -- _DESIGN_CONSUMED_KEYS alone
+# rendered in 5.2 Architecture Detail -- _DESIGN_CONSUMED_KEYS alone
 # didn't catch this (the stray key's NAME was never a real top-level
 # schema field, so it was never in that set either), and the Additional
 # Data appendix then dumped it a second time since it looked, by the
@@ -1084,11 +1088,13 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
     requirements = data.get("requirements")
     system_context = data.get("system_context")
     high_level_design = data.get("high_level_design") or {}
+    low_level_design = data.get("low_level_design") or {}
     quality_attributes = data.get("quality_attributes")
     compliance_and_standards = data.get("compliance_and_standards")
     risk_register = data.get("risk_register")
     governance_requirements = data.get("governance_requirements")
     continuous_improvement = data.get("continuous_improvement")
+    operational_readiness = data.get("operational_readiness")
 
     _add_design_cover_and_toc(doc, meta, "High-Level Design Document")
 
@@ -1113,7 +1119,10 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
     if requirements:
         if rendered:
             add_iso_page_break(doc)
-        rendered = _add_requirements_section(doc, requirements, heading="3.0 Requirements")
+        rendered = _add_requirements_section(
+            doc, requirements, heading="3.0 Requirements",
+            high_level_design=high_level_design, low_level_design=low_level_design,
+        )
 
     if system_context:
         if rendered:
@@ -1147,6 +1156,10 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
         architecture_analysis = architecture_description.get("architecture_analysis")
         if architecture_analysis:
             _add_architecture_analysis(doc, architecture_analysis, level=3)
+
+        architecture_decisions = data.get("architecture_decisions")
+        if architecture_decisions:
+            _add_architecture_decisions_section(doc, architecture_decisions, heading="5.1 Architecture Decisions")
 
         rendered = True
 
@@ -1191,7 +1204,7 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
         if present:
             if rendered:
                 add_iso_page_break(doc)
-            doc.add_heading("5.1 Architecture Detail", level=2)
+            doc.add_heading("5.2 Architecture Detail", level=2)
             doc.add_paragraph(
                 "The following elaborates the high-level design's own components, "
                 "integration points, deployment topology, and cross-cutting "
@@ -1253,10 +1266,26 @@ def _build_hld_document(doc: docx.Document, data: dict, process_name: str, has_l
             doc, continuous_improvement, subject_noun="architecture"
         )
 
-    # review_and_governance (review_history/change_log/approval_workflow)
-    # is deliberately NOT rendered -- it's fabricated by the generating
-    # LLM with no grounding (invented reviewer names, invented dates) and
-    # adds no value. It stays in _DESIGN_CONSUMED_KEYS so it doesn't
+    if operational_readiness:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_operational_readiness_section(
+            doc, operational_readiness, heading="18.0 Operational Readiness"
+        )
+
+    review_and_governance = data.get("review_and_governance")
+    if review_and_governance:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_review_governance_checklist_section(
+            doc, review_and_governance, heading="19.0 Review and Governance"
+        )
+
+    # review_and_governance's OTHER fields (review_history/change_log/
+    # approval_workflow) are deliberately NOT rendered above -- they're
+    # fabricated by the generating LLM with no grounding (invented reviewer
+    # names, invented dates) and add no value. review_and_governance stays
+    # in _DESIGN_CONSUMED_KEYS so those fields don't
     # reappear via the Appendix B leftover-data catch-all below.
 
     rendered = _add_design_trailing_sections(doc, data, rendered)

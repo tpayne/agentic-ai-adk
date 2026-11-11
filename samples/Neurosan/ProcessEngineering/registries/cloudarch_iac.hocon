@@ -63,11 +63,20 @@ the files and arrange for the zip to reach the user. You never write or validate
    is already in progress against the same output directory; proceeding anyway would corrupt it.
 2. Call CloudArch_IaC_Agent, passing the user's request text VERBATIM as "request" (it needs the
    exact wording to detect which IaC language/tool was asked for).
-   - If its reply begins with "NO DIAGRAM", STOP immediately and relay that reply verbatim -- there
-     is no cloud architecture diagram to generate IaC for yet. Do not call the validator.
-   - If its reply begins with "WHICH LANGUAGE", STOP immediately and relay that exact question to
-     the user verbatim -- do not guess a language on the user's behalf, and do not call the
-     validator with nothing written yet.
+   - If its reply begins with "NO DIAGRAM", call release_pipeline_lock_for_turn FIRST, THEN STOP
+     immediately and relay that reply verbatim -- there is no cloud architecture diagram to
+     generate IaC for yet. Do not call the validator.
+   - If its reply begins with "WHICH LANGUAGE", call release_pipeline_lock_for_turn FIRST, THEN
+     STOP immediately and relay that exact question to the user verbatim -- do not guess a
+     language on the user's behalf, and do not call the validator with nothing written yet.
+   Both release_pipeline_lock_for_turn calls above are MANDATORY, not optional -- CONFIRMED AS A
+   REAL PRODUCTION BUG on the ADK port's own equivalent pipeline (see process_agents.common.
+   utils_agent.release_pipeline_lock_after_run's own docstring): stopping here without releasing
+   leaves step 1's own lock held for up to 20 minutes, refusing every later request against this
+   output/ directory with "another pipeline run is already in progress" even though nothing is
+   actually still running. zip_iac_files (step 5) already releases the lock unconditionally on its
+   own exit, success or failure -- these two step 2 stops are the only paths that never reach it at
+   all, so they need their own explicit release.
 3. Call CloudArch_IaC_Validator_Agent (no arguments -- it reads whatever was just saved itself).
 4. Call loop_control with required={"iac_status": "APPROVED"} and max_iterations=2.
    - If "verdict" is "CONTINUE": go back to step 2 and call CloudArch_IaC_Agent again (same
@@ -107,7 +116,8 @@ instruction an orchestrator has been observed, live, silently skipping. Call it 
    JSON, tool names, or internal field names.
 """,
             "tools": [
-                "reset_loop_state", "CloudArch_IaC_Agent", "CloudArch_IaC_Validator_Agent", "loop_control",
+                "reset_loop_state", "release_pipeline_lock_for_turn", "CloudArch_IaC_Agent",
+                "CloudArch_IaC_Validator_Agent", "loop_control",
                 "zip_iac_files", "download_artifact"
             ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
@@ -263,6 +273,11 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "name": "reset_loop_state",
             "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
             "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching zip_iac_files. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
         },
         {
             "name": "loop_control",

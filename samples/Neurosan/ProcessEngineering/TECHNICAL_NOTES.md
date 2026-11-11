@@ -575,8 +575,9 @@ The service exposes:
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
-| `GET` | `/artifacts/<name>` | `name` is `process`, `design`, `requirements`, or `proposal_response` -- read-only access to this project's own `output/process_data.json` / `output/design_data.json` / `output/requirements_summary.json` / `output/proposal_response.json`. See [Process/Design artifacts](#processdesign-artifacts) below. |
-| `GET` | `/artifacts/<name>/download` | `name` is `process`, `design`, `requirements`, or `proposal_response` -- download the raw `process_data.json`/`design_data.json`/`requirements_summary.json`/`proposal_response.json` as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read above, for the web client's own data-explorer viewer). Re-attaching this exact file to a later chat turn restores it verbatim -- see [Downloading generated artifacts](#downloading-generated-artifacts) below. |
+| `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
+| `GET` | `/artifacts/portfolio_backlog_workbook/download` | Download the generated `portfolio_backlog.xlsx` Enterprise Agile Portfolio Backlog workbook as a real file attachment. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |
 | `GET` | `/artifacts/cloudarch/download` | Download `output/cloudarch_drawio.xml` as a real file attachment (vs. `GET /artifacts/cloudarch`'s JSON-wrapped string, for the web client's own renderer). |
@@ -763,6 +764,8 @@ GET /artifacts/design/download                  # the real design_data.json byte
 GET /artifacts/requirements/download             # the real requirements_summary.json bytes, as an attachment
 GET /artifacts/proposal_response/download        # the real proposal_response.json bytes, as an attachment
 GET /artifacts/test_specification/download       # the real test_specification.json bytes, as an attachment
+GET /artifacts/portfolio_backlog/download        # the real portfolio_backlog.json bytes, as an attachment
+GET /artifacts/portfolio_backlog_workbook/download # the generated Enterprise Agile Portfolio Backlog workbook
 ```
 
 A generated document's filename is never fixed -- each one is named after whatever process/design

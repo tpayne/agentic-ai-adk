@@ -1,0 +1,308 @@
+{
+  "summary": "This specification validates the centralized backup framework for RDS and DynamoDB resources across a multi-tenant AWS environment. It focuses on policy enforcement, cross-account data isolation, and adherence to RPO/retention targets.",
+  "glossary": [
+    {
+      "definition": "Service Control Policy used for organization-wide guardrails.",
+      "term": "SCP"
+    },
+    {
+      "term": "CMK",
+      "definition": "Customer Master Key used in AWS KMS for encryption."
+    },
+    {
+      "definition": "Recovery Point Objective - the maximum acceptable amount of data loss.",
+      "term": "RPO"
+    }
+  ],
+  "source_cloudarch_used": true,
+  "source_requirements_used": false,
+  "test_approach": "The testing strategy combines manual inspection of AWS configurations (SCPs, Vault Policies) with automated verification of backup/restore workflows. Security testing prioritizes negative scenarios to ensure tenant isolation, while performance testing validates SLA compliance for data replication and RPO.",
+  "dependencies": [
+    {
+      "description": "Access to the Management Account to verify policy propagation and delegated admin settings.",
+      "dependency": "AWS Organizations Access",
+      "status": "Confirmed"
+    },
+    {
+      "status": "Confirmed",
+      "dependency": "Tenant Workload Sandbox",
+      "description": "A test AWS account containing RDS and DynamoDB resources to verify backup/restore."
+    }
+  ],
+  "risks": [
+    "Inability to test cross-region copy if the secondary region is not accessible in the test environment.",
+    "Testing SCP 'Deny' rules requires high-level access that may be restricted in non-production environments."
+  ],
+  "test_cases": [
+    {
+      "priority": "critical",
+      "preconditions": [
+        "AWS Backup Plan deployed to Tenant Workload Account.",
+        "RDS instance present with appropriate tags."
+      ],
+      "traces_to": [
+        "FR-001",
+        "rds_prod_db"
+      ],
+      "acceptance_criteria": [
+        "Backup plan successfully targets the tagged RDS instance.",
+        "Backup job completes with 'Completed' status."
+      ],
+      "id": "TC-001",
+      "verification_method": "Demonstration",
+      "test_data": "RDS Instance ID: 'test-rds-01', Tag: 'Backup:True'",
+      "description": "Verify that AWS Backup correctly identifies and backs up RDS resources in a tenant account based on defined policies.",
+      "owner": "QA Team",
+      "source_artifact": "design",
+      "expected_result": "A recovery point is created in the local vault for the targeted RDS instance within the scheduled window.",
+      "steps": [
+        "1. Manually trigger the 'DailyBackup' plan in the Tenant Workload Account.",
+        "2. Monitor the 'Backup jobs' console in the AWS Backup dashboard.",
+        "3. Verify the creation of a snapshot in the local vault."
+      ],
+      "status": "proposed",
+      "type": "functional"
+    },
+    {
+      "status": "proposed",
+      "id": "TC-002",
+      "priority": "critical",
+      "type": "integration",
+      "owner": "QA Team",
+      "verification_method": "Analysis",
+      "description": "Verify that local backups are automatically copied to the central vault in the Dedicated Backup Account.",
+      "preconditions": [
+        "Cross-account copy configuration active between Tenant and Dedicated accounts.",
+        "Successful local backup exists in Tenant account."
+      ],
+      "steps": [
+        "1. Identify a successful local backup job in the Tenant account.",
+        "2. Wait for the automated copy job to trigger.",
+        "3. Log into the Dedicated Backup Account and check the central vault for the new recovery point."
+      ],
+      "test_data": "Copy Job Latency Target: 4 hours (Hard Max)",
+      "expected_result": "Recovery point is visible in the central vault within 4 hours of local backup completion, measured as a HARD MAXIMUM.",
+      "acceptance_criteria": [
+        "Snapshot appears in the Dedicated Backup Account vault.",
+        "Snapshot is encrypted with the Platform CMK."
+      ],
+      "traces_to": [
+        "FR-002",
+        "central_vault_res"
+      ],
+      "source_artifact": "design"
+    },
+    {
+      "type": "security",
+      "id": "TC-003",
+      "traces_to": [
+        "NFR-001",
+        "scps"
+      ],
+      "acceptance_criteria": [
+        "Tenant DevOps role receives 'Access Denied' when attempting to delete a vault.",
+        "Vault remains intact."
+      ],
+      "preconditions": [
+        "SCP 'DenyDeleteBackup' applied to the Tenant's Organizational Unit.",
+        "User logged in with Tenant DevOps Engineer role."
+      ],
+      "status": "proposed",
+      "test_data": "Role: 'TenantDevOpsRole', Action: 'backup:DeleteBackupVault'",
+      "verification_method": "Manual Test",
+      "priority": "critical",
+      "expected_result": "The 'DeleteBackupVault' operation is blocked by an explicit Deny in the SCP.",
+      "source_artifact": "design",
+      "owner": "Security Team",
+      "steps": [
+        "1. Assume the Tenant DevOps Engineer role in a workload account.",
+        "2. Navigate to AWS Backup -> Backup vaults.",
+        "3. Select a vault and attempt to 'Delete'."
+      ],
+      "description": "Negative Test: Verify that SCPs prevent Tenant DevOps Engineers from deleting backup vaults."
+    },
+    {
+      "traces_to": [
+        "AWS_Organizations_Management_Account",
+        "backup_mgmt"
+      ],
+      "description": "Positive Test: Verify that a Platform Administrator can modify and deploy backup policies centrally.",
+      "steps": [
+        "1. Update the 'BackupPolicyJson' in the Management Account to change the start window.",
+        "2. Save and apply the policy to the target OU.",
+        "3. Verify the policy update in the Tenant account's AWS Backup console."
+      ],
+      "test_data": "Updated Start Window: 02:00 UTC",
+      "owner": "Platform Team",
+      "id": "TC-004",
+      "status": "proposed",
+      "verification_method": "Demonstration",
+      "source_artifact": "design",
+      "preconditions": [
+        "User logged in with Platform Administrator permissions in the Management Account."
+      ],
+      "expected_result": "The updated policy is visible and active in the delegated admin account and member accounts.",
+      "priority": "high",
+      "acceptance_criteria": [
+        "Platform Administrator can successfully update a Backup Policy in the Management account.",
+        "Changes propagate to member accounts."
+      ],
+      "type": "functional"
+    },
+    {
+      "expected_result": "The time between consecutive successful recovery points is <= 12 hours, measured as a HARD MAXIMUM.",
+      "traces_to": [
+        "NFR-004",
+        "backup_plan_prod_res"
+      ],
+      "source_artifact": "design",
+      "priority": "high",
+      "test_data": "RPO Target: 12 hours (Hard Max)",
+      "description": "Verify that the backup schedule meets the 12-hour Recovery Point Objective (RPO).",
+      "id": "TC-005",
+      "verification_method": "Analysis",
+      "status": "proposed",
+      "type": "performance",
+      "owner": "QA Team",
+      "acceptance_criteria": [
+        "Backup frequency is set to 12 hours or less.",
+        "Last backup age is within the RPO threshold."
+      ],
+      "steps": [
+        "1. Review the backup history for a production RDS instance.",
+        "2. Calculate the time difference between the completion of the last two successful backups."
+      ],
+      "preconditions": [
+        "Backup plan active for at least 24 hours."
+      ]
+    },
+    {
+      "source_artifact": "design",
+      "status": "proposed",
+      "expected_result": "KMS cryptographic operations (Decrypt/DescribeKey) are denied for tenant identities.",
+      "description": "Negative Test: Verify that tenants cannot access or use the KMS CMKs in the Dedicated Backup Account.",
+      "test_data": "KMS Key ARN: 'arn:aws:kms:eu-west-2:BACKUP_ACCOUNT_ID:key/...'",
+      "priority": "critical",
+      "id": "TC-006",
+      "preconditions": [
+        "KMS Key Policy in Dedicated Account restricts access to platform roles only.",
+        "User logged in with Tenant DevOps role."
+      ],
+      "verification_method": "Manual Test",
+      "traces_to": [
+        "NFR-003",
+        "central_kms_res"
+      ],
+      "steps": [
+        "1. Attempt to describe the Platform KMS key using the Tenant DevOps role via CLI.",
+        "2. Attempt to decrypt a cross-account snapshot using the same role."
+      ],
+      "acceptance_criteria": [
+        "Tenant role receives 'Access Denied' when attempting to use the Platform KMS key."
+      ],
+      "owner": "Security Team",
+      "type": "security"
+    },
+    {
+      "description": "Verify that failed backup copy jobs trigger appropriate alerts via EventBridge and SNS.",
+      "test_data": "Alert Latency: < 5 minutes (Assumed)",
+      "type": "infrastructure",
+      "priority": "medium",
+      "traces_to": [
+        "backup_events",
+        "backup_alerts"
+      ],
+      "id": "TC-007",
+      "status": "proposed",
+      "expected_result": "An alert notification is delivered to the SNS topic within 5 minutes of a job failure.",
+      "preconditions": [
+        "EventBridge rule and SNS topic configured."
+      ],
+      "steps": [
+        "1. Simulate a failed copy job (e.g., by temporarily modifying vault permissions).",
+        "2. Monitor the SNS subscription (email/Slack) for the failure alert."
+      ],
+      "source_artifact": "cloudarch",
+      "verification_method": "Demonstration",
+      "owner": "QA Team",
+      "acceptance_criteria": [
+        "EventBridge rule triggers on 'Copy Job State Change' to 'FAILED'.",
+        "SNS notification is received by the platform team."
+      ]
+    },
+    {
+      "id": "TC-008",
+      "test_data": "Secondary Region: e.g., eu-west-1",
+      "priority": "high",
+      "traces_to": [
+        "dr_vault",
+        "dr_kms"
+      ],
+      "description": "Verify cross-region replication of backups from the central vault to the DR vault.",
+      "status": "proposed",
+      "verification_method": "Analysis",
+      "preconditions": [
+        "Cross-region copy enabled in the central backup plan."
+      ],
+      "source_artifact": "cloudarch",
+      "steps": [
+        "1. Verify a successful backup exists in the Central Backup Vault.",
+        "2. Check the DR Backup Vault in the secondary region for the replicated snapshot."
+      ],
+      "acceptance_criteria": [
+        "Snapshot is successfully copied to the DR vault in the secondary region.",
+        "Snapshot status is 'Completed'."
+      ],
+      "owner": "QA Team",
+      "type": "infrastructure",
+      "expected_result": "A copy of the backup exists in the secondary region's DR vault."
+    }
+  ],
+  "test_environment": "The test environment must be a multi-account AWS Organization with at least one Management account, one Dedicated Backup account, and two Tenant Workload accounts (Prod and Non-Prod). All primary resources must be deployed in the London (eu-west-2) region to match design constraints. Mock RDS and DynamoDB instances must be provisioned with standard datasets.",
+  "source_design_used": true,
+  "open_questions": [
+    "Confirm if the 12-hour RPO is a 95th-percentile goal or a hard maximum for all resources.",
+    "Clarify if the 'Restore process' includes cross-region restoration from the DR vault or only local-region restoration."
+  ],
+  "coverage_summary": {
+    "design_components_not_covered": [],
+    "cloudarch_components_covered": [
+      "scps",
+      "backup_mgmt",
+      "rds_prod_db",
+      "ddb_prod_table",
+      "backup_plan_prod_res",
+      "vault_prod_res",
+      "kms_prod_res",
+      "rds_nonprod_db",
+      "ddb_nonprod_table",
+      "backup_plan_nonprod_res",
+      "vault_nonprod_res",
+      "kms_nonprod_res",
+      "central_vault_res",
+      "central_kms_res",
+      "vault_policy_res",
+      "backup_events",
+      "backup_alerts",
+      "dr_vault",
+      "dr_kms"
+    ],
+    "requirements_not_covered": [],
+    "cloudarch_components_not_covered": [],
+    "requirements_covered": [],
+    "design_components_covered": [
+      "Tenant_Workload_Account",
+      "Dedicated_Backup_Account",
+      "AWS_Organizations_Management_Account",
+      "FR-001",
+      "FR-002",
+      "FR-003",
+      "NFR-001",
+      "NFR-002",
+      "NFR-003",
+      "NFR-004",
+      "NFR-005"
+    ]
+  },
+  "name": "Enterprise AWS Backup Framework Test Specification"
+}

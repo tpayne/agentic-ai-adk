@@ -59,19 +59,48 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
            typical values -- not a vendor product's literal config-file internals.
          - logging_and_monitoring: what gets monitored/logged/alerted on and why, not a literal
            implementation of the monitoring itself.
-       Do NOT invent internal software engineering constructs that go beyond architecture-level design --
+         - satisfies_requirements: carry forward the SAME requirement id(s) (e.g. ["FR-001", "NFR-003"])
+           the matching high_level_design.components[] entry already has in its own
+           "satisfies_requirements" -- this is the same component elaborated at finer grain, not a new
+           component, so it exists to satisfy the same requirement(s). Do not leave this empty just
+           because the HLD-level entry already states it; the document's traceability section reads
+           this field directly off the LLD component, not by cross-referencing the HLD one.
+       ANTI-FABRICATION is TWO separate rules here, not one -- confirmed directly from live review
+       feedback that collapsing them into a single "don't fabricate" instruction was WHY
+       authentication/error_handling were showing up blank on every real run: the agent was treating
+       "don't invent" and "leave it blank" as the same safe default, when only the first is actually
+       safe:
+       (a) Do NOT invent internal software engineering constructs that go beyond architecture-level design --
        internal package/namespace names (e.g. "com.snc.*"), concrete class/method bodies, worker-thread or
        queue-processing implementation mechanics, database engine internals beyond the documented physical
        schema, or platform clustering internals -- unless they are genuinely customer-owned code or a
        confirmed implementation artifact actually supplied as input. These read as fabricated
        product-internals detail no architecture review board asked for, not real architectural design
-       decisions. This applies on EVERY pass, including the first: do not add design_patterns_used,
-       class_design, class_diagrams, pseudocode, algorithm_details, or unit_test_strategy proactively just
-       because this is an "LLD elaboration" stage. Only populate those fields for the specific component(s)
-       that feedback has explicitly asked for engineering-implementation-level detail on.
+       decisions. This applies on EVERY pass, including the first: do not add class_design, class_diagrams,
+       pseudocode, algorithm_details, or unit_test_strategy proactively just because this is an "LLD
+       elaboration" stage. Only populate those fields for the specific component(s) that feedback has
+       explicitly asked for engineering-implementation-level detail on. When you DO populate
+       class_design.classes[].design_patterns_used (because a reviewer asked for that detail on that
+       component), each pattern name needs a one-clause reason naming the obvious alternative it was
+       chosen over -- e.g. "Strategy pattern -- chosen over a conditional dispatch block so a new
+       backup-provider integration doesn't require editing this class." A bare pattern name with no
+       "why this one" is not useful detail.
+       (b) ALWAYS populate api_specifications[]/interface_contracts[]'s own "authentication" and
+       "error_handling" fields, and every component's "configuration_parameters[]", with a concrete,
+       HLD-grounded convention -- e.g. "authentication": "Bearer JWT, validated per
+       high_level_design.security_architecture.authentication_mechanism", or "error_handling": "Returns
+       RFC 7807 problem+json on failure; retries transient 5xx via the circuit-breaker pattern already
+       named in this component's dependencies." Citing the HLD's own security_architecture/
+       technology_stack/dependencies this way is NOT fabrication -- it is stating a standard,
+       already-architected convention in concrete terms, which is exactly what makes an LLD
+       implementation-ready rather than a repeat of the HLD at finer grain. Leaving these fields blank
+       is itself a defect, not a safe default. The ONLY acceptable blank-equivalent is an explicit,
+       considered statement for a genuinely internal-only interface, e.g. "authentication": "None
+       (internal network, no external exposure)".
      - database_design: physical schemas, data dictionaries, storage engine choices.
      - interface_contracts: OpenAPI/gRPC-style endpoint specs (protocol, contract_reference, request/
-       response schema, authentication, versioning_strategy, error_handling).
+       response schema, authentication, versioning_strategy, error_handling) -- authentication and
+       error_handling are MANDATORY per ANTI-FABRICATION (b) above.
      - exception_handling_strategy: how failures are detected and recovered from.
    - Ensure all data contracts, state machines, and interface definitions are explicitly detailed without
      placeholder text -- but see the fabrication constraint above for where that detail should stop.
@@ -128,7 +157,10 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
    - Content-quality repair: while revising, ACTIVELY scan and correct existing prose that violates the
      rules above -- redundant sentences restating the same point in slightly different words, or inherited
      absolute-language claims like "eliminates single point of failure" -- not just avoid introducing new
-     violations.
+     violations. This includes any api_specifications[]/interface_contracts[] entry with a blank
+     "authentication"/"error_handling" left over from an earlier pass, and any low_level_design.components[]
+     entry with no "satisfies_requirements" even though its matching high_level_design.components[] entry
+     has one -- fix these proactively, not only when a compliance issue names them by exact location.
    - Perform schema repair if required properties are missing.
    - Call validate_design_json with your ENTIRE current document object -- every top-level key, including
      document_metadata -- NEVER with only the section(s) you just edited. The validator checks the whole

@@ -34,6 +34,7 @@ from .artifact_downloads import (
     cloudarch_diagram_exists,
     copy_artifact_to_destination,
     list_output_documents,
+    portfolio_backlog_workbook_exists,
     resolve_artifact_target,
 )
 
@@ -207,8 +208,8 @@ def clear_pipeline_lock() -> str:
 
 def download_artifact(target: str = "", destination: str = "") -> str:
     """Saves a copy of a generated artifact (the cloud architecture
-    diagram, a generated IaC zip, or a generated Word document) to a local
-    filesystem path on the machine this agent process is running on.
+    diagram, generated IaC zip, Enterprise Agile Portfolio Backlog workbook, or Word document)
+    to a local filesystem path on the machine this agent process is running on.
 
     Call this when the user explicitly asks to download/save/export/copy
     a generated artifact to a specific location (e.g. "download the cloud
@@ -250,6 +251,8 @@ def download_artifact(target: str = "", destination: str = "") -> str:
     filename = resolve_artifact_target(target)
     if filename is None:
         available = [doc["filename"] for doc in list_output_documents()]
+        if portfolio_backlog_workbook_exists():
+            available.insert(0, "the Enterprise Agile Portfolio Backlog workbook (portfolio_backlog.xlsx)")
         if cloudarch_diagram_exists():
             available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
         listing = ", ".join(available) if available else "nothing has been generated yet"

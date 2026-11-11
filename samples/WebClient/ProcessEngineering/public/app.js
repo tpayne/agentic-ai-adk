@@ -2234,11 +2234,13 @@
 
   // ---------------------------------------------------------------
   // Data explorer -- hierarchical viewer for the Artefact Browser tab's
-  // GET /artifacts/<name> ("process", "design", "requirements", or
-  // "proposal_response", picked via the tab's own dropdown), a read-only
+  // GET /artifacts/<name> ("process", "design", "requirements",
+  // "proposal_response", "test_specification", or "portfolio_backlog",
+  // picked via the tab's own dropdown), a read-only
   // snapshot of this project's own output/process_data.json /
   // output/design_data.json / output/requirements_summary.json /
-  // output/proposal_response.json on whichever backend is connected.
+  // output/proposal_response.json / output/test_specification.json /
+  // output/portfolio_backlog.json on whichever backend is connected.
   // Rendered as an expandable tree
   // (root top-left, children expanding down-and-right) built via
   // document.createElement/.textContent -- NOT innerHTML string
@@ -2354,7 +2356,13 @@
     el.artifactTree.innerHTML = "";
     const { raw, artifact } = state.dataExplorer;
     if (raw === null) return;
-    const rootLabel = ["design", "requirements", "proposal_response"].includes(artifact) ? artifact : "process";
+    const rootLabel = [
+      "design",
+      "requirements",
+      "proposal_response",
+      "test_specification",
+      "portfolio_backlog",
+    ].includes(artifact) ? artifact : "process";
     buildTreeRow(rootLabel, raw, "$", 0, el.artifactTree);
   }
 
@@ -2499,7 +2507,8 @@
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
 
   // Downloads the real process_data.json/design_data.json/
-  // requirements_summary.json/proposal_response.json file (vs. the tree
+  // requirements_summary.json/proposal_response.json/test_specification.json/
+  // portfolio_backlog.json file (vs. the tree
   // view loadArtifact above renders from) -- re-attaching this exact
   // file to a later chat turn (the composer's own "attach file" button)
   // restores it verbatim as the active process/design/requirements
@@ -2512,15 +2521,16 @@
   const ARTIFACT_FILENAMES = {
     requirements: "requirements_summary.json",
     proposal_response: "proposal_response.json",
+    test_specification: "test_specification.json",
+    portfolio_backlog: "portfolio_backlog.json",
   };
 
   async function downloadArtifactJson() {
-    const artifact = state.dataExplorer.artifact; // "process", "design", "requirements", or "proposal_response"
+    const artifact = state.dataExplorer.artifact;
     const blob = await fetchArtifactBlob(`/artifacts/${artifact}/download`);
     if (!blob) return;
-    // requirements_summary.json/proposal_response.json have no "_data.json"
-    // suffix, unlike process/design -- the real on-disk filename, not a
-    // derived pattern.
+    // Non-process/design artifact filenames are explicit because they do
+    // not follow the "<artifact>_data.json" convention.
     const filename = ARTIFACT_FILENAMES[artifact] || `${artifact}_data.json`;
     const result = await saveFile(blob, filename, {
       description: "JSON file", accept: { "application/json": [".json"] },
