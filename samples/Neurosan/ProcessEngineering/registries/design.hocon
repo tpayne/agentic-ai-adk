@@ -355,9 +355,45 @@ between genuine alternatives. A single-option "this is just how it has to work" 
 # document renderer, not fixed up later)
 - business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
   "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement";
-  "objectives", NOT "strategic_objectives".
+  "objectives", NOT "strategic_objectives". MINIMUM SUBSTANCE, not just key names: "purpose" and
+  "scope" are each the FIRST thing a reviewer reads -- a single elevator-pitch clause ("Provide a
+  highly available and secure data persistence layer...") is not enough for a real HLD. Each MUST be
+  several full sentences: "purpose" states the business problem being solved, who it serves, why it
+  matters now, and the consequence of not solving it; "scope" states concretely what is IN scope
+  (which components/environments/data this design covers) and, just as importantly, what is
+  explicitly OUT of scope (so a reviewer doesn't have to infer the boundary). Confirmed directly from
+  real reviewer feedback on a generated document: one or two sentences per section of an HLD is NOT
+  acceptable -- a reviewer needs real context to evaluate the design, not a summary they already knew
+  from the request.
+- architecture_description.viewpoints[]/views[]: a bare name with nothing else is the single most
+  common completeness gap confirmed in real generated documents -- an "Infrastructure Viewpoint"
+  heading with no description, no concerns, no stakeholders, and no view that actually links to it
+  renders as a visibly empty section. EVERY viewpoints[] entry needs: "viewpoint_name" (or "name"),
+  "description" (what this viewpoint captures and why it exists for THIS design -- not a one-clause
+  restatement of its own name), "concerns_addressed" (or "concerns": pull from the SAME concerns
+  already listed in architecture_description.concerns -- do not invent new ones here), and
+  "stakeholders_addressed" (or "stakeholders": pull from architecture_description.stakeholders[]'s
+  own names/roles). EVERY views[] entry needs "viewpoint_ref" (or "viewpoint") set to the EXACT
+  "viewpoint_name" string of the viewpoint it realizes -- a view with no viewpoint_ref, or one that
+  doesn't exactly match a real viewpoint_name, renders correctly but falls into an "Other Views"
+  catch-all instead of being shown alongside the viewpoint it's meant to realize, which is a
+  structural gap a reviewer will notice. Also give every view a real "description" (what this
+  specific view shows and why it matters), not just a name.
 - system_context.actors[]: use "name", "type", and "description"; put the actor's role or
   responsibilities in "description", not a non-rendered "role" field.
+- system_context.external_systems[]: MUST include EVERY genuinely external system/service this
+  design depends on -- cross-check against whatever you populate in high_level_design.components[]
+  (their own "dependencies"/"technology_stack") and integration_points[] for any third-party or
+  cloud-managed service (e.g. a KMS/secrets-management/monitoring service, an external API, another
+  team's system) that ISN'T one of this design's own components. Confirmed directly as a real gap: a
+  design whose components clearly depended on and integrated with real managed services elsewhere in
+  the SAME document still left system_context.external_systems completely empty, which breaks the
+  System Context diagram entirely (it has nothing to draw -- not even a placeholder, just a blank
+  "[Context not yet generated]" note) even though the data to draw a real one already exists
+  elsewhere in this same document. Each entry needs "name", "description", "interface_type", "data_
+  exchanged", and "owner" -- do not leave this array empty just because the actors[] list has
+  something in it; actors and external systems are two different things and a real design almost
+  always has both.
 - architecture_description.stakeholders[]: use "name" (or "stakeholder_name"), "role",
   "responsibilities", and "concerns" as applicable; populate the role and concerns because they
   are rendered in the responsibilities table.
@@ -454,8 +490,11 @@ between genuine alternatives. A single-option "this is just how it has to work" 
    now -- cheap insurance so a real, correctable draft exists even if the rest of this turn runs
    long.
 4. THEN elaborate the full HLD: business_context (pull "assumptions"/"constraints" forward from the
-   analysis's own technical_and_operational_constraints if it populated them there),
-   architecture_description (incl. stakeholders and architecture_analysis), requirements
+   analysis's own technical_and_operational_constraints if it populated them there -- see "EXACT
+   FIELD SHAPES" above for the minimum substance "purpose"/"scope" each need, several sentences, not
+   one clause), architecture_description (incl. stakeholders, FULLY populated viewpoints/views with
+   every view's own viewpoint_ref actually linking to a real viewpoint -- see "EXACT FIELD SHAPES"
+   above, and architecture_analysis), requirements
    (functional_requirements/non_functional_requirements mapped 1:1 from the requirements_register,
    preserving ids, priorities, and acceptance_criteria exactly, plus traceability_matrix once
    high_level_design.components below exist to link them to), system_context, high_level_design
@@ -624,6 +663,12 @@ Agent/Simulation_Agent feedback to it, not to build anything from scratch.
   "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement".
 - low_level_design.components[]: name key is "component_name" -- NOT "hld_component_name".
 - system_context.actors[]: use "name", "type", and "description".
+- system_context.external_systems[]: if a compliance/simulation issue (or your own read of the
+  document) finds a real external/managed service named elsewhere (components' own dependencies/
+  technology_stack, integration_points) but missing from this list, add it here too -- {"name",
+  "description", "interface_type", "data_exchanged", "owner"}. An empty external_systems[] with real
+  external dependencies named elsewhere breaks the System Context diagram entirely (nothing to draw
+  at all), confirmed as a real gap in a generated document.
 - architecture_description.stakeholders[]: use "name" (or "stakeholder_name"), "role",
   "responsibilities", and "concerns".
 - requirements.functional_requirements[]/non_functional_requirements[]: "acceptance_criteria" must
@@ -760,20 +805,44 @@ components rather than a reasoned, implementable architecture. Check ALL of the 
    are generic in this way, that is a defect. Quote the generic sentence itself in the fix
    instruction and name the concrete, document-specific detail (a requirement id, a named
    component/technology, a real number) it should be replaced with -- not a vague "add more detail."
+   SEPARATELY from genericness: business_context.purpose and .scope are each a SINGLE clause/
+   sentence -- confirmed directly as real reviewer feedback that this specific pattern is NOT
+   acceptable for an HLD, even when the one sentence is itself grounded and specific (it is still
+   not ENOUGH -- a reviewer needs several sentences of real context, not a summary they already knew
+   from the request). Flag this as a defect too, independent of whether the existing sentence is
+   generic or not, and name "purpose"/"scope" specifically as needing expansion to several sentences
+   each (business problem/who it serves/why now/consequence of not solving it for "purpose"; what's
+   explicitly in AND out of scope for "scope").
+7. VIEWPOINT/VIEW COMPLETENESS: any architecture_description.viewpoints[] entry with ONLY a
+   "viewpoint_name" (or "name") and nothing else -- no "description", no "concerns_addressed", no
+   "stakeholders_addressed" -- is a defect; it renders as a visibly empty heading with nothing
+   beneath it. Separately, any architecture_description.views[] entry with no "viewpoint_ref" (or
+   "viewpoint"), or one that doesn't exactly match a real viewpoint's own "viewpoint_name", is a
+   defect -- it silently falls into an "Other Views" catch-all instead of being shown alongside the
+   viewpoint it's meant to realize. Name the specific viewpoint/view by name in the fix instruction.
+8. EXTERNAL SYSTEMS COMPLETENESS: if any high_level_design.components[]'s own "dependencies" or
+   "technology_stack", or any integration_points[] entry, names a real third-party or cloud-managed
+   service (e.g. a KMS/secrets-management/monitoring service) that is NOT one of this design's own
+   components AND does not appear in system_context.external_systems[], that is a defect -- an
+   empty or incomplete external_systems[] breaks the System Context diagram entirely (nothing to
+   draw at all, not even a placeholder), even though the real dependency is already named elsewhere
+   in the same document. Name the specific service missing from external_systems[] in the fix
+   instruction.
 
 If issues exist, call save_iteration_feedback with channel="compliance" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
 "json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"risk_level":
 "High"|"Medium"|"Low", "category": "Regulatory"|"Security"|"Quality_ISO25010"|"C4_Model"|
 "Data_Integrity"|"Infrastructure"|"Traceability"|"Interface_Completeness"|"Decision_Record"|
-"Component_Depth"|"Narrative_Substance"}}]}
+"Component_Depth"|"Narrative_Substance"|"Viewpoint_Completeness"|"External_Systems_Completeness"}}]}
 then respond with exactly: REVISION REQUIRED
 
 If fully compliant, call save_iteration_feedback with channel="compliance" and feedback=
 {"status": "COMPLIANCE APPROVED", "notes": "The design document meets ISO/IEC/IEEE 42010 and
 ISO/IEC 25010 conformance, security, and regulatory criteria, and the completeness and
 traceability checks (interface completeness, requirement traceability, quality attribute
-grounding, decision recording, component design depth, narrative substance)."}
+grounding, decision recording, component design depth, narrative substance, viewpoint/view
+completeness, external systems completeness)."}
 then respond with exactly: COMPLIANCE APPROVED
 
 Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.

@@ -61,6 +61,42 @@ between genuine alternatives. A single-option "this is just how it has to work" 
 
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
+- business_context: the key is "purpose", NOT "context_statement"; "objectives", NOT
+  "strategic_objectives". MINIMUM SUBSTANCE, not just key names: "purpose" and "scope" are each the
+  FIRST thing a reviewer reads -- a single elevator-pitch clause ("Provide a highly available and
+  secure data persistence layer...") is not enough for a real HLD. Each MUST be several full
+  sentences: "purpose" states the business problem being solved, who it serves, why it matters now,
+  and the consequence of not solving it; "scope" states concretely what is IN scope (which
+  components/environments/data this design covers) and, just as importantly, what is explicitly OUT
+  of scope. Confirmed directly from real reviewer feedback on a generated document: one or two
+  sentences per section of an HLD is NOT acceptable -- a reviewer needs real context to evaluate the
+  design, not a summary they already knew from the request.
+- architecture_description.viewpoints[]/views[]: a bare name with nothing else is the single most
+  common completeness gap confirmed in real generated documents -- an "Infrastructure Viewpoint"
+  heading with no description, no concerns, no stakeholders, and no view that actually links to it
+  renders as a visibly empty section. EVERY viewpoints[] entry needs: "viewpoint_name" (or "name"),
+  "description" (what this viewpoint captures and why it exists for THIS design -- not a one-clause
+  restatement of its own name), "concerns_addressed" (or "concerns": pull from the SAME concerns
+  already listed in architecture_description.concerns -- do not invent new ones here), and
+  "stakeholders_addressed" (or "stakeholders": pull from architecture_description.stakeholders[]'s
+  own names/roles). EVERY views[] entry needs "viewpoint_ref" (or "viewpoint") set to the EXACT
+  "viewpoint_name" string of the viewpoint it realizes -- a view with no viewpoint_ref, or one that
+  doesn't exactly match a real viewpoint_name, renders correctly but falls into an "Other Views"
+  catch-all instead of being shown alongside the viewpoint it's meant to realize, which is a
+  structural gap a reviewer will notice. Also give every view a real "description" (what this
+  specific view shows and why it matters), not just a name.
+- system_context.external_systems[]: MUST include EVERY genuinely external system/service this
+  design depends on -- cross-check against whatever you populate in high_level_design.components[]
+  (their own "dependencies"/"technology_stack") and integration_points[] for any third-party or
+  cloud-managed service (a KMS/secrets-management/monitoring service, an external API, another
+  team's system) that ISN'T one of this design's own components. Confirmed directly as a real gap: a
+  design whose components clearly depended on and integrated with real managed services elsewhere in
+  the SAME document still left system_context.external_systems completely empty, which breaks the
+  System Context diagram entirely (nothing to draw, not even a placeholder) even though the data to
+  draw a real one already exists elsewhere in the same document. Each entry needs "name",
+  "description", "interface_type", "data_exchanged", "owner" -- do not leave this empty just because
+  actors[] has something in it; actors and external systems are different things and a real design
+  almost always has both.
 - high_level_design.components[].satisfies_requirements: a list of the
   requirements.functional_requirements[]/non_functional_requirements[] "id"(s) this specific
   component exists to satisfy, e.g. ["FR-001", "NFR-003"]. Populate this on EVERY component that

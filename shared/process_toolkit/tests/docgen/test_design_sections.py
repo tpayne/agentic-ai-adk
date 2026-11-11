@@ -238,6 +238,44 @@ class TestViewpointsAndViewsSection:
         )
         assert len(doc.inline_shapes) == 1
 
+    def test_an_infrastructure_view_with_component_dependencies_draws_from_components_not_environments(self):
+        # Regression test: "infrastructure" used to match the "deployment"
+        # bucket FIRST, so an "Infrastructure View" whose own description
+        # named concrete components (VPC, subnets, RDS instances, security
+        # services) still drew a bare single-box "Production" diagram from
+        # deployment_topology.environments instead of the far richer
+        # multi-node components graph -- confirmed directly against a real
+        # generated document. "components" (with real dependencies) must
+        # win over a thin one-environment deployment_topology here.
+        doc = docx.Document()
+        high_level_design = {
+            "components": [
+                {"component_name": "RDS Instance", "dependencies": ["VPC Private Subnets", "KMS Key"]},
+                {"component_name": "VPC Private Subnets", "dependencies": []},
+                {"component_name": "KMS Key", "dependencies": []},
+            ],
+            "deployment_topology": {"environments": [{"name": "Production", "infrastructure": "AWS Cloud"}]},
+        }
+        design_sections._add_view_entry(
+            doc,
+            {
+                "name": "Infrastructure View",
+                "description": "Visual representation of the VPC, subnets, RDS instances, and security services.",
+            },
+            high_level_design=high_level_design,
+        )
+        assert len(doc.inline_shapes) == 1
+
+    def test_an_infrastructure_view_with_no_component_dependencies_falls_back_to_environments(self):
+        doc = docx.Document()
+        high_level_design = {
+            "deployment_topology": {"environments": [{"name": "Production", "infrastructure": "AWS Cloud"}]},
+        }
+        design_sections._add_view_entry(
+            doc, {"name": "Infrastructure View", "description": "d"}, high_level_design=high_level_design,
+        )
+        assert len(doc.inline_shapes) == 1
+
     def test_a_view_name_matching_no_keyword_renders_no_diagram_and_no_wrong_guess(self):
         # "Process View" has no plausible high_level_design-level data
         # source (no sequence flows at the HLD level) -- it must not draw

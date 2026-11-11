@@ -56,7 +56,20 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
        request where Design_Doc_Analysis_Agent judged a real business purpose was stated), proceed
        with business_context/document_metadata as normal below.
      - business_context: purpose, scope, objectives, business_drivers, assumptions, constraints.
+       MINIMUM SUBSTANCE: "purpose" and "scope" are each the FIRST thing a reviewer reads -- a single
+       elevator-pitch clause is not enough for a real HLD. Each MUST be several full sentences:
+       "purpose" states the business problem being solved, who it serves, why it matters now, and the
+       consequence of not solving it; "scope" states concretely what is IN scope and what is
+       explicitly OUT of scope. Confirmed directly from real reviewer feedback: one or two sentences
+       per section of an HLD is NOT acceptable.
      - architecture_description: stakeholders, concerns, viewpoints, views, architecture_analysis (id, title, description, strengths, weaknesses, risks, alternatives [option, description, strengths, weaknesses, comparison_to_recommended, risks], recommendation). Do NOT invent a status, a decision date, or who "decided" it — this is your own analysis and recommendation, not the minutes of a meeting you weren't in; the schema has no fields for those because you have no way to know them. Only populate "alternatives" with options you are actually comparing the recommended architecture against — leave it empty rather than inventing an alternative purely to fill the array.
+       EVERY viewpoints[] entry needs "viewpoint_name"/"description"/"concerns_addressed"
+       (pulled from this SAME architecture_description's own "concerns")/"stakeholders_addressed"
+       (pulled from this SAME architecture_description's own "stakeholders") -- a bare name with
+       nothing else renders as a visibly empty section, confirmed as a real defect in a generated
+       document. EVERY views[] entry needs "viewpoint_ref" set to the EXACT viewpoint_name string it
+       realizes (a missing or non-matching ref silently falls into an "Other Views" catch-all instead
+       of being shown with its viewpoint) plus its own real "description".
      - architecture_decisions is DIFFERENT from architecture_analysis above -- architecture_analysis
        is your reasoning about an approach; architecture_decisions is the record of what that
        reasoning concluded. Both are real and both are yours to populate. For every architecture_analysis entry above that reached a real
@@ -69,6 +82,13 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
        earlier, removed ADR-style field) that giving the agent one produces fabricated
        decision-meeting content; never add one even if a reviewer's phrasing seems to invite it.
      - system_context: actors, external_systems, context_diagram (C4 Level 1).
+       external_systems[] MUST include EVERY genuinely external system/service this design depends
+       on -- cross-check against high_level_design.components[]'s own dependencies/technology_stack
+       and integration_points[] for any third-party or cloud-managed service that isn't one of this
+       design's own components. An empty external_systems[] with real external dependencies named
+       elsewhere breaks the System Context diagram entirely (nothing to draw at all) -- confirmed as
+       a real gap in a generated document. Each entry: {"name", "description", "interface_type",
+       "data_exchanged", "owner"}.
      - requirements: functional_requirements, non_functional_requirements, traceability_matrix --
        POPULATE THESE FROM metadata.extracted_requirements.requirements_register WHEN PRESENT (see
        REQUIREMENTS REGISTER → SCHEMA MAPPING below for the exact mapping). If no

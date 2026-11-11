@@ -436,7 +436,16 @@ def persist_final_design_json(json_content: Any) -> str:
 
     validation = validate_design_json(json_content)
     if not validation["valid"]:
-        logger.warning("Design_Agent's design JSON failed validation, nothing persisted: %s", validation["issues"])
+        # INFO, not WARNING: this fires on every mid-process validate-and-
+        # retry attempt the generating agent makes, not just a final,
+        # persistent failure -- confirmed directly as real console noise
+        # during normal, ultimately-successful runs (the agent typically
+        # self-corrects within a few retries). Still fully captured in the
+        # log file at the default LOGLEVEL (INFO) for diagnosing "why does
+        # the generated document look thin/wrong" after the fact -- it's
+        # only the interactive console (fixed at WARNING+ regardless of
+        # LOGLEVEL) that no longer shows it on every routine retry.
+        logger.info("Design_Agent's design JSON failed validation, nothing persisted: %s", validation["issues"])
         return f"ERROR: JSON failed validation: {validation['issues']}"
 
     path = paths.output_path(DESIGN_JSON_FILENAME)

@@ -893,8 +893,23 @@ def _add_viewpoints_and_views_section(
 # fallback note -- this is a short, deliberately conservative list, not
 # a guess-anything heuristic.
 _VIEW_NAME_TO_HLD_CONTEXT_KEYWORDS = (
+    # "logical"/"component"/"integration" are unambiguous. "infrastructure"/
+    # "physical" are NOT -- checked here (component-level), BEFORE
+    # "deployment"/"topology" below, because in practice an "Infrastructure
+    # View" overwhelmingly describes the logical/physical COMPONENTS making
+    # up the infrastructure (VPC, subnets, named instances, security
+    # services -- exactly what high_level_design.components[] holds), not
+    # which deployment ENVIRONMENT it runs in. Confirmed directly against a
+    # real generated document: an "Infrastructure View" whose own
+    # description explicitly said "Visual representation of the VPC,
+    # subnets, RDS instances, and security services" still drew a bare
+    # single-box "Production / AWS Cloud" diagram instead, because
+    # "infrastructure" used to match the deployment bucket FIRST and
+    # deployment_topology.environments's own one-environment entry was
+    # non-empty, so the richer, more specific components data below was
+    # never even considered.
+    (("logical", "component", "integration", "infrastructure", "physical"), "logical"),
     (("deployment", "topology", "infrastructure", "physical"), "deployment"),
-    (("logical", "component", "integration"), "logical"),
 )
 
 
@@ -909,14 +924,28 @@ def _infer_view_context_from_high_level_design(view: dict, high_level_design: di
 
     for keywords, kind in _VIEW_NAME_TO_HLD_CONTEXT_KEYWORDS:
         if any(kw in haystack for kw in keywords):
-            if kind == "deployment":
-                environments = (high_level_design.get("deployment_topology") or {}).get("environments")
-                if environments:
-                    return {"environments": environments}
-            elif kind == "logical":
+            if kind == "logical":
+                # Prefer components (each with its own real "dependencies")
+                # over the sparser integration_points -- same richness check
+                # generate_uml_diagram's own "components" branch uses, so
+                # this only fires when it would actually draw something
+                # fuller than a 1-2 edge integration_points graph. RDS/VPC/
+                # KMS/Secrets-Manager-style "depends on" relationships live
+                # on components, not in a design's often-sparse top-level
+                # integration_points list.
+                components = high_level_design.get("components")
+                if isinstance(components, list) and any(
+                    isinstance(c, dict) and c.get("component_name") and c.get("dependencies")
+                    for c in components
+                ):
+                    return {"components": components}
                 integration_points = high_level_design.get("integration_points")
                 if integration_points:
                     return {"integration_points": integration_points}
+            elif kind == "deployment":
+                environments = (high_level_design.get("deployment_topology") or {}).get("environments")
+                if environments:
+                    return {"environments": environments}
     return None
 
 
