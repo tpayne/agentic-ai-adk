@@ -500,6 +500,48 @@ def _dedupe_doubled_answer(text: Optional[str]) -> Optional[str]:
     return text
 
 
+# Confirmed directly against a real run: neuro-san's own run_context_
+# runnable.py catches a model-provider exception and returns it as a
+# normal chat response string shaped "Error from <agent>: Agent stopped
+# due to exception Error calling model '<model>' (RESOURCE_EXHAUSTED):
+# 402 RESOURCE_EXHAUSTED. {'error': {... 'message': 'Your prepayment
+# credits are depleted...'}}" -- a raw, nested, nearly-unreadable
+# exception repr/JSON blob, not a raised Python exception, so neither
+# this file's own `except Exception` turn-handlers nor the web routes'
+# 500-error paths ever see it; it looks exactly like a normal answer to
+# every caller downstream. The failure itself is real and the fix is
+# always the same (go top up credits) -- there is nothing conversational
+# an agent could usefully add on retry, so this is worth recognizing and
+# replacing with one clear, actionable sentence instead of relaying the
+# raw blob as if it were the agent's own reply.
+_LLM_CREDITS_EXHAUSTED_MARKERS = ("prepayment credits are depleted",)
+
+
+def _friendly_llm_failure_message(text: Optional[str]) -> Optional[str]:
+    """Returns a clean, actionable message in place of a known,
+    not-recoverable-by-retrying LLM-provider failure (billing/prepaid
+    credits exhausted) buried inside one of neuro-san's own "Agent
+    stopped due to exception ..." response strings. Returns None for
+    anything else (a genuine answer, or a different kind of failure) so
+    the caller falls back to displaying the original text unchanged --
+    deliberately narrow (one confirmed, specific failure signature),
+    not a general "this looks like an error" heuristic, which would risk
+    mangling a legitimate answer that happens to mention one of these
+    words in passing (e.g. a question about cloud resource exhaustion as
+    an NFR topic)."""
+    if not text or "Agent stopped due to exception" not in text:
+        return None
+    if any(marker in text for marker in _LLM_CREDITS_EXHAUSTED_MARKERS) or (
+        "RESOURCE_EXHAUSTED" in text and "402" in text
+    ):
+        return (
+            "The LLM provider account has run out of prepaid credits, so this turn could not "
+            "complete. Top up credits at https://ai.studio/projects, then try again -- see "
+            "https://ai.google.dev/gemini-api/docs/billing#prepay for details."
+        )
+    return None
+
+
 class ChatSession:
     """One underlying neuro-san direct session against an agent network,
     plus the request/response state (chat_context, sly_data) that must be
@@ -745,7 +787,8 @@ class ChatSession:
                         json.dumps(token_accounting) if token_accounting else None,
                     )
 
-                return _dedupe_doubled_answer(state.get("last_chat_response")) or ""
+                raw_response = _dedupe_doubled_answer(state.get("last_chat_response")) or ""
+                return _friendly_llm_failure_message(raw_response) or raw_response
             finally:
                 _release_any_leftover_pipeline_lock(self.sly_data)
 
@@ -827,6 +870,7 @@ class ChatSession:
                         processor.process_message(response)
 
                         compiled_answer = processor.get_compiled_answer()
+                        compiled_answer = _friendly_llm_failure_message(compiled_answer) or compiled_answer
                         if compiled_answer and compiled_answer != last_compiled_answer:
                             last_compiled_answer = compiled_answer
                             yield {"status": "delta", "text": compiled_answer}
