@@ -39,17 +39,36 @@ def test_orchestrator_rule_covers_the_milder_refusal_retry_case():
     assert "self-driven retry that happens to land correctly" in text
 
 
-def test_design_update_step9_requires_grounding_the_open_feedback_topic():
-    # Regression test for a real production bug: the pipeline's own final
-    # report characterized open simulation feedback as "extreme-load
-    # latency" when the actual persisted feedback was entirely about
-    # resilience/SPOF risk, and latency_budget_risk was explicitly false.
+def test_design_update_pipeline_calls_the_mechanical_formatter_instead_of_guessing():
+    # Regression test for a real production bug, TWICE confirmed live: a
+    # prose-only instruction not to guess at open feedback topics did not
+    # reliably stop a free-paraphrase (first "extreme-load latency" when
+    # the real issue was SPOF risk; then wrong SPOF names entirely on the
+    # very next live run after the prose was tightened further). The fix
+    # is mechanical: a dedicated tool call now supplies the exact text to
+    # relay, removing the model's opportunity to misremember at all.
     text = _hocon_text("design_update.hocon")
-    assert "MUST be the actual topic/component named in Compliance_Agent's or" in text
-    assert "extreme-load latency" in text
+    assert "Call format_review_status_summary with channels=" in text
+    assert "this tool call replaces that unreliable step entirely" in text
+    assert '"format_review_status_summary"' in text
 
 
-def test_process_update_step10_requires_grounding_the_open_feedback_topic():
+def test_process_update_pipeline_calls_the_mechanical_formatter_instead_of_guessing():
     text = _hocon_text("process_update.hocon")
-    assert "it MUST be the actual topic/component named in" in text
-    assert "Compliance_Agent's or Simulation_Agent's own most recent feedback" in text
+    assert "Call format_review_status_summary with channels=" in text
+    assert '"format_review_status_summary"' in text
+
+
+def test_design_creation_pipeline_also_uses_the_mechanical_formatter():
+    # Applied proactively to the creation pipelines too, not just the
+    # update pipelines where the bug was actually observed -- same risk,
+    # same fix, same tool.
+    text = _hocon_text("design.hocon")
+    assert "Call format_review_status_summary with channels=" in text
+    assert '"format_review_status_summary"' in text
+
+
+def test_process_creation_pipeline_also_uses_the_mechanical_formatter():
+    text = _hocon_text("process.hocon")
+    assert "Call format_review_status_summary with channels=" in text
+    assert '"format_review_status_summary"' in text

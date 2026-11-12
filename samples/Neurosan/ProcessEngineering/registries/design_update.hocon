@@ -66,28 +66,33 @@ document for the design that exists RIGHT NOW. Call both now, regardless of "rea
 8. Call generate_design_document once, passing the design's own system/title name as
    "process_name". Its result is a plain string starting with either "SUCCESS:" or "ERROR:" --
    remember which one it was for step 9.
-9. Report the outcome in plain language (approved vs. still-open feedback after the revision
-   limit). Mention that the diagram was refreshed. Only say the Word document was refreshed if
-   step 8's own result actually started with "SUCCESS:" -- if it started with "ERROR:" instead,
-   say plainly that the Word document could not be regenerated and why (using the error's own
-   text), even though the diagram was refreshed. NEVER claim a document was produced "either way"
-   when the tool itself reported otherwise. NEVER describe the design's own content from your own
-   general knowledge or guess -- you only know what reason/step 8's own tool result actually said.
-   If you name WHAT the still-open feedback is ABOUT (rather than just saying feedback remains
-   open), it MUST be the actual topic/component named in Compliance_Agent's or Simulation_Agent's
-   own most recent feedback from step 4/5 (the issue_type/location/instruction/metadata you
-   already received calling them) -- never a plausible-sounding guess at what kind of issue is
-   "probably" still open. CONFIRMED AS A REAL PRODUCTION BUG: a live run characterized the open
-   feedback as "extreme-load latency" when the actual persisted Simulation feedback was entirely
-   about resilience/single-point-of-failure risk (Payment Gateway, API Gateway, and Message
-   Broker identified as SPOFs) and latency_budget_risk was explicitly false -- there was no
-   latency issue anywhere in the real data. If you are not confident of the exact topic, say
-   generically that review feedback remains open without naming a specific topic at all, rather
-   than inventing one. Plain prose only -- no raw JSON, tool names, or internal field names.
+9. Call format_review_status_summary with channels=["compliance", "simulation"]. This is now the
+   ONLY source of truth for what is approved vs. still open -- a prior version of this step asked
+   you to recall Compliance_Agent's/Simulation_Agent's feedback from your own memory of calling
+   them in step 4/5, and even with an explicit instruction not to guess, a live run still
+   characterized open feedback as "extreme-load latency" when the real Simulation feedback was
+   entirely about resilience/single-point-of-failure risk (Payment Gateway, API Gateway, and
+   Message Broker identified as SPOFs) and latency_budget_risk was explicitly false -- a prose
+   instruction alone did not reliably stop the free-paraphrase. CONFIRMED AS A REAL PRODUCTION BUG,
+   this tool call replaces that unreliable step entirely.
+10. Report the outcome in plain language, built from step 9's own returned text, not your own
+    recollection: for each channel step 9 reports as "APPROVED", say so. For each channel it
+    reports as "REVISION REQUIRED" with specific issue lines, relay THOSE EXACT lines (you may
+    lightly rephrase the surrounding prose, but the substance of each issue -- which component/
+    topic it names -- must come verbatim from step 9's own text, never your own guess at what kind
+    of issue is "probably" still open). Mention that the diagram was refreshed. Only say the Word
+    document was refreshed if step 8's own result actually started with "SUCCESS:" -- if it
+    started with "ERROR:" instead, say plainly that the Word document could not be regenerated and
+    why (using the error's own text), even though the diagram was refreshed.
+    NEVER claim a document was produced "either way" when the tool itself reported otherwise.
+    NEVER describe the design's own content from your own general knowledge or guess -- you only
+    know what step 8's and step 9's own tool results actually said. Plain prose only -- no raw
+    JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Design_Doc_Update_Analyst", "Design_Doc_Agent", "Compliance_Agent",
-                "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document"
+                "Simulation_Agent", "loop_control", "generate_design_flow_diagram", "generate_design_document",
+                "format_review_status_summary"
             ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
@@ -299,6 +304,20 @@ not re-run the simulation or call save_iteration_feedback more than once per tur
                 }
             },
             "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT compliance/simulation feedback mailboxes into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining them. Call this instead of recalling what Compliance_Agent/Simulation_Agent said from memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"compliance\", \"simulation\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
         },
         {
             "name": "load_master_design_json",

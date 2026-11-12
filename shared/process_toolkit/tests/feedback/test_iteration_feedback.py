@@ -1,4 +1,8 @@
-from process_toolkit.feedback.iteration_feedback import load_iteration_feedback, save_iteration_feedback
+from process_toolkit.feedback.iteration_feedback import (
+    format_review_status_summary,
+    load_iteration_feedback,
+    save_iteration_feedback,
+)
 
 
 def test_save_then_load_round_trips_and_drains():
@@ -64,3 +68,59 @@ def test_default_channel_is_independent_of_named_channels():
 
     assert default_fb["data"] == ["default channel issue"]
     assert analysis_fb["data"] == ["named channel issue"]
+
+
+def test_format_review_status_summary_reports_approved_channels():
+    save_iteration_feedback({"status": "COMPLIANCE APPROVED", "notes": "all good"}, channel="compliance")
+    save_iteration_feedback({"status": "SIMULATION_ALL_APPROVED", "notes": "all good"}, channel="simulation")
+
+    summary = format_review_status_summary(channels=("compliance", "simulation"))
+
+    assert "Compliance: APPROVED." in summary
+    assert "Simulation: APPROVED." in summary
+
+
+def test_format_review_status_summary_names_the_real_open_issues_verbatim():
+    # Regression test for a real production bug: a pipeline's own final
+    # report named SPOFs that were never in the real simulation data and
+    # omitted real, open security/latency risks that were. This function
+    # must surface the ACTUAL persisted instruction text, not a
+    # paraphrase.
+    save_iteration_feedback(
+        {
+            "status": "REVISION REQUIRED",
+            "issues": [
+                {
+                    "issue_type": "simulation",
+                    "location": "high_level_design.availability_and_resilience",
+                    "instruction": "Redis, Message Broker, and Checkout Orchestrator are SPOFs.",
+                },
+                {
+                    "issue_type": "simulation",
+                    "location": "high_level_design.scalability_and_performance",
+                    "instruction": "latency_budget_risk is true for the Edge Rate Limiter chain.",
+                },
+            ],
+        },
+        channel="simulation",
+    )
+
+    summary = format_review_status_summary(channels=("simulation",))
+
+    assert "Redis, Message Broker, and Checkout Orchestrator are SPOFs." in summary
+    assert "latency_budget_risk is true for the Edge Rate Limiter chain." in summary
+    assert "Payment Gateway" not in summary
+
+
+def test_format_review_status_summary_does_not_drain_the_mailbox():
+    save_iteration_feedback({"status": "REVISION REQUIRED", "issues": [{"instruction": "fix X"}]}, channel="compliance")
+
+    format_review_status_summary(channels=("compliance",))
+
+    still_there = load_iteration_feedback(reset_data=False, channel="compliance")
+    assert still_there["data"] == [{"instruction": "fix X"}]
+
+
+def test_format_review_status_summary_handles_no_review_yet():
+    summary = format_review_status_summary(channels=("compliance", "simulation"))
+    assert "no review has run yet this turn" in summary

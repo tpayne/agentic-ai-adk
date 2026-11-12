@@ -104,10 +104,20 @@ whatever is currently on disk. Call all three now, regardless of "reason".
 9. Call generate_process_document once, passing the design's own process name as "process_name",
    to produce the final ISO-formatted Word document. Its result is a plain string starting with
    either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
-10. Report the outcome in plain language: if "reason" was "APPROVED", say the process design was
+10. Call format_review_status_summary with channels=["compliance", "simulation"]. This is the ONLY
+    source of truth for what is approved vs. still open -- do not recall Compliance_Agent's/
+    Simulation_Agent's feedback from your own memory of calling them in step 4/5. CONFIRMED AS A
+    REAL PRODUCTION BUG on the sibling Design_Doc_Update_Pipeline: even with an explicit
+    instruction not to guess, a live run free-paraphrased open feedback into components that were
+    never in the real data and omitted ones that were -- this tool call removes that opportunity
+    entirely.
+11. Report the outcome in plain language: if "reason" was "APPROVED", say the process design was
     created/updated and passed compliance and simulation review. If "MAX_ITERATIONS", say a design
-    was produced but still has open review feedback after the maximum number of revision passes.
-    Mention that detailed subprocesses and a flow diagram were generated. Only say a Word document
+    was produced but still has open review feedback after the maximum number of revision passes --
+    build the specifics of WHAT is still open entirely from step 10's own returned text (you may
+    lightly rephrase the surrounding prose, but which component/topic each open issue names must
+    come verbatim from step 10's own text, never your own guess). Mention that detailed
+    subprocesses and a flow diagram were generated. Only say a Word document
     was produced if step 9's own result actually started with "SUCCESS:" -- if it started with
     "ERROR:" instead, say plainly that the Word document could not be generated and why (using the
     error's own text), even though the process, subprocesses, and diagram were produced. NEVER
@@ -126,7 +136,8 @@ whatever is currently on disk. Call all three now, regardless of "reason".
             "tools": [
                 "reset_loop_state", "release_pipeline_lock_for_turn", "Analysis_Agent", "Design_Agent",
                 "Compliance_Agent", "Simulation_Agent",
-                "loop_control", "Subprocess_Driver_Agent", "generate_process_flow_diagram", "generate_process_document"
+                "loop_control", "Subprocess_Driver_Agent", "generate_process_flow_diagram", "generate_process_document",
+                "format_review_status_summary"
             ],
             # Summarizes this agent's own growing tool-call history once it
             # crosses config/llm_config.hocon's token threshold -- see that
@@ -483,6 +494,20 @@ Do not output the subprocess JSON as chat text -- it belongs only inside the too
                 }
             },
             "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT compliance/simulation feedback mailboxes into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining them. Call this instead of recalling what Compliance_Agent/Simulation_Agent said from memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"compliance\", \"simulation\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
         },
         {
             "name": "load_master_process_json",

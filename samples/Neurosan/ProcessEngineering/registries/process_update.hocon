@@ -101,27 +101,32 @@ diagram, or the document for the design that exists RIGHT NOW. Call all three no
 9. Call generate_process_document once, passing the design's own process name as "process_name",
    to regenerate the final ISO-formatted Word document. Its result is a plain string starting with
    either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
-10. Report the outcome in plain language (approved vs. still-open feedback after the revision
-    limit). Mention that subprocesses and a flow diagram were refreshed. Only say the Word document
-    was refreshed if step 9's own result actually started with "SUCCESS:" -- if it started with
-    "ERROR:" instead, say plainly that the Word document could not be regenerated and why (using
-    the error's own text), even though the subprocesses and diagram were refreshed. NEVER claim a
-    document was produced "either way" when the tool itself reported otherwise. NEVER describe the
-    process's own content from your own general knowledge or guess -- you only know what reason/
-    step 9's own tool result actually said. If you name WHAT the still-open feedback is ABOUT
-    (rather than just saying feedback remains open), it MUST be the actual topic/component named in
-    Compliance_Agent's or Simulation_Agent's own most recent feedback from step 4/5 (the
-    issue_type/location/instruction/metadata you already received calling them) -- never a
-    plausible-sounding guess at what kind of issue is "probably" still open (confirmed as a real
-    production bug on the sibling Design_Doc_Update_Pipeline -- see that pipeline's own note on
-    this). If you are not confident of the exact topic, say generically that review feedback
-    remains open without naming a specific topic at all, rather than inventing one. Plain prose
+10. Call format_review_status_summary with channels=["compliance", "simulation"]. This is now the
+    ONLY source of truth for what is approved vs. still open -- a prior version of this step asked
+    you to recall Compliance_Agent's/Simulation_Agent's feedback from your own memory of calling
+    them in step 4/5, and on the sibling Design_Doc_Update_Pipeline, even with an explicit
+    instruction not to guess, a live run still characterized open feedback with components that
+    were never in the real data and omitted ones that were -- a prose instruction alone did not
+    reliably stop the free-paraphrase. CONFIRMED AS A REAL PRODUCTION BUG, this tool call replaces
+    that unreliable step entirely.
+11. Report the outcome in plain language, built from step 10's own returned text, not your own
+    recollection: for each channel step 10 reports as "APPROVED", say so. For each channel it
+    reports as "REVISION REQUIRED" with specific issue lines, relay THOSE EXACT lines (you may
+    lightly rephrase the surrounding prose, but the substance of each issue -- which component/
+    topic it names -- must come verbatim from step 10's own text, never your own guess at what kind
+    of issue is "probably" still open). Mention that subprocesses and a flow diagram were
+    refreshed. Only say the Word document was refreshed if step 9's own result actually started
+    with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document
+    could not be regenerated and why (using the error's own text), even though the subprocesses and
+    diagram were refreshed. NEVER claim a document was produced "either way" when the tool itself
+    reported otherwise. NEVER describe the process's own content from your own general knowledge or
+    guess -- you only know what step 9's and step 10's own tool results actually said. Plain prose
     only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Process_Update_Analyst", "Design_Agent", "Compliance_Agent",
                 "Simulation_Agent", "loop_control", "Subprocess_Driver_Agent",
-                "generate_process_flow_diagram", "generate_process_document"
+                "generate_process_flow_diagram", "generate_process_document", "format_review_status_summary"
             ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
@@ -389,6 +394,20 @@ Do not output the subprocess JSON as chat text -- it belongs only inside the too
                 }
             },
             "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT compliance/simulation feedback mailboxes into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining them. Call this instead of recalling what Compliance_Agent/Simulation_Agent said from memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"compliance\", \"simulation\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
         },
         {
             "name": "load_master_process_json",
