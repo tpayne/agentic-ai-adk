@@ -126,6 +126,33 @@ class DesignSimulationTests(unittest.TestCase):
                 {"high_level_design": {}}, iterations=1
             )
 
+    def test_a_managed_kafka_message_broker_is_not_flagged_as_a_structural_bottleneck(self):
+        # Regression test: "Amazon MSK (Kafka)" previously matched none of
+        # _ELASTIC_TECH_KEYWORDS despite being a fully-managed, provider-
+        # scaled messaging service, so any multi-dependent Message Broker
+        # component got flagged as a structural bottleneck on a real run.
+        components = [
+            {"component_name": "Checkout Orchestrator", "dependencies": []},
+            {"component_name": "Message Broker", "dependencies": ["Checkout Orchestrator"], "technology_stack": ["Amazon MSK (Kafka)"]},
+            {"component_name": "Inventory Worker", "dependencies": ["Message Broker"]},
+            {"component_name": "Notification Worker", "dependencies": ["Message Broker"]},
+            {"component_name": "Custom Rate Limiter", "dependencies": ["Checkout Orchestrator"], "technology_stack": ["In-house Go service"]},
+            {"component_name": "Dependent A", "dependencies": ["Custom Rate Limiter"]},
+            {"component_name": "Dependent B", "dependencies": ["Custom Rate Limiter"]},
+        ]
+        hld = {"components": components}
+        data = {"high_level_design": hld}
+        impacts, _ = design_simulation_agent._build_impacts_graph(
+            [c["component_name"] for c in components], components, []
+        )
+        result = design_simulation_agent._analyze_scalability(data, hld, components, impacts)
+        flagged_names = {b["component_name"] for b in result["structural_bottlenecks"]}
+        self.assertNotIn("Message Broker", flagged_names)
+        # Proves the keyword addition didn't suppress the check entirely --
+        # a genuinely non-elastic, multi-dependent custom component must
+        # still be flagged.
+        self.assertIn("Custom Rate Limiter", flagged_names)
+
 
 if __name__ == "__main__":
     unittest.main()

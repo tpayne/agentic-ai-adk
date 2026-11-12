@@ -32,6 +32,13 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
    - Load the starter template via load_design_template.
    - Set document_metadata.document_type to "Combined".
    - Fully populate these design_document_schema.json sections (verified against the actual schema):
+     - document_metadata.system_name/title (whichever check below applies): the SYSTEM's own real
+       name ONLY -- NEVER prefix or embed "HLD"/"LLD"/"Combined"/"Design Document" or any other
+       description of this document's own type/composition. document_type is the separate field for
+       that, and the renderer appends its own "HLD"/"LLD" suffix to system_name when naming the
+       output file -- confirmed as a real production bug: a system_name of "Combined HLD/LLD for X"
+       produced a file literally named "Combined_HLD_LLD_for_X_LLD.docx" for a request that asked
+       for (and correctly received) only the LLD variant.
      - INFRASTRUCTURE-ONLY INPUT CHECK (do this FIRST, before populating business_context or
        document_metadata.system_name/title): if metadata.extracted_requirements.business_purpose_stated
        is false, the source material is infrastructure/technical only -- e.g. drawn from an existing
@@ -117,7 +124,20 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
            tell components apart without reading every field of every one of them.
          - technology_stack, its own interfaces/api_specifications.
          - configuration_parameters: the design-level parameters an operator would set -- names, purpose,
-           typical values -- not a vendor product's literal config-file internals.
+           typical values -- not a vendor product's literal config-file internals. EVERY compute/data
+           component needs a real SIZING entry (a VM SKU/node-pool size/database tier, not just the
+           platform name or version) -- confirmed as real reviewer feedback that a platform/version
+           string with no actual size forces an implementing engineer to guess. If the request states
+           a real load figure, derive the size from it with the derivation shown; otherwise state the
+           assumed baseline explicitly and flag it for revalidation before go-live. If this design
+           involves real network segmentation (a VPC/VNet with subnets), also add CIDR allocation
+           entries -- a conventional, explicitly-labeled EXAMPLE plan (e.g. a /16 VNet CIDR with /24
+           subnet splits), one per tier, labeled as needing reconciliation against the real IP
+           address plan before deployment. A labeled example CIDR is a standard reference-
+           architecture choice, not fabrication. Do NOT generate actual Kubernetes/Terraform/
+           CloudFormation manifest YAML or HCL as document content -- that is Infrastructure-as-Code
+           with its own dedicated pipeline (CloudArch_IaC_Pipeline); this document specifies the
+           design decisions config should encode, not the IaC itself.
          - logging_and_monitoring: what gets monitored/logged/alerted on and why, not a literal
            implementation of the monitoring itself.
          - satisfies_requirements: carry forward the SAME requirement id(s) this component's matching
@@ -170,10 +190,36 @@ You are responsible for generating complete, end-to-end Architectural Design Doc
        governance_requirements, continuous_improvement, glossary_and_references.
      - operational_readiness: {"ownership": {"team", "contact"}, "support_model", "escalation_path",
        "monitoring_strategy", "alerting_strategy", "maintenance_activities": [...], "runbooks":
-       [{"title", "trigger", "reference"}]}. Ground every field in this design's own
+       [{"title", "trigger", "reference", "steps": [...]}]}. Ground every field in this design's own
        components/risks -- name what's actually being monitored, tied to a real component or
        risk_register failure mode, not a generic placeholder. If genuinely unknown, say so plainly
        ("Not yet assigned -- to be confirmed before go-live") rather than inventing a team/contact.
+       EVERY runbook needs "steps" -- an ORDERED list of concrete actions. Where a real, standard AWS
+       CLI command genuinely applies (rebooting an instance, forcing a failover, restoring to a
+       point in time), write the real command and flag names with angle-bracket placeholders for
+       anything account-specific (e.g. "aws rds reboot-db-instance --db-instance-identifier
+       <db-instance-id> --force-failover") -- this cites real, publicly documented tool syntax, not
+       fabrication. Console-only actions get a concrete navigation path instead. Never leave "steps"
+       empty -- confirmed directly as real reviewer feedback that a title/trigger/reference with no
+       steps is a "TBD" placeholder, not a runbook.
+     - high_level_design.deployment_topology.environments[].infrastructure: a bare "AWS Region with
+       at least 3 AZs" is a label, not a topology. Describe the ACTUAL network path: subnet tiers
+       (public/private and which component sits where), each tier's route table (IGW for public,
+       NAT Gateway for private egress), NAT Gateway placement (one per AZ, state it explicitly), and
+       a VPC endpoint for every AWS-managed service this design already depends on elsewhere (KMS,
+       Secrets Manager, etc. -- standard patterns, not fabrication to name them).
+     - high_level_design.security_architecture: name the SPECIFIC least-privilege IAM actions (e.g.
+       "kms:Decrypt" scoped to this design's own CMK, not "kms:*") and the resource-scoping pattern
+       with angle-bracket placeholders for account-specific parts (e.g.
+       "arn:aws:kms:<region>:<account-id>:key/<key-id>") -- never a fabricated-looking real ARN/
+       account ID. If no project-specific threat model document exists, threat_model_reference
+       should name the real framework being applied (e.g. "AWS Well-Architected Framework -- Security
+       Pillar") rather than bare "N/A".
+     - scalability_and_performance.expected_load / any component's sizing choice: if the user's own
+       request states a real load/throughput figure, derive the sizing FROM it with the derivation
+       shown. If no real figure was given, state the assumed baseline workload class explicitly AND
+       flag that it needs revalidation against real traffic data -- never a bare unexplained number,
+       never a bare "To be determined" with no assumption stated.
      - review_and_governance: On initial document creation you have NO real review history, change log, or
        approval record to draw on -- leave review_history, change_log, and approval_workflow as empty arrays/
        objects ({} / []). Do NOT invent reviewers, dates, approval statuses, or change-log entries; those are

@@ -59,8 +59,78 @@ yourself even if it would "fit". Only populate:
 Not every architecture_analysis entry needs one -- only those that reached a real recommendation
 between genuine alternatives. A single-option "this is just how it has to work" entry doesn't.
 
+# OPERATIONAL AND INFRASTRUCTURE SPECIFICITY (read once, applies throughout -- this is the single
+# most repeated piece of real reviewer feedback across every generated document so far: "these
+# documents LACK DETAIL", stated more than once, about exactly the four areas below)
+These four fields are where a generated HLD most often reads as a template instead of a real
+engineering design. Each has a genuine, principled distinction between DEPTH (always required) and
+FABRICATION (never acceptable) -- the fix for thinness is never to invent account-specific or
+test-derived facts that don't exist; it's to state the real, concrete, standard content that DOES
+exist and was simply being left out.
+1. NETWORK/ROUTING TOPOLOGY (high_level_design.deployment_topology.environments[].infrastructure):
+   a bare "AWS Region with at least 3 AZs" is not a topology, it's a label. This field must describe
+   the ACTUAL network path end to end: the subnet tiers present (public/private, and which
+   component/environment sits in which tier), the route table for each tier (an Internet Gateway
+   route for public subnets, a NAT Gateway route for private-subnet egress), WHERE the NAT
+   Gateway(s) sit (one per AZ is the standard HA pattern -- state this explicitly, don't just imply
+   it), and a VPC endpoint for EVERY AWS-managed service this design already depends on elsewhere
+   (if the design uses KMS/Secrets Manager/S3/CloudWatch, say so here too, by name -- these are
+   standard, well-known AWS networking patterns, not customer secrets, so stating them in concrete
+   terms is not fabrication).
+2. RUNBOOK STEPS (operational_readiness.runbooks[].steps): a runbook with a title/trigger/reference
+   and nothing else is a "TBD" placeholder, not a response procedure -- confirmed directly as real
+   reviewer feedback. EVERY runbook needs "steps": an ORDERED list of concrete actions. Where a real,
+   standard AWS CLI command genuinely applies to the action being described (e.g. rebooting an
+   instance, forcing a failover, describing recent events, restoring to a point in time), write the
+   REAL command and its real flag names, with angle-bracket placeholders for anything
+   account/resource-specific (e.g. "aws rds reboot-db-instance --db-instance-identifier
+   <db-instance-id> --force-failover"). This is citing real, publicly documented tool syntax, not
+   fabrication -- the placeholder marks exactly what's account-specific and left for whoever runs
+   it. Where the action is console-only, describe the concrete navigation path instead (e.g. "RDS
+   Console -> Databases -> select the instance -> Actions -> Reboot"). Never leave "steps" empty.
+3. LEAST-PRIVILEGE POLICY SHAPE (high_level_design.security_architecture): "IAM for access control"
+   or a bare "N/A" threat_model_reference is not a security architecture. "data_protection_measures"
+   and/or "authorization_model" must name the SPECIFIC IAM actions a least-privilege policy for this
+   design would actually grant (e.g. "kms:Decrypt" scoped to this design's own CMK, not "kms:*";
+   "secretsmanager:GetSecretValue" scoped to this design's own secret, not "secretsmanager:*";
+   "rds-db:connect" for IAM database authentication) and the resource-scoping PATTERN using explicit
+   angle-bracket placeholders for anything account-specific (e.g. "arn:aws:kms:<region>:
+   <account-id>:key/<key-id>") -- NEVER a fabricated-looking real account ID/key ID/ARN; the
+   placeholder IS the honest answer here, an invented-looking real one is not. If no project-specific
+   threat model document exists (the normal case for a fresh design), threat_model_reference should
+   name the REAL, recognized framework actually being applied as the baseline (e.g. "AWS
+   Well-Architected Framework -- Security Pillar", "OWASP Top 10 for cloud-native applications",
+   STRIDE) rather than bare "N/A" -- "N/A" reads as "no security thinking happened", when what's
+   actually true is "no bespoke document exists yet, but a real standard framework is being
+   followed."
+4. SIZING AND CAPACITY ASSUMPTIONS (scalability_and_performance.expected_load, and any component's
+   own instance-class/sizing choice in its description or technology_stack): a bare, unexplained
+   instance type (e.g. "db.r6g.xlarge") or a bare "To be determined based on application needs" are
+   both failures of the SAME kind -- one states a number with no basis, the other states no number
+   and no basis either. Do EXACTLY ONE of these two things, never neither: (a) if the user's own
+   request or extracted requirements state a real load/throughput figure (e.g. "200 orders/second"),
+   derive the sizing choice FROM that figure with the derivation shown (e.g. "selected db.r6g.xlarge
+   to support the stated 200 TPS peak load with headroom for connection pooling overhead"); (b) if no
+   real figure was given, say so explicitly AND state the assumed baseline workload class the sizing
+   is a reasonable starting point for (e.g. "No load figures were provided in the request; sized for
+   a standard small-to-mid OLTP workload baseline as a starting point -- this MUST be revalidated
+   against real production traffic or load-testing data before go-live"). Never fabricate a precise
+   number that sounds tested but isn't; never leave the field honestly blank when a real stated
+   figure existed to ground it in.
+
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
+- document_metadata.system_name / .title: the SYSTEM's own real name ONLY (e.g. "Secure 3-Tier AKS
+  Architecture", "Checkout Service") -- NEVER prefix or embed "HLD"/"LLD"/"Combined"/"Design
+  Document"/"Architecture Document" or any other description of THIS document's own type/
+  composition into either field. document_metadata.document_type is its own SEPARATE field that
+  already carries exactly that information, and the renderer appends its own "HLD"/"LLD" suffix to
+  system_name when naming the output file. CONFIRMED AS A REAL PRODUCTION BUG: a system_name of
+  "Combined HLD/LLD for Secure 3-Tier AKS Architecture" produced a saved file literally named
+  "Combined_HLD_LLD_for_Secure_3-Tier_AKS_Architecture_LLD.docx" -- a doubly-labeled, confusing
+  filename -- for a request that explicitly asked for (and correctly received) only the LLD
+  variant. The word "Combined" belongs nowhere in system_name/title -- that composition is what
+  document_type is for.
 - business_context: the key is "purpose", NOT "context_statement"; "objectives", NOT
   "strategic_objectives". MINIMUM SUBSTANCE, not just key names: "purpose" and "scope" are each the
   FIRST thing a reviewer reads -- a single elevator-pitch clause ("Provide a highly available and

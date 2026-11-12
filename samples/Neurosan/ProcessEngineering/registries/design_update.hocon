@@ -73,7 +73,17 @@ document for the design that exists RIGHT NOW. Call both now, regardless of "rea
    text), even though the diagram was refreshed. NEVER claim a document was produced "either way"
    when the tool itself reported otherwise. NEVER describe the design's own content from your own
    general knowledge or guess -- you only know what reason/step 8's own tool result actually said.
-   Plain prose only -- no raw JSON, tool names, or internal field names.
+   If you name WHAT the still-open feedback is ABOUT (rather than just saying feedback remains
+   open), it MUST be the actual topic/component named in Compliance_Agent's or Simulation_Agent's
+   own most recent feedback from step 4/5 (the issue_type/location/instruction/metadata you
+   already received calling them) -- never a plausible-sounding guess at what kind of issue is
+   "probably" still open. CONFIRMED AS A REAL PRODUCTION BUG: a live run characterized the open
+   feedback as "extreme-load latency" when the actual persisted Simulation feedback was entirely
+   about resilience/single-point-of-failure risk (Payment Gateway, API Gateway, and Message
+   Broker identified as SPOFs) and latency_budget_risk was explicitly false -- there was no
+   latency issue anywhere in the real data. If you are not confident of the exact topic, say
+   generically that review feedback remains open without naming a specific topic at all, rather
+   than inventing one. Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Design_Doc_Update_Analyst", "Design_Doc_Agent", "Compliance_Agent",

@@ -282,7 +282,17 @@ DESIGN_TEMPLATE: Dict[str, Any] = {
         "monitoring_strategy": "",
         "alerting_strategy": "",
         "maintenance_activities": [],
-        "runbooks": [{"title": "", "trigger": "", "reference": ""}],
+        # "steps" closes a real gap: without it, "reference" (meant to be
+        # a LOCATION, e.g. "Internal Wiki") was the only place for actual
+        # procedure content, so every runbook rendered as a title/trigger/
+        # location with no real response steps at all -- confirmed
+        # directly from real reviewer feedback ("TBD entries for failover
+        # recovery or snapshot restoration" instead of "concrete, step-by-
+        # step procedures containing exact CLI commands... or console
+        # execution paths"). An ordered list of strings, each a concrete
+        # action (a real AWS CLI command pattern where one genuinely
+        # exists, or a specific console navigation path) -- not prose.
+        "runbooks": [{"title": "", "trigger": "", "reference": "", "steps": []}],
     },
     # Present in the ADK original's own template but missing from this
     # port's version until now -- restored for parity.

@@ -56,7 +56,24 @@ Your ONLY visible artifact is the final persist_final_design_json tool call when
            its operational boundary sits relative to adjacent components.
          - technology_stack, its own interfaces/api_specifications.
          - configuration_parameters: the design-level parameters an operator would set -- names, purpose,
-           typical values -- not a vendor product's literal config-file internals.
+           typical values -- not a vendor product's literal config-file internals. EVERY compute/data
+           component needs a real SIZING entry (a VM SKU/node-pool size/database tier, not just the
+           platform name or version) -- confirmed as real reviewer feedback that "AKS 1.27+"/"Azure
+           Database for PostgreSQL Flexible Server" with no actual size forces an implementing
+           engineer to guess. If the request states a real load figure, derive the size from it with
+           the derivation shown; otherwise state the assumed baseline explicitly (e.g. {"name": "AKS
+           Node Pool VM SKU", "default_value": "Standard_D4s_v3, 3-node minimum", "description":
+           "Baseline for a moderate workload; no load figures given -- revalidate before go-live"}).
+           If this design involves real network segmentation (a VPC/VNet with subnets), also add
+           CIDR allocation entries -- a conventional, explicitly-labeled EXAMPLE plan (e.g. {"name":
+           "VNet CIDR", "default_value": "10.1.0.0/16", "description": "Example allocation using a
+           standard private range -- MUST be reconciled against the real IP address plan before
+           deployment"}), one per subnet tier. A labeled example CIDR is a standard reference-
+           architecture choice, not fabrication -- the real account's actual plan is the one thing
+           that genuinely cannot be known without being told. Do NOT generate actual Kubernetes/
+           Terraform/CloudFormation manifest YAML or HCL as document content -- that is
+           Infrastructure-as-Code with its own dedicated pipeline (CloudArch_IaC_Pipeline); this
+           document specifies the design decisions config should encode, not the IaC itself.
          - logging_and_monitoring: what gets monitored/logged/alerted on and why, not a literal
            implementation of the monitoring itself.
          - satisfies_requirements: carry forward the SAME requirement id(s) (e.g. ["FR-001", "NFR-003"])

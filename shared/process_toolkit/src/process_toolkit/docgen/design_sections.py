@@ -1475,16 +1475,38 @@ def _add_operational_readiness_section(
             p.paragraph_format.space_before = Pt(10)
             p.add_run("Runbooks").bold = True
 
-            headers = ["Title", "Trigger", "Reference"]
-            table = doc.add_table(rows=1, cols=len(headers))
-            _set_header_row(table, headers)
+            # Each runbook gets its own heading + trigger/reference prose +
+            # an ORDERED steps list -- not a flat table row. A table has
+            # no good way to show a multi-step numbered procedure; the
+            # real content ("steps") needs its own readable list, not a
+            # cramped table cell. Confirmed directly from real reviewer
+            # feedback: a runbook with only title/trigger/reference and no
+            # steps is a "TBD" placeholder, not an actionable procedure.
             for rb in runbooks:
-                row = table.add_row().cells
-                row[0].text = str(rb.get("title", ""))
-                row[1].text = str(rb.get("trigger", ""))
-                row[2].text = str(rb.get("reference", "") or "—")
-            apply_iso_table_formatting(table, doc)
-            doc.add_paragraph()
+                title = rb.get("title") or "Runbook"
+                doc.add_heading(str(title), level=3)
+
+                trigger = rb.get("trigger")
+                if trigger:
+                    tp = doc.add_paragraph()
+                    tp.add_run("Trigger: ").bold = True
+                    tp.add_run(str(trigger))
+
+                reference = rb.get("reference")
+                if reference:
+                    rp = doc.add_paragraph()
+                    rp.add_run("Reference: ").bold = True
+                    rp.add_run(str(reference))
+
+                steps = [s for s in (rb.get("steps") or []) if isinstance(s, str) and s.strip()]
+                if steps:
+                    sp = doc.add_paragraph()
+                    sp.paragraph_format.space_before = Pt(6)
+                    sp.add_run("Steps:").bold = True
+                    for index, step in enumerate(steps, start=1):
+                        _bullet_at(doc, f"{index}. {step}", indent_inches=0.0)
+
+                doc.add_paragraph()
 
         return True
 

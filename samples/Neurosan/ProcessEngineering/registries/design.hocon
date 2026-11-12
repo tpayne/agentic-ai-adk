@@ -351,8 +351,79 @@ yourself even if it would "fit". Only populate:
 Not every architecture_analysis entry needs one -- only those that reached a real recommendation
 between genuine alternatives. A single-option "this is just how it has to work" entry doesn't.
 
+# OPERATIONAL AND INFRASTRUCTURE SPECIFICITY (read once, applies throughout -- this is the single
+# most repeated piece of real reviewer feedback across every generated document so far: "these
+# documents LACK DETAIL", stated more than once, about exactly the four areas below)
+These four fields are where a generated HLD most often reads as a template instead of a real
+engineering design. Each has a genuine, principled distinction between DEPTH (always required) and
+FABRICATION (never acceptable) -- the fix for thinness is never to invent account-specific or
+test-derived facts that don't exist; it's to state the real, concrete, standard content that DOES
+exist and was simply being left out.
+1. NETWORK/ROUTING TOPOLOGY (high_level_design.deployment_topology.environments[].infrastructure):
+   a bare "AWS Region with at least 3 AZs" is not a topology, it's a label. This field must describe
+   the ACTUAL network path end to end: the subnet tiers present (public/private, and which
+   component/environment sits in which tier), the route table for each tier (an Internet Gateway
+   route for public subnets, a NAT Gateway route for private-subnet egress), WHERE the NAT
+   Gateway(s) sit (one per AZ is the standard HA pattern -- state this explicitly, don't just imply
+   it), and a VPC endpoint for EVERY AWS-managed service this design already depends on elsewhere
+   (if the design uses KMS/Secrets Manager/S3/CloudWatch, say so here too, by name -- these are
+   standard, well-known AWS networking patterns, not customer secrets, so stating them in concrete
+   terms is not fabrication).
+2. RUNBOOK STEPS (operational_readiness.runbooks[].steps): a runbook with a title/trigger/reference
+   and nothing else is a "TBD" placeholder, not a response procedure -- confirmed directly as real
+   reviewer feedback. EVERY runbook needs "steps": an ORDERED list of concrete actions. Where a real,
+   standard AWS CLI command genuinely applies to the action being described (e.g. rebooting an
+   instance, forcing a failover, describing recent events, restoring to a point in time), write the
+   REAL command and its real flag names, with angle-bracket placeholders for anything
+   account/resource-specific (e.g. "aws rds reboot-db-instance --db-instance-identifier
+   <db-instance-id> --force-failover"). This is citing real, publicly documented tool syntax, not
+   fabrication -- the placeholder marks exactly what's account-specific and left for whoever runs
+   it. Where the action is console-only, describe the concrete navigation path instead (e.g. "RDS
+   Console -> Databases -> select the instance -> Actions -> Reboot"). Never leave "steps" empty.
+3. LEAST-PRIVILEGE POLICY SHAPE (high_level_design.security_architecture): "IAM for access control"
+   or a bare "N/A" threat_model_reference is not a security architecture. "data_protection_measures"
+   and/or "authorization_model" must name the SPECIFIC IAM actions a least-privilege policy for this
+   design would actually grant (e.g. "kms:Decrypt" scoped to this design's own CMK, not "kms:*";
+   "secretsmanager:GetSecretValue" scoped to this design's own secret, not "secretsmanager:*";
+   "rds-db:connect" for IAM database authentication) and the resource-scoping PATTERN using explicit
+   angle-bracket placeholders for anything account-specific (e.g. "arn:aws:kms:<region>:
+   <account-id>:key/<key-id>") -- NEVER a fabricated-looking real account ID/key ID/ARN; the
+   placeholder IS the honest answer here, a invented-looking real one is not. If no project-specific
+   threat model document exists (the normal case for a fresh design), threat_model_reference should
+   name the REAL, recognized framework actually being applied as the baseline (e.g. "AWS
+   Well-Architected Framework -- Security Pillar", "OWASP Top 10 for cloud-native applications",
+   STRIDE) rather than bare "N/A" -- "N/A" reads as "no security thinking happened", when what's
+   actually true is "no bespoke document exists yet, but a real standard framework is being
+   followed."
+4. SIZING AND CAPACITY ASSUMPTIONS (scalability_and_performance.expected_load, and any component's
+   own instance-class/sizing choice in its description or technology_stack): a bare, unexplained
+   instance type (e.g. "db.r6g.xlarge") or a bare "To be determined based on application needs" are
+   both failures of the SAME kind -- one states a number with no basis, the other states no number
+   and no basis either. Do EXACTLY ONE of these two things, never neither: (a) if the user's own
+   request or extracted requirements state a real load/throughput figure (e.g. "200 orders/second"),
+   derive the sizing choice FROM that figure with the derivation shown (e.g. "selected db.r6g.xlarge
+   to support the stated 200 TPS peak load with headroom for connection pooling overhead"); (b) if no
+   real figure was given, say so explicitly AND state the assumed baseline workload class the sizing
+   is a reasonable starting point for (e.g. "No load figures were provided in the request; sized for
+   a standard small-to-mid OLTP workload baseline as a starting point -- this MUST be revalidated
+   against real production traffic or load-testing data before go-live"). Never fabricate a precise
+   number that sounds tested but isn't; never leave the field honestly blank when a real stated
+   figure existed to ground it in.
+
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
+- document_metadata.system_name / .title: the SYSTEM's own real name ONLY (e.g. "Secure 3-Tier AKS
+  Architecture", "Checkout Service") -- NEVER prefix or embed "HLD"/"LLD"/"Combined"/"Design
+  Document"/"Architecture Document" or any other description of THIS document's own type/
+  composition into either field. document_metadata.document_type is its own SEPARATE field that
+  already carries exactly that information, and the renderer appends its own "HLD"/"LLD" suffix to
+  system_name when naming the output file. CONFIRMED AS A REAL PRODUCTION BUG: a system_name of
+  "Combined HLD/LLD for Secure 3-Tier AKS Architecture" produced a saved file literally named
+  "Combined_HLD_LLD_for_Secure_3-Tier_AKS_Architecture_LLD.docx" -- a doubly-labeled, confusing
+  filename -- for a request that explicitly asked for (and correctly received) only the LLD
+  variant. The word "Combined" belongs nowhere in system_name/title, regardless of whether this
+  generation pass is building HLD-only, LLD-only, or will eventually be elaborated into a Combined
+  document by a later stage -- that composition is what document_type is for.
 - business_context: {"purpose", "scope", "objectives": [...], "business_drivers": [...],
   "assumptions": [...], "constraints": [...]} -- the key is "purpose", NOT "context_statement";
   "objectives", NOT "strategic_objectives". MINIMUM SUBSTANCE, not just key names: "purpose" and
@@ -578,6 +649,34 @@ subsection ready to show them. Populate all four on every component that genuine
 Leave any of the four empty only when there is genuinely nothing real to state (e.g. a component
 with no external dependency at all) -- not as a default.
 
+# SIZING AND NETWORK ADDRESSING (apply at the LLD level -- confirmed as real reviewer feedback: an
+# LLD naming "AKS 1.27+"/"Azure Database for PostgreSQL Flexible Server" with no VM SKU, node-pool
+# size, or CIDR allocation at all forces an implementing engineer to guess exactly the numbers an
+# LLD exists to pin down)
+- EVERY compute/data component's configuration_parameters[] needs a real SIZING entry -- a VM SKU/
+  node-pool size/database tier, not just the platform name or version. Same discipline as HLD-level
+  sizing: if the user's own request or requirements state a real load figure, derive the size from
+  it with the derivation shown; otherwise state the assumed baseline explicitly (e.g. {"name": "AKS
+  Node Pool VM SKU", "default_value": "Standard_D4s_v3 (4 vCPU/16GB), 3-node minimum", "description":
+  "Baseline sizing for a moderate 3-tier workload; no load figures were provided -- revalidate
+  against real traffic before go-live"}) -- never a bare platform/version string standing in for an
+  actual size, never a fabricated-sounding "tested" number.
+- If this design involves real network segmentation (a VPC/VNet with subnets, e.g. public/private
+  tiers), add configuration_parameters[] entries for the CIDR allocation -- a conventional,
+  explicitly-labeled EXAMPLE plan (e.g. {"name": "VNet CIDR", "default_value": "10.1.0.0/16",
+  "description": "Example allocation using a standard private range -- MUST be reconciled against
+  the organization's real IP address plan before deployment to avoid overlap with existing
+  networks"}, plus one entry per subnet tier). A conventional private-range CIDR, clearly labeled as
+  an example needing reconciliation, is a standard reference-architecture choice, not fabrication --
+  a real customer account's actual CIDR plan is the one thing that genuinely cannot be known without
+  being told, so the placeholder-and-flag discipline applies here exactly as it does for ARNs.
+- Do NOT generate actual Kubernetes/Terraform/CloudFormation manifest YAML or HCL as document
+  content -- that is Infrastructure-as-Code, a different artifact with its own dedicated pipeline
+  (CloudArch_IaC_Pipeline) and its own validation path. An LLD's job is to specify the DESIGN
+  DECISIONS that config should encode (the sizing/CIDR/parameter VALUES above), not to BE the IaC
+  itself -- blurring that turns a reviewable design document into an unvalidated, copy-pasteable
+  artifact, which is a worse failure mode than the gap it would be trying to close.
+
 # EXACT FIELD SHAPES
 - low_level_design.components[]: each one's name key is "component_name" (the SAME key
   high_level_design.components[] uses for the matching component) -- NOT "hld_component_name".
@@ -656,6 +755,28 @@ Agent/Simulation_Agent feedback to it, not to build anything from scratch.
   feedback -- if a reviewer flags business_context as thin and the original material never stated a
   business purpose, say in your revision that this remains intentional (infrastructure-only input),
   not a gap to fabricate your way out of.
+
+# OPERATIONAL AND INFRASTRUCTURE SPECIFICITY (the most repeated real reviewer complaint: "these
+# documents LACK DETAIL" -- if a compliance issue names one of these four fields, this is how to
+# fix it for real, not just enough to pass the check)
+- deployment_topology.environments[].infrastructure: describe the ACTUAL network path -- subnet
+  tiers, each tier's route table (IGW for public, NAT Gateway for private egress), NAT Gateway
+  placement (one per AZ), and a VPC endpoint for every AWS-managed service this design already
+  depends on elsewhere (standard, well-documented patterns -- not fabrication to state them).
+- operational_readiness.runbooks[].steps: an ORDERED list of concrete actions -- a real AWS CLI
+  command with angle-bracket placeholders for anything account-specific where one genuinely applies
+  (e.g. "aws rds reboot-db-instance --db-instance-identifier <db-instance-id> --force-failover"), or
+  a concrete console navigation path otherwise. Never leave this empty.
+- security_architecture.data_protection_measures/.authorization_model: name the SPECIFIC least-
+  privilege IAM actions (e.g. "kms:Decrypt" scoped to this design's own CMK, not "kms:*") and the
+  resource-scoping pattern using angle-bracket placeholders for account-specific parts (e.g.
+  "arn:aws:kms:<region>:<account-id>:key/<key-id>") -- never a fabricated-looking real ARN.
+  threat_model_reference: if no project-specific document exists, name the real framework actually
+  being applied (e.g. "AWS Well-Architected Framework -- Security Pillar") rather than bare "N/A".
+- scalability_and_performance.expected_load / any component's sizing choice: derive it from a real
+  stated load figure if one exists (show the derivation); otherwise state the assumed baseline
+  workload class explicitly AND flag it needs revalidation against real traffic data -- never a bare
+  unexplained number, never a bare "To be determined" with no stated assumption.
 
 # EXACT FIELD SHAPES (use these literal key names -- a synonym is silently dropped by the
 # document renderer, not fixed up later)
@@ -828,13 +949,43 @@ components rather than a reasoned, implementable architecture. Check ALL of the 
    draw at all, not even a placeholder), even though the real dependency is already named elsewhere
    in the same document. Name the specific service missing from external_systems[] in the fix
    instruction.
+9. OPERATIONAL SPECIFICITY: this is the single most repeated real reviewer complaint across every
+   generated document so far ("these documents LACK DETAIL", stated more than once). Check all four:
+   - Any deployment_topology.environments[].infrastructure that is just a region/AZ-count label
+     (e.g. "AWS Region with at least 3 AZs") with no subnet tiers, route tables, NAT Gateway
+     placement, or VPC endpoints mentioned is a defect.
+   - Any operational_readiness.runbooks[] entry with an empty or missing "steps" array is a defect
+     -- a title/trigger/reference with no actual procedure is a "TBD" placeholder, not a runbook.
+   - Any high_level_design.security_architecture whose data_protection_measures/authorization_model
+     only say generic things like "IAM for access control" with no specific action names
+     (kms:Decrypt, secretsmanager:GetSecretValue, etc.) or resource-scoping pattern, OR whose
+     threat_model_reference is a bare "N/A" with no real framework named instead (e.g. AWS
+     Well-Architected Framework -- Security Pillar), is a defect.
+   - Any scalability_and_performance.expected_load (or a component's own sizing choice) that is
+     either a bare unexplained number/instance type with no stated basis, OR a bare "To be
+     determined" with no assumption stated at all, is a defect. NEVER instruct a fabricated-looking
+     real ARN/account ID or a fabricated-sounding precise load-test number as the fix for any of
+     these -- the fix is real standard patterns/commands/frameworks with explicit placeholders where
+     something is genuinely account-specific and unknown, not invented specifics.
+10. DOCUMENT METADATA NAMING HYGIENE: if document_metadata.system_name or .title contains the word
+    "Combined", "HLD", "LLD", or the phrase "design document" (case-insensitive), that is a defect
+    -- CONFIRMED AS A REAL, RECURRING PRODUCTION BUG even after Design_Doc_HLD_Agent's own
+    instructions were given an explicit rule against it: a live run asked to "Create a Combined
+    HLD/LLD design document for a Checkout Service" still persisted system_name as a string
+    describing the document's own composition, which safe_filename_component() then embeds directly
+    into the saved .docx filename (e.g. "Combined_HLD+LLD_for_Checkout_Service_Architecture_HLD.docx"
+    instead of "Checkout_Service_HLD.docx") -- a prose-only instruction has now failed this exact
+    way more than once, so this is a MECHANICAL, field-presence check, not a judgment call: name the
+    real system ("Checkout Service"), not its own document type, and quote the offending
+    system_name/title verbatim in the fix instruction.
 
 If issues exist, call save_iteration_feedback with channel="compliance" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
 "json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"risk_level":
 "High"|"Medium"|"Low", "category": "Regulatory"|"Security"|"Quality_ISO25010"|"C4_Model"|
 "Data_Integrity"|"Infrastructure"|"Traceability"|"Interface_Completeness"|"Decision_Record"|
-"Component_Depth"|"Narrative_Substance"|"Viewpoint_Completeness"|"External_Systems_Completeness"}}]}
+"Component_Depth"|"Narrative_Substance"|"Viewpoint_Completeness"|"External_Systems_Completeness"|
+"Operational_Specificity"|"Metadata_Naming"}}]}
 then respond with exactly: REVISION REQUIRED
 
 If fully compliant, call save_iteration_feedback with channel="compliance" and feedback=
@@ -842,7 +993,8 @@ If fully compliant, call save_iteration_feedback with channel="compliance" and f
 ISO/IEC 25010 conformance, security, and regulatory criteria, and the completeness and
 traceability checks (interface completeness, requirement traceability, quality attribute
 grounding, decision recording, component design depth, narrative substance, viewpoint/view
-completeness, external systems completeness)."}
+completeness, external systems completeness, operational specificity, document metadata naming
+hygiene)."}
 then respond with exactly: COMPLIANCE APPROVED
 
 Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
