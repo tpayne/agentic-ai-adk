@@ -95,3 +95,17 @@ def test_both_reviewer_networks_produce_one_combined_reply_in_apply_mode():
         assert "do NOT produce both;" in text
         assert "redundant, disjointed" in text
         assert "one coherent" in text
+
+
+def test_proposal_response_reviewer_never_populates_a_deliberately_tbd_pricing_field():
+    # Confirmed live bug: the original drafting request explicitly said
+    # "use TBD for all pricing figures -- do not invent prices." A later
+    # fix-it pass found pricing_table's TBD entries inconsistent with a
+    # specific budget figure named in "assumptions" and resolved it
+    # backwards -- propagating that figure INTO pricing_table instead of
+    # removing the stray figure from assumptions, fabricating pricing the
+    # response was deliberately avoiding.
+    text = PROPOSAL_RESPONSE_REVIEWER_HOCON.read_text(encoding="utf-8")
+    assert "DELIBERATE, legitimate choice" in text
+    assert "Do not flag the TBD fields as needing a number" in text
+    assert "never populate a deliberately-TBD pricing" in text
