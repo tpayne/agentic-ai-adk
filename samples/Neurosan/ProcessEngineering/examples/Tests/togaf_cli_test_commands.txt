@@ -189,8 +189,8 @@ list
 
 # H1. Rebuild a design document so Design_Scenario_Tester has something real to answer against,
 # alongside the Part G TOGAF artifacts that are also currently saved.
-Create a High-Level Design document for the Vendor Compliance Tracker: a web application with a
-Document Store service, a Reminder Scheduler, and an Account Manager Notification service that
+Create a High-Level Design document for the Vendor Compliance Tracker: a web application with a \
+Document Store service, a Reminder Scheduler, and an Account Manager Notification service that \
 sends alerts via the Finance System's own notification API.
 
 # H2. DOMAIN CROSSOVER: a question about a DESIGN component dependency, with no TOGAF-specific

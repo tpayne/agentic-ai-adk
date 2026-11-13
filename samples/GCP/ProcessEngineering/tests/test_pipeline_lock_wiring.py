@@ -121,7 +121,7 @@ def test_a_later_sequential_turn_in_the_same_session_is_not_blocked_by_an_earlie
 
     monkeypatch.setattr(
         doc_generation_agent_module, "_shared_create_standard_doc_from_file",
-        lambda process_name, schema_type=None, design_variant=None: "SUCCESS: mocked",
+        lambda process_name, schema_type=None, design_variant=None, togaf_variant=None: "SUCCESS: mocked",
     )
 
     shared_session_state = {}
@@ -197,7 +197,7 @@ def test_process_pipeline_releases_its_lock_once_the_document_is_generated(monke
 
     monkeypatch.setattr(
         doc_generation_agent_module, "_shared_create_standard_doc_from_file",
-        lambda process_name, schema_type=None, design_variant=None: "SUCCESS: mocked",
+        lambda process_name, schema_type=None, design_variant=None, togaf_variant=None: "SUCCESS: mocked",
     )
 
     ctx = _fake_context()
