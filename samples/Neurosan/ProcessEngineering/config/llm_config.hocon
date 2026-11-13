@@ -66,11 +66,38 @@
         {
             "class": "neuro_san.middleware.neuro_san_summarization_middleware.NeuroSanSummarizationMiddleware",
             "args": {
-                # The middleware creates its own LangChain model; it does not
-                # inherit llm_config.model_name. Keep its provider aligned with
-                # the OpenAI model used by the agent networks so running with
-                # OPENAI_API_KEY does not unexpectedly require GOOGLE_API_KEY.
-                "model": "openai:gpt-6-luna",
+                # The middleware creates its own LangChain model via
+                # init_chat_model("<provider>:<model>"); it does NOT inherit
+                # llm_config.model_name above, so this must be kept in sync
+                # BY HAND with whichever "model_name" line is actually
+                # uncommented there (see this file's own README section --
+                # "when changing providers, update that middleware model and
+                # provide its matching API key as well"). The "google_genai:"
+                # prefix itself is required -- LangChain's init_chat_model()
+                # otherwise infers a bare "gemini-..." name as
+                # model_provider="google_vertexai" by default and fails
+                # importing a package this project doesn't install
+                # (langchain-google-vertexai), even though llm_config.hocon's
+                # "gemini-3-flash" model actually goes through the Gemini
+                # Developer API / GOOGLE_API_KEY, i.e. "google_genai".
+                #
+                # CONFIRMED AS A REAL PRODUCTION BUG: this had drifted to
+                # "openai:gpt-6-luna" (correct only while model_name above
+                # was ALSO an OpenAI model) while model_name had since moved
+                # to "gemini-3-flash" above, with nothing to catch the
+                # mismatch -- anyone running Gemini-only (no OPENAI_API_KEY
+                # set, since nothing else in this project ever needs one)
+                # would have this middleware's OWN background summarization
+                # call fail the moment any single turn's conversation crossed
+                # the 150,000-token trigger below, with no visible error at
+                # all (a third-party LangChain/neuro-san class, not one of
+                # this project's own loggers -- see logging_setup.py's own
+                # _NOISY_THIRD_PARTY_LOGGER_NAMES, which does not cover this
+                # one) -- manifesting as an unexplained multi-minute freeze
+                # on exactly the kind of large, multi-agent exchange (TOGAF's
+                # compliance loop chained after a large design JSON load, in
+                # particular) likely to cross that threshold within one turn.
+                "model": "google_genai:gemini-3-flash",
                 "trigger": [["tokens", 150000]],
                 "keep": ["messages", 8],
                 "keep_summary_in_context": true,

@@ -594,6 +594,11 @@ exists; otherwise use the saved requirements summary. The pipeline checks both, 
 inline description. For explicit updates, pass the request to the pipeline so it loads and modifies
 the existing togaf_data.json; do not route an update as new generation.
 
+A BARE "regenerate"/"rebuild"/"re-render" request for the TOGAF document(s), with no other
+creation/modification intent, is Section 9 (STANDALONE DOCUMENT REGENERATION) instead, even though
+it also contains this section's own signal words ("TOGAF", "architecture vision document") -- see
+Section 9's own precedence note for the confirmed production bug this guards against.
+
 -> Call: TOGAF_Pipeline
 
 Examples:
@@ -1203,16 +1208,28 @@ You MUST select exactly one tool call per response.
 ## 9. STANDALONE DOCUMENT REGENERATION
 Trigger when the user asks you to REGENERATE, REBUILD, or RE-RENDER the process or design
 document's Word file and/or its flow/architecture diagram, the REQUIREMENTS DOCUMENT from the
-saved requirements summary, the PROPOSAL RESPONSE DOCUMENT from the saved proposal response, or the
-TEST SPECIFICATION DOCUMENT from the saved test specification, WITHOUT asking for any actual
+saved requirements summary, the PROPOSAL RESPONSE DOCUMENT from the saved proposal response, the
+TEST SPECIFICATION DOCUMENT from the saved test specification, or the TOGAF ARCHITECTURE VISION/
+ARCHITECTURE DEFINITION DOCUMENT(S) from the saved TOGAF artifact set, WITHOUT asking for any actual
 content to be created, modified, or re-analyzed -- just re-rendering what's already saved.
 Domain-agnostic for process/design: you do NOT need to determine which one for those two --
 Regenerate_Document_Agent auto-detects which is actually saved on disk itself. The requirements,
-proposal-response, and test-specification documents are different: NONE of the three is ever
+proposal-response, test-specification, and TOGAF documents are different: NONE of the four is ever
 auto-detected (each saved artifact is far more often read as context by other pipelines than it is
 the thing someone wants rendered) -- each is only built when the request explicitly names
 "requirements"/"requirements document"/"the requirements", "proposal response"/"response to the
-proposal", or "test specification"/"test cases document", respectively.
+proposal", "test specification"/"test cases document", or "TOGAF"/"architecture vision document"/
+"architecture definition document", respectively.
+
+THIS TAKES PRECEDENCE OVER SECTION 1h FOR TOGAF: a bare "regenerate the TOGAF..."/"regenerate just
+the TOGAF architecture vision document" request matches 1h's own TOGAF signal words too ("TOGAF",
+"architecture vision document") -- that is NOT a reason to route it to TOGAF_Pipeline instead.
+CONFIRMED AS A REAL PRODUCTION BUG: a live run routed "Please regenerate just the TOGAF architecture
+vision document" to TOGAF_Pipeline, which rebuilt the ENTIRE TOGAF artifact set from source and ran
+a full compliance loop -- several times more expensive than the render-only operation the user
+actually asked for, and risking a worse result than simply re-rendering the already-approved,
+already-saved JSON. Route a BARE regenerate-the-document(s) request here (Section 9), every time,
+regardless of how many of 1h's own signal words it also happens to contain.
 
 -> Call: Regenerate_Document_Agent
 
@@ -1224,17 +1241,24 @@ Examples:
 - "Regenerate the proposal response document."
 - "Regenerate the test specification document."
 - "Please regenerate just the HLD."
+- "Regenerate the TOGAF architecture documents."
+- "Please regenerate just the TOGAF architecture vision document."
 
 The High-Level Design and Low-Level Design are always SEPARATE documents, never one combined file
 -- Regenerate_Document_Agent itself determines, from this same request wording, whether to
-regenerate just the HLD, just the LLD, or both; you do not need to do anything differently here.
+regenerate just the HLD, just the LLD, or both; you do not need to do anything differently here. The
+Architecture Vision Document and the Architecture Definition Document are likewise always SEPARATE
+documents -- same idea, Regenerate_Document_Agent determines which TOGAF document(s) to regenerate
+from this same request wording.
 
 PRECEDENCE: if the request ALSO asks for actual content to be created, changed, or re-analyzed (not
 just the rendered artifacts re-rendered), that is Modification (Section 2) or Creation (Section 1)
 instead, even if the word "regenerate" appears -- e.g. "update the design to use gRPC and regenerate
 the document" is Design_Doc_Update_Pipeline, not Regenerate_Document_Agent (its own last step
-already regenerates the document). Only a BARE regenerate-the-artifact(s) request, with no other
-creation/modification intent in the same message, reaches Regenerate_Document_Agent.
+already regenerates the document); "update the TOGAF architecture artifacts to add a new gap and
+regenerate the documents" is TOGAF_Pipeline, not Regenerate_Document_Agent, for the identical
+reason. Only a BARE regenerate-the-artifact(s) request, with no other creation/modification intent
+in the same message, reaches Regenerate_Document_Agent.
 
 ------------------------------------------------------------
 

@@ -40,6 +40,37 @@ def test_togaf_network_loads_one_source_and_runs_a_compliance_loop():
     assert "release_pipeline_lock_for_turn" in text
 
 
+def test_router_sends_bare_togaf_regenerate_requests_to_regenerate_document_agent():
+    # Regression for a real live-run bug: "Please regenerate just the TOGAF architecture vision
+    # document" matched 1h's own TOGAF signal words ("TOGAF", "architecture vision document") and
+    # got routed to TOGAF_Pipeline, which rebuilt the entire artifact set from source and ran a
+    # full compliance loop instead of just re-rendering the already-saved JSON -- several times
+    # more expensive than intended, and liable to produce a worse result than the already-approved
+    # saved content.
+    text = (REGISTRIES / "process_architect.hocon").read_text(encoding="utf-8")
+
+    section_9_start = text.index("## 9. STANDALONE DOCUMENT REGENERATION")
+    section_9_text = text[section_9_start:text.index("## 10.", section_9_start)]
+    assert "TOGAF ARCHITECTURE VISION/" in section_9_text
+    assert '"Regenerate the TOGAF architecture documents."' in section_9_text
+    assert '"Please regenerate just the TOGAF architecture vision document."' in section_9_text
+    assert "CONFIRMED AS A REAL PRODUCTION BUG" in section_9_text
+
+    section_1h_start = text.index("### 1h. TOGAF ARCHITECTURE ARTIFACT GENERATION OR UPDATE")
+    section_1h_text = text[section_1h_start:section_9_start]
+    assert "is Section 9 (STANDALONE DOCUMENT REGENERATION) instead" in section_1h_text
+
+
+def test_togaf_pipeline_answers_pure_scope_questions_without_attempting_generation():
+    # Regression for a real live-run bug: a pure "does this cover Phase H?" question still ran the
+    # full REQUIRED SEQUENCE and tacked on an unprompted "TOGAF GENERATION STOPPED: no saved
+    # source" result for a generation attempt nobody asked for in that turn.
+    text = (REGISTRIES / "togaf.hocon").read_text(encoding="utf-8")
+    assert "# PURE SCOPE/COVERAGE QUESTIONS (no generation needed)" in text
+    assert "do not proceed to the REQUIRED SEQUENCE below and do not call any tool" in text
+    assert "CONFIRMED AS A REAL BUG" in text
+
+
 def test_togaf_scope_documents_phase_h_exclusion():
     # The scope decision (which ADM phases are covered vs. deliberately
     # excluded) must be stated plainly where a user would actually see

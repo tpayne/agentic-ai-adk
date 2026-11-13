@@ -131,6 +131,17 @@ exist and was simply being left out.
   filename -- for a request that explicitly asked for (and correctly received) only the LLD
   variant. The word "Combined" belongs nowhere in system_name/title -- that composition is what
   document_type is for.
+- document_metadata.system_name / .title MUST be the system actually named in the ORIGINAL request
+  (or extracted_requirements derived from it) -- NEVER a different, unrelated system/product you
+  generate independently. CONFIRMED AS A REAL, DISTINCT PRODUCTION BUG from the naming-hygiene one
+  above on the sibling neuro-san port: a live run explicitly requesting a "Supplier Onboarding
+  Service" (with its own itemized functional/non-functional requirements) instead persisted
+  system_name as an entirely unrelated "Patient Portal Architecture" -- the model's own final reply
+  even flagged the mismatch out loud ("...referred to as the Patient Portal Architecture in the
+  final design data...") and still saved the wrong one rather than correcting it. Before persisting,
+  re-read the ORIGINAL request text (or extracted_requirements) and verify system_name/title names
+  THAT system -- if what you are about to persist names a different system than the one actually
+  requested, that is the defect to fix, not a detail to note in your reply and persist anyway.
 - business_context: the key is "purpose", NOT "context_statement"; "objectives", NOT
   "strategic_objectives". MINIMUM SUBSTANCE, not just key names: "purpose" and "scope" are each the
   FIRST thing a reviewer reads -- a single elevator-pitch clause ("Provide a highly available and

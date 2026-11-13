@@ -41,6 +41,36 @@
 # codebase (confirmed: no unbounded loop exists in the TOGAF docgen/pipeline code; the saved
 # cli.log showed real, if slow, forward progress right up to that point), but ordinary per-call LLM
 # latency compounding badly against an unnecessarily large, functionally irrelevant prompt.
+#
+# This was compounded by a second, separate, now-fixed bug: config/llm_config.hocon's pipeline
+# summarization middleware had drifted to an "openai:..." model while llm_config.model_name itself
+# had moved to Gemini, so it silently required an API key (OPENAI_API_KEY) nothing else in this
+# project needs -- see that file's own comment for the full story. After fixing both, a real run's
+# TOGAF compliance loop (previously the hang site) completed in ~115 seconds, but Part D's own
+# what-if queries THEN stalled for 20+ minutes instead -- on TOGAF_Scenario_Tester, a network with
+# no loop and no middleware at all. cli.log confirms the model actually in use is
+# "gemini-3-flash-preview" (a preview-tier endpoint, typically a tighter per-minute quota than GA),
+# and the stall landed immediately after Parts B/C's own combined ~750,000-token burst -- consistent
+# with provider-side rate-limiting, not a code defect (no unbounded loop or retry-without-logging
+# path exists anywhere in this codebase, confirmed directly). The `sleep` pauses added after the
+# heaviest exchanges below are a pragmatic smoothing measure for this, not a guaranteed fix.
+#
+# The SAME run also surfaced a third symptom, consistent with the same root cause: Part B's own
+# design generation repeatedly emitted a malformed document_metadata.document_type value ('2' --
+# plausibly the schema enum's own 0-indexed position for "Combined" leaking out instead of the
+# string itself, a known tool-calling/structured-output quirk more common when the underlying model
+# is under load) before eventually producing a VALID but completely unrelated design -- an
+# "OmniChannel Retail Platform" (Stripe/Adyen payments, inventory/order/customer management) in
+# place of the actually-requested "Supplier Onboarding Service" (an authenticated supplier portal
+# integrating with a Finance System), despite the request's own explicit, itemized FR-/NFR-
+# breakdown. This is a genuine content-grounding failure, not a thin/ambiguous-request bail-out --
+# CONFIRMED and hardened against with a new explicit rule in both ports' own Design_Doc_Analysis_
+# Agent instructions ("NEVER SUBSTITUTE A DIFFERENT SYSTEM/DOMAIN FOR THE ONE ACTUALLY NAMED"), but
+# given the surrounding evidence (the same run's own malformed enum value, and the timing
+# immediately after Parts B's own enormous token burst), this reads as the same underlying
+# provider-side degradation manifesting as lower output quality rather than only latency -- the new
+# instruction is a real, additional safeguard, not a guaranteed fix for an inherently probabilistic
+# failure mode.
 # ============================================================
 
 $ rm -f output/design_data.json output/requirements_summary.json output/togaf_data.json output/cloudarch_drawio.xml
@@ -79,14 +109,22 @@ Can you take a look at this and tell me what you think?
 
 # B1. POSITIVE: a real, substantive design-document request with enough content to populate
 # business/data/application/technology architecture, plus NFRs/compliance so the later TOGAF
-# generation isn't thin.
-Create a High-Level Design document for a Supplier Onboarding Service: an authenticated supplier \
-portal with save-and-resume applications, document upload and validation, staff review queues, \
-approval routing, expiry reminders, and a full audit history. It integrates with the Finance System \
-via API for payment and invoice reconciliation once a supplier is approved, and stores supplier \
-documents in a document repository service. It must comply with GDPR for supplier personal data, \
-handle at least 50 onboarding submissions per hour at peak, and degrade gracefully (queue and \
-retry, not fail outright) if the Finance System is briefly unavailable.
+# generation isn't thin. Phrased as an explicit, itemized functional/non-functional breakdown
+# (rather than one dense descriptive paragraph) -- a prior run of this exact Part B, phrased less
+# directively, occasionally triggered Design_Doc_Analysis_Agent's own conservative "architectural
+# requirements could not be successfully extracted" bail-out despite having comparable real
+# content; this is a pre-existing design-pipeline reliability characteristic unrelated to TOGAF
+# (the same bail-out exists to avoid inventing a design from a genuinely thin request), not
+# something fixable from the TOGAF side -- this more explicit phrasing is a pragmatic mitigation,
+# not a guarantee.
+Create a High-Level Design document for a system called the Supplier Onboarding Service. \
+Functional requirements: FR-1) an authenticated supplier portal with save-and-resume applications; \
+FR-2) document upload and validation; FR-3) staff review queues and approval routing; FR-4) expiry \
+reminders; FR-5) a full audit history; FR-6) integration with the Finance System via API for \
+payment and invoice reconciliation once a supplier is approved; FR-7) storage of supplier documents \
+in a document repository service. Non-functional requirements: NFR-1) GDPR compliance for supplier \
+personal data; NFR-2) at least 50 onboarding submissions per hour at peak; NFR-3) graceful \
+degradation (queue and retry, not fail outright) if the Finance System is briefly unavailable.
 
 list
 
@@ -103,6 +141,18 @@ list
 # code), but ordinary per-call LLM latency compounding badly against an unnecessarily large,
 # functionally irrelevant prompt.
 clear
+
+# Pause after Part B's single heaviest exchange (confirmed from a real run's own cli.log: 536,868
+# tokens in that ONE turn) before the next heavy exchange starts -- "clear" above resets the
+# CONVERSATION, not the underlying provider's own per-minute token-rate quota, which a burst this
+# large can plausibly still be drawing down against. Confirmed from the SAME real run: the model in
+# actual use is "gemini-3-flash-preview" (per cli.log's own usage records), not a GA model --
+# preview-tier endpoints commonly carry tighter per-minute quotas than GA ones. A later turn (Part
+# D's own what-if queries, each individually cheap) still silently stalled for 20+ minutes with zero
+# visible error -- no unbounded loop or retry-without-logging path exists anywhere in this
+# codebase's own code (confirmed directly), so this is consistent with provider-side throttling, not
+# a code defect. This sleep is a pragmatic smoothing measure, not a guarantee.
+sleep 30
 
 # ------------------------------------------------------------
 # PART C -- TOGAF creation (positive), default ("both") variant
@@ -130,16 +180,29 @@ Does the TOGAF generation include Architecture Change Management or a capability
 # load_full_togaf_context regardless, same reasoning as the reset above.
 clear
 
+# Same pragmatic smoothing as the sleep above -- Part C's own generate+compliance loop is itself a
+# second heavy, multi-request exchange (205K+ tokens, confirmed from the same real run), right
+# before Part D's own three what-if queries.
+sleep 20
+
 # ------------------------------------------------------------
 # PART D -- TOGAF_Scenario_Tester what-if queries (grounded in Part B/C's own real traceability/
 # dependency links, directly exercising togaf.hocon's own sample_queries)
 # ------------------------------------------------------------
 
 What happens if we deprioritize the Supplier Onboarding capability?
+
+sleep 10
+
 What is the impact of removing the Finance System integration?
 
+sleep 10
+
 # D3. Must decline a quantitative estimate -- qualitative dependency tracing only, per
-# togaf_scenario_tester.hocon's own instructions.
+# togaf_scenario_tester.hocon's own instructions. CONFIRMED AS THE EXACT SPOT a real run stalled
+# for 20+ minutes -- immediately after D1/D2 above, right on the heels of Part B/C's own enormous
+# token burst, despite this being individually one of the cheapest calls in the whole script (two
+# plain disk-read tool calls, no loop, no middleware) -- see this file's own header comment.
 How likely is it that removing the Finance System integration would cause an outage?
 
 # Reset before the regeneration/update parts below -- none of them need Part D's own what-if

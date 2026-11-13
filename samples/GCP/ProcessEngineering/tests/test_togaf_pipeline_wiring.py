@@ -115,6 +115,24 @@ def test_root_router_routes_togaf_requests():
     assert "TOGAF artifacts → TOGAF_Scenario_Tester" in text
 
 
+def test_router_sends_bare_togaf_regenerate_requests_to_create_doc_agent():
+    # Regression for a real live-run bug on the sibling neuro-san port: "Please regenerate just
+    # the TOGAF architecture vision document" matched 1h's own TOGAF signal words ("TOGAF",
+    # "architecture vision document") and got routed to TOGAF_Pipeline, which rebuilt the entire
+    # artifact set from source and ran a full compliance loop instead of just re-rendering the
+    # already-saved JSON.
+    text = _read("instructions/common/agent.txt")
+
+    section_6_start = text.index("## 6. DOCUMENT REGENERATION")
+    section_6_text = text[section_6_start:text.index("## 7.", section_6_start)]
+    assert '"Regenerate the TOGAF architecture documents"' in section_6_text
+    assert "CONFIRMED AS A REAL PRODUCTION BUG" in section_6_text
+
+    section_1h_start = text.index("### 1h. TOGAF ARCHITECTURE ARTIFACT GENERATION OR UPDATE")
+    section_1h_text = text[section_1h_start:section_6_start]
+    assert "is Section 6 (DOCUMENT REGENERATION) instead" in section_1h_text
+
+
 def test_togaf_scope_documents_phase_h_exclusion_in_the_router():
     text = _read("instructions/common/agent.txt")
 
