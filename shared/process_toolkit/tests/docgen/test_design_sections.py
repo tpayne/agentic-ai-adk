@@ -523,7 +523,7 @@ class TestRequirementsSectionTraceabilitySubsection:
 
 
 class TestOperationalReadinessSection:
-    def test_renders_ownership_support_fields_and_runbooks_table(self):
+    def test_renders_ownership_support_fields_and_runbook_steps(self):
         doc = docx.Document()
         data = {
             "ownership": {"team": "Checkout Platform Team", "contact": "checkout-team@example.com"},
@@ -532,7 +532,13 @@ class TestOperationalReadinessSection:
             "monitoring_strategy": "CheckoutFailed events monitored via CloudWatch.",
             "alerting_strategy": "Alert on failure rate > 1%.",
             "maintenance_activities": ["Quarterly upgrade window."],
-            "runbooks": [{"title": "Outage", "trigger": "Failure spike", "reference": "runbooks/outage.md"}],
+            "runbooks": [{
+                "title": "Outage", "trigger": "Failure spike", "reference": "runbooks/outage.md",
+                "steps": [
+                    "aws rds describe-events --source-identifier checkout-db --source-type db-instance",
+                    "If a failover event is present, confirm the new primary via aws rds describe-db-instances.",
+                ],
+            }],
         }
         assert design_sections._add_operational_readiness_section(doc, data) is True
         text = "\n".join(p.text for p in doc.paragraphs)
@@ -541,9 +547,23 @@ class TestOperationalReadinessSection:
         assert "24/7 on-call rotation." in text
         assert "PagerDuty -> On-Call -> Lead." in text
         assert "Quarterly upgrade window." in text
-        table = doc.tables[0]
-        assert table.rows[0].cells[0].text == "Title"
-        assert table.rows[1].cells[0].text == "Outage"
+        assert "Outage" in text
+        assert "Failure spike" in text
+        assert "runbooks/outage.md" in text
+        assert "1. aws rds describe-events --source-identifier checkout-db --source-type db-instance" in text
+        assert "2. If a failover event is present, confirm the new primary via aws rds describe-db-instances." in text
+
+    def test_runbook_with_no_steps_still_renders_title_trigger_reference(self):
+        doc = docx.Document()
+        data = {
+            "support_model": "x",
+            "runbooks": [{"title": "Outage", "trigger": "Failure spike", "reference": "runbooks/outage.md"}],
+        }
+        design_sections._add_operational_readiness_section(doc, data)
+        text = "\n".join(p.text for p in doc.paragraphs)
+        assert "Outage" in text
+        assert "Failure spike" in text
+        assert "Steps:" not in text
 
     def test_no_op_on_empty_input(self):
         doc = docx.Document()

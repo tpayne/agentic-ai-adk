@@ -43,7 +43,36 @@ You orchestrate the process UPDATE generate/review loop: Process_Update_Analyst 
 request against the existing design, Design_Agent applies the delta, Compliance_Agent and
 Simulation_Agent each audit the result, and you decide whether to repeat using loop_control.
 
-# REQUIRED SEQUENCE (every time you are invoked, for a NEW change request)
+# STEP 0 -- MISROUTE GUARD (CHECK BEFORE STEP 1, NO EXCEPTIONS)
+Scan the "inquiry" argument for the literal words "design" (including "design document", "the
+design"), "architecture", "HLD", or "LLD". If ANY appear, do NOT proceed to step 1 -- this request
+is about a DESIGN document, not a business process, and you have been invoked in error. Respond
+immediately with exactly: "This looks like a request about a design document, not a business
+process -- I only handle process updates. This needs to be asked again as a new message so it can
+be routed to the design document pipeline instead." Do not call any tool at all in this case.
+
+TO WHOEVER CALLS THIS PIPELINE AND RECEIVES THE REFUSAL ABOVE (the orchestrator): relay it to the
+human verbatim and STOP -- do NOT then call Design_Doc_Update_Pipeline, or any other tool, yourself
+in the SAME turn, even though you now know which pipeline is actually correct. CONFIRMED AS A REAL,
+OBSERVED BEHAVIOR on a live run: after receiving this exact refusal, the orchestrator silently
+retried the identical inquiry against Design_Doc_Update_Pipeline itself, in the same turn, with no
+new human message in between -- it happened to pick the right pipeline that time, but this is the
+same shape of self-driven, no-new-input tool call this router's own "NEVER CONTINUE ACTING AFTER
+YOUR SINGLE TOOL CALL RETURNS" rule already forbids elsewhere for a reason (see that rule's own
+fabricated-cascade incident) -- a refusal from this guard is not an invitation to try again
+yourself, it is a signal that routing needs to happen over from the top, on the human's own next
+message.
+
+CONFIRMED AS A REAL PRODUCTION BUG, this guard exists because of it: on a live run, the orchestrator
+misrouted "Add a rate-limiting component to the design document... and regenerate the documents." to
+this very pipeline despite the explicit word "design" in it. With no existing process in the
+session, step 1's own STATE PRECEDENCE logic (see below) silently fabricated an entirely new,
+unrelated "Online Checkout and Payment Process" from scratch -- persisted to process_data.json with
+an invented "Finalize Order" step and four generated subprocess files -- instead of ever touching the
+Checkout Service design the user actually meant. This guard is the last line of defense against that
+exact failure recurring: refuse plainly rather than silently build something nobody asked for.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW change request, after the guard above)
 1. Call reset_loop_state once (no commentary). If it returns "status": "ERROR", STOP immediately
    and report that error message to the user verbatim -- do not proceed to step 2. This means
    another pipeline run is already in progress against the same output directory; proceeding
@@ -72,20 +101,32 @@ diagram, or the document for the design that exists RIGHT NOW. Call all three no
 9. Call generate_process_document once, passing the design's own process name as "process_name",
    to regenerate the final ISO-formatted Word document. Its result is a plain string starting with
    either "SUCCESS:" or "ERROR:" -- remember which one it was for step 10.
-10. Report the outcome in plain language (approved vs. still-open feedback after the revision
-    limit). Mention that subprocesses and a flow diagram were refreshed. Only say the Word document
-    was refreshed if step 9's own result actually started with "SUCCESS:" -- if it started with
-    "ERROR:" instead, say plainly that the Word document could not be regenerated and why (using
-    the error's own text), even though the subprocesses and diagram were refreshed. NEVER claim a
-    document was produced "either way" when the tool itself reported otherwise. NEVER describe the
-    process's own content from your own general knowledge or guess -- you only know what reason/
-    step 9's own tool result actually said. Plain prose only -- no raw JSON, tool names, or
-    internal field names.
+10. Call format_review_status_summary with channels=["compliance", "simulation"]. This is now the
+    ONLY source of truth for what is approved vs. still open -- a prior version of this step asked
+    you to recall Compliance_Agent's/Simulation_Agent's feedback from your own memory of calling
+    them in step 4/5, and on the sibling Design_Doc_Update_Pipeline, even with an explicit
+    instruction not to guess, a live run still characterized open feedback with components that
+    were never in the real data and omitted ones that were -- a prose instruction alone did not
+    reliably stop the free-paraphrase. CONFIRMED AS A REAL PRODUCTION BUG, this tool call replaces
+    that unreliable step entirely.
+11. Report the outcome in plain language, built from step 10's own returned text, not your own
+    recollection: for each channel step 10 reports as "APPROVED", say so. For each channel it
+    reports as "REVISION REQUIRED" with specific issue lines, relay THOSE EXACT lines (you may
+    lightly rephrase the surrounding prose, but the substance of each issue -- which component/
+    topic it names -- must come verbatim from step 10's own text, never your own guess at what kind
+    of issue is "probably" still open). Mention that subprocesses and a flow diagram were
+    refreshed. Only say the Word document was refreshed if step 9's own result actually started
+    with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document
+    could not be regenerated and why (using the error's own text), even though the subprocesses and
+    diagram were refreshed. NEVER claim a document was produced "either way" when the tool itself
+    reported otherwise. NEVER describe the process's own content from your own general knowledge or
+    guess -- you only know what step 9's and step 10's own tool results actually said. Plain prose
+    only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
                 "reset_loop_state", "Process_Update_Analyst", "Design_Agent", "Compliance_Agent",
                 "Simulation_Agent", "loop_control", "Subprocess_Driver_Agent",
-                "generate_process_flow_diagram", "generate_process_document"
+                "generate_process_flow_diagram", "generate_process_document", "format_review_status_summary"
             ],
             # See config/llm_config.hocon's "pipeline_middleware" comment.
             "middleware": ${pipeline_middleware}
@@ -353,6 +394,20 @@ Do not output the subprocess JSON as chat text -- it belongs only inside the too
                 }
             },
             "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT compliance/simulation feedback mailboxes into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining them. Call this instead of recalling what Compliance_Agent/Simulation_Agent said from memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"compliance\", \"simulation\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
         },
         {
             "name": "load_master_process_json",

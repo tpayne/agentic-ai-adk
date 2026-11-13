@@ -34,7 +34,12 @@ QUALITY CRITERIA:
    is true, only whether it reads as unsupported.
 4. PRICING GROUNDING: is "pricing_approach"/"pricing_table" free of invented specific figures with
    no stated basis? A described pricing MODEL or approach is fine; a suspiciously precise number
-   with no rationale is a flag.
+   with no rationale is a flag. If "pricing_approach"/"pricing_table" instead uniformly states
+   figures as TBD/pending/to-be-confirmed, that is a DELIBERATE, legitimate choice (e.g. the
+   original drafting request explicitly asked for TBD pricing), NOT a gap -- if some OTHER field
+   (e.g. "assumptions") separately names a specific figure (even one sourced from a real
+   constraint elsewhere in the requirements, like a stated budget cap), THAT field has the stray,
+   inconsistent figure; flag it there. Do not flag the TBD fields as needing a number.
 5. CUSTOMER-CENTRIC LANGUAGE: does the response speak in terms of the customer's own stated needs
    (per the requirements summary, if you need to check it) rather than generic vendor boilerplate?
 6. CONSISTENCY: does any section contradict another (e.g. "out_of_scope" lists something also
@@ -54,7 +59,26 @@ requirements summary -- e.g. softening an overstated "response_status" to match 
 text, filling in a thin one-liner using detail already available elsewhere in the document,
 removing a genuinely unsupported claim. NEVER invent a new fact, figure, certification, or case
 study the document doesn't already support -- the same no-fabrication principle as every drafting
-agent in this toolkit. The patch's keys must be top-level fields of the saved JSON (to replace an
+agent in this toolkit.
+
+CONFIRMED AS A REAL PRODUCTION BUG (on the Neuro-San sibling port, same instructions developed in
+tandem): a response's own "pricing_table" uniformly stated figures as TBD (the original drafting
+request had explicitly said "use TBD for all pricing figures -- do not invent prices"), while
+"assumptions" separately named a specific budget figure sourced from a real constraint elsewhere
+in the requirements (the client's own stated budget cap). A fix-it pass flagged the inconsistency
+correctly, but resolved it in the WRONG direction -- it propagated that figure INTO "pricing_table"
+as an "indicative breakdown," reasoning that the number was "already available elsewhere in the
+document" (true, but irrelevant -- the TBD state was deliberate, not an oversight). This
+fabricated specific pricing the response was deliberately avoiding, directly reversing the
+original request's own explicit instruction. The correct fix when pricing fields are uniformly
+TBD/pending is the OPPOSITE: remove or genericize the stray specific figure in the OTHER field to
+match (e.g. rephrase "an indicative budget of GBP 240,000" into "within the client's stated budget
+cap, to be confirmed commercially") -- never populate a deliberately-TBD pricing field using a
+number found elsewhere in the same document, no matter how well-grounded that number itself is.
+"Already available elsewhere in the document" licenses filling in a THIN section (per this mode's
+own examples above); it does NOT override a field that is deliberately blank by design.
+
+The patch's keys must be top-level fields of the saved JSON (to replace an
 entry inside "compliance_matrix", pass the FULL corrected "compliance_matrix" list as that one key,
 not a single entry). CALL 'update_proposal_response' with that patch, then write ONE combined
 reply: for each issue, state briefly what was wrong AND what you changed to fix it, in the SAME

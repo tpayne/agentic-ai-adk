@@ -337,10 +337,45 @@ def _persist_design_simulation_metrics(metrics: Dict[str, Any]) -> None:
 _ELASTIC_TECH_KEYWORDS = (
     "kubernetes", "k8s", "auto-scal", "autoscal", "serverless", "lambda",
     "fargate", "elastic", "horizontal", "cloud run", "app engine",
+    # Managed cloud services are elastic/scaled by the provider by
+    # definition -- confirmed as a real false-positive source: an "RDS
+    # Instance"/"VPC Private Subnets"/"KMS Key"/"Secrets Manager"
+    # component, named in exactly these AWS-conventional terms, never
+    # matched any of the original keywords above despite being
+    # fully-managed services with no customer-side capacity concern,
+    # so every multi-dependent one got flagged as a "structural
+    # bottleneck" on every real run.
+    "rds", "aurora", "dynamodb", "managed", "vpc", "kms", "secrets manager",
+    "cloudwatch", "s3", "cloud sql", "cloud storage", "azure sql",
+    "key vault", "app service",
+    # Managed messaging/eventing is the same class of provider-scaled
+    # service as the managed-storage keywords above -- confirmed as a real
+    # false-positive source: an "Amazon MSK (Kafka)"/"Message Broker"
+    # component matched none of the original keywords despite being a
+    # fully-managed, multi-broker cluster with no customer-side capacity
+    # concern, so it got flagged as a structural bottleneck on a real run.
+    "kafka", "msk", "message broker", "event stream", "eventstream",
+    "event hub", "service bus", "pub/sub", "pubsub", "sns", "sqs",
+    "kinesis", "event grid",
 )
 _SCALABILITY_RISK_KEYWORDS = (
     "scal", "load", "capacity", "throughput", "performance", "traffic", "concurren",
 )
+# Component "type" values that are structural/control-plane infrastructure
+# (networking, security, observability plumbing) rather than a compute/
+# data resource with a meaningful notion of "capacity". Confirmed as a
+# real, repeated false-positive source across multiple live-generated
+# documents: a "VPC Private Subnets"/"Security Groups"/"KMS Key" component
+# is depended on by every other component in the design (fan_in is
+# naturally high for shared infrastructure -- that's not a load-
+# concentration risk, it's just what shared infrastructure is), and
+# Simulation_Agent's own gate treats ANY non-empty structural_bottlenecks
+# list as an automatic REVISION REQUIRED with no severity threshold --
+# so this single heuristic alone was enough to make SIMULATION_ALL_APPROVED
+# nearly unreachable for any realistic multi-component cloud design,
+# burning the entire revision budget chasing a phantom bottleneck instead
+# of adding real depth elsewhere.
+_NON_COMPUTE_COMPONENT_TYPES = {"network", "security", "monitoring", "networking", "observability"}
 
 
 def _analyze_scalability(
@@ -353,6 +388,8 @@ def _analyze_scalability(
     for c in components:
         name = c.get("component_name")
         if not name:
+            continue
+        if str(c.get("type") or "").strip().lower() in _NON_COMPUTE_COMPONENT_TYPES:
             continue
         fan_in = len(impacts.get(name, ()))
         if fan_in < 2:

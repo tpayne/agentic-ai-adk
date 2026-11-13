@@ -562,7 +562,10 @@
             {
                 "title": "string",
                 "trigger": "string",
-                "reference": "string"
+                "reference": "string",
+                "steps": [
+                    "string"
+                ]
             }
         ]
     },

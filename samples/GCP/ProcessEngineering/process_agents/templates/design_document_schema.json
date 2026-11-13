@@ -1716,6 +1716,12 @@
               },
               "reference": {
                 "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [

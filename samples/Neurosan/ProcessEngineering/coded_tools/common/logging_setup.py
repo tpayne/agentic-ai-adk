@@ -29,6 +29,46 @@ _VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 _LOG_MAX_BYTES = 10 * 1024 * 1024
 _LOG_BACKUP_COUNT = 5
 
+# Third-party loggers that, left unconfigured, fall straight through to
+# Python's own logging.lastResort handler (a bare StreamHandler on stderr
+# at WARNING+, used whenever a logger has no handler anywhere in its own
+# propagation chain, root included) -- the "ProcessArchitect" logger
+# above deliberately does NOT touch the root logger (see this module's
+# own docstring), so none of this was ever being swallowed by it either;
+# it simply had nowhere else to go. CONFIRMED AS A REAL PRODUCTION BUG:
+# neuro_san's own RunContextRunnable (internals/run_context/langchain/
+# core/run_context_runnable.py) logs every retry attempt via
+# `self.sensitive_logger.warning(...)` and the full exception traceback
+# via `.error(...)` against a bare `logging.getLogger("RunContextRunnable")`
+# -- with no handler of its own, every one of those (three retries plus a
+# full traceback, per failed model call) landed on stderr via lastResort,
+# burying this project's own clean "[ArchitectBot]: ..." reply (see
+# cli.py's own _friendly_llm_failure_message) under noise a user has no
+# reason to read live -- genuinely useful for after-the-fact debugging,
+# just not on the interactive console. Most visible on an LLM-provider
+# billing failure (depleted prepaid credits), where every SUBSEQUENT turn
+# repeats the same multi-retry dump, since that failure is permanent
+# until the user tops up credits -- retrying never helps, so nothing
+# about the repeated dump is actionable information worth seeing twice.
+_NOISY_THIRD_PARTY_LOGGER_NAMES = ("RunContextRunnable",)
+
+
+def _quiet_known_noisy_third_party_loggers(file_handler: logging.Handler) -> None:
+    """Routes each of _NOISY_THIRD_PARTY_LOGGER_NAMES into the SAME log
+    file this project's own "ProcessArchitect" logger already writes to
+    (reusing the same handler instance -- Python's logging module
+    supports one Handler being attached to multiple Loggers) and cuts
+    propagation, so records land only in the file, never on the console
+    via lastResort. A no-op for any logger that already has a handler of
+    its own (idempotent, matching configure_logging's own guard) --
+    something else already configured it, so this leaves that alone."""
+    for name in _NOISY_THIRD_PARTY_LOGGER_NAMES:
+        third_party_logger = logging.getLogger(name)
+        if third_party_logger.handlers:
+            continue
+        third_party_logger.addHandler(file_handler)
+        third_party_logger.propagate = False
+
 
 def _resolve_log_level() -> str:
     """Reads LOGLEVEL from the environment, falling back to INFO -- not
@@ -78,5 +118,7 @@ def configure_logging(project_root: str, log_filename: str) -> logging.Logger:
     logger.addHandler(console_handler)
     logger.propagate = False
     logger.setLevel(_resolve_log_level())
+
+    _quiet_known_noisy_third_party_loggers(file_handler)
 
     return logger

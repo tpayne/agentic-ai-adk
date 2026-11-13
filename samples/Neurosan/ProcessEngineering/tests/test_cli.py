@@ -422,6 +422,77 @@ class TestDedupeDoubledAnswer:
         assert cli._dedupe_doubled_answer(doubled) == paragraph
 
 
+class TestFriendlyLlmFailureMessage:
+    """_friendly_llm_failure_message -- confirmed live: a Gemini billing
+    failure (prepaid credits depleted) never reaches this file's own
+    `except Exception` turn-handlers at all, because neuro-san's own
+    run_context_runnable.py already catches the provider exception and
+    returns it as a normal chat response string shaped "Error from
+    <agent>: Agent stopped due to exception Error calling model
+    '<model>' (RESOURCE_EXHAUSTED): 402 RESOURCE_EXHAUSTED. {...}" -- a
+    raw, nested, nearly-unreadable blob that looks exactly like a normal
+    answer to every caller downstream."""
+
+    REAL_FAILURE_TEXT = (
+        "Error from Process_Architect_Orchestrator: Agent stopped due to exception "
+        "Error calling model 'gemini-3-flash-preview' (RESOURCE_EXHAUSTED): 402 RESOURCE_EXHAUSTED. "
+        "{'error': {'code': 402, 'message': 'Your prepayment credits are depleted. Please go to "
+        "AI Studio at https://ai.studio/projects to manage your project and billing.', "
+        "'status': 'RESOURCE_EXHAUSTED'}}"
+    )
+
+    def test_none_and_empty_pass_through_as_no_match(self):
+        assert cli._friendly_llm_failure_message(None) is None
+        assert cli._friendly_llm_failure_message("") is None
+
+    def test_a_genuine_answer_is_left_alone(self):
+        answer = "The system must support UK data residency (CON-001)."
+        assert cli._friendly_llm_failure_message(answer) is None
+
+    def test_an_answer_mentioning_resource_exhaustion_as_a_topic_is_not_mistaken_for_the_failure(self):
+        # The gate on "Agent stopped due to exception" being present is
+        # exactly what keeps this from false-positiving on a legitimate
+        # answer discussing cloud resource exhaustion as an NFR topic.
+        answer = "NFR-009 addresses RESOURCE_EXHAUSTED conditions under peak load (402 concurrent users)."
+        assert cli._friendly_llm_failure_message(answer) is None
+
+    def test_the_real_observed_billing_failure_text_is_replaced(self):
+        friendly = cli._friendly_llm_failure_message(self.REAL_FAILURE_TEXT)
+        assert friendly is not None
+        assert "RESOURCE_EXHAUSTED" not in friendly
+        assert "ai.studio/projects" in friendly
+        assert "credits" in friendly.lower()
+
+    def test_a_different_agent_exception_is_left_unreplaced(self):
+        other_failure = (
+            "Error from Process_Architect_Orchestrator: Agent stopped due to exception "
+            "TimeoutError: the request timed out after 60s"
+        )
+        assert cli._friendly_llm_failure_message(other_failure) is None
+
+    def test_send_substitutes_the_friendly_message(self, monkeypatch):
+        session = cli.ChatSession.__new__(cli.ChatSession)
+        session._lock = threading.Lock()
+        session.sly_data = {}
+        session.chat_context = {}
+        session.last_usage = None
+
+        class _StubInputProcessor:
+            def process_once(self, state):
+                state["last_chat_response"] = TestFriendlyLlmFailureMessage.REAL_FAILURE_TEXT
+                state["sly_data"] = state["sly_data"]
+                state["chat_context"] = state["chat_context"]
+                return state
+
+        session.input_processor = _StubInputProcessor()
+        monkeypatch.setattr(session, "persist_web_state", lambda: None)
+        monkeypatch.setattr(cli, "_release_any_leftover_pipeline_lock", lambda sly_data: None)
+
+        result = session.send("anything")
+        assert "RESOURCE_EXHAUSTED" not in result
+        assert "ai.studio/projects" in result
+
+
 class TestParseAttachments:
     """_parse_attachments -- validates/decodes POST /chat or /chat/stream's
     optional "files" field server-side, re-checking size/count even though

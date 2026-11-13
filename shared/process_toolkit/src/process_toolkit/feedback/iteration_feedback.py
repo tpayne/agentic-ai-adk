@@ -12,7 +12,7 @@ escalate) and its replacement.
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Sequence
 
 from process_toolkit.paths import output_path
 
@@ -187,3 +187,53 @@ def reset_feedback_channels() -> None:
                 os.remove(path)
         except Exception:
             pass
+
+
+def format_review_status_summary(channels: Sequence[str] = ("compliance", "simulation")) -> str:
+    """Deterministically renders each named channel's CURRENT mailbox state
+    (APPROVED, or every open issue's own persisted "instruction" text) into
+    one plain-text summary, without draining any mailbox (reset_data=False
+    -- the caller's own pipeline run is already over by the time this is
+    typically called, but a later, unrelated read of the same channel
+    should still see this exact state until the NEXT run resets it).
+
+    CONFIRMED AS A REAL PRODUCTION BUG this function exists to fix: a
+    pipeline's own final "report the outcome in plain language" step had
+    direct access to the real, specific Compliance_Agent/Simulation_Agent
+    feedback (it had just called both as tool calls earlier in the SAME
+    turn) and still free-paraphrased it from memory into a plausible-
+    sounding but WRONG summary -- naming single-points-of-failure that
+    were never in the actual data, and omitting a real, open security risk
+    and a real, open latency-budget risk that were. A prose instruction
+    telling the model not to do this (twice, across two live rounds) did
+    not reliably stop it. This function removes the opportunity to
+    misremember at all: the caller is required to relay THIS text, not
+    its own recollection of what Compliance_Agent/Simulation_Agent said."""
+    lines = []
+    for channel in channels:
+        feedback = load_iteration_feedback(reset_data=False, channel=channel)
+        status = feedback.get("status") if isinstance(feedback, dict) else None
+        label = channel.capitalize()
+
+        if not feedback or status in (None, "NONE"):
+            lines.append(f"{label}: no review has run yet this turn.")
+            continue
+        if status in APPROVED_STATUSES:
+            lines.append(f"{label}: APPROVED.")
+            continue
+
+        data = feedback.get("data") if isinstance(feedback, dict) else None
+        if not data:
+            lines.append(f"{label}: REVISION REQUIRED, but no specific issue detail was recorded.")
+            continue
+
+        lines.append(f"{label}: REVISION REQUIRED --")
+        for issue in data if isinstance(data, list) else [data]:
+            if not isinstance(issue, dict):
+                continue
+            instruction = issue.get("instruction") or issue.get("issue") or "(no instruction text recorded)"
+            location = issue.get("location")
+            prefix = f"[{location}] " if location else ""
+            lines.append(f"  - {prefix}{instruction}")
+
+    return "\n".join(lines) if lines else "No review feedback recorded."
