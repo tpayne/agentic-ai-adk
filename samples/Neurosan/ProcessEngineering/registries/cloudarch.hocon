@@ -206,6 +206,16 @@ components: list of dicts, each:
    (optional, e.g. "mxgraph.gcp2.cloud_run"), "icon_color": str (optional hex), "color": str
    (optional hex), "width": int (optional)}
   Every component MUST reference a real zone_id. ONE COMPONENT PER NAMED, ICON-BEARING RESOURCE.
+  EVERY "bullets" entry is a BARE STRING, always -- e.g. "AES-256 encrypted", never an object of any
+  shape, no matter how structured the source material you're summarizing happens to be. CONFIRMED AS
+  A REAL PRODUCTION BUG: generating from an uploaded backup-architecture PDF produced bullets shaped
+  like {"description": "..."} for EVERY one of 13 components in the same diagram -- save_drawio_
+  structured correctly rejected the whole diagram outright (a ValueError naming every offending
+  component) rather than silently dropping or misrendering them, so this fails the ENTIRE generation,
+  not just one component's caption. If the source material itself organizes a resource's attributes
+  as structured fields (e.g. a table of "control: encryption, description: AES-256..."), write the
+  one short bullet string yourself (e.g. "AES-256 encrypted") -- never pass the source's own object
+  shape through as if it were already a bullet.
 
 edges: list of dicts, each:
   {"source": str, "target": str, "label": str (optional, ""), "number": int (optional), "color":

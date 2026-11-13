@@ -538,6 +538,19 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
         return "SKIPPED: Requirements summaries have no flow/architecture diagram to generate."
     if schema_type == "proposal_response":
         return "SKIPPED: Proposal responses have no flow/architecture diagram to generate."
+    if schema_type == "togaf":
+        # TOGAF documents have several independent diagrams (capability
+        # map, application communication, data flow, technology
+        # portfolio), each rendered inline per-section via generate_uml_
+        # diagram -- not one whole-document overview diagram the way
+        # process/design each have. No caller in either port actually
+        # requests schema_type="togaf" here (regenerate_flow_diagram's own
+        # schema_type enum deliberately omits it, the same way it already
+        # omits "requirements"/"proposal_response"/"test_specification"),
+        # but this no-op mirrors those two's own defensive branch rather
+        # than leaving "togaf" to fall through to the "process" branch
+        # below if something ever does pass it directly.
+        return "SKIPPED: TOGAF architecture documents render their diagrams inline per-section; no separate whole-document flow diagram exists."
 
     try:
         is_design = (schema_type or detect_schema_type_from_disk()) == "design"

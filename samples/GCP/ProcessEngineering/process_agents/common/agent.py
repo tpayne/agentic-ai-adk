@@ -264,6 +264,8 @@ from .agent_registry import (
     process_import_agent,
     design_import_agent,
     cloudarch_import_agent,
+    togaf_pipeline,
+    togaf_scenario_tester_agent,
 )
 
 # Signal handler for abnormal errors
@@ -333,6 +335,8 @@ root_agent = ProcessLlmAgent(
         process_import_agent,
         design_import_agent,
         cloudarch_import_agent,
+        togaf_pipeline,
+        togaf_scenario_tester_agent,
     ],
 )
 
@@ -1650,6 +1654,7 @@ def build_web_app(https: bool = True):
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
+            "togaf": "togaf_data.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1658,7 +1663,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', or 'cloudarch'."
                 ),
             }), 400
 
@@ -1812,6 +1817,7 @@ def build_web_app(https: bool = True):
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
+            "togaf": "togaf_data.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -1819,7 +1825,7 @@ def build_web_app(https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', or 'portfolio_backlog'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'togaf'."
                 ),
             }), 400
         with toolkit_paths.use_session(_web_session_id_for_get_request()):

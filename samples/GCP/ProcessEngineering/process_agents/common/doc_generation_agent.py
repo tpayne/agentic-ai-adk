@@ -19,6 +19,7 @@ def create_standard_doc_from_file(
     process_name: str = "Process",
     schema_type: Optional[str] = None,
     design_variant: Optional[str] = None,
+    togaf_variant: Optional[str] = None,
     tool_context: Optional[ToolContext] = None,
 ) -> str:
     """Same contract as process_toolkit.docgen.generation's own function of
@@ -41,8 +42,10 @@ def create_standard_doc_from_file(
     when schema_type is (or resolves to) "design" -- harmless/ignored
     otherwise. Selects which of the two separate design documents to
     render (see process_toolkit.docgen.generation's own
-    _build_design_documents)."""
-    result = _shared_create_standard_doc_from_file(process_name, schema_type, design_variant)
+    _build_design_documents). togaf_variant ("vision"|"definition"|"both",
+    default "both") is the same idea for schema_type="togaf" -- see
+    _build_togaf_documents."""
+    result = _shared_create_standard_doc_from_file(process_name, schema_type, design_variant, togaf_variant)
     if isinstance(result, str) and result.startswith("SUCCESS:"):
         release_pipeline_lock_for_turn(tool_context)
     return result

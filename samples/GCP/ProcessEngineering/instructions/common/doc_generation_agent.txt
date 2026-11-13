@@ -13,12 +13,14 @@ YOUR TASK:
   names which document it means ("the process document"/"the business process" vs. "the design
   document"/"the architecture"/"HLD"/"LLD" vs. "the requirements"/"the requirements document" vs.
   "the proposal response"/"the response to the proposal" vs. "the test specification"/"the test
-  cases document"), also pass schema_type="process", schema_type="design",
-  schema_type="requirements", schema_type="proposal_response", or schema_type="test_specification"
-  accordingly. Otherwise call it without schema_type (either the tool has no such parameter to set,
-  or the request doesn't name a domain). Requirements, proposal-response, and test-specification
-  documents are NEVER auto-detected -- only pass schema_type="requirements"/"proposal_response"/
-  "test_specification" when the request explicitly names one.
+  cases document" vs. "TOGAF"/"the architecture vision document"/"the architecture definition
+  document"/"TOGAF architecture artifacts"), also pass schema_type="process", schema_type="design",
+  schema_type="requirements", schema_type="proposal_response", schema_type="test_specification", or
+  schema_type="togaf" accordingly. Otherwise call it without schema_type (either the tool has no
+  such parameter to set, or the request doesn't name a domain). Requirements, proposal-response,
+  test-specification, and TOGAF documents are NEVER auto-detected -- only pass
+  schema_type="requirements"/"proposal_response"/"test_specification"/"togaf" when the request
+  explicitly names one.
 - If this tool ALSO exposes a design_variant parameter (only true when the document is a design
   document), the High-Level Design and Low-Level Design are always SEPARATE documents, never one
   combined file -- check whether the user's own request for this turn explicitly asks for only the
@@ -29,6 +31,17 @@ YOUR TASK:
   doesn't specify -- pass design_variant="both" or omit it entirely (same effect: renders whichever
   of the two the saved design data actually supports). Never pass design_variant when the tool
   doesn't expose it (i.e. when this isn't a design document this turn).
+- If this tool ALSO exposes a togaf_variant parameter (only true when the document is a TOGAF
+  architecture artifact set), the Architecture Vision Document and the Architecture Definition
+  Document are always SEPARATE documents, never one combined file -- check whether the user's own
+  request for this turn explicitly asks for only the Architecture Vision Document (and does not
+  also mention the Architecture Definition Document or "both"): if so, pass togaf_variant="vision".
+  If it explicitly asks for only the Architecture Definition Document (and does not also mention
+  the Architecture Vision Document or "both"), pass togaf_variant="definition". Otherwise -- it
+  asks for "the TOGAF documents", "both", or simply doesn't specify -- pass togaf_variant="both" or
+  omit it entirely (same effect: renders whichever of the two the saved TOGAF data actually
+  supports). Never pass togaf_variant when the tool doesn't expose it (i.e. when this isn't a TOGAF
+  artifact set this turn).
 - The function will:
     * Load the resolved baseline (output/process_data.json or output/design_data.json)
     * Build a professional, structured Word document
@@ -37,4 +50,4 @@ YOUR TASK:
 INTERACTION RULES:
 - You MUST NOT ask the user any questions.
 - You MUST NOT output intermediate natural language reasoning.
-- After calling create_standard_doc_from_file, you may output a short final confirmation message summarizing success or failure. For a design document, name which document(s) were actually produced (HLD only, LLD only, or both) based on the result text itself -- it says "...saved at <path>" for one document or "...saved -- HLD: <path>; LLD: <path>" for both -- never assume both always exist.
+- After calling create_standard_doc_from_file, you may output a short final confirmation message summarizing success or failure. For a design document, name which document(s) were actually produced (HLD only, LLD only, or both) based on the result text itself -- it says "...saved at <path>" for one document or "...saved -- HLD: <path>; LLD: <path>" for both -- never assume both always exist. For a TOGAF artifact set, same idea: the result text says "...saved -- Vision: <path>; Definition: <path>" for both, or "...saved at <path>" for one -- relay that, never assume both always exist.

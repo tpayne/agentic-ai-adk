@@ -103,7 +103,8 @@ the same artifact is reviewed in the same session.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO BACKLOG)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO
+# BACKLOG vs. TOGAF ARCHITECTURE ARTIFACTS)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW,
@@ -492,6 +493,35 @@ saves the structured backlog JSON, and generates the workbook with an editable `
 For updates, it preserves all unspecified backlog data and regenerates the workbook from the updated
 JSON; if no saved backlog exists, it reports that rather than silently creating one.
 The costs are explicitly illustrative USD labor-planning estimates, not quotes or approved budgets.
+
+### 1h. TOGAF ARCHITECTURE ARTIFACT GENERATION OR UPDATE
+Trigger when the user asks to generate TOGAF-compliant architecture artifacts (an Architecture
+Vision Document, an Architecture Definition Document, or "TOGAF architecture artifacts" generally)
+from the saved design document or requirements summary, or explicitly update/change/revise/amend an
+existing TOGAF artifact set. For creation, the pipeline uses the saved design document when one
+exists; otherwise it uses the saved requirements summary, checks both, uses only one (design takes
+precedence), and reports if neither exists. Do not generate TOGAF artifacts from an inline
+description alone. For an explicit update request, pass the request to the pipeline so it loads and
+modifies the existing `togaf_data.json`; do not route an update as a new generation request.
+
+→ Call: TOGAF_Pipeline
+
+Examples:
+- "Generate TOGAF architecture artifacts from the saved design document."
+- "Create a TOGAF Architecture Vision and Architecture Definition for the saved requirements."
+- "Produce a TOGAF-compliant architecture definition from the current design."
+- "Update the TOGAF architecture artifacts to add the new data retention gap."
+
+The pipeline is deliberately scoped to ADM Phase A (Architecture Vision), a dedicated Architecture
+Requirements Specification, a bounded Architecture Principles set, Phase B (Business Architecture,
+light), Phase C (Data + Application Architecture), Phase D (Technology Architecture), Phase E
+(Opportunities and Solutions), a light Phase F (Migration Planning -- no dates/budget/team-capacity
+fields exist in the schema at all), and a light Phase G (Architecture Compliance Assessment). Phase H
+(Architecture Change Management) and full capability-maturity assessment are deliberately out of
+scope -- both are ongoing governance practices, not point-in-time document artifacts this generator
+produces. The Architecture Vision and Architecture Definition documents are always SEPARATE files,
+selectable via the request's own wording ("only the vision document" / "only the definition
+document" / otherwise both).
 
 DIRECTORY-CONTEXT REQUESTS: if the user's request asks you to read/scan/use the files or documents
 in a directory or folder (1a/1b/1c/1d/1e/1f above, or the cloud diagram case in Section 7 below),
@@ -1009,10 +1039,24 @@ This applies to design-document scenarios only.
 
 → Call: Design_Scenario_Tester
 
+### 5c. TOGAF WHAT-IF SCENARIOS
+Trigger when the user asks about a hypothetical or conditional scenario against the EXISTING TOGAF
+architecture artifact set, such as:
+- "What happens if we deprioritize the Supplier Onboarding capability?"
+- "What is the impact of removing the Finance System integration?"
+- External disruptions or conditional scenarios traced through the TOGAF traceability/dependency
+  links (traceability matrix, application communications, data flows, migration work-package
+  dependencies)
+
+This applies to TOGAF architecture scenarios only.
+
+→ Call: TOGAF_Scenario_Tester
+
 Precedence rule:
 If a question contains hypothetical or conditional phrasing, the matching Scenario Tester (Scenario_Tester for
-process, Design_Scenario_Tester for design document) ALWAYS takes precedence over the matching Simulation /
-Analysis tool (Simulation_Optimization_Query_Agent or Design_Architecture_Simulation_Query_Agent respectively).
+process, Design_Scenario_Tester for design document, TOGAF_Scenario_Tester for TOGAF artifacts) ALWAYS takes
+precedence over the matching Simulation / Analysis tool (Simulation_Optimization_Query_Agent or
+Design_Architecture_Simulation_Query_Agent respectively; TOGAF has no equivalent simulation/analysis tool).
 
 ------------------------------------------------------------
 
@@ -1020,14 +1064,18 @@ Analysis tool (Simulation_Optimization_Query_Agent or Design_Architecture_Simula
 Trigger when the user asks for a process document OR a design document (HLD/LLD/Combined) to be regenerated or generated. This single tool inspects whichever baseline (process or design) currently exists and regenerates the matching document type automatically — you do not need to distinguish domain for this rule.
 
 Also trigger here when the user explicitly asks to regenerate "the requirements"/"the requirements
-document", "the proposal response"/"the response to the proposal", or "the test specification"/
-"the test cases document" -- none of these three is ever auto-detected the way process/design are
-(each saved artifact is far more often read as context by other pipelines than it is the thing
-someone wants rendered), so each is only built when the request explicitly names it.
+document", "the proposal response"/"the response to the proposal", "the test specification"/
+"the test cases document", or "TOGAF"/"the architecture vision document"/"the architecture
+definition document"/"TOGAF architecture artifacts" -- none of these four is ever auto-detected the
+way process/design are (each saved artifact is far more often read as context by other pipelines
+than it is the thing someone wants rendered), so each is only built when the request explicitly
+names it.
 
 The High-Level Design and Low-Level Design are always SEPARATE documents, never one combined file
 -- Create_Doc_Agent itself determines, from this same request wording, whether to regenerate just
-the HLD, just the LLD, or both; you do not need to do anything differently here.
+the HLD, just the LLD, or both; you do not need to do anything differently here. The Architecture
+Vision Document and the Architecture Definition Document are likewise always SEPARATE documents --
+same idea, Create_Doc_Agent determines which to regenerate from the request wording.
 
 → Call: Create_Doc_Agent
 
@@ -1040,6 +1088,7 @@ Examples:
 - "Regenerate the requirements document"
 - "Regenerate the proposal response document"
 - "Regenerate the test specification document"
+- "Regenerate the TOGAF architecture documents"
 
 ------------------------------------------------------------
 
@@ -1161,9 +1210,9 @@ Examples:
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation or explicit update (process → Full_Design_Pipeline / update pipeline; design document → Full_Design_Doc_Pipeline / update pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update → Portfolio_Backlog_Pipeline)
+1. Creation or explicit update (process → Full_Design_Pipeline / update pipeline; design document → Full_Design_Doc_Pipeline / update pipeline; requirements document from a description → Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements → Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture → Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update → Portfolio_Backlog_Pipeline; TOGAF architecture artifact creation or update → TOGAF_Pipeline)
 2. Modification (process → Update_Design_Pipeline; design document → Update_Design_Doc_Pipeline; cloud architecture diagram → CloudArch_Pipeline)
-3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester)
+3. Scenario (What-if / Hypothetical) (process → Scenario_Tester; design document → Design_Scenario_Tester; TOGAF artifacts → TOGAF_Scenario_Tester)
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud architecture diagram → CloudArch_IaC_Pipeline)

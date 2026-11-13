@@ -31,6 +31,19 @@ APPROVAL_MARKERS = {
     "CLOUDARCH APPROVED": ("cloudarch_status", "APPROVED"),
     "JSON APPROVED": ("status", "JSON APPROVED"),
     "IAC APPROVED": ("iac_status", "APPROVED"),
+    # TOGAF_Compliance_Agent's own approval marker -- registered here so
+    # TOGAF_Pipeline's/GCP's TOGAF stop-controller's loop_control gate
+    # (required={"togaf_compliance_status": "APPROVED"}) can ever actually
+    # see it: without an entry here, this exact string would be scanned
+    # for and never found, and the review loop would run to
+    # max_iterations on every call regardless of whether the design was
+    # genuinely compliant. Underscored (matching Simulation_Agent's own
+    # convention, not Compliance_Agent's spaced one) because this is the
+    # literal value TOGAF_Compliance_Agent writes to the saved payload's
+    # own "status" field -- the marker must match that field's value
+    # exactly, since save_iteration_feedback scans the json.dumps'd
+    # payload, not the agent's separate final chat response text.
+    "TOGAF_COMPLIANCE_APPROVED": ("togaf_compliance_status", "APPROVED"),
 }
 
 APPROVED_STATUSES = {
@@ -40,6 +53,7 @@ APPROVED_STATUSES = {
     "GROUNDING APPROVED",
     "CLOUDARCH APPROVED",
     "IAC APPROVED",
+    "TOGAF_COMPLIANCE_APPROVED",
 }
 
 # Every channel any network's instructions actually save/load (see the
@@ -51,7 +65,7 @@ APPROVED_STATUSES = {
 # reset_approval_state() alone doesn't clear these, so a later, UNRELATED
 # request against the same network can load and apply that stale feedback
 # the moment its own Design_Agent reads the same channel.
-KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation", "iac")
+KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation", "iac", "togaf_compliance")
 
 
 def _feedback_filename(channel: str = "") -> str:

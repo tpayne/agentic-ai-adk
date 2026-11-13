@@ -40,6 +40,7 @@ from .requirements_simulation_agent import requirements_simulation_query_agent
 from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from .test_specification_pipeline_agent import test_specification_pipeline
 from .portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline
+from .togaf_pipeline_agent import togaf_pipeline
 from .test_consultant_agent import test_consultant_agent
 from .test_reviewer_agent import test_reviewer_agent
 from .proposal_response_pipeline_agent import proposal_response_pipeline
@@ -47,6 +48,7 @@ from .proposal_response_consultant_agent import proposal_response_consultant_age
 from .proposal_response_reviewer_agent import proposal_response_reviewer_agent
 from ..process.scenario_agent import scenario_tester_agent
 from ..design.scenario_design_agent import design_scenario_tester_agent
+from .togaf_scenario_tester_agent import togaf_scenario_tester_agent
 from ..process.simulation_agent import simulation_agent
 from ..process.simulation_agent import simulation_query_agent
 from ..design.design_simulation_agent import design_simulation_agent

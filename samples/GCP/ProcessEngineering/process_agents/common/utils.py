@@ -2986,6 +2986,23 @@ def update_proposal_response(patch: dict, tool_context: Optional[ToolContext] = 
     return _shared_update_proposal_response(patch, tool_context.state if tool_context is not None else None)
 
 
+# TOGAF architecture-artifact persistence (shared with the neuro-san port) --
+# same disk-only contract as process_toolkit.schema.design_json (no
+# ToolContext/state involvement: unlike requirements_summary/
+# test_specification/portfolio_backlog/proposal_response, which share a
+# same-turn value across sibling agents via session state, TOGAF's own
+# generator and reviewer always read/write the one saved output/
+# togaf_data.json file directly, exactly like Design_Doc_Agent does for
+# design_data.json).
+from process_toolkit.schema.togaf_json import (  # noqa: E402,F401
+    load_togaf_template,
+    load_master_togaf_json,
+    load_full_togaf_context,
+    validate_togaf_json,
+    persist_final_togaf_json,
+)
+
+
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:
     """
     Loads a JSON template from the process_agents/templates directory.

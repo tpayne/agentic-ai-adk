@@ -48,7 +48,9 @@ class RegenerateDocumentCodedTool(CodedTool):
     meaningful when schema_type is (or resolves to) "design" -- harmless/
     ignored otherwise. Selects which of the two separate design documents
     to regenerate (see process_toolkit.docgen.generation's own
-    _build_design_documents)."""
+    _build_design_documents). "togaf_variant" ("vision"|"definition"|
+    "both", default "both") is the same idea for schema_type="togaf" --
+    see _build_togaf_documents."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
         # Unconditional release in `finally`, even though this tool's own
@@ -64,6 +66,7 @@ class RegenerateDocumentCodedTool(CodedTool):
             name = args.get("process_name") or "Process"
             return create_standard_doc_from_file(
                 name, schema_type=args.get("schema_type"), design_variant=args.get("design_variant"),
+                togaf_variant=args.get("togaf_variant"),
             )
         finally:
             stop_pipeline_lock_heartbeat(token)

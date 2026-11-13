@@ -1,0 +1,211 @@
+# ============================================================
+# TOGAF architecture artifact generation robustness test script
+#
+# Run from samples/Neurosan/ProcessEngineering:
+#   uv run python cli.py -f examples/Tests/togaf_cli_test_commands.txt
+#
+# Exercises TOGAF_Pipeline, TOGAF_Compliance_Agent (internal, never called directly), and
+# TOGAF_Scenario_Tester end to end: nothing-saved negative cases (generate/regenerate/update/
+# what-if, each against a genuinely clean slate), a real creation run against a saved design
+# document (default "both" variant), the Phase H / capability-maturity scope disclosure, what-if
+# scenario queries that trace the generated traceability/dependency links, all four regeneration
+# phrasings (implicit "both", explicit vision-only, explicit definition-only, and explicit "vision
+# and definition" wording -- mirrors design_hld_lld_split_cli_test_commands.txt's own design_variant
+# coverage exactly), an explicit update request proving TOGAF_Agent's UPDATE branch preserves
+# unrelated content, a requirements-only source path (no design document saved at all, confirming
+# the design-takes-precedence rule doesn't make requirements-only generation impossible), and
+# domain-crossover disambiguation between TOGAF_Scenario_Tester and Design_Scenario_Tester.
+#
+# Test fixture: a small inline design-document brief, written by this script itself (same
+# "Supplier Onboarding Service" + "Finance System integration" scenario rm_rtp_cli_test_commands.txt's
+# own Part C2 RtP offering already describes) -- deliberately reused so the resulting TOGAF content
+# genuinely supports togaf_scenario_tester.hocon's own two sample_queries ("What happens if we
+# deprioritize the Supplier Onboarding capability?" / "What is the impact of removing the Finance
+# System integration?"), rather than those sample queries being untestable against a differently-
+# themed fixture.
+#
+# Session state in this CLI is a mix of in-memory conversation (reset by "clear") and on-disk saved
+# JSON (output/design_data.json, output/requirements_summary.json, output/togaf_data.json,
+# independent of "clear"). The $ resets below delete the on-disk state at specific points so the
+# nothing-saved negative cases, and the requirements-only path in Part G, are exercised against a
+# genuinely clean slate rather than leftover state from an earlier part of this same script.
+# ============================================================
+
+$ rm -f output/design_data.json output/requirements_summary.json output/togaf_data.json output/cloudarch_drawio.xml
+$ rm -f output/*.docx
+sleep 1
+
+# ------------------------------------------------------------
+# PART A -- negative / edge cases (nothing saved yet)
+# ------------------------------------------------------------
+
+# A1. NEGATIVE: generate TOGAF artifacts with nothing saved at all -- no design, no requirements.
+# Must explain plainly that no saved design document or requirements summary exists, not invent one.
+Generate TOGAF architecture artifacts from the saved design document.
+
+# A2. NEGATIVE: regenerate the TOGAF documents before anything has ever been created
+Regenerate the TOGAF architecture documents.
+
+# A3. NEGATIVE: regenerate just the Architecture Vision Document before anything has ever been created
+Please regenerate just the TOGAF architecture vision document.
+
+# A4. NEGATIVE: explicit update request against nothing saved -- must explain that no saved TOGAF
+# artifact set exists and must NOT create one as a substitute.
+Update the TOGAF architecture artifacts to add a new identified gap.
+
+# A5. NEGATIVE: what-if scenario query with nothing saved -- TOGAF_Scenario_Tester's own
+# "I cannot see any TOGAF architecture data" message, not a guess.
+What happens if we deprioritize the Supplier Onboarding capability?
+
+# A6. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
+Can you take a look at this and tell me what you think?
+
+# ------------------------------------------------------------
+# PART B -- build the design-document source (grounds the Supplier Onboarding capability and the
+# Finance System integration the later what-if queries and compliance checks rely on)
+# ------------------------------------------------------------
+
+# B1. POSITIVE: a real, substantive design-document request with enough content to populate
+# business/data/application/technology architecture, plus NFRs/compliance so the later TOGAF
+# generation isn't thin.
+Create a High-Level Design document for a Supplier Onboarding Service: an authenticated supplier \
+portal with save-and-resume applications, document upload and validation, staff review queues, \
+approval routing, expiry reminders, and a full audit history. It integrates with the Finance System \
+via API for payment and invoice reconciliation once a supplier is approved, and stores supplier \
+documents in a document repository service. It must comply with GDPR for supplier personal data, \
+handle at least 50 onboarding submissions per hour at peak, and degrade gracefully (queue and \
+retry, not fail outright) if the Finance System is briefly unavailable.
+
+list
+
+# ------------------------------------------------------------
+# PART C -- TOGAF creation (positive), default ("both") variant
+# ------------------------------------------------------------
+
+# C1. POSITIVE: generate TOGAF architecture artifacts from the saved design document. No
+# vision/definition-only wording here, so the pipeline's own default ("both") applies -- confirms
+# TWO separate Word documents get rendered (Architecture Vision Document, Architecture Definition
+# Document), audited by TOGAF_Compliance_Agent before being reported.
+Generate TOGAF architecture artifacts from the saved design document.
+
+# Confirm manually: the listing below should show TWO TOGAF files (an Architecture Vision Document
+# and an Architecture Definition Document), safe-filenamed from the system's own real name --
+# never a single combined file, and never a filename containing "TOGAF" or "Architecture Vision"/
+# "Architecture Definition" itself (document-metadata naming hygiene).
+list
+
+# C2. Scope disclosure check: a request that explicitly names the out-of-scope phases should get a
+# plain statement that this generator's scope is deliberately limited to Phases A-G plus a bounded
+# principles set, not a confident claim that it already covers them.
+Does the TOGAF generation include Architecture Change Management or a capability-maturity assessment?
+
+# ------------------------------------------------------------
+# PART D -- TOGAF_Scenario_Tester what-if queries (grounded in Part B/C's own real traceability/
+# dependency links, directly exercising togaf.hocon's own sample_queries)
+# ------------------------------------------------------------
+
+What happens if we deprioritize the Supplier Onboarding capability?
+What is the impact of removing the Finance System integration?
+
+# D3. Must decline a quantitative estimate -- qualitative dependency tracing only, per
+# togaf_scenario_tester.hocon's own instructions.
+How likely is it that removing the Finance System integration would cause an outage?
+
+# ------------------------------------------------------------
+# PART E -- regeneration: implicit "both", explicit vision-only, explicit definition-only, and
+# explicit "vision and definition" wording -- each in its own clean slate so the "list" output
+# after each unambiguously shows only what THAT request actually produced.
+# ------------------------------------------------------------
+
+# E1. POSITIVE: bare regenerate, no variant wording at all -- same implicit default as creation.
+# Confirms it renders BOTH files again from the Part C baseline, not just one.
+$ rm -f output/*.docx
+Regenerate the TOGAF architecture documents.
+
+list
+
+# E2. POSITIVE: explicit vision-only regeneration -- confirms only the Architecture Vision Document
+# is produced, and the agent's own reply names ONLY the vision document, not "both" and not the
+# definition document.
+$ rm -f output/*.docx
+Please regenerate just the TOGAF architecture vision document.
+
+list
+
+# E3. POSITIVE: explicit definition-only regeneration, in a SEPARATE later turn -- the reverse
+# direction of E2, against the same still-intact baseline.
+$ rm -f output/*.docx
+Regenerate just the TOGAF architecture definition document.
+
+list
+
+# E4. POSITIVE: "vision and definition" wording, phrased differently than E1's own bare/implicit
+# default -- confirms this phrasing also resolves to togaf_variant="both", not an error or a guess.
+$ rm -f output/*.docx
+Please regenerate both the TOGAF architecture vision and definition documents.
+
+list
+
+# ------------------------------------------------------------
+# PART F -- explicit update request (TOGAF_Agent's UPDATE branch): confirms an update preserves
+# unrelated content, stable ids, and traceability rather than rebuilding from source.
+# ------------------------------------------------------------
+
+# F1. POSITIVE: a real, specific change request against the Part C baseline, grounded in a real
+# capability name from that baseline -- not a generic "add a gap" request.
+$ rm -f output/*.docx
+Update the TOGAF architecture artifacts to add a new identified gap: the Supplier Onboarding \
+capability currently has no automated duplicate-supplier detection, which should be addressed in a \
+future iteration. Keep everything else unchanged.
+
+# F2. Confirm the change is actually persisted and the documents still render correctly.
+Regenerate the TOGAF architecture documents.
+
+list
+
+# ------------------------------------------------------------
+# PART G -- requirements-only source path (no design document saved at all). Confirms TOGAF
+# generation still works when only a requirements summary exists, not just when a design document
+# does -- the design-takes-precedence rule must not make requirements-only generation impossible.
+# ------------------------------------------------------------
+
+$ rm -f output/design_data.json output/requirements_summary.json output/togaf_data.json output/*.docx
+
+# G1. Save a requirements summary from a plain-language description (no design document at all).
+Create a requirements document for a new Vendor Compliance Tracker: a system that lets a \
+compliance team record which vendors have submitted required insurance certificates and audit \
+reports, flags expirations before they lapse, and routes a reminder to the vendor's own account \
+manager. It must comply with SOC 2 for how vendor-submitted documents are stored and accessed.
+
+# G2. POSITIVE: generate TOGAF architecture artifacts with only a requirements summary saved --
+# confirms the requirements-only fallback actually works, not just the design-present path.
+Generate TOGAF architecture artifacts from the saved requirements summary.
+
+list
+
+# ------------------------------------------------------------
+# PART H -- domain disambiguation (TOGAF what-if crossover must not bleed either direction)
+# ------------------------------------------------------------
+
+# H1. Rebuild a design document so Design_Scenario_Tester has something real to answer against,
+# alongside the Part G TOGAF artifacts that are also currently saved.
+Create a High-Level Design document for the Vendor Compliance Tracker: a web application with a
+Document Store service, a Reminder Scheduler, and an Account Manager Notification service that
+sends alerts via the Finance System's own notification API.
+
+# H2. DOMAIN CROSSOVER: a question about a DESIGN component dependency, with no TOGAF-specific
+# wording ("capability", "TOGAF") at all, must route to Design_Scenario_Tester, NOT
+# TOGAF_Scenario_Tester, even though a TOGAF artifact set is also saved right now.
+What happens if the Reminder Scheduler goes down?
+
+# H3. DOMAIN CROSSOVER (the reverse direction): a question naming a TOGAF capability by name must
+# route to TOGAF_Scenario_Tester, NOT Design_Scenario_Tester, even immediately after H2's own
+# design-domain answer.
+What is the impact of removing the Finance System integration?
+
+# ------------------------------------------------------------
+# cleanup
+# ------------------------------------------------------------
+$ rm -f output/design_data.json output/requirements_summary.json output/togaf_data.json output/cloudarch_drawio.xml
+$ rm -f output/*.docx
+exit

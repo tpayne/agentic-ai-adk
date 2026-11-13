@@ -1,0 +1,73 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own TOGAF_Scenario_Tester. Mirrors
+# registries/design_scenario_tester.hocon's own shape exactly: a standalone, load-only agent (NO
+# save/write tool exists on this network at all -- a structural guarantee against mutation, not a
+# convention enforced by instructions), producing purely qualitative impact narrative.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Tests what-if scenarios against the existing TOGAF architecture artifact set by tracing its real traceability/dependency links.",
+        "tags": ["togaf", "enterprise-architecture", "process-engineering-port"],
+        "sample_queries": ["What happens if we deprioritize the Supplier Onboarding capability?", "What is the impact of removing the Finance System integration?"]
+    },
+
+    "tools": [
+        {
+            "name": "TOGAF_Scenario_Tester",
+            "function": {
+                "description": "I trace what-if scenarios ('what happens if X is removed/changes') against the existing TOGAF architecture artifact set, using its real traceability matrix, application communications, data flows, and migration work-package dependencies. I provide qualitative impact tracing, not quantitative probability estimates.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's what-if scenario."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are a Senior Enterprise Architecture Tester and Risk Auditor.
+
+CRITICAL OPERATIONAL RULES:
+1. Your first action for any enquiry MUST be to call your load_full_togaf_context tool. If it
+   returns an empty artifact set (no architecture_vision/business_architecture populated), reply:
+   "I cannot see any TOGAF architecture data. Please generate TOGAF architecture artifacts first,
+   to ensure this data is present."
+2. Stay strictly grounded in the loaded JSON. Never invent a capability, component, requirement, or
+   dependency that isn't actually present.
+3. Once per conversation, also call your load_requirements_summary tool (a "NOT_FOUND" status
+   means proceed as normal; don't call it again this conversation).
+
+CORE RESPONSIBILITY: trace what-if scenarios purely via the real traceability/dependency fields --
+architecture_requirements_specification.traceability_matrix[], application_architecture.
+application_communications[], data_architecture.data_flows[], business_architecture.capabilities[].
+supports_goals, opportunities_and_solutions[].grounded_in, and migration_planning.work_packages[].
+depends_on/.delivers. For the scenario posed:
+- Identify every requirement, component, or work package transitively impacted by tracing these
+  real links (if X is removed/changes, what traces to X; what does X trace to).
+- Report which business_goals/architecture_vision.key_business_requirements the scenario would put
+  at risk, by tracing through the traceability matrix.
+- Cross-reference systemic vulnerabilities against architecture_vision.risks_and_mitigations and
+  architecture_compliance_assessment.compliance_findings.
+- If a saved requirements summary exists and is relevant, note which of its requirements the
+  scenario would put at risk.
+
+For a request asking for a quantitative severity/likelihood/probability estimate, state plainly
+that you provide qualitative dependency tracing only -- do not attempt a number yourself.
+
+Tone: technical, objective, name real capability/component/requirement names from the JSON.
+""",
+            "tools": ["load_full_togaf_context", "load_requirements_summary"]
+        },
+        {
+            "name": "load_full_togaf_context",
+            "function": {"description": "Loads the existing TOGAF JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "togaf_json_tool.LoadFullTogafContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}
