@@ -1661,6 +1661,45 @@ def _build_architecture_definition_document(
     return out_path
 
 
+def _togaf_has_real_definition_content(data: dict) -> bool:
+    """True only if at least one Architecture Definition section has a
+    real, agent-populated entry -- NOT just a truthy section object.
+    TOGAF_TEMPLATE's own sections are deliberately non-empty "one-item
+    example shapes" (see that module's own docstring: "so the generating
+    agent lands on real key names"), which makes a plain
+    `bool(data.get(key))` truthy even for the pristine, never-filled-in
+    template. CONFIRMED AS A REAL BUG this way: _resolve_togaf_variant
+    called with "definition" against the raw TOGAF_TEMPLATE returned
+    {"definition"} instead of the intended hard-empty ERROR, because
+    every section's own placeholder dict/list is itself non-empty. Checks
+    each section's own identifying field instead -- empty string there
+    means "still the placeholder", not "real content"."""
+    business_architecture = data.get("business_architecture") or {}
+    if any((c or {}).get("name") for c in business_architecture.get("capabilities") or []):
+        return True
+    data_architecture = data.get("data_architecture") or {}
+    if any((e or {}).get("name") for e in data_architecture.get("data_entities") or []):
+        return True
+    application_architecture = data.get("application_architecture") or {}
+    if any((c or {}).get("name") for c in application_architecture.get("application_components") or []):
+        return True
+    technology_architecture = data.get("technology_architecture") or {}
+    if any((t or {}).get("technology") for t in technology_architecture.get("technology_portfolio") or []):
+        return True
+    if any((o or {}).get("gap_description") for o in data.get("opportunities_and_solutions") or []):
+        return True
+    migration_planning = data.get("migration_planning") or {}
+    if any((w or {}).get("name") for w in migration_planning.get("work_packages") or []):
+        return True
+    compliance_assessment = data.get("architecture_compliance_assessment") or {}
+    if any(
+        (f or {}).get("standard_or_requirement")
+        for f in compliance_assessment.get("compliance_findings") or []
+    ):
+        return True
+    return False
+
+
 def _resolve_togaf_variant(togaf_variant: Optional[str], data: dict):
     """
     Resolves which TOGAF document(s) to build: {"vision"}, {"definition"},
@@ -1681,13 +1720,7 @@ def _resolve_togaf_variant(togaf_variant: Optional[str], data: dict):
     if variant not in ("vision", "definition", "both"):
         return f"ERROR: Unrecognized togaf_variant '{togaf_variant}' -- expected 'vision', 'definition', or 'both'."
 
-    has_definition = any(
-        data.get(key) for key in (
-            "business_architecture", "data_architecture", "application_architecture",
-            "technology_architecture", "opportunities_and_solutions", "migration_planning",
-            "architecture_compliance_assessment",
-        )
-    )
+    has_definition = _togaf_has_real_definition_content(data)
 
     if variant == "vision":
         return {"vision"}

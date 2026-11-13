@@ -45,6 +45,7 @@ from .utils_agent import (
 from .agent_wrappers import ProcessAgent
 from process_toolkit.run_lock import PipelineLockedError
 from process_toolkit import paths as toolkit_paths
+from process_toolkit.feedback.iteration_feedback import reset_feedback_channels
 
 logger = logging.getLogger("ProcessArchitect.TogafPipeline")
 
@@ -54,8 +55,8 @@ SAFE_LOOP_ITERS = int(getProperty("loopIterations", default=2))
 def _reset_togaf_approval_state(callback_context=None) -> "types.Content | None":
     """Claims this turn's pipeline lock before the review loop starts (see
     acquire_pipeline_lock_for_turn's own docstring) and clears any stale
-    output/approval.json / output/stop_counter.json left over from an
-    earlier, unrelated pipeline run.
+    output/approval.json / output/stop_counter.json / togaf_compliance
+    feedback mailbox left over from an earlier, unrelated pipeline run.
 
     Needed for the exact reason cloudarch_pipeline_agent.py's own
     _reset_cloudarch_approval_state is: _build_stop_if_ready's stop_if_ready
@@ -68,6 +69,20 @@ def _reset_togaf_approval_state(callback_context=None) -> "types.Content | None"
     TOGAF's own stop controller would report "JSON APPROVED detected --
     exiting loop" on iteration 1 regardless of whether togaf_compliance_
     agent has approved anything THIS run.
+
+    reset_feedback_channels() additionally clears the togaf_compliance
+    mailbox itself (iteration_feedback_togaf_compliance.json) -- CONFIRMED
+    AS A REAL GAP: the neuro-san port's own reset_loop_state already does
+    this (see coded_tools/common/reset_loop_state_base.py), but nothing on
+    this ADK side ever called the shared function at all. Without it, a
+    run that ends right after togaf_compliance_agent writes feedback (STOP/
+    APPROVED, or STOP/MAX_ITERATIONS with the mailbox left non-empty) would
+    leave that feedback sitting in the mailbox; a LATER, unrelated TOGAF
+    request in a NEW turn would then have togaf_agent's own REVISION MODE
+    check (load_iteration_feedback channel="togaf_compliance") find that
+    stale feedback and incorrectly treat a fresh generate-or-update request
+    as a revision pass, applying a prior run's feedback instead of
+    genuinely building from the current source.
     """
     try:
         acquire_pipeline_lock_for_turn("the TOGAF architecture pipeline", callback_context)
@@ -81,6 +96,8 @@ def _reset_togaf_approval_state(callback_context=None) -> "types.Content | None"
                 os.remove(path)
         except Exception:
             pass
+
+    reset_feedback_channels()
 
     return None
 

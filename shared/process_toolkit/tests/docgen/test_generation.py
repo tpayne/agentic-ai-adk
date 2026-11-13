@@ -992,6 +992,25 @@ class TestTogafDocumentGeneration:
         result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="definition")
         assert result.startswith("ERROR:")
 
+    def test_explicit_definition_variant_errors_against_the_raw_unfilled_template(self):
+        # Regression: TOGAF_TEMPLATE's own sections are deliberately non-empty "one-item example
+        # shapes" (placeholder dicts/lists with empty-string values, not missing keys) -- a plain
+        # truthiness check on each section object is truthy even for the pristine template, which
+        # made the hard-empty "definition" guard above unreachable for this exact shape. Confirmed
+        # directly: _resolve_togaf_variant("definition", TOGAF_TEMPLATE) used to return
+        # {"definition"} instead of this ERROR.
+        from process_toolkit.schema.togaf_json import TOGAF_TEMPLATE
+
+        self._write_sample(TOGAF_TEMPLATE)
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="definition")
+        assert result.startswith("ERROR:")
+
+        # "both" against the same raw template must resolve to vision-only, not both.
+        self._write_sample(TOGAF_TEMPLATE)
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="both")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        assert "Definition" not in result
+
     def test_unrecognized_togaf_variant_is_a_clean_error(self):
         self._write_sample()
         result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="bogus")

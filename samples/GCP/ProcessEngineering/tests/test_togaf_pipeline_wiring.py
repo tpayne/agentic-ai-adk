@@ -9,6 +9,33 @@ def _read(relative_path):
         return file.read()
 
 
+def test_reset_togaf_approval_state_clears_the_stale_compliance_feedback_mailbox(tmp_path, monkeypatch):
+    # Regression for a real finding: _reset_togaf_approval_state cleared approval.json/
+    # stop_counter.json but never the togaf_compliance feedback mailbox itself. A run that ends
+    # right after togaf_compliance_agent writes feedback would leave that feedback sitting in the
+    # mailbox; a LATER, unrelated TOGAF request would then have togaf_agent's own REVISION MODE
+    # check (load_iteration_feedback channel="togaf_compliance") find that stale feedback and
+    # incorrectly treat a fresh request as a revision pass.
+    import json
+    from types import SimpleNamespace
+
+    from process_toolkit import paths
+
+    monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    os.makedirs("output", exist_ok=True)
+
+    stale_path = paths.output_path("iteration_feedback_togaf_compliance.json")
+    with open(stale_path, "w", encoding="utf-8") as f:
+        json.dump({"status": "TOGAF_COMPLIANCE_APPROVED", "data": []}, f)
+
+    from process_agents.common.togaf_pipeline_agent import _reset_togaf_approval_state
+
+    context = SimpleNamespace(state={}, invocation_id="test-invocation")
+    assert _reset_togaf_approval_state(context) is None
+    assert not os.path.exists(stale_path)
+
+
 def test_togaf_agent_registers_source_and_persistence_tools():
     from process_agents.common.togaf_agent import togaf_agent
     from process_agents.common.utils import (
