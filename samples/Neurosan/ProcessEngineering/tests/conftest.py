@@ -1,6 +1,19 @@
+from pathlib import Path
+
 import pytest
 
 from process_toolkit import paths
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def ensure_project_root_cwd(monkeypatch):
+    """Ensures the working directory is always this sample's root directory,
+    even when pytest is executed from the repository root. PyHOCON's include
+    directive (e.g. include 'config/llm_config.hocon') evaluates relative to
+    the current working directory."""
+    monkeypatch.chdir(PROJECT_ROOT)
 
 
 @pytest.fixture(autouse=True)

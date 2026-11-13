@@ -141,3 +141,20 @@ def test_format_review_status_summary_does_not_drain_the_mailbox():
 def test_format_review_status_summary_handles_no_review_yet():
     summary = format_review_status_summary(channels=("compliance", "simulation"))
     assert "no review has run yet this turn" in summary
+
+
+def test_format_review_status_summary_renders_a_readable_togaf_compliance_label():
+    # Regression: plain channel.capitalize() rendered "togaf_compliance" as "Togaf_compliance"
+    # (no underscore handling, no second capital) -- confirmed live-reachable via togaf.hocon's
+    # own step 7, which always calls channels=["togaf_compliance"].
+    summary = format_review_status_summary(channels=("togaf_compliance",))
+    assert "TOGAF Compliance: no review has run yet this turn." in summary
+    assert "Togaf_compliance" not in summary
+
+
+def test_format_review_status_summary_never_renders_a_dangling_colon_for_the_default_channel():
+    # Regression: plain "".capitalize() is "", which would render as a bare "": ..."" line with
+    # no label at all for the unchanneled default channel.
+    summary = format_review_status_summary(channels=("",))
+    assert "Review: no review has run yet this turn." in summary
+    assert summary.startswith(": ") is False

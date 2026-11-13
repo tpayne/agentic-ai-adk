@@ -136,17 +136,19 @@ def test_domain_disambiguation_covers_all_seven_domains():
     # question. Root cause: the Domain Disambiguation section and Rule 10
     # only ever covered 2-3 of the system's actual domains, so a bare
     # "this"/"it" had nowhere safe to fall through to. A sixth domain (TEST
-    # SPECIFICATION) and seventh domain (ENTERPRISE AGILE PORTFOLIO BACKLOG) were added later, in
-    # the same spot, under the same rule.
+    # SPECIFICATION), a seventh (ENTERPRISE AGILE PORTFOLIO BACKLOG), and an eighth (TOGAF
+    # ARCHITECTURE ARTIFACTS) were all added later, in the same spot, under the same rule --
+    # checked here via the stable prefix rather than the full, ever-growing string.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
     assert (
         "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO BACKLOG)"
+        "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION"
     ) in text
     assert "Signal words for a REQUIREMENTS SUMMARY:" in text
     assert "Signal words for a PROPOSAL RESPONSE:" in text
     assert "Signal words for a TEST SPECIFICATION:" in text
     assert "Enterprise Agile Portfolio Backlog" in text
+    assert "Signal words for TOGAF ARCHITECTURE ARTIFACTS:" in text
 
 
 def test_rule_10_ambiguous_intent_rejects_recency_based_defaulting():

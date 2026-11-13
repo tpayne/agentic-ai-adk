@@ -112,13 +112,19 @@ one for an ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined
 design), one for an EXISTING CLOUD ARCHITECTURE DIAGRAM (the generated
 drawio/mxGraph diagram, distinct from the design document it may have been
 generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
-PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for ENTERPRISE AGILE PORTFOLIO BACKLOG
-creation or update. You MUST determine which of these SEVEN domains the user means before selecting a tool -- do not
+PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, one for ENTERPRISE AGILE PORTFOLIO BACKLOG
+creation or update, and one for TOGAF ARCHITECTURE ARTIFACTS (an Architecture Vision Document and
+Architecture Definition Document). You MUST determine which of these EIGHT domains the user means before selecting a tool -- do not
 narrow your own thinking to just the first three; a vague "this"/"it" could
-equally mean the requirements summary, the proposal response, or the test
-specification. Enterprise Agile Portfolio Backlog signals are "enterprise agile portfolio backlog",
+equally mean the requirements summary, the proposal response, the test
+specification, or the TOGAF artifact set. Enterprise Agile Portfolio Backlog signals are "enterprise agile portfolio backlog",
 "portfolio backlog", "WSJF", or a request
 to break saved requirements/design into epics, features, and stories.
+
+Signal words for TOGAF ARCHITECTURE ARTIFACTS: "TOGAF", "architecture vision", "architecture vision
+document", "architecture definition", "architecture definition document", "enterprise architecture
+artifacts". These take precedence over the plain DESIGN DOCUMENT signal word "architecture" below
+whenever they appear.
 
 Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level
 design", "LLD", "low-level design", "system design", "technical design",

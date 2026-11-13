@@ -268,8 +268,13 @@ def create_standard_doc_from_file(
             data_filename = DESIGN_JSON_FILENAME
         elif resolved_type == "togaf":
             data_filename = TOGAF_JSON_FILENAME
-        else:
+        elif resolved_type == "process":
             data_filename = PROCESS_JSON_FILENAME
+        else:
+            return (
+                f"ERROR: Unrecognized schema_type '{schema_type}' -- expected "
+                f"'process', 'design', 'requirements', 'proposal_response', 'test_specification', or 'togaf'."
+            )
 
         data_path = paths.output_path(data_filename)
         if not os.path.exists(data_path):
@@ -1461,8 +1466,7 @@ _TOGAF_TITLE_TRAILING_LABEL_RE = re.compile(
 def _strip_togaf_doc_type_label(title: str) -> str:
     stripped = _TOGAF_TITLE_LEADING_LABEL_RE.sub("", title, count=1)
     stripped = _TOGAF_TITLE_TRAILING_LABEL_RE.sub("", stripped, count=1)
-    stripped = stripped.strip(" :-")
-    return stripped or title
+    return stripped.strip(" :-")
 
 
 class _TogafMeta:
@@ -1475,8 +1479,10 @@ class _TogafMeta:
 
     def __init__(self, data: dict, process_name: str):
         metadata = data.get("document_metadata") or {}
-        raw_name = str(metadata.get("title") or metadata.get("system_name") or process_name)
-        self.name = _strip_togaf_doc_type_label(raw_name)
+        raw_title = str(metadata.get("title") or "")
+        title_stripped = _strip_togaf_doc_type_label(raw_title)
+        raw_name = title_stripped or str(metadata.get("system_name") or raw_title or process_name)
+        self.name = _strip_togaf_doc_type_label(raw_name) or raw_name
         self.version = str(metadata.get("version", "1.0"))
 
 

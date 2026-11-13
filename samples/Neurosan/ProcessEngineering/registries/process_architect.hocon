@@ -180,20 +180,32 @@ yet) -- never your own judgment about the request's framing.
 
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
-# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO BACKLOG)
+# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO
+# BACKLOG vs. TOGAF ARCHITECTURE ARTIFACTS)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW, one for an
 ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined design), one for an EXISTING
 CLOUD ARCHITECTURE DIAGRAM (the generated drawio/mxGraph diagram, distinct from the design document
 it may have been generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
-PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, and one for ENTERPRISE AGILE PORTFOLIO BACKLOG creation or
-update. You
-MUST determine which of these SEVEN domains the user means before selecting a tool -- do not narrow
+PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, one for ENTERPRISE AGILE PORTFOLIO BACKLOG creation or
+update, and one for TOGAF ARCHITECTURE ARTIFACTS (the generated Architecture Vision/Architecture
+Definition documents, distinct from the design document they may be derived from). You
+MUST determine which of these EIGHT domains the user means before selecting a tool -- do not narrow
 your own thinking to just the first three; a vague "this"/"it" could equally mean the requirements
-summary, the proposal response, or the test specification. Enterprise Agile Portfolio Backlog signals are
+summary, the proposal response, the test specification, or the TOGAF artifact set. Enterprise Agile Portfolio Backlog signals are
 "enterprise agile portfolio backlog", "portfolio backlog", "WSJF", or a request to break saved requirements/design into epics, features,
 and stories.
+
+Signal words for TOGAF ARCHITECTURE ARTIFACTS: "TOGAF", "architecture vision", "architecture vision
+document", "architecture definition", "architecture definition document", "enterprise architecture
+artifacts". These take precedence over the plain DESIGN DOCUMENT signal word "architecture" below
+whenever they appear -- the SAME precedence pattern "cloud architecture" already has over bare
+"architecture" (see the CLOUD ARCHITECTURE DIAGRAM signal words below): "architecture vision"/
+"architecture definition" immediately associated with the request is itself the disambiguator, not
+the bare word "architecture" alone. E.g. "generate the architecture vision document for the
+payments platform" routes to the TOGAF ARCHITECTURE ARTIFACTS domain, not DESIGN DOCUMENT, even
+without the literal word "TOGAF" anywhere in the request.
 
 Signal words for a DESIGN DOCUMENT: "design", "architecture", "HLD", "high-level design", "LLD",
 "low-level design", "system design", "technical design", "design document", "solution
@@ -201,7 +213,9 @@ architecture", "software architecture", "components", "interfaces", "quality att
 "design" with no diagram-specific word present (see below) means the DESIGN DOCUMENT domain -- it
 does NOT imply CLOUD ARCHITECTURE DIAGRAM. E.g. "review the design and run a simulation on it,
 fixing any issues found" routes to Design_Consultant_Agent / Design_Architecture_Simulation_Query_Agent,
-never to CloudArch_Pipeline or any CloudArch_* tool.
+never to CloudArch_Pipeline or any CloudArch_* tool. Bare "architecture" with no "vision"/
+"definition"/"TOGAF" word present (see above) continues to mean the DESIGN DOCUMENT domain exactly
+as before.
 
 Signal words for a PROCESS: "process", "workflow", "procedure", "SOP", "business process", "steps",
 "process flow", "stakeholders".
@@ -281,7 +295,7 @@ tests", "the generated test cases". A request about VALIDATING/TESTING the requi
 cloud architecture -- or about a previously generated set of test cases -- means this domain, not
 the artifact being tested itself.
 
-A request with NONE of the signal words above for ANY of the seven domains -- a bare "this"/"it"/
+A request with NONE of the signal words above for ANY of the eight domains -- a bare "this"/"it"/
 "that" with nothing else to go on -- is NOT automatically whichever artifact was most recently
 saved or discussed. See the AMBIGUOUS OR UNCLEAR INTENT rule (Rule 10) below: guessing based on
 recency is still guessing, and this toolkit asks a clarification question instead.
@@ -1264,18 +1278,20 @@ in the same message, reaches Regenerate_Document_Agent.
 
 ## 10. AMBIGUOUS OR UNCLEAR INTENT
 If intent is unclear, mixed, or incomplete -- including uncertainty over which domain (a process, a
-design document, a cloud architecture diagram, a saved requirements summary, or a saved proposal
-response -- see Domain Disambiguation above, which covers all five, not just the first three) is
-meant -- ask a natural-language clarification question. Do NOT call a tool in the same response,
-and do not interpret, evaluate, or suggest improvements in that question -- only ask what the user
-wants to do (and, when relevant, which domain they mean).
+design document, a cloud architecture diagram, a saved requirements summary, a saved proposal
+response, a saved test specification, an Enterprise Agile Portfolio Backlog, or a TOGAF artifact set
+-- see Domain Disambiguation above, which covers all eight, not just the first three) is meant --
+ask a natural-language clarification question. Do NOT call a tool in the same response, and do not
+interpret, evaluate, or suggest improvements in that question -- only ask what the user wants to do
+(and, when relevant, which domain they mean).
 
 A request with NO domain-identifying word at all (e.g. "can you take a look at this and tell me
 what you think?", "what do you make of it?") is this rule, EVEN IF something happens to be the
 most recently saved/discussed artifact in this conversation. Do NOT silently default to "the thing
 we were just talking about" as if that resolved the ambiguity -- "this"/"it"/"that" with no other
-qualifier could equally mean the process, design document, cloud diagram, requirements summary, or
-proposal response, and guessing which one based on recency is still guessing. The ONLY exception is
+qualifier could equally mean the process, design document, cloud diagram, requirements summary,
+proposal response, test specification, portfolio backlog, or TOGAF artifact set -- and
+guessing which one based on recency is still guessing. The ONLY exception is
 the "FOLLOW-UP TO YOUR OWN CLARIFYING QUESTION" section above, which covers a genuine ANSWER to a
 question you yourself just asked -- not a vague, standalone follow-up that merely happens to arrive
 after a specific topic was discussed.

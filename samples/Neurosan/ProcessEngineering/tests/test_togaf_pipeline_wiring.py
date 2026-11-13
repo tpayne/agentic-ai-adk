@@ -155,3 +155,13 @@ def test_regenerate_document_network_knows_about_togaf():
 def test_web_artifact_routes_expose_togaf_json():
     text = (PROJECT_ROOT / "cli.py").read_text(encoding="utf-8")
     assert '"togaf": "togaf_data.json"' in text
+
+
+def test_togaf_format_review_status_defaults_to_togaf_compliance_channel():
+    from coded_tools.togaf.format_review_status_tool import FormatReviewStatusCodedTool
+    from process_toolkit.feedback.iteration_feedback import save_iteration_feedback
+
+    save_iteration_feedback({"status": "TOGAF_COMPLIANCE_APPROVED", "data": []}, channel="togaf_compliance")
+    result = FormatReviewStatusCodedTool().invoke({}, {})
+
+    assert "TOGAF Compliance: APPROVED." in result or "Togaf_compliance: APPROVED." in result

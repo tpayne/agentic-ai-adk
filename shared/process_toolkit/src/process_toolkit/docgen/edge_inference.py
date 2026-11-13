@@ -538,6 +538,8 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
         return "SKIPPED: Requirements summaries have no flow/architecture diagram to generate."
     if schema_type == "proposal_response":
         return "SKIPPED: Proposal responses have no flow/architecture diagram to generate."
+    if schema_type == "test_specification":
+        return "SKIPPED: Test specifications have no flow/architecture diagram to generate."
     if schema_type == "togaf":
         # TOGAF documents have several independent diagrams (capability
         # map, application communication, data flow, technology

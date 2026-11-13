@@ -113,11 +113,14 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
       legitimately contains both "iac" and "architecture" -- the IaC zip
       is unambiguously the more specific match when its own keyword is
       present.
-    - A target string containing "cloudarch"/"diagram"/"architecture"/
-      "xml" (case-insensitive) resolves to the cloud architecture
-      diagram, if one has been generated.
     - A target mentioning "backlog", "WSJF", or the portfolio backlog
       workbook filename resolves to that workbook, if it has been generated.
+    - If the target expresses document intent ("doc", "document", "docx",
+      "vision", "definition") or matches an existing generated Word document,
+      it resolves to that document.
+    - A target string indicating a diagram ("cloudarch", "cloud architecture",
+      "diagram", "drawio", "xml", or exact "architecture") resolves to the
+      cloud architecture diagram, if one has been generated.
     - A target matching an existing document's filename exactly, or as a
       case-insensitive substring, resolves to that document.
     - An empty/None target resolves to the most-recently-generated
@@ -130,8 +133,6 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     normalized = (target or "").strip().lower()
     if normalized and any(word in normalized for word in ("iac", "terraform", "cloudformation", "pulumi", "infrastructure", "infra")):
         return IAC_ZIP_FILENAME if iac_zip_exists() else None
-    if normalized and any(word in normalized for word in ("cloudarch", "diagram", "architecture", "xml")):
-        return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
     if normalized and any(word in normalized for word in ("backlog", "wsjf", PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)):
         return (
             PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
@@ -140,11 +141,64 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
         )
 
     docs = list_output_documents()
+    is_doc_intent = any(word in normalized for word in ("doc", "document", "docx", "word", "vision", "definition"))
+
+    # If document intent is not explicitly expressed, check for diagram requests.
+    if normalized and not is_doc_intent:
+        if any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml")) or normalized in ("architecture", "cloud architecture", "the architecture"):
+            return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
+
     if not normalized:
         return docs[0]["filename"] if docs else None
+
+    # Check for document matches
     for doc in docs:
-        if normalized == doc["filename"].lower() or normalized in doc["filename"].lower():
+        fn_lower = doc["filename"].lower()
+        fn_clean = fn_lower.replace("_", " ")
+        fn_stem = os.path.splitext(fn_clean)[0]
+        if (
+            normalized == fn_lower
+            or normalized in fn_lower
+            or normalized in fn_clean
+            or normalized.replace(" ", "_") in fn_lower
+            or fn_lower in normalized
+            or fn_stem in normalized
+        ):
             return doc["filename"]
+
+    # Strip common filler words to check if meaningful keywords match a document
+    meaningful = " ".join([w for w in normalized.split() if w not in ("the", "a", "an", "document", "doc", "docx", "file", "word")])
+    if meaningful:
+        for doc in docs:
+            fn_clean = doc["filename"].lower().replace("_", " ")
+            if meaningful in fn_clean or meaningful.replace(" ", "_") in doc["filename"].lower():
+                return doc["filename"]
+
+    # Semantic variant match if specific doc keywords are in the target
+    if is_doc_intent and docs:
+        if "vision" in normalized:
+            for doc in docs:
+                if "vision" in doc["filename"].lower():
+                    return doc["filename"]
+        if "definition" in normalized:
+            for doc in docs:
+                if "definition" in doc["filename"].lower():
+                    return doc["filename"]
+        if "hld" in normalized:
+            for doc in docs:
+                if "hld" in doc["filename"].lower():
+                    return doc["filename"]
+        if "lld" in normalized:
+            for doc in docs:
+                if "lld" in doc["filename"].lower():
+                    return doc["filename"]
+        if len(docs) == 1:
+            return docs[0]["filename"]
+
+    # Fallback to diagram check if not matched as a doc and contains diagram keywords
+    if normalized and any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml")):
+        return CLOUDARCH_FILENAME if cloudarch_diagram_exists() else None
+
     return None
 
 

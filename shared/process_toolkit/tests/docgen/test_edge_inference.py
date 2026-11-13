@@ -78,6 +78,24 @@ def test_generate_clean_diagram_skips_proposal_response_without_touching_disk():
     assert not os.path.exists(paths.output_path("X_flow.png"))
 
 
+def test_generate_clean_diagram_skips_test_specification_without_touching_disk():
+    # Same reasoning as the requirements/proposal_response no-ops: a test
+    # specification has no flow/architecture diagram to generate.
+    import json
+    import os
+
+    from process_toolkit import paths
+    from process_toolkit.schema.process_json import PROCESS_JSON_FILENAME
+
+    with open(paths.output_path(PROCESS_JSON_FILENAME), "w", encoding="utf-8") as f:
+        json.dump({"process_name": "X", "process_steps": []}, f)
+
+    result = edge_inference.generate_clean_diagram(schema_type="test_specification")
+
+    assert result == "SKIPPED: Test specifications have no flow/architecture diagram to generate."
+    assert not os.path.exists(paths.output_path("X_flow.png"))
+
+
 def test_generate_clean_diagram_skips_togaf_without_touching_disk():
     # Same reasoning as the requirements/proposal_response no-ops above --
     # TOGAF documents render several independent diagrams inline

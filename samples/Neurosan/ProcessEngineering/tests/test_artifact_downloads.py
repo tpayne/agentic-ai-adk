@@ -109,6 +109,15 @@ class TestResolveArtifactTarget:
     def test_empty_target_resolves_to_none_when_nothing_generated(self):
         assert resolve_artifact_target(None) is None
 
+    def test_architecture_document_does_not_get_hijacked_by_cloudarch(self):
+        _write_output_file("cloudarch_drawio.xml")
+        _write_output_file("Checkout_Architecture_Vision.docx")
+        _write_output_file("Checkout_Architecture_Definition.docx")
+
+        assert resolve_artifact_target("togaf architecture vision document") == "Checkout_Architecture_Vision.docx"
+        assert resolve_artifact_target("architecture definition document") == "Checkout_Architecture_Definition.docx"
+        assert resolve_artifact_target("the architecture document") == "Checkout_Architecture_Definition.docx"
+
     def test_unmatched_target_returns_none_rather_than_guessing(self):
         _write_output_file("Vendor_Onboarding.docx")
         assert resolve_artifact_target("something totally unrelated") is None

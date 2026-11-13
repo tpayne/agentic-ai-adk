@@ -1028,6 +1028,20 @@ class TestTogafDocumentGeneration:
         assert "Combined" not in result
         assert "Architecture Vision Document" not in result.split("Vision: ", 1)[1]
 
+    def test_generic_title_falls_back_to_system_name(self):
+        data = dict(SAMPLE_TOGAF)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "Architecture Vision Document"
+        data["document_metadata"]["system_name"] = "Checkout Service"
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Fallback", schema_type="togaf")
+        assert "Checkout_Service_Architecture_Vision.docx" in result
+
+    def test_unrecognized_schema_type_returns_clean_error(self):
+        result = create_standard_doc_from_file("Checkout", schema_type="invalid_schema")
+        assert result.startswith("ERROR: Unrecognized schema_type 'invalid_schema'")
+
     def test_neither_document_leaks_the_others_content_into_additional_data(self):
         self._write_sample()
         result = create_standard_doc_from_file("Checkout", schema_type="togaf")

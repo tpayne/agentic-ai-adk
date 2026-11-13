@@ -203,6 +203,30 @@ def reset_feedback_channels() -> None:
             pass
 
 
+# Human-readable title for each KNOWN_CHANNELS entry, for format_review_
+# status_summary's own output -- channel.capitalize() alone renders
+# "togaf_compliance" as "Togaf_compliance" (no underscore handling, no
+# second capital) and the unchanneled "" channel as a bare "" (a dangling
+# leading colon in the final "{label}: ..." line, "": APPROVED.""). The
+# "" case isn't reached by any currently-wired caller (every real one
+# passes an explicit channels=[...]), but "togaf_compliance" is (see
+# togaf.hocon's own step 7), so this is a confirmed, live cosmetic defect,
+# not just a theoretical one.
+_CHANNEL_LABELS = {
+    "": "Review",
+    "compliance": "Compliance",
+    "simulation": "Simulation",
+    "iac": "IaC",
+    "togaf_compliance": "TOGAF Compliance",
+    "analysis": "Analysis",
+    "update": "Update",
+}
+
+
+def _channel_label(channel: str) -> str:
+    return _CHANNEL_LABELS.get(channel, channel.replace("_", " ").title())
+
+
 def format_review_status_summary(channels: Sequence[str] = ("compliance", "simulation")) -> str:
     """Deterministically renders each named channel's CURRENT mailbox state
     (APPROVED, or every open issue's own persisted "instruction" text) into
@@ -227,7 +251,7 @@ def format_review_status_summary(channels: Sequence[str] = ("compliance", "simul
     for channel in channels:
         feedback = load_iteration_feedback(reset_data=False, channel=channel)
         status = feedback.get("status") if isinstance(feedback, dict) else None
-        label = channel.capitalize()
+        label = _channel_label(channel)
 
         if not feedback or status in (None, "NONE"):
             lines.append(f"{label}: no review has run yet this turn.")
