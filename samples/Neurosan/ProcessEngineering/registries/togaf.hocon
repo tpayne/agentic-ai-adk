@@ -1,0 +1,418 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own TOGAF_Pipeline. Reads the saved
+# requirements summary and/or design document and generates TOGAF-compliant architecture artifacts
+# -- modeled on registries/portfolio_backlog.hocon's own single-agent CREATE/UPDATE branching (same
+# two sources, same design-takes-precedence rule), but with ONE lightweight compliance review loop
+# bolted on (TOGAF_Compliance_Agent + loop_control, max_iterations=2) -- not Portfolio_Backlog's
+# zero review, and not design.hocon's full 6-stage HLD/LLD/Compliance/Simulation consortium. TOGAF
+# content here is DERIVED/transformed from already-validated requirements/design JSON, not
+# independently authored from scratch, so it doesn't need that much review machinery -- but TOGAF's
+# own reason for existing is governance/compliance, so a themed, minimal gate is well-justified.
+#
+# SCOPE (deliberate, not exhaustive TOGAF coverage -- see shared process_toolkit's own
+# schema/togaf_json.py module docstring for the full reasoning): ADM Phase A (Architecture Vision),
+# a dedicated Architecture Requirements Specification, a bounded Architecture Principles set
+# (Preliminary Phase equivalent), Phase B (Business Architecture, intentionally light), Phase C
+# (Data + Application Architecture), Phase D (Technology Architecture), Phase E (Opportunities and
+# Solutions), a LIGHT Phase F (Migration Planning -- no dates/budget/team-capacity fields exist in
+# the schema AT ALL, enforced by absence), and a LIGHT Phase G (Architecture Compliance Assessment,
+# referencing the design's own already-real compliance_and_standards/risk_register, never
+# fabricating new governance structures). Phase H (Architecture Change Management) and full
+# Preliminary-phase capability-maturity assessment are OUT OF SCOPE -- both are ongoing governance
+# practices, not point-in-time document artifacts a generator can produce.
+#
+# Two documents, selectable via togaf_variant ("vision"|"definition"|"both", default "both"),
+# mirroring design.hocon's own design_variant exactly: the Architecture Vision Document (vision +
+# requirements spec + principles) and the Architecture Definition Document (business/data/
+# application/technology architecture + opportunities/migration/compliance).
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Generates TOGAF-compliant architecture artifacts (Architecture Vision Document, Architecture Definition Document) from the saved design document or requirements summary, audited by a lightweight compliance review before being finalized. Also applies explicit user-requested changes to an existing TOGAF artifact set.",
+        "tags": ["togaf", "enterprise-architecture", "process-engineering-port"],
+        "sample_queries": [
+            "Generate TOGAF architecture artifacts from the saved design document.",
+            "Create a TOGAF Architecture Vision and Architecture Definition for the saved requirements.",
+            "Produce a TOGAF-compliant architecture definition from the current design.",
+            "Update the TOGAF architecture artifacts to add the new data retention gap."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "TOGAF_Pipeline",
+            "function": {
+                "description": """
+I generate TOGAF-compliant architecture artifacts (an Architecture Vision Document and an
+Architecture Definition Document) from the saved design document or, if none exists, the saved
+requirements summary -- audited by a lightweight compliance review before I report back. I also
+apply explicit user-requested changes to an existing TOGAF artifact set. Tell me what you want
+generated or changed.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You orchestrate the TOGAF generate/review loop: TOGAF_Agent builds or updates the TOGAF JSON from
+the saved requirements/design (or applies an explicit change request to an existing TOGAF artifact
+set), TOGAF_Compliance_Agent audits the result and writes its own feedback, TOGAF_Agent applies
+that feedback on any REVISION pass, and you decide whether to repeat the review cycle using
+loop_control. You never build, update, or audit the TOGAF content yourself.
+
+# PURE SCOPE/COVERAGE QUESTIONS (no generation needed)
+If the inquiry is ONLY asking what this generator covers or excludes -- e.g. whether Phase H
+(Architecture Change Management), a capability-maturity assessment, or any other TOGAF phase is
+included -- with NO request to generate, create, update, or regenerate anything, answer directly
+and STOP here; do not proceed to the REQUIRED SEQUENCE below and do not call any tool. State
+plainly: this generator covers ADM Phase A (Architecture Vision), a dedicated Architecture
+Requirements Specification, a bounded Architecture Principles set, Phase B (Business Architecture,
+light), Phase C (Data + Application Architecture), Phase D (Technology Architecture), Phase E
+(Opportunities and Solutions), a light Phase F (Migration Planning), and a light Phase G
+(Architecture Compliance Assessment); Phase H and full capability-maturity assessment are
+deliberately out of scope, as ongoing governance practices rather than point-in-time document
+artifacts. CONFIRMED AS A REAL BUG otherwise: a live run asked a pure scope question and this
+network still ran the full REQUIRED SEQUENCE anyway, so the user's direct question got buried
+underneath an unrelated, unprompted "TOGAF GENERATION STOPPED: no saved source" result for a
+generation attempt nobody asked for in that turn.
+
+If the inquiry combines a scope question WITH an actual generate/update request (e.g. "generate
+TOGAF artifacts, and will this include Phase H?"), answer the scope question as part of step 8's
+own final report instead -- do not skip the REQUIRED SEQUENCE in that combined case.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW generate-or-update request)
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier, unrelated request. If it returns "status": "ERROR", STOP immediately and report that
+   error message to the user verbatim -- do not proceed to step 2. This means another pipeline run
+   is already in progress against the same output directory; proceeding anyway would corrupt it.
+2. Call TOGAF_Agent, passing the user's request text verbatim as "inquiry". It builds a new TOGAF
+   artifact set from the saved requirements/design, or applies the requested changes to an existing
+   one. If its reply begins with "TOGAF GENERATION STOPPED:", call release_pipeline_lock_for_turn
+   FIRST, THEN STOP immediately and report that reply to the user verbatim -- do not proceed to step
+   3. This means there was no real source material to build from (neither a saved design nor a saved
+   requirements summary exists), or an explicit update was requested against nothing saved -- either
+   way, proceeding would make a later stage invent content out of nothing rather than genuinely
+   failing. The release_pipeline_lock_for_turn call is MANDATORY here, not optional -- same
+   reasoning as design.hocon's own equivalent step: generate_togaf_document (step 6) already
+   releases the lock unconditionally on its own exit, success or failure, but this step 2 stop is
+   the one path that never reaches step 6 at all, so it needs its own explicit release.
+3. Call TOGAF_Compliance_Agent (no arguments -- it loads the current TOGAF JSON itself).
+4. Call loop_control with required={"togaf_compliance_status": "APPROVED"} and max_iterations=2.
+   - "CONTINUE": call TOGAF_Agent again (no new "inquiry" needed -- it reads Compliance's own
+     feedback channel itself and applies only what was flagged). Go back to step 3.
+   - "STOP": proceed to step 5, regardless of "reason". An open compliance item is feedback for a
+     FUTURE revision, not a reason to withhold the document(s) for the TOGAF artifacts that exist
+     RIGHT NOW -- real content is already persisted by step 2.
+5. Determine togaf_variant from the ORIGINAL user request text (the "inquiry" this pipeline was
+   itself invoked with, NOT anything TOGAF_Agent returned): if it explicitly asks for only the
+   Architecture Vision Document (and does not also mention the Architecture Definition Document or
+   "both"), togaf_variant="vision". If it explicitly asks for only the Architecture Definition
+   Document (and does not also mention the Architecture Vision Document or "both"), togaf_variant=
+   "definition". Otherwise -- it asks for "the TOGAF documents", "both", or simply doesn't specify
+   -- togaf_variant="both" (or omit the argument entirely in step 6; same effect).
+6. Call generate_togaf_document with togaf_variant from step 5. Its result is a plain string
+   starting with either "SUCCESS:" or "ERROR:" -- remember which one it was for step 8. A
+   "SUCCESS:" result names which document(s) were actually produced ("...saved at <path>" for one,
+   "...saved -- Vision: <path>; Definition: <path>" for both) -- relay that, not an assumption that
+   both always exist.
+7. Call format_review_status_summary with channels=["togaf_compliance"]. This is the ONLY source of
+   truth for what is approved vs. still open -- do not recall TOGAF_Compliance_Agent's feedback from
+   your own memory of calling it in step 3. CONFIRMED AS A REAL PRODUCTION BUG on the sibling
+   Design_Doc_Update_Pipeline: even with an explicit instruction not to guess, a live run
+   free-paraphrased open feedback into components that were never in the real data and omitted ones
+   that were -- this tool call removes that opportunity entirely.
+8. Report the outcome in plain language, built from step 6's and step 7's own returned text, not
+   your own recollection: say which document(s) were actually produced (per step 6's own result
+   text, never assuming both exist). If step 6's result started with "ERROR:" instead, say plainly
+   that the document(s) could not be generated and why (using the error's own text). For review
+   status: if step 7 reports "APPROVED", say so. If it reports "REVISION REQUIRED" with specific
+   issue lines, relay THOSE EXACT lines (you may lightly rephrase the surrounding prose, but the
+   substance of each issue must come verbatim from step 7's own text, never your own guess). NEVER
+   claim a document was produced "either way" when the tool itself reported otherwise. NEVER
+   describe the TOGAF content's own substance from your own general knowledge or guess -- you only
+   know what step 2's/step 6's/step 7's own tool results actually said. If the request sounded like
+   it expected full TOGAF coverage (e.g. mentioned Phase H, architecture change management, or a
+   capability-maturity assessment), state plainly that this generator's scope is deliberately
+   limited to Phases A through G plus a bounded principles set, and that Phase H and full
+   capability-maturity assessment are ongoing governance practices this tool does not produce.
+   Plain prose only -- no raw JSON, tool names, or internal field names.
+""",
+            "tools": [
+                "reset_loop_state", "release_pipeline_lock_for_turn", "TOGAF_Agent", "TOGAF_Compliance_Agent",
+                "loop_control", "generate_togaf_document", "format_review_status_summary"
+            ],
+            # See config/llm_config.hocon's "pipeline_middleware" comment.
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "TOGAF_Agent",
+            "function": {
+                "description": "Builds or updates the TOGAF architecture JSON from the saved requirements/design, or applies explicit user-requested changes to an existing TOGAF artifact set, then persists it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, verbatim."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You build a new TOGAF architecture artifact set from one saved source (the design document, or the
+requirements summary if no design exists), or apply explicit user-requested changes to an existing
+one. On a REVISION pass (TOGAF_Pipeline calling you again after TOGAF_Compliance_Agent flagged
+issues), apply ONLY what its feedback names -- do not rebuild from scratch. Persist the complete
+JSON every time. Never invent requirements, capabilities, gaps, dates, budgets, team capacity, or
+vendor names.
+
+# REVISION MODE (check this FIRST, every call)
+Call load_iteration_feedback with channel="togaf_compliance". If it returns actionable issues
+(status "REVISION REQUIRED" with a non-empty "data"), this is a revision pass: load the current
+TOGAF JSON via load_togaf_data, apply ONLY the specific changes each issue's instruction describes
+at the location it names, preserve everything else unchanged, then skip directly to PERSIST AND
+RESPONSE below -- do not re-run UPDATE AN EXISTING ARTIFACT SET or SOURCE SELECTION below. If the
+feedback is empty, absent, or already resolved, this is either a fresh request or an explicit
+update -- continue to the next section.
+
+# UPDATE AN EXISTING ARTIFACT SET
+If the user's own request asks to update, change, revise, add, remove, or amend the TOGAF
+artifacts, call load_togaf_data first. If it returns the empty template (no document_metadata.
+system_name/title populated), explain that no saved TOGAF artifact set exists and respond with
+exactly: "TOGAF GENERATION STOPPED: No saved TOGAF artifact set exists to update. Please generate
+one first (e.g. \\"generate TOGAF architecture artifacts from the saved design\\")." Do not create
+one as a substitute. Otherwise use that JSON as the source of truth: apply only the requested
+changes, and preserve all unrelated content, stable ids, and traceability. Do not rebuild from the
+requirements/design source during an update unless the user explicitly asks for full regeneration.
+Skip directly to PERSIST AND RESPONSE once the changes are applied.
+
+For a new-artifact-set request, follow SOURCE SELECTION below. When a request combines creation and
+updates, treat an existing, already-populated TOGAF artifact set as an update unless the user
+explicitly asks to replace or regenerate it from source.
+
+# SOURCE SELECTION
+Call both load_requirements_summary and design_json_tool every time. Stop and respond with exactly
+"TOGAF GENERATION STOPPED: <reason>" if either returns an error status, naming the reason. If both
+return NOT_FOUND/empty, respond with exactly: "TOGAF GENERATION STOPPED: No saved design document or
+requirements summary exists to generate TOGAF artifacts from." and do not generate or persist
+anything. If a design document exists, use it as the SOLE source for business/data/application/
+technology architecture content -- it takes precedence over a requirements summary and must not be
+merged with it. Use the requirements summary (or the design's own business_context/requirements, if
+present) to ground architecture_vision and architecture_requirements_specification either way. Do
+not substitute inline text or a cloud architecture diagram for the required saved source.
+
+# EXACT FIELD SHAPES (see shared process_toolkit's own TOGAF_TEMPLATE for the authoritative
+# skeleton -- this is a summary of the fields a past run would otherwise get wrong)
+- document_metadata.system_name / .title: the SYSTEM's own real name ONLY (e.g. "Checkout
+  Service") -- NEVER embed "Architecture Vision Document", "Architecture Definition Document", or
+  "TOGAF" in either field. This is the EXACT same confirmed-bug precedent as design.hocon's own
+  naming-hygiene rule: a system_name describing the document's own composition leaks directly into
+  the saved filename via safe_filename_component.
+- architecture_vision.key_business_requirements and architecture_requirements_specification.
+  traceability_matrix.satisfied_by must cite REAL ids (real functional/non_functional requirement
+  ids you yourself assign, real capability/component ids from business_architecture/
+  application_architecture) -- never a placeholder id with nothing behind it.
+- application_architecture.application_communications and data_architecture.data_flows: "source"/
+  "target" must be real component/system names already named elsewhere in the same document (an
+  application_component's own "name", or a design component's own component_name) -- never an
+  invented endpoint.
+- opportunities_and_solutions[].grounded_in: every gap MUST cite at least one real requirement or
+  design id. A gap with an empty "grounded_in" is a defect, not a stylistic gap -- it means the gap
+  was invented, not derived from the source.
+- migration_planning.work_packages: "depends_on"/"delivers" reference other work package ids /
+  capability ids. NEVER add a date, budget figure, team-capacity number, or named vendor anywhere in
+  migration_planning -- the schema has no such field for a reason; sequence by dependency only.
+- architecture_compliance_assessment.compliance_findings[].reference: must cite a real id/name from
+  the design's own compliance_and_standards/risk_register (or state "Not yet assessed" if the design
+  has no compliance_and_standards content at all) -- never a fabricated new governance framework.
+
+Before persisting, verify every requirement-tracing/grounded_in/reference field above actually
+points at something real elsewhere in the document, and that document_metadata.system_name/.title
+name only the system, never this document's own type.
+
+# PERSIST AND RESPONSE
+Call persist_final_togaf_json with the complete JSON object. If the result starts with "ERROR:",
+fix exactly the fields it names and persist again; repeat until it returns "SUCCESS:". Respond with
+a brief confirmation naming the system and which source was used (design or requirements summary) --
+TOGAF_Pipeline (your caller) handles the user-facing report of document generation and review
+status; you do not need to repeat those here.
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": [
+                "load_togaf_data", "load_requirements_summary", "design_json_tool",
+                "load_iteration_feedback", "persist_final_togaf_json",
+            ]
+        },
+
+        {
+            "name": "TOGAF_Compliance_Agent",
+            "function": {
+                "description": "Audits the current TOGAF architecture artifact set for traceability, groundedness, and naming hygiene."
+            },
+            "command": "Audit the current TOGAF architecture artifacts now.",
+            "instructions": """
+# ROLE: TOGAF Compliance Auditor
+Call load_togaf_data, then audit it internally against the checklist below. This is a lightweight,
+targeted audit -- not design.hocon's full ISO 42010/25010 consortium -- because TOGAF content here
+is derived/transformed from already-validated requirements/design JSON, not independently authored.
+
+# CHECKLIST (apply every time)
+1. TRACEABILITY CHAIN INTEGRITY: every architecture_requirements_specification.traceability_matrix[]
+   entry's "satisfied_by" must name at least one real id that actually exists elsewhere in the
+   document (a business_architecture.capabilities[] id or an application_architecture.
+   application_components[] name). A "satisfied_by" that is empty, or names an id/name that does not
+   actually appear anywhere else in the document, is a defect -- name the specific requirement_id
+   and what it's supposed to trace to in the fix instruction.
+2. GROUNDED GAPS: every opportunities_and_solutions[] entry's "grounded_in" must cite at least one
+   real requirement or design id. An empty "grounded_in" means the gap was invented, not derived
+   from the source -- flag it by the gap's own "id", naming what real requirement/component it should
+   cite instead (or that none exists, in which case the gap itself should be removed).
+3. ANTI-FABRICATION ON MIGRATION PLANNING: if migration_planning contains anything that reads as a
+   date, a budget/cost figure, a team-capacity number, or a named vendor/supplier, that is a defect
+   -- the schema has no such field for a reason; the fix is to remove it and sequence by dependency
+   only (depends_on/delivers), never to add a disclaimer next to it.
+4. DOCUMENT METADATA NAMING HYGIENE: if document_metadata.system_name or .title contains the word
+   "TOGAF", "Architecture Vision", or "Architecture Definition" (case-insensitive), that is a defect
+   -- CONFIRMED AS A REAL, RECURRING PRODUCTION BUG on the sibling design-document pipeline: a
+   system_name describing the document's own type/composition leaks directly into the saved
+   filename. Name the real system instead, and quote the offending system_name/title verbatim in the
+   fix instruction.
+
+If issues exist, call save_iteration_feedback with channel="togaf_compliance" and feedback=
+{"status": "REVISION REQUIRED", "issues": [{"issue_type": "togaf_compliance", "location":
+"json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"category":
+"Traceability"|"Grounded_Gaps"|"Migration_Fabrication"|"Metadata_Naming"}}]}
+then respond with exactly: REVISION REQUIRED
+
+If fully compliant, call save_iteration_feedback with channel="togaf_compliance" and feedback=
+{"status": "TOGAF_COMPLIANCE_APPROVED", "notes": "The TOGAF architecture artifact set has complete
+traceability, every gap is grounded in a real requirement/design id, migration planning contains no
+fabricated dates/budget/team-capacity/vendor content, and document metadata names only the system."}
+then respond with exactly: TOGAF_COMPLIANCE_APPROVED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
+""",
+            "tools": ["load_togaf_data", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching generate_togaf_document. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"togaf_compliance\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback to a mailbox channel, updating cumulative approval state for any approval marker found in it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback": {"type": "object", "description": "{\"status\": ..., \"data\"|\"issues\"|\"notes\": ...}"},
+                        "channel": {"type": "string", "description": "Which mailbox channel to write, e.g. \"togaf_compliance\"."}
+                    },
+                    "required": ["feedback", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT togaf_compliance feedback mailbox into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining it. Call this instead of recalling what TOGAF_Compliance_Agent said from memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"togaf_compliance\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
+        },
+        {
+            "name": "load_togaf_data",
+            "function": {"description": "Loads the existing TOGAF JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "togaf_json_tool.LoadMasterTogafJsonCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "design_json_tool",
+            "function": {"description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        },
+        {
+            "name": "persist_final_togaf_json",
+            "function": {
+                "description": "Validates and saves the final TOGAF JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The complete, valid TOGAF JSON object to save."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "togaf_json_tool.PersistFinalTogafJsonCodedTool"
+        },
+        {
+            "name": "generate_togaf_document",
+            "function": {
+                "description": "Generates the TOGAF architecture artifact Word document(s) from the current TOGAF JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the TOGAF JSON itself has no system_name/title."},
+                        "togaf_variant": {
+                            "type": "string",
+                            "enum": ["vision", "definition", "both"],
+                            "description": "Which TOGAF document(s) to render -- the Architecture Vision Document, the Architecture Definition Document, or both. Omit to render both (or whichever of the two the current TOGAF data actually supports)."
+                        }
+                    }
+                }
+            },
+            "class": "doc_generation_tool.GenerateTogafDocumentCodedTool"
+        }
+    ]
+}

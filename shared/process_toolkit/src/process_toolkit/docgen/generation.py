@@ -30,6 +30,7 @@ from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENA
 from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.schema.design_json import DESIGN_TEMPLATE
+from process_toolkit.schema.togaf_json import TOGAF_JSON_FILENAME
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
     _add_version_history_table,
@@ -102,6 +103,19 @@ from process_toolkit.docgen.test_specification_sections import (
     _add_coverage_summary_section,
     _add_test_dependency_register_section,
     _add_test_specification_glossary_section,
+)
+from process_toolkit.docgen.togaf_sections import (
+    _add_architecture_vision_section,
+    _add_architecture_requirements_section,
+    _add_architecture_principles_section,
+    _add_business_architecture_section,
+    _add_data_architecture_section,
+    _add_application_architecture_section,
+    _add_technology_architecture_section,
+    _add_opportunities_and_solutions_section,
+    _add_migration_planning_section,
+    _add_architecture_compliance_assessment_section,
+    _add_glossary_and_references_section as _add_togaf_glossary_and_references_section,
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
@@ -217,26 +231,28 @@ def _apply_global_styles(doc: docx.Document):
 
 def create_standard_doc_from_file(
     process_name: str = "Process", schema_type: Optional[str] = None, design_variant: Optional[str] = None,
+    togaf_variant: Optional[str] = None,
 ) -> str:
     """
     Generate a structured, ISO-formatted Word document from the master
     JSON (output/process_data.json, output/design_data.json,
-    output/requirements_summary.json, or output/proposal_response.json).
+    output/requirements_summary.json, output/proposal_response.json, or
+    output/togaf_data.json).
     `schema_type` defaults to auto-detecting from which master file exists
     on disk (detect_schema_type_from_disk) -- note that auto-detect NEVER
-    resolves to "requirements" or "proposal_response": detect_schema_type_
-    from_disk() only ever returns "process"/"design", by design (both
-    requirements_summary.json and proposal_response.json are consumed as
-    context by other pipelines far more often than they're the thing
-    someone wants rendered, so neither must ever be silently discovered
-    this way). A requirements or proposal-response document is only ever
-    built when schema_type="requirements"/"proposal_response" is passed
-    explicitly.
+    resolves to "requirements"/"proposal_response"/"togaf": detect_schema_
+    type_from_disk() only ever returns "process"/"design", by design (none
+    of the other three is ever the thing someone wants rendered often
+    enough to guess at from whichever file happens to exist). A
+    requirements, proposal-response, or TOGAF document is only ever built
+    when schema_type is passed explicitly.
 
     `design_variant` ("hld"|"lld"|"both", default "both") is only
     meaningful when `resolved_type == "design"` -- see
-    _build_design_documents's own docstring. Ignored for every other
-    schema type.
+    _build_design_documents's own docstring. `togaf_variant`
+    ("vision"|"definition"|"both", default "both") is only meaningful when
+    `resolved_type == "togaf"` -- see _build_togaf_documents's own
+    docstring. Each is ignored for every other schema type.
     """
     logger.debug(f"Creating document for process: {process_name}...")
 
@@ -250,6 +266,8 @@ def create_standard_doc_from_file(
             data_filename = TEST_SPECIFICATION_FILENAME
         elif resolved_type == "design":
             data_filename = DESIGN_JSON_FILENAME
+        elif resolved_type == "togaf":
+            data_filename = TOGAF_JSON_FILENAME
         else:
             data_filename = PROCESS_JSON_FILENAME
 
@@ -268,11 +286,14 @@ def create_standard_doc_from_file(
 
         data = raw_data.get("process_design") if isinstance(raw_data, dict) and "process_design" in raw_data else raw_data
 
-        # Design documents build their own Document()/apply_theme() per
-        # file (one or two), unlike every other schema type below, which
-        # share a single document -- see _build_design_documents.
+        # Design and TOGAF documents build their own Document()/apply_
+        # theme() per file (one or two), unlike every other schema type
+        # below, which share a single document -- see
+        # _build_design_documents/_build_togaf_documents.
         if resolved_type == "design":
             return _build_design_documents(data, process_name, design_variant)
+        if resolved_type == "togaf":
+            return _build_togaf_documents(data, process_name, togaf_variant)
 
         doc = docx.Document()
         apply_theme(doc)
@@ -1416,6 +1437,312 @@ def _build_design_documents(data: dict, process_name: str, design_variant: Optio
         results["lld"] = _build_lld_document(doc, data, process_name, has_hld_companion=("hld" in variant))
 
     return _format_design_build_result(results)
+
+
+# ============================================================
+# TOGAF ARCHITECTURE VISION / ARCHITECTURE DEFINITION DOCUMENTS
+# ============================================================
+
+# "Architecture Vision Document"/"Architecture Definition Document"/"TOGAF"
+# must never leak into document_metadata.system_name/.title and from there
+# into the saved filename -- the exact confirmed-bug precedent as design's
+# own _strip_design_doc_type_label (a title like "Combined HLD/LLD for X"
+# produced a saved file literally named "..._LLD.docx" with the composition
+# description baked in).
+_TOGAF_DOC_TYPE_LABEL = r"(?:architecture vision document|architecture definition document|togaf)"
+_TOGAF_TITLE_LEADING_LABEL_RE = re.compile(
+    rf"^\s*{_TOGAF_DOC_TYPE_LABEL}\s*(?:for)?\s*[:\-]?\s*", re.IGNORECASE
+)
+_TOGAF_TITLE_TRAILING_LABEL_RE = re.compile(
+    rf"\s*[:\-]?\s*{_TOGAF_DOC_TYPE_LABEL}\s*$", re.IGNORECASE
+)
+
+
+def _strip_togaf_doc_type_label(title: str) -> str:
+    stripped = _TOGAF_TITLE_LEADING_LABEL_RE.sub("", title, count=1)
+    stripped = _TOGAF_TITLE_TRAILING_LABEL_RE.sub("", stripped, count=1)
+    stripped = stripped.strip(" :-")
+    return stripped or title
+
+
+class _TogafMeta:
+    """Small bag of cover-page/title fields derived from document_metadata
+    -- shared by both _build_architecture_vision_document and
+    _build_architecture_definition_document so the two can never silently
+    diverge on how they compute the system's own name."""
+
+    __slots__ = ("name", "version")
+
+    def __init__(self, data: dict, process_name: str):
+        metadata = data.get("document_metadata") or {}
+        raw_name = str(metadata.get("title") or metadata.get("system_name") or process_name)
+        self.name = _strip_togaf_doc_type_label(raw_name)
+        self.version = str(metadata.get("version", "1.0"))
+
+
+# Every top-level togaf_data.json key this renderer knows how to handle,
+# across BOTH documents -- same reasoning as design's own
+# _DESIGN_CONSUMED_KEYS: each document only renders its own half, but both
+# must keep the full set out of their own Additional Data catch-all.
+_TOGAF_CONSUMED_KEYS = {
+    "document_metadata", "architecture_vision", "architecture_requirements_specification",
+    "architecture_principles", "business_architecture", "data_architecture",
+    "application_architecture", "technology_architecture", "opportunities_and_solutions",
+    "migration_planning", "architecture_compliance_assessment", "glossary_and_references",
+    "appendix",
+}
+
+
+def _add_togaf_cover_and_toc(doc: docx.Document, meta: _TogafMeta, subtitle: str) -> None:
+    """Cover page + Document Control (version history) + Table of
+    Contents -- identical structure for both TOGAF documents, just a
+    different subtitle."""
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(meta.name)
+    run.bold = True
+    run.font.size = Pt(28)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run(subtitle).font.size = Pt(18)
+
+    doc.add_paragraph()
+    doc.add_paragraph(f"Version: {meta.version}")
+    doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    add_iso_page_break(doc)
+
+    _add_version_history_table(
+        doc, version=meta.version, author="Enterprise Architect",
+        description="Initial generated TOGAF architecture artifact",
+    )
+
+    add_iso_page_break(doc)
+    doc.add_heading("Table of Contents", level=1)
+    _add_table_of_contents(doc)
+
+    add_iso_page_break(doc)
+
+
+def _add_togaf_trailing_sections(doc: docx.Document, data: dict, rendered: bool) -> bool:
+    """Glossary and References, Appendix, and Additional Data -- common to
+    BOTH TOGAF documents, duplicated into each so either one is genuinely
+    standalone-usable on its own."""
+    glossary_and_references = data.get("glossary_and_references")
+    appendix = data.get("appendix") if isinstance(data.get("appendix"), dict) else None
+
+    if glossary_and_references:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_togaf_glossary_and_references_section(doc, glossary_and_references)
+
+    if appendix:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_appendix_from_json(doc, appendix, subject_noun="architecture")
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, _TOGAF_CONSUMED_KEYS)
+
+    return rendered
+
+
+def _build_architecture_vision_document(
+    doc: docx.Document, data: dict, process_name: str, has_definition_companion: bool,
+) -> str:
+    """Builds the Architecture Vision Document: ADM Phase A, the
+    Architecture Requirements Specification, and Architecture Principles
+    -- everything a stakeholder needs to understand WHY this architecture
+    exists and WHAT it must satisfy, as a standalone document."""
+    meta = _TogafMeta(data, process_name)
+
+    _add_togaf_cover_and_toc(doc, meta, "Architecture Vision Document")
+
+    rendered = True
+    doc.add_heading("Document Overview", level=1)
+    overview = (
+        "This document presents the Architecture Vision for "
+        f"{meta.name}, including its formal requirements and the "
+        "architecture principles guiding it."
+    )
+    if has_definition_companion:
+        overview += (
+            " A companion Architecture Definition Document elaborates the "
+            "business, data, application, and technology architecture "
+            "derived from this vision."
+        )
+    doc.add_paragraph(overview)
+
+    architecture_vision = data.get("architecture_vision")
+    if architecture_vision:
+        add_iso_page_break(doc)
+        rendered = _add_architecture_vision_section(doc, architecture_vision, heading="1.0 Architecture Vision")
+
+    ars = data.get("architecture_requirements_specification")
+    if ars:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_architecture_requirements_section(
+            doc, ars, heading="2.0 Architecture Requirements Specification",
+        )
+
+    architecture_principles = data.get("architecture_principles")
+    if architecture_principles:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_architecture_principles_section(
+            doc, architecture_principles, heading="3.0 Architecture Principles",
+        )
+
+    rendered = _add_togaf_trailing_sections(doc, data, rendered)
+
+    _renumber_design_document_headings(doc)
+
+    out_path = paths.output_path(f"{safe_filename_component(meta.name + ' Architecture Vision')}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _build_architecture_definition_document(
+    doc: docx.Document, data: dict, process_name: str, has_vision_companion: bool,
+) -> str:
+    """Builds the Architecture Definition Document: Business, Data,
+    Application, and Technology Architecture, Opportunities and Solutions,
+    Migration Planning, and the Architecture Compliance Assessment --
+    everything a reader needs to understand HOW this architecture is
+    structured and the plan to get there, as a standalone document."""
+    meta = _TogafMeta(data, process_name)
+
+    _add_togaf_cover_and_toc(doc, meta, "Architecture Definition Document")
+
+    rendered = True
+    doc.add_heading("Document Overview", level=1)
+    overview = (
+        f"This document presents the Architecture Definition for {meta.name}: "
+        "its business, data, application, and technology architecture, the "
+        "gaps between its current and target state, the plan to migrate "
+        "toward it, and its compliance against known standards and "
+        "requirements."
+    )
+    if has_vision_companion:
+        overview += (
+            " A companion Architecture Vision Document states the business "
+            "goals and formal requirements this architecture satisfies."
+        )
+    doc.add_paragraph(overview)
+
+    sections = (
+        ("business_architecture", "4.0 Business Architecture", _add_business_architecture_section),
+        ("data_architecture", "5.0 Data Architecture", _add_data_architecture_section),
+        ("application_architecture", "6.0 Application Architecture", _add_application_architecture_section),
+        ("technology_architecture", "7.0 Technology Architecture", _add_technology_architecture_section),
+        ("opportunities_and_solutions", "8.0 Opportunities and Solutions", _add_opportunities_and_solutions_section),
+        ("migration_planning", "9.0 Migration Planning", _add_migration_planning_section),
+        (
+            "architecture_compliance_assessment", "10.0 Architecture Compliance Assessment",
+            _add_architecture_compliance_assessment_section,
+        ),
+    )
+    for key, heading, renderer in sections:
+        value = data.get(key)
+        if value:
+            if rendered:
+                add_iso_page_break(doc)
+            rendered = renderer(doc, value, heading=heading)
+
+    rendered = _add_togaf_trailing_sections(doc, data, rendered)
+
+    _renumber_design_document_headings(doc)
+
+    out_path = paths.output_path(f"{safe_filename_component(meta.name + ' Architecture Definition')}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+def _resolve_togaf_variant(togaf_variant: Optional[str], data: dict):
+    """
+    Resolves which TOGAF document(s) to build: {"vision"}, {"definition"},
+    or {"vision", "definition"} -- or an "ERROR: ..." string for an
+    invalid/unsatisfiable request. `togaf_variant` is
+    "vision"|"definition"|"both", case-insensitive; None/"" is treated as
+    "both". Mirrors _resolve_design_variant's own contract exactly.
+
+    Unlike design's LLD (which has a hard-empty case -- a document titled
+    "Low-Level Design" with nothing in it would be actively misleading),
+    the Architecture Vision Document has no equivalent: Document Overview
+    always renders, and architecture_vision/architecture_requirements_
+    specification/architecture_principles are foundational content
+    TOGAF_Agent always populates. An explicitly-requested "definition"
+    with NONE of its own content present is the one hard-empty case here.
+    """
+    variant = (togaf_variant or "both").strip().lower()
+    if variant not in ("vision", "definition", "both"):
+        return f"ERROR: Unrecognized togaf_variant '{togaf_variant}' -- expected 'vision', 'definition', or 'both'."
+
+    has_definition = any(
+        data.get(key) for key in (
+            "business_architecture", "data_architecture", "application_architecture",
+            "technology_architecture", "opportunities_and_solutions", "migration_planning",
+            "architecture_compliance_assessment",
+        )
+    )
+
+    if variant == "vision":
+        return {"vision"}
+    if variant == "definition":
+        if not has_definition:
+            return (
+                "ERROR: Cannot build an Architecture Definition Document -- no business, data, "
+                "application, or technology architecture content is present in the saved TOGAF data."
+            )
+        return {"definition"}
+
+    # "both": whichever the data actually supports -- always include
+    # "vision" (foundational, always has something), include "definition"
+    # only if it has real content.
+    result = {"vision"}
+    if has_definition:
+        result.add("definition")
+    return result
+
+
+def _format_togaf_build_result(results: dict) -> str:
+    """Formats the SUCCESS string for _build_togaf_documents. Mirrors
+    _format_design_build_result's own two-shape convention exactly."""
+    if set(results) == {"vision", "definition"}:
+        return f"SUCCESS: Professional documents saved -- Vision: {results['vision']}; Definition: {results['definition']}"
+    if results:
+        return f"SUCCESS: Professional document saved at {next(iter(results.values()))}"
+    return "ERROR: No document variant was selected to build."  # unreachable given the resolver above
+
+
+def _build_togaf_documents(data: dict, process_name: str, togaf_variant: Optional[str]) -> str:
+    """
+    Builds and saves the Architecture Vision Document, the Architecture
+    Definition Document, or both, depending on `togaf_variant` -- the
+    TOGAF-schema counterpart to _build_design_documents.
+    """
+    variant = _resolve_togaf_variant(togaf_variant, data)
+    if isinstance(variant, str):
+        return variant  # already an "ERROR: ..." string
+
+    results = {}
+    if "vision" in variant:
+        doc = docx.Document()
+        apply_theme(doc)
+        results["vision"] = _build_architecture_vision_document(
+            doc, data, process_name, has_definition_companion=("definition" in variant),
+        )
+    if "definition" in variant:
+        doc = docx.Document()
+        apply_theme(doc)
+        results["definition"] = _build_architecture_definition_document(
+            doc, data, process_name, has_vision_companion=("vision" in variant),
+        )
+
+    return _format_togaf_build_result(results)
 
 
 # ============================================================

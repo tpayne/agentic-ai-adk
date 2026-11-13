@@ -1931,6 +1931,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
+            "togaf": "togaf_data.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -1939,7 +1940,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', or 'cloudarch'."
                 ),
             }), 400
 
@@ -2078,6 +2079,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "proposal_response": "proposal_response.json",
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
+            "togaf": "togaf_data.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -2085,7 +2087,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', or 'portfolio_backlog'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'togaf'."
                 ),
             }), 400
         with paths.use_session(_web_session_id_for_get_request()):

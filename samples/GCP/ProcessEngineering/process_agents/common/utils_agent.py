@@ -443,6 +443,15 @@ cloudarch_stop_if_ready = _build_stop_if_ready(lambda: {"cloudarch_status": "APP
 # used by cloudarch_iac_pipeline_agent.py's stop-controller clone.
 iac_stop_if_ready = _build_stop_if_ready(lambda: {"iac_status": "APPROVED"})
 
+# TOGAF_Compliance_Agent writes togaf_compliance_status, not cloudarch_status/
+# iac_status -- used by togaf_pipeline_agent.py's stop-controller clone.
+# Requires the "TOGAF_COMPLIANCE_APPROVED" marker to be registered in the
+# shared process_toolkit.feedback.iteration_feedback.APPROVAL_MARKERS dict
+# (it is) -- without that, this check would never be satisfied regardless
+# of what TOGAF_Compliance_Agent reports, same failure mode CloudArch's own
+# docstring above describes.
+togaf_stop_if_ready = _build_stop_if_ready(lambda: {"togaf_compliance_status": "APPROVED"})
+
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""
     try:

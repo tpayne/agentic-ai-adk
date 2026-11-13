@@ -45,6 +45,23 @@ def test_iac_approved_marker_updates_cumulative_approval_state():
     assert state["iac_status"] == "APPROVED"
 
 
+def test_togaf_compliance_approved_marker_updates_cumulative_approval_state():
+    # Regression for the TOGAF pipeline feature -- TOGAF_COMPLIANCE_APPROVED
+    # must be a registered marker, matching the literal "status" value
+    # TOGAF_Compliance_Agent saves, or loop_control's own
+    # required={"togaf_compliance_status": "APPROVED"} check would never
+    # be satisfied.
+    save_iteration_feedback({"status": "TOGAF_COMPLIANCE_APPROVED", "data": []}, channel="togaf_compliance")
+
+    import json
+    from process_toolkit.feedback.iteration_feedback import APPROVAL_FILENAME
+    from process_toolkit.paths import output_path
+
+    with open(output_path(APPROVAL_FILENAME), "r", encoding="utf-8") as f:
+        state = json.load(f)
+    assert state["togaf_compliance_status"] == "APPROVED"
+
+
 def test_separate_channels_do_not_overwrite_each_other():
     """The exact bug the ADK original's per-reviewer refinement clones
     existed to avoid: two reviewers writing feedback in the same pass must

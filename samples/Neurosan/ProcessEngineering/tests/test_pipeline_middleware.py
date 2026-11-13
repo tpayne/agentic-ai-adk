@@ -7,9 +7,20 @@ Catches two distinct ways this could silently break:
 1. HOCON substitution regressing (a front-man losing its "middleware" key,
    or the shared block being malformed) -- caught by loading each network
    the same way `ns chat`/`ns run` do (AgentNetworkRestorer).
-2. The middleware's own "model" string being usable with the OpenAI
-   credentials used by the configured agent networks, without requiring a
-   separate Gemini API key.
+2. The middleware's own "model" string being unusable at construction time
+   -- confirmed directly: a bare "gemini-3-flash" (no provider prefix)
+   makes LangChain's init_chat_model() infer model_provider="google_vertexai"
+   by default and fail importing a package this project doesn't install
+   (langchain-google-vertexai), even though llm_config.hocon's actual model
+   goes through the Gemini Developer API ("google_genai") via
+   GOOGLE_API_KEY. The "google_genai:" prefix is required and is exactly
+   the kind of detail a future edit could drop without anything else here
+   catching it until a live run failed -- CONFIRMED AS A REAL PRODUCTION
+   BUG: this drifted to "openai:gpt-6-luna" while llm_config.model_name had
+   since moved to "gemini-3-flash", silently requiring an unset
+   OPENAI_API_KEY and causing an unexplained multi-minute freeze (no
+   visible error at all) the moment any turn's conversation crossed the
+   150,000-token trigger -- see config/llm_config.hocon's own comment.
 """
 
 import os
@@ -39,8 +50,7 @@ def _dummy_api_key(monkeypatch):
     # Middleware construction resolves/validates the underlying chat model
     # eagerly (see NeuroSanSummarizationMiddleware.__init__), which requires
     # SOME value here even though no real LLM call is ever made in this test.
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-a-real-credential")
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-a-real-credential")
 
 
 @pytest.mark.parametrize("network_path", _PIPELINE_NETWORKS)
@@ -67,8 +77,13 @@ def test_pipeline_middleware_args_actually_construct(network_path):
     NeuroSanSummarizationMiddleware(**args)
 
 
-def test_pipeline_summarization_uses_openai_without_google_credentials(monkeypatch):
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+def test_pipeline_summarization_uses_google_genai_without_openai_credentials(monkeypatch):
+    # Regression for the confirmed production bug this file's own docstring
+    # describes: the middleware's "model" must track whichever provider
+    # llm_config.model_name above actually uses (currently Gemini), not
+    # silently require a second, unrelated credential (OPENAI_API_KEY) that
+    # a Gemini-only setup would never otherwise need.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     network = AgentNetworkRestorer().restore(file_reference="registries/cloudarch.hocon")
     front_man = network.get_config()["tools"][0]
     middleware_args = dict(front_man["middleware"][0]["args"])
@@ -76,7 +91,7 @@ def test_pipeline_summarization_uses_openai_without_google_credentials(monkeypat
 
     middleware = NeuroSanSummarizationMiddleware(**middleware_args)
 
-    assert middleware.model.model_name == "gpt-6-luna"
+    assert middleware.model.model == "gemini-3-flash"
 
 
 @pytest.mark.parametrize("network_path", _TOOL_USING_NETWORKS)

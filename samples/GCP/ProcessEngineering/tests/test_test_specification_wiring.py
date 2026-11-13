@@ -302,10 +302,13 @@ class TestRouterInstructions:
         assert "Test_Reviewer_Agent" in text
 
     def test_router_adds_a_sixth_domain(self):
+        # Checked via the stable prefix rather than the full, ever-growing string -- later domains
+        # (ENTERPRISE AGILE PORTFOLIO BACKLOG, TOGAF ARCHITECTURE ARTIFACTS) were added after this
+        # one, in the same spot, under the same rule.
         text = _router_text()
         assert (
             "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)"
+            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION"
         ) in text
         assert "Signal words for a TEST SPECIFICATION:" in text
 

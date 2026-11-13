@@ -99,3 +99,24 @@ def test_cloudarch_agent_reconstructs_a_first_time_attached_diagram():
     text = CLOUDARCH_HOCON.read_text(encoding="utf-8")
     assert "THE ATTACHED CONTENT ITSELF MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING" in text
     assert "the same check\n   CloudArch_Import_Agent uses" in text
+
+
+def test_cloudarch_agent_warns_bullets_must_be_bare_strings():
+    # Regression test for a real production bug recurring a SECOND time:
+    # shared/process_toolkit's own _validate_component_bullets already
+    # rejects an object-shaped bullet with a tailored, specific error
+    # message (confirmed against an earlier incident -- see
+    # shared/process_toolkit/tests/cloudarch/test_layout.py's own
+    # TestComponentBulletValidation) -- but that fix never made it back
+    # into this agent's own instructions, so the identical mistake
+    # recurred later on an unrelated diagram (generating from an uploaded
+    # backup-architecture PDF produced {"description": "..."}-shaped
+    # bullets for all 13 components), failing the entire generation
+    # again. The validator's reject-with-a-helpful-message behavior is
+    # deliberate and correct (silently stringifying would have rendered
+    # the literal text "{'description': '...'}" under every component);
+    # the actual fix belongs here, teaching the agent not to make the
+    # mistake in the first place.
+    text = CLOUDARCH_HOCON.read_text(encoding="utf-8")
+    assert "EVERY \"bullets\" entry is a BARE STRING, always" in text
+    assert "CONFIRMED AS\n  A REAL PRODUCTION BUG" in text

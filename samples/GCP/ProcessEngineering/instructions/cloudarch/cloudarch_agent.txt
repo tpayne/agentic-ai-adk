@@ -49,6 +49,17 @@ NOT a block diagram or flowchart with paragraph-like boxes.
   attribute bullets when the user's own request explicitly asks for a detailed/technical-depth
   diagram (e.g. "show me the CIDR ranges and encryption settings for each component") -- that is the
   exception, not the default.
+- EVERY `bullets` entry is a BARE STRING, always -- e.g. "AES-256 encrypted", never an object of any
+  shape, no matter how structured the source material you're summarizing happens to be. CONFIRMED AS
+  A REAL PRODUCTION BUG (sibling Neuro-San port, same shared save_drawio_structured validation):
+  generating from an uploaded backup-architecture PDF produced bullets shaped like
+  `{"description": "..."}` for EVERY one of 13 components in the same diagram -- the tool correctly
+  rejected the whole diagram outright (naming every offending component) rather than silently
+  dropping or misrendering them, so this fails the ENTIRE generation, not just one component's
+  caption. If the source material itself organizes a resource's attributes as structured fields
+  (e.g. a table of "control: encryption, description: AES-256..."), write the one short bullet
+  string yourself (e.g. "AES-256 encrypted") -- never pass the source's own object shape through as
+  if it were already a bullet.
 - Edge numbering (the `number` field on an edge, or a "N. " prefix typed into a freehand label): default
   to NOT numbering edges. Only number them when the architecture genuinely depicts a sequential/
   ordered flow the user cares about (e.g. they describe steps in order, or explicitly ask for a

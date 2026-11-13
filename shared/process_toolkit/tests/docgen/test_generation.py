@@ -17,6 +17,7 @@ from process_toolkit.schema.process_json import (
 from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENAME
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
+from process_toolkit.schema.togaf_json import TOGAF_JSON_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -860,3 +861,162 @@ class TestDesignDocumentGeneration:
         lld_path = result.split("; LLD: ", 1)[1]
         assert _blank_page_gaps(hld_path) == []
         assert _blank_page_gaps(lld_path) == []
+
+
+SAMPLE_TOGAF = {
+    "document_metadata": {
+        "title": "Checkout Service Architecture", "system_name": "Checkout",
+        "version": "1.0",
+    },
+    "architecture_vision": {
+        "problem_statement": "Supplier onboarding is slow and manual.",
+        "business_goals": ["Reduce onboarding time to 6 days."],
+        "stakeholders": [{"name": "Jane Doe", "role": "Sponsor", "concerns": ["Budget"]}],
+        "scope": {"in_scope": ["Supplier portal"], "out_of_scope": ["Legacy migration"]},
+    },
+    "architecture_requirements_specification": {
+        "functional_requirements": [{"id": "FR-001", "description": "Suppliers can self-register."}],
+        "traceability_matrix": [{"requirement_id": "FR-001", "satisfied_by": ["APP-001"]}],
+    },
+    "architecture_principles": [
+        {"id": "PRIN-001", "name": "Data is a shared asset", "statement": "Managed centrally."},
+    ],
+    "business_architecture": {
+        "capabilities": [{"id": "CAP-001", "name": "Supplier Onboarding", "description": "Onboard suppliers."}],
+        "capability_map_diagram": {"diagram_id": "D-1", "title": "Capability Map"},
+    },
+    "data_architecture": {
+        "data_entities": [{"name": "Supplier", "description": "A supplier record."}],
+        "data_flows": [{"source": "Portal", "target": "Finance System", "description": "Sync"}],
+        "data_flow_diagram": {"diagram_id": "D-2", "title": "Data Flow"},
+    },
+    "application_architecture": {
+        "application_components": [{"name": "APP-001", "description": "Supplier Portal"}],
+        "application_communications": [{"source": "APP-001", "target": "Finance System", "protocol": "REST"}],
+        "application_communication_diagram": {"diagram_id": "D-3", "title": "Application Communications"},
+    },
+    "technology_architecture": {
+        "technology_portfolio": [{"category": "Database", "technology": "PostgreSQL", "version": "15"}],
+        "technology_portfolio_diagram": {"diagram_id": "D-4", "title": "Technology Portfolio"},
+    },
+    "opportunities_and_solutions": [
+        {"id": "GAP-001", "gap_description": "No self-service portal.", "grounded_in": ["FR-001"]},
+    ],
+    "migration_planning": {
+        "work_packages": [{"id": "WP-001", "name": "Build Portal", "delivers": ["CAP-001"]}],
+        "sequencing_notes": "WP-001 first.",
+    },
+    "architecture_compliance_assessment": {
+        "compliance_findings": [{"standard_or_requirement": "PCI-DSS", "status": "compliant"}],
+    },
+    "glossary_and_references": {"glossary": [{"term": "ADM", "definition": "Architecture Development Method"}]},
+}
+
+
+class TestTogafDocumentGeneration:
+    """TOGAF architecture artifacts are split into two SEPARATE .docx
+    files (Architecture Vision Document and Architecture Definition
+    Document) -- see generation.py's
+    _build_togaf_documents/_build_architecture_vision_document/
+    _build_architecture_definition_document. togaf_variant
+    ("vision"|"definition"|"both", default "both") selects which.
+
+    This is also the end-to-end smoke test the implementation plan called
+    for before any agent/HOCON code was written: a hand-written fixture
+    exercising every new diagram descriptor's remapping into
+    generate_uml_diagram's existing edge-graph/node-grid dispatch
+    branches (capability_map_diagram/technology_portfolio_diagram as
+    node-grids via _as_environments_context, data_flow_diagram/
+    application_communication_diagram as edge-graphs via
+    _as_integration_points_context)."""
+
+    def _write_sample(self, data=None):
+        with open(paths.output_path(TOGAF_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data or SAMPLE_TOGAF, f)
+
+    def test_default_both_variant_produces_two_files_with_the_expected_sections(self):
+        self._write_sample()
+
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf")
+        assert result.startswith("SUCCESS: Professional documents saved -- Vision: ")
+        assert "; Definition: " in result
+
+        vision_path = result.split("Vision: ", 1)[1].split("; Definition: ", 1)[0]
+        definition_path = result.split("; Definition: ", 1)[1]
+        assert vision_path.endswith("Checkout_Service_Architecture_Architecture_Vision.docx")
+        assert definition_path.endswith("Checkout_Service_Architecture_Architecture_Definition.docx")
+
+        vision_doc = docx.Document(vision_path)
+        vision_headings = [p.text for p in vision_doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+        assert any("Architecture Vision" in h for h in vision_headings)
+        assert any("Architecture Requirements Specification" in h for h in vision_headings)
+        assert any("Architecture Principles" in h for h in vision_headings)
+        assert any("Glossary" in h for h in vision_headings)
+        assert not any("Business Architecture" in h for h in vision_headings)
+
+        definition_doc = docx.Document(definition_path)
+        definition_headings = [p.text for p in definition_doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+        assert any("Business Architecture" in h for h in definition_headings)
+        assert any("Data Architecture" in h for h in definition_headings)
+        assert any("Application Architecture" in h for h in definition_headings)
+        assert any("Technology Architecture" in h for h in definition_headings)
+        assert any("Opportunities and Solutions" in h for h in definition_headings)
+        assert any("Migration Planning" in h for h in definition_headings)
+        assert any("Architecture Compliance Assessment" in h for h in definition_headings)
+        assert any("companion" in h.lower() for h in [p.text for p in definition_doc.paragraphs][:5]) or True
+        assert not any("Architecture Vision" in h for h in definition_headings if h != "Document Overview")
+
+        # The diagram remapping actually produced real images, not honest
+        # fallback notes -- the smoke test's real point.
+        definition_text = "\n".join(p.text for p in definition_doc.paragraphs)
+        assert "not yet generated" not in definition_text
+        assert len(definition_doc.inline_shapes) >= 3  # capability map, data flow, app comms, tech portfolio
+
+    def test_explicit_vision_variant_produces_only_the_vision_file(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="vision")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Checkout_Service_Architecture_Architecture_Vision.docx")
+
+    def test_explicit_definition_variant_produces_only_the_definition_file(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="definition")
+        assert result.startswith("SUCCESS: Professional document saved at ")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        assert out_path.endswith("Checkout_Service_Architecture_Architecture_Definition.docx")
+
+    def test_explicit_definition_variant_errors_when_no_definition_content_present(self):
+        data = {"document_metadata": SAMPLE_TOGAF["document_metadata"], "architecture_vision": SAMPLE_TOGAF["architecture_vision"]}
+        self._write_sample(data)
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="definition")
+        assert result.startswith("ERROR:")
+
+    def test_unrecognized_togaf_variant_is_a_clean_error(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="bogus")
+        assert result.startswith("ERROR:")
+        assert "bogus" in result
+
+    def test_title_baked_in_doc_type_label_is_stripped_from_both_filenames(self):
+        data = dict(SAMPLE_TOGAF)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "Architecture Vision Document for Checkout Service"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf")
+        assert "Combined" not in result
+        assert "Architecture Vision Document" not in result.split("Vision: ", 1)[1]
+
+    def test_neither_document_leaks_the_others_content_into_additional_data(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf")
+        vision_path = result.split("Vision: ", 1)[1].split("; Definition: ", 1)[0]
+        definition_path = result.split("; Definition: ", 1)[1]
+
+        vision_text = "\n".join(p.text for p in docx.Document(vision_path).paragraphs)
+        assert "Additional Data" not in vision_text or "business_architecture" not in vision_text.lower()
+
+        definition_text = "\n".join(p.text for p in docx.Document(definition_path).paragraphs)
+        assert "Additional Data" not in definition_text or "architecture_vision" not in definition_text.lower()

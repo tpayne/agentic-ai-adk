@@ -37,13 +37,15 @@ def _shared_generate_clean_diagram_pin(schema_type: str) -> str:
 
 
 def _pinned_create_standard_doc_from_file(schema_type: str):
-    # schema_type == "design" is the one case with a genuine second choice
-    # for the LLM to make at render time: which of the two SEPARATE design
-    # documents (HLD/LLD/both) to produce (see process_toolkit.docgen.
-    # generation's own _build_design_documents). Every other schema_type's
-    # own inner closure keeps its existing, design_variant-free signature
-    # unchanged -- the model must never see a parameter that's meaningless
-    # for the document it's actually rendering.
+    # schema_type == "design"/"togaf" are the two cases with a genuine
+    # second choice for the LLM to make at render time: which of the two
+    # SEPARATE documents to produce (HLD/LLD/both for design -- see
+    # process_toolkit.docgen.generation's own _build_design_documents;
+    # Architecture Vision/Architecture Definition/both for togaf -- see
+    # _build_togaf_documents). Every other schema_type's own inner closure
+    # keeps its existing, variant-free signature unchanged -- the model
+    # must never see a parameter that's meaningless for the document it's
+    # actually rendering.
     if schema_type == "design":
         def create_standard_doc_from_file(
             process_name: str = "Process",
@@ -51,7 +53,17 @@ def _pinned_create_standard_doc_from_file(schema_type: str):
             tool_context: Optional[ToolContext] = None,
         ) -> str:
             """Generates the final Word document(s) from the current saved design baseline -- the High-Level Design, the Low-Level Design, or both as SEPARATE documents. process_name is an optional fallback title. design_variant ("hld"|"lld"|"both", default "both") selects which document(s) to render."""
-            return _shared_create_standard_doc_from_file_pin(process_name, schema_type, design_variant, tool_context)
+            return _shared_create_standard_doc_from_file_pin(process_name, schema_type, design_variant, None, tool_context)
+        return create_standard_doc_from_file
+
+    if schema_type == "togaf":
+        def create_standard_doc_from_file(
+            process_name: str = "Process",
+            togaf_variant: Optional[str] = None,
+            tool_context: Optional[ToolContext] = None,
+        ) -> str:
+            """Generates the final Word document(s) from the current saved TOGAF baseline -- the Architecture Vision Document, the Architecture Definition Document, or both as SEPARATE documents. process_name is an optional fallback title (the saved togaf_data.json's own document_metadata.system_name/.title takes precedence). togaf_variant ("vision"|"definition"|"both", default "both") selects which document(s) to render."""
+            return _shared_create_standard_doc_from_file_pin(process_name, schema_type, None, togaf_variant, tool_context)
         return create_standard_doc_from_file
 
     def create_standard_doc_from_file(
@@ -59,14 +71,15 @@ def _pinned_create_standard_doc_from_file(schema_type: str):
         tool_context: Optional[ToolContext] = None,
     ) -> str:
         """Generates the final Word document from the current saved baseline. process_name is an optional fallback title."""
-        return _shared_create_standard_doc_from_file_pin(process_name, schema_type, None, tool_context)
+        return _shared_create_standard_doc_from_file_pin(process_name, schema_type, None, None, tool_context)
     return create_standard_doc_from_file
 
 
 def _shared_create_standard_doc_from_file_pin(
-    process_name: str, schema_type: str, design_variant: Optional[str], tool_context: Optional[ToolContext]
+    process_name: str, schema_type: str, design_variant: Optional[str], togaf_variant: Optional[str],
+    tool_context: Optional[ToolContext],
 ) -> str:
-    return create_standard_doc_from_file(process_name, schema_type, design_variant, tool_context)
+    return create_standard_doc_from_file(process_name, schema_type, design_variant, togaf_variant, tool_context)
 
 
 def build_edge_inference_instance(schema_type: Optional[str] = None):

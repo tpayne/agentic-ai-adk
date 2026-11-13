@@ -1457,10 +1457,20 @@ history crosses a threshold, keeping only the most recent few for continuity.
 (triggers at 150,000 tokens, keeps the last 8 messages), referenced via `${pipeline_middleware}`
 on each of the five pipeline front-men (`process`, `process_update`, `design`, `design_update`,
 `cloudarch`) — the rest (consultants, scenario-testers, simulation-queries) don't run a
-comparable multi-step self-loop, so they don't need it. The middleware constructs its own LangChain
-model and does not inherit the network's `llm_config`; its configured `"model"` therefore needs to
-match an available provider/API key. It currently uses `openai:gpt-6-luna`, so `OPENAI_API_KEY`
-works without requiring `GOOGLE_API_KEY`. This is covered by `tests/test_pipeline_middleware.py`.
+comparable multi-step self-loop, so they don't need it. One detail worth knowing if you touch this:
+the middleware's `"model"` string needs an explicit `google_genai:` provider prefix — LangChain's
+`init_chat_model()` otherwise infers a bare `"gemini-..."` name as `model_provider="google_vertexai"`
+by default and fails to import a package this project doesn't install, even though the actual model
+goes through the Gemini Developer API (`GOOGLE_API_KEY`). The middleware constructs its own
+LangChain model and does not inherit the network's `llm_config.model_name`, so if you change
+`model_name` to a different provider, update this middleware's own `"model"` (and provide its
+matching API key) to match — confirmed as a real production bug directly: this drifted to
+`openai:gpt-6-luna` while `model_name` had since moved to `gemini-3-flash` above it, silently
+requiring an unset `OPENAI_API_KEY` and causing an unexplained multi-minute freeze (no visible
+error at all, since this is a third-party LangChain/neuro-san logger, not one this project's own
+logging setup routes anywhere) the moment any turn's conversation crossed the 150,000-token
+trigger. Confirmed directly (construction raises without the prefix, and the drift reproduces the
+freeze) and locked in by `tests/test_pipeline_middleware.py`.
 
 **The cloud-architecture layout engine is shared, not duplicated.** `shared/process_toolkit/src/process_toolkit/cloudarch/layout.py`
 is the single deterministic drawio/mxGraph layout engine behind `save_drawio_structured` for

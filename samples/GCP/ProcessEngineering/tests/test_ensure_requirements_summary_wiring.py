@@ -179,11 +179,13 @@ class TestDomainDisambiguationCoversAllFiveDomains:
     # only ever covered 2-3 of the system's actual 5 domains, so a bare
     # "this"/"it" had nowhere safe to fall through to.
     def test_domain_disambiguation_header_lists_all_five_domains(self):
-        # A sixth domain (TEST SPECIFICATION) was added later, in the same spot, under the same rule.
+        # A sixth domain (TEST SPECIFICATION), a seventh (ENTERPRISE AGILE PORTFOLIO BACKLOG), and
+        # an eighth (TOGAF ARCHITECTURE ARTIFACTS) were all added later, in the same spot, under the
+        # same rule -- checked here via the stable prefix rather than the full, ever-growing string.
         text = _router_text()
         assert (
             "# DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.\n"
-            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION)"
+            "# REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION"
         ) in text
         assert "Signal words for a REQUIREMENTS SUMMARY:" in text
         assert "Signal words for a PROPOSAL RESPONSE:" in text

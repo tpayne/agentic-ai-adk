@@ -97,3 +97,24 @@ def test_cloudarch_agent_reconstructs_a_first_time_attached_diagram():
     text = CLOUDARCH_AGENT_TXT.read_text(encoding="utf-8")
     assert "A DIRECTLY ATTACHED FILE MAY BE A DIAGRAM, EVEN WHEN load_drawio FOUND NOTHING" in text
     assert "attached-file note above" in text
+
+
+def test_cloudarch_agent_warns_bullets_must_be_bare_strings():
+    # Regression test for a real production bug recurring a SECOND time
+    # (confirmed on the sibling Neuro-San port, same shared
+    # save_drawio_structured validation): shared/process_toolkit's own
+    # _validate_component_bullets already rejects an object-shaped bullet
+    # with a tailored, specific error message (confirmed against an
+    # earlier incident) -- but that fix never made it back into either
+    # port's own agent instructions, so the identical mistake recurred
+    # later on an unrelated diagram (generating from an uploaded
+    # backup-architecture PDF produced {"description": "..."}-shaped
+    # bullets for all 13 components), failing the entire generation
+    # again. The validator's reject-with-a-helpful-message behavior is
+    # deliberate and correct (silently stringifying would have rendered
+    # the literal text "{'description': '...'}" under every component);
+    # the actual fix belongs here, teaching the agent not to make the
+    # mistake in the first place.
+    text = CLOUDARCH_AGENT_TXT.read_text(encoding="utf-8")
+    assert "EVERY `bullets` entry is a BARE STRING, always" in text
+    assert "CONFIRMED AS\n  A REAL PRODUCTION BUG" in text

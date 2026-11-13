@@ -25,14 +25,15 @@
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Regenerates the current process/design/requirements/proposal-response/test-specification document (and, for process/design, its flow diagram) from whatever is already saved on disk -- no re-analysis, no compliance/simulation review, just re-rendering the existing content.",
-        "tags": ["process", "design", "requirements", "proposal-response", "test-specification", "process-engineering-port"],
+        "description": "Regenerates the current process/design/requirements/proposal-response/test-specification/TOGAF document (and, for process/design, its flow diagram) from whatever is already saved on disk -- no re-analysis, no compliance/simulation review, just re-rendering the existing content.",
+        "tags": ["process", "design", "requirements", "proposal-response", "test-specification", "togaf", "process-engineering-port"],
         "sample_queries": [
             "Please regenerate the process document.",
             "Regenerate the design document.",
             "Regenerate the requirements document.",
             "Regenerate the proposal response document.",
-            "Regenerate the test specification document."
+            "Regenerate the test specification document.",
+            "Regenerate the TOGAF architecture documents."
         ]
     },
 
@@ -80,6 +81,11 @@ Before calling either tool, check whether "inquiry" itself names a domain:
   schema_type = "test_specification" -- same reasoning as "requirements", NEVER auto-detected.
   UNLIKE "requirements"/"proposal_response", the saved test_specification.json DOES have its own
   "name" field (set by Test_Specification_Agent), so no fallback title needs inventing for it.
+- If it explicitly says "TOGAF" / "architecture vision document" / "architecture definition
+  document" / "TOGAF architecture artifacts", schema_type = "togaf" -- same reasoning as
+  "requirements", NEVER auto-detected. UNLIKE "requirements"/"proposal_response", the saved
+  togaf_data.json DOES have its own document_metadata.system_name/.title, so no fallback title
+  needs inventing for it.
 - Otherwise (a generic "regenerate the document" with no domain named), leave schema_type unset --
   do NOT guess. This case falls back to whichever single file actually exists on disk (process or
   design only -- never requirements/proposal_response/test_specification); if BOTH a process and a
@@ -98,33 +104,49 @@ The High-Level Design and Low-Level Design are always SEPARATE documents (never 
   doesn't specify -- leave design_variant unset (regenerates whichever of the two the saved design
   data actually supports; typically both).
 This determination is meaningless for every other schema_type -- do not set design_variant at all
-when schema_type is "process"/"requirements"/"proposal_response"/"test_specification".
+when schema_type is "process"/"requirements"/"proposal_response"/"test_specification"/"togaf".
+
+# DETERMINE togaf_variant (ONLY relevant when schema_type is, or will resolve to, "togaf")
+The Architecture Vision Document and the Architecture Definition Document are always SEPARATE
+documents (never one combined file) -- check whether "inquiry" names which one it wants:
+- If it explicitly asks for only the Architecture Vision Document (and does not also mention the
+  Architecture Definition Document or "both"), togaf_variant = "vision".
+- If it explicitly asks for only the Architecture Definition Document (and does not also mention
+  the Architecture Vision Document or "both"), togaf_variant = "definition".
+- Otherwise -- it asks for "the TOGAF documents", "both", or simply doesn't specify -- leave
+  togaf_variant unset (regenerates whichever of the two the saved TOGAF data actually supports;
+  typically both).
+This determination is meaningless for every other schema_type -- do not set togaf_variant at all
+when schema_type is not "togaf".
 
 # SEQUENCE
-1. If schema_type is "requirements", "proposal_response", or "test_specification", SKIP this step
-   entirely -- none of the three has a flow/architecture diagram to regenerate -- and go straight to
-   step 2. Otherwise, call regenerate_flow_diagram, passing {"schema_type": ...} if you determined
-   one above (omit the argument entirely otherwise). ALWAYS produces some diagram, even a minimal
-   placeholder when nothing real is saved yet for that domain -- so its own result alone does NOT
-   tell you whether a real document exists to regenerate. Always proceed to step 2 regardless of
-   what this returns.
+1. If schema_type is "requirements", "proposal_response", "test_specification", or "togaf", SKIP
+   this step entirely -- none of the four has a single whole-document flow/architecture diagram to
+   regenerate (TOGAF renders several independent diagrams inline per-section instead -- see
+   docgen/togaf_sections.py) -- and go straight to step 2. Otherwise, call regenerate_flow_diagram,
+   passing {"schema_type": ...} if you determined one above (omit the argument entirely otherwise).
+   ALWAYS produces some diagram, even a minimal placeholder when nothing real is saved yet for that
+   domain -- so its own result alone does NOT tell you whether a real document exists to regenerate.
+   Always proceed to step 2 regardless of what this returns.
 2. Call regenerate_document with the SAME schema_type determination, plus design_variant if you
-   determined one above and schema_type is "design" (no "process_name" argument needed -- the saved
-   JSON's own name/title takes precedence over the fallback, except for
-   "requirements"/"proposal_response", neither of which has a title field at all -- pass a
-   reasonable title yourself, e.g. "<industry_sector> Requirements Specification" or
-   "<industry_sector> Proposal Response" if the loaded data names a sector, else "Requirements
-   Specification"/"Proposal Response". "test_specification" DOES have its own "name" field, so no
-   fallback title is needed for it -- pass "process_name" only as a harmless default if you have
-   nothing better). This is the real check: if its result starts with "ERROR", there is no actual
-   saved document of that type yet -- reply that there is nothing to regenerate, and that they
-   should create one first (e.g. "create a process for ..." / "create a design document for ..." /
-   "read the files in <directory> and summarize the requirements" / "respond to this proposal ..." /
-   "create a test specification for the saved requirements"). If it starts with "SUCCESS", report
-   that the document was regenerated from the current saved content (and, for process/design, that
-   the flow diagram was too) -- for "design", the SUCCESS text itself names which document(s) were
-   actually produced ("...saved at <path>" for one, "...saved -- HLD: <path>; LLD: <path>" for
-   both); relay that, don't assume both always exist.
+   determined one above and schema_type is "design", or togaf_variant if you determined one above
+   and schema_type is "togaf" (no "process_name" argument needed -- the saved JSON's own name/title
+   takes precedence over the fallback, except for "requirements"/"proposal_response", neither of
+   which has a title field at all -- pass a reasonable title yourself, e.g. "<industry_sector>
+   Requirements Specification" or "<industry_sector> Proposal Response" if the loaded data names a
+   sector, else "Requirements Specification"/"Proposal Response". "test_specification" and "togaf"
+   DO have their own "name"/"system_name" fields, so no fallback title is needed for either -- pass
+   "process_name" only as a harmless default if you have nothing better). This is the real check: if
+   its result starts with "ERROR", there is no actual saved document of that type yet -- reply that
+   there is nothing to regenerate, and that they should create one first (e.g. "create a process for
+   ..." / "create a design document for ..." / "read the files in <directory> and summarize the
+   requirements" / "respond to this proposal ..." / "create a test specification for the saved
+   requirements" / "generate TOGAF architecture artifacts from the saved design"). If it starts with
+   "SUCCESS", report that the document was regenerated from the current saved content (and, for
+   process/design, that the flow diagram was too) -- for "design"/"togaf", the SUCCESS text itself
+   names which document(s) were actually produced ("...saved at <path>" for one, "...saved -- HLD:
+   <path>; LLD: <path>" / "...saved -- Vision: <path>; Definition: <path>" for both); relay that,
+   don't assume both always exist.
 
 Plain prose only in your final reply -- no raw JSON, tool names, or internal field names.
 """,
@@ -151,23 +173,28 @@ Plain prose only in your final reply -- no raw JSON, tool names, or internal fie
         {
             "name": "regenerate_document",
             "function": {
-                "description": "Regenerates the final Word document from whichever process/design/requirements/proposal-response/test-specification JSON is already saved on disk.",
+                "description": "Regenerates the final Word document from whichever process/design/requirements/proposal-response/test-specification/TOGAF JSON is already saved on disk.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "schema_type": {
                             "type": "string",
-                            "enum": ["process", "design", "requirements", "proposal_response", "test_specification"],
-                            "description": "Pass this when the user's own request names which document they mean. \"requirements\"/\"proposal_response\"/\"test_specification\" must ALWAYS be passed explicitly -- none of the three is ever auto-detected. Omit this entirely only for a genuinely generic process/design request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
+                            "enum": ["process", "design", "requirements", "proposal_response", "test_specification", "togaf"],
+                            "description": "Pass this when the user's own request names which document they mean. \"requirements\"/\"proposal_response\"/\"test_specification\"/\"togaf\" must ALWAYS be passed explicitly -- none of the four is ever auto-detected. Omit this entirely only for a genuinely generic process/design request -- it then auto-detects from whichever single file exists on disk, which is ambiguous whenever both do."
                         },
                         "process_name": {
                             "type": "string",
-                            "description": "Optional fallback document title, used only if the saved JSON itself has no name/title (always required in practice for schema_type=\"requirements\"/\"proposal_response\", neither of which has a title field at all; test_specification has its own \"name\" field so this is just a harmless default for it)."
+                            "description": "Optional fallback document title, used only if the saved JSON itself has no name/title (always required in practice for schema_type=\"requirements\"/\"proposal_response\", neither of which has a title field at all; test_specification and togaf have their own \"name\"/\"system_name\" fields so this is just a harmless default for either)."
                         },
                         "design_variant": {
                             "type": "string",
                             "enum": ["hld", "lld", "both"],
                             "description": "Only meaningful when schema_type is \"design\". Which of the two separate design documents to regenerate -- the High-Level Design, the Low-Level Design, or both. Omit to regenerate both (or whichever of the two the current design data actually contains, if only one does)."
+                        },
+                        "togaf_variant": {
+                            "type": "string",
+                            "enum": ["vision", "definition", "both"],
+                            "description": "Only meaningful when schema_type is \"togaf\". Which of the two separate TOGAF documents to regenerate -- the Architecture Vision Document, the Architecture Definition Document, or both. Omit to regenerate both (or whichever of the two the current TOGAF data actually supports, if only one does)."
                         }
                     }
                 }
