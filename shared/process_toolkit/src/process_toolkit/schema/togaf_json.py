@@ -240,6 +240,19 @@ def validate_togaf_json(json_content: Any) -> Dict[str, Any]:
                         "location": f"architecture_requirements_specification.{requirement_type}[{index}].id",
                         "issue": "A stable identifier is required, e.g. 'FR-001' or 'NFR-001'",
                     })
+                # Mirrors design_json.py's own identical check -- this module's own docstring
+                # already claimed this check existed ("the same requirement id/acceptance-
+                # criteria cross-field check design_json.py already has"), but it was never
+                # actually implemented, so an unverifiable requirement with a real id and an
+                # empty acceptance_criteria list passed validation silently.
+                criteria = item.get("acceptance_criteria")
+                if not isinstance(criteria, list) or not any(
+                    isinstance(criterion, str) and criterion.strip() for criterion in criteria
+                ):
+                    issues.append({
+                        "location": f"architecture_requirements_specification.{requirement_type}[{index}].acceptance_criteria",
+                        "issue": "At least one concrete, verifiable acceptance criterion is required",
+                    })
 
     return {"valid": len(issues) == 0, "issues": issues}
 

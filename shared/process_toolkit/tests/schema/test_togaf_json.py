@@ -68,12 +68,47 @@ def test_validate_accepts_requirements_with_real_ids():
             "version": "1.0", "status": "draft",
         },
         "architecture_requirements_specification": {
-            "functional_requirements": [{"id": "FR-001", "description": "Create a backup."}],
-            "non_functional_requirements": [{"id": "NFR-001", "description": "Backups are encrypted."}],
+            "functional_requirements": [{
+                "id": "FR-001", "description": "Create a backup.",
+                "acceptance_criteria": ["A backup file is written to the configured location."],
+            }],
+            "non_functional_requirements": [{
+                "id": "NFR-001", "description": "Backups are encrypted.",
+                "acceptance_criteria": ["Backup files are encrypted at rest with AES-256."],
+            }],
         },
     }
     result = validate_togaf_json(doc)
     assert result == {"valid": True, "issues": []}
+
+
+def test_validate_requires_an_acceptance_criterion_for_each_requirement():
+    # Regression: this module's own docstring already claimed "the same requirement id/
+    # acceptance-criteria cross-field check design_json.py already has" existed, but it was
+    # never actually implemented -- a real id with an empty (or missing) acceptance_criteria
+    # list passed validation silently, saving an unverifiable requirement.
+    doc = {
+        "document_metadata": {
+            "document_id": "T-1", "system_name": "X", "title": "X Architecture Vision",
+            "version": "1.0", "status": "draft",
+        },
+        "architecture_requirements_specification": {
+            "functional_requirements": [{"id": "FR-001", "description": "Create a backup.", "acceptance_criteria": []}],
+            "non_functional_requirements": [{"id": "NFR-001", "description": "Backups are encrypted."}],
+        },
+    }
+
+    result = validate_togaf_json(doc)
+
+    assert not result["valid"]
+    assert any(
+        issue["location"] == "architecture_requirements_specification.functional_requirements[0].acceptance_criteria"
+        for issue in result["issues"]
+    )
+    assert any(
+        issue["location"] == "architecture_requirements_specification.non_functional_requirements[0].acceptance_criteria"
+        for issue in result["issues"]
+    )
 
 
 def test_persist_then_load_round_trips():

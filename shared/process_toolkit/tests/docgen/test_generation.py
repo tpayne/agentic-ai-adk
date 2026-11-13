@@ -1038,6 +1038,23 @@ class TestTogafDocumentGeneration:
         result = create_standard_doc_from_file("Fallback", schema_type="togaf")
         assert "Checkout_Service_Architecture_Vision.docx" in result
 
+    def test_title_that_is_exactly_a_bare_label_falls_back_to_process_name_not_the_label(self):
+        # Regression: an earlier version of _TogafMeta fell back to the UNSTRIPPED raw_title
+        # when stripping it produced "" -- but a title that strips to "" was, by definition,
+        # ENTIRELY a doc-type label (e.g. "Architecture Vision Document" alone), so falling
+        # back to that same label re-introduced the exact naming-hygiene bug the stripping
+        # exists to prevent. With no system_name present either, process_name is the only
+        # safe fallback left.
+        data = dict(SAMPLE_TOGAF)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "Architecture Vision Document"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout Service", schema_type="togaf")
+        assert "Architecture_Vision_Document" not in result
+        assert "Checkout_Service_Architecture_Vision.docx" in result
+
     def test_unrecognized_schema_type_returns_clean_error(self):
         result = create_standard_doc_from_file("Checkout", schema_type="invalid_schema")
         assert result.startswith("ERROR: Unrecognized schema_type 'invalid_schema'")

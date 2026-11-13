@@ -114,6 +114,36 @@ class TestResolveArtifactTarget:
         _write_output_file("Vendor_Onboarding.docx")
         assert artifact_downloads.resolve_artifact_target("something totally unrelated") is None
 
+    def test_bare_architecture_with_filler_words_still_resolves_to_the_diagram(self):
+        # Regression: an earlier version required normalized to EQUAL "architecture"/"cloud
+        # architecture"/"the architecture" exactly, so any extra filler word around "architecture"
+        # (or a fourth natural phrasing matching none of those three exact strings) resolved to
+        # nothing despite a real generated diagram existing.
+        _write_output_file("cloudarch_drawio.xml")
+        for phrase in ("can I get the architecture now", "the cloud architecture", "please show me the architecture"):
+            assert artifact_downloads.resolve_artifact_target(phrase) == "cloudarch_drawio.xml", phrase
+
+    def test_doc_substring_in_docker_does_not_misroute_a_diagram_request(self):
+        # Regression: is_doc_intent matched "doc" as a bare substring, which false-positives on
+        # "docker" -- a clear diagram request ("...docker architecture diagram...") was
+        # incorrectly treated as document intent and could return an unrelated single document
+        # instead of the diagram.
+        _write_output_file("cloudarch_drawio.xml")
+        _write_output_file("Unrelated_Report.docx")
+        assert artifact_downloads.resolve_artifact_target("show me the docker architecture diagram") == "cloudarch_drawio.xml"
+
+    def test_spelled_out_and_bare_hld_lld_resolve_without_a_document_qualifier(self):
+        # Regression: "the low-level design document"/"give me the lld" (no "document"/"doc"
+        # qualifier other than the bare abbreviation itself) returned None even with the real
+        # _HLD.docx/_LLD.docx files on disk, because the semantic-variant block was gated behind
+        # is_doc_intent, and is_doc_intent's own keyword list didn't include "hld"/"lld" or the
+        # spelled-out phrasing.
+        _write_output_file("Checkout_Service_HLD.docx")
+        _write_output_file("Checkout_Service_LLD.docx")
+        assert artifact_downloads.resolve_artifact_target("the low-level design document") == "Checkout_Service_LLD.docx"
+        assert artifact_downloads.resolve_artifact_target("give me the lld") == "Checkout_Service_LLD.docx"
+        assert artifact_downloads.resolve_artifact_target("the high-level design") == "Checkout_Service_HLD.docx"
+
 
 class TestCloudarchDiagramExists:
     def test_false_when_not_generated(self):

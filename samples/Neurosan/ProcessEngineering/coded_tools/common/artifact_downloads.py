@@ -110,12 +110,20 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
       present.
     - A target mentioning "backlog", "WSJF", or the portfolio backlog
       workbook filename resolves to that workbook, if it has been generated.
-    - If the target expresses document intent ("doc", "document", "docx",
-      "vision", "definition") or matches an existing generated Word document,
-      it resolves to that document.
-    - A target string indicating a diagram ("cloudarch", "cloud architecture",
-      "diagram", "drawio", "xml", or exact "architecture") resolves to the
-      cloud architecture diagram, if one has been generated.
+    - If the target expresses document intent ("doc" as a whole word --
+      NOT a substring, so "docker" doesn't false-positive --, "document",
+      "docx", "word", "vision", "definition", "hld"/"lld" as whole words,
+      or "high-level design"/"low-level design" in either spacing) or
+      matches an existing generated Word document, it resolves to that
+      document.
+    - A target string indicating a diagram ("cloudarch", "diagram",
+      "drawio", "xml", or "architecture" as a substring -- CONFIRMED AS A
+      REAL BUG: an earlier version of this check required "architecture"
+      to be the ENTIRE normalized string, or one of two other fixed
+      phrases, so "can I get the architecture now" or "the cloud
+      architecture" resolved to nothing even with a diagram on disk)
+      resolves to the cloud architecture diagram, if one has been
+      generated.
     - A target matching an existing document's filename exactly, or as a
       case-insensitive substring, resolves to that document.
     - An empty/None target resolves to the most-recently-generated
@@ -136,11 +144,31 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
         )
 
     docs = list_output_documents()
-    is_doc_intent = any(word in normalized for word in ("doc", "document", "docx", "word", "vision", "definition"))
+    normalized_words = set(normalized.split())
+    # "doc"/"hld"/"lld" are checked as WHOLE WORDS, not substrings -- "doc" as a substring
+    # false-positives on "docker" (CONFIRMED AS A REAL BUG: "show me the docker architecture
+    # diagram" incorrectly matched is_doc_intent via "doc" in "docker", routing a clear
+    # diagram request into the document-matching branch). "document"/"docx"/"word"/"vision"/
+    # "definition" are long/specific enough that substring matching is safe. Spelled-out
+    # "high-level design"/"low-level design" (either hyphenated or spaced) are also doc
+    # intent -- the abbreviations alone aren't the only way a user names these documents.
+    is_doc_intent = (
+        any(word in normalized for word in ("document", "docx", "word", "vision", "definition"))
+        or bool(normalized_words & {"doc", "hld", "lld"})
+        or any(phrase in normalized for phrase in ("high-level design", "high level design", "low-level design", "low level design"))
+    )
 
     # If document intent is not explicitly expressed, check for diagram requests.
+    # "architecture" is a plain substring check (not an exact-phrase match) -- CONFIRMED AS A
+    # REAL BUG: an earlier version required normalized to EQUAL "architecture"/"cloud
+    # architecture"/"the architecture" exactly, so "can I get the architecture now" or even
+    # "the cloud architecture" (a fourth, very natural phrasing matching none of those three)
+    # resolved to nothing despite a real generated diagram existing. Safe to widen back to a
+    # substring check here specifically because this whole branch is already gated on
+    # `not is_doc_intent` -- a document-shaped request (containing "document"/"vision"/etc.)
+    # never reaches this branch regardless of whether it also happens to contain "architecture".
     if normalized and not is_doc_intent:
-        if any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml")) or normalized in ("architecture", "cloud architecture", "the architecture"):
+        if any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml", "architecture")):
             return CLOUDARCH_FILENAME if cloudarch_exists() else None
 
     if not normalized:
@@ -179,11 +207,11 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
             for doc in docs:
                 if "definition" in doc["filename"].lower():
                     return doc["filename"]
-        if "hld" in normalized:
+        if "hld" in normalized_words or "high-level design" in normalized or "high level design" in normalized:
             for doc in docs:
                 if "hld" in doc["filename"].lower():
                     return doc["filename"]
-        if "lld" in normalized:
+        if "lld" in normalized_words or "low-level design" in normalized or "low level design" in normalized:
             for doc in docs:
                 if "lld" in doc["filename"].lower():
                     return doc["filename"]
@@ -191,7 +219,7 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
             return docs[0]["filename"]
 
     # Fallback to diagram check if not matched as a doc and contains diagram keywords
-    if normalized and any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml")):
+    if normalized and any(word in normalized for word in ("cloudarch", "diagram", "drawio", "xml", "architecture")):
         return CLOUDARCH_FILENAME if cloudarch_exists() else None
 
     return None

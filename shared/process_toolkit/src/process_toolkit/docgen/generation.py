@@ -1481,7 +1481,12 @@ class _TogafMeta:
         metadata = data.get("document_metadata") or {}
         raw_title = str(metadata.get("title") or "")
         title_stripped = _strip_togaf_doc_type_label(raw_title)
-        raw_name = title_stripped or str(metadata.get("system_name") or raw_title or process_name)
+        # CONFIRMED AS A REAL BUG: falling back to raw_title here (as an earlier version of
+        # this line did) re-introduces the exact naming-hygiene bug this stripping exists to
+        # fix -- if raw_title stripped to "" it means raw_title WAS entirely a doc-type label
+        # (e.g. "Architecture Vision Document"), so falling back to that same unstripped
+        # label is always wrong. system_name/process_name are the only safe fallbacks.
+        raw_name = title_stripped or str(metadata.get("system_name") or process_name)
         self.name = _strip_togaf_doc_type_label(raw_name) or raw_name
         self.version = str(metadata.get("version", "1.0"))
 
@@ -1683,19 +1688,35 @@ def _togaf_has_real_definition_content(data: dict) -> bool:
     business_architecture = data.get("business_architecture") or {}
     if any((c or {}).get("name") for c in business_architecture.get("capabilities") or []):
         return True
+    if any((v or {}).get("name") for v in business_architecture.get("value_streams") or []):
+        return True
+    if (business_architecture.get("capability_map_diagram") or {}).get("title"):
+        return True
     data_architecture = data.get("data_architecture") or {}
     if any((e or {}).get("name") for e in data_architecture.get("data_entities") or []):
+        return True
+    if any((f or {}).get("source") for f in data_architecture.get("data_flows") or []):
+        return True
+    if (data_architecture.get("data_flow_diagram") or {}).get("title"):
         return True
     application_architecture = data.get("application_architecture") or {}
     if any((c or {}).get("name") for c in application_architecture.get("application_components") or []):
         return True
+    if any((c or {}).get("source") for c in application_architecture.get("application_communications") or []):
+        return True
+    if (application_architecture.get("application_communication_diagram") or {}).get("title"):
+        return True
     technology_architecture = data.get("technology_architecture") or {}
     if any((t or {}).get("technology") for t in technology_architecture.get("technology_portfolio") or []):
+        return True
+    if (technology_architecture.get("technology_portfolio_diagram") or {}).get("title"):
         return True
     if any((o or {}).get("gap_description") for o in data.get("opportunities_and_solutions") or []):
         return True
     migration_planning = data.get("migration_planning") or {}
     if any((w or {}).get("name") for w in migration_planning.get("work_packages") or []):
+        return True
+    if str(migration_planning.get("sequencing_notes") or "").strip():
         return True
     compliance_assessment = data.get("architecture_compliance_assessment") or {}
     if any(
