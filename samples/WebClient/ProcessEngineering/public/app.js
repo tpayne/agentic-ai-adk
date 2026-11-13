@@ -2235,13 +2235,13 @@
   // ---------------------------------------------------------------
   // Data explorer -- hierarchical viewer for the Artefact Browser tab's
   // GET /artifacts/<name> ("process", "design", "requirements",
-  // "proposal_response", "test_specification", or "portfolio_backlog",
-  // picked via the tab's own dropdown), a read-only
+  // "proposal_response", "test_specification", "portfolio_backlog", or
+  // "togaf", picked via the tab's own dropdown), a read-only
   // snapshot of this project's own output/process_data.json /
   // output/design_data.json / output/requirements_summary.json /
   // output/proposal_response.json / output/test_specification.json /
-  // output/portfolio_backlog.json on whichever backend is connected.
-  // Rendered as an expandable tree
+  // output/portfolio_backlog.json / output/togaf_data.json on whichever
+  // backend is connected. Rendered as an expandable tree
   // (root top-left, children expanding down-and-right) built via
   // document.createElement/.textContent -- NOT innerHTML string
   // concatenation -- since the JSON content being displayed is arbitrary
@@ -2362,6 +2362,7 @@
       "proposal_response",
       "test_specification",
       "portfolio_backlog",
+      "togaf",
     ].includes(artifact) ? artifact : "process";
     buildTreeRow(rootLabel, raw, "$", 0, el.artifactTree);
   }
@@ -2508,7 +2509,7 @@
 
   // Downloads the real process_data.json/design_data.json/
   // requirements_summary.json/proposal_response.json/test_specification.json/
-  // portfolio_backlog.json file (vs. the tree
+  // portfolio_backlog.json/togaf_data.json file (vs. the tree
   // view loadArtifact above renders from) -- re-attaching this exact
   // file to a later chat turn (the composer's own "attach file" button)
   // restores it verbatim as the active process/design/requirements

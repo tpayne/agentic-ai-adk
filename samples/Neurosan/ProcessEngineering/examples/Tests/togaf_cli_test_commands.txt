@@ -29,6 +29,18 @@
 # independent of "clear"). The $ resets below delete the on-disk state at specific points so the
 # nothing-saved negative cases, and the requirements-only path in Part G, are exercised against a
 # genuinely clean slate rather than leftover state from an earlier part of this same script.
+#
+# UNLIKE this project's other *_cli_test_commands.txt scripts, this one calls "clear" between every
+# Part boundary from Part B onward. CONFIRMED NECESSARY from a real run: Part B's own design
+# creation is itself a large, multi-agent generate/review consortium whose conversation alone grows
+# to several hundred thousand tokens, and every later turn in the SAME session resends that entire
+# history as context even though TOGAF_Pipeline/TOGAF_Scenario_Tester read everything they need
+# straight from disk (load_full_design_context/load_full_togaf_context), never from chat history.
+# Chaining Part B directly into Part C without a reset made a real run appear to hang for several
+# minutes on the TOGAF compliance loop's second iteration -- not an infinite loop anywhere in this
+# codebase (confirmed: no unbounded loop exists in the TOGAF docgen/pipeline code; the saved
+# cli.log showed real, if slow, forward progress right up to that point), but ordinary per-call LLM
+# latency compounding badly against an unnecessarily large, functionally irrelevant prompt.
 # ============================================================
 
 $ rm -f output/design_data.json output/requirements_summary.json output/togaf_data.json output/cloudarch_drawio.xml
@@ -78,6 +90,20 @@ retry, not fail outright) if the Finance System is briefly unavailable.
 
 list
 
+# Reset the in-memory conversation (does NOT touch output/design_data.json or anything else on
+# disk) before starting TOGAF generation. CONFIRMED NECESSARY: Part B's own design-creation
+# exchange is itself a large, multi-agent generate/review consortium (HLD + LLD + Compliance +
+# Simulation revision) that alone runs to several hundred thousand tokens of conversation history
+# -- every later turn in the SAME session resends that entire history as context on top of its own
+# work, and TOGAF_Pipeline's own compliance loop is a second, independent multi-agent exchange that
+# doesn't need any of it (TOGAF_Agent reads design_data.json from DISK via load_full_design_context,
+# never from chat history). Chaining the two without a reset in between caused a real run to appear
+# to hang for several minutes on the TOGAF compliance loop's second iteration -- not an infinite
+# loop anywhere in this codebase (confirmed: no unbounded loop exists in the TOGAF docgen/pipeline
+# code), but ordinary per-call LLM latency compounding badly against an unnecessarily large,
+# functionally irrelevant prompt.
+clear
+
 # ------------------------------------------------------------
 # PART C -- TOGAF creation (positive), default ("both") variant
 # ------------------------------------------------------------
@@ -99,6 +125,11 @@ list
 # principles set, not a confident claim that it already covers them.
 Does the TOGAF generation include Architecture Change Management or a capability-maturity assessment?
 
+# Reset again -- Part C's own compliance loop is itself a second multi-agent exchange, and
+# TOGAF_Scenario_Tester (Part D) reads output/togaf_data.json fresh from disk via
+# load_full_togaf_context regardless, same reasoning as the reset above.
+clear
+
 # ------------------------------------------------------------
 # PART D -- TOGAF_Scenario_Tester what-if queries (grounded in Part B/C's own real traceability/
 # dependency links, directly exercising togaf.hocon's own sample_queries)
@@ -110,6 +141,11 @@ What is the impact of removing the Finance System integration?
 # D3. Must decline a quantitative estimate -- qualitative dependency tracing only, per
 # togaf_scenario_tester.hocon's own instructions.
 How likely is it that removing the Finance System integration would cause an outage?
+
+# Reset before the regeneration/update parts below -- none of them need Part D's own what-if
+# conversation, and each one's own test fixture reset ($ rm -f output/*.docx) already establishes
+# that this is a fresh request against disk-persisted state, not a continuation of prior chat.
+clear
 
 # ------------------------------------------------------------
 # PART E -- regeneration: implicit "both", explicit vision-only, explicit definition-only, and
@@ -146,6 +182,8 @@ Please regenerate both the TOGAF architecture vision and definition documents.
 
 list
 
+clear
+
 # ------------------------------------------------------------
 # PART F -- explicit update request (TOGAF_Agent's UPDATE branch): confirms an update preserves
 # unrelated content, stable ids, and traceability rather than rebuilding from source.
@@ -162,6 +200,8 @@ future iteration. Keep everything else unchanged.
 Regenerate the TOGAF architecture documents.
 
 list
+
+clear
 
 # ------------------------------------------------------------
 # PART G -- requirements-only source path (no design document saved at all). Confirms TOGAF
@@ -182,6 +222,8 @@ manager. It must comply with SOC 2 for how vendor-submitted documents are stored
 Generate TOGAF architecture artifacts from the saved requirements summary.
 
 list
+
+clear
 
 # ------------------------------------------------------------
 # PART H -- domain disambiguation (TOGAF what-if crossover must not bleed either direction)
