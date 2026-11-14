@@ -14,12 +14,35 @@ Or over stdio, for a client that launches this as a subprocess:
 
     uv run python server.py --transport stdio
 
+Or over HTTPS, by pointing at a real (or, for local testing, self-signed)
+certificate/key pair -- both are required together:
+
+    uv run python server.py --ssl-certfile cert.pem --ssl-keyfile key.pem
+
+PROCESS_TOOLKIT_MCP_SSL_CERTFILE / _SSL_KEYFILE (optional; no default --
+plain HTTP unless both are set) are the env-var equivalents of
+--ssl-certfile/--ssl-keyfile, for container deployments that mount
+certificates at a fixed path rather than passing CLI flags.
+PROCESS_TOOLKIT_MCP_SSL_KEYFILE_PASSWORD decrypts an encrypted private key,
+if needed.
+
 PROCESS_TOOLKIT_MCP_OUTPUT_DIR (default: "<this dir>/output") sets the
 absolute root every generated artifact is written under -- process_toolkit's
 own paths.output_dir() otherwise defaults to a *relative*, cwd-dependent
 "output", which isn't safe for a server process a caller can launch from
 anywhere. PROCESS_TOOLKIT_MCP_HOST / PROCESS_TOOLKIT_MCP_PORT configure the
 Streamable HTTP bind address (defaults 0.0.0.0:8765).
+
+PROCESS_TOOLKIT_MCP_RATE_LIMIT_ENABLED (default: "true") / _PER_SECOND
+(default: 5.0) / _BURST (default: 10) bound how fast one connecting IP can
+call tools under Streamable HTTP -- every tool here can trigger real disk
+I/O (writing a .docx/.xlsx), so an unthrottled third-party caller could
+otherwise flood the server with generation requests. See
+_rate_limit_client_id's own docstring for why this is scoped to tool calls
+and keyed by connecting IP rather than any MCP-protocol session concept,
+and tests/conftest.py's own comment for why the test suite disables this
+entirely for the shared in-memory server.mcp instance every other test in
+this project calls through.
 """
 
 import argparse
@@ -30,6 +53,9 @@ from typing import Any, Optional
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_request
+from fastmcp.server.middleware.middleware import Middleware, MiddlewareContext
+from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
 from process_toolkit import paths
 from process_toolkit.portfolio_backlog.portfolio_backlog import (
     load_portfolio_backlog as _load_portfolio_backlog,
@@ -50,6 +76,64 @@ os.makedirs(paths.OUTPUT_DIR, exist_ok=True)
 _NON_ARTIFACT_FILENAMES = {paths.SESSION_META_FILENAME}
 
 mcp = FastMCP("process-toolkit")
+
+
+def _rate_limit_client_id(context: MiddlewareContext) -> str:
+    """Keys the rate limiter by the connecting IP under Streamable HTTP --
+    the only transport where multiple distinct, concurrent real clients
+    actually exist. fastmcp_context.session_id looked like the right key
+    at first, but isn't: confirmed directly (even against a real
+    Streamable HTTP connection, not just the in-memory test transport) that
+    FastMCP mints a NEW session_id on every single tool call, not once per
+    connection -- keying on it would silently rate-limit nothing at all,
+    since every call would always look like a brand-new client with a
+    full, untouched bucket.
+
+    Under stdio there is exactly one client per server process by
+    construction, so the fallback below applies one shared budget for that
+    process's whole lifetime -- correct there, not an approximation. The
+    same fallback also covers this project's own in-memory test transport
+    (get_http_request() has nothing to find), which is why
+    tests/conftest.py disables rate limiting entirely for the shared
+    server.mcp instance every other test in this project calls through --
+    the actual enforcement logic is instead proven in
+    tests/test_server_helpers.py against short-lived, dedicated FastMCP
+    instances."""
+    try:
+        request = get_http_request()
+    except RuntimeError:
+        return "non-http-client"
+    return (request.client.host if request.client else None) or "non-http-client"
+
+
+class ToolCallRateLimitingMiddleware(Middleware):
+    """Wraps fastmcp's own RateLimitingMiddleware, but only for tool calls.
+
+    RateLimitingMiddleware's own on_request hook fires for every MCP
+    message (initialize, tools/list, discover, ...), not just tools/call --
+    throttling administrative traffic the same as the actual, disk-writing
+    tool invocations isn't the intent here, so this only implements
+    on_call_tool, leaving on_request at the base class's pass-through."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        self._delegate = RateLimitingMiddleware(**kwargs)
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next: Any) -> Any:
+        return await self._delegate.on_request(context, call_next)
+
+
+def _rate_limiting_enabled() -> bool:
+    return os.environ.get("PROCESS_TOOLKIT_MCP_RATE_LIMIT_ENABLED", "true").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
+
+
+if _rate_limiting_enabled():
+    mcp.add_middleware(ToolCallRateLimitingMiddleware(
+        max_requests_per_second=float(os.environ.get("PROCESS_TOOLKIT_MCP_RATE_LIMIT_PER_SECOND", "5.0")),
+        burst_capacity=int(os.environ.get("PROCESS_TOOLKIT_MCP_RATE_LIMIT_BURST", "10")),
+        get_client_id=_rate_limit_client_id,
+    ))
 
 
 def _domain_or_error(schema_type: str) -> dispatch.DomainOps:
@@ -277,7 +361,31 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--transport", choices=["http", "stdio"], default="http")
     parser.add_argument("--host", default=os.environ.get("PROCESS_TOOLKIT_MCP_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("PROCESS_TOOLKIT_MCP_PORT", "8765")))
-    return parser.parse_args()
+    parser.add_argument(
+        "--ssl-certfile", default=os.environ.get("PROCESS_TOOLKIT_MCP_SSL_CERTFILE"),
+        help="Serve over HTTPS using this certificate. Requires --ssl-keyfile too.",
+    )
+    parser.add_argument(
+        "--ssl-keyfile", default=os.environ.get("PROCESS_TOOLKIT_MCP_SSL_KEYFILE"),
+        help="Private key for --ssl-certfile. Requires --ssl-certfile too.",
+    )
+    args = parser.parse_args()
+
+    if bool(args.ssl_certfile) != bool(args.ssl_keyfile):
+        parser.error("--ssl-certfile and --ssl-keyfile must be given together, not just one.")
+    if args.transport == "stdio" and (args.ssl_certfile or args.ssl_keyfile):
+        parser.error("--ssl-certfile/--ssl-keyfile only apply to --transport http (stdio has no network socket).")
+    return args
+
+
+def _uvicorn_ssl_config(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.ssl_certfile:
+        return {}
+    config: dict[str, Any] = {"ssl_certfile": args.ssl_certfile, "ssl_keyfile": args.ssl_keyfile}
+    keyfile_password = os.environ.get("PROCESS_TOOLKIT_MCP_SSL_KEYFILE_PASSWORD")
+    if keyfile_password:
+        config["ssl_keyfile_password"] = keyfile_password
+    return config
 
 
 if __name__ == "__main__":
@@ -285,4 +393,7 @@ if __name__ == "__main__":
     if args.transport == "stdio":
         mcp.run(transport="stdio")
     else:
-        mcp.run(transport="http", host=args.host, port=args.port)
+        mcp.run(
+            transport="http", host=args.host, port=args.port,
+            uvicorn_config=_uvicorn_ssl_config(args),
+        )

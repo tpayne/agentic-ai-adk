@@ -5,11 +5,18 @@ network transport actually works, not just the tool functions in isolation.
 """
 
 import base64
+import datetime
+import ipaddress
 import socket
+import ssl
 import threading
 import time
 
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from fastmcp import Client
 
 import server
@@ -19,6 +26,40 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def _generate_self_signed_cert(tmp_path) -> tuple[str, str]:
+    """A throwaway, locally-generated cert/key pair for proving HTTPS
+    actually works end-to-end -- SAN covers 127.0.0.1 specifically (not
+    just "localhost"), matching what the real test below connects to, so
+    a real TLS handshake and real certificate validation both have to
+    succeed, not just "a cert happened to be configured"."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=5))
+        .not_valid_after(now + datetime.timedelta(minutes=30))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    certfile = tmp_path / "cert.pem"
+    keyfile = tmp_path / "key.pem"
+    certfile.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    keyfile.write_bytes(key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    ))
+    return str(certfile), str(keyfile)
 
 
 def _minimal_valid_togaf_doc() -> dict:
@@ -212,6 +253,25 @@ class TestPortfolioBacklog:
             assert loaded["name"] == "Checkout Backlog"
 
 
+class TestRateLimitingIsDisabledForThisSharedTestInstance:
+    """A safety-net check on the assumption every other test in this file
+    (and test_dispatch.py) depends on: that tests/conftest.py's
+    PROCESS_TOOLKIT_MCP_RATE_LIMIT_ENABLED=false setdefault actually took
+    effect before server.py's module-level `if _rate_limiting_enabled():
+    mcp.add_middleware(...)` ran. If this ever started failing, every
+    other test calling through server.mcp in-memory would start failing
+    too, for an unrelated, confusing reason -- see conftest.py's own
+    comment for why. The middleware class, client-id function, and
+    enabled/disabled toggle itself are tested directly in
+    tests/test_server_helpers.py against short-lived, dedicated FastMCP
+    instances that never touch this shared bucket."""
+
+    def test_server_mcp_has_no_rate_limiting_middleware_installed(self):
+        assert not any(
+            isinstance(mw, server.ToolCallRateLimitingMiddleware) for mw in server.mcp.middleware
+        )
+
+
 class TestRealStreamableHttpTransport:
     async def test_round_trip_over_an_actual_http_connection(self):
         port = _free_port()
@@ -236,3 +296,67 @@ class TestRealStreamableHttpTransport:
         async with Client(f"http://127.0.0.1:{port}/mcp") as client:
             result = await client.call_tool("list_schema_types")
         assert "togaf" in result.data
+
+
+class TestRealHttpsTransport:
+    async def test_round_trip_over_an_actual_tls_connection(self, tmp_path):
+        certfile, keyfile = _generate_self_signed_cert(tmp_path)
+        port = _free_port()
+
+        def _serve():
+            server.mcp.run(
+                transport="http", host="127.0.0.1", port=port, show_banner=False,
+                uvicorn_config={"ssl_certfile": certfile, "ssl_keyfile": keyfile},
+            )
+
+        thread = threading.Thread(target=_serve, daemon=True)
+        thread.start()
+
+        deadline = time.monotonic() + 5
+        connected = False
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                    connected = True
+                    break
+            except OSError:
+                time.sleep(0.1)
+        assert connected, "server did not start listening in time"
+
+        # Trusts our own throwaway cert explicitly rather than disabling
+        # verification -- a real client validating a real certificate
+        # against a real TLS handshake, not just "the socket happened to
+        # connect."
+        trust_context = ssl.create_default_context(cafile=certfile)
+        async with Client(f"https://127.0.0.1:{port}/mcp", verify=trust_context) as client:
+            result = await client.call_tool("list_schema_types")
+        assert "togaf" in result.data
+
+    async def test_plain_http_is_rejected_by_a_tls_only_client(self, tmp_path):
+        # Same server, same port range, but this time started WITHOUT TLS --
+        # confirms the test above's success is really coming from HTTPS
+        # being active, not from some unrelated client-side leniency.
+        certfile, _keyfile = _generate_self_signed_cert(tmp_path)
+        port = _free_port()
+
+        def _serve():
+            server.mcp.run(transport="http", host="127.0.0.1", port=port, show_banner=False)
+
+        thread = threading.Thread(target=_serve, daemon=True)
+        thread.start()
+
+        deadline = time.monotonic() + 5
+        connected = False
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                    connected = True
+                    break
+            except OSError:
+                time.sleep(0.1)
+        assert connected, "server did not start listening in time"
+
+        trust_context = ssl.create_default_context(cafile=certfile)
+        with pytest.raises(Exception):
+            async with Client(f"https://127.0.0.1:{port}/mcp", verify=trust_context) as client:
+                await client.call_tool("list_schema_types")

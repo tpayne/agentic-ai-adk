@@ -52,6 +52,7 @@ Omitting `session_id` resolves to a single shared `"default"` session.
 uv sync
 uv run python server.py                        # Streamable HTTP on http://0.0.0.0:8765/mcp
 uv run python server.py --transport stdio       # stdio, for a client that launches this as a subprocess
+uv run python server.py --ssl-certfile cert.pem --ssl-keyfile key.pem   # HTTPS -- see below
 ```
 
 Environment variables:
@@ -61,6 +62,52 @@ Environment variables:
 | `PROCESS_TOOLKIT_MCP_OUTPUT_DIR` | `<this dir>/output` | Absolute root every generated artifact is written under. |
 | `PROCESS_TOOLKIT_MCP_HOST` | `0.0.0.0` | Streamable HTTP bind host. |
 | `PROCESS_TOOLKIT_MCP_PORT` | `8765` | Streamable HTTP bind port. |
+| `PROCESS_TOOLKIT_MCP_SSL_CERTFILE` / `_SSL_KEYFILE` | unset (plain HTTP) | Env-var equivalents of `--ssl-certfile`/`--ssl-keyfile`, below. |
+| `PROCESS_TOOLKIT_MCP_SSL_KEYFILE_PASSWORD` | unset | Decrypts an encrypted private key, if needed. |
+| `PROCESS_TOOLKIT_MCP_RATE_LIMIT_ENABLED` | `true` | Set to `false`/`0`/`no`/`off` to disable rate limiting entirely. |
+| `PROCESS_TOOLKIT_MCP_RATE_LIMIT_PER_SECOND` | `5.0` | Sustained tool calls/second admitted per connecting IP. |
+| `PROCESS_TOOLKIT_MCP_RATE_LIMIT_BURST` | `10` | Burst capacity on top of the sustained rate. |
+
+### HTTPS
+
+`--ssl-certfile`/`--ssl-keyfile` (or their env-var equivalents) terminate TLS
+directly in the server process via uvicorn, the same mechanism
+`samples/Neurosan/ProcessEngineering`'s own `ns run` relies on for its HTTP
+layer. Both flags are required together -- passing just one is a startup
+error, not a silent fallback to plain HTTP. They only apply to
+`--transport http`; combining them with `--transport stdio` is also a
+startup error, since stdio has no network socket to terminate TLS on.
+
+For local testing, generate a self-signed cert (the one-liner
+`tests/test_server.py`'s own `_generate_self_signed_cert` helper uses, via
+Python's `cryptography` package, works too):
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -keyout key.pem -out cert.pem -subj "/CN=localhost"
+uv run python server.py --ssl-certfile cert.pem --ssl-keyfile key.pem
+```
+
+For a real deployment, mount a real certificate/key pair into the container
+(see the Docker section below) rather than baking one into the image.
+
+### Rate limiting
+
+Every tool here can trigger real disk I/O (writing a `.docx`/`.xlsx`), so an
+unthrottled caller could flood the server with generation requests. Tool
+calls (only -- `tools/list`/`initialize`/etc. are never throttled) are
+rate-limited per connecting IP under Streamable HTTP, using a token-bucket
+algorithm ([`fastmcp`'s own `RateLimitingMiddleware`](https://gofastmcp.com),
+scoped down to `tools/call` only). Exceeding the limit returns a clean MCP
+error ("Rate limit exceeded for client: \<ip\>"), not a crash.
+
+This is IP-keyed, not connection- or session-keyed: FastMCP's own
+`session_id` turned out to be minted fresh on every single tool call (even
+under a real, already-established Streamable HTTP connection), not once per
+connection, so it can't be used to recognize "the same caller" across calls.
+Under stdio there's exactly one client per server process by construction,
+so the whole process shares one budget there -- correct, not an
+approximation, for that transport.
 
 ## Docker
 
@@ -78,6 +125,17 @@ docker run --rm -p 8765:8765 process-toolkit-mcp
 The server is then reachable at `http://localhost:8765/mcp`. Mount a volume
 over `/app/samples/MCP/ProcessToolkitServer/output` if generated artifacts
 need to survive a container restart.
+
+To serve HTTPS from the container, mount a real cert/key pair and point the
+env vars at the mounted paths:
+
+```bash
+docker run --rm -p 8765:8765 \
+  -v /path/to/certs:/certs:ro \
+  -e PROCESS_TOOLKIT_MCP_SSL_CERTFILE=/certs/cert.pem \
+  -e PROCESS_TOOLKIT_MCP_SSL_KEYFILE=/certs/key.pem \
+  process-toolkit-mcp
+```
 
 ## Connecting from another MCP client
 
@@ -116,12 +174,12 @@ it and confirm it's a real, non-empty document.
 uv run pytest
 ```
 
-Three files, 48 tests total:
+Three files, 79 tests total:
 
 | File | Level | Covers |
 | --- | --- | --- |
-| `tests/test_server.py` | Integration (real MCP protocol) | Every tool called through `fastmcp.Client`'s in-memory transport, plus one test that starts the server with `transport="http"` on an ephemeral port and connects over a real Streamable HTTP socket -- proving the network path itself works, not just the tool functions in isolation. |
-| `tests/test_server_helpers.py` | Unit | `server.py`'s internal helpers (`_domain_or_error`, `_session`, `_snapshot_mtimes`/`_new_or_changed`, `_encode_file`, `_safe_artifact_path`) called directly as plain Python functions, with no MCP transport involved. |
+| `tests/test_server.py` | Integration (real MCP protocol) | Every tool called through `fastmcp.Client`'s in-memory transport, plus tests that start the server with `transport="http"` on an ephemeral port and connect over a real Streamable HTTP socket (both plain and TLS, the latter against a locally-generated self-signed cert) -- proving the network path itself works, not just the tool functions in isolation. |
+| `tests/test_server_helpers.py` | Unit | `server.py`'s internal helpers (`_domain_or_error`, `_session`, `_snapshot_mtimes`/`_new_or_changed`, `_encode_file`, `_safe_artifact_path`, `_rate_limit_client_id`, `_rate_limiting_enabled`, `_parse_args`'s SSL-flag validation, `_uvicorn_ssl_config`) called directly as plain Python functions, plus the `ToolCallRateLimitingMiddleware` class exercised against short-lived, dedicated FastMCP instances (never the shared `server.mcp` singleton -- see `tests/conftest.py`'s own comment for why). |
 | `tests/test_dispatch.py` | Unit | `dispatch.py`'s `DOMAINS` table (every domain has the right callables, variant-kwarg/diagram flags match reality) and the `_validate_then_save`/`generate_document_for` composition helpers, using stub validate/save functions rather than real domain logic. |
 
 The unit layer caught a real bug during development: `_session`'s
