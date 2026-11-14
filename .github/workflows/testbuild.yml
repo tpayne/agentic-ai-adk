@@ -114,7 +114,7 @@ jobs:
               # source directly, not this built image.
               docker run --rm -d -p 8765:8765 --name process_toolkit_mcp_ci "$IMAGE_TAG"
               READY=""
-              for _ in $(seq 1 20); do
+              for _ in $(seq 1 40); do
                 if curl -sS -o /tmp/mcp_init_response.json -X POST http://localhost:8765/mcp \
                   -H "Content-Type: application/json" \
                   -H "Accept: application/json, text/event-stream" \
