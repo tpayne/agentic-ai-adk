@@ -13,7 +13,7 @@
 # process-toolkit's own dependencies (matplotlib, pandas, python-docx,
 # networkx, openpyxl) all ship prebuilt manylinux wheels for this base
 # image, so no apt-get build toolchain is needed here either.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # Installs the `uv` binary itself by copying it out of Astral's own
 # published image, rather than `pip install uv`.
