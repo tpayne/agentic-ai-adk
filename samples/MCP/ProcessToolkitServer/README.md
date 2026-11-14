@@ -62,6 +62,23 @@ Environment variables:
 | `PROCESS_TOOLKIT_MCP_HOST` | `0.0.0.0` | Streamable HTTP bind host. |
 | `PROCESS_TOOLKIT_MCP_PORT` | `8765` | Streamable HTTP bind port. |
 
+## Docker
+
+The build context must be the **repo root**, not this directory, because
+`pyproject.toml`'s `[tool.uv.sources]` entry for `process-toolkit` points
+outside it (`../../../shared/process_toolkit`) -- mirrors
+`samples/Neurosan/ProcessEngineering`'s own Dockerfile for the same reason.
+
+```bash
+# from the repo root
+docker build -f samples/MCP/ProcessToolkitServer/Dockerfile -t process-toolkit-mcp .
+docker run --rm -p 8765:8765 process-toolkit-mcp
+```
+
+The server is then reachable at `http://localhost:8765/mcp`. Mount a volume
+over `/app/samples/MCP/ProcessToolkitServer/output` if generated artifacts
+need to survive a container restart.
+
 ## Connecting from another MCP client
 
 Any MCP client in any language can connect to the Streamable HTTP endpoint
