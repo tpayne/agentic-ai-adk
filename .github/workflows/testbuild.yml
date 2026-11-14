@@ -95,6 +95,39 @@ jobs:
               # Verifies Ollama binary, supervisor, and uv project are properly installed
               docker run --rm --entrypoint /bin/bash "$IMAGE_TAG" -c "ollama --version && supervisord --version && uv run python -c 'import cli; print(\"OK\")'"
 
+          - name: process_toolkit_mcp
+            context: samples/MCP/ProcessToolkitServer
+            # Build context is the repo root, not this directory: this
+            # project's pyproject.toml depends on shared/process_toolkit,
+            # which lives outside it -- see the Dockerfile's own comments.
+            build_context: .
+            tag: processtoolkitmcp:latest
+            test_cmd: |
+              # Unlike the other samples above (no LLM key in CI, so only an
+              # import-graph check is possible), this image needs no LLM key
+              # at all -- it's a real, unauthenticated-by-default MCP server,
+              # so this actually speaks the MCP protocol to it: a real
+              # Streamable HTTP "initialize" handshake, not just an import
+              # check. The real functional gate for this project (every
+              # tool, rate limiting, HTTPS) is the process_toolkit_mcp_tests
+              # job below, which runs against the shared process_toolkit
+              # source directly, not this built image.
+              docker run --rm -d -p 8765:8765 --name process_toolkit_mcp_ci "$IMAGE_TAG"
+              READY=""
+              for _ in $(seq 1 40); do
+                if curl -sS -o /tmp/mcp_init_response.json -X POST http://localhost:8765/mcp \
+                  -H "Content-Type: application/json" \
+                  -H "Accept: application/json, text/event-stream" \
+                  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci-smoke-test","version":"0"}}}'; then
+                  READY=1
+                  break
+                fi
+                sleep 1
+              done
+              test -n "$READY" || { echo "server never became reachable"; docker logs process_toolkit_mcp_ci; exit 1; }
+              cat /tmp/mcp_init_response.json
+              grep -q '"protocolVersion"' /tmp/mcp_init_response.json
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -158,4 +191,28 @@ jobs:
 
       - name: Run pytest suite
         run: uv run pytest tests/ -q
+
+  # Same reasoning as neurosan_processengineering_tests above: the Docker
+  # matrix's process_toolkit_mcp entry only proves the image builds and the
+  # server comes up and speaks MCP -- every tool, the rate limiter's actual
+  # token-bucket enforcement, and a real TLS handshake against a locally
+  # generated cert are exercised here instead, running directly against
+  # source (no --no-dev image, which would exclude pytest/cryptography).
+  process_toolkit_mcp_tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/MCP/ProcessToolkitServer
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies (including dev/test)
+        run: uv sync --locked
+
+      - name: Run pytest suite
+        run: uv run pytest -q
 

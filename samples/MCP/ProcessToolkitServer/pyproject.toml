@@ -1,0 +1,23 @@
+[project]
+name = "process-toolkit-mcp"
+version = "0.1.0"
+description = "Standalone FastMCP server (and reference client) exposing shared/process_toolkit's document, diagram, and workbook generation to MCP clients outside the Neuro-San and ADK ProcessEngineering agent apps."
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=4.2.0",
+    "process-toolkit",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=0.24.0",
+    "cryptography>=43.0.0",
+]
+
+[tool.uv.sources]
+process-toolkit = { path = "../../../shared/process_toolkit", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
