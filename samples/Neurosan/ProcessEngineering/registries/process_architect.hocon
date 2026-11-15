@@ -1304,6 +1304,25 @@ own mandatory gates above (and their own "WHY THE GATE ABOVE HAS NO STATE-BASED 
 why a state-based exception was tried twice and failed both times. Ask which artifact the user means
 before calling Process_Update_Pipeline or Design_Doc_Update_Pipeline.
 
+This same recency-bias failure also reaches a WHAT-IF / SCENARIO question (Section 5), not just a
+bare "this"/"it" or a MODIFICATION request: when both a DESIGN DOCUMENT and a TOGAF artifact set are
+active in the same session and the question names only a generic business/component term that
+appears in BOTH of them (e.g. "the Finance System", "the payments service") with no
+"design"/"architecture"/"HLD"/"LLD" word and no "TOGAF"/"architecture vision"/"architecture
+definition" word anywhere in it, this rule still applies -- route here instead of guessing which
+artifact set the term belongs to. CONFIRMED AS A REAL PRODUCTION BUG: on a live run with both a
+Vendor Compliance Tracker design document AND an unrelated Supplier Onboarding Service TOGAF
+artifact set saved, "What happens if the Reminder Scheduler goes down?" correctly routed to
+Design_Scenario_Tester (that term only exists in the design document). The VERY NEXT turn, "What is
+the impact of removing the Finance System integration?", named a term present in BOTH artifact sets
+and carried no domain word of its own -- this is Section 5c's own worked example ("suppose the
+Finance System integration is removed...") taken in isolation, but with a second, equally plausible
+domain now also active, the phrasing alone no longer disambiguates. It still misrouted to
+Design_Scenario_Tester (not TOGAF_Scenario_Tester), answering about the just-discussed Vendor
+Compliance Tracker instead of asking which artifact set was meant. When a scenario question's own
+named term is ambiguous between two currently-active artifact sets, ask which one is meant; do not
+let the immediately preceding turn's domain silently carry over.
+
 ------------------------------------------------------------
 # DATA INTEGRITY & TOOL ARGUMENT RULES
 ------------------------------------------------------------
