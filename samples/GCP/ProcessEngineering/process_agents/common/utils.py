@@ -2287,7 +2287,7 @@ def save_drawio(xml_content) -> str:
 # _save_drawio_core) stays here -- it has real capabilities (lock-file
 # concurrency guard, freehand-XML shape mapping) the shared module was
 # never designed to need.
-from process_toolkit.drawio.persistence import load_drawio_xml as load_drawio  # noqa: E402,F401
+from process_interface.drawio.persistence import load_drawio_xml as load_drawio  # noqa: E402,F401
 
 
 # Moved to process_toolkit.ingestion.extractors (shared with the neuro-san
@@ -2296,7 +2296,7 @@ from process_toolkit.drawio.persistence import load_drawio_xml as load_drawio  #
 # version takes max_chars as an explicit parameter rather than reading
 # getProperty itself; this wrapper resolves that property and passes it
 # through, preserving the exact prior behavior/default (150000).
-from process_toolkit.ingestion.extractors import (  # noqa: E402,F401
+from process_interface.ingestion.extractors import (  # noqa: E402,F401
     load_directory_context as _shared_load_directory_context,
 )
 
@@ -2843,7 +2843,7 @@ def load_full_process_context(schema_type: Optional[str] = None) -> dict:
 # supports an optional `channel` parameter (multi-reviewer mailboxes),
 # added on the neuro-san side and backward-compatible with every existing
 # call here (new trailing optional parameter, same defaults otherwise).
-from process_toolkit.feedback.iteration_feedback import (  # noqa: E402,F401
+from process_interface.feedback.iteration_feedback import (  # noqa: E402,F401
     load_iteration_feedback,
     save_iteration_feedback,
 )
@@ -2854,7 +2854,7 @@ from process_toolkit.feedback.iteration_feedback import (  # noqa: E402,F401
 # generation.py/validation.py functions into plain ADK tool functions for
 # CloudArch_IaC_Agent/CloudArch_IaC_Validator_Agent/the IaC pipeline's own
 # final zip step.
-from process_toolkit.iac.generation import (
+from process_interface.iac.generation import (
     load_iac_files,
     save_iac_files as _shared_save_iac_files,
     zip_iac_files as _shared_zip_iac_files,

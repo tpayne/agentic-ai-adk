@@ -16,7 +16,7 @@ from ..common.utils_agent import (
     claim_cloudarch_drawio_for_session,
 )
 from process_interface.run_lock import PipelineLockedError
-from process_toolkit.drawio.persistence import reset_drawio_xml  # not migrated yet -- drawio/persistence.py is Phase 5
+from process_interface.drawio.persistence import reset_drawio_xml
 from process_interface import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.CloudArchPipeline")

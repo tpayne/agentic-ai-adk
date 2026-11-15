@@ -3,10 +3,10 @@ revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.15' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.14.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.14' and sys_platform == 'win32'",
     "python_full_version < '3.14' and sys_platform == 'emscripten'",
@@ -3229,7 +3229,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastmcp", specifier = ">=4.2.0" },
+    { name = "fastmcp", specifier = ">=3.4.0" },
     { name = "process-toolkit", editable = "../../../shared/process_toolkit" },
 ]
 
@@ -3300,7 +3300,6 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "process-interface" },
-    { name = "process-toolkit" },
     { name = "pyopenssl" },
     { name = "pypdf" },
     { name = "python-docx" },
@@ -3331,7 +3330,6 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "pandas" },
     { name = "process-interface", editable = "../../../shared/process_interface" },
-    { name = "process-toolkit", editable = "../../../shared/process_toolkit" },
     { name = "pyopenssl", specifier = ">=24.0.0" },
     { name = "pypdf", specifier = ">=4.0.0" },
     { name = "python-docx", specifier = ">=1.1.0" },

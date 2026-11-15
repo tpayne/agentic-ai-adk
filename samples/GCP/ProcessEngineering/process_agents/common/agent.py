@@ -1758,7 +1758,7 @@ def build_web_app(https: bool = True):
         identical to download_cloudarch above, for the IaC zip
         CloudArch_IaC_Pipeline's own final step produces."""
         from process_interface import paths as toolkit_paths
-        from process_toolkit.iac.generation import IAC_ZIP_FILENAME  # not migrated yet -- iac/generation.py is Phase 5
+        from process_interface.iac.generation import IAC_ZIP_FILENAME
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(toolkit_paths.output_dir(), IAC_ZIP_FILENAME)

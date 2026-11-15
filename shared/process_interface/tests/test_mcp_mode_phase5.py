@@ -231,8 +231,15 @@ class TestSubprocessJsonBothModes:
         from process_interface.schema import process_json, subprocess_json
 
         template = process_json.load_process_template()
-        template["process_steps"] = [{"step_name": "Step A"}, {"step_name": ""}]
-        process_json.persist_final_json(template)
+        template["process_steps"] = [{
+            "step_name": "Step A",
+            "responsible_party": "Ops",
+            "description": "x" * 150,
+        }]
+        for field in ("metrics", "critical_success_factors", "critical_failure_factors", "reporting_and_analytics"):
+            template[field] = []
+        message = process_json.persist_final_json(template)
+        assert message.startswith("SUCCESS"), message
 
         steps = subprocess_json.load_process_steps()
         assert [s["step_name"] for s in steps] == ["Step A"]

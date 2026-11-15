@@ -1,15 +1,17 @@
-# Compliance chokepoint: process_agents/ imports process_interface, never
-# process_toolkit, directly wherever a process_interface equivalent exists
-# yet (see shared/process_interface's own module docstrings -- cloudarch/
-# iac/ingestion/feedback aren't migrated yet, a later phase). process_
-# interface itself still depends on process_toolkit (for local-mode calls
-# and its always-local re-exports), which is why this entry stays even as
-# process_agents/'s own imports move off it. Resolved relative to the CWD
-# pip is invoked from, which must be this directory (matching this file's
-# own documented `cd samples/GCP/ProcessEngineering && pip install -r
-# requirements.txt` setup flow, and this Dockerfile's WORKDIR). Docker
-# builds must use the repo root as build context so this path exists --
-# see the Dockerfile's own comments.
+# Compliance chokepoint: process_agents/ imports process_interface
+# exclusively, never process_toolkit directly (see shared/process_interface's
+# own module docstrings). The process_toolkit entry below stays anyway --
+# NOT because process_agents/ needs it, but because process_interface's own
+# pyproject.toml declares a bare "process-toolkit" dependency with a
+# `[tool.uv.sources]` local-path override that only uv understands. Plain
+# pip has no equivalent, so without this explicit local -e entry, `pip
+# install -r requirements.txt` would try (and fail, confirmed directly) to
+# fetch "process-toolkit" from PyPI, where it doesn't exist. Resolved
+# relative to the CWD pip is invoked from, which must be this directory
+# (matching this file's own documented `cd samples/GCP/ProcessEngineering
+# && pip install -r requirements.txt` setup flow, and this Dockerfile's
+# WORKDIR). Docker builds must use the repo root as build context so this
+# path exists -- see the Dockerfile's own comments.
 -e ../../../shared/process_toolkit
 -e ../../../shared/process_interface
 

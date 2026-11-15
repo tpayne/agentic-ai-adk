@@ -33,8 +33,12 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 
 WORKDIR /app/samples/GCP/ProcessEngineering
 
-# Shared process_toolkit package
+# Shared packages -- process_toolkit is needed because requirements.txt
+# keeps an explicit entry for it (pip has no local-source-override
+# mechanism, see requirements.txt's own comment); process_interface is
+# this project's own code's actual dependency.
 COPY shared/process_toolkit /app/shared/process_toolkit
+COPY shared/process_interface /app/shared/process_interface
 
 # Copy dependencies and application files
 COPY samples/GCP/ProcessEngineering/requirements.txt .

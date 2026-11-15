@@ -12,7 +12,13 @@ dependencies = [
     "neuro-san-studio>=0.4.2",
     "openpyxl>=3.1.5",
     "pandas>=3.0.6",
-    "process-toolkit",
+    # process-toolkit is NOT a direct dependency -- coded_tools/ and cli.py
+    # import process_interface exclusively (the compliance chokepoint; see
+    # shared/process_interface's own module docstrings). process-interface
+    # itself still depends on process-toolkit, so it remains available
+    # transitively -- this project's own tests/conftest.py-style fixtures
+    # that monkeypatch process_toolkit.paths.OUTPUT_DIR directly for test
+    # isolation keep working unchanged.
     "process-interface",
     "pyopenssl>=24.0.0",
     "python-docx>=1.2.0",
@@ -25,5 +31,4 @@ dev = [
 ]
 
 [tool.uv.sources]
-process-toolkit = { path = "../../../shared/process_toolkit", editable = true }
 process-interface = { path = "../../../shared/process_interface", editable = true }

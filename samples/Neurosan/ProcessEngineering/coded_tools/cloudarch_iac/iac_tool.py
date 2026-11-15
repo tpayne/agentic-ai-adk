@@ -14,7 +14,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.iac.generation import load_iac_files, save_iac_files, zip_iac_files  # not migrated yet -- iac/generation.py is Phase 5
+from process_interface.iac.generation import load_iac_files, save_iac_files, zip_iac_files
 from process_interface.iac.validation import validate_iac_files
 
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY

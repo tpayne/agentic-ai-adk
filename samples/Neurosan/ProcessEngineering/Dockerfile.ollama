@@ -28,8 +28,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app/samples/Neurosan/ProcessEngineering
 
-# Shared process_toolkit package
+# Shared packages -- process_toolkit is needed transitively by
+# process_interface, which is this project's own code's actual dependency
+# (see samples/Neurosan/ProcessEngineering/Dockerfile's matching comment).
 COPY shared/process_toolkit /app/shared/process_toolkit
+COPY shared/process_interface /app/shared/process_interface
 
 # Dependencies first for caching
 COPY samples/Neurosan/ProcessEngineering/pyproject.toml samples/Neurosan/ProcessEngineering/uv.lock ./

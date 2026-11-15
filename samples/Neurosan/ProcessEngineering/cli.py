@@ -166,10 +166,10 @@ from neuro_san.message.processors.message_processor import MessageProcessor  # n
 from neuro_san.message.types.chat_message_type import ChatMessageType  # noqa: E402
 from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  # noqa: E402
 
-from process_toolkit import paths  # noqa: E402
-from process_toolkit.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
-from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
-from process_toolkit.session_purge import purge_session, start_session_purge_thread  # noqa: E402
+from process_interface import paths  # noqa: E402
+from process_interface.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
+from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
+from process_interface.session_purge import purge_session, start_session_purge_thread  # noqa: E402
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
     copy_artifact_to_destination,
@@ -177,7 +177,7 @@ from coded_tools.common.artifact_downloads import (  # noqa: E402
     portfolio_backlog_workbook_exists,
     safe_output_file_path,
 )
-from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
+from process_interface.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
@@ -2025,7 +2025,7 @@ def build_web_app(agent_name: str, https: bool = True):
         cloudarch_iac.zip as a real file attachment -- structurally
         identical to download_cloudarch above, for the IaC zip
         CloudArch_IaC_Pipeline's own zip_iac_files tool produces."""
-        from process_toolkit.iac.generation import IAC_ZIP_FILENAME
+        from process_interface.iac.generation import IAC_ZIP_FILENAME
 
         with paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(paths.output_dir(), IAC_ZIP_FILENAME)
