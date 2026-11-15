@@ -147,3 +147,137 @@ def test_persist_accepts_a_json_string():
 def test_persist_rejects_a_malformed_json_string():
     result = persist_final_togaf_json("{not valid json")
     assert result.startswith("ERROR:")
+
+
+def _valid_metadata():
+    return {
+        "document_id": "T-1", "system_name": "Checkout", "title": "Checkout Architecture",
+        "version": "1.0", "status": "draft",
+    }
+
+
+def test_validate_rejects_a_non_object_item_in_business_architecture_capabilities():
+    # Regression: this is the exact shape of data that previously passed validation
+    # silently (business_architecture was not validated at all) and then crashed
+    # docgen/generation.py's _togaf_has_real_definition_content with
+    # AttributeError: 'int' object has no attribute 'get'.
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "business_architecture": {"capabilities": [42, {"id": "CAP-001", "name": "Supplier Onboarding"}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    assert any(issue["location"] == "business_architecture.capabilities[0]" for issue in result["issues"])
+
+
+def test_validate_requires_id_and_name_for_each_capability():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "business_architecture": {"capabilities": [{"description": "No id or name."}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "business_architecture.capabilities[0].id" in locations
+    assert "business_architecture.capabilities[0].name" in locations
+
+
+def test_validate_requires_source_and_target_for_each_data_flow():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "data_architecture": {"data_flows": [{"description": "Missing source/target."}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "data_architecture.data_flows[0].source" in locations
+    assert "data_architecture.data_flows[0].target" in locations
+
+
+def test_validate_requires_source_and_target_for_each_application_communication():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "application_architecture": {"application_communications": [{"protocol": "HTTPS"}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "application_architecture.application_communications[0].source" in locations
+    assert "application_architecture.application_communications[0].target" in locations
+
+
+def test_validate_requires_category_and_technology_for_each_technology_portfolio_entry():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "technology_architecture": {"technology_portfolio": [{"justification": "No category/technology."}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "technology_architecture.technology_portfolio[0].category" in locations
+    assert "technology_architecture.technology_portfolio[0].technology" in locations
+
+
+def test_validate_rejects_an_opportunity_with_no_grounding():
+    # TOGAF_TEMPLATE's own comment: "Every gap MUST cite a real requirement/design
+    # id in grounded_in -- never invent a gap with no grounding."
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "opportunities_and_solutions": [
+            {"id": "GAP-001", "gap_description": "No capability for X.", "grounded_in": []},
+        ],
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    assert any(issue["location"] == "opportunities_and_solutions[0].grounded_in" for issue in result["issues"])
+
+
+def test_validate_accepts_a_grounded_opportunity():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "opportunities_and_solutions": [
+            {
+                "id": "GAP-001", "gap_description": "No capability for X.",
+                "grounded_in": ["FR-001"], "proposed_solution": "Build X.", "work_package_ref": "WP-001",
+            },
+        ],
+    }
+    result = validate_togaf_json(doc)
+    assert result == {"valid": True, "issues": []}
+
+
+def test_validate_requires_id_and_name_for_each_migration_work_package():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "migration_planning": {"work_packages": [{"description": "Missing id/name."}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "migration_planning.work_packages[0].id" in locations
+    assert "migration_planning.work_packages[0].name" in locations
+
+
+def test_validate_requires_standard_and_status_for_each_compliance_finding():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "architecture_compliance_assessment": {"compliance_findings": [{"reference": "No standard/status."}]},
+    }
+    result = validate_togaf_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "architecture_compliance_assessment.compliance_findings[0].standard_or_requirement" in locations
+    assert "architecture_compliance_assessment.compliance_findings[0].status" in locations
+
+
+def test_validate_leaves_sections_that_are_not_yet_filled_in_unflagged():
+    # Mid-generation documents legitimately have sections the agent hasn't
+    # populated yet -- a section that's absent, or present but not a list where a
+    # list is expected, must not itself be an issue (only malformed *items* are).
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "business_architecture": {},
+        "data_architecture": {"data_entities": "not a list yet"},
+    }
+    result = validate_togaf_json(doc)
+    assert result == {"valid": True, "issues": []}

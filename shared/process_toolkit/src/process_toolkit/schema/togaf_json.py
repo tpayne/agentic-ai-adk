@@ -204,6 +204,35 @@ def load_full_togaf_context() -> Dict[str, Any]:
     return load_master_togaf_json()
 
 
+def _validate_list_items(
+    items: Any, location_prefix: str, required_fields: tuple, issues: List[Dict[str, str]]
+) -> None:
+    """Shared list-of-objects check used by validate_togaf_json's Phase B/C/D/E/F/G
+    sections below. Mirrors the container-optional convention already established
+    by the architecture_requirements_specification check (a missing/not-yet-a-list
+    field is not itself an issue -- mid-generation documents legitimately have
+    unfilled sections) but, unlike that existing check, flags a non-dict item as an
+    issue instead of silently skipping it: a bare int in a list that should contain
+    objects is exactly the shape of data that passed validation and then crashed
+    docgen/generation.py's _togaf_has_real_definition_content (see _as_dict there) --
+    validation is the right place to reject it, not a defensive helper downstream."""
+    if not isinstance(items, list):
+        return
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            issues.append({
+                "location": f"{location_prefix}[{index}]",
+                "issue": f"Expected an object with field(s) {list(required_fields)}, got {type(item).__name__}",
+            })
+            continue
+        for field in required_fields:
+            if not str(item.get(field) or "").strip():
+                issues.append({
+                    "location": f"{location_prefix}[{index}].{field}",
+                    "issue": f"'{field}' is required",
+                })
+
+
 def validate_togaf_json(json_content: Any) -> Dict[str, Any]:
     issues: List[Dict[str, str]] = []
 
@@ -253,6 +282,93 @@ def validate_togaf_json(json_content: Any) -> Dict[str, Any]:
                         "location": f"architecture_requirements_specification.{requirement_type}[{index}].acceptance_criteria",
                         "issue": "At least one concrete, verifiable acceptance criterion is required",
                     })
+
+    business_architecture = json_content.get("business_architecture")
+    if isinstance(business_architecture, dict):
+        _validate_list_items(
+            business_architecture.get("capabilities"), "business_architecture.capabilities", ("id", "name"), issues
+        )
+        _validate_list_items(
+            business_architecture.get("value_streams"), "business_architecture.value_streams", ("name",), issues
+        )
+
+    data_architecture = json_content.get("data_architecture")
+    if isinstance(data_architecture, dict):
+        _validate_list_items(
+            data_architecture.get("data_entities"), "data_architecture.data_entities", ("name",), issues
+        )
+        _validate_list_items(
+            data_architecture.get("data_flows"), "data_architecture.data_flows", ("source", "target"), issues
+        )
+
+    application_architecture = json_content.get("application_architecture")
+    if isinstance(application_architecture, dict):
+        _validate_list_items(
+            application_architecture.get("application_components"),
+            "application_architecture.application_components",
+            ("name",),
+            issues,
+        )
+        _validate_list_items(
+            application_architecture.get("application_communications"),
+            "application_architecture.application_communications",
+            ("source", "target"),
+            issues,
+        )
+
+    technology_architecture = json_content.get("technology_architecture")
+    if isinstance(technology_architecture, dict):
+        _validate_list_items(
+            technology_architecture.get("technology_portfolio"),
+            "technology_architecture.technology_portfolio",
+            ("category", "technology"),
+            issues,
+        )
+
+    opportunities_and_solutions = json_content.get("opportunities_and_solutions")
+    if isinstance(opportunities_and_solutions, list):
+        for index, item in enumerate(opportunities_and_solutions):
+            if not isinstance(item, dict):
+                issues.append({
+                    "location": f"opportunities_and_solutions[{index}]",
+                    "issue": f"Expected an object, got {type(item).__name__}",
+                })
+                continue
+            for field in ("id", "gap_description"):
+                if not str(item.get(field) or "").strip():
+                    issues.append({
+                        "location": f"opportunities_and_solutions[{index}].{field}",
+                        "issue": f"'{field}' is required",
+                    })
+            # TOGAF_TEMPLATE's own comment is explicit: "Every gap MUST cite a
+            # real requirement/design id in grounded_in -- never invent a gap
+            # with no grounding."
+            grounded_in = item.get("grounded_in")
+            if not isinstance(grounded_in, list) or not any(
+                isinstance(ref, str) and ref.strip() for ref in grounded_in
+            ):
+                issues.append({
+                    "location": f"opportunities_and_solutions[{index}].grounded_in",
+                    "issue": (
+                        "At least one real requirement or design id is required in grounded_in -- "
+                        "never invent a gap with no grounding"
+                    ),
+                })
+
+    migration_planning = json_content.get("migration_planning")
+    if isinstance(migration_planning, dict):
+        _validate_list_items(
+            migration_planning.get("work_packages"), "migration_planning.work_packages", ("id", "name"), issues
+        )
+
+    architecture_compliance_assessment = json_content.get("architecture_compliance_assessment")
+    if isinstance(architecture_compliance_assessment, dict):
+        _validate_list_items(
+            architecture_compliance_assessment.get("compliance_findings"),
+            "architecture_compliance_assessment.compliance_findings",
+            ("standard_or_requirement", "status"),
+            issues,
+        )
 
     return {"valid": len(issues) == 0, "issues": issues}
 
