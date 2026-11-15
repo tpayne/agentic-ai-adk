@@ -16,7 +16,7 @@ import json
 import traceback
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import docx
 from docx.shared import Inches, Pt
@@ -1672,6 +1672,20 @@ def _build_architecture_definition_document(
     return out_path
 
 
+def _as_dict(value: Any) -> dict:
+    """`value or {}` only guards against falsy values (None, "", 0) --
+    CONFIRMED AS A REAL BUG via a live run: an agent-generated
+    business_architecture.capabilities list containing a bare int
+    (instead of a {"name": ...} object) is truthy, so `int_value or {}`
+    keeps the int, and the subsequent `.get("name")` raised
+    AttributeError, aborting TOGAF document generation entirely even
+    though the content had already been validated and APPROVED. Any
+    field an LLM populates can be any JSON type regardless of the
+    template's own shape, so every one of this function's dict-shaped
+    reads goes through this instead of a bare `or {}`."""
+    return value if isinstance(value, dict) else {}
+
+
 def _togaf_has_real_definition_content(data: dict) -> bool:
     """True only if at least one Architecture Definition section has a
     real, agent-populated entry -- NOT just a truthy section object.
@@ -1685,42 +1699,42 @@ def _togaf_has_real_definition_content(data: dict) -> bool:
     every section's own placeholder dict/list is itself non-empty. Checks
     each section's own identifying field instead -- empty string there
     means "still the placeholder", not "real content"."""
-    business_architecture = data.get("business_architecture") or {}
-    if any((c or {}).get("name") for c in business_architecture.get("capabilities") or []):
+    business_architecture = _as_dict(data.get("business_architecture"))
+    if any(_as_dict(c).get("name") for c in business_architecture.get("capabilities") or []):
         return True
-    if any((v or {}).get("name") for v in business_architecture.get("value_streams") or []):
+    if any(_as_dict(v).get("name") for v in business_architecture.get("value_streams") or []):
         return True
-    if (business_architecture.get("capability_map_diagram") or {}).get("title"):
+    if _as_dict(business_architecture.get("capability_map_diagram")).get("title"):
         return True
-    data_architecture = data.get("data_architecture") or {}
-    if any((e or {}).get("name") for e in data_architecture.get("data_entities") or []):
+    data_architecture = _as_dict(data.get("data_architecture"))
+    if any(_as_dict(e).get("name") for e in data_architecture.get("data_entities") or []):
         return True
-    if any((f or {}).get("source") for f in data_architecture.get("data_flows") or []):
+    if any(_as_dict(f).get("source") for f in data_architecture.get("data_flows") or []):
         return True
-    if (data_architecture.get("data_flow_diagram") or {}).get("title"):
+    if _as_dict(data_architecture.get("data_flow_diagram")).get("title"):
         return True
-    application_architecture = data.get("application_architecture") or {}
-    if any((c or {}).get("name") for c in application_architecture.get("application_components") or []):
+    application_architecture = _as_dict(data.get("application_architecture"))
+    if any(_as_dict(c).get("name") for c in application_architecture.get("application_components") or []):
         return True
-    if any((c or {}).get("source") for c in application_architecture.get("application_communications") or []):
+    if any(_as_dict(c).get("source") for c in application_architecture.get("application_communications") or []):
         return True
-    if (application_architecture.get("application_communication_diagram") or {}).get("title"):
+    if _as_dict(application_architecture.get("application_communication_diagram")).get("title"):
         return True
-    technology_architecture = data.get("technology_architecture") or {}
-    if any((t or {}).get("technology") for t in technology_architecture.get("technology_portfolio") or []):
+    technology_architecture = _as_dict(data.get("technology_architecture"))
+    if any(_as_dict(t).get("technology") for t in technology_architecture.get("technology_portfolio") or []):
         return True
-    if (technology_architecture.get("technology_portfolio_diagram") or {}).get("title"):
+    if _as_dict(technology_architecture.get("technology_portfolio_diagram")).get("title"):
         return True
-    if any((o or {}).get("gap_description") for o in data.get("opportunities_and_solutions") or []):
+    if any(_as_dict(o).get("gap_description") for o in data.get("opportunities_and_solutions") or []):
         return True
-    migration_planning = data.get("migration_planning") or {}
-    if any((w or {}).get("name") for w in migration_planning.get("work_packages") or []):
+    migration_planning = _as_dict(data.get("migration_planning"))
+    if any(_as_dict(w).get("name") for w in migration_planning.get("work_packages") or []):
         return True
     if str(migration_planning.get("sequencing_notes") or "").strip():
         return True
-    compliance_assessment = data.get("architecture_compliance_assessment") or {}
+    compliance_assessment = _as_dict(data.get("architecture_compliance_assessment"))
     if any(
-        (f or {}).get("standard_or_requirement")
+        _as_dict(f).get("standard_or_requirement")
         for f in compliance_assessment.get("compliance_findings") or []
     ):
         return True
