@@ -17,8 +17,8 @@ from ..common.utils_agent import (
     release_pipeline_lock_after_run,
 )
 from ..common.agent_wrappers import ProcessAgent
-from process_toolkit.run_lock import PipelineLockedError
-from process_toolkit import paths as toolkit_paths
+from process_interface.run_lock import PipelineLockedError
+from process_interface import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.CloudArchIacPipeline")
 

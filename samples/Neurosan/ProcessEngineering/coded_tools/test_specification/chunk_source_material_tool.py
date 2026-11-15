@@ -15,7 +15,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.ingestion.chunking import chunk_and_wrap
+from process_interface.ingestion.chunking import chunk_and_wrap
 
 
 class ChunkSourceMaterialCodedTool(CodedTool):

@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack
+from process_interface.cloudarch.attack_simulation import simulate_cloudarch_attack
 
 
 class SimulateCloudarchAttackCodedTool(CodedTool):

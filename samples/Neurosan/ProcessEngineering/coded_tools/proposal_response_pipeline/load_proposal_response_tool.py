@@ -12,7 +12,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.proposal_response.proposal_response import load_proposal_response
+from process_interface.proposal_response.proposal_response import load_proposal_response
 
 
 class LoadProposalResponseCodedTool(CodedTool):

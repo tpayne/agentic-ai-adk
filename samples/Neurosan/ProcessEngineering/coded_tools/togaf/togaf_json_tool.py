@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.schema.togaf_json import (
+from process_interface.schema.togaf_json import (
     load_master_togaf_json,
     load_togaf_template,
     load_full_togaf_context,

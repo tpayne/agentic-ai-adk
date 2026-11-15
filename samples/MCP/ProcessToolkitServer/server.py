@@ -62,6 +62,20 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
     save_portfolio_backlog as _save_portfolio_backlog,
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
+from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
+from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack as _simulate_cloudarch_attack
+from process_toolkit.cloudarch.finops import estimate_cloudarch_finops as _estimate_cloudarch_finops
+from process_toolkit.schema.master_json import load_master_json as _load_master_json
+from process_toolkit.schema.subprocess_json import save_subprocess_flow as _save_subprocess_flow
+from process_toolkit.iac.generation import save_iac_files as _save_iac_files
+from process_toolkit.feedback.iteration_feedback import (
+    load_iteration_feedback as _load_iteration_feedback,
+    save_iteration_feedback as _save_iteration_feedback,
+    reset_approval_state as _reset_approval_state,
+    reset_feedback_channels as _reset_feedback_channels,
+    format_review_status_summary as _format_review_status_summary,
+)
 
 import dispatch
 
@@ -354,6 +368,144 @@ def get_artifact(filename: str, session_id: Optional[str] = None) -> dict:
     generate_diagram/generate_portfolio_backlog."""
     with _session(session_id):
         return _encode_file(_safe_artifact_path(filename))
+
+
+@mcp.tool
+def load_drawio(session_id: Optional[str] = None) -> dict:
+    """Returns the currently saved cloud-architecture diagram's XML for
+    `session_id` -- {"status": "NOT_FOUND"|"OK"|"ERROR", "xml": str|None}."""
+    with _session(session_id):
+        return _load_drawio_xml()
+
+
+@mcp.tool
+def reset_drawio(session_id: Optional[str] = None) -> dict:
+    """Removes any saved cloud-architecture diagram (plus its concurrency-
+    lock/debug-dump siblings) for `session_id`, so a session's first touch
+    of the cloudarch subsystem never inherits a diagram a different,
+    unrelated session left behind."""
+    with _session(session_id):
+        _reset_drawio_xml()
+    return {"status": "OK"}
+
+
+@mcp.tool
+def simulate_architecture(xml_content: Optional[str] = None, session_id: Optional[str] = None) -> str:
+    """Runs the cloud-architecture resilience/scalability/latency
+    simulation. `xml_content` defaults to the session's currently saved
+    diagram (via load_drawio) when omitted. Returns a JSON-encoded string
+    (not a dict) -- matching process_toolkit.cloudarch.simulation's own
+    return type exactly, including its own {"error": ...} shape on
+    failure (this tool never raises for a missing diagram/bad input)."""
+    with _session(session_id):
+        return _simulate_cloudarch_architecture(xml_content)
+
+
+@mcp.tool
+def simulate_attack(xml_content: Optional[str] = None, session_id: Optional[str] = None) -> str:
+    """Runs the cloud-architecture attack-path simulation (unauthenticated
+    access, lateral movement, privilege escalation, data exfiltration,
+    credential compromise). Same xml_content/return-shape contract as
+    simulate_architecture."""
+    with _session(session_id):
+        return _simulate_cloudarch_attack(xml_content)
+
+
+@mcp.tool
+def estimate_finops(xml_content: Optional[str] = None, session_id: Optional[str] = None) -> str:
+    """Estimates cloud-architecture cost and optimization opportunities.
+    Same xml_content/return-shape contract as simulate_architecture."""
+    with _session(session_id):
+        return _estimate_cloudarch_finops(xml_content)
+
+
+@mcp.tool
+def save_iac(files: dict[str, str], session_id: Optional[str] = None) -> dict:
+    """Persists the complete set of Infrastructure-as-Code files
+    ({relative_filename: content}) for `session_id`, overwriting any
+    previous IaC generation for this session first. Returns
+    {sanitized_relative_filename: ...} -- the server-side path itself
+    isn't meaningful to a remote caller, so this returns just the
+    sanitized filenames (process_interface's own save_iac_files mirrors
+    the same content locally too, since it already has it in hand)."""
+    with _session(session_id):
+        written = _save_iac_files(files)
+    return {"files_written": sorted(written.keys())}
+
+
+@mcp.tool
+def load_master_json(schema_type: Optional[str] = None, session_id: Optional[str] = None) -> dict:
+    """Generic reader for whichever of design_data.json/process_data.json
+    exists for `session_id` -- `schema_type` ("design"|"process") reads
+    exactly that file; omitted, it auto-detects by most-recently-modified.
+    Equivalent to load_context("design"/"process") when schema_type is
+    given explicitly; this tool exists for the auto-detect case only
+    load_master_json itself supports."""
+    with _session(session_id):
+        return _load_master_json(schema_type)
+
+
+@mcp.tool
+def save_subprocess_flow(step_name: str, flow: dict, session_id: Optional[str] = None) -> dict:
+    """Persists a generated subprocess flow for one parent-process step
+    (output/<session_id>/subprocesses/<safe_name>.json). Returns
+    {"status": "OK"|"ERROR", ...} -- never raises for invalid input,
+    matching process_toolkit's own contract."""
+    with _session(session_id):
+        return _save_subprocess_flow(step_name, flow)
+
+
+@mcp.tool
+def load_feedback(reset_data: bool = True, channel: str = "", session_id: Optional[str] = None) -> dict:
+    """Reads the named review-feedback mailbox for `session_id`, then
+    drains it (unless reset_data=False) so a later, unrelated read never
+    sees stale content. channel="" is the single unchanneled mailbox most
+    pipelines use; named channels (e.g. "compliance", "simulation") let
+    multiple reviewers in the same pipeline keep separate mailboxes."""
+    with _session(session_id):
+        return _load_iteration_feedback(reset_data=reset_data, channel=channel)
+
+
+@mcp.tool
+def save_feedback(feedback_data: Any, channel: str = "", session_id: Optional[str] = None) -> dict:
+    """Normalizes a reviewer's payload, updates the cumulative approval
+    state for any approval marker found in it, and writes the mailbox for
+    `session_id`/`channel`."""
+    with _session(session_id):
+        message = _save_iteration_feedback(feedback_data, channel=channel)
+    return {"message": message, "success": message.startswith("SUCCESS")}
+
+
+@mcp.tool
+def reset_approval_state(session_id: Optional[str] = None) -> dict:
+    """Clears stale approval/stop-counter state left over from an earlier,
+    unrelated pipeline run for `session_id`. Call once before a fresh
+    generate/review loop starts."""
+    with _session(session_id):
+        _reset_approval_state()
+    return {"status": "OK"}
+
+
+@mcp.tool
+def reset_feedback_channels(session_id: Optional[str] = None) -> dict:
+    """Clears every known feedback mailbox for `session_id` left over from
+    an earlier, unrelated pipeline run."""
+    with _session(session_id):
+        _reset_feedback_channels()
+    return {"status": "OK"}
+
+
+@mcp.tool
+def review_status_summary(channels: Optional[list[str]] = None, session_id: Optional[str] = None) -> str:
+    """Deterministically renders each named channel's CURRENT mailbox
+    state (APPROVED, or every open issue's own persisted text) into one
+    plain-text summary for `session_id`, without draining any mailbox.
+    channels defaults to process_toolkit's own default
+    ("compliance", "simulation") when omitted."""
+    with _session(session_id):
+        if channels is None:
+            return _format_review_status_summary()
+        return _format_review_status_summary(channels)
 
 
 def _parse_args() -> argparse.Namespace:

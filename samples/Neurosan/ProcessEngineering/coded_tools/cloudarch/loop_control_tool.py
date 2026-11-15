@@ -2,7 +2,7 @@ from typing import Any, Dict, Union
 
 from coded_tools.common.loop_control import LoopControlCodedTool as _SharedLoopControlCodedTool
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
-from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
+from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
 
 __all__ = ["LoopControlCodedTool"]
 

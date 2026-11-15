@@ -29,10 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # the real depth avoids relying on that pip-only leniency at all.
 WORKDIR /app/samples/GCP/ProcessEngineering
 
-# The shared package itself, copied to the exact path requirements.txt's own
-# "../../../shared/process_toolkit" entry already resolves to from this
+# The shared packages themselves, copied to the exact paths requirements.
+# txt's own "../../../shared/..." entries already resolve to from this
 # WORKDIR -- no path differences needed between local dev and this image.
+# process_toolkit is copied even though process_agents/ itself only
+# imports process_interface (the compliance chokepoint) -- pip has no
+# equivalent of uv's local-source-override mechanism, so requirements.txt
+# keeps an explicit entry for it too (see requirements.txt's own comment).
 COPY shared/process_toolkit /app/shared/process_toolkit
+COPY shared/process_interface /app/shared/process_interface
 
 # Copy files (paths relative to the repo-root build context)
 COPY samples/GCP/ProcessEngineering/requirements.txt .

@@ -41,11 +41,15 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # look right.
 WORKDIR /app/samples/Neurosan/ProcessEngineering
 
-# The shared package itself, copied to the exact path pyproject.toml's own
-# "../../../shared/process_toolkit" source entry already resolves to from
+# The shared packages themselves, copied to the exact paths pyproject.
+# toml's own "../../../shared/..." source entries already resolve to from
 # this WORKDIR -- no path differences needed between local dev and this
-# image.
+# image. process_toolkit is copied even though this project's own code
+# only imports process_interface (the compliance chokepoint) -- process_
+# interface's own pyproject.toml still depends on process_toolkit directly
+# (for local-mode calls), so uv needs it present to resolve that.
 COPY shared/process_toolkit /app/shared/process_toolkit
+COPY shared/process_interface /app/shared/process_interface
 
 # Dependencies first (cached across builds unless pyproject.toml/uv.lock
 # change), application code second. Paths relative to the repo-root build

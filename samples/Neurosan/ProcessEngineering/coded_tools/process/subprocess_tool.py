@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.schema.subprocess_json import load_process_steps, save_subprocess_flow
+from process_interface.schema.subprocess_json import load_process_steps, save_subprocess_flow
 
 
 class LoadProcessStepsCodedTool(CodedTool):

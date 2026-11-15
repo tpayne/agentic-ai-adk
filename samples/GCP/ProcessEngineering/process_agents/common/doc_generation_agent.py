@@ -9,7 +9,7 @@ from typing import Optional
 
 from google.adk.tools.tool_context import ToolContext
 
-from process_toolkit.docgen.generation import create_standard_doc_from_file as _shared_create_standard_doc_from_file
+from process_interface.docgen.generation import create_standard_doc_from_file as _shared_create_standard_doc_from_file
 
 from .agent_wrappers import ProcessAgent
 from .utils_agent import release_pipeline_lock_for_turn
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         input_path = sys.argv[1]
     else:
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
 
         input_path = toolkit_paths.output_path("process_data.json")
 

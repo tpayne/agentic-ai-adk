@@ -10,11 +10,11 @@ import os
 import sys
 from typing import Optional
 
-from process_toolkit.docgen.edge_inference import (
-    _infer_edges_from_json,
+from process_interface.docgen.edge_inference import (
+    infer_edges_from_json as _infer_edges_from_json,
     generate_clean_diagram as _shared_generate_clean_diagram,
 )
-from process_toolkit import paths as toolkit_paths
+from process_interface import paths as toolkit_paths
 
 from .agent_wrappers import ProcessAgent
 

@@ -59,8 +59,12 @@ jobs:
             test_cmd: |
               # No LLM key in CI, so a real agent conversation can't run here
               # -- this at least confirms the image's own dependency/import
-              # graph resolves (including the shared process_toolkit package).
-              docker run --rm --entrypoint python3 "$IMAGE_TAG" -c "import process_toolkit; import process_agents.common.utils; print('process_toolkit imports OK')"
+              # graph resolves. process_agents/ itself only imports
+              # process_interface (the compliance chokepoint); process_toolkit
+              # is checked too since it's still a real transitive dependency
+              # (process_interface's own local-mode calls need it) that the
+              # image must also have installed correctly.
+              docker run --rm --entrypoint python3 "$IMAGE_TAG" -c "import process_interface; import process_toolkit; import process_agents.common.utils; print('process_interface/process_toolkit imports OK')"
 
           - name: process_adk_ollama
             context: samples/GCP/ProcessEngineering
@@ -69,7 +73,7 @@ jobs:
             tag: adkprocesseng-ollama:latest
             test_cmd: |
               # Verifies Ollama binary, supervisor, and python modules are properly installed
-              docker run --rm --entrypoint /bin/bash "$IMAGE_TAG" -c "ollama --version && supervisord --version && python3 -c 'import process_toolkit; print(\"OK\")'"
+              docker run --rm --entrypoint /bin/bash "$IMAGE_TAG" -c "ollama --version && supervisord --version && python3 -c 'import process_interface; import process_toolkit; print(\"OK\")'"
 
           - name: neurosan_process
             context: samples/Neurosan/ProcessEngineering
@@ -179,6 +183,33 @@ jobs:
     defaults:
       run:
         working-directory: samples/Neurosan/ProcessEngineering
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies (including dev/test)
+        run: uv sync --locked
+
+      - name: Run pytest suite
+        run: uv run pytest tests/ -q
+
+  # Same reasoning as neurosan_processengineering_tests above: the Docker
+  # matrix's process_adk entry only proves the image's import graph
+  # resolves -- the full ADK-side wiring/pipeline/artifact-download suite
+  # (plus the compliance guard confirming process_agents/ never imports
+  # process_toolkit directly) runs here instead. Uses uv rather than this
+  # project's own pip + requirements.txt distribution path purely for CI
+  # speed/caching -- both resolve the identical dependency set (confirmed:
+  # process-interface's `[tool.uv.sources]` local-path override already
+  # supplies process-toolkit transitively either way).
+  gcp_processengineering_tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/GCP/ProcessEngineering
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

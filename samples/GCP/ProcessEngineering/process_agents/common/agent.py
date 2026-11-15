@@ -572,7 +572,7 @@ async def init_session_and_runner(app_name: str = "ProcessArchitect"):
     # iterations. Since this always runs at the start of a fresh session
     # (including "clear"), reset it here unconditionally too.
     from .utils_agent import _reset_stop_counter
-    from process_toolkit import paths as toolkit_paths
+    from process_interface import paths as toolkit_paths
     _reset_stop_counter(toolkit_paths.output_path("stop_counter.json"))
 
     user_id = str(uuid.uuid4())
@@ -721,7 +721,7 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
     identity map after a process restart.
     """
     global _web_runner, _web_session_service, _web_sessions_last_swept
-    from process_toolkit import paths as toolkit_paths
+    from process_interface import paths as toolkit_paths
 
     now = time.monotonic()
     evicted: list = []
@@ -805,7 +805,7 @@ async def _get_or_create_web_session(existing_session_id: Optional[str]):
 
 def _create_web_session_service():
     """Creates the durable ADK session store used by web-service mode."""
-    from process_toolkit import paths as toolkit_paths
+    from process_interface import paths as toolkit_paths
     from sqlalchemy.engine import URL
 
     db_url = (
@@ -1027,7 +1027,7 @@ async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> 
         return
 
     from .utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
-    from process_toolkit.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
+    from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
 
     stored = session.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
     token = stored.get("token") if isinstance(stored, dict) else None
@@ -1043,7 +1043,7 @@ async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> 
 
 async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):
     """Resolve/create the web session, then run one query through it."""
-    from process_toolkit import paths as toolkit_paths
+    from process_interface import paths as toolkit_paths
 
     web_session_id, user_id, session_id = await _get_or_create_web_session(existing_session_id)
     _mark_web_session_active(web_session_id)
@@ -1473,7 +1473,7 @@ def build_web_app(https: bool = True):
                 # which _stream_chat_turn's entire Task (including its own
                 # finally block's pipeline-lock release, which also resolves
                 # this session's own output/ directory) then runs under.
-                from process_toolkit import paths as toolkit_paths
+                from process_interface import paths as toolkit_paths
 
                 with toolkit_paths.use_session(web_session_id):
                     loop = asyncio.new_event_loop()
@@ -1604,7 +1604,7 @@ def build_web_app(https: bool = True):
         # now rather than waiting for the next purge sweep -- an explicit
         # "drop this session" request is as clear a signal as it gets that
         # nothing will need those files again.
-        from process_toolkit.session_purge import purge_session
+        from process_interface.session_purge import purge_session
 
         try:
             purge_session(session_id)
@@ -1645,7 +1645,7 @@ def build_web_app(https: bool = True):
         -- the client's own mxGraph-XML renderer parses it directly, the
         same way it already does for a saved .drawio file.
         """
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
 
         filenames = {
             "process": "process_data.json",
@@ -1698,7 +1698,7 @@ def build_web_app(https: bool = True):
         filename the way process/design/cloudarch above are. Same
         contract as the neuro-san port's own identical route.
         """
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
         from .artifact_downloads import list_output_documents
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
@@ -1714,7 +1714,7 @@ def build_web_app(https: bool = True):
         output/. `path` is resolved to a concrete absolute string up
         front, so send_file's own (possibly deferred) streaming below
         doesn't depend on the session context still being active."""
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
         from .artifact_downloads import safe_output_file_path
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
@@ -1739,7 +1739,7 @@ def build_web_app(https: bool = True):
         /artifacts/cloudarch above, which returns it JSON-wrapped as a
         string for the client's own mxGraph-XML renderer) -- for opening
         directly in a real draw.io client, or just keeping a copy."""
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(toolkit_paths.output_dir(), "cloudarch_drawio.xml")
@@ -1757,8 +1757,8 @@ def build_web_app(https: bool = True):
         cloudarch_iac.zip as a real file attachment -- structurally
         identical to download_cloudarch above, for the IaC zip
         CloudArch_IaC_Pipeline's own final step produces."""
-        from process_toolkit import paths as toolkit_paths
-        from process_toolkit.iac.generation import IAC_ZIP_FILENAME
+        from process_interface import paths as toolkit_paths
+        from process_interface.iac.generation import IAC_ZIP_FILENAME
 
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
             path = os.path.join(toolkit_paths.output_dir(), IAC_ZIP_FILENAME)
@@ -1773,7 +1773,7 @@ def build_web_app(https: bool = True):
     @web_app.route("/artifacts/portfolio_backlog_workbook/download", methods=["GET"])
     def download_portfolio_backlog_workbook():
         """Downloads the generated Enterprise Agile Portfolio Backlog workbook for this web session."""
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
 
         filename = "portfolio_backlog.xlsx"
         with toolkit_paths.use_session(_web_session_id_for_get_request()):
@@ -1808,7 +1808,7 @@ def build_web_app(https: bool = True):
         verbatim rather than re-extracted, and Requirements_Summary_Agent's/
         Proposal_Response_Agent's own literal-restore STEPs for the
         corresponding JSON files."""
-        from process_toolkit import paths as toolkit_paths
+        from process_interface import paths as toolkit_paths
 
         filenames = {
             "process": "process_data.json",
@@ -1922,7 +1922,7 @@ def run_web_service(port: Optional[int], use_https: bool):
     # convention (properties file, falling back to the SESSIONMAXAGEDAYS/
     # SESSIONPURGEINTERVALSECONDS env vars) -- same names the neuro-san
     # port's own cli.py reads directly as env vars.
-    from process_toolkit.session_purge import start_session_purge_thread
+    from process_interface.session_purge import start_session_purge_thread
 
     session_max_age_seconds = float(getProperty("sessionMaxAgeDays", default=3)) * 86400.0
     session_purge_interval_seconds = float(getProperty("sessionPurgeIntervalSeconds", default=3600))
@@ -1951,7 +1951,7 @@ def _display_output_document_listing() -> None:
     cloud architecture diagram (if either exists), so "download <name>"
     has something concrete to copy from without the user having to go
     look inside output/ themselves."""
-    from process_toolkit import paths as toolkit_paths
+    from process_interface import paths as toolkit_paths
     from .artifact_downloads import cloudarch_diagram_exists, list_output_documents
 
     lines = []

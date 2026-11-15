@@ -17,7 +17,7 @@ from typing_extensions import override
 from werkzeug.utils import safe_join
 
 from ..common.utils import getProperty, safe_filename_component
-from process_toolkit import paths as toolkit_paths
+from process_interface import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.SubProcessWriterAgent")
 

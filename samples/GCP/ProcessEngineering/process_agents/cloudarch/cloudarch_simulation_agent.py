@@ -7,7 +7,7 @@
 
 from google.genai import types
 
-from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture
+from process_interface.cloudarch.simulation import simulate_cloudarch_architecture
 
 from ..common.utils import load_drawio, load_requirements_summary
 from ..common.utils_agent import claim_cloudarch_drawio_readonly

@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Dict, Union
 
-from process_toolkit.drawio.persistence import reset_drawio_xml
+from process_interface.drawio.persistence import reset_drawio_xml
 
 from coded_tools.common.reset_loop_state_base import ResetLoopStateCodedTool as _BaseResetLoopStateCodedTool
 from coded_tools.common.cloudarch_drawio_session import claim_cloudarch_drawio_for_session

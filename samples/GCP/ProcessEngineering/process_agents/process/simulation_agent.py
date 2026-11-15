@@ -15,7 +15,7 @@ from ..common.utils import (
     save_iteration_feedback,
     getProperty,
 )
-from process_toolkit import paths as toolkit_paths
+from process_interface import paths as toolkit_paths
 
 import time
 import random

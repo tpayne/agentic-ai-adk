@@ -1011,6 +1011,26 @@ class TestTogafDocumentGeneration:
         assert result.startswith("SUCCESS: Professional document saved at ")
         assert "Definition" not in result
 
+    def test_both_variant_tolerates_a_non_dict_entry_in_a_definition_list_field(self):
+        # Regression (live run, 2026-11-15): an agent-generated
+        # business_architecture.capabilities list containing a bare int
+        # instead of a {"name": ...} object crashed
+        # _togaf_has_real_definition_content with "AttributeError: 'int'
+        # object has no attribute 'get'", aborting generation entirely
+        # even though the content had already been validated and
+        # APPROVED. Any already-dict-shaped sibling entries in the same
+        # list must still be found as real content.
+        data = dict(SAMPLE_TOGAF)
+        data["business_architecture"] = dict(data["business_architecture"])
+        data["business_architecture"]["capabilities"] = [
+            42,
+            {"id": "CAP-001", "name": "Supplier Onboarding", "description": "Onboard suppliers."},
+        ]
+        self._write_sample(data)
+        result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="both")
+        assert result.startswith("SUCCESS: Professional documents saved"), result
+        assert "Definition" in result
+
     def test_unrecognized_togaf_variant_is_a_clean_error(self):
         self._write_sample()
         result = create_standard_doc_from_file("Checkout", schema_type="togaf", togaf_variant="bogus")

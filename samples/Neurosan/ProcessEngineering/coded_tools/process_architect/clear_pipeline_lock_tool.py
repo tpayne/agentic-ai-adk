@@ -4,7 +4,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.run_lock import force_clear_pipeline_lock
+from process_interface.run_lock import force_clear_pipeline_lock
 
 
 class ClearPipelineLockCodedTool(CodedTool):

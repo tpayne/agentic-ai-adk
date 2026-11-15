@@ -83,7 +83,7 @@ class TestEdgeInferencePinning:
 
         assert "Diagram successfully generated at" in result
         assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
-        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
+        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "checkout_service_flow.png"))
 
     def test_pinned_design_tool_ignores_a_coexisting_process_document(self):
         # The actual severe bug: the design pipeline's own diagram step,
@@ -99,7 +99,7 @@ class TestEdgeInferencePinning:
         result = agent.tools[0]()
 
         assert "Diagram successfully generated at" in result
-        assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
+        assert os.path.exists(os.path.join(paths.OUTPUT_DIR, "checkout_service_flow.png"))
         assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
 
     def test_pinned_requirements_tool_is_a_noop_that_touches_no_disk(self):
@@ -117,7 +117,7 @@ class TestEdgeInferencePinning:
 
         assert result.startswith("SKIPPED:")
         assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
-        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
+        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "checkout_service_flow.png"))
 
     def test_pinned_proposal_response_tool_is_a_noop_that_touches_no_disk(self):
         # Same reasoning as the requirements no-op above: a proposal
@@ -131,7 +131,7 @@ class TestEdgeInferencePinning:
 
         assert result.startswith("SKIPPED:")
         assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "vendor_onboarding_flow.png"))
-        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "Checkout_Service_flow.png"))
+        assert not os.path.exists(os.path.join(paths.OUTPUT_DIR, "checkout_service_flow.png"))
 
 
 class TestDocGenerationPinning:

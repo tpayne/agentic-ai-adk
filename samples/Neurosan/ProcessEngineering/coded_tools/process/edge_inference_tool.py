@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_interface.docgen.edge_inference import generate_clean_diagram
 
 
 class GenerateProcessFlowDiagramCodedTool(CodedTool):

@@ -10,7 +10,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.test_specification.test_specification import load_test_specification
+from process_interface.test_specification.test_specification import load_test_specification
 
 
 class LoadTestSpecificationCodedTool(CodedTool):

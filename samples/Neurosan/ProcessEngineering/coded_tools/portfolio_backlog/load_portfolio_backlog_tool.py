@@ -5,7 +5,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
+from process_interface.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
 
 
 class LoadPortfolioBacklogCodedTool(CodedTool):

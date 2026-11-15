@@ -35,37 +35,16 @@ class TestDomainsTable:
         diagram_domains = {name for name, ops in dispatch.DOMAINS.items() if ops.has_diagram}
         assert diagram_domains == {"design", "process"}
 
-    def test_persist_is_native_matches_which_domains_have_their_own_persist_final(self):
+    def test_every_domain_now_persists_via_its_own_native_process_toolkit_function(self):
+        # requirements/proposal_response/test_specification used to compose
+        # a validate-then-save wrapper at this server's own boundary; that
+        # made MCP mode stricter than local mode (process_toolkit's own
+        # save_* functions for these three are intentionally
+        # zero-validation). All six domains are native now -- see
+        # test_server.py::test_requirements_persist_is_zero_validation_
+        # matching_process_toolkit for the behavioral regression test.
         native = {name for name, ops in dispatch.DOMAINS.items() if ops.persist_is_native}
-        assert native == {"design", "togaf", "process"}
-
-
-class TestValidateThenSave:
-    """Direct unit coverage of the _validate_then_save composition, with
-    stub validate/save functions -- isolates the control flow (validate
-    first, only call save if valid, never swallow the save function's own
-    return message) from any real domain's validation rules."""
-
-    def test_calls_save_and_returns_its_message_when_valid(self):
-        calls = []
-        persist = dispatch._validate_then_save(
-            validate_fn=lambda data: {"valid": True, "issues": []},
-            save_fn=lambda data: calls.append(data) or "SUCCESS: saved it",
-        )
-        result = persist({"some": "data"})
-        assert result == "SUCCESS: saved it"
-        assert calls == [{"some": "data"}]
-
-    def test_never_calls_save_when_invalid_and_reports_the_issues(self):
-        calls = []
-        persist = dispatch._validate_then_save(
-            validate_fn=lambda data: {"valid": False, "issues": [{"location": "$", "issue": "bad"}]},
-            save_fn=lambda data: calls.append(data) or "SUCCESS: should not happen",
-        )
-        result = persist({"some": "data"})
-        assert result.startswith("ERROR: JSON failed validation")
-        assert "bad" in result
-        assert calls == []
+        assert native == set(dispatch.DOMAINS)
 
 
 class TestGenerateDocumentFor:

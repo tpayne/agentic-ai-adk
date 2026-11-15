@@ -59,22 +59,6 @@ from process_toolkit.test_specification.test_specification import (
 )
 
 
-def _validate_then_save(validate_fn: Callable[[Any], dict], save_fn: Callable[[dict], str]) -> Callable[[dict], str]:
-    """Composes a `persist` step for the three domains whose own save_*
-    function performs no validation at all (requirements, proposal_response,
-    test_specification) -- gives every domain the same "validate, then
-    persist only if valid" contract at this server's boundary without
-    changing process_toolkit's own, intentionally-asymmetric behavior."""
-
-    def _persist(data: dict) -> str:
-        validation = validate_fn(data)
-        if not validation.get("valid"):
-            return f"ERROR: JSON failed validation: {validation.get('issues')}"
-        return save_fn(data)
-
-    return _persist
-
-
 @dataclass(frozen=True)
 class DomainOps:
     load_template: Callable[[], dict]
@@ -118,8 +102,18 @@ DOMAINS: dict[str, DomainOps] = {
         load_template=load_requirements_summary_template,
         load_context=lambda: load_requirements_summary(None),
         validate=validate_requirements_summary,
-        persist=_validate_then_save(validate_requirements_summary, lambda data: save_requirements_summary(data, None)),
-        persist_is_native=False,
+        # Plain save, not validate-then-save: process_toolkit's own
+        # save_requirements_summary is INTENTIONALLY zero-validation (its
+        # own docstring says so -- callers can save an in-progress draft
+        # that doesn't yet pass validate_requirements_summary's structural
+        # checks). This server now backs process_interface's MCP mode as
+        # well as third-party MCP clients, and process_interface needs
+        # exact behavioral parity with local mode -- forcing validation
+        # here that local mode doesn't have would make MCP mode strictly
+        # stricter, silently breaking saves that work fine locally.
+        # validate_json remains available as its own, separate tool call.
+        persist=lambda data: save_requirements_summary(data, None),
+        persist_is_native=True,
         doc_variant_kwarg=None,
         has_diagram=False,
     ),
@@ -127,8 +121,8 @@ DOMAINS: dict[str, DomainOps] = {
         load_template=load_proposal_response_template,
         load_context=lambda: load_proposal_response(None),
         validate=validate_proposal_response,
-        persist=_validate_then_save(validate_proposal_response, lambda data: save_proposal_response(data, None)),
-        persist_is_native=False,
+        persist=lambda data: save_proposal_response(data, None),
+        persist_is_native=True,
         doc_variant_kwarg=None,
         has_diagram=False,
     ),
@@ -136,8 +130,8 @@ DOMAINS: dict[str, DomainOps] = {
         load_template=load_test_specification_template,
         load_context=lambda: load_test_specification(None),
         validate=validate_test_specification,
-        persist=_validate_then_save(validate_test_specification, lambda data: save_test_specification(data, None)),
-        persist_is_native=False,
+        persist=lambda data: save_test_specification(data, None),
+        persist_is_native=True,
         doc_variant_kwarg=None,
         has_diagram=False,
     ),

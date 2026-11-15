@@ -112,7 +112,10 @@ def test_coded_tool_delegates_to_shared_togaf_persistence():
     text = (
         PROJECT_ROOT / "coded_tools" / "togaf" / "togaf_json_tool.py"
     ).read_text(encoding="utf-8")
-    assert "process_toolkit.schema.togaf_json" in text
+    # Delegates through process_interface (the compliance chokepoint), not
+    # process_toolkit directly -- see test_portfolio_backlog_wiring.py's
+    # matching assertion for the same reasoning.
+    assert "process_interface.schema.togaf_json" in text
     assert "persist_final_togaf_json" in text
 
 

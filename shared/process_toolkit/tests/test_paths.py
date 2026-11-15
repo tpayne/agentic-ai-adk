@@ -7,6 +7,7 @@ import pytest
 from process_toolkit import paths
 from process_toolkit.paths import (
     SESSION_META_FILENAME,
+    current_session_id,
     output_dir,
     output_path,
     sanitize_session_id,
@@ -51,6 +52,16 @@ def test_use_session_with_none_is_a_no_op():
     with use_session(None):
         p = output_path("foo.json")
     assert p == os.path.join(paths.OUTPUT_DIR, "foo.json")
+
+
+def test_current_session_id_is_none_outside_any_session_block():
+    assert current_session_id() is None
+
+
+def test_current_session_id_reflects_the_active_session():
+    with use_session("session-a"):
+        assert current_session_id() == "session-a"
+    assert current_session_id() is None
 
 
 def test_use_session_restores_the_outer_session_on_nested_exit():
