@@ -18,7 +18,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.loop_control import (
+from process_interface.loop_control import (
     evaluate_loop_stop,
     load_counter,
     save_counter,

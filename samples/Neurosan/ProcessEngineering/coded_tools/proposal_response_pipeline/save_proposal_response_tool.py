@@ -13,7 +13,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.proposal_response.proposal_response import (
+from process_interface.proposal_response.proposal_response import (
     save_proposal_response,
     STATE_KEY as SLY_DATA_KEY,
 )

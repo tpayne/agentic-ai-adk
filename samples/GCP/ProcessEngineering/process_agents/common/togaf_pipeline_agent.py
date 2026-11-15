@@ -43,9 +43,9 @@ from .utils_agent import (
     unmute_agent,
 )
 from .agent_wrappers import ProcessAgent
-from process_toolkit.run_lock import PipelineLockedError
-from process_toolkit import paths as toolkit_paths
-from process_toolkit.feedback.iteration_feedback import reset_feedback_channels
+from process_interface.run_lock import PipelineLockedError
+from process_interface import paths as toolkit_paths
+from process_toolkit.feedback.iteration_feedback import reset_feedback_channels  # not migrated yet -- feedback is Phase 5
 
 logger = logging.getLogger("ProcessArchitect.TogafPipeline")
 

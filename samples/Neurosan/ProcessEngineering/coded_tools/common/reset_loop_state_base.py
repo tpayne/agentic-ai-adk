@@ -3,8 +3,8 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.feedback.iteration_feedback import reset_approval_state, reset_feedback_channels
-from process_toolkit.run_lock import acquire_pipeline_lock, start_pipeline_lock_heartbeat, PipelineLockedError
+from process_toolkit.feedback.iteration_feedback import reset_approval_state, reset_feedback_channels  # not migrated yet -- feedback is Phase 5
+from process_interface.run_lock import acquire_pipeline_lock, start_pipeline_lock_heartbeat, PipelineLockedError
 from coded_tools.common.loop_control import reset_iteration_counter
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
 

@@ -12,8 +12,8 @@ from collections import Counter
 from statistics import mean, pstdev
 from typing import Any, Dict, List
 
-from process_toolkit.paths import output_path
-from process_toolkit.schema.process_json import extract_valid_json, load_master_process_json
+from process_interface.paths import output_path
+from process_interface.schema.process_json import extract_valid_json, load_master_process_json
 
 SIM_RESULTS_FILENAME = "simulation_results.json"
 

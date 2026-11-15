@@ -16,8 +16,8 @@ from ..common.utils import (
     getProperty,
 )
 from ..common.utils_agent import acquire_pipeline_lock_for_turn, claim_cloudarch_drawio_readonly
-from process_toolkit.run_lock import PipelineLockedError
-from process_toolkit import paths as toolkit_paths
+from process_interface.run_lock import PipelineLockedError
+from process_interface import paths as toolkit_paths
 
 logger = logging.getLogger("ProcessArchitect.DesignDocAnalysis")
 

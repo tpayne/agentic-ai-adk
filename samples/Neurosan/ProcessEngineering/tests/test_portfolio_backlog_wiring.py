@@ -44,7 +44,11 @@ def test_coded_tool_delegates_to_shared_backlog_persistence():
         / "portfolio_backlog"
         / "save_portfolio_backlog_tool.py"
     ).read_text(encoding="utf-8")
-    assert "process_toolkit.portfolio_backlog.portfolio_backlog" in text
+    # Delegates through process_interface (the compliance chokepoint), not
+    # process_toolkit directly -- process_interface itself decides whether
+    # that call stays local or redirects to the MCP server, per
+    # PROCESS_TOOLKIT_MODE.
+    assert "process_interface.portfolio_backlog.portfolio_backlog" in text
     assert "save_portfolio_backlog(backlog, sly_data)" in text
 
 
@@ -55,7 +59,7 @@ def test_load_coded_tool_delegates_to_shared_backlog_loader():
         / "portfolio_backlog"
         / "load_portfolio_backlog_tool.py"
     ).read_text(encoding="utf-8")
-    assert "process_toolkit.portfolio_backlog.portfolio_backlog" in text
+    assert "process_interface.portfolio_backlog.portfolio_backlog" in text
     assert "load_portfolio_backlog(sly_data)" in text
 
 

@@ -16,14 +16,14 @@ from .utils import (
     CleanedStdout
 )
 
-from process_toolkit.loop_control import (
+from process_interface.loop_control import (
     evaluate_loop_stop,
     load_counter,
     save_counter,
     reset_counter,
     load_approval_state,
 )
-from process_toolkit.run_lock import (
+from process_interface.run_lock import (
     acquire_pipeline_lock,
     release_pipeline_lock,
     start_pipeline_lock_heartbeat,

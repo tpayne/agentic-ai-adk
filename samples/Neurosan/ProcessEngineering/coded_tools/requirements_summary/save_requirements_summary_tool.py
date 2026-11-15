@@ -10,7 +10,7 @@ from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
 
-from process_toolkit.requirements_summary.requirements_summary import (
+from process_interface.requirements_summary.requirements_summary import (
     save_requirements_summary,
     STATE_KEY as SLY_DATA_KEY,
 )

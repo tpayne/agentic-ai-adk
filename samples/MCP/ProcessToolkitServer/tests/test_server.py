@@ -187,22 +187,26 @@ class TestPersistJsonValidatesFirst:
             artifacts = (await client.call_tool("list_artifacts", {"session_id": "s1"})).data
             assert artifacts == []
 
-    async def test_requirements_domain_composes_validate_then_save_at_this_boundary(self):
+    async def test_requirements_persist_is_zero_validation_matching_process_toolkit(self):
+        # Regression: this domain's persist used to compose validate-then-
+        # save at this server's own boundary, making MCP mode strictly
+        # stricter than local mode (which calls process_toolkit's own
+        # save_requirements_summary directly -- intentionally zero-
+        # validation, by its own docstring, so an in-progress draft that
+        # doesn't yet pass validate_requirements_summary's structural
+        # checks can still be saved). Deliberately invalid data (empty
+        # dict) must still succeed here, proving persist_json for
+        # "requirements" is a plain save now, not a validating one.
         async with Client(server.mcp) as client:
-            blank = (await client.call_tool("load_template", {"schema_type": "requirements"})).data
-            # The template ships one example register entry with blank
-            # fields as a shape reference (same convention as togaf's
-            # template) -- clear it so this demo's validation doesn't fail
-            # on an intentionally-empty placeholder.
-            blank["requirements_register"] = []
             result = (await client.call_tool(
-                "persist_json", {"schema_type": "requirements", "data": blank, "session_id": "s1"},
+                "persist_json", {"schema_type": "requirements", "data": {"anything": "goes"}, "session_id": "s1"},
             )).data
-            # process_toolkit's own validate_requirements_summary is intentionally
-            # soft (old-format detection only) -- a freshly loaded template must
-            # pass it, proving this server's validate-then-save composition
-            # doesn't newly reject something the domain itself considers fine.
             assert result["success"], result["message"]
+
+            loaded = (await client.call_tool(
+                "load_context", {"schema_type": "requirements", "session_id": "s1"},
+            )).data
+            assert loaded["anything"] == "goes"
 
 
 class TestPortfolioBacklog:

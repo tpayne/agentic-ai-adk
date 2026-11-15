@@ -14,7 +14,7 @@ from google.adk.events import Event
 from google.genai import types
 from typing_extensions import override
 from ..common.utils import getProperty
-from process_toolkit import paths as toolkit_paths
+from process_interface import paths as toolkit_paths
 
 import logging
 

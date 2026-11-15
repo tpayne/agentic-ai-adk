@@ -14,8 +14,8 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 
-from process_toolkit.drawio.persistence import load_drawio_xml  # noqa: F401
-from process_toolkit.paths import output_path
+from process_toolkit.drawio.persistence import load_drawio_xml  # noqa: F401  -- not migrated yet, drawio/persistence.py is Phase 5
+from process_interface.paths import output_path
 
 logger = logging.getLogger("ProcessArchitect.DrawioPersistence")
 

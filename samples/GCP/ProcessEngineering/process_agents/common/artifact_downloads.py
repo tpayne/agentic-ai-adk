@@ -23,9 +23,9 @@ from typing import Any, Dict, List, Optional
 
 from werkzeug.utils import safe_join
 
-from process_toolkit import paths as toolkit_paths
-from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
-from process_toolkit.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
+from process_interface import paths as toolkit_paths
+from process_toolkit.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # not migrated yet -- iac/generation.py is Phase 5
+from process_interface.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
 
 CLOUDARCH_FILENAME = "cloudarch_drawio.xml"
 

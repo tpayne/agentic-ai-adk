@@ -86,6 +86,16 @@ def _current_session_dir() -> Optional[str]:
     return _session_dir_for(session_id)
 
 
+def current_session_id() -> Optional[str]:
+    """Public read accessor for the session id (if any) a use_session(...)
+    block currently has active -- None outside of one. Added for
+    process_interface: its switchable functions need to pass the SAME
+    session_id to the MCP server that use_session() is already scoping
+    local calls to, and that requires reading the contextvar from outside
+    this module without reaching into the private _session_id_var."""
+    return _session_id_var.get()
+
+
 def _atomic_write_json(path: str, payload: dict) -> None:
     """Writes `payload` as JSON to `path` via a temp-file-then-os.replace
     swap, so a reader can never observe `path` partially written. Mirrors

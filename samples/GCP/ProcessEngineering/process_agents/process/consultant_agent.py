@@ -9,7 +9,7 @@ from ..common.utils import (
     load_full_process_context,
     load_requirements_summary,
 )
-from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_interface.docgen.edge_inference import generate_clean_diagram
 
 logger = logging.getLogger("ProcessArchitect.Consultant")
 
