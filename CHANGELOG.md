@@ -4,6 +4,23 @@ All notable changes to the **Agentic AI ADK** project will be documented in this
 
 ---
 
+## [1.4.0] - 2026-11-15
+### Added
+* **`process_interface` Compliance Chokepoint**: Introduced `shared/process_interface`, a new package mirroring `shared/process_toolkit`'s module layout 1:1 that both the Neuro-San and GCP/ADK ProcessEngineering ports now import exclusively — neither port's production code (`coded_tools/`, `process_agents/`) references `process_toolkit` directly anymore. Each switchable call resolves per-request, via `PROCESS_TOOLKIT_MODE`/`PROCESS_TOOLKIT_MCP_URL`/`PROCESS_TOOLKIT_MCP_TIMEOUT` environment variables, to either in-process execution or a real call to the `ProcessToolkitServer` MCP server. Session-local control state (`run_lock`, `loop_control`, `session_purge`, `paths`, `filenames`) always stays local regardless of mode.
+* **Expanded `ProcessToolkitServer` MCP tool catalog**: Added 13 new tools (drawio load/reset, cloud architecture simulation/attack-simulation/FinOps estimation, IaC save, master/subprocess JSON load/save, and the full feedback-channel set) so the MCP server now has full parity with the local toolkit, not just document generation.
+* **Compliance guard tests**: Added regex-based tests to both ports' own suites asserting no direct `process_toolkit` import lines exist outside test fixtures.
+* **`gcp_processengineering_tests` CI job**: GCP/ADK's ProcessEngineering sample previously had no dedicated pytest job in CI at all; its full suite now runs on every push alongside the existing Neuro-San and MCP server jobs.
+* **Structural validation for six TOGAF document sections** (`business_architecture`, `data_architecture`, `application_architecture`, `technology_architecture`, `opportunities_and_solutions`, `migration_planning`, `architecture_compliance_assessment`) that `validate_togaf_json` previously left entirely unchecked.
+
+### Fixed
+* **TOGAF document generation crash**: `_togaf_has_real_definition_content` raised `AttributeError: 'int' object has no attribute 'get'` when agent-generated content placed a non-object entry (e.g. a bare integer) in a definition-list field such as `business_architecture.capabilities` — a case `(value or {})` guarded against falsy values but not truthy non-dicts. Replaced with a proper type-checking helper across all 14 affected call sites.
+* **MCP server `persist_json` validation asymmetry**: the requirements/proposal_response/test_specification domains were validated more strictly over MCP than in local mode, which could silently reject data local mode would accept. All three now use their native, zero-validation `save_*` contract, matching local mode exactly.
+* **Missing `shared/process_interface` in Docker images**: all four affected Dockerfiles (GCP's standard and Ollama variants, Neuro-San's standard and Ollama variants) were missing the `COPY` step for the new package, which would have broken every container build.
+* **Case-sensitivity bug in GCP's own test suite**: `test_doc_creation_agent_schema_pinning.py` asserted a capitalized generated diagram filename (`Checkout_Service_flow.png`) against code that always lowercases it (`checkout_service_flow.png`) before sanitizing. This passed unnoticed on case-insensitive filesystems (macOS/APFS) but failed deterministically the first time it ran against the new `gcp_processengineering_tests` CI job on Linux.
+* **Neuro-San router domain-disambiguation bug**: documented and reinforced the `Process_Architect_Orchestrator`'s Rule 10 after a live run showed a what-if question with no domain-identifying word being silently routed to whichever artifact set the immediately preceding turn concerned, instead of asking for clarification when two active artifact sets (a design document and a TOGAF artifact set) both matched.
+
+---
+
 ## [1.3.0] - 2026-01-12
 ### Added
 * **Gemini 3 Flash Support**: Integrated `gemini-3-flash` as the default inference engine for optimized cost and latency in Root Agents.
