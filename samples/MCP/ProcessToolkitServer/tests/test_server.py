@@ -71,6 +71,20 @@ def _minimal_valid_togaf_doc() -> dict:
     })
     data["architecture_requirements_specification"]["functional_requirements"] = []
     data["architecture_requirements_specification"]["non_functional_requirements"] = []
+    # The template's one-item example shapes (business_architecture.capabilities,
+    # etc.) are placeholders with blank "" values -- validate_togaf_json now
+    # structurally validates these sections too, so clear them the same way the
+    # requirements lists above already are.
+    data["business_architecture"]["capabilities"] = []
+    data["business_architecture"]["value_streams"] = []
+    data["data_architecture"]["data_entities"] = []
+    data["data_architecture"]["data_flows"] = []
+    data["application_architecture"]["application_components"] = []
+    data["application_architecture"]["application_communications"] = []
+    data["technology_architecture"]["technology_portfolio"] = []
+    data["opportunities_and_solutions"] = []
+    data["migration_planning"]["work_packages"] = []
+    data["architecture_compliance_assessment"]["compliance_findings"] = []
     return data
 
 
