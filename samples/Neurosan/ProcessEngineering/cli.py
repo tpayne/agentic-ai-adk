@@ -179,6 +179,18 @@ from coded_tools.common.artifact_downloads import (  # noqa: E402
 )
 from process_interface.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
+from process_interface.agentic_web import (  # noqa: E402
+    get_agent_card,
+    get_agent_manifest,
+    get_all_agent_cards,
+    get_all_workflows,
+    get_artifact_contract,
+    get_workflow,
+    list_agent_summaries,
+    list_all_artifact_contracts,
+    search_capabilities,
+    wrap_artifact_envelope,
+)
 
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
@@ -1586,6 +1598,18 @@ def build_web_app(agent_name: str, https: bool = True):
                                output/cloudarch_iac.zip as a real file
                                attachment, or 404 if the IaC pipeline
                                hasn't produced one yet.
+      GET    /.well-known/agent.json  Open Agentic Web standard manifest
+                               describing capabilities, endpoints, and agents.
+      GET    /agent-manifest.json     Alias to /.well-known/agent.json.
+      GET    /agents                  Machine-readable capability registry listing
+                               all agent cards; supports ?category=, ?artifact=,
+                               ?type=, ?query=, ?full=true, ?wrapped=true.
+      GET    /agents/<name>           Full Agent Card metadata for an agent.
+      GET    /capabilities            Searchable capability catalog.
+      GET    /workflows               Engineering lifecycle workflow definitions.
+      GET    /workflows/<name>        Detailed workflow definition.
+      GET    /artifacts/contracts     Standardized artifact output schemas.
+      GET    /artifacts/contracts/<type> Specific artifact schema contract.
       GET    /agents/<name>/instructions  `name` is an agent's own short
                                name (e.g. "CloudArch_Agent") -> {"status":
                                "ok", "name": "...", "instructions": "...",
@@ -1678,8 +1702,20 @@ def build_web_app(agent_name: str, https: bool = True):
         if request.method == "OPTIONS":
             return ("", 204)  # CORS preflight -- no auth, no rate limit
 
-        if request.path == "/status":
-            return None  # liveness probe stays open: no auth, no rate limit
+        if (
+            request.path in (
+                "/status",
+                "/.well-known/agent.json",
+                "/agent-manifest.json",
+                "/agents",
+                "/capabilities",
+                "/workflows",
+                "/artifacts/contracts",
+            )
+            or (request.path.startswith("/agents/") and not request.path.endswith("/instructions"))
+            or request.path.startswith(("/workflows/", "/artifacts/contracts/"))
+        ):
+            return None  # liveness probe and discovery endpoints stay open: no auth, no rate limit
 
         if api_key:
             auth_header = request.headers.get("Authorization", "")
@@ -1891,6 +1927,154 @@ def build_web_app(agent_name: str, https: bool = True):
             "status": "ok", "session_id": session_id,
             "cleared": existed or persisted_state_removed,
         })
+
+    @web_app.route("/.well-known/agent.json", methods=["GET"])
+    @web_app.route("/agent-manifest.json", methods=["GET"])
+    def agent_manifest():
+        """Open Agentic Web standard manifest for capability discovery."""
+        base_url = request.host_url.rstrip("/")
+        manifest = get_agent_manifest(base_url=base_url)
+        return jsonify(manifest)
+
+    @web_app.route("/agents", methods=["GET"])
+    def agents():
+        """Capability registry listing all agent cards.
+        Supports query filtering:
+          ?category=architecture|process|cloud|testing|portfolio|proposals|togaf
+          ?artifact=requirements_summary|cloud_architecture|drawio_xml|...
+          ?type=pipeline|consultant|reviewer|simulation|iac|tester|finops|router
+          ?query=<text>
+          ?full=true|false (default false, returns summaries)
+          ?wrapped=true|false (default false, returns direct JSON array)
+        """
+        category = request.args.get("category")
+        artifact = request.args.get("artifact")
+        agent_type = request.args.get("type")
+        query = request.args.get("query")
+        full_mode = request.args.get("full", "").strip().lower() in ("true", "1", "yes")
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+
+        results = search_capabilities(
+            query=query,
+            category=category,
+            artifact=artifact,
+            agent_type=agent_type,
+        )
+
+        if not full_mode:
+            items = [
+                {
+                    "name": r["name"],
+                    "description": r["description"],
+                    "category": r["category"],
+                    "agent_type": r["agent_type"],
+                    "artifacts": r["artifacts"],
+                    "version": r["version"],
+                }
+                for r in results
+            ]
+        else:
+            items = results
+
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(items),
+                "agents": items,
+            })
+        return jsonify(items)
+
+    @web_app.route("/agents/<name>", methods=["GET"])
+    def agent_card(name):
+        """Retrieve full Agent Card metadata for an agent by name."""
+        card = get_agent_card(name)
+        if card is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No agent card found for '{name}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "agent": card})
+        return jsonify(card)
+
+    @web_app.route("/capabilities", methods=["GET"])
+    def capabilities():
+        """Searchable capability catalog. Allows filtering by query keyword,
+        category, produced/consumed artifact, and agent type."""
+        category = request.args.get("category")
+        artifact = request.args.get("artifact")
+        agent_type = request.args.get("type")
+        query = request.args.get("query")
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+
+        results = search_capabilities(
+            query=query,
+            category=category,
+            artifact=artifact,
+            agent_type=agent_type,
+        )
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(results),
+                "capabilities": results,
+            })
+        return jsonify(results)
+
+    @web_app.route("/workflows", methods=["GET"])
+    def workflows():
+        """Expose engineering lifecycle workflows and network flows."""
+        wfs = get_all_workflows()
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(wfs),
+                "workflows": wfs,
+            })
+        return jsonify(wfs)
+
+    @web_app.route("/workflows/<workflow_name>", methods=["GET"])
+    def workflow_detail(workflow_name):
+        """Retrieve a specific engineering lifecycle workflow definition."""
+        wf = get_workflow(workflow_name)
+        if wf is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No workflow definition found for '{workflow_name}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "workflow": wf})
+        return jsonify(wf)
+
+    @web_app.route("/artifacts/contracts", methods=["GET"])
+    def artifact_contracts():
+        """Expose standardized artifact contract schemas."""
+        contracts = list_all_artifact_contracts()
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(contracts),
+                "contracts": contracts,
+            })
+        return jsonify(contracts)
+
+    @web_app.route("/artifacts/contracts/<artifact_type>", methods=["GET"])
+    def artifact_contract_detail(artifact_type):
+        """Retrieve a specific standardized artifact contract."""
+        contract = get_artifact_contract(artifact_type)
+        if contract is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No artifact contract found for '{artifact_type}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "contract": contract})
+        return jsonify(contract)
 
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):

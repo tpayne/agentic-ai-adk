@@ -2080,3 +2080,137 @@ class TestSendStreamingCancellationReleasesLeftoverLock:
         assert events[-1]["status"] == "stopped"
         assert token not in _heartbeats
         acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+
+
+class TestAgenticWebDiscoveryEndpoints:
+    """Tests for Open Agentic Web standard discovery routes in build_web_app."""
+
+    def _client(self, monkeypatch=None, api_key=None):
+        if monkeypatch and api_key:
+            monkeypatch.setenv("WEBAPIKEY", api_key)
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_agent_manifest_well_known_and_root(self):
+        client = self._client()
+        for path in ("/.well-known/agent.json", "/agent-manifest.json"):
+            resp = client.get(path)
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["schema_version"] == "1.0.0"
+            assert data["standard"] == "Open Agentic Web MVP Profile"
+            assert data["capabilities_count"] >= 32
+            assert data["workflows_count"] >= 6
+            assert data["artifact_contracts_count"] >= 13
+            assert len(data["agents"]) >= 32
+
+    def test_list_agents_default_and_filtered(self):
+        client = self._client()
+        # Default returns list of summaries
+        resp = client.get("/agents")
+        assert resp.status_code == 200
+        agents = resp.get_json()
+        assert isinstance(agents, list)
+        assert len(agents) >= 32
+        assert "name" in agents[0]
+        assert "description" in agents[0]
+
+        # Wrapped mode
+        resp_wrapped = client.get("/agents?wrapped=true")
+        assert resp_wrapped.status_code == 200
+        wrapped_data = resp_wrapped.get_json()
+        assert wrapped_data["status"] == "ok"
+        assert wrapped_data["count"] >= 32
+        assert isinstance(wrapped_data["agents"], list)
+
+        # Category filter
+        resp_cat = client.get("/agents?category=design")
+        assert resp_cat.status_code == 200
+        design_agents = resp_cat.get_json()
+        assert len(design_agents) > 0
+        assert all(a["category"] == "design" for a in design_agents)
+
+        # Full card mode
+        resp_full = client.get("/agents?full=true")
+        assert resp_full.status_code == 200
+        full_agents = resp_full.get_json()
+        assert "inputs" in full_agents[0]
+        assert "outputs" in full_agents[0]
+
+    def test_get_agent_card(self):
+        client = self._client()
+        # Canonical name
+        resp = client.get("/agents/design")
+        assert resp.status_code == 200
+        card = resp.get_json()
+        assert card["name"] == "design"
+        assert "inputs" in card
+        assert "outputs" in card
+
+        # Alias tolerance
+        resp_alias = client.get("/agents/Design_Agent")
+        assert resp_alias.status_code == 200
+        assert resp_alias.get_json()["name"] == "design"
+
+        # Nonexistent agent 404
+        resp_404 = client.get("/agents/unknown_agent_xyz")
+        assert resp_404.status_code == 404
+
+    def test_capabilities_search(self):
+        client = self._client()
+        resp = client.get("/capabilities?artifact=drawio_xml")
+        assert resp.status_code == 200
+        results = resp.get_json()
+        assert any(c["name"] == "cloudarch" for c in results)
+
+    def test_workflows_endpoints(self):
+        client = self._client()
+        resp = client.get("/workflows")
+        assert resp.status_code == 200
+        wfs = resp.get_json()
+        assert isinstance(wfs, list)
+        assert any(w["workflow"] == "architecture_lifecycle" for w in wfs)
+
+        resp_detail = client.get("/workflows/architecture_lifecycle")
+        assert resp_detail.status_code == 200
+        wf = resp_detail.get_json()
+        assert wf["workflow"] == "architecture_lifecycle"
+        assert "steps" in wf
+
+        resp_404 = client.get("/workflows/unknown_wf")
+        assert resp_404.status_code == 404
+
+    def test_artifact_contracts_endpoints(self):
+        client = self._client()
+        resp = client.get("/artifacts/contracts")
+        assert resp.status_code == 200
+        contracts = resp.get_json()
+        assert isinstance(contracts, list)
+        assert any(c["artifact_type"] == "high_level_design" for c in contracts)
+
+        resp_detail = client.get("/artifacts/contracts/high_level_design")
+        assert resp_detail.status_code == 200
+        contract = resp_detail.get_json()
+        assert contract["artifact_type"] == "high_level_design"
+        assert "document_metadata" in contract["schema_fields"]
+
+        resp_404 = client.get("/artifacts/contracts/unknown_type")
+        assert resp_404.status_code == 404
+
+    def test_discovery_endpoints_bypass_api_key_auth(self, monkeypatch):
+        # Public discovery metadata should be accessible without Authorization headers
+        monkeypatch.setenv("WEBAPIKEY", "super-secret-key")
+        client = self._client()
+
+        resp_manifest = client.get("/.well-known/agent.json")
+        assert resp_manifest.status_code == 200
+
+        resp_agents = client.get("/agents")
+        assert resp_agents.status_code == 200
+
+        resp_workflows = client.get("/workflows")
+        assert resp_workflows.status_code == 200
+
+        resp_contracts = client.get("/artifacts/contracts")
+        assert resp_contracts.status_code == 200
+

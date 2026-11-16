@@ -76,6 +76,16 @@ from process_toolkit.feedback.iteration_feedback import (
     reset_feedback_channels as _reset_feedback_channels,
     format_review_status_summary as _format_review_status_summary,
 )
+from process_toolkit.agentic_web import (
+    get_agent_card as _get_agent_card,
+    get_agent_manifest as _get_agent_manifest,
+    get_all_workflows as _get_all_workflows,
+    get_artifact_contract as _get_artifact_contract,
+    get_workflow as _get_workflow,
+    list_all_artifact_contracts as _list_all_artifact_contracts,
+    search_capabilities as _search_capabilities,
+    wrap_artifact_envelope as _wrap_artifact_envelope,
+)
 
 import dispatch
 
@@ -506,6 +516,67 @@ def review_status_summary(channels: Optional[list[str]] = None, session_id: Opti
         if channels is None:
             return _format_review_status_summary()
         return _format_review_status_summary(channels)
+
+
+@mcp.tool
+def get_agent_manifest(base_url: str = "") -> dict:
+    """Returns the Open Agentic Web standard discovery manifest."""
+    return _get_agent_manifest(base_url=base_url)
+
+
+@mcp.tool
+def list_agents(
+    query: Optional[str] = None,
+    category: Optional[str] = None,
+    artifact: Optional[str] = None,
+    agent_type: Optional[str] = None,
+) -> list[dict]:
+    """Lists machine-readable Agent Cards for all specialist networks."""
+    return _search_capabilities(
+        query=query,
+        category=category,
+        artifact=artifact,
+        agent_type=agent_type,
+    )
+
+
+@mcp.tool
+def get_agent_card(name: str) -> dict:
+    """Returns detailed Agent Card metadata for a specialist agent by name."""
+    card = _get_agent_card(name)
+    if card is None:
+        raise ToolError(f"No agent card found for '{name}'")
+    return card
+
+
+@mcp.tool
+def list_workflows() -> list[dict]:
+    """Lists all published engineering lifecycle workflows."""
+    return _get_all_workflows()
+
+
+@mcp.tool
+def get_workflow(workflow_name: str) -> dict:
+    """Returns a specific engineering lifecycle workflow definition."""
+    wf = _get_workflow(workflow_name)
+    if wf is None:
+        raise ToolError(f"No workflow definition found for '{workflow_name}'")
+    return wf
+
+
+@mcp.tool
+def list_artifact_contracts() -> list[dict]:
+    """Lists all standardized artifact contracts across the platform."""
+    return _list_all_artifact_contracts()
+
+
+@mcp.tool
+def get_artifact_contract(artifact_type: str) -> dict:
+    """Returns a specific standardized artifact contract schema."""
+    contract = _get_artifact_contract(artifact_type)
+    if contract is None:
+        raise ToolError(f"No artifact contract found for '{artifact_type}'")
+    return contract
 
 
 def _parse_args() -> argparse.Namespace:
