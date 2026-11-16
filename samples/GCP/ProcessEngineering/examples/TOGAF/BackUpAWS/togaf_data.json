@@ -1,0 +1,618 @@
+{
+  "business_architecture": {
+    "value_streams": [
+      {
+        "description": "The end-to-end process of ensuring data is backed up, secured, and ready for restoration.",
+        "stages": [
+          {
+            "name": "Enrollment",
+            "description": "Inclusion of tenant resources into backup plans."
+          },
+          {
+            "description": "Automated execution of local and cross-account backups.",
+            "name": "Protection"
+          },
+          {
+            "name": "Verification",
+            "description": "Periodic verification of backup integrity and restoration procedures."
+          }
+        ],
+        "name": "Data Protection Value Stream"
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "CAP-001",
+        "supports_goals": [
+          "GOAL-001"
+        ],
+        "name": "Centralized Backup Management",
+        "owner": "Platform Team",
+        "description": "Centralized orchestration of backup activities across the multi-account AWS environment."
+      },
+      {
+        "id": "CAP-002",
+        "description": "Automated copying of backup artifacts to a secure, isolated account for disaster recovery.",
+        "supports_goals": [
+          "GOAL-001"
+        ],
+        "name": "Cross-Account Data Protection",
+        "owner": "Platform Team"
+      },
+      {
+        "name": "Immutable Storage Governance",
+        "owner": "Platform Team",
+        "description": "Enforcement of security boundaries to prevent unauthorized modification or deletion of backups.",
+        "supports_goals": [
+          "GOAL-001"
+        ],
+        "id": "CAP-003"
+      },
+      {
+        "supports_goals": [
+          "GOAL-001"
+        ],
+        "name": "Independent Key Management",
+        "owner": "Platform Team",
+        "description": "Management of encryption keys used for backups, isolated from the source resource keys.",
+        "id": "CAP-004"
+      }
+    ],
+    "capability_map_diagram": {
+      "diagram_type": "node_grid",
+      "diagram_id": "CAP-MAP-01",
+      "description": "Hierarchy of data protection capabilities provided by the framework.",
+      "title": "Backup Framework Capability Map"
+    }
+  },
+  "application_architecture": {
+    "application_communications": [
+      {
+        "source": "AWS Backup Service",
+        "description": "Orchestration of backup tasks on RDS instances.",
+        "target": "RDS Instances",
+        "protocol": "AWS API / Internal"
+      },
+      {
+        "protocol": "AWS API / Internal",
+        "source": "AWS Backup Service",
+        "description": "Orchestration of backup tasks on DynamoDB tables.",
+        "target": "DynamoDB Tables"
+      },
+      {
+        "source": "Local Backup Vault",
+        "description": "Copying of backup jobs across account boundaries.",
+        "protocol": "AWS Cross-Account Copy",
+        "target": "Central Backup Vault"
+      }
+    ],
+    "application_components": [
+      {
+        "realizes_capabilities": [
+          "CAP-001"
+        ],
+        "name": "AWS Backup Service",
+        "satisfies_requirements": [
+          "NFR-001"
+        ],
+        "description": "Centralized service used to automate and manage backups across AWS services."
+      },
+      {
+        "description": "Storage location for backups within the tenant's workload account.",
+        "realizes_capabilities": [
+          "CAP-003"
+        ],
+        "satisfies_requirements": [
+          "NFR-004",
+          "NFR-005"
+        ],
+        "name": "Local Backup Vault"
+      },
+      {
+        "name": "Central Backup Vault",
+        "realizes_capabilities": [
+          "CAP-002",
+          "CAP-003"
+        ],
+        "description": "Hardened storage location for backups within the dedicated central platform account.",
+        "satisfies_requirements": [
+          "NFR-006",
+          "NFR-007"
+        ]
+      },
+      {
+        "realizes_capabilities": [
+          "CAP-004"
+        ],
+        "satisfies_requirements": [
+          "NFR-008",
+          "NFR-009"
+        ],
+        "description": "Service used to manage the encryption keys for the backup vaults.",
+        "name": "AWS KMS (Central)"
+      },
+      {
+        "description": "Managed relational database instances in tenant accounts.",
+        "satisfies_requirements": [],
+        "realizes_capabilities": [],
+        "name": "RDS Instances"
+      },
+      {
+        "satisfies_requirements": [],
+        "name": "DynamoDB Tables",
+        "realizes_capabilities": [],
+        "description": "Managed NoSQL tables in tenant accounts."
+      }
+    ],
+    "application_communication_diagram": {
+      "description": "Interaction between AWS Backup components and source resources.",
+      "title": "Backup Service Communications",
+      "diagram_type": "edge_graph",
+      "diagram_id": "APP-COM-01"
+    }
+  },
+  "document_metadata": {
+    "document_id": "TOGAF-RDS-BACKUP-001",
+    "system_name": "Sinister Corp RDS Backup Framework",
+    "version": "1.0",
+    "title": "Sinister Corp RDS Backup Framework",
+    "status": "draft"
+  },
+  "architecture_principles": [
+    {
+      "name": "Centralized Data Protection",
+      "rationale": "To mitigate the risk of accidental or malicious data loss by tenant engineers, backup management must be decoupled from tenant-controlled accounts.",
+      "statement": "All business-critical data backups must be managed through a centralized, hardened platform account.",
+      "id": "PRIN-001",
+      "implications": [
+        "Tenant engineers will lose direct control over backup lifecycle and encryption keys for backups."
+      ]
+    }
+  ],
+  "migration_planning": {
+    "sequencing_notes": "Initial setup of the central governance account and SCPs is required before deploying backup plans to tenant accounts to ensure immediate immutability.",
+    "work_packages": [
+      {
+        "id": "WP-01",
+        "description": "Setup the dedicated central backup account and apply Service Control Policies (SCPs) to restrict tenant access.",
+        "name": "Central Governance Setup",
+        "depends_on": []
+      },
+      {
+        "name": "KMS Configuration",
+        "id": "WP-02",
+        "description": "Create and configure the independent KMS CMKs in the central account for backup encryption.",
+        "depends_on": [
+          "WP-01"
+        ],
+        "delivers": [
+          "CAP-004"
+        ]
+      },
+      {
+        "depends_on": [
+          "WP-02"
+        ],
+        "delivers": [
+          "CAP-001",
+          "CAP-002"
+        ],
+        "description": "Deploy AWS Backup plans and vaults to tenant and central accounts.",
+        "name": "Backup Framework Deployment",
+        "id": "WP-03"
+      },
+      {
+        "name": "Restoration Procedure Definition",
+        "description": "Define, document, and test the cross-account data restoration process.",
+        "id": "WP-04",
+        "depends_on": [
+          "WP-03"
+        ],
+        "delivers": [
+          "NFR-010"
+        ]
+      }
+    ]
+  },
+  "data_architecture": {
+    "data_entities": [
+      {
+        "owner": "Tenant / Platform Team (for backups)",
+        "attributes": [
+          "Resource ID",
+          "Timestamp",
+          "Snapshot ID"
+        ],
+        "classification": "Confidential",
+        "name": "RDS Snapshots",
+        "description": "Point-in-time copies of RDS database instances."
+      },
+      {
+        "attributes": [
+          "Table Name",
+          "Backup ARN",
+          "Creation Date"
+        ],
+        "name": "DynamoDB Backups",
+        "description": "Backups of DynamoDB table data.",
+        "classification": "Confidential",
+        "owner": "Tenant / Platform Team (for backups)"
+      },
+      {
+        "name": "KMS Keys",
+        "classification": "Critical",
+        "owner": "Platform Team",
+        "description": "Customer Master Keys used for encrypting backup data.",
+        "attributes": [
+          "Key ID",
+          "Key Policy",
+          "Alias"
+        ]
+      }
+    ],
+    "database_design_ref": [],
+    "data_flows": [
+      {
+        "target": "Central Backup Vault",
+        "description": "Transfer of backup copies from local tenant vaults to the central platform vault.",
+        "data_entities": [
+          "RDS Snapshots",
+          "DynamoDB Backups"
+        ],
+        "source": "Local Backup Vault"
+      }
+    ],
+    "data_flow_diagram": {
+      "description": "Flow of backup data from tenant accounts to the central backup vault.",
+      "title": "Backup Data Flow",
+      "diagram_type": "edge_graph",
+      "diagram_id": "DFD-01"
+    }
+  },
+  "glossary_and_references": {
+    "references": [
+      {
+        "url": "N/A",
+        "source": "RDS Backup.pdf",
+        "title": "Sinister Corp RDS Backup Framework Requirements Document"
+      }
+    ],
+    "glossary": [
+      {
+        "term": "CMK",
+        "definition": "Customer Master Key in AWS Key Management Service."
+      },
+      {
+        "term": "IaC",
+        "definition": "Infrastructure as Code."
+      },
+      {
+        "definition": "Recovery Point Objective, the maximum targeted period in which data might be lost from an IT service due to a major incident.",
+        "term": "RPO"
+      }
+    ]
+  },
+  "opportunities_and_solutions": [
+    {
+      "id": "GAP-01",
+      "work_package_ref": "WP-01, WP-02, WP-03",
+      "grounded_in": [
+        "GOAL-001",
+        "NFR-003"
+      ],
+      "gap_description": "Currently, tenant engineers have administrative control over their own backups and encryption keys, creating a risk of permanent data loss.",
+      "proposed_solution": "Implement a centralized, cross-account backup framework using AWS Backup and independent KMS CMKs."
+    }
+  ],
+  "technology_architecture": {
+    "technology_portfolio": [
+      {
+        "technology": "AWS Organizations",
+        "category": "Cloud Platform",
+        "version": "N/A",
+        "justification": "Foundation for multi-account management and security boundaries."
+      },
+      {
+        "category": "Data Protection",
+        "technology": "AWS Backup Service",
+        "version": "N/A",
+        "justification": "Primary service for automated, centralized backups."
+      },
+      {
+        "justification": "Required for independent management of encryption keys.",
+        "version": "N/A",
+        "category": "Security / Encryption",
+        "technology": "AWS KMS"
+      },
+      {
+        "version": "N/A",
+        "category": "Access Control",
+        "technology": "AWS IAM / Service Control Policies (SCP)",
+        "justification": "Used to enforce immutability and restrict tenant permissions."
+      }
+    ],
+    "deployment_topology_ref": [],
+    "technology_portfolio_diagram": {
+      "description": "Technology stack used to implement the backup framework.",
+      "title": "Technology Portfolio",
+      "diagram_type": "node_grid",
+      "diagram_id": "TECH-01"
+    }
+  },
+  "architecture_requirements_specification": {
+    "assumptions": [
+      {
+        "id": "ASM-001",
+        "description": "AWS Organizations is used for centralized security controls across all platform accounts."
+      },
+      {
+        "description": "Tenant workload accounts are exclusively located in the eu-west-2 (London) region.",
+        "id": "ASM-002"
+      },
+      {
+        "id": "ASM-003",
+        "description": "Non-production environments (dev/test) utilize synthetic data."
+      },
+      {
+        "id": "ASM-004",
+        "description": "Tenant DevOps Engineers currently manage their own resources using Infrastructure as Code (IaC)."
+      }
+    ],
+    "functional_requirements": [
+      {
+        "acceptance_criteria": [
+          "Confirmation that IAM policies or SCPs prevent tenant roles from assuming 'write' permissions in the backup account."
+        ],
+        "source": "Inferred from NFR-007",
+        "priority": "high",
+        "description": "Implement Service Control Policies (SCPs) to restrict tenant access to the central backup account and backup configurations.",
+        "id": "INF-001"
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "target": "AWS Backup Service integration",
+        "characteristic": "Security",
+        "id": "NFR-001",
+        "source": "RDS Backup.pdf, NFR 1",
+        "description": "The central platform must provide a backup framework using the AWS Backup Service.",
+        "acceptance_criteria": [
+          "AWS Backup is configured as the central service for all backup activities."
+        ]
+      },
+      {
+        "acceptance_criteria": [
+          "Verification that all RDS and DynamoDB resources in scope are associated with a backup plan."
+        ],
+        "characteristic": "Compliance",
+        "target": "100% coverage of in-scope resources",
+        "description": "Enforce a backup process across all, or selected tenants' data resources (RDS and DynamoDB).",
+        "source": "RDS Backup.pdf, NFR 1",
+        "id": "NFR-002"
+      },
+      {
+        "id": "NFR-003",
+        "description": "Platform tenants should not be able to change the configuration of the backup process.",
+        "acceptance_criteria": [
+          "Tenant IAM roles are unable to modify or delete AWS Backup configurations, plans, or vaults."
+        ],
+        "target": "Zero unauthorized configuration changes",
+        "characteristic": "Security",
+        "source": "RDS Backup.pdf, NFR 2"
+      },
+      {
+        "acceptance_criteria": [
+          "Production backups remain available in the local account for a minimum of 30 days."
+        ],
+        "characteristic": "Availability",
+        "description": "Backup data from production environments must be retained for at least 30 days within the local account.",
+        "id": "NFR-004",
+        "source": "RDS Backup.pdf, NFR 3",
+        "target": "30 days retention"
+      },
+      {
+        "acceptance_criteria": [
+          "Non-production backups remain available in the local account for a minimum of 15 days."
+        ],
+        "description": "Backup data from non-production environments must be retained for at least 15 days within the local account.",
+        "characteristic": "Availability",
+        "id": "NFR-005",
+        "source": "RDS Backup.pdf, NFR 3",
+        "target": "15 days retention"
+      },
+      {
+        "target": "Cross-account redundancy",
+        "id": "NFR-006",
+        "source": "RDS Backup.pdf, NFR 4",
+        "characteristic": "Availability",
+        "description": "The backup process must store copies of the backups within a separate dedicated platform-managed backup account.",
+        "acceptance_criteria": [
+          "Successful automated copy of backups from tenant accounts to the dedicated backup account."
+        ]
+      },
+      {
+        "source": "RDS Backup.pdf, NFR 4",
+        "id": "NFR-007",
+        "acceptance_criteria": [
+          "IAM policies in the backup account explicitly deny write/delete access to tenant engineer roles."
+        ],
+        "characteristic": "Security",
+        "target": "No write access for tenants",
+        "description": "Tenant Engineers must not have direct 'write' access to the dedicated backup account."
+      },
+      {
+        "acceptance_criteria": [
+          "Backups in the central account are confirmed to be encrypted with the designated CMKs."
+        ],
+        "characteristic": "Security",
+        "description": "All backups within the separate dedicated account must be encrypted at rest with customer master keys (CMKs) in AWS KMS.",
+        "target": "CMK encryption for all central backups",
+        "id": "NFR-008",
+        "source": "RDS Backup.pdf, NFR 5"
+      },
+      {
+        "source": "RDS Backup.pdf, NFR 5",
+        "characteristic": "Security",
+        "description": "KMS keys for backups must be different from source RDS keys and inaccessible to tenants.",
+        "acceptance_criteria": [
+          "KMS Key policy demonstrates that tenant engineers cannot access or schedule deletion of the backup CMKs."
+        ],
+        "target": "Isolated key management",
+        "id": "NFR-009"
+      },
+      {
+        "characteristic": "Recoverability",
+        "id": "NFR-010",
+        "source": "RDS Backup.pdf, NFR 6",
+        "target": "Documented restoration procedure",
+        "acceptance_criteria": [
+          "A documented and tested procedure for restoring data from the central backup account to a tenant account."
+        ],
+        "description": "A restore process must be defined within the backup framework to quickly restore the data."
+      },
+      {
+        "target": "12-hour RPO",
+        "characteristic": "Recoverability",
+        "source": "RDS Backup.pdf, NFR 7",
+        "id": "NFR-011",
+        "description": "There should be no more than 12 hours data loss in the event a backup needs to be restored (RPO).",
+        "acceptance_criteria": [
+          "Backup schedules are configured to ensure the maximum data loss window is 12 hours."
+        ]
+      }
+    ],
+    "traceability_matrix": [
+      {
+        "satisfied_by": [
+          "CAP-001",
+          "CAP-002",
+          "CAP-003"
+        ],
+        "requirement_id": "GOAL-001"
+      },
+      {
+        "requirement_id": "NFR-001",
+        "satisfied_by": [
+          "AWS Backup Service"
+        ]
+      },
+      {
+        "satisfied_by": [
+          "CAP-002"
+        ],
+        "requirement_id": "NFR-006"
+      },
+      {
+        "satisfied_by": [
+          "CAP-004"
+        ],
+        "requirement_id": "NFR-008"
+      },
+      {
+        "satisfied_by": [
+          "CAP-003"
+        ],
+        "requirement_id": "INF-001"
+      }
+    ],
+    "constraints": [
+      {
+        "id": "CON-001",
+        "description": "Management or backup of data resources other than RDS and DynamoDB is out of scope."
+      },
+      {
+        "description": "Implementation of the primary infrastructure or application code managed by tenant DevOps engineers is out of scope.",
+        "id": "CON-002"
+      }
+    ]
+  },
+  "architecture_compliance_assessment": {
+    "compliance_findings": [
+      {
+        "standard_or_requirement": "N/A",
+        "reference": "Not yet assessed",
+        "status": "Not yet assessed"
+      }
+    ]
+  },
+  "architecture_vision": {
+    "business_drivers": [
+      {
+        "id": "DRV-001",
+        "description": "Need to protect business-critical data from accidental or malicious deletion."
+      },
+      {
+        "id": "DRV-002",
+        "description": "Regulatory and compliance requirements for data retention and recovery."
+      }
+    ],
+    "vision_statement": "To provide a robust, automated, and tamper-proof data protection framework that ensures the recoverability of RDS and DynamoDB resources across the enterprise, independent of tenant-level administrative actions.",
+    "scope": {
+      "in_scope": [
+        "Centralized AWS Backup framework implementation.",
+        "Cross-account backup to a hardened central account.",
+        "Independent KMS CMK management for backups.",
+        "Standardized data restoration process."
+      ],
+      "assumptions": [
+        "AWS Organizations is the foundation for multi-account management."
+      ],
+      "constraints": [
+        "Limited to RDS and DynamoDB resources only."
+      ],
+      "out_of_scope": [
+        "Backups for non-RDS/DynamoDB resources.",
+        "Primary application/infrastructure code managed by tenants."
+      ]
+    },
+    "key_business_requirements": [
+      {
+        "description": "Centralized backup framework using AWS Backup Service.",
+        "id": "NFR-001"
+      },
+      {
+        "id": "NFR-006",
+        "description": "Immutable cross-account backup storage."
+      },
+      {
+        "id": "NFR-008",
+        "description": "Independent encryption key management."
+      }
+    ],
+    "stakeholders": [
+      {
+        "role": "Product Developers/DevOps",
+        "name": "Tenant Engineers",
+        "concerns": [
+          "Maintaining autonomy while ensuring data safety."
+        ]
+      },
+      {
+        "name": "Platform Team",
+        "concerns": [
+          "Enterprise compliance, data protection, and recovery capabilities."
+        ],
+        "role": "Infrastructure/Security Governance"
+      }
+    ],
+    "problem_statement": "Tenant DevOps Engineers have the autonomy to manage product resources, which includes the ability to delete RDS/DynamoDB instances, snapshots, and KMS keys. This flexibility introduces a critical risk of permanent data loss that cannot be mitigated within the tenant's own account boundaries.",
+    "business_goals": [
+      {
+        "description": "Mitigate risk of accidental or malicious data/key deletion by tenant engineers.",
+        "id": "GOAL-001"
+      }
+    ],
+    "risks_and_mitigations": [
+      {
+        "description": "Accidental or malicious deletion of data resources or KMS keys by tenant engineers.",
+        "mitigation": "Implement a cross-account backup framework with independent encryption keys and restricted access.",
+        "id": "RSK-001"
+      },
+      {
+        "id": "RSK-002",
+        "description": "Financial and reputational loss from inability to recover data.",
+        "mitigation": "Enforce standardized backup plans and a documented restoration process."
+      }
+    ]
+  }
+}
