@@ -7,7 +7,7 @@
 # 3. The NeuroSAN process server running against the local Ollama instance
 # 4. Supervisord orchestrating process startup, dependencies, and health.
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # Install system dependencies: curl (for Ollama install & healthchecks), zstd, supervisor, procps, bash
 RUN apt-get update && apt-get install -y --no-install-recommends \
