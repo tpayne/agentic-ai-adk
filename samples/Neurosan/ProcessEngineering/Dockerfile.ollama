@@ -40,6 +40,7 @@ RUN uv sync --locked --no-dev --no-install-project
 
 # Copy application code
 COPY samples/Neurosan/ProcessEngineering/cli.py .
+COPY samples/Neurosan/ProcessEngineering/network_publishing.py .
 COPY samples/Neurosan/ProcessEngineering/coded_tools ./coded_tools
 COPY samples/Neurosan/ProcessEngineering/config ./config
 COPY samples/Neurosan/ProcessEngineering/mcp ./mcp
