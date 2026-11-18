@@ -1,9 +1,13 @@
-"""Open Agentic Web capability descriptors and Agent Cards.
+"""ProcessEngineering's own Agent Card descriptors.
 
-Standardized machine-readable metadata conforming to the Open Agentic Web specification
-(https://github.com/cognizant-ai-labs/agentic-web). Each Agent Card describes purpose,
-inputs, outputs, produced/consumed artifacts, operational permissions, provenance, and
-semantic versioning.
+This is this project's own machine-readable capability-discovery metadata, designed for
+MCP-style clients (Claude, Cursor, VS Code, OpenAI Agent SDK) to inspect what each
+specialist agent/pipeline does -- purpose, inputs, outputs, produced/consumed artifacts,
+operational permissions, provenance, and semantic versioning. It is NOT an implementation
+of the external "Open Agentic Web" standard (https://github.com/cognizant-ai-labs/agentic-web),
+which has a different model entirely (a resolved Neuro-San HOCON network published as
+portable JSON, executed by a browser runtime with visitor-supplied LLM credentials). It
+also predates, and is not an implementation of, the A2A protocol's own "Agent Card" concept.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -12,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class AgentProvenance:
-    owner: str = "Cognizant AI Lab / Agentic-AI-ADK"
+    owner: str = "Agentic-AI-ADK"
     provider: str = "ProcessEngineering Platform"
     license: str = "Apache-2.0"
     trust_level: str = "verified"

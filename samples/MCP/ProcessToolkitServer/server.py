@@ -520,7 +520,9 @@ def review_status_summary(channels: Optional[list[str]] = None, session_id: Opti
 
 @mcp.tool
 def get_agent_manifest(base_url: str = "") -> dict:
-    """Returns the Open Agentic Web standard discovery manifest."""
+    """Returns ProcessEngineering's own agent discovery manifest (this project's own
+    Agent Discovery API, not an implementation of the external "Open Agentic Web"
+    standard)."""
     return _get_agent_manifest(base_url=base_url)
 
 

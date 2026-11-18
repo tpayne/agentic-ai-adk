@@ -2083,7 +2083,9 @@ class TestSendStreamingCancellationReleasesLeftoverLock:
 
 
 class TestAgenticWebDiscoveryEndpoints:
-    """Tests for Open Agentic Web standard discovery routes in build_web_app."""
+    """Tests for ProcessEngineering's own Agent Discovery API routes in build_web_app
+    (NOT the external "Open Agentic Web" standard -- see TestOpenAgenticWebNetworkPublishing
+    below for the routes that genuinely align with that external spec)."""
 
     def _client(self, monkeypatch=None, api_key=None):
         if monkeypatch and api_key:
@@ -2091,18 +2093,18 @@ class TestAgenticWebDiscoveryEndpoints:
         app = cli.build_web_app("process_architect", https=False)
         return app.test_client()
 
-    def test_agent_manifest_well_known_and_root(self):
+    def test_agent_manifest_well_known(self):
         client = self._client()
-        for path in ("/.well-known/agent.json", "/agent-manifest.json"):
-            resp = client.get(path)
-            assert resp.status_code == 200
-            data = resp.get_json()
-            assert data["schema_version"] == "1.0.0"
-            assert data["standard"] == "Open Agentic Web MVP Profile"
-            assert data["capabilities_count"] >= 32
-            assert data["workflows_count"] >= 6
-            assert data["artifact_contracts_count"] >= 13
-            assert len(data["agents"]) >= 32
+        resp = client.get("/.well-known/agent.json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["schema_version"] == "1.0.0"
+        assert "standard" not in data
+        assert data["provider"]["name"] == "Agentic-AI-ADK"
+        assert data["capabilities_count"] >= 32
+        assert data["workflows_count"] >= 6
+        assert data["artifact_contracts_count"] >= 13
+        assert len(data["agents"]) >= 32
 
     def test_list_agents_default_and_filtered(self):
         client = self._client()
@@ -2213,4 +2215,47 @@ class TestAgenticWebDiscoveryEndpoints:
 
         resp_contracts = client.get("/artifacts/contracts")
         assert resp_contracts.status_code == 200
+
+        resp_network_manifest = client.get("/agent-manifest.json")
+        assert resp_network_manifest.status_code == 200
+
+        resp_network = client.get("/networks/design.network.json")
+        assert resp_network.status_code == 200
+
+
+class TestOpenAgenticWebNetworkPublishing:
+    """Tests for the routes that genuinely implement the external Open Agentic Web MVP
+    spec's publication conventions (section 3.3) -- see network_publishing.py."""
+
+    def _client(self):
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_agent_manifest_json_has_the_real_spec_shape(self):
+        client = self._client()
+        resp = client.get("/agent-manifest.json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        networks = data["networks"]
+        assert "design" in networks
+        entry = networks["design"]
+        assert entry["name"] == "design"
+        assert entry["front_man"] == "Design_Doc_Pipeline"
+        assert entry["hocon"].endswith("/networks/design.network.json")
+        # Internal, non-publicly-listed registries (registries/manifest.hocon's own
+        # "public": false entries) must never appear here.
+        assert "agent_network_editor" not in networks
+
+    def test_networks_route_serves_a_resolved_network(self):
+        client = self._client()
+        resp = client.get("/networks/design.network.json")
+        assert resp.status_code == 200
+        config = resp.get_json()
+        assert isinstance(config["tools"], list)
+        assert config["tools"][0]["name"] == "Design_Doc_Pipeline"
+
+    def test_networks_route_404s_for_an_internal_or_unknown_network(self):
+        client = self._client()
+        assert client.get("/networks/agent_network_editor.network.json").status_code == 404
+        assert client.get("/networks/totally_made_up.network.json").status_code == 404
 

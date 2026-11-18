@@ -191,6 +191,7 @@ from process_interface.agentic_web import (  # noqa: E402
     search_capabilities,
     wrap_artifact_envelope,
 )
+import network_publishing  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
@@ -1598,9 +1599,20 @@ def build_web_app(agent_name: str, https: bool = True):
                                output/cloudarch_iac.zip as a real file
                                attachment, or 404 if the IaC pipeline
                                hasn't produced one yet.
-      GET    /.well-known/agent.json  Open Agentic Web standard manifest
-                               describing capabilities, endpoints, and agents.
-      GET    /agent-manifest.json     Alias to /.well-known/agent.json.
+      GET    /.well-known/agent.json  This project's own Agent Discovery API
+                               manifest, describing capabilities, endpoints,
+                               and agents (NOT the external Open Agentic Web
+                               standard -- see /agent-manifest.json below for
+                               the route that genuinely implements that).
+      GET    /agent-manifest.json     The REAL Open Agentic Web MVP spec manifest
+                               (see network_publishing.py): {"networks": {<name>:
+                               {name, description, front_man, hocon}}} for every
+                               publicly-listed registries/*.hocon network.
+      GET    /networks/<name>.network.json  The resolved (includes/substitutions
+                               expanded) Neuro-San agent-network JSON for one
+                               published network, referenced by the manifest
+                               above's own "hocon" field. 404 if `name` isn't a
+                               publicly-listed network.
       GET    /agents                  Machine-readable capability registry listing
                                all agent cards; supports ?category=, ?artifact=,
                                ?type=, ?query=, ?full=true, ?wrapped=true.
@@ -1713,7 +1725,7 @@ def build_web_app(agent_name: str, https: bool = True):
                 "/artifacts/contracts",
             )
             or (request.path.startswith("/agents/") and not request.path.endswith("/instructions"))
-            or request.path.startswith(("/workflows/", "/artifacts/contracts/"))
+            or request.path.startswith(("/workflows/", "/artifacts/contracts/", "/networks/"))
         ):
             return None  # liveness probe and discovery endpoints stay open: no auth, no rate limit
 
@@ -1929,12 +1941,29 @@ def build_web_app(agent_name: str, https: bool = True):
         })
 
     @web_app.route("/.well-known/agent.json", methods=["GET"])
-    @web_app.route("/agent-manifest.json", methods=["GET"])
     def agent_manifest():
-        """Open Agentic Web standard manifest for capability discovery."""
+        """This project's own Agent Discovery API manifest (not the external Open
+        Agentic Web standard -- see agent_network_manifest() below for that)."""
         base_url = request.host_url.rstrip("/")
         manifest = get_agent_manifest(base_url=base_url)
         return jsonify(manifest)
+
+    @web_app.route("/agent-manifest.json", methods=["GET"])
+    def agent_network_manifest():
+        """The real Open Agentic Web MVP spec manifest -- see network_publishing.py's own
+        module docstring for the spec section this implements."""
+        base_url = request.host_url.rstrip("/")
+        manifest = network_publishing.build_agent_network_manifest(base_url=base_url)
+        return jsonify(manifest)
+
+    @web_app.route("/networks/<name>.network.json", methods=["GET"])
+    def published_network(name: str):
+        """The resolved agent-network JSON a published manifest entry's own "hocon" field
+        points to -- see network_publishing.py."""
+        config = network_publishing.resolve_network(name)
+        if config is None:
+            return jsonify({"status": "error", "error": f"No published network named {name!r}."}), 404
+        return jsonify(config)
 
     @web_app.route("/agents", methods=["GET"])
     def agents():

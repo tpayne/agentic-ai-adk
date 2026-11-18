@@ -1,4 +1,4 @@
-"""Unit tests for the Open Agentic Web standard compliance module."""
+"""Unit tests for ProcessEngineering's own Agent Discovery API module."""
 
 import pytest
 from process_toolkit.agentic_web import (
@@ -75,7 +75,7 @@ class TestAgentCards:
         assert "artifacts" in design_card
         assert "high_level_design" in design_card["artifacts"]
         assert design_card["version"] == "1.0.0"
-        assert "Cognizant AI Lab" in design_card["provenance"]["owner"]
+        assert "Agentic-AI-ADK" in design_card["provenance"]["owner"]
 
     def test_get_agent_card_case_and_alias_tolerance(self):
         # Case insensitive
@@ -198,7 +198,8 @@ class TestAgentManifest:
     def test_get_agent_manifest(self):
         manifest = get_agent_manifest("http://localhost:5000")
         assert manifest["schema_version"] == "1.0.0"
-        assert manifest["standard"] == "Open Agentic Web MVP Profile"
+        assert "standard" not in manifest
+        assert manifest["provider"]["name"] == "Agentic-AI-ADK"
         assert manifest["endpoints"]["agents"] == "http://localhost:5000/agents"
         assert manifest["endpoints"]["chat"] == "http://localhost:5000/chat"
         assert manifest["capabilities_count"] >= 32

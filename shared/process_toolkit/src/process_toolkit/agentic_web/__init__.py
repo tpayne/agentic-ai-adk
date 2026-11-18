@@ -1,11 +1,17 @@
-"""Agentic Web standard compliance module for ProcessEngineering.
+"""ProcessEngineering's own Agent Discovery API module.
 
 Provides:
 - Machine-readable Agent Cards for all specialist networks.
 - Capability discovery and search engine.
-- Standard Artifact Contracts and envelope wrapping.
+- This project's own Artifact Contracts and envelope wrapping.
 - End-to-end engineering lifecycle workflow definitions.
-- Standard manifest generation (.well-known/agent.json).
+- This project's own discovery manifest (served at /.well-known/agent.json).
+
+This is a self-contained API for this project, not an implementation of the external
+"Open Agentic Web" standard (https://github.com/cognizant-ai-labs/agentic-web) -- see each
+submodule's own docstring for why, and `samples/Neurosan/ProcessEngineering/
+network_publishing.py` for the part of this project that genuinely does align with that
+external spec.
 """
 
 from process_toolkit.agentic_web.agent_cards import (

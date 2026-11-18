@@ -1,7 +1,11 @@
-"""Standard Artifact Contracts & Registry conforming to Open Agentic Web specification.
+"""ProcessEngineering's own Artifact Contracts & Registry.
 
-Provides standard envelope metadata, artifact schemas, and contract discovery for all
-engineering artifacts produced across the ProcessEngineering suite.
+Provides this project's own envelope metadata, artifact schemas, and contract discovery
+for all engineering artifacts produced across the ProcessEngineering suite. This is a
+self-contained convention for this project's Agent Discovery API -- it is not an
+implementation of the external "Open Agentic Web" standard
+(https://github.com/cognizant-ai-labs/agentic-web), which defines no such envelope/contract
+concept at all.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -180,7 +184,7 @@ def wrap_artifact_envelope(
     artifact_id: Optional[str] = None,
     version: str = "1.0",
 ) -> Dict[str, Any]:
-    """Wraps raw artifact data in the Open Agentic Web standard envelope."""
+    """Wraps raw artifact data in this project's own standard artifact envelope."""
     contract = ARTIFACT_CONTRACTS.get(artifact_type)
     effective_producer = producer or (contract.producer if contract else "process_engineering")
     effective_id = artifact_id or f"{artifact_type[:3].upper()}-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"

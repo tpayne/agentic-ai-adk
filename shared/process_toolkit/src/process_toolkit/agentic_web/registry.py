@@ -1,7 +1,13 @@
-"""Open Agentic Web capability registry & discovery engine.
+"""ProcessEngineering's own capability registry & discovery engine.
 
-Provides unified discovery descriptors, capability search, and .well-known agent manifest
-generation for external AI agents, orchestrators, and platforms.
+Provides this project's own unified discovery descriptors, capability search, and
+`/.well-known/agent.json` manifest generation for external AI agents, orchestrators, and
+MCP-style clients (Claude, Cursor, VS Code, OpenAI Agent SDK). This is a self-contained
+discovery API for this project, not an implementation of the external "Open Agentic Web"
+standard (https://github.com/cognizant-ai-labs/agentic-web) -- see
+`samples/Neurosan/ProcessEngineering/network_publishing.py` for the piece of this project
+that genuinely does publish data per that external spec (resolved Neuro-San HOCON agent
+networks as `agent-manifest.json` + `<network>.network.json`).
 """
 
 from typing import Any, Dict, List, Optional
@@ -25,22 +31,24 @@ from process_toolkit.agentic_web.workflows import (
 
 
 def get_agent_manifest(base_url: str = "") -> Dict[str, Any]:
-    """Generates the Open Agentic Web standard manifest (served at
-    /.well-known/agent.json or /agent-manifest.json)."""
+    """Generates this project's own discovery manifest, served at
+    /.well-known/agent.json. This is a self-contained convention for this project's own
+    Agent Discovery API -- distinct from (and not served at) the path and schema the
+    external "Open Agentic Web" standard specifies for its own agent-manifest.json (see
+    this module's own docstring)."""
     return {
         "schema_version": "1.0.0",
-        "standard": "Open Agentic Web MVP Profile",
-        "standard_url": "https://github.com/cognizant-ai-labs/agentic-web",
         "name": "ProcessEngineering Platform",
         "description": (
             "Enterprise-grade multi-agent platform for business process modeling, "
             "systems architecture, cloud diagrams, test specifications, agile backlogs, "
-            "RFP proposals, and TOGAF enterprise architecture."
+            "RFP proposals, and TOGAF enterprise architecture. This manifest describes "
+            "this project's own Agent Discovery API; it is not a conformance claim "
+            "against any external agent-interoperability standard."
         ),
         "version": "1.0.0",
         "provider": {
-            "name": "Cognizant AI Lab",
-            "url": "https://github.com/cognizant-ai-labs",
+            "name": "Agentic-AI-ADK",
             "license": "Apache-2.0",
         },
         "protocols": [

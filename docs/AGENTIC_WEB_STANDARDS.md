@@ -1,170 +1,269 @@
-# Open Agentic Web Standards Compliance Guide
+# ProcessEngineering: Agent Discovery API & Open Agentic Web Alignment
 
 ## 1. Executive Summary
 
-This document specifies the Open Agentic Web standard compliance implementation for the **ProcessEngineering** multi-agent platform across both the Google Cloud ADK (`samples/GCP/ProcessEngineering`) and NeuroSAN (`samples/Neurosan/ProcessEngineering`) backends.
+This document covers two distinct things, kept carefully separate:
 
-The platform aligns with the [Open Agentic Web](https://github.com/cognizant-ai-labs/agentic-web) standard profile, providing:
-- **Capability Discovery & Agent Manifests** (`/.well-known/agent.json`)
-- **Machine-Readable Agent Cards** with inputs, outputs, dependencies, provenance, and semantic versioning
-- **Searchable Capability Catalog** (`GET /capabilities`, `GET /agents`)
-- **Standardized Artifact Contracts & Envelopes** (`GET /artifacts/contracts`)
-- **Engineering Lifecycle Workflow Publication** (`GET /workflows`)
-- **Standardized Event Streaming** for real-time orchestration transparency
-- **Seamless External Agent Invocation** for Claude, Cursor, VS Code, OpenAI Agent SDK, and MCP clients.
+1. **ProcessEngineering's own Agent Discovery API** -- a REST surface, shared by both the
+   Google Cloud ADK (`samples/GCP/ProcessEngineering`) and Neuro-San
+   (`samples/Neurosan/ProcessEngineering`) backends, for MCP-style clients (Claude, Cursor,
+   VS Code, OpenAI Agent SDK) to discover this platform's agents, artifacts, and workflows.
+   This is a real, working, useful API -- but it is **this project's own convention**, not
+   an implementation of any external standard.
+
+2. **Genuine alignment with the external "Open Agentic Web" standard**
+   (https://github.com/cognizant-ai-labs/agentic-web) -- the Neuro-San port publishes its
+   agent networks as portable, resolved JSON exactly per that spec's own file conventions.
+   This piece is real, narrow, and explicitly scoped (see §4 below for what it does and
+   does not cover).
+
+An earlier version of this document, and the code it described, claimed the REST API in
+part 1 *was* an implementation of the external standard in part 2. That claim was wrong --
+checked directly against the standard's own README and its full MVP Profile 0.2
+specification document, neither of which describes anything resembling a server-side REST
+discovery API. The external spec is specifically about publishing a resolved **Neuro-San
+HOCON agent network** as JSON, executed by a **browser runtime** (the reference
+implementation is `nsDeploy`) using **visitor-supplied (BYOK) LLM credentials** -- a
+fundamentally different model from a server-executed, server-funded Python backend. "Agent
+Cards" (inputs/outputs/category/provenance) is actually terminology from a *different*,
+related protocol (A2A); the Open Agentic Web spec explicitly notes that a site may
+separately publish an A2A Agent Card, but that its own reference loader (`nsDeploy`) does
+not consume it. This document, and the code's own docstrings/manifest fields, have been
+corrected accordingly.
 
 ---
 
-## 2. Architecture & Shared Infrastructure
+## 2. Status At A Glance: Done / Not Done / Compliant / Not Compliant
 
-Both backends share core compliance infrastructure in `shared/process_toolkit/src/process_toolkit/agentic_web/`:
+### Done
+
+- **ProcessEngineering's own Agent Discovery API** (§3): `/.well-known/agent.json`,
+  `/agents`, `/agents/<name>`, `/capabilities`, `/workflows`, `/workflows/<name>`,
+  `/artifacts/contracts`, `/artifacts/contracts/<type>` -- shared code, both ports, plus
+  FastMCP tool equivalents on the MCP server. Honestly labeled as this project's own
+  convention.
+- **Real Open Agentic Web data publication, Neuro-San port** (§4): `/agent-manifest.json`
+  (real spec shape: `{"networks": {<name>: {name, description, front_man, hocon}}}`) and
+  `/networks/<name>.network.json` (fully resolved agent-network JSON), for all 42 publicly
+  listed `registries/*.hocon` networks.
+- **nsDeploy feasibility investigation** (§4.2): hands-on, not theoretical -- installed and
+  run against this project's own registries, with concrete results recorded.
+
+### Not Done
+
+- **Browser execution of this project's pipelines** -- no network is actually running inside
+  a browser runtime anywhere in this project. `network_publishing.py` only publishes the
+  *data* a browser runtime would need; nothing in this repo consumes it that way.
+- **Hosting this project's real coded tools through nsDeploy (or any MCP-in-the-browser
+  path)** -- confirmed broken in nsDeploy's static mode (all 15 of `design.hocon`'s tools
+  silently dropped); untested and expected to be hard in served mode, due to this project's
+  own session-state assumptions (`output/` dirs, pipeline locks, session purging).
+- **BYOK for this platform's own agents** -- still server-managed LLM credentials
+  throughout. (nsDeploy's own BYOK, `runtime/byok.js`, works -- but only for networks
+  actually running inside it, which this project's pipelines aren't.)
+- **GCP/ADK data publication** -- no HOCON there at all; would need an ADK-to-HOCON
+  converter, not attempted.
+- **`links.json`** -- nothing to publish yet (no genuinely external peer references exist in
+  this project's registries).
+- **Peer-consumption protocol** (spec §3.2: loading *another* site's network into this one) --
+  not implemented; this project is a publisher only, and has no browser runtime to consume
+  anything into.
+
+### Compliant (with the real external "Open Agentic Web" spec)
+
+- **Tenet One (Common Multi-Agent Representation)** -- Neuro-San port only. The published
+  `agent-manifest.json` + `<network>.network.json` files use the spec's own required shape
+  and the actual Neuro-San HOCON data model, at the spec's own conventional paths.
+- The overall pattern matches the spec's own named "Private stewards" extension (§7) --
+  recognized by the spec itself as legitimate, not partial/lesser conformance.
+
+### Not Compliant
+
+- **Tenet Two (Browser Execution)** -- not implemented anywhere in this project.
+- **Tenet Three (Pluggable Inference / BYOK)** -- not implemented for this project's own
+  agents.
+- **§6 "MVP Interoperability Checks"** (the spec's own literal conformance test) -- cannot
+  be passed without Tenets Two and Three, since most of the checks are behavioral
+  (load-and-run in a browser, prove a peer never receives the visitor's key), not data
+  checks.
+- **GCP/ADK port** -- zero alignment; no HOCON, no publication, no claim.
+- **ProcessEngineering's own Agent Discovery API (§3)** -- was never a conformance attempt
+  in the first place; listed here only to be explicit that it still isn't one.
+
+This is a deliberate, evidence-based stopping point (see §4.2's nsDeploy findings for why),
+not an oversight. If priorities change, §4.2's "Done" items (the manifest/network JSON
+publication) remain a correct, reusable foundation for later work -- nothing here needs to
+be redone, only extended.
+
+---
+
+## 3. Part One: ProcessEngineering's Own Agent Discovery API
+
+Shared infrastructure lives in `shared/process_toolkit/src/process_toolkit/agentic_web/`:
 
 ```
 shared/process_toolkit/src/process_toolkit/agentic_web/
 ├── __init__.py               # Re-exports of all capabilities, cards, and workflows
 ├── agent_cards.py            # 32 machine-readable AgentCard definitions
 ├── artifact_contracts.py     # 13 ArtifactContract specifications & envelope wrapper
-├── workflows.py              # 6 Engineering Lifecycle Workflow definitions
+├── workflows.py              # 6 engineering lifecycle workflow definitions
 └── registry.py               # Manifest generator and capability search engine
 ```
 
-The compliance interface is cleanly exposed via `shared/process_interface/src/process_interface/agentic_web.py`, ensuring 100% parity and zero code duplication between the ADK and NeuroSAN runtimes.
-
----
-
-## 3. Phase 1: Machine-Readable Agent Cards
-
-Every specialist network and pipeline exposes an `AgentCard` describing its purpose, category, agent type, version, inputs, outputs, artifacts, tools, and provenance:
-
-```yaml
-name: design_simulation_query
-description: Simulates architecture resilience, scalability, security and latency.
-category: design
-agent_type: simulator
-inputs:
-  - design_document
-outputs:
-  - simulation_report
-artifacts:
-  - design_document
-  - simulation_report
-version: 1.0.0
-provenance:
-  owner: Cognizant AI Lab / Agentic-AI-ADK
-  license: Apache-2.0
-```
-
-### Registered Specialist Agents (32 Total):
-1. **Orchestration**: `process_architect`
-2. **Requirements**: `requirements_summary`, `requirements_consultant`, `requirements_reviewer`, `requirements_simulation_query`, `requirements_doc_pipeline`
-3. **Business Process**: `process`, `process_update`, `process_consultant`, `process_simulation_query`, `process_scenario_tester`
-4. **Systems Architecture**: `design`, `design_update`, `design_consultant`, `design_simulation_query`, `design_scenario_tester`
-5. **Cloud Architecture & FinOps**: `cloudarch`, `cloudarch_consultant`, `cloudarch_simulation_query`, `cloudarch_attack_simulation_query`, `cloudarch_finops`, `cloudarch_iac`
-6. **Quality & Test Assurance**: `test_specification`, `test_consultant`, `test_reviewer`
-7. **Agile Portfolio Management**: `portfolio_backlog`
-8. **Commercial RFP/Bid Management**: `proposal_response_pipeline`, `proposal_response_consultant`, `proposal_response_reviewer`
-9. **Enterprise Architecture (TOGAF)**: `togaf`, `togaf_scenario_tester`
-10. **Document Rendering Utilities**: `regenerate_document`
-
----
-
-## 4. Phase 2: Capability Discovery Endpoints
-
-Both `samples/Neurosan/ProcessEngineering/cli.py` and `samples/GCP/ProcessEngineering/process_agents/common/agent.py` expose identical REST discovery endpoints.
-
-Discovery routes bypass authentication and rate-limiting to allow external orchestrators and spiders to inspect agent capabilities without prior credentials.
-
-### Discovery Endpoints
+Exposed identically via `shared/process_interface/src/process_interface/agentic_web.py`
+(switchable local/MCP, same pattern as the rest of `process_interface`), and wired into
+both ports' Flask servers (`samples/GCP/ProcessEngineering/process_agents/common/agent.py`,
+`samples/Neurosan/ProcessEngineering/cli.py`):
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/.well-known/agent.json` | `GET` | Open Agentic Web standard discovery manifest |
-| `/agent-manifest.json` | `GET` | Discovery manifest alias |
+| `/.well-known/agent.json` | `GET` | This project's own discovery manifest |
 | `/agents` | `GET` | Capability registry of all agent cards |
 | `/agents/<name>` | `GET` | Detailed Agent Card for a specific agent |
 | `/capabilities` | `GET` | Searchable capability catalog with filtering |
+| `/workflows` | `GET` | Lists all available lifecycle workflows |
+| `/workflows/<name>` | `GET` | Step ordering, transitions, produced artifacts |
+| `/artifacts/contracts` | `GET` | Lists all artifact contracts |
+| `/artifacts/contracts/<type>` | `GET` | Full schema fields, mime type, producer |
 
-### Query Parameters for `/agents` and `/capabilities`:
-- `?category=<category>`: Filter by domain (`process`, `design`, `cloudarch`, `requirements`, `testing`, `portfolio`, `proposal`, `governance`)
-- `?artifact=<artifact>`: Filter by consumed/produced artifact (`high_level_design`, `drawio_xml`, `simulation_report`, etc.)
-- `?type=<type>`: Filter by agent type (`pipeline`, `consultant`, `reviewer`, `simulator`, `generator`)
-- `?query=<text>`: Substring search across name, description, tags, and artifacts
-- `?full=true`: Return full Agent Cards instead of concise summaries
-- `?wrapped=true`: Wrap results in a `{"status": "ok", "count": N, "agents": [...]}` envelope
+Query parameters for `/agents` and `/capabilities`: `?category=`, `?artifact=`, `?type=`,
+`?query=`, `?full=true`, `?wrapped=true`. All of these routes bypass authentication and
+rate-limiting (see each port's own `_enforce_web_controls`), since they're meant to be
+inspectable by external orchestrators without prior credentials.
+
+These routes are also exposed as FastMCP tools by `samples/MCP/ProcessToolkitServer/server.py`
+(`get_agent_manifest`, `list_agents`, `get_agent_card`, `list_workflows`, `get_workflow`,
+`list_artifact_contracts`, `get_artifact_contract`) for MCP clients that prefer tool calls
+over raw HTTP.
+
+This part of the platform makes **no conformance claim** against any external
+interoperability standard -- it's documented here because it's genuinely useful, not
+because it satisfies someone else's spec.
 
 ---
 
-## 5. Phase 3: Standard Artifact Registry & Contracts
+## 4. Part Two: Open Agentic Web Alignment (Neuro-San Port Only)
 
-Outputs across all pipelines conform to standardized `ArtifactContract` schemas.
+### 4.1 What this actually publishes
 
-### Registered Artifact Types (13 Total)
+`samples/Neurosan/ProcessEngineering/network_publishing.py` publishes this project's
+Neuro-San agent networks per the real spec's section 3.3 ("Minimum Public Files"):
 
-| Artifact Type | Format | Producer | Canonical Output File |
-|---|---|---|---|
-| `requirements_summary` | JSON | `requirements_summary` | `requirements_summary.json` |
-| `process_definition` | JSON | `process` | `process_data.json` |
-| `high_level_design` | JSON | `design` | `design_data.json` |
-| `low_level_design` | JSON | `design` | `design_data.json` |
-| `cloud_architecture` | XML/JSON | `cloudarch` | `cloudarch_drawio.xml` |
-| `drawio_xml` | XML | `cloudarch` | `cloudarch_drawio.xml` |
-| `simulation_report` | JSON | `design_simulation_query` | `iteration_feedback_simulation.json` |
-| `finops_report` | JSON | `cloudarch_finops` | `iteration_feedback.json` |
-| `iac_package` | ZIP | `cloudarch_iac` | `cloudarch_iac.zip` |
-| `test_specification` | JSON | `test_specification` | `test_specification.json` |
-| `portfolio_backlog` | JSON | `portfolio_backlog` | `portfolio_backlog.json` |
-| `togaf_artifacts` | JSON | `togaf` | `togaf_data.json` |
-| `proposal_response` | JSON | `proposal_response_pipeline` | `proposal_response.json` |
+| Endpoint | Method | Description |
+|---|---|---|
+| `/agent-manifest.json` | `GET` | `{"networks": {<name>: {name, description, front_man, hocon}}}` for every publicly-listed `registries/*.hocon` network |
+| `/networks/<name>.network.json` | `GET` | The resolved (includes + substitutions expanded) agent-network JSON for one published network |
 
-### Contract Discovery Endpoints
+- **Which networks are published**: every entry in `registries/manifest.hocon` -- this
+  project's own existing, authoritative "what does this site serve" list -- that is not
+  explicitly marked `"public": false`. That file already distinguishes publicly-listed
+  networks from internal support networks (e.g. the Agent Network Designer's own helper
+  networks), so this reuses an existing decision rather than inventing a new one.
+- **How the JSON is resolved**: via `neuro_san.internals.graph.persistence.
+  agent_network_restorer.AgentNetworkRestorer` -- the same class `cli.py` already uses
+  elsewhere (`_build_agent_instructions_index`) to fully resolve a registry's HOCON
+  `include`s and `${...}` substitutions. No new HOCON-resolution logic was written.
+- **`front_man`**: not an explicit HOCON field -- computed the same way this project
+  already establishes it elsewhere (`basic/music_nerd.hocon`'s own header comment, mirrored
+  in `cli.py`): the first top-level `tools` entry with both a `name` and `instructions`.
 
-- `GET /artifacts/contracts`: Lists all artifact contracts
-- `GET /artifacts/contracts/<artifact_type>`: Returns full schema fields, mime type, and producer details for a specific artifact type.
+### 4.2 Scope & limitations (read this before assuming "compliant")
 
-### Standard Output Envelope
-Raw artifact data can be packaged inside the standard Open Agentic Web envelope using `wrap_artifact_envelope()`:
+This is **data-portability only** -- Tenet One of the spec ("Common Multi Agent
+Representation"). It deliberately does **not** attempt:
 
-```json
-{
-  "artifact_id": "DES-20261116-a1b2c3",
-  "artifact_type": "high_level_design",
-  "version": "1.0",
-  "producer": "design",
-  "created": "2026-11-16T21:30:00Z",
-  "contract_version": "1.0",
-  "data": { ... }
-}
+- **Tenet Two (Browser Execution)**: the spec requires a browser runtime (`nsDeploy`) to
+  actually *run* a published network client-side. This platform's agents still run
+  server-side, in Neuro-San's own Python runtime or Google ADK -- publishing the network
+  JSON does not change that.
+- **Tenet Three (Pluggable Inference / BYOK)**: the spec's model is that the *visitor*
+  supplies their own LLM router and credential. This platform uses server-managed LLM
+  credentials; it is not BYOK.
+
+**Checked directly, not just assumed -- here's why Tenets Two/Three were deliberately not
+pursued further.** `nsDeploy` (the spec's own reference runtime, Apache-2.0,
+https://github.com/cognizant-ai-lab/nsdeploy) was installed in an isolated environment and
+run against this project's own registries via `--studio <project-root>` (its "point at an
+arbitrary local checkout" mode, not just the public `neuro-san-studio` repo it defaults to):
+
+- `basic/music_nerd.hocon` (a pure chat agent, no coded tools) built a complete, correct
+  static bundle: real `index.html`, a real `agent-manifest.json`, and the full vendored JS
+  runtime -- including real, already-working BYOK (`runtime/byok.js`). The "write a browser
+  runtime from scratch" problem is genuinely solved by adopting this tool.
+- `design.hocon` (a real pipeline, 7 agents, 15 coded tools) resolved correctly against this
+  project's own layout -- but **every one of its 15 coded tools was silently dropped**, with
+  nsDeploy's own message: *"static bundles do not install or execute Python tools."* A
+  static deployment of this pipeline would be a chat UI that can talk about design but
+  cannot generate, validate, persist, or simulate anything -- none of what the pipeline is
+  actually for. Running them for real needs nsDeploy's *served* (non-static) mode, which
+  hosts Python tools as local MCP servers -- untested here, and expected to be genuinely
+  hard: this project's coded tools depend on `process_interface`/`process_toolkit`'s own
+  session model (contextvar-scoped `output/` directories, pipeline locks, session purging)
+  that a generic "wrap a Python function as an MCP tool" host has no reason to know about.
+  Getting each tool working would be its own, per-pipeline integration effort, not a
+  configuration flag.
+- A minor, non-fatal HOCON-resolution mismatch also surfaced (`Cannot include file title`),
+  a sign this project's HOCON wasn't written with this specific resolver in mind.
+
+**Conclusion: not worth doing.** The browser-runtime problem (building Tenet Two/Three from
+scratch) turned out to be solved for free by an existing tool. The tool-integration problem
+(making this project's actual pipelines do real work through it) did not, and is
+substantial, per-pipeline, uncertain-until-attempted engineering -- for a platform that
+already works well as a server-executed system. This was a deliberate stop, made with real
+evidence in hand, not an unexamined gap.
+
+This combination -- publishing public network data while keeping execution and credentials
+server-side -- is explicitly named by the spec itself (section 7, "Private stewards") as a
+recognized extension pattern, not a failure to conform: *"Operator-hosted Neuro SAN
+networks that keep credentials and private policy on the steward's server while loading and
+running public agent networks locally."* That's an accurate description of what this
+section implements.
+
+**GCP/ADK is not covered.** That port has no Neuro-San HOCON registries at all -- it's
+built on Google ADK's own agent/tool object model. The spec itself notes that other
+frameworks "map into this representation" via a converter, and names Google ADK
+specifically as a candidate for one. Building that converter (with the semantic-equivalence
+verification it would need) is real, separate, and larger work -- not attempted here. GCP's
+`/agent-manifest.json` path is intentionally unserved (404) rather than faked.
+
+**`links.json` is not published.** That file maps symbolic external (different-origin) peer
+network references to concrete URLs. None of this project's own registries reference a
+genuinely external peer today -- every cross-network reference (e.g.
+`process_architect.hocon`'s own `"/design_update"`) is a same-server internal reference.
+There is nothing for `links.json` to resolve yet.
+
+**No peer-consumption protocol.** This section makes this project a valid network
+*publisher*. It does not implement the spec's own consent/loading protocol for *consuming*
+someone else's published network (section 3.2) -- that's a browser-runtime concern, and
+this project doesn't run one.
+
+### 4.3 Verifying it
+
+```bash
+cd samples/Neurosan/ProcessEngineering
+uv run python -c "
+import cli
+app = cli.build_web_app('process_architect', https=False)
+client = app.test_client()
+print(client.get('/agent-manifest.json').get_json())
+print(client.get('/networks/design.network.json').get_json())
+"
+```
+
+Or against a running server:
+
+```bash
+curl http://localhost:8080/agent-manifest.json
+curl http://localhost:8080/networks/design.network.json
 ```
 
 ---
 
-## 6. Phase 4: Lifecycle Workflow Publication
+## 5. External Agent Invocation & Interoperability
 
-The platform publishes machine-readable engineering lifecycle workflows representing multi-agent orchestration flows.
-
-### Published Workflows
-1. **`architecture_lifecycle`**:
-   `requirements_summary` -> `design` -> `design_simulation_query` -> `cloudarch` -> `cloudarch_simulation_query` -> `cloudarch_finops` -> `cloudarch_iac`
-2. **`process_engineering_lifecycle`**:
-   `requirements_summary` -> `process` -> `process_simulation_query` -> `process_scenario_tester` -> `regenerate_document`
-3. **`enterprise_architecture_togaf_lifecycle`**:
-   `requirements_summary` -> `togaf` -> `togaf_scenario_tester` -> `design` -> `cloudarch` -> `regenerate_document`
-4. **`test_assurance_lifecycle`**:
-   `requirements_summary` -> `test_specification` -> `test_reviewer` -> `test_consultant` -> `regenerate_document`
-5. **`portfolio_planning_lifecycle`**:
-   `requirements_summary` -> `portfolio_backlog` -> `design` -> `cloudarch_finops`
-6. **`bid_proposal_lifecycle`**:
-   `requirements_summary` -> `proposal_response_pipeline` -> `proposal_response_reviewer` -> `proposal_response_consultant` -> `regenerate_document`
-
-### Workflow Endpoints
-- `GET /workflows`: Lists all available lifecycle workflows
-- `GET /workflows/<workflow_name>`: Returns step ordering, stage transitions, and produced artifacts for a specific workflow.
-
----
-
-## 7. External Agent Invocation & Interoperability
-
-External agents (Claude Code, Cursor, VS Code Copilot, OpenAI Agent SDK, LangChain, AutoGen) can interact with ProcessEngineering via three compliant transport modes:
+External agents (Claude Code, Cursor, VS Code Copilot, OpenAI Agent SDK, LangChain, AutoGen)
+can interact with ProcessEngineering via three transport modes. None of these is itself an
+Open Agentic Web conformance claim -- see §4 for the one piece that is.
 
 ### A. FastMCP / Model Context Protocol
 Start the server in MCP mode:
@@ -186,8 +285,7 @@ Add to your `claude_desktop_config.json` or `.cursor/mcp.json`:
 }
 ```
 
-### B. Standard Agentic Web Discovery
-External agents discover capabilities via HTTP:
+### B. This Project's Own Agent Discovery API
 ```python
 import httpx
 

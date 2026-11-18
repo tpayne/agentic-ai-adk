@@ -7,7 +7,8 @@ from process_interface import agentic_web
 def test_agentic_web_local_manifest():
     manifest = agentic_web.get_agent_manifest("http://127.0.0.1:8765")
     assert manifest["schema_version"] == "1.0.0"
-    assert manifest["standard"] == "Open Agentic Web MVP Profile"
+    assert "standard" not in manifest
+    assert manifest["provider"]["name"] == "Agentic-AI-ADK"
     assert manifest["capabilities_count"] >= 32
     assert manifest["workflows_count"] >= 6
     assert manifest["artifact_contracts_count"] >= 13
@@ -59,7 +60,7 @@ def test_agentic_web_mcp_mode_delegation(monkeypatch):
     def fake_call(tool_name, arguments=None):
         calls.append((tool_name, arguments))
         if tool_name == "get_agent_manifest":
-            return {"standard": "Open Agentic Web MVP Profile"}
+            return {"schema_version": "fake-manifest"}
         if tool_name == "list_agents":
             return [{"name": "fake_agent", "category": "test", "description": "desc", "agent_type": "gen", "artifacts": ["art"], "version": "1.0"}]
         if tool_name == "get_agent_card":
@@ -79,7 +80,7 @@ def test_agentic_web_mcp_mode_delegation(monkeypatch):
 
     # Test MCP delegation
     manifest = agentic_web.get_agent_manifest("http://fake")
-    assert manifest["standard"] == "Open Agentic Web MVP Profile"
+    assert manifest["schema_version"] == "fake-manifest"
     assert calls[-1][0] == "get_agent_manifest"
 
     cards = agentic_web.get_all_agent_cards()

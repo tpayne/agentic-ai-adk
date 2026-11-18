@@ -1,7 +1,10 @@
-"""Engineering lifecycle workflow publication for the Open Agentic Web.
+"""ProcessEngineering's own engineering lifecycle workflow publication.
 
-Exposes machine-readable workflow sequences, phase transitions, and agent coordination
-graphs consumable by external orchestration engines and multi-agent frameworks.
+Exposes this project's own machine-readable workflow sequences, phase transitions, and
+agent coordination graphs, consumable by external orchestration engines and multi-agent
+frameworks via this project's Agent Discovery API. Not an implementation of the external
+"Open Agentic Web" standard (https://github.com/cognizant-ai-labs/agentic-web), which
+defines no such workflow-publication concept.
 """
 
 from dataclasses import dataclass, field, asdict

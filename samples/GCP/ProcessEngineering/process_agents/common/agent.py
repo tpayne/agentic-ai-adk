@@ -1253,9 +1253,13 @@ def build_web_app(https: bool = True):
                                "name": "...", "data": {...the parsed
                                output/<name>_data.json...}}, or 404 if
                                that pipeline hasn't produced one yet.
-      GET    /.well-known/agent.json  Open Agentic Web standard manifest
-                               describing capabilities, endpoints, and agents.
-      GET    /agent-manifest.json     Alias to /.well-known/agent.json.
+      GET    /.well-known/agent.json  This project's own Agent Discovery API
+                               manifest, describing capabilities, endpoints, and
+                               agents. (This is NOT the external Open Agentic Web
+                               standard -- this port has no Neuro-San HOCON
+                               registries to publish for that; see the Neuro-San
+                               port's cli.py/network_publishing.py for the piece
+                               of this project that genuinely implements it.)
       GET    /agents                  Machine-readable capability registry listing
                                all agent cards; supports ?category=, ?artifact=,
                                ?type=, ?query=, ?full=true, ?wrapped=true.
@@ -1358,7 +1362,6 @@ def build_web_app(https: bool = True):
             request.path in (
                 "/status",
                 "/.well-known/agent.json",
-                "/agent-manifest.json",
                 "/agents",
                 "/capabilities",
                 "/workflows",
@@ -1637,9 +1640,10 @@ def build_web_app(https: bool = True):
         return jsonify({"status": "ok", "session_id": session_id, "cleared": existed})
 
     @web_app.route("/.well-known/agent.json", methods=["GET"])
-    @web_app.route("/agent-manifest.json", methods=["GET"])
     def agent_manifest():
-        """Open Agentic Web standard manifest for capability discovery."""
+        """This project's own Agent Discovery API manifest (not the external Open
+        Agentic Web standard -- this port has no Neuro-San HOCON registries to publish
+        for that; see the Neuro-San port instead)."""
         from process_interface.agentic_web import get_agent_manifest
 
         base_url = request.host_url.rstrip("/")

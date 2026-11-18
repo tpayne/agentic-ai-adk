@@ -1886,7 +1886,8 @@ class ContentPartsForTurnTest(unittest.TestCase):
 
 
 class WebServiceAgenticWebDiscoveryRoutesTest(unittest.TestCase):
-    """Open Agentic Web capability registry & discovery routes on GCP build_web_app."""
+    """ProcessEngineering's own Agent Discovery API capability registry & discovery
+    routes on GCP build_web_app (not the external Open Agentic Web standard)."""
 
     @classmethod
     def setUpClass(cls):
@@ -1908,15 +1909,27 @@ class WebServiceAgenticWebDiscoveryRoutesTest(unittest.TestCase):
         self.property_patch.stop()
 
     def test_agent_manifest_well_known(self):
-        for path in ("/.well-known/agent.json", "/agent-manifest.json"):
-            resp = self.client.get(path)
-            self.assertEqual(resp.status_code, 200)
-            data = resp.get_json()
-            self.assertEqual(data["schema_version"], "1.0.0")
-            self.assertEqual(data["standard"], "Open Agentic Web MVP Profile")
-            self.assertGreaterEqual(data["capabilities_count"], 32)
-            self.assertGreaterEqual(data["workflows_count"], 6)
-            self.assertGreaterEqual(data["artifact_contracts_count"], 13)
+        # GCP/ADK has no Neuro-San HOCON to publish, so /agent-manifest.json (the real
+        # Open Agentic Web spec's conventional path) is intentionally not served here --
+        # only the Neuro-San port implements that. This path is this project's own Agent
+        # Discovery API manifest, not a conformance claim against that external standard.
+        resp = self.client.get("/.well-known/agent.json")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data["schema_version"], "1.0.0")
+        self.assertNotIn("standard", data)
+        self.assertEqual(data["provider"]["name"], "Agentic-AI-ADK")
+        self.assertGreaterEqual(data["capabilities_count"], 32)
+        self.assertGreaterEqual(data["workflows_count"], 6)
+        self.assertGreaterEqual(data["artifact_contracts_count"], 13)
+
+    def test_agent_manifest_json_not_served_on_gcp(self):
+        # No route handles this path anymore (removed -- see test_agent_manifest_well_known's
+        # own comment above), and it's no longer in _enforce_web_controls's public allow-list,
+        # so the auth check -- which runs before route dispatch -- rejects it as unauthorized
+        # rather than ever reaching Flask's own 404 handling.
+        resp = self.client.get("/agent-manifest.json")
+        self.assertEqual(resp.status_code, 401)
 
     def test_agents_listing_and_filtering(self):
         resp = self.client.get("/agents")

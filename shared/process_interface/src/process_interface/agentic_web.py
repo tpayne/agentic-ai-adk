@@ -1,8 +1,13 @@
-"""Open Agentic Web standard compliance interface.
+"""ProcessEngineering's own Agent Discovery API interface.
 
-Provides Agent Cards, Capability Discovery, Artifact Contracts, and Workflow definitions
-for both ADK and NeuroSAN ProcessEngineering backends. Fully switchable between in-process
-execution (PROCESS_TOOLKIT_MODE=local) and FastMCP remote execution (PROCESS_TOOLKIT_MODE=mcp).
+Provides this project's own Agent Cards, Capability Discovery, Artifact Contracts, and
+Workflow definitions for both ADK and NeuroSAN ProcessEngineering backends. Fully
+switchable between in-process execution (PROCESS_TOOLKIT_MODE=local) and FastMCP remote
+execution (PROCESS_TOOLKIT_MODE=mcp). Not an implementation of the external "Open Agentic
+Web" standard (https://github.com/cognizant-ai-labs/agentic-web) -- see
+`process_toolkit.agentic_web`'s own module docstrings for what that distinction means and
+where this project's genuine alignment with that external spec actually lives
+(`samples/Neurosan/ProcessEngineering/network_publishing.py`).
 """
 
 from typing import Any, Dict, List, Optional

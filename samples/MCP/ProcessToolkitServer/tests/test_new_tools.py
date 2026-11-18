@@ -178,7 +178,7 @@ class TestAgenticWebMcpTools:
             async with Client(server.mcp) as client:
                 manifest = (await client.call_tool("get_agent_manifest", {"base_url": "http://test"})).data
             assert manifest["schema_version"] == "1.0.0"
-            assert manifest["standard"] == "Open Agentic Web MVP Profile"
+            assert manifest["provider"]["name"] == "Agentic-AI-ADK"
             assert manifest["capabilities_count"] >= 32
 
         asyncio.run(_run())
