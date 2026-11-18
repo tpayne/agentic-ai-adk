@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import re
@@ -371,6 +372,71 @@ class SaveDrawioShapeMappingTests(unittest.TestCase):
         # nested child (not just an icon), this SHOULD be mapped to the
         # container fallback style.
         self.assertIn("shape=rect", box_style_match.group(1))
+
+
+class LoadDirectoryContextMultimodalTests(unittest.TestCase):
+    """load_directory_context's own ADK-side wrapper converts the shared
+    extractor's plain-dict "images" entries into real types.Part objects --
+    confirmed directly against ADK's own _extract_multimodal_parts/
+    _as_function_response_part (google/adk/flows/llm_flows/tools/_caller.py),
+    which only recognizes an embedded types.Part instance, never a plain
+    dict -- so this conversion is what actually makes an imported image
+    reach the model as real vision input instead of just OCR'd text."""
+
+    def setUp(self):
+        self.sleep_patch = patch.object(utils, "_safe_sleep_from_property")
+        self.sleep_patch.start()
+        self.log_patch = patch.object(utils, "_log_agent_activity")
+        self.log_patch.start()
+        self.addCleanup(self.sleep_patch.stop)
+        self.addCleanup(self.log_patch.stop)
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+
+    def test_image_entries_become_real_parts_with_the_same_bytes(self):
+        # utils.types is google.genai's own types module -- NOT the plain
+        # stdlib "types" imported at the top of this file -- but this test
+        # file's own module-level _isolated_dependency_stubs() convention
+        # replaces google.genai with a lightweight stub lacking a real
+        # Part/from_bytes (confirmed directly: AttributeError without this
+        # mock). Mocking Part.from_bytes itself keeps this a true, isolated
+        # unit test of THIS wrapper's own conversion logic -- which args it
+        # passes to from_bytes, and that the result replaces "images" in
+        # order -- without depending on (or re-testing) google.genai's own
+        # already-battle-tested implementation.
+        png_bytes = b"\x89PNG\r\n\x1a\nnot-a-real-png-but-that-is-fine-here"
+        shared_result = {
+            "status": "OK",
+            "directory": self.temp_dir.name,
+            "files_processed": ["screenshot.png"],
+            "files_skipped": [],
+            "combined_text": "",
+            "chunks": [],
+            "chunk_count": 0,
+            "images": [{
+                "name": "screenshot.png",
+                "mime_type": "image/png",
+                "data_base64": base64.b64encode(png_bytes).decode("ascii"),
+            }],
+        }
+        sentinel_part = object()
+        with patch.object(utils, "_shared_load_directory_context", return_value=shared_result), \
+             patch.object(utils.types, "Part", create=True) as mock_part_cls:
+            mock_part_cls.from_bytes.return_value = sentinel_part
+            result = utils.load_directory_context(self.temp_dir.name)
+
+        assert result["images"] == [sentinel_part]
+        mock_part_cls.from_bytes.assert_called_once_with(data=png_bytes, mime_type="image/png")
+
+    def test_no_images_leaves_the_field_as_an_empty_list(self):
+        shared_result = {
+            "status": "OK", "directory": self.temp_dir.name, "files_processed": ["notes.txt"],
+            "files_skipped": [], "combined_text": "x", "chunks": ["x"], "chunk_count": 1, "images": [],
+        }
+        with patch.object(utils, "_shared_load_directory_context", return_value=shared_result):
+            result = utils.load_directory_context(self.temp_dir.name)
+
+        assert result["images"] == []
 
 
 if __name__ == "__main__":

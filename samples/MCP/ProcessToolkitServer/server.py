@@ -62,6 +62,7 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
     save_portfolio_backlog as _save_portfolio_backlog,
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
 from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack as _simulate_cloudarch_attack
@@ -319,6 +320,50 @@ def generate_diagram(schema_type: str, session_id: Optional[str] = None) -> dict
         changed = _new_or_changed(before, directory, ".png")
         diagram = _encode_file(os.path.join(directory, changed[0])) if changed else None
     return {"message": message, "diagram": diagram}
+
+
+@mcp.tool
+def export_process_design_vsdx(schema_type: str, session_id: Optional[str] = None) -> dict:
+    """On-demand Visio (.vsdx) export of the whole-document flow/
+    architecture diagram for `schema_type` ("design" or "process" only --
+    same has_diagram gate as generate_diagram, since there is nothing to
+    export for a schema_type with no whole-document diagram at all).
+    Unlike generate_diagram/generate_document, this never runs as part of
+    any generate/review pipeline -- it's a standalone action an MCP client
+    calls explicitly. Returns {"message": ..., "vsdx": null} when the
+    schema_type has no diagram, or when the underlying export itself
+    reports an error (its own message, prefixed "ERROR:", is still
+    returned either way for the caller to relay)."""
+    ops = _domain_or_error(schema_type)
+    if not ops.has_diagram:
+        return {
+            "message": f"NOT_APPLICABLE: '{schema_type}' has no whole-document diagram to export.",
+            "vsdx": None,
+        }
+    with _session(session_id):
+        directory = paths.output_dir()
+        before = _snapshot_mtimes(directory, ".vsdx")
+        message = build_process_design_vsdx(schema_type)
+        changed = _new_or_changed(before, directory, ".vsdx")
+        vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
+    return {"message": message, "vsdx": vsdx}
+
+
+@mcp.tool
+def export_cloudarch_vsdx(session_id: Optional[str] = None) -> dict:
+    """On-demand Visio (.vsdx) export of the currently saved cloud-
+    architecture diagram (load_drawio's own cloudarch_drawio.xml) for
+    `session_id`. Standalone -- never runs as part of any cloudarch
+    pipeline. Returns {"message": ..., "vsdx": null} when nothing has
+    been generated yet, or on export failure (the message itself,
+    prefixed "ERROR:", is still returned either way)."""
+    with _session(session_id):
+        directory = paths.output_dir()
+        before = _snapshot_mtimes(directory, ".vsdx")
+        message = build_cloudarch_vsdx()
+        changed = _new_or_changed(before, directory, ".vsdx")
+        vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
+    return {"message": message, "vsdx": vsdx}
 
 
 @mcp.tool

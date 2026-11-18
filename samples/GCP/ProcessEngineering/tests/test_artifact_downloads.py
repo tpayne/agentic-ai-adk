@@ -144,6 +144,39 @@ class TestResolveArtifactTarget:
         assert artifact_downloads.resolve_artifact_target("give me the lld") == "Checkout_Service_LLD.docx"
         assert artifact_downloads.resolve_artifact_target("the high-level design") == "Checkout_Service_HLD.docx"
 
+    def test_vsdx_keyword_disambiguates_by_domain_word(self):
+        _write_output_file("process_flow.vsdx")
+        _write_output_file("design_flow.vsdx")
+        _write_output_file("cloudarch_architecture.vsdx")
+        assert artifact_downloads.resolve_artifact_target("the process visio file") == "process_flow.vsdx"
+        assert artifact_downloads.resolve_artifact_target("design vsdx") == "design_flow.vsdx"
+        assert artifact_downloads.resolve_artifact_target("the cloudarch vsdx") == "cloudarch_architecture.vsdx"
+        assert artifact_downloads.resolve_artifact_target("export the cloud architecture as visio") == "cloudarch_architecture.vsdx"
+
+    def test_vsdx_keyword_with_no_domain_word_resolves_only_if_exactly_one_exists(self):
+        assert artifact_downloads.resolve_artifact_target("the visio file") is None
+        _write_output_file("process_flow.vsdx")
+        assert artifact_downloads.resolve_artifact_target("the visio file") == "process_flow.vsdx"
+        assert artifact_downloads.resolve_artifact_target("download the vsdx") == "process_flow.vsdx"
+        _write_output_file("design_flow.vsdx")
+        assert artifact_downloads.resolve_artifact_target("the visio file") is None
+
+    def test_vsdx_keyword_resolves_to_none_when_nothing_exported(self):
+        assert artifact_downloads.resolve_artifact_target("visio") is None
+        assert artifact_downloads.resolve_artifact_target("the process vsdx") is None
+
+    def test_vsdx_intent_is_not_hijacked_by_the_plain_cloudarch_diagram_branch(self):
+        _write_output_file("cloudarch_drawio.xml")
+        _write_output_file("cloudarch_architecture.vsdx")
+        assert artifact_downloads.resolve_artifact_target("export the cloud architecture as visio") == "cloudarch_architecture.vsdx"
+
+    def test_visio_word_is_not_hijacked_by_the_vision_document_substring_bug(self):
+        # Regression guard matching the neuro-san port's own identical fix:
+        # "vision" contains "visio" as its first five letters.
+        _write_output_file("cloudarch_drawio.xml")
+        _write_output_file("Checkout_Architecture_Vision.docx")
+        assert artifact_downloads.resolve_artifact_target("togaf architecture vision document") == "Checkout_Architecture_Vision.docx"
+
 
 class TestCloudarchDiagramExists:
     def test_false_when_not_generated(self):

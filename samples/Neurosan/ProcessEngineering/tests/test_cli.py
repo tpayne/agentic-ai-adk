@@ -1584,6 +1584,34 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         assert "portfolio_backlog.xlsx" in resp.headers.get("Content-Disposition", "")
 
+    def test_downloads_process_flow_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_flow.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/process_flow_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert resp.mimetype == "application/vnd.ms-visio.drawing.main+xml"
+        assert "process_flow.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_design_flow_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"design_flow.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/design_flow_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert "design_flow.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_cloudarch_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"cloudarch_architecture.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/cloudarch_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert "cloudarch_architecture.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_vsdx_routes_404_when_not_yet_exported(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        assert client.get("/artifacts/process_flow_vsdx/download").status_code == 404
+        assert client.get("/artifacts/design_flow_vsdx/download").status_code == 404
+        assert client.get("/artifacts/cloudarch_vsdx/download").status_code == 404
+
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
         assert client.get("/artifacts/process/download").status_code == 404

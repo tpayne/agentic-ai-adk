@@ -1175,6 +1175,48 @@ class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
         )
         self.assertIn("portfolio_backlog.xlsx", response.headers.get("Content-Disposition", ""))
 
+    def test_downloads_process_flow_vsdx_as_a_real_attachment(self):
+        self._write("process_flow.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/process_flow_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertEqual(response.mimetype, "application/vnd.ms-visio.drawing.main+xml")
+        self.assertIn("process_flow.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_design_flow_vsdx_as_a_real_attachment(self):
+        self._write("design_flow.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/design_flow_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertIn("design_flow.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_cloudarch_vsdx_as_a_real_attachment(self):
+        self._write("cloudarch_architecture.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/cloudarch_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertIn("cloudarch_architecture.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_vsdx_routes_404_when_not_yet_exported(self):
+        self.assertEqual(
+            self.client.get("/artifacts/process_flow_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get("/artifacts/design_flow_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get("/artifacts/cloudarch_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+
     def test_404s_when_not_yet_generated(self):
         response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())
         self.assertEqual(response.status_code, 404)

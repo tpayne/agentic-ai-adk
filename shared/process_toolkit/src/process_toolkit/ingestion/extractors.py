@@ -5,6 +5,7 @@ Ported verbatim from the ADK sample's process_agents/common/utils.py
 framework-specific, so the logic carries over unchanged.
 """
 
+import base64
 import os
 import tempfile
 
@@ -155,6 +156,64 @@ def _extract_excel_file(path: str) -> str:
     return "\n\n".join(parts)
 
 
+def _extract_vsdx_file(path: str) -> str:
+    # VisioFile.all_shapes (not the deprecated .shapes, which is top-level
+    # only) walks every shape on a page, recursively -- confirmed directly
+    # against the installed vsdx package. Connector relationships are
+    # reconstructed from Page.connects: two Connect entries sharing the same
+    # connector_shape_id are the two ends of ONE connector line (confirmed
+    # directly: a real connector between shapes "1" and "2" produces
+    # Connect(connector_shape_id=5, shape_id=1) and Connect(connector_shape_id=
+    # 5, shape_id=2)), so grouping by connector_shape_id recovers which two
+    # real shapes (never the connector's own shape) each connector joins.
+    # Direction (which end is "begin" vs "end") isn't asserted here -- that
+    # would need reading the connector's own geometry cells, not just this
+    # list -- so this reports an undirected relationship rather than
+    # guessing a direction that might be backwards.
+    from vsdx import VisioFile
+
+    sections = []
+    with VisioFile(path) as vis:
+        for page in vis.pages:
+            id_to_text = {}
+            shape_lines = []
+            for shape in page.all_shapes:
+                text = (shape.text or "").strip()
+                if text:
+                    id_to_text[shape.ID] = text
+                    shape_lines.append(text)
+
+            by_connector = {}
+            for connect in page.connects:
+                by_connector.setdefault(connect.connector_shape_id, []).append(connect.shape_id)
+
+            connection_lines = []
+            for shape_ids in by_connector.values():
+                labels = list(dict.fromkeys(id_to_text.get(sid, sid) for sid in shape_ids))
+                if len(labels) >= 2:
+                    connection_lines.append(" -- ".join(labels))
+
+            section = f"[Page: {page.name}]\n" + "\n".join(shape_lines)
+            if connection_lines:
+                section += "\n\nConnections:\n" + "\n".join(connection_lines)
+            sections.append(section)
+    return "\n\n".join(sections)
+
+
+def _extract_image_file(path: str) -> str:
+    # OCR extracts visible TEXT only -- same honesty-first limitation as
+    # _extract_pdf_file's own no-OCR-on-scanned-pages note above: a
+    # box-and-arrow diagram screenshot yields whatever text labels Tesseract
+    # can read, roughly in reading order, with NO connection/relationship/
+    # layout information recoverable from pixels alone (unlike _extract_vsdx_
+    # file above, which has real vector shape+connector data to work with).
+    from PIL import Image
+    import pytesseract
+
+    with Image.open(path) as image:
+        return pytesseract.image_to_string(image)
+
+
 # Legacy .doc/.ppt (binary, pre-2007 Office) are deliberately absent --
 # python-docx/python-pptx only read the modern XML-based .docx/.pptx
 # formats. Both are caught in load_directory_context and reported in
@@ -172,6 +231,36 @@ DIRECTORY_CONTEXT_EXTRACTORS = {
     ".xlsx": _extract_excel_file,
     ".xml": _extract_xml_file,
     ".json": _extract_json_file,
+    ".vsdx": _extract_vsdx_file,
+    ".vsdm": _extract_vsdx_file,
+    ".png": _extract_image_file,
+    ".jpg": _extract_image_file,
+    ".jpeg": _extract_image_file,
+    ".gif": _extract_image_file,
+    ".webp": _extract_image_file,
+    ".bmp": _extract_image_file,
+    ".tiff": _extract_image_file,
+}
+
+# Extensions load_directory_context ALSO base64-encodes into its own "images"
+# return field, on top of their OCR'd text above -- a caller on a framework
+# that supports handing a tool's own return value back to the model as real
+# vision input (confirmed: Google ADK does, via Part.from_bytes embedded in a
+# FunctionTool's own return; confirmed NOT possible via a neuro-san CodedTool's
+# own return value, which is force-stringified before any multimodal handling
+# could apply) can use this for genuine visual understanding instead of
+# OCR-only text. A caller that ignores this field loses nothing -- the OCR'd
+# text above is unconditionally still part of combined_text/chunks either way.
+IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"})
+
+_IMAGE_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
 }
 
 
@@ -241,6 +330,16 @@ def load_directory_context(
     "total_chunks_before_cap" are included so a caller can tell the user
     not everything was analyzed, instead of the old behavior of silently
     cutting off mid-character with no visible signal beyond one string.
+
+    "images" is NEW and additive: one {"name", "mime_type", "data_base64"}
+    entry per image file found (see IMAGE_EXTENSIONS), independent of
+    "files_processed"/"files_skipped"/"combined_text" above -- an image's
+    OCR'd text (if any) still flows through "combined_text"/"chunks" exactly
+    like every other extractor, but this field exists so a caller on a
+    framework that supports handing real image bytes back to the model as
+    vision input (see IMAGE_EXTENSIONS's own docstring for which ones do) can
+    do that instead of relying on OCR alone. Empty list if no images were
+    found; a caller that never looks at this field is unaffected.
     """
     resolved = os.path.abspath(directory)
     if not os.path.isdir(resolved):
@@ -267,6 +366,7 @@ def load_directory_context(
     files_processed = []
     files_skipped = []
     sections = []
+    images = []
 
     for name in entries:
         full_path = os.path.join(resolved, name)
@@ -290,6 +390,27 @@ def load_directory_context(
         except Exception as e:
             files_skipped.append({"file": name, "reason": f"failed to read: {e}"})
             continue
+
+        # An image's raw bytes are captured independently of whether OCR
+        # just above found any text -- a diagram that's all boxes/arrows
+        # with no text labels at all has EMPTY OCR output but is still
+        # genuinely useful to a caller that can hand it to the model as real
+        # vision input (see IMAGE_EXTENSIONS's own docstring); gating this on
+        # "OCR found non-empty text" would silently drop exactly the images
+        # vision passthrough matters most for. This runs AFTER the extractor
+        # call above, not before: that call is what actually proves the file
+        # is a genuinely decodable image (extractor() opens it via PIL) --
+        # capturing raw bytes first, before that validation, would let a
+        # corrupt/non-image file with an image-like extension end up in
+        # "images" even though it was never a real image at all.
+        if ext in IMAGE_EXTENSIONS:
+            with open(full_path, "rb") as f:
+                raw_bytes = f.read()
+            images.append({
+                "name": name,
+                "mime_type": _IMAGE_MIME_TYPES[ext],
+                "data_base64": base64.b64encode(raw_bytes).decode("ascii"),
+            })
 
         if not text:
             files_skipped.append({"file": name, "reason": "no extractable text"})
@@ -321,6 +442,7 @@ def load_directory_context(
         "combined_text": wrap_untrusted(combined_text) if combined_text else combined_text,
         "chunks": chunked["chunks"],
         "chunk_count": chunked["chunk_count"],
+        "images": images,
     }
     if truncated:
         result["truncated"] = True

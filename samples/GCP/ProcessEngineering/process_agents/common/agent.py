@@ -266,6 +266,8 @@ from .agent_registry import (
     cloudarch_import_agent,
     togaf_pipeline,
     togaf_scenario_tester_agent,
+    visio_export_agent,
+    cloudarch_visio_export_agent,
 )
 
 # Signal handler for abnormal errors
@@ -337,6 +339,8 @@ root_agent = ProcessLlmAgent(
         cloudarch_import_agent,
         togaf_pipeline,
         togaf_scenario_tester_agent,
+        visio_export_agent,
+        cloudarch_visio_export_agent,
     ],
 )
 
@@ -1981,6 +1985,73 @@ def build_web_app(https: bool = True):
             as_attachment=True,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    @web_app.route("/artifacts/process_flow_vsdx/download", methods=["GET"])
+    def download_process_flow_vsdx():
+        """Downloads this web session's own exported process flow diagram
+        Visio (.vsdx) file -- see Visio_Export_Agent's own
+        export_process_design_vsdx tool for how it's produced. Structurally
+        identical to download_cloudarch above, just for this artifact kind."""
+        from process_interface import paths as toolkit_paths
+        from process_interface.docgen.vsdx_export import PROCESS_FLOW_VSDX_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), PROCESS_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROCESS_FLOW_VSDX_FILENAME} found yet -- export the process flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=PROCESS_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/design_flow_vsdx/download", methods=["GET"])
+    def download_design_flow_vsdx():
+        """Downloads this web session's own exported design flow/
+        architecture diagram Visio (.vsdx) file. Structurally identical to
+        download_process_flow_vsdx above, just for the design domain."""
+        from process_interface import paths as toolkit_paths
+        from process_interface.docgen.vsdx_export import DESIGN_FLOW_VSDX_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), DESIGN_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {DESIGN_FLOW_VSDX_FILENAME} found yet -- export the design flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=DESIGN_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/cloudarch_vsdx/download", methods=["GET"])
+    def download_cloudarch_vsdx():
+        """Downloads this web session's own exported cloud architecture
+        diagram Visio (.vsdx) file -- see Cloudarch_Visio_Export_Agent's
+        own export_cloudarch_vsdx tool for how it's produced. Structurally
+        identical to download_cloudarch above (which downloads the
+        underlying cloudarch_drawio.xml instead), just for the exported
+        Visio copy."""
+        from process_interface import paths as toolkit_paths
+        from process_interface.docgen.vsdx_export import CLOUDARCH_VSDX_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), CLOUDARCH_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {CLOUDARCH_VSDX_FILENAME} found yet -- export the cloud architecture diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=CLOUDARCH_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
         )
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])

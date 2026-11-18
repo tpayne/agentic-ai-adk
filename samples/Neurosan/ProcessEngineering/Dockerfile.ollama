@@ -9,7 +9,9 @@
 
 FROM python:3.14-slim
 
-# Install system dependencies: curl (for Ollama install & healthchecks), zstd, supervisor, procps, bash
+# Install system dependencies: curl (for Ollama install & healthchecks), zstd, supervisor, procps, bash.
+# tesseract-ocr is the real OCR engine pytesseract (process_toolkit's own
+# ingestion extractors) wraps -- not a Python package, pip cannot install it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     zstd \
@@ -17,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     bash \
     ca-certificates \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # Install official Ollama binary for the host/container architecture

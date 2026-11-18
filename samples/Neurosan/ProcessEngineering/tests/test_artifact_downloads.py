@@ -152,6 +152,36 @@ class TestResolveArtifactTarget:
         assert resolve_artifact_target("give me the lld") == "Checkout_Service_LLD.docx"
         assert resolve_artifact_target("the high-level design") == "Checkout_Service_HLD.docx"
 
+    def test_vsdx_keyword_disambiguates_by_domain_word(self):
+        _write_output_file("process_flow.vsdx")
+        _write_output_file("design_flow.vsdx")
+        _write_output_file("cloudarch_architecture.vsdx")
+        assert resolve_artifact_target("the process visio file") == "process_flow.vsdx"
+        assert resolve_artifact_target("design vsdx") == "design_flow.vsdx"
+        assert resolve_artifact_target("the cloudarch vsdx") == "cloudarch_architecture.vsdx"
+        assert resolve_artifact_target("export the cloud architecture as visio") == "cloudarch_architecture.vsdx"
+
+    def test_vsdx_keyword_with_no_domain_word_resolves_only_if_exactly_one_exists(self):
+        assert resolve_artifact_target("the visio file") is None
+        _write_output_file("process_flow.vsdx")
+        assert resolve_artifact_target("the visio file") == "process_flow.vsdx"
+        assert resolve_artifact_target("download the vsdx") == "process_flow.vsdx"
+        _write_output_file("design_flow.vsdx")
+        # Two now exist with no disambiguating word -- genuinely ambiguous.
+        assert resolve_artifact_target("the visio file") is None
+
+    def test_vsdx_keyword_resolves_to_none_when_nothing_exported(self):
+        assert resolve_artifact_target("visio") is None
+        assert resolve_artifact_target("the process vsdx") is None
+
+    def test_vsdx_intent_is_not_hijacked_by_the_plain_cloudarch_diagram_branch(self):
+        # Regression guard: "architecture" alone would otherwise match the
+        # pre-existing cloudarch_drawio.xml branch further down -- vsdx/
+        # visio intent must be resolved before that branch ever runs.
+        _write_output_file("cloudarch_drawio.xml")
+        _write_output_file("cloudarch_architecture.vsdx")
+        assert resolve_artifact_target("export the cloud architecture as visio") == "cloudarch_architecture.vsdx"
+
 
 class TestCopyArtifactToDestination:
     def test_copies_into_an_existing_directory_keeping_the_filename(self, tmp_path):

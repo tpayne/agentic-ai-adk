@@ -19,9 +19,11 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json) that already
-describe an existing architectural/technical design (HLD, LLD, or Combined), and import their
-content directly into this toolkit's own structured design JSON -- not a fresh design from a brief,
+I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json/vsdx/vsdm,
+plus images [png/jpg/jpeg/gif/webp/bmp/tiff] -- OCR'd visible text only, not a visual description
+of the image) that already describe an existing architectural/technical design (HLD, LLD, or
+Combined), and import their content directly into this toolkit's own structured design JSON --
+not a fresh design from a brief,
 an extraction of what's actually in the documents. If the directory contains a design_data.json
 previously downloaded from this same toolkit, I restore it verbatim instead of re-extracting it.
 Tell me which directory to read.

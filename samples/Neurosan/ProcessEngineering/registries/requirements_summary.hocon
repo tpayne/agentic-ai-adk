@@ -20,8 +20,10 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx) and summarize the
-requirements found in them into a structured, traceable register. Tell me which directory to read.
+I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/vsdx/vsdm, plus images
+[png/jpg/jpeg/gif/webp/bmp/tiff] -- OCR'd visible text only, not a visual description of the image)
+and summarize the requirements found in them into a structured, traceable register. Tell me which
+directory to read.
 """,
                 "parameters": {
                     "type": "object",

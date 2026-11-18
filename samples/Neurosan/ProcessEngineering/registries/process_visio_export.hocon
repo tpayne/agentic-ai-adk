@@ -1,0 +1,97 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own
+# Visio_Export_Agent, a standalone action -- export whatever process or
+# design flow/architecture diagram is ALREADY saved on disk as a real
+# Visio (.vsdx) file. NO re-analysis, NO process/design regeneration, and
+# the saved process_data.json/design_data.json is never modified. This is
+# deliberately NOT process.hocon's Process_Pipeline / design.hocon's own
+# pipeline run with its early steps skipped -- same reasoning as
+# process_subprocess_regenerate.hocon's own header comment.
+#
+# Domain-agnostic by design, mirroring regenerate_document.hocon's own
+# Regenerate_Document_Agent: a bare "export this as Visio" doesn't say
+# which document, so this front-man determines schema_type itself from
+# the user's own request wording, rather than requiring the router to
+# have already disambiguated it.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Exports the current process or design flow/architecture diagram as a Visio (.vsdx) file, from whatever is already saved on disk -- no re-analysis, no regeneration.",
+        "tags": ["process", "design", "process-engineering-port"],
+        "sample_queries": [
+            "Export the process flow diagram as Visio.",
+            "Give me a .vsdx of the design architecture."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Visio_Export_Agent_Main",
+
+            "function": {
+                "description": """
+I export the current process or design flow/architecture diagram as a real Visio (.vsdx) file, from
+whatever is already saved on disk. I never re-run analysis, process/design generation, or review,
+and I never modify the saved data itself. Tell me to export the process or design diagram as Visio.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's Visio-export request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You export whatever process or design flow diagram is already saved on disk as a Visio (.vsdx)
+file. You NEVER re-run analysis, process/design generation, or review, and you NEVER modify the
+saved process_data.json/design_data.json itself -- that is every other network's job, on a separate
+request.
+
+# DETERMINE schema_type FIRST
+Check whether "inquiry" itself names a domain:
+- If it explicitly says "process" / "process diagram" / "process flow" / "the process", schema_type
+  = "process".
+- If it explicitly says "design" / "design diagram" / "architecture diagram" / "HLD" / "LLD" / "the
+  design", schema_type = "design".
+- Otherwise -- a genuinely generic "export the diagram as Visio" with no domain named -- ask the
+  user to clarify whether they mean the process flow diagram or the design/architecture diagram,
+  rather than guessing. Do NOT call export_vsdx without a determined schema_type.
+
+# SEQUENCE
+1. Determine schema_type as above. If genuinely ambiguous, ask a clarifying question and stop --
+   do not call any tool.
+2. Call export_vsdx with that schema_type.
+3. If the result starts with "ERROR", relay it verbatim -- there is no saved process/design to
+   export yet; suggest creating one first (e.g. "create a process for ..." / "create a design
+   document for ...").
+4. Otherwise, report in plain language that the Visio diagram was exported, and the exact saved
+   path from the tool's own result.
+
+Plain prose only in your final reply -- no raw JSON or internal field names.
+""",
+            "tools": ["export_vsdx"]
+        },
+
+        {
+            "name": "export_vsdx",
+            "function": {
+                "description": "Exports the current saved process/design flow diagram as a Visio (.vsdx) file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["process", "design"],
+                            "description": "Which saved diagram to export."
+                        }
+                    },
+                    "required": ["schema_type"]
+                }
+            },
+            "class": "vsdx_export_tool.ExportProcessDesignVsdxCodedTool"
+        }
+    ]
+}

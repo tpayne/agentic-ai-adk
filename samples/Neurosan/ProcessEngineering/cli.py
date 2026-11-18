@@ -206,6 +206,21 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # client-supplied mime_data through would silently vanish, not reach the
 # LLM.
 #
+# CONFIRMED, same limitation, checked directly against the installed
+# neuro-san (0.7.7) and google-adk (2.14.0) packages' own source: a
+# CodedTool's own return value is force-stringified in
+# abstract_class_activation.py BEFORE any message-type/mime_data handling
+# could ever apply, so there is no path -- unlike the ADK port's own
+# _content_parts_for_turn/computer_use_tool.py-style FunctionResponsePart
+# mechanism -- for an attached or imported image to reach this port's LLM
+# as genuine vision input. What DID change: an attached image used to
+# vanish ENTIRELY (load_directory_context's own "unsupported file type"
+# skip path) once staged into the attachment directory above; it now
+# contributes its OCR'd visible text instead (process_toolkit.ingestion.
+# extractors._extract_image_file), the same way every other attached
+# document already does. Text-only, not a description of the image's
+# visual/structural layout -- see that extractor's own docstring.
+#
 # Attachments are staged to a FIXED, per-ChatSession on-disk directory
 # (see ChatSession._attachments_directory/_ingest_attachments below) via
 # stage_attachments_to_directory, and that directory's path is appended
@@ -1599,6 +1614,16 @@ def build_web_app(agent_name: str, https: bool = True):
                                output/cloudarch_iac.zip as a real file
                                attachment, or 404 if the IaC pipeline
                                hasn't produced one yet.
+      GET    /artifacts/process_flow_vsdx/download  Downloads
+                               output/process_flow.vsdx (see
+                               /process_visio_export), or 404 if nothing
+                               has been exported yet.
+      GET    /artifacts/design_flow_vsdx/download  Same as above, for
+                               output/design_flow.vsdx.
+      GET    /artifacts/cloudarch_vsdx/download  Downloads
+                               output/cloudarch_architecture.vsdx (see
+                               /cloudarch_visio_export), or 404 if nothing
+                               has been exported yet.
       GET    /.well-known/agent.json  This project's own Agent Discovery API
                                manifest, describing capabilities, endpoints,
                                and agents (NOT the external Open Agentic Web
@@ -2267,6 +2292,70 @@ def build_web_app(agent_name: str, https: bool = True):
             as_attachment=True,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    @web_app.route("/artifacts/process_flow_vsdx/download", methods=["GET"])
+    def download_process_flow_vsdx():
+        """Downloads this web session's own exported process flow diagram
+        Visio (.vsdx) file -- see /process_visio_export's own
+        ExportProcessDesignVsdxCodedTool for how it's produced. Structurally
+        identical to download_cloudarch above, just for this artifact kind."""
+        from process_interface.docgen.vsdx_export import PROCESS_FLOW_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), PROCESS_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROCESS_FLOW_VSDX_FILENAME} found yet -- export the process flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=PROCESS_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/design_flow_vsdx/download", methods=["GET"])
+    def download_design_flow_vsdx():
+        """Downloads this web session's own exported design flow/
+        architecture diagram Visio (.vsdx) file. Structurally identical to
+        download_process_flow_vsdx above, just for the design domain."""
+        from process_interface.docgen.vsdx_export import DESIGN_FLOW_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), DESIGN_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {DESIGN_FLOW_VSDX_FILENAME} found yet -- export the design flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=DESIGN_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/cloudarch_vsdx/download", methods=["GET"])
+    def download_cloudarch_vsdx():
+        """Downloads this web session's own exported cloud architecture
+        diagram Visio (.vsdx) file -- see /cloudarch_visio_export's own
+        ExportCloudarchVsdxCodedTool for how it's produced. Structurally
+        identical to download_cloudarch above (which downloads the
+        underlying cloudarch_drawio.xml instead), just for the exported
+        Visio copy."""
+        from process_interface.docgen.vsdx_export import CLOUDARCH_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), CLOUDARCH_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {CLOUDARCH_VSDX_FILENAME} found yet -- export the cloud architecture diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=CLOUDARCH_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
         )
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])

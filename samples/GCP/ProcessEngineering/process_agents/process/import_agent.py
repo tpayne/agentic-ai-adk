@@ -18,10 +18,11 @@ from ..common.agent_wrappers import ProcessLlmAgent
 process_import_agent = ProcessLlmAgent(
     name="Process_Import_Agent",
     description=(
-        "Reads a directory of source documents (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx) that "
-        "already describe an existing business process, and imports their content directly into "
-        "this toolkit's own structured process JSON -- not a fresh design from a brief, an "
-        "extraction of what's actually in the documents."
+        "Reads a directory of source documents (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/"
+        ".json/.vsdx/.vsdm, plus images [.png/.jpg/.jpeg/.gif/.webp/.bmp/.tiff] -- genuinely "
+        "visually analyzed, not just OCR'd) that already describe an existing business process, "
+        "and imports their content directly into this toolkit's own structured process JSON -- "
+        "not a fresh design from a brief, an extraction of what's actually in the documents."
     ),
     instruction_file="process/import_agent.txt",
     tools=[load_directory_context, load_master_process_json, validate_process_json, persist_final_json],

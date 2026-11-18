@@ -7,6 +7,7 @@
 # contract, not just internal documentation. Also hosts the shared
 # persistence layer (output/*.json, output/cloudarch_drawio.xml) and the
 # drawio XML repair/shape-mapping pipeline used by the CloudArch agents.
+import base64
 import os
 import json
 import glob
@@ -2308,6 +2309,32 @@ def load_directory_context(directory: str) -> dict:
     result = _shared_load_directory_context(directory, max_chars=max_chars)
     if result.get("status") == "OK" and not result.get("files_processed"):
         logger.warning(f"No supported/readable files found in {result.get('directory')}.")
+
+    # The shared extractor's own "images" field is deliberately framework-
+    # agnostic plain dicts ({"name", "mime_type", "data_base64"}) -- converted
+    # here, ADK-side only, into real types.Part objects. ADK's own tool-
+    # dispatch machinery (_extract_multimodal_parts/_as_function_response_part
+    # in google/adk/flows/llm_flows/tools/_caller.py, confirmed directly
+    # against the installed package) recursively scans a tool's returned
+    # dict/list for exactly this type and hands matching entries back to the
+    # model as real inline_data vision input -- the same mechanism already
+    # proven for a single chat-turn's own attached files
+    # (_content_parts_for_turn), and the same one ADK's own shipped
+    # computer_use_tool.py relies on. neuro-san has no equivalent mechanism
+    # (confirmed: a CodedTool's return value is force-stringified before any
+    # multimodal handling could apply), so this conversion is ADK-only --
+    # the Neurosan port's own callers only ever see the plain-dict shape,
+    # which is still fully populated with the SAME bytes, just never
+    # promoted to a model-visible Part there.
+    images = result.get("images")
+    if images:
+        result["images"] = [
+            types.Part.from_bytes(
+                data=base64.b64decode(entry["data_base64"]),
+                mime_type=entry["mime_type"],
+            )
+            for entry in images
+        ]
     return result
 
 

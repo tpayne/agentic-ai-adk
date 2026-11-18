@@ -46,6 +46,14 @@ def generate_clean_diagram(schema_type: Optional[str] = None) -> str:
         return f"ERROR: {e}"
 
     message = result["message"]
-    if message.startswith("SUCCESS"):
+    # CONFIRMED AS A REAL BUG: this used to gate materialization on
+    # message.startswith("SUCCESS"), but generate_clean_diagram's own real
+    # success message is "Diagram successfully generated at ..." -- never
+    # "SUCCESS"-prefixed -- so a successful MCP-mode generation would
+    # return that message while silently discarding the server's returned
+    # bytes, leaving no local file at all. Gate on the "diagram" payload
+    # itself (server.py's own generate_diagram sets it exactly when a new
+    # .png was produced), not a hand-matched message prefix.
+    if result.get("diagram"):
         _artifacts.materialize_one(result.get("diagram"))
     return message
