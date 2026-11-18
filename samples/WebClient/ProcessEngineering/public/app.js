@@ -4905,6 +4905,16 @@
       return;
     }
     if (event.key === "Enter" && event.shiftKey) {
+      // Inside an active bullet/numbered list, treat Shift+Enter the same
+      // as the bare-Enter case above -- start a new list item -- rather
+      // than inserting a soft line break within the current one. Chat
+      // muscle memory (Shift+Enter = "newline", Enter = "send") means
+      // users often reach for Shift+Enter even while bulleting; without
+      // this, that left them stuck adding a wrapped second line to the
+      // SAME bullet instead of advancing to the next one.
+      if (document.queryCommandState("insertUnorderedList") || document.queryCommandState("insertOrderedList")) {
+        return;
+      }
       // Force a soft line break (<br>) rather than whatever block-
       // splitting behavior (a new <div>/<p>) some browsers default to
       // for a bare Enter in a contenteditable -- keeps the editor's own
