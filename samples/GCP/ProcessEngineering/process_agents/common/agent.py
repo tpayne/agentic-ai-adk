@@ -2128,9 +2128,12 @@ def build_web_app(https: bool = True):
     return web_app
 
 
-def run_web_service(port: Optional[int], use_https: bool):
-    """Build and serve the Flask REST app until interrupted."""
-    host = getProperty("host", default="127.0.0.1")
+def run_web_service(port: Optional[int], use_https: bool, host: Optional[str] = None):
+    """Build and serve the Flask REST app until interrupted. `host` (set
+    via -s/--server) overrides the "host" property/env var, the same way
+    `port` (via -p/--port) already overrides the listening-port default --
+    only used when explicitly passed, exactly like `port`."""
+    host = host if host is not None else getProperty("host", default="127.0.0.1")
 
     is_loopback = host in ("127.0.0.1", "localhost", "::1")
     api_key_configured = bool(getProperty("webApiKey"))
@@ -2526,7 +2529,7 @@ async def start_local_chat():
 # ---------------------------------------------------------
 # CLI Entry
 # ---------------------------------------------------------
-async def run_cli():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Process Architect Orchestrator")
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
@@ -2549,7 +2552,7 @@ async def run_cli():
         action="store_true",
         help="Run as a detached Flask web service exposing a REST 'POST /chat' endpoint "
              "(multi-session via cookie or an explicit session_id), instead of the "
-             "interactive/file/single-prompt CLI. See --http and --port."
+             "interactive/file/single-prompt CLI. See --http, --port, and --server."
     )
     parser.add_argument(
         "--http",
@@ -2564,13 +2567,26 @@ async def run_cli():
         required=False,
         help="With --detached, override the listening port (default: 443 for HTTPS, 8080 for --http)."
     )
+    parser.add_argument(
+        "-s", "--server",
+        dest="server",
+        type=str,
+        required=False,
+        help="With --detached, override the host it binds to (default: the \"host\" property, "
+             "or 127.0.0.1)."
+    )
+    return parser
+
+
+async def run_cli():
+    parser = build_parser()
     args = parser.parse_args()
 
-    if not args.detached and (args.http or args.port is not None):
-        parser.error("--http and --port only apply with -d/--detached.")
+    if not args.detached and (args.http or args.port is not None or args.server is not None):
+        parser.error("--http, --port, and --server only apply with -d/--detached.")
 
     if args.detached:
-        run_web_service(port=args.port, use_https=not args.http)
+        run_web_service(port=args.port, use_https=not args.http, host=args.server)
         return
 
     if args.file:

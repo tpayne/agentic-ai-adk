@@ -12,6 +12,7 @@ Same flags as the ADK port:
     -d/--detached      run this project's own server/UI (see below)
     --flask            with -d, run the Flask REST API below instead of `ns run`
     --http / -p/--port modify -d/--detached's listening port
+    -s/--server HOST   with -d --flask, override the HOST env var the Flask API binds to
 
 Logging mirrors the ADK port's own pipeline_*.log exactly: standard
 Python `logging`, a `LOGLEVEL` env var (same name, same five values --
@@ -2445,10 +2446,12 @@ def build_web_app(agent_name: str, https: bool = True):
     return web_app
 
 
-def run_web_service(agent_name: str, port: Optional[int], use_https: bool) -> None:
+def run_web_service(agent_name: str, port: Optional[int], use_https: bool, host: Optional[str] = None) -> None:
     """Build and serve the Flask REST app (-d/--detached --flask) until
-    interrupted."""
-    host = os.environ.get("HOST", "127.0.0.1")
+    interrupted. `host` (set via -s/--server) overrides the HOST env var,
+    the same way `port` (via -p/--port) already overrides listening-port
+    defaults -- only used when explicitly passed, exactly like `port`."""
+    host = host if host is not None else os.environ.get("HOST", "127.0.0.1")
 
     is_loopback = host in ("127.0.0.1", "localhost", "::1")
     api_key_configured = bool(os.environ.get("WEBAPIKEY"))
@@ -2560,7 +2563,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="detached", action="store_true",
         help="Run this project's native serving layer (`ns run`: HTTP server + nsflow UI) instead "
              "of the interactive/file/single-prompt CLI. Add --flask to run this project's own "
-             "Flask REST API (same contract as the ADK port) instead. See --http and --port.",
+             "Flask REST API (same contract as the ADK port) instead. See --http, --port, and --server.",
     )
     parser.add_argument(
         "--flask", dest="flask", action="store_true",
@@ -2584,6 +2587,13 @@ def build_parser() -> argparse.ArgumentParser:
              "port (nsflow UI by default; the agent server itself with --http).",
     )
     parser.add_argument(
+        "-s", "--server",
+        dest="server", type=str, required=False,
+        help="With --detached --flask, override the HOST env var (default: 127.0.0.1) the "
+             "Flask REST API binds to. Only valid with --detached --flask -- plain --detached "
+             "(`ns run`) has no equivalent host override.",
+    )
+    parser.add_argument(
         "--agent", dest="agent", type=str, default=AGENT_NAME_DEFAULT,
         help=f"Which served network to talk to (default: {AGENT_NAME_DEFAULT}, the top-level "
              "front-man). Pass any other registries/*.hocon network name to talk to it directly.",
@@ -2595,12 +2605,14 @@ async def run_cli() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if not args.detached and (args.http or args.port is not None or args.flask):
-        parser.error("--flask, --http, and --port only apply with -d/--detached.")
+    if not args.detached and (args.http or args.port is not None or args.flask or args.server is not None):
+        parser.error("--flask, --http, --port, and --server only apply with -d/--detached.")
+    if args.server is not None and not args.flask:
+        parser.error("--server only applies with -d/--detached --flask (plain --detached/`ns run` has no host override).")
 
     if args.detached:
         if args.flask:
-            run_web_service(agent_name=args.agent, port=args.port, use_https=not args.http)
+            run_web_service(agent_name=args.agent, port=args.port, use_https=not args.http, host=args.server)
         else:
             run_detached(port=args.port, use_http=args.http)
         return

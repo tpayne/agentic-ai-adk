@@ -72,6 +72,30 @@ def test_parser_rejects_http_or_port_without_detached():
     assert not args.detached and (args.http or args.port is not None)
 
 
+def test_parser_rejects_server_without_detached():
+    parser = cli.build_parser()
+    args = parser.parse_args(["-s", "0.0.0.0"])
+    assert args.detached is False and args.server == "0.0.0.0"
+    assert not args.detached and args.server is not None
+
+
+def test_parser_rejects_server_without_flask():
+    # -s/--server only overrides the Flask REST API's own HOST binding --
+    # plain -d (`ns run`) has no equivalent host override at all, so this
+    # combination must be rejected the same way --http/--port being used
+    # without --detached is.
+    parser = cli.build_parser()
+    args = parser.parse_args(["-d", "-s", "0.0.0.0"])
+    assert args.detached is True and args.flask is False and args.server == "0.0.0.0"
+    assert args.server is not None and not args.flask
+
+
+def test_parser_accepts_server_with_detached_flask():
+    parser = cli.build_parser()
+    args = parser.parse_args(["-d", "--flask", "-s", "0.0.0.0"])
+    assert args.detached is True and args.flask is True and args.server == "0.0.0.0"
+
+
 def test_parser_mode_flags_are_mutually_exclusive():
     parser = cli.build_parser()
     with pytest.raises(SystemExit):

@@ -911,9 +911,11 @@ Flags:
 | `-d`, `--detached` | Run as a detached web service instead of the interactive/file/single-prompt CLI. |
 | `--http` | Serve plain HTTP on port `8080` instead of the default HTTPS on port `443`. |
 | `-p`, `--port` | Override the listening port (default: `443` for HTTPS, `8080` for `--http`). |
+| `-s`, `--server` | Override the host it binds to (default: the `host` property/env var, or `127.0.0.1`). Only valid with `-d`/`--detached`. |
 
 `-d` alone serves **HTTPS on port 443** by default. Add `--http` for plain
-HTTP on port 8080, or `-p`/`--port` to listen on a different port either way:
+HTTP on port 8080, `-p`/`--port` to listen on a different port either way,
+or `-s`/`--server` to bind to a different host than the `host` property:
 
 ```bash
 # HTTPS on the default port 443 (requires root/cap_net_bind_service on most systems)
@@ -927,6 +929,11 @@ python -m process_agents.agent -d --http
 
 # Plain HTTP on a custom port
 python -m process_agents.agent -d --http -p 9000
+
+# Bind to all interfaces instead of loopback-only (requires webApiKey/WEBAPIKEY to be
+# set, or allowInsecureWebService=True, or this refuses to start -- see "Authentication
+# and rate limiting" below)
+python -m process_agents.agent -d --http -s 0.0.0.0
 ```
 
 ### TLS certificates

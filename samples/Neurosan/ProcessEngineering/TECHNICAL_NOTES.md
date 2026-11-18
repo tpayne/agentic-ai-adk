@@ -503,10 +503,12 @@ Flags:
 | `--flask` | Serve this project's own Flask REST API (ADK-parity contract) instead of `ns run`'s own server/UI. |
 | `--http` | Serve plain HTTP on port `8080` instead of the default HTTPS on port `443`. |
 | `-p`, `--port` | Override the listening port (default: `443` for HTTPS, `8080` for `--http`). |
+| `-s`, `--server` | Override the `HOST` env var (default: `127.0.0.1`) it binds to. Only valid with `-d --flask` -- plain `-d` (`ns run`) has no equivalent host override. |
 | `--agent` | Which network to serve/chat with (default: `process_architect`). |
 
 `-d --flask` alone serves **HTTPS on port 443** by default. Add `--http` for plain HTTP on port
-8080, or `-p`/`--port` to listen on a different port either way:
+8080, `-p`/`--port` to listen on a different port either way, or `-s`/`--server` to bind to a
+different host than the `HOST` env var:
 
 ```bash
 # HTTPS on the default port 443 (requires root/cap_net_bind_service on most systems)
@@ -520,6 +522,11 @@ uv run python cli.py -d --flask --http
 
 # Plain HTTP on a custom port
 uv run python cli.py -d --flask --http -p 9000
+
+# Bind to all interfaces instead of loopback-only (requires WEBAPIKEY to be set, or
+# ALLOWINSECUREWEBSERVICE=true, or this refuses to start -- see "Authentication and rate
+# limiting" below)
+uv run python cli.py -d --flask --http -s 0.0.0.0
 ```
 
 ### TLS certificates
