@@ -322,8 +322,8 @@ describing, it IS the artifact, already written/exported, and the user wants it
 brought into (or kept in) the toolkit as-is. Signal words: "import", "ingest", "restore", "load
 this as the process/design/diagram/ITSM process", "use this [process/design/diagram/architecture/
 ITSM process] for further [work/questions]" (not "background for"/"context for"), "bring this into
-the toolkit", "convert this document into a process/design", "keep/save/retain this [diagram/
-architecture] for future use/reference" -- that last phrasing is equivalent import intent even
+the toolkit", "convert this document into a process/design", "keep/save/retain this [diagram/architecture] for future
+use/reference" -- that last phrasing is equivalent import intent even
 without the literal word "import" anywhere in the request.
 
 A cloud architecture diagram is a DIFFERENT shape of import than a process/design document: there is

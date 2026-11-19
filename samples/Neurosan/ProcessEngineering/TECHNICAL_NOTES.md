@@ -583,8 +583,8 @@ The service exposes:
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
-| `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
-| `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
+| `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, `portfolio_backlog`, `togaf`, and `itsm` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, `portfolio_backlog`, `togaf`, and `itsm` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
 | `GET` | `/artifacts/portfolio_backlog_workbook/download` | Download the generated `portfolio_backlog.xlsx` Enterprise Agile Portfolio Backlog workbook as a real file attachment. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |

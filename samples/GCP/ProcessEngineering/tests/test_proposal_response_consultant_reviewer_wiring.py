@@ -74,8 +74,12 @@ class TestRouterInstructions:
         assert "PRECEDENCE vs. 4f" in text
 
     def test_router_mentions_review_and_fix_routes_to_the_same_agent(self):
+        # Test_Reviewer_Agent, Proposal_Response_Reviewer_Agent, and
+        # ITSM_Reviewer_Agent are all intent-gated (read-only by default,
+        # apply fixes only when explicitly asked) -- the router must not
+        # split "review and fix" into a separate pipeline for any of them.
         text = _router_text()
-        assert text.count("it is the SAME agent for both modes") == 2
+        assert text.count("it is the SAME agent for both modes") == 3
 
     def test_router_multi_intent_priority_mentions_both_new_agents(self):
         text = _router_text()
