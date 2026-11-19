@@ -1175,6 +1175,48 @@ class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
         )
         self.assertIn("portfolio_backlog.xlsx", response.headers.get("Content-Disposition", ""))
 
+    def test_downloads_process_flow_vsdx_as_a_real_attachment(self):
+        self._write("process_flow.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/process_flow_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertEqual(response.mimetype, "application/vnd.ms-visio.drawing.main+xml")
+        self.assertIn("process_flow.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_design_flow_vsdx_as_a_real_attachment(self):
+        self._write("design_flow.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/design_flow_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertIn("design_flow.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_cloudarch_vsdx_as_a_real_attachment(self):
+        self._write("cloudarch_architecture.vsdx", "vsdx bytes")
+        response = self.client.get(
+            "/artifacts/cloudarch_vsdx/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"vsdx bytes")
+        self.assertIn("cloudarch_architecture.vsdx", response.headers.get("Content-Disposition", ""))
+
+    def test_vsdx_routes_404_when_not_yet_exported(self):
+        self.assertEqual(
+            self.client.get("/artifacts/process_flow_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get("/artifacts/design_flow_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get("/artifacts/cloudarch_vsdx/download", headers=self._authorized_headers()).status_code,
+            404,
+        )
+
     def test_404s_when_not_yet_generated(self):
         response = self.client.get("/artifacts/process/download", headers=self._authorized_headers())
         self.assertEqual(response.status_code, 404)
@@ -1883,6 +1925,116 @@ class ContentPartsForTurnTest(unittest.TestCase):
         content = self.agent.types.Content(role="user", parts=self.agent._content_parts_for_turn("q", files))
         self.assertEqual(content.role, "user")
         self.assertEqual(len(content.parts), 2)
+
+
+class WebServiceAgenticWebDiscoveryRoutesTest(unittest.TestCase):
+    """ProcessEngineering's own Agent Discovery API capability registry & discovery
+    routes on GCP build_web_app (not the external Open Agentic Web standard)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
+        cls.agent = importlib.import_module("process_agents.common.agent")
+
+    def setUp(self):
+        self.properties = {"webApiKey": "test-key", "webRateLimitPerMinute": 100}
+        self.property_patch = patch.object(
+            self.agent,
+            "getProperty",
+            side_effect=lambda k, default=None: self.properties.get(k, default),
+        )
+        self.property_patch.start()
+        app = self.agent.build_web_app(https=False)
+        self.client = app.test_client()
+
+    def tearDown(self):
+        self.property_patch.stop()
+
+    def test_agent_manifest_well_known(self):
+        # GCP/ADK has no Neuro-San HOCON to publish, so /agent-manifest.json (the real
+        # Open Agentic Web spec's conventional path) is intentionally not served here --
+        # only the Neuro-San port implements that. This path is this project's own Agent
+        # Discovery API manifest, not a conformance claim against that external standard.
+        resp = self.client.get("/.well-known/agent.json")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data["schema_version"], "1.0.0")
+        self.assertNotIn("standard", data)
+        self.assertEqual(data["provider"]["name"], "Agentic-AI-ADK")
+        self.assertGreaterEqual(data["capabilities_count"], 32)
+        self.assertGreaterEqual(data["workflows_count"], 6)
+        self.assertGreaterEqual(data["artifact_contracts_count"], 13)
+
+    def test_agent_manifest_json_not_served_on_gcp(self):
+        # No route handles this path anymore (removed -- see test_agent_manifest_well_known's
+        # own comment above), and it's no longer in _enforce_web_controls's public allow-list,
+        # so the auth check -- which runs before route dispatch -- rejects it as unauthorized
+        # rather than ever reaching Flask's own 404 handling.
+        resp = self.client.get("/agent-manifest.json")
+        self.assertEqual(resp.status_code, 401)
+
+    def test_agents_listing_and_filtering(self):
+        resp = self.client.get("/agents")
+        self.assertEqual(resp.status_code, 200)
+        agents = resp.get_json()
+        self.assertIsInstance(agents, list)
+        self.assertGreaterEqual(len(agents), 32)
+
+        resp_cat = self.client.get("/agents?category=design")
+        self.assertEqual(resp_cat.status_code, 200)
+        cat_agents = resp_cat.get_json()
+        self.assertTrue(all(a["category"] == "design" for a in cat_agents))
+
+        resp_wrapped = self.client.get("/agents?wrapped=true")
+        self.assertEqual(resp_wrapped.status_code, 200)
+        self.assertEqual(resp_wrapped.get_json()["status"], "ok")
+
+    def test_get_agent_card(self):
+        resp = self.client.get("/agents/design")
+        self.assertEqual(resp.status_code, 200)
+        card = resp.get_json()
+        self.assertEqual(card["name"], "design")
+
+        resp_alias = self.client.get("/agents/Design_Agent")
+        self.assertEqual(resp_alias.status_code, 200)
+        self.assertEqual(resp_alias.get_json()["name"], "design")
+
+        resp_404 = self.client.get("/agents/nonexistent_agent_xyz")
+        self.assertEqual(resp_404.status_code, 404)
+
+    def test_capabilities_endpoint(self):
+        resp = self.client.get("/capabilities?artifact=drawio_xml")
+        self.assertEqual(resp.status_code, 200)
+        results = resp.get_json()
+        self.assertTrue(any(c["name"] == "cloudarch" for c in results))
+
+    def test_workflows_endpoints(self):
+        resp = self.client.get("/workflows")
+        self.assertEqual(resp.status_code, 200)
+        wfs = resp.get_json()
+        self.assertTrue(any(w["workflow"] == "architecture_lifecycle" for w in wfs))
+
+        resp_detail = self.client.get("/workflows/architecture_lifecycle")
+        self.assertEqual(resp_detail.status_code, 200)
+        self.assertEqual(resp_detail.get_json()["workflow"], "architecture_lifecycle")
+
+    def test_artifact_contracts_endpoints(self):
+        resp = self.client.get("/artifacts/contracts")
+        self.assertEqual(resp.status_code, 200)
+        contracts = resp.get_json()
+        self.assertTrue(any(c["artifact_type"] == "high_level_design" for c in contracts))
+
+        resp_detail = self.client.get("/artifacts/contracts/high_level_design")
+        self.assertEqual(resp_detail.status_code, 200)
+        self.assertEqual(resp_detail.get_json()["artifact_type"], "high_level_design")
+
+    def test_discovery_endpoints_bypass_auth(self):
+        # Even with webApiKey configured, discovery endpoints should return 200 without Authorization
+        resp = self.client.get("/.well-known/agent.json")
+        self.assertEqual(resp.status_code, 200)
+        resp2 = self.client.get("/agents")
+        self.assertEqual(resp2.status_code, 200)
+
 
 
 if __name__ == "__main__":

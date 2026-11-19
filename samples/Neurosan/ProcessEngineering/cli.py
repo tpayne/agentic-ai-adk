@@ -12,6 +12,7 @@ Same flags as the ADK port:
     -d/--detached      run this project's own server/UI (see below)
     --flask            with -d, run the Flask REST API below instead of `ns run`
     --http / -p/--port modify -d/--detached's listening port
+    -s/--server HOST   with -d --flask, override the HOST env var the Flask API binds to
 
 Logging mirrors the ADK port's own pipeline_*.log exactly: standard
 Python `logging`, a `LOGLEVEL` env var (same name, same five values --
@@ -179,6 +180,19 @@ from coded_tools.common.artifact_downloads import (  # noqa: E402
 )
 from process_interface.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists  # noqa: E402
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY  # noqa: E402
+from process_interface.agentic_web import (  # noqa: E402
+    get_agent_card,
+    get_agent_manifest,
+    get_all_agent_cards,
+    get_all_workflows,
+    get_artifact_contract,
+    get_workflow,
+    list_agent_summaries,
+    list_all_artifact_contracts,
+    search_capabilities,
+    wrap_artifact_envelope,
+)
+import network_publishing  # noqa: E402
 
 AGENT_NAME_DEFAULT = "process_architect"
 SLEEP_DEFAULT_SECONDS = 0.5
@@ -192,6 +206,21 @@ SLEEP_DEFAULT_SECONDS = 0.5
 # real model content is never called anywhere in the package) -- wiring a
 # client-supplied mime_data through would silently vanish, not reach the
 # LLM.
+#
+# CONFIRMED, same limitation, checked directly against the installed
+# neuro-san (0.7.7) and google-adk (2.14.0) packages' own source: a
+# CodedTool's own return value is force-stringified in
+# abstract_class_activation.py BEFORE any message-type/mime_data handling
+# could ever apply, so there is no path -- unlike the ADK port's own
+# _content_parts_for_turn/computer_use_tool.py-style FunctionResponsePart
+# mechanism -- for an attached or imported image to reach this port's LLM
+# as genuine vision input. What DID change: an attached image used to
+# vanish ENTIRELY (load_directory_context's own "unsupported file type"
+# skip path) once staged into the attachment directory above; it now
+# contributes its OCR'd visible text instead (process_toolkit.ingestion.
+# extractors._extract_image_file), the same way every other attached
+# document already does. Text-only, not a description of the image's
+# visual/structural layout -- see that extractor's own docstring.
 #
 # Attachments are staged to a FIXED, per-ChatSession on-disk directory
 # (see ChatSession._attachments_directory/_ingest_attachments below) via
@@ -1586,6 +1615,39 @@ def build_web_app(agent_name: str, https: bool = True):
                                output/cloudarch_iac.zip as a real file
                                attachment, or 404 if the IaC pipeline
                                hasn't produced one yet.
+      GET    /artifacts/process_flow_vsdx/download  Downloads
+                               output/process_flow.vsdx (see
+                               /process_visio_export), or 404 if nothing
+                               has been exported yet.
+      GET    /artifacts/design_flow_vsdx/download  Same as above, for
+                               output/design_flow.vsdx.
+      GET    /artifacts/cloudarch_vsdx/download  Downloads
+                               output/cloudarch_architecture.vsdx (see
+                               /cloudarch_visio_export), or 404 if nothing
+                               has been exported yet.
+      GET    /.well-known/agent.json  This project's own Agent Discovery API
+                               manifest, describing capabilities, endpoints,
+                               and agents (NOT the external Open Agentic Web
+                               standard -- see /agent-manifest.json below for
+                               the route that genuinely implements that).
+      GET    /agent-manifest.json     The REAL Open Agentic Web MVP spec manifest
+                               (see network_publishing.py): {"networks": {<name>:
+                               {name, description, front_man, hocon}}} for every
+                               publicly-listed registries/*.hocon network.
+      GET    /networks/<name>.network.json  The resolved (includes/substitutions
+                               expanded) Neuro-San agent-network JSON for one
+                               published network, referenced by the manifest
+                               above's own "hocon" field. 404 if `name` isn't a
+                               publicly-listed network.
+      GET    /agents                  Machine-readable capability registry listing
+                               all agent cards; supports ?category=, ?artifact=,
+                               ?type=, ?query=, ?full=true, ?wrapped=true.
+      GET    /agents/<name>           Full Agent Card metadata for an agent.
+      GET    /capabilities            Searchable capability catalog.
+      GET    /workflows               Engineering lifecycle workflow definitions.
+      GET    /workflows/<name>        Detailed workflow definition.
+      GET    /artifacts/contracts     Standardized artifact output schemas.
+      GET    /artifacts/contracts/<type> Specific artifact schema contract.
       GET    /agents/<name>/instructions  `name` is an agent's own short
                                name (e.g. "CloudArch_Agent") -> {"status":
                                "ok", "name": "...", "instructions": "...",
@@ -1678,8 +1740,20 @@ def build_web_app(agent_name: str, https: bool = True):
         if request.method == "OPTIONS":
             return ("", 204)  # CORS preflight -- no auth, no rate limit
 
-        if request.path == "/status":
-            return None  # liveness probe stays open: no auth, no rate limit
+        if (
+            request.path in (
+                "/status",
+                "/.well-known/agent.json",
+                "/agent-manifest.json",
+                "/agents",
+                "/capabilities",
+                "/workflows",
+                "/artifacts/contracts",
+            )
+            or (request.path.startswith("/agents/") and not request.path.endswith("/instructions"))
+            or request.path.startswith(("/workflows/", "/artifacts/contracts/", "/networks/"))
+        ):
+            return None  # liveness probe and discovery endpoints stay open: no auth, no rate limit
 
         if api_key:
             auth_header = request.headers.get("Authorization", "")
@@ -1892,6 +1966,171 @@ def build_web_app(agent_name: str, https: bool = True):
             "cleared": existed or persisted_state_removed,
         })
 
+    @web_app.route("/.well-known/agent.json", methods=["GET"])
+    def agent_manifest():
+        """This project's own Agent Discovery API manifest (not the external Open
+        Agentic Web standard -- see agent_network_manifest() below for that)."""
+        base_url = request.host_url.rstrip("/")
+        manifest = get_agent_manifest(base_url=base_url)
+        return jsonify(manifest)
+
+    @web_app.route("/agent-manifest.json", methods=["GET"])
+    def agent_network_manifest():
+        """The real Open Agentic Web MVP spec manifest -- see network_publishing.py's own
+        module docstring for the spec section this implements."""
+        base_url = request.host_url.rstrip("/")
+        manifest = network_publishing.build_agent_network_manifest(base_url=base_url)
+        return jsonify(manifest)
+
+    @web_app.route("/networks/<name>.network.json", methods=["GET"])
+    def published_network(name: str):
+        """The resolved agent-network JSON a published manifest entry's own "hocon" field
+        points to -- see network_publishing.py."""
+        config = network_publishing.resolve_network(name)
+        if config is None:
+            return jsonify({"status": "error", "error": f"No published network named {name!r}."}), 404
+        return jsonify(config)
+
+    @web_app.route("/agents", methods=["GET"])
+    def agents():
+        """Capability registry listing all agent cards.
+        Supports query filtering:
+          ?category=architecture|process|cloud|testing|portfolio|proposals|togaf
+          ?artifact=requirements_summary|cloud_architecture|drawio_xml|...
+          ?type=pipeline|consultant|reviewer|simulation|iac|tester|finops|router
+          ?query=<text>
+          ?full=true|false (default false, returns summaries)
+          ?wrapped=true|false (default false, returns direct JSON array)
+        """
+        category = request.args.get("category")
+        artifact = request.args.get("artifact")
+        agent_type = request.args.get("type")
+        query = request.args.get("query")
+        full_mode = request.args.get("full", "").strip().lower() in ("true", "1", "yes")
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+
+        results = search_capabilities(
+            query=query,
+            category=category,
+            artifact=artifact,
+            agent_type=agent_type,
+        )
+
+        if not full_mode:
+            items = [
+                {
+                    "name": r["name"],
+                    "description": r["description"],
+                    "category": r["category"],
+                    "agent_type": r["agent_type"],
+                    "artifacts": r["artifacts"],
+                    "version": r["version"],
+                }
+                for r in results
+            ]
+        else:
+            items = results
+
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(items),
+                "agents": items,
+            })
+        return jsonify(items)
+
+    @web_app.route("/agents/<name>", methods=["GET"])
+    def agent_card(name):
+        """Retrieve full Agent Card metadata for an agent by name."""
+        card = get_agent_card(name)
+        if card is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No agent card found for '{name}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "agent": card})
+        return jsonify(card)
+
+    @web_app.route("/capabilities", methods=["GET"])
+    def capabilities():
+        """Searchable capability catalog. Allows filtering by query keyword,
+        category, produced/consumed artifact, and agent type."""
+        category = request.args.get("category")
+        artifact = request.args.get("artifact")
+        agent_type = request.args.get("type")
+        query = request.args.get("query")
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+
+        results = search_capabilities(
+            query=query,
+            category=category,
+            artifact=artifact,
+            agent_type=agent_type,
+        )
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(results),
+                "capabilities": results,
+            })
+        return jsonify(results)
+
+    @web_app.route("/workflows", methods=["GET"])
+    def workflows():
+        """Expose engineering lifecycle workflows and network flows."""
+        wfs = get_all_workflows()
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(wfs),
+                "workflows": wfs,
+            })
+        return jsonify(wfs)
+
+    @web_app.route("/workflows/<workflow_name>", methods=["GET"])
+    def workflow_detail(workflow_name):
+        """Retrieve a specific engineering lifecycle workflow definition."""
+        wf = get_workflow(workflow_name)
+        if wf is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No workflow definition found for '{workflow_name}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "workflow": wf})
+        return jsonify(wf)
+
+    @web_app.route("/artifacts/contracts", methods=["GET"])
+    def artifact_contracts():
+        """Expose standardized artifact contract schemas."""
+        contracts = list_all_artifact_contracts()
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({
+                "status": "ok",
+                "count": len(contracts),
+                "contracts": contracts,
+            })
+        return jsonify(contracts)
+
+    @web_app.route("/artifacts/contracts/<artifact_type>", methods=["GET"])
+    def artifact_contract_detail(artifact_type):
+        """Retrieve a specific standardized artifact contract."""
+        contract = get_artifact_contract(artifact_type)
+        if contract is None:
+            return jsonify({
+                "status": "error",
+                "error": f"No artifact contract found for '{artifact_type}'.",
+            }), 404
+        wrapped = request.args.get("wrapped", "").strip().lower() in ("true", "1", "yes")
+        if wrapped:
+            return jsonify({"status": "ok", "contract": contract})
+        return jsonify(contract)
+
     @web_app.route("/artifacts/<name>", methods=["GET"])
     def artifact(name):
         """
@@ -2056,6 +2295,70 @@ def build_web_app(agent_name: str, https: bool = True):
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
+    @web_app.route("/artifacts/process_flow_vsdx/download", methods=["GET"])
+    def download_process_flow_vsdx():
+        """Downloads this web session's own exported process flow diagram
+        Visio (.vsdx) file -- see /process_visio_export's own
+        ExportProcessDesignVsdxCodedTool for how it's produced. Structurally
+        identical to download_cloudarch above, just for this artifact kind."""
+        from process_interface.docgen.vsdx_export import PROCESS_FLOW_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), PROCESS_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROCESS_FLOW_VSDX_FILENAME} found yet -- export the process flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=PROCESS_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/design_flow_vsdx/download", methods=["GET"])
+    def download_design_flow_vsdx():
+        """Downloads this web session's own exported design flow/
+        architecture diagram Visio (.vsdx) file. Structurally identical to
+        download_process_flow_vsdx above, just for the design domain."""
+        from process_interface.docgen.vsdx_export import DESIGN_FLOW_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), DESIGN_FLOW_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {DESIGN_FLOW_VSDX_FILENAME} found yet -- export the design flow diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=DESIGN_FLOW_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/cloudarch_vsdx/download", methods=["GET"])
+    def download_cloudarch_vsdx():
+        """Downloads this web session's own exported cloud architecture
+        diagram Visio (.vsdx) file -- see /cloudarch_visio_export's own
+        ExportCloudarchVsdxCodedTool for how it's produced. Structurally
+        identical to download_cloudarch above (which downloads the
+        underlying cloudarch_drawio.xml instead), just for the exported
+        Visio copy."""
+        from process_interface.docgen.vsdx_export import CLOUDARCH_VSDX_FILENAME
+
+        with paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(paths.output_dir(), CLOUDARCH_VSDX_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {CLOUDARCH_VSDX_FILENAME} found yet -- export the cloud architecture diagram as Visio first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=CLOUDARCH_VSDX_FILENAME,
+            mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
     @web_app.route("/artifacts/<name>/download", methods=["GET"])
     def download_process_or_design_json(name):
         """Downloads this web session's own output/<session_id>/
@@ -2143,10 +2446,12 @@ def build_web_app(agent_name: str, https: bool = True):
     return web_app
 
 
-def run_web_service(agent_name: str, port: Optional[int], use_https: bool) -> None:
+def run_web_service(agent_name: str, port: Optional[int], use_https: bool, host: Optional[str] = None) -> None:
     """Build and serve the Flask REST app (-d/--detached --flask) until
-    interrupted."""
-    host = os.environ.get("HOST", "127.0.0.1")
+    interrupted. `host` (set via -s/--server) overrides the HOST env var,
+    the same way `port` (via -p/--port) already overrides listening-port
+    defaults -- only used when explicitly passed, exactly like `port`."""
+    host = host if host is not None else os.environ.get("HOST", "127.0.0.1")
 
     is_loopback = host in ("127.0.0.1", "localhost", "::1")
     api_key_configured = bool(os.environ.get("WEBAPIKEY"))
@@ -2258,7 +2563,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="detached", action="store_true",
         help="Run this project's native serving layer (`ns run`: HTTP server + nsflow UI) instead "
              "of the interactive/file/single-prompt CLI. Add --flask to run this project's own "
-             "Flask REST API (same contract as the ADK port) instead. See --http and --port.",
+             "Flask REST API (same contract as the ADK port) instead. See --http, --port, and --server.",
     )
     parser.add_argument(
         "--flask", dest="flask", action="store_true",
@@ -2282,6 +2587,13 @@ def build_parser() -> argparse.ArgumentParser:
              "port (nsflow UI by default; the agent server itself with --http).",
     )
     parser.add_argument(
+        "-s", "--server",
+        dest="server", type=str, required=False,
+        help="With --detached --flask, override the HOST env var (default: 127.0.0.1) the "
+             "Flask REST API binds to. Only valid with --detached --flask -- plain --detached "
+             "(`ns run`) has no equivalent host override.",
+    )
+    parser.add_argument(
         "--agent", dest="agent", type=str, default=AGENT_NAME_DEFAULT,
         help=f"Which served network to talk to (default: {AGENT_NAME_DEFAULT}, the top-level "
              "front-man). Pass any other registries/*.hocon network name to talk to it directly.",
@@ -2293,12 +2605,14 @@ async def run_cli() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if not args.detached and (args.http or args.port is not None or args.flask):
-        parser.error("--flask, --http, and --port only apply with -d/--detached.")
+    if not args.detached and (args.http or args.port is not None or args.flask or args.server is not None):
+        parser.error("--flask, --http, --port, and --server only apply with -d/--detached.")
+    if args.server is not None and not args.flask:
+        parser.error("--server only applies with -d/--detached --flask (plain --detached/`ns run` has no host override).")
 
     if args.detached:
         if args.flask:
-            run_web_service(agent_name=args.agent, port=args.port, use_https=not args.http)
+            run_web_service(agent_name=args.agent, port=args.port, use_https=not args.http, host=args.server)
         else:
             run_detached(port=args.port, use_http=args.http)
         return

@@ -37,6 +37,11 @@ from .artifact_downloads import (
     portfolio_backlog_workbook_exists,
     resolve_artifact_target,
 )
+from process_interface.docgen.vsdx_export import (
+    cloudarch_vsdx_exists,
+    design_flow_vsdx_exists,
+    process_flow_vsdx_exists,
+)
 
 from ..process.design_agent import design_agent
 from .agent_wrappers import ProcessAgent
@@ -208,7 +213,8 @@ def clear_pipeline_lock() -> str:
 
 def download_artifact(target: str = "", destination: str = "") -> str:
     """Saves a copy of a generated artifact (the cloud architecture
-    diagram, generated IaC zip, Enterprise Agile Portfolio Backlog workbook, or Word document)
+    diagram, generated IaC zip, Enterprise Agile Portfolio Backlog workbook, an exported Visio
+    .vsdx file, or Word document)
     to a local filesystem path on the machine this agent process is running on.
 
     Call this when the user explicitly asks to download/save/export/copy
@@ -232,7 +238,10 @@ def download_artifact(target: str = "", destination: str = "") -> str:
             "cloudarch"/"diagram"/"architecture" for the cloud
             architecture diagram; a phrase containing "iac"/"terraform"/
             "cloudformation"/"pulumi"/"infrastructure"/"infra" for the
-            generated IaC zip; an exact generated document filename if
+            generated IaC zip; a phrase containing "vsdx"/"visio" (plus
+            "process"/"design"/"cloudarch" if more than one has been
+            exported and the user doesn't say which) for an exported
+            Visio file; an exact generated document filename if
             the user named one; or leave empty to mean whichever document
             was generated most recently (use this for a vague "the
             document"/"it" when context makes it unambiguous).
@@ -255,6 +264,12 @@ def download_artifact(target: str = "", destination: str = "") -> str:
             available.insert(0, "the Enterprise Agile Portfolio Backlog workbook (portfolio_backlog.xlsx)")
         if cloudarch_diagram_exists():
             available.insert(0, "the cloud architecture diagram (cloudarch_drawio.xml)")
+        if process_flow_vsdx_exists():
+            available.insert(0, "the exported process flow Visio file (process_flow.vsdx)")
+        if design_flow_vsdx_exists():
+            available.insert(0, "the exported design flow Visio file (design_flow.vsdx)")
+        if cloudarch_vsdx_exists():
+            available.insert(0, "the exported cloud architecture Visio file (cloudarch_architecture.vsdx)")
         listing = ", ".join(available) if available else "nothing has been generated yet"
         target_desc = f"'{target}'" if target else "(no target specified)"
         return f"ERROR: Could not find a generated artifact matching {target_desc}. Available: {listing}."

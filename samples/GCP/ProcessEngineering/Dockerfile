@@ -9,6 +9,9 @@ ARG pythonVersion=3.12.9
 FROM python:${pythonVersion}-slim AS builder
 
 # System dependencies for matplotlib, numpy, pandas, graphviz, docx, etc.
+# tesseract-ocr is the real OCR engine pytesseract wraps -- pip cannot
+# install it, since it's not a Python package (see requirements.txt's own
+# Document Ingestion comment).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     graphviz \
     gcc \
@@ -17,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev \
     libpng-dev \
     libjpeg-dev \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # /app stands in for the repo root inside the image, with the same directory

@@ -62,6 +62,7 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
     save_portfolio_backlog as _save_portfolio_backlog,
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
+from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
 from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack as _simulate_cloudarch_attack
@@ -75,6 +76,16 @@ from process_toolkit.feedback.iteration_feedback import (
     reset_approval_state as _reset_approval_state,
     reset_feedback_channels as _reset_feedback_channels,
     format_review_status_summary as _format_review_status_summary,
+)
+from process_toolkit.agentic_web import (
+    get_agent_card as _get_agent_card,
+    get_agent_manifest as _get_agent_manifest,
+    get_all_workflows as _get_all_workflows,
+    get_artifact_contract as _get_artifact_contract,
+    get_workflow as _get_workflow,
+    list_all_artifact_contracts as _list_all_artifact_contracts,
+    search_capabilities as _search_capabilities,
+    wrap_artifact_envelope as _wrap_artifact_envelope,
 )
 
 import dispatch
@@ -312,6 +323,50 @@ def generate_diagram(schema_type: str, session_id: Optional[str] = None) -> dict
 
 
 @mcp.tool
+def export_process_design_vsdx(schema_type: str, session_id: Optional[str] = None) -> dict:
+    """On-demand Visio (.vsdx) export of the whole-document flow/
+    architecture diagram for `schema_type` ("design" or "process" only --
+    same has_diagram gate as generate_diagram, since there is nothing to
+    export for a schema_type with no whole-document diagram at all).
+    Unlike generate_diagram/generate_document, this never runs as part of
+    any generate/review pipeline -- it's a standalone action an MCP client
+    calls explicitly. Returns {"message": ..., "vsdx": null} when the
+    schema_type has no diagram, or when the underlying export itself
+    reports an error (its own message, prefixed "ERROR:", is still
+    returned either way for the caller to relay)."""
+    ops = _domain_or_error(schema_type)
+    if not ops.has_diagram:
+        return {
+            "message": f"NOT_APPLICABLE: '{schema_type}' has no whole-document diagram to export.",
+            "vsdx": None,
+        }
+    with _session(session_id):
+        directory = paths.output_dir()
+        before = _snapshot_mtimes(directory, ".vsdx")
+        message = build_process_design_vsdx(schema_type)
+        changed = _new_or_changed(before, directory, ".vsdx")
+        vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
+    return {"message": message, "vsdx": vsdx}
+
+
+@mcp.tool
+def export_cloudarch_vsdx(session_id: Optional[str] = None) -> dict:
+    """On-demand Visio (.vsdx) export of the currently saved cloud-
+    architecture diagram (load_drawio's own cloudarch_drawio.xml) for
+    `session_id`. Standalone -- never runs as part of any cloudarch
+    pipeline. Returns {"message": ..., "vsdx": null} when nothing has
+    been generated yet, or on export failure (the message itself,
+    prefixed "ERROR:", is still returned either way)."""
+    with _session(session_id):
+        directory = paths.output_dir()
+        before = _snapshot_mtimes(directory, ".vsdx")
+        message = build_cloudarch_vsdx()
+        changed = _new_or_changed(before, directory, ".vsdx")
+        vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
+    return {"message": message, "vsdx": vsdx}
+
+
+@mcp.tool
 def generate_portfolio_backlog(backlog: dict, session_id: Optional[str] = None) -> dict:
     """Saves `backlog` (the Enterprise Agile Portfolio Backlog JSON shape)
     and renders its Excel workbook in one call -- mirrors
@@ -506,6 +561,69 @@ def review_status_summary(channels: Optional[list[str]] = None, session_id: Opti
         if channels is None:
             return _format_review_status_summary()
         return _format_review_status_summary(channels)
+
+
+@mcp.tool
+def get_agent_manifest(base_url: str = "") -> dict:
+    """Returns ProcessEngineering's own agent discovery manifest (this project's own
+    Agent Discovery API, not an implementation of the external "Open Agentic Web"
+    standard)."""
+    return _get_agent_manifest(base_url=base_url)
+
+
+@mcp.tool
+def list_agents(
+    query: Optional[str] = None,
+    category: Optional[str] = None,
+    artifact: Optional[str] = None,
+    agent_type: Optional[str] = None,
+) -> list[dict]:
+    """Lists machine-readable Agent Cards for all specialist networks."""
+    return _search_capabilities(
+        query=query,
+        category=category,
+        artifact=artifact,
+        agent_type=agent_type,
+    )
+
+
+@mcp.tool
+def get_agent_card(name: str) -> dict:
+    """Returns detailed Agent Card metadata for a specialist agent by name."""
+    card = _get_agent_card(name)
+    if card is None:
+        raise ToolError(f"No agent card found for '{name}'")
+    return card
+
+
+@mcp.tool
+def list_workflows() -> list[dict]:
+    """Lists all published engineering lifecycle workflows."""
+    return _get_all_workflows()
+
+
+@mcp.tool
+def get_workflow(workflow_name: str) -> dict:
+    """Returns a specific engineering lifecycle workflow definition."""
+    wf = _get_workflow(workflow_name)
+    if wf is None:
+        raise ToolError(f"No workflow definition found for '{workflow_name}'")
+    return wf
+
+
+@mcp.tool
+def list_artifact_contracts() -> list[dict]:
+    """Lists all standardized artifact contracts across the platform."""
+    return _list_all_artifact_contracts()
+
+
+@mcp.tool
+def get_artifact_contract(artifact_type: str) -> dict:
+    """Returns a specific standardized artifact contract schema."""
+    contract = _get_artifact_contract(artifact_type)
+    if contract is None:
+        raise ToolError(f"No artifact contract found for '{artifact_type}'")
+    return contract
 
 
 def _parse_args() -> argparse.Namespace:

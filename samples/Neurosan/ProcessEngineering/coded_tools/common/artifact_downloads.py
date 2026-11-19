@@ -12,6 +12,7 @@ correctly) and DownloadArtifactCodedTool below (for the LLM-invokable
 """
 
 import os
+import re
 import shutil
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,14 @@ from typing import Any, Dict, List, Optional
 from werkzeug.utils import safe_join
 
 from process_interface import paths
+from process_interface.docgen.vsdx_export import (
+    CLOUDARCH_VSDX_FILENAME,
+    DESIGN_FLOW_VSDX_FILENAME,
+    PROCESS_FLOW_VSDX_FILENAME,
+    cloudarch_vsdx_exists,
+    design_flow_vsdx_exists,
+    process_flow_vsdx_exists,
+)
 from process_interface.iac.generation import IAC_ZIP_FILENAME, iac_zip_exists
 from process_interface.portfolio_backlog.portfolio_backlog import PORTFOLIO_BACKLOG_WORKBOOK_FILENAME
 
@@ -91,6 +100,36 @@ def safe_output_file_path(filename: str) -> Optional[str]:
     return candidate
 
 
+def _resolve_vsdx_target(normalized: str) -> Optional[str]:
+    """Disambiguates WHICH of the three possible exported .vsdx files a
+    "vsdx"/"visio"-mentioning target means, once resolve_artifact_target's
+    own caller has already confirmed that word is present. Checked ahead
+    of the plain "architecture"/"diagram" substring checks below -- "export
+    the architecture as visio" must resolve to the Visio export, not the
+    cloudarch_drawio.xml the bare "architecture" branch would otherwise
+    pick."""
+    normalized_words = set(normalized.split())
+    if any(word in normalized for word in ("cloudarch", "cloud architecture", "cloud")):
+        return CLOUDARCH_VSDX_FILENAME if cloudarch_vsdx_exists() else None
+    if any(word in normalized for word in ("design", "hld", "lld")) or bool(normalized_words & {"design"}):
+        return DESIGN_FLOW_VSDX_FILENAME if design_flow_vsdx_exists() else None
+    if "process" in normalized:
+        return PROCESS_FLOW_VSDX_FILENAME if process_flow_vsdx_exists() else None
+
+    # No domain named ("download the visio file") -- resolve only if
+    # exactly one of the three has actually been exported; two or more
+    # candidates with no disambiguating word is a genuinely ambiguous
+    # request, not a guess this function should make.
+    present = [
+        filename for filename, exists in (
+            (PROCESS_FLOW_VSDX_FILENAME, process_flow_vsdx_exists()),
+            (DESIGN_FLOW_VSDX_FILENAME, design_flow_vsdx_exists()),
+            (CLOUDARCH_VSDX_FILENAME, cloudarch_vsdx_exists()),
+        ) if exists
+    ]
+    return present[0] if len(present) == 1 else None
+
+
 def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
     """
     Resolves a natural-language-ish `target` hint to a real filename
@@ -142,6 +181,15 @@ def resolve_artifact_target(target: Optional[str]) -> Optional[str]:
             if portfolio_backlog_workbook_exists()
             else None
         )
+    # "vsdx" is a safe substring check (no real English word contains it),
+    # but "visio" needs a WORD-BOUNDARY check, not a substring one --
+    # CONFIRMED AS A REAL BUG caught by this file's own pre-existing
+    # regression test: "vision" contains "visio" as its first five
+    # letters, so a plain substring check hijacked "togaf architecture
+    # vision document" into the vsdx branch instead of matching the real
+    # generated Architecture Vision .docx.
+    if normalized and ("vsdx" in normalized or re.search(r"\bvisio\b", normalized)):
+        return _resolve_vsdx_target(normalized)
 
     docs = list_output_documents()
     normalized_words = set(normalized.split())

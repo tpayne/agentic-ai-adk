@@ -24,8 +24,9 @@ from ..common.requirements_chunk_extractor_agent import requirements_chunk_extra
 requirements_summary_agent = ProcessLlmAgent(
     name="Requirements_Summary_Agent",
     description=(
-        "Reads the files in a directory (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx), "
-        "summarizes the requirements found in them, and saves a reusable requirements "
+        "Reads the files in a directory (.txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.vsdx/.vsdm, "
+        "plus images [.png/.jpg/.jpeg/.gif/.webp/.bmp/.tiff] -- genuinely visually analyzed, not "
+        "just OCR'd), summarizes the requirements found in them, and saves a reusable requirements "
         "summary for a LATER process/design/cloudarch creation request to pick up. "
         "Does not create or modify a process, design document, or cloud architecture itself."
     ),

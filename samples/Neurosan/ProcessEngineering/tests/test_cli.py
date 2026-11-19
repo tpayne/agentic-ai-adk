@@ -72,6 +72,30 @@ def test_parser_rejects_http_or_port_without_detached():
     assert not args.detached and (args.http or args.port is not None)
 
 
+def test_parser_rejects_server_without_detached():
+    parser = cli.build_parser()
+    args = parser.parse_args(["-s", "0.0.0.0"])
+    assert args.detached is False and args.server == "0.0.0.0"
+    assert not args.detached and args.server is not None
+
+
+def test_parser_rejects_server_without_flask():
+    # -s/--server only overrides the Flask REST API's own HOST binding --
+    # plain -d (`ns run`) has no equivalent host override at all, so this
+    # combination must be rejected the same way --http/--port being used
+    # without --detached is.
+    parser = cli.build_parser()
+    args = parser.parse_args(["-d", "-s", "0.0.0.0"])
+    assert args.detached is True and args.flask is False and args.server == "0.0.0.0"
+    assert args.server is not None and not args.flask
+
+
+def test_parser_accepts_server_with_detached_flask():
+    parser = cli.build_parser()
+    args = parser.parse_args(["-d", "--flask", "-s", "0.0.0.0"])
+    assert args.detached is True and args.flask is True and args.server == "0.0.0.0"
+
+
 def test_parser_mode_flags_are_mutually_exclusive():
     parser = cli.build_parser()
     with pytest.raises(SystemExit):
@@ -1584,6 +1608,34 @@ class TestProcessDesignJsonDownloadRoutes:
         assert resp.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         assert "portfolio_backlog.xlsx" in resp.headers.get("Content-Disposition", "")
 
+    def test_downloads_process_flow_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"process_flow.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/process_flow_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert resp.mimetype == "application/vnd.ms-visio.drawing.main+xml"
+        assert "process_flow.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_design_flow_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"design_flow.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/design_flow_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert "design_flow.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_cloudarch_vsdx_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"cloudarch_architecture.vsdx": "vsdx bytes"})
+        resp = client.get("/artifacts/cloudarch_vsdx/download")
+        assert resp.status_code == 200
+        assert resp.data == b"vsdx bytes"
+        assert "cloudarch_architecture.vsdx" in resp.headers.get("Content-Disposition", "")
+
+    def test_vsdx_routes_404_when_not_yet_exported(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        assert client.get("/artifacts/process_flow_vsdx/download").status_code == 404
+        assert client.get("/artifacts/design_flow_vsdx/download").status_code == 404
+        assert client.get("/artifacts/cloudarch_vsdx/download").status_code == 404
+
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
         assert client.get("/artifacts/process/download").status_code == 404
@@ -2080,3 +2132,182 @@ class TestSendStreamingCancellationReleasesLeftoverLock:
         assert events[-1]["status"] == "stopped"
         assert token not in _heartbeats
         acquire_pipeline_lock("a different pipeline")  # must not raise -- released above
+
+
+class TestAgenticWebDiscoveryEndpoints:
+    """Tests for ProcessEngineering's own Agent Discovery API routes in build_web_app
+    (NOT the external "Open Agentic Web" standard -- see TestOpenAgenticWebNetworkPublishing
+    below for the routes that genuinely align with that external spec)."""
+
+    def _client(self, monkeypatch=None, api_key=None):
+        if monkeypatch and api_key:
+            monkeypatch.setenv("WEBAPIKEY", api_key)
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_agent_manifest_well_known(self):
+        client = self._client()
+        resp = client.get("/.well-known/agent.json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["schema_version"] == "1.0.0"
+        assert "standard" not in data
+        assert data["provider"]["name"] == "Agentic-AI-ADK"
+        assert data["capabilities_count"] >= 32
+        assert data["workflows_count"] >= 6
+        assert data["artifact_contracts_count"] >= 13
+        assert len(data["agents"]) >= 32
+
+    def test_list_agents_default_and_filtered(self):
+        client = self._client()
+        # Default returns list of summaries
+        resp = client.get("/agents")
+        assert resp.status_code == 200
+        agents = resp.get_json()
+        assert isinstance(agents, list)
+        assert len(agents) >= 32
+        assert "name" in agents[0]
+        assert "description" in agents[0]
+
+        # Wrapped mode
+        resp_wrapped = client.get("/agents?wrapped=true")
+        assert resp_wrapped.status_code == 200
+        wrapped_data = resp_wrapped.get_json()
+        assert wrapped_data["status"] == "ok"
+        assert wrapped_data["count"] >= 32
+        assert isinstance(wrapped_data["agents"], list)
+
+        # Category filter
+        resp_cat = client.get("/agents?category=design")
+        assert resp_cat.status_code == 200
+        design_agents = resp_cat.get_json()
+        assert len(design_agents) > 0
+        assert all(a["category"] == "design" for a in design_agents)
+
+        # Full card mode
+        resp_full = client.get("/agents?full=true")
+        assert resp_full.status_code == 200
+        full_agents = resp_full.get_json()
+        assert "inputs" in full_agents[0]
+        assert "outputs" in full_agents[0]
+
+    def test_get_agent_card(self):
+        client = self._client()
+        # Canonical name
+        resp = client.get("/agents/design")
+        assert resp.status_code == 200
+        card = resp.get_json()
+        assert card["name"] == "design"
+        assert "inputs" in card
+        assert "outputs" in card
+
+        # Alias tolerance
+        resp_alias = client.get("/agents/Design_Agent")
+        assert resp_alias.status_code == 200
+        assert resp_alias.get_json()["name"] == "design"
+
+        # Nonexistent agent 404
+        resp_404 = client.get("/agents/unknown_agent_xyz")
+        assert resp_404.status_code == 404
+
+    def test_capabilities_search(self):
+        client = self._client()
+        resp = client.get("/capabilities?artifact=drawio_xml")
+        assert resp.status_code == 200
+        results = resp.get_json()
+        assert any(c["name"] == "cloudarch" for c in results)
+
+    def test_workflows_endpoints(self):
+        client = self._client()
+        resp = client.get("/workflows")
+        assert resp.status_code == 200
+        wfs = resp.get_json()
+        assert isinstance(wfs, list)
+        assert any(w["workflow"] == "architecture_lifecycle" for w in wfs)
+
+        resp_detail = client.get("/workflows/architecture_lifecycle")
+        assert resp_detail.status_code == 200
+        wf = resp_detail.get_json()
+        assert wf["workflow"] == "architecture_lifecycle"
+        assert "steps" in wf
+
+        resp_404 = client.get("/workflows/unknown_wf")
+        assert resp_404.status_code == 404
+
+    def test_artifact_contracts_endpoints(self):
+        client = self._client()
+        resp = client.get("/artifacts/contracts")
+        assert resp.status_code == 200
+        contracts = resp.get_json()
+        assert isinstance(contracts, list)
+        assert any(c["artifact_type"] == "high_level_design" for c in contracts)
+
+        resp_detail = client.get("/artifacts/contracts/high_level_design")
+        assert resp_detail.status_code == 200
+        contract = resp_detail.get_json()
+        assert contract["artifact_type"] == "high_level_design"
+        assert "document_metadata" in contract["schema_fields"]
+
+        resp_404 = client.get("/artifacts/contracts/unknown_type")
+        assert resp_404.status_code == 404
+
+    def test_discovery_endpoints_bypass_api_key_auth(self, monkeypatch):
+        # Public discovery metadata should be accessible without Authorization headers
+        monkeypatch.setenv("WEBAPIKEY", "super-secret-key")
+        client = self._client()
+
+        resp_manifest = client.get("/.well-known/agent.json")
+        assert resp_manifest.status_code == 200
+
+        resp_agents = client.get("/agents")
+        assert resp_agents.status_code == 200
+
+        resp_workflows = client.get("/workflows")
+        assert resp_workflows.status_code == 200
+
+        resp_contracts = client.get("/artifacts/contracts")
+        assert resp_contracts.status_code == 200
+
+        resp_network_manifest = client.get("/agent-manifest.json")
+        assert resp_network_manifest.status_code == 200
+
+        resp_network = client.get("/networks/design.network.json")
+        assert resp_network.status_code == 200
+
+
+class TestOpenAgenticWebNetworkPublishing:
+    """Tests for the routes that genuinely implement the external Open Agentic Web MVP
+    spec's publication conventions (section 3.3) -- see network_publishing.py."""
+
+    def _client(self):
+        app = cli.build_web_app("process_architect", https=False)
+        return app.test_client()
+
+    def test_agent_manifest_json_has_the_real_spec_shape(self):
+        client = self._client()
+        resp = client.get("/agent-manifest.json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        networks = data["networks"]
+        assert "design" in networks
+        entry = networks["design"]
+        assert entry["name"] == "design"
+        assert entry["front_man"] == "Design_Doc_Pipeline"
+        assert entry["hocon"].endswith("/networks/design.network.json")
+        # Internal, non-publicly-listed registries (registries/manifest.hocon's own
+        # "public": false entries) must never appear here.
+        assert "agent_network_editor" not in networks
+
+    def test_networks_route_serves_a_resolved_network(self):
+        client = self._client()
+        resp = client.get("/networks/design.network.json")
+        assert resp.status_code == 200
+        config = resp.get_json()
+        assert isinstance(config["tools"], list)
+        assert config["tools"][0]["name"] == "Design_Doc_Pipeline"
+
+    def test_networks_route_404s_for_an_internal_or_unknown_network(self):
+        client = self._client()
+        assert client.get("/networks/agent_network_editor.network.json").status_code == 404
+        assert client.get("/networks/totally_made_up.network.json").status_code == 404
+

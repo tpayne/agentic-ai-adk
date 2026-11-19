@@ -7,6 +7,7 @@ network transport actually works, not just the tool functions in isolation.
 import base64
 import datetime
 import ipaddress
+import os
 import socket
 import ssl
 import threading
@@ -188,6 +189,62 @@ class TestGenerateDiagram:
                 )).data
                 assert result["diagram"] is None
                 assert "NOT_APPLICABLE" in result["message"], (schema_type, result["message"])
+
+
+class TestExportProcessDesignVsdx:
+    async def test_not_applicable_schema_types_report_cleanly_without_fabricating_a_vsdx(self):
+        async with Client(server.mcp) as client:
+            for schema_type in ("requirements", "proposal_response", "test_specification", "togaf"):
+                result = (await client.call_tool(
+                    "export_process_design_vsdx", {"schema_type": schema_type, "session_id": "s1"},
+                )).data
+                assert result["vsdx"] is None
+                assert "NOT_APPLICABLE" in result["message"], (schema_type, result["message"])
+
+    async def test_process_with_no_saved_data_still_exports_the_start_end_fallback(self):
+        # _infer_edges_from_json ALWAYS returns at least a Start->End
+        # fallback edge when process_data.json is missing -- same "always
+        # produces something" contract generate_diagram relies on -- so
+        # this succeeds even with nothing persisted first.
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "export_process_design_vsdx", {"schema_type": "process", "session_id": "s2"},
+            )).data
+            assert result["vsdx"] is not None
+            assert result["vsdx"]["filename"].endswith(".vsdx")
+            assert result["vsdx"]["size_bytes"] > 0
+            assert "successfully exported" in result["message"], result["message"]
+
+
+class TestExportCloudarchVsdx:
+    async def test_errors_cleanly_without_fabricating_a_vsdx_when_nothing_saved(self):
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "export_cloudarch_vsdx", {"session_id": "s3"},
+            )).data
+            assert result["vsdx"] is None
+            assert result["message"].startswith("ERROR:"), result["message"]
+
+    async def test_exports_a_saved_diagrams_vertices_and_edges(self):
+        xml = (
+            '<mxGraphModel><root>'
+            '<mxCell id="0"/><mxCell id="1" parent="0"/>'
+            '<mxCell id="api" value="API Gateway" vertex="1" parent="1" '
+            'style="shape=mxgraph.aws4.resourceIcon;"/>'
+            '<mxCell id="db" value="Database" vertex="1" parent="1" '
+            'style="shape=mxgraph.aws4.resourceIcon;"/>'
+            '<mxCell id="e1" edge="1" source="api" target="db" parent="1"/>'
+            '</root></mxGraphModel>'
+        )
+        with server.paths.use_session("s4"):
+            with open(os.path.join(server.paths.output_dir(), "cloudarch_drawio.xml"), "w", encoding="utf-8") as f:
+                f.write(xml)
+
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool("export_cloudarch_vsdx", {"session_id": "s4"})).data
+            assert result["vsdx"] is not None
+            assert result["vsdx"]["size_bytes"] > 0
+            assert "successfully exported" in result["message"], result["message"]
 
 
 class TestPersistJsonValidatesFirst:

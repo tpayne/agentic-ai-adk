@@ -17,7 +17,8 @@ This project was developed alongside [`samples/GCP/ProcessEngineering`](../../GC
 - Generates and refines **cloud architecture diagrams** (AWS/Azure/GCP) from a design document, including natural-language edits (e.g. "add a WAF in front of the load balancer").
 - Answers questions, runs **"what-if" scenarios**, and **simulates** resilience/scalability/security/latency against an existing process, design, or diagram.
 - Runs an **adversarial attack-path simulation** against a cloud architecture diagram, and estimates its **monthly cost** with optimization suggestions.
-- **Imports** an already-existing process/design document from a folder of files, or **summarizes requirements** from a pile of documents before you've decided what to build.
+- **Imports** an already-existing process/design document from a folder of files — including Visio diagrams (`.vsdx`/`.vsdm`) and images (OCR'd text) — or **summarizes requirements** from a pile of documents before you've decided what to build.
+- **Exports** a process/design flow diagram, or the cloud architecture diagram, as a real Visio (`.vsdx`) file, on demand only.
 - **Drafts a formal Response to Proposal/RFP** against a saved (or self-analyzed) requirements summary, and **generates a traceable test specification** — test cases with coverage-gap analysis — validating whichever of the saved requirements, design, and cloud architecture currently exist.
 - **Generates an Enterprise Agile Portfolio Backlog** from the saved design or, if none exists, the saved requirements summary — with traceable epics/features/stories, WSJF scoring, and a template-based Excel workbook with editable USD costing assumptions.
 - **Generates TOGAF-compliant architecture artifacts** (an Architecture Vision Document and an Architecture Definition Document) from the saved design or requirements summary, audited by a lightweight compliance review — with "what-if" scenario testing and explicit update/regeneration support. Deliberately scoped to ADM Phases A through G plus a bounded principles set; Phase H (Architecture Change Management) and full capability-maturity assessment are out of scope.
@@ -66,6 +67,8 @@ This suite is built from a set of neuro-san agent networks — each one invocabl
 | `test_reviewer` | Test specification reviewer (`Test_Reviewer_Agent`) | Audits the saved test specification for quality (verifiability, traceability, coverage honesty); fixes only when explicitly asked. | — |
 | `regenerate_document` | Document regenerator (`Regenerate_Document_Agent`) | Regenerates only the diagram and final Word document from whatever is already on disk — no re-analysis, no review. | — |
 | `process_subprocess_regenerate` | Subprocess regenerator (`Subprocess_Driver_Agent_Main`) | Expands every top-level step of an already-saved process into its own detailed level-2/3 subprocess — no re-analysis, no process regeneration. | `Subprocess_Generator_Agent_Main` |
+| `process_visio_export` | Visio export (`Visio_Export_Agent_Main`) | Exports whichever process/design flow diagram is already saved on disk as a real Visio (`.vsdx`) file — on demand only; determines process vs. design from the request's own wording. | — |
+| `cloudarch_visio_export` | Visio export (`Cloudarch_Visio_Export_Agent_Main`) | Exports the cloud architecture diagram already saved on disk as a real Visio (`.vsdx`) file — on demand only. | — |
 
 ---
 
@@ -75,6 +78,7 @@ Every run leaves behind a set of reusable artifacts in `output/`:
 
 - A professional, ISO-aligned Word document (`.docx`) — the process or design document itself.
 - Flow/architecture diagrams (level 1 and 2 process diagrams, or a cloud architecture diagram) as embedded images and, for cloud diagrams, editable drawio/mxGraph XML.
+- An exported Visio (`.vsdx`) copy of a process/design flow diagram or the cloud architecture diagram, when explicitly requested (on demand only — never produced automatically).
 - The underlying structured data (`process_data.json` / `design_data.json`) — versionable, queryable, and reusable as input for later updates, scenarios, or simulations.
 - A saved requirements summary (`requirements_summary.json`) when you use the standalone requirements-extraction feature.
 - A saved proposal response (`proposal_response.json`) when you draft a Response to Proposal/RFP.

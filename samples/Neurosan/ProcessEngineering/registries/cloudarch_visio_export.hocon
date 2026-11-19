@@ -1,0 +1,65 @@
+# Standalone action -- export whatever cloud architecture diagram is
+# ALREADY saved on disk (output/cloudarch_drawio.xml) as a real Visio
+# (.vsdx) file. NO re-analysis, NO cloudarch generate/review loop, and the
+# saved diagram itself is never modified. Same "on demand only" shape as
+# process_visio_export.hocon, scoped to the cloudarch domain specifically
+# (no schema_type to determine -- there is only one kind of diagram here).
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Exports the current cloud architecture diagram as a Visio (.vsdx) file, from whatever is already saved on disk -- no re-analysis, no regeneration.",
+        "tags": ["cloudarch", "process-engineering-port"],
+        "sample_queries": [
+            "Export the cloud architecture diagram as Visio.",
+            "Give me a .vsdx of this cloud architecture."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Cloudarch_Visio_Export_Agent_Main",
+
+            "function": {
+                "description": """
+I export the current cloud architecture diagram as a real Visio (.vsdx) file, from whatever is
+already saved on disk. I never re-run analysis or the cloudarch generate/review loop, and I never
+modify the saved diagram itself. Tell me to export the cloud architecture diagram as Visio.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's Visio-export request. Not otherwise used -- this agent's own static \"command\" kickoff string drives the fixed sequence below regardless of wording."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "command": "Export the saved cloud architecture diagram as Visio now.",
+            "instructions": """
+# ROLE
+You export whatever cloud architecture diagram is already saved on disk as a Visio (.vsdx) file.
+You NEVER re-run analysis or the cloudarch generate/review loop, and you NEVER modify the saved
+diagram itself -- that is every other network's job, on a separate request.
+
+# SEQUENCE
+1. Call export_cloudarch_vsdx.
+2. If the result starts with "ERROR", relay it verbatim -- there is no saved cloud architecture
+   diagram yet; suggest generating one first (e.g. "create a cloud architecture for ...").
+3. Otherwise, report in plain language that the Visio diagram was exported, and the exact saved
+   path from the tool's own result.
+
+Plain prose only in your final reply -- no raw JSON or internal field names.
+""",
+            "tools": ["export_cloudarch_vsdx"]
+        },
+
+        {
+            "name": "export_cloudarch_vsdx",
+            "function": {
+                "description": "Exports the current saved cloud architecture diagram as a Visio (.vsdx) file."
+            },
+            "class": "vsdx_export_tool.ExportCloudarchVsdxCodedTool"
+        }
+    ]
+}

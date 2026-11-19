@@ -1,11 +1,12 @@
+import base64
 import os
 import tempfile
 from email.message import EmailMessage
 from pathlib import Path
 
 from process_toolkit.ingestion.extractors import (
-    load_directory_context, DIRECTORY_CONTEXT_EXTRACTORS, _extract_msg_file,
-    stage_attachments_to_directory,
+    load_directory_context, DIRECTORY_CONTEXT_EXTRACTORS, IMAGE_EXTENSIONS,
+    _extract_msg_file, stage_attachments_to_directory,
 )
 
 
@@ -212,14 +213,14 @@ def test_malformed_json_file_is_skipped_not_fatal():
 def test_unsupported_extension_is_skipped_not_fatal():
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "readme.txt").write_text("real content")
-        (Path(d) / "image.jpg").write_bytes(b"\xff\xd8\xff\xe0not-a-real-jpeg")
+        (Path(d) / "archive.zip").write_bytes(b"PK\x03\x04not-a-real-zip-either")
 
         result = load_directory_context(d)
 
     assert result["status"] == "OK"
     assert result["files_processed"] == ["readme.txt"]
     skipped_files = [entry["file"] for entry in result["files_skipped"]]
-    assert "image.jpg" in skipped_files
+    assert "archive.zip" in skipped_files
 
 
 def test_excel_xlsx_renders_sheet_as_text():
@@ -293,6 +294,113 @@ def test_msg_extension_is_wired_to_its_extractor():
     skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
     assert "broken.msg" in skipped
     assert "failed to read" in skipped["broken.msg"]
+
+
+def test_extracts_vsdx_shape_text_and_connections():
+    # vsdx (read-only authoring API: Shape insertion requires raw XML
+    # Element objects, no clean "add a shape with this text" method) has no
+    # practical way to build a representative fixture from scratch -- using
+    # the vsdx package's OWN bundled example file instead of committing a
+    # redundant binary fixture of our own. Confirmed directly against this
+    # exact file: it has shapes named RECTANGLE/CONNECTED_SHAPE/
+    # STRAIGHT_CONNECTOR/CURVED_CONNECTOR/CIRCLE/LINE, with two separate
+    # connectors both joining RECTANGLE and CONNECTED_SHAPE.
+    import vsdx
+
+    fixture = str(Path(os.path.dirname(vsdx.__file__)) / "media" / "media.vsdx")
+    assert os.path.isfile(fixture), "vsdx's own bundled example file moved or was removed"
+
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "diagram.vsdx").write_bytes(Path(fixture).read_bytes())
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == ["diagram.vsdx"]
+    assert "RECTANGLE" in result["combined_text"]
+    assert "CONNECTED_SHAPE" in result["combined_text"]
+    assert "[Page:" in result["combined_text"]
+    assert "Connections:" in result["combined_text"]
+    assert "CONNECTED_SHAPE -- RECTANGLE" in result["combined_text"]
+    # A .vsdx is NOT also treated as an "image" for vision-passthrough
+    # purposes -- it has its own, richer structured-text extraction instead.
+    assert result["images"] == []
+
+
+def test_vsdm_extension_is_wired_to_the_same_vsdx_extractor():
+    from process_toolkit.ingestion.extractors import _extract_vsdx_file
+
+    assert DIRECTORY_CONTEXT_EXTRACTORS[".vsdm"] is _extract_vsdx_file
+
+
+def test_extracts_image_text_via_ocr_and_populates_the_images_field():
+    from PIL import Image, ImageDraw
+
+    with tempfile.TemporaryDirectory() as d:
+        image_path = Path(d) / "screenshot.png"
+        image = Image.new("RGB", (400, 100), color="white")
+        ImageDraw.Draw(image).text((10, 40), "Approve Expense Claim", fill="black")
+        image.save(image_path)
+        raw_bytes = image_path.read_bytes()
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == ["screenshot.png"]
+    # OCR -- real text extraction, not a guaranteed-exact transcription (font
+    # rendering/OCR artifacts are a known source of minor noise), so this
+    # checks for the substantive words landing, not a byte-exact match.
+    assert "Expense Claim" in result["combined_text"]
+
+    # The SAME file also round-trips through the new "images" field, exactly
+    # byte-for-byte, independent of whatever OCR found -- this is the field a
+    # vision-capable caller (see IMAGE_EXTENSIONS's own docstring) uses
+    # instead of relying on OCR alone.
+    assert len(result["images"]) == 1
+    image_entry = result["images"][0]
+    assert image_entry["name"] == "screenshot.png"
+    assert image_entry["mime_type"] == "image/png"
+    assert base64.b64decode(image_entry["data_base64"]) == raw_bytes
+
+
+def test_image_with_no_visible_text_still_populates_the_images_field():
+    # A diagram that's all shapes/arrows with no text labels at all would
+    # have EMPTY OCR output -- confirms that doesn't ALSO drop it from the
+    # "images" field, which a vision-capable caller still benefits from even
+    # when OCR finds nothing (see load_directory_context's own docstring).
+    from PIL import Image
+
+    with tempfile.TemporaryDirectory() as d:
+        image_path = Path(d) / "blank.png"
+        Image.new("RGB", (50, 50), color="white").save(image_path)
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == []
+    skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
+    assert skipped.get("blank.png") == "no extractable text"
+    assert len(result["images"]) == 1
+    assert result["images"][0]["name"] == "blank.png"
+
+
+def test_every_image_extension_is_wired_to_the_same_extractor_and_mime_tracking():
+    from process_toolkit.ingestion.extractors import _extract_image_file
+
+    for ext in IMAGE_EXTENSIONS:
+        assert DIRECTORY_CONTEXT_EXTRACTORS[ext] is _extract_image_file
+
+
+def test_corrupt_image_is_skipped_not_fatal_and_not_added_to_images():
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "corrupt.png").write_bytes(b"\x89PNGnot-a-real-png-either")
+
+        result = load_directory_context(d)
+
+    assert result["status"] == "OK"
+    assert result["files_processed"] == []
+    skipped = {entry["file"]: entry["reason"] for entry in result["files_skipped"]}
+    assert "corrupt.png" in skipped
+    assert result["images"] == []
 
 
 def test_combined_text_is_truncated_past_the_configured_limit():

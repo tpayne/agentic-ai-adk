@@ -24,6 +24,16 @@
 # tooling could.
 FROM python:3.14-slim
 
+# tesseract-ocr is a genuinely new exception to the "no apt-installed system
+# packages needed" reasoning above -- it's not a build toolchain for
+# compiling a Python wheel, it's the real OCR engine binary pytesseract
+# (process_toolkit's own ingestion extractors, used by load_directory_
+# context for image files) calls out to at RUNTIME; pip/uv cannot install
+# it since it isn't a Python package at all.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+
 # Installs the `uv` binary itself by copying it out of Astral's own
 # published image, rather than `pip install uv` -- the standard way to get
 # uv into a Docker build without needing pip/network access for it

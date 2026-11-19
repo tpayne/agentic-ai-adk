@@ -168,3 +168,63 @@ class TestFeedback:
                 "review_status_summary", {"channels": ["compliance"], "session_id": "s1"},
             )).data
         assert "APPROVED" in summary
+
+
+class TestAgenticWebMcpTools:
+    def test_get_agent_manifest_via_mcp(self):
+        import asyncio
+
+        async def _run():
+            async with Client(server.mcp) as client:
+                manifest = (await client.call_tool("get_agent_manifest", {"base_url": "http://test"})).data
+            assert manifest["schema_version"] == "1.0.0"
+            assert manifest["provider"]["name"] == "Agentic-AI-ADK"
+            assert manifest["capabilities_count"] >= 32
+
+        asyncio.run(_run())
+
+    def test_list_agents_and_get_card_via_mcp(self):
+        import asyncio
+
+        async def _run():
+            async with Client(server.mcp) as client:
+                agents = (await client.call_tool("list_agents", {"category": "design"})).data
+                assert len(agents) > 0
+                assert all(a["category"] == "design" for a in agents)
+
+                card = (await client.call_tool("get_agent_card", {"name": "design"})).data
+                assert card["name"] == "design"
+                assert "inputs" in card
+                assert "outputs" in card
+
+        asyncio.run(_run())
+
+    def test_workflows_via_mcp(self):
+        import asyncio
+
+        async def _run():
+            async with Client(server.mcp) as client:
+                wfs = (await client.call_tool("list_workflows", {})).data
+                assert len(wfs) >= 6
+                assert any(w["workflow"] == "architecture_lifecycle" for w in wfs)
+
+                wf = (await client.call_tool("get_workflow", {"workflow_name": "architecture_lifecycle"})).data
+                assert wf["workflow"] == "architecture_lifecycle"
+                assert "design" in wf["steps"]
+
+        asyncio.run(_run())
+
+    def test_artifact_contracts_via_mcp(self):
+        import asyncio
+
+        async def _run():
+            async with Client(server.mcp) as client:
+                contracts = (await client.call_tool("list_artifact_contracts", {})).data
+                assert len(contracts) >= 13
+
+                contract = (await client.call_tool("get_artifact_contract", {"artifact_type": "high_level_design"})).data
+                assert contract["artifact_type"] == "high_level_design"
+                assert "document_metadata" in contract["schema_fields"]
+
+        asyncio.run(_run())
+

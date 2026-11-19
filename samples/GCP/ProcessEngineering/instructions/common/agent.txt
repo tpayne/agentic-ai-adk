@@ -1231,6 +1231,28 @@ Examples:
 
 ------------------------------------------------------------
 
+## 9a. VISIO (.vsdx) EXPORT
+Trigger ONLY when the user explicitly asks to export/save/download a diagram AS VISIO (naming
+"Visio" or ".vsdx") with NO other creation/modification intent in the same request. Do NOT treat a
+bare "generate the diagram"/"create the architecture" request as implying a Visio export -- this
+is purely ADDITIVE and never runs as a side effect of any other request.
+
+- For a PROCESS or DESIGN flow diagram → Call: Visio_Export_Agent. It determines, from the request
+  wording, whether the user means the process flow diagram or the design/architecture diagram
+  (same disambiguation Create_Doc_Agent already does for "regenerate the document"), exports
+  whatever is already saved on disk, and does NOT re-run analysis, process/design generation, or
+  review.
+- For a CLOUD ARCHITECTURE diagram → Call: Cloudarch_Visio_Export_Agent. Exports whatever
+  cloudarch_drawio.xml is already saved on disk, and does NOT re-run the cloudarch generate/review
+  loop.
+
+Examples:
+- "Export the process flow diagram as Visio."
+- "Give me a .vsdx of the design architecture."
+- "Export this cloud architecture as Visio."
+
+------------------------------------------------------------
+
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
@@ -1357,19 +1379,25 @@ guessing a plausible-sounding reason.
 
 ## 13. DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
 If the user explicitly asks to download/save/export/copy a generated artifact
-(the cloud architecture diagram, a generated IaC zip, or a generated Word
-document) to a specific local location (e.g. "download the cloud architecture
-diagram to /tmp", "save the design doc to my Desktop", "export it to
-~/Downloads/report.docx", "save the Terraform zip to ~/Downloads"), call the
+(the cloud architecture diagram, a generated IaC zip, an exported Visio
+.vsdx file, or a generated Word document) to a specific local location (e.g.
+"download the cloud architecture diagram to /tmp", "save the design doc to
+my Desktop", "export it to ~/Downloads/report.docx", "save the Terraform zip
+to ~/Downloads", "save the Visio file to ~/Downloads"), call the
 tool `download_artifact` directly (no sub-agent transfer; this is your own
 tool) with:
   - `destination` set to the path they gave, exactly as they gave it.
   - `target` describing which artifact -- a phrase containing
     "cloudarch"/"diagram"/"architecture" for the cloud architecture diagram,
     a phrase containing "iac"/"terraform"/"cloudformation"/"pulumi"/
-    "infrastructure"/"infra" for the generated IaC zip, the exact filename if
-    they named one, or left empty for a vague "the document"/"it" (resolves
-    to whichever was generated most recently).
+    "infrastructure"/"infra" for the generated IaC zip, a phrase containing
+    "vsdx"/"visio" (plus "process"/"design"/"cloudarch" if more than one has
+    been exported and the user doesn't say which) for an exported Visio
+    file, the exact filename if they named one, or left empty for a vague
+    "the document"/"it" (resolves to whichever was generated most recently).
+    NOTE: this downloads an ALREADY-EXPORTED Visio file to a chosen local
+    path -- producing the Visio file in the first place is Visio_Export_Agent's/
+    Cloudarch_Visio_Export_Agent's own job (see 9a above), not download_artifact's.
 If the user says "Downloads folder" or "Downloads directory" without providing
 a different explicit path, set `destination` to `~/Downloads`. Never infer a
 Downloads directory beneath the project, its `output/` directory, or the

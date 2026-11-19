@@ -1416,16 +1416,23 @@ tool failed, say that plainly rather than guessing a plausible-sounding reason.
 # DOWNLOADING A GENERATED ARTIFACT TO A LOCAL PATH
 ------------------------------------------------------------
 If the user explicitly asks to download/save/export/copy a generated artifact (the cloud
-architecture diagram, a generated IaC zip, Enterprise Agile Portfolio Backlog workbook, or generated Word document) to a
+architecture diagram, a generated IaC zip, Enterprise Agile Portfolio Backlog workbook, an exported
+Visio .vsdx file, or generated Word document) to a
 specific local location (e.g. "download the cloud architecture diagram to /tmp", "save the design doc
-to my Desktop", "export it to ~/Downloads/report.docx", "save the Terraform zip to ~/Downloads"),
+to my Desktop", "export it to ~/Downloads/report.docx", "save the Terraform zip to ~/Downloads",
+"save the Visio file to ~/Downloads"),
 call the tool `download_artifact` directly (it is one of YOUR OWN tools below, not a sub-network) with:
   - "destination" set to the explicit path they gave, exactly as they gave it.
   - "target" describing which artifact -- a phrase containing "cloudarch"/"diagram"/"architecture"
     for the cloud architecture diagram, a phrase containing "iac"/"terraform"/"cloudformation"/
     "pulumi"/"infrastructure"/"infra" for the generated IaC zip, a phrase containing "backlog"/"WSJF"
-    for the portfolio backlog workbook, the exact filename if they named one, or omitted entirely for a vague "the
-    document"/"it" (resolves to whichever was generated most recently).
+    for the portfolio backlog workbook, a phrase containing "vsdx"/"visio" (plus "process"/"design"/
+    "cloudarch" if more than one has been exported and the user doesn't say which) for an exported
+    Visio file, the exact filename if they named one, or omitted entirely for a vague "the
+    document"/"it" (resolves to whichever was generated most recently). NOTE: this downloads an
+    ALREADY-EXPORTED Visio file to a chosen local path -- producing the Visio file in the first
+    place is `/process_visio_export`/`/cloudarch_visio_export`'s own job (see VISIO (.vsdx) EXPORT
+    below), not download_artifact's.
 When the tool reports success, state the exact destination path from its returned message. Do not
 claim the file was saved to the user's Downloads folder unless the returned path confirms that
 location.
@@ -1451,6 +1458,25 @@ Process_Pipeline/Process_Update_Pipeline instead (which would re-run the full ge
 cycle, not just regenerate the subprocesses) -- this is the ONLY tool that does exactly that
 standalone action. "Regenerate just the document" is a DIFFERENT request -- see the Regenerate_Document_Agent
 section above.
+
+------------------------------------------------------------
+# VISIO (.vsdx) EXPORT
+------------------------------------------------------------
+If the user explicitly asks to export/save/download a process, design, or cloud architecture
+diagram AS VISIO (e.g. "export this as Visio", "give me a .vsdx of the architecture", "export the
+process flow diagram to Visio", "save the design diagram as a Visio file") with NO other
+creation/modification intent in the same request:
+  - For a PROCESS or DESIGN diagram, call `/process_visio_export` directly. It exports whatever
+    process/design flow diagram is ALREADY saved on disk as a real Visio (.vsdx) file -- it does
+    NOT re-run analysis, process/design generation, or review, and does NOT modify the saved
+    process_data.json/design_data.json itself.
+  - For a CLOUD ARCHITECTURE diagram, call `/cloudarch_visio_export` directly. Same discipline --
+    exports whatever cloudarch_drawio.xml is ALREADY saved on disk, never re-runs the cloudarch
+    generate/review loop, never modifies the saved diagram itself.
+Do NOT force this request into any generate/review pipeline, and do NOT treat a bare "generate the
+diagram"/"create the architecture" request as implying a Visio export -- Visio export only happens
+on an EXPLICIT ask naming "Visio"/".vsdx". This is purely ADDITIVE: it never runs as a side effect
+of any other request, and no existing pipeline step changes because of it.
 """,
             "tools": [
                 "/process",
@@ -1460,6 +1486,7 @@ section above.
                 "/process_scenario_tester",
                 "/process_simulation_query",
                 "/process_subprocess_regenerate",
+                "/process_visio_export",
                 "/design",
                 "/design_import",
                 "/design_update",
@@ -1475,6 +1502,7 @@ section above.
                 "/cloudarch_attack_simulation_query",
                 "/cloudarch_finops",
                 "/cloudarch_iac",
+                "/cloudarch_visio_export",
                 "/requirements_summary",
                 "/requirements_consultant",
                 "/requirements_reviewer",
@@ -1502,13 +1530,13 @@ section above.
         {
             "name": "download_artifact",
             "function": {
-                "description": "Saves a copy of a generated artifact (the cloud architecture diagram, a generated IaC zip, Enterprise Agile Portfolio Backlog workbook, or generated Word document) to a local filesystem path on the machine this agent is running on. Use ONLY on the user's own explicit request to download/save/export/copy a generated artifact to a specific location.",
+                "description": "Saves a copy of a generated artifact (the cloud architecture diagram, a generated IaC zip, Enterprise Agile Portfolio Backlog workbook, an exported Visio .vsdx file, or generated Word document) to a local filesystem path on the machine this agent is running on. Use ONLY on the user's own explicit request to download/save/export/copy a generated artifact to a specific location.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "target": {
                             "type": "string",
-                            "description": "Which artifact to save: a phrase containing 'cloudarch'/'diagram'/'architecture' for the cloud architecture diagram; a phrase containing 'iac'/'terraform'/'cloudformation'/'pulumi'/'infrastructure'/'infra' for the generated IaC zip; an exact generated document filename if the user named one; or omit entirely to mean whichever document was generated most recently (use this for a vague 'the document'/'it' when context makes it unambiguous)."
+                            "description": "Which artifact to save: a phrase containing 'cloudarch'/'diagram'/'architecture' for the cloud architecture diagram; a phrase containing 'iac'/'terraform'/'cloudformation'/'pulumi'/'infrastructure'/'infra' for the generated IaC zip; a phrase containing 'vsdx'/'visio' (plus 'process'/'design'/'cloudarch' if more than one has been exported) for an exported Visio file; an exact generated document filename if the user named one; or omit entirely to mean whichever document was generated most recently (use this for a vague 'the document'/'it' when context makes it unambiguous)."
                         },
                         "destination": {
                             "type": "string",

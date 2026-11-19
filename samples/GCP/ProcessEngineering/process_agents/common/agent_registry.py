@@ -55,6 +55,7 @@ from ..design.design_simulation_agent import design_simulation_agent
 from ..design.design_simulation_agent import design_simulation_query_agent
 from ..process.subprocess_driver_agent import SubprocessDriverAgent
 from ..process.update_process_agent import update_design_pipeline
+from .visio_export_agent import visio_export_agent, cloudarch_visio_export_agent
 
 from .utils_agent import (
     mute_agent, 
