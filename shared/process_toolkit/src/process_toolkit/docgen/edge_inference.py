@@ -553,6 +553,13 @@ def generate_clean_diagram(schema_type: str | None = None) -> str:
         # than leaving "togaf" to fall through to the "process" branch
         # below if something ever does pass it directly.
         return "SKIPPED: TOGAF architecture documents render their diagrams inline per-section; no separate whole-document flow diagram exists."
+    if schema_type == "itsm":
+        # Same reasoning as the "togaf" branch above -- ITSM documents have
+        # several independent flow diagrams (incident, problem, change,
+        # request fulfillment) plus a CI relationship diagram, each
+        # rendered inline per-section via generate_uml_diagram, not one
+        # whole-document overview diagram.
+        return "SKIPPED: ITSM process documents render their diagrams inline per-process; no separate whole-document flow diagram exists."
 
     try:
         is_design = (schema_type or detect_schema_type_from_disk()) == "design"

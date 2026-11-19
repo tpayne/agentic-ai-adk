@@ -54,6 +54,13 @@ PORTED_NETWORKS = [
     "registries/process_subprocess_regenerate.hocon",
     "registries/togaf.hocon",
     "registries/togaf_scenario_tester.hocon",
+    "registries/itsm.hocon",
+    "registries/itsm_update.hocon",
+    "registries/itsm_import.hocon",
+    "registries/itsm_consultant.hocon",
+    "registries/itsm_reviewer.hocon",
+    "registries/itsm_scenario_tester.hocon",
+    "registries/itsm_simulation_query.hocon",
     "registries/process_architect.hocon",
 ]
 

@@ -18,6 +18,7 @@ from process_toolkit.schema.requirements_json import REQUIREMENTS_SUMMARY_FILENA
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FILENAME
 from process_toolkit.schema.togaf_json import TOGAF_JSON_FILENAME
+from process_toolkit.schema.itsm_json import ITSM_JSON_FILENAME
 from process_toolkit.docgen.generation import create_standard_doc_from_file
 from process_toolkit.docgen.structure import add_iso_page_break
 
@@ -1090,3 +1091,165 @@ class TestTogafDocumentGeneration:
 
         definition_text = "\n".join(p.text for p in docx.Document(definition_path).paragraphs)
         assert "Additional Data" not in definition_text or "architecture_vision" not in definition_text.lower()
+
+
+SAMPLE_ITSM = {
+    "document_metadata": {
+        "title": "Checkout Service ITSM Process Document", "system_name": "Checkout", "version": "1.0",
+    },
+    "service_catalog": {
+        "services": [{"id": "SVC-001", "name": "Checkout API", "category": "Core", "business_criticality": "High"}],
+    },
+    "stakeholders_and_roles": [
+        {"role": "Incident Manager", "responsibilities": ["Owns P1/P2 incidents"], "escalation_tier": "Tier 2"},
+    ],
+    "incident_management": {
+        "priority_matrix": [{"priority": "P1", "impact": "High", "urgency": "High"}],
+        "process_steps": [
+            {"step_id": "INC-1", "step_name": "Log Incident", "responsible_role": "Service Desk"},
+            {"step_id": "INC-2", "step_name": "Triage", "responsible_role": "Service Desk"},
+            {"step_id": "INC-3", "step_name": "Resolve", "responsible_role": "Engineering"},
+        ],
+        "process_flow_diagram": {"diagram_id": "D-1", "title": "Incident Management Flow"},
+        "escalation_paths": [{"from_tier": "Tier 1", "to_tier": "Tier 2", "trigger_condition": "No resolution in 1 hour"}],
+    },
+    "problem_management": {
+        "process_steps": [
+            {"step_id": "PRB-1", "step_name": "Identify Root Cause", "responsible_role": "Problem Manager"},
+            {"step_id": "PRB-2", "step_name": "Document Known Error", "responsible_role": "Problem Manager"},
+        ],
+        "process_flow_diagram": {"diagram_id": "D-2", "title": "Problem Management Flow"},
+        "known_errors": [{"id": "KE-001", "description": "DNS misconfiguration", "linked_incidents": ["INC-1001"]}],
+    },
+    "change_management": {
+        "change_types": [{"type": "standard", "approval_path": "Pre-approved"}],
+        "process_steps": [
+            {"step_id": "CHG-1", "step_name": "Submit RFC", "responsible_role": "Change Requester"},
+            {"step_id": "CHG-2", "step_name": "CAB Review", "responsible_role": "Change Advisory Board"},
+        ],
+        "process_flow_diagram": {"diagram_id": "D-3", "title": "Change Management Flow"},
+        "cab_members": [{"role": "Change Manager", "name_or_title": "Head of IT Ops"}],
+        "risk_assessment_criteria": [{"risk_level": "High", "criteria": "Production outage possible"}],
+    },
+    "request_fulfillment": {
+        "request_types": [{"type": "New Laptop", "target_fulfillment_time": "3 business days"}],
+        "process_steps": [
+            {"step_id": "REQ-1", "step_name": "Submit Request", "responsible_role": "Requester"},
+            {"step_id": "REQ-2", "step_name": "Approve", "responsible_role": "Manager"},
+        ],
+        "process_flow_diagram": {"diagram_id": "D-4", "title": "Request Fulfillment Flow"},
+    },
+    "service_level_management": {
+        "slas": [{"id": "SLA-001", "service_id": "SVC-001", "metric": "Uptime", "target": "99.9%"}],
+        "olas": [{"id": "OLA-001", "internal_team": "Network Ops", "metric": "Response time", "target": "15 min"}],
+        "underpinning_contracts": [{"id": "UC-001", "vendor": "Acme ISP", "linked_sla": "SLA-001"}],
+    },
+    "configuration_management": {
+        "configuration_items": [
+            {"id": "CI-001", "name": "Checkout API", "type": "Application"},
+            {"id": "CI-002", "name": "Checkout DB", "type": "Database"},
+        ],
+        "relationships": [{"source_ci": "CI-001", "target_ci": "CI-002", "relationship_type": "depends_on"}],
+        "relationship_diagram": {"diagram_id": "D-5", "title": "CI Relationships"},
+    },
+    "raci_matrix": [
+        {
+            "process_area": "Incident Management", "activity": "Log Incident",
+            "responsible": "Service Desk", "accountable": "Incident Manager",
+            "consulted": "", "informed": "Customer",
+        },
+    ],
+    "tooling_and_platform": [{"category": "ITSM Platform", "tool_name": "ServiceNow", "purpose": "Ticketing"}],
+    "risks_and_controls": [{"risk": "Unauthorized change", "control": "CAB approval required"}],
+    "glossary_and_references": {"glossary": [{"term": "CAB", "definition": "Change Advisory Board"}]},
+}
+
+
+class TestItsmDocumentGeneration:
+    """ITSM renders a SINGLE .docx file (no Vision/Definition-style
+    variant split the way TOGAF has) -- see generation.py's
+    _build_itsm_document. This is also the end-to-end smoke test for
+    every new diagram descriptor's remapping into generate_uml_diagram's
+    existing edge-graph dispatch branch (process_flow_diagram x4 via
+    _as_sequential_steps_context, relationship_diagram via
+    _as_integration_points_context)."""
+
+    def _write_sample(self, data=None):
+        with open(paths.output_path(ITSM_JSON_FILENAME), "w", encoding="utf-8") as f:
+            json.dump(data or SAMPLE_ITSM, f)
+
+    def test_produces_one_file_with_every_expected_section(self):
+        self._write_sample()
+
+        result = create_standard_doc_from_file("Checkout", schema_type="itsm")
+        assert result.startswith("SUCCESS: Professional document saved at "), result
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+        # "ITSM Process Document" is correctly stripped as a baked-in
+        # doc-type label (same discipline as TOGAF's own title stripping),
+        # leaving just the system name.
+        assert out_path.endswith("Checkout_Service.docx")
+
+        doc = docx.Document(out_path)
+        headings = [p.text for p in doc.paragraphs if p.style and p.style.name in ("Heading 1", "Heading 2")]
+        for expected in (
+            "Service Catalog", "Stakeholders and Roles", "Incident Management", "Problem Management",
+            "Change Management", "Request Fulfillment", "Service Level Management",
+            "Configuration Management", "RACI Matrix", "Tooling and Platform", "Risks and Controls",
+            "Glossary",
+        ):
+            assert any(expected in h for h in headings), (expected, headings)
+
+        # The diagram remapping actually produced real images, not honest
+        # fallback notes -- the smoke test's real point.
+        text = "\n".join(p.text for p in doc.paragraphs)
+        assert "not yet generated" not in text
+        # 4 process-flow diagrams + 1 CI relationship diagram.
+        assert len(doc.inline_shapes) >= 5
+
+        # No cost/date/staffing figure anywhere in the rendered document --
+        # the schema has no such field at all.
+        assert "$" not in text
+
+    def test_unrecognized_schema_type_still_mentions_itsm(self):
+        result = create_standard_doc_from_file("Checkout", schema_type="invalid_schema")
+        assert result.startswith("ERROR: Unrecognized schema_type 'invalid_schema'")
+        assert "itsm" in result
+
+    def test_title_baked_in_doc_type_label_is_stripped_from_the_filename(self):
+        data = dict(SAMPLE_ITSM)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "ITSM Process Document for Checkout Service"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout", schema_type="itsm")
+        assert "ITSM_Process_Document" not in result.split("saved at ", 1)[1]
+
+    def test_generic_title_falls_back_to_system_name(self):
+        data = dict(SAMPLE_ITSM)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "ITSM Process Document"
+        data["document_metadata"]["system_name"] = "Checkout Service"
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Fallback", schema_type="itsm")
+        assert "Checkout_Service.docx" in result
+
+    def test_title_that_is_exactly_a_bare_label_falls_back_to_process_name_not_the_label(self):
+        data = dict(SAMPLE_ITSM)
+        data["document_metadata"] = dict(data["document_metadata"])
+        data["document_metadata"]["title"] = "ITSM Process Document"
+        del data["document_metadata"]["system_name"]
+        self._write_sample(data)
+
+        result = create_standard_doc_from_file("Checkout Service", schema_type="itsm")
+        assert "ITSM_Process_Document.docx" not in result
+        assert "Checkout_Service.docx" in result
+
+    def test_does_not_leak_into_additional_data_catch_all(self):
+        self._write_sample()
+        result = create_standard_doc_from_file("Checkout", schema_type="itsm")
+        out_path = result.split("SUCCESS: Professional document saved at ", 1)[1]
+
+        text = "\n".join(p.text for p in docx.Document(out_path).paragraphs)
+        assert "Additional Data" not in text or "incident_management" not in text.lower()

@@ -181,7 +181,7 @@ yet) -- never your own judgment about the request's framing.
 ------------------------------------------------------------
 # DOMAIN DISAMBIGUATION (PROCESS vs. DESIGN DOCUMENT vs. CLOUD ARCHITECTURE DIAGRAM vs.
 # REQUIREMENTS SUMMARY vs. PROPOSAL RESPONSE vs. TEST SPECIFICATION vs. ENTERPRISE AGILE PORTFOLIO
-# BACKLOG vs. TOGAF ARCHITECTURE ARTIFACTS)
+# BACKLOG vs. TOGAF ARCHITECTURE ARTIFACTS vs. ITSM PROCESS DOCUMENT)
 ------------------------------------------------------------
 
 Many routing rules below have variants: one for a BUSINESS PROCESS / WORKFLOW, one for an
@@ -189,13 +189,25 @@ ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or a combined design), one 
 CLOUD ARCHITECTURE DIAGRAM (the generated drawio/mxGraph diagram, distinct from the design document
 it may have been generated from), one for a saved REQUIREMENTS SUMMARY, one for a saved
 PROPOSAL RESPONSE, one for a saved TEST SPECIFICATION, one for ENTERPRISE AGILE PORTFOLIO BACKLOG creation or
-update, and one for TOGAF ARCHITECTURE ARTIFACTS (the generated Architecture Vision/Architecture
-Definition documents, distinct from the design document they may be derived from). You
-MUST determine which of these EIGHT domains the user means before selecting a tool -- do not narrow
-your own thinking to just the first three; a vague "this"/"it" could equally mean the requirements
-summary, the proposal response, the test specification, or the TOGAF artifact set. Enterprise Agile Portfolio Backlog signals are
+update, one for TOGAF ARCHITECTURE ARTIFACTS (the generated Architecture Vision/Architecture
+Definition documents, distinct from the design document they may be derived from), and one for an
+ITSM PROCESS DOCUMENT (incident/problem/change management, request fulfillment, SLAs, a light
+CMDB, and RACI governance -- authored fresh from a brief, like a business process, NOT derived
+from an existing design/requirements document the way TOGAF artifacts are). You MUST determine
+which of these NINE domains the user means before selecting a tool -- do not narrow your own
+thinking to just the first three; a vague "this"/"it" could equally mean the requirements summary,
+the proposal response, the test specification, the TOGAF artifact set, or the ITSM process
+document. Enterprise Agile Portfolio Backlog signals are
 "enterprise agile portfolio backlog", "portfolio backlog", "WSJF", or a request to break saved requirements/design into epics, features,
 and stories.
+
+Signal words for an ITSM PROCESS DOCUMENT: "ITSM", "IT service management", "ITIL", "service
+desk", "incident management process", "problem management", "change advisory board", "CAB",
+"service catalog", "request fulfillment", "configuration management database", "CMDB" (as a
+whole word, not a substring). These take precedence over the generic PROCESS signal words below
+whenever they appear -- "create an ITSM process document covering incident and change management"
+is the ITSM PROCESS DOCUMENT domain, not a generic business PROCESS, even though "process" itself
+also appears in the request.
 
 Signal words for TOGAF ARCHITECTURE ARTIFACTS: "TOGAF", "architecture vision", "architecture vision
 document", "architecture definition", "architecture definition document", "enterprise architecture
@@ -397,12 +409,13 @@ regardless of which of the three the user asked for; just forward the request as
 
 You MUST NOT outline or describe the process or design yourself, in either case.
 
-### 1c. IMPORTING/RESTORING AN ALREADY-EXISTING PROCESS, DESIGN DOCUMENT, OR CLOUD ARCHITECTURE DIAGRAM
+### 1c. IMPORTING/RESTORING AN ALREADY-EXISTING PROCESS, DESIGN DOCUMENT, CLOUD ARCHITECTURE DIAGRAM, OR ITSM PROCESS DOCUMENT
 Trigger when the user wants to IMPORT, LOAD, INGEST, BRING IN, RESTORE, USE, KEEP, or CONVERT a
 directory of files (or a direct attachment) that ALREADY CONTAIN a finished business process,
-design document, OR cloud architecture diagram -- it is not background context for something NEW
-the user is describing, it IS the artifact, already written/exported, and the user wants it
-brought into (or kept in) the toolkit as-is. Signal words: "import", "ingest", "restore", "load
+design document, cloud architecture diagram, OR ITSM process document (runbooks, incident/change
+procedures, SLAs) -- it is not background context for something NEW the user is describing, it IS
+the artifact, already written/exported, and the user wants it brought into (or kept in) the
+toolkit as-is. Signal words: "import", "ingest", "restore", "load
 this as the process/design/diagram", "use this [process/design/diagram/architecture] for further
 [work/questions]" (not "background for"/"context for"), "bring this into the toolkit", "convert
 this document into a process/design", "keep/save/retain this [diagram/architecture] for future
@@ -425,8 +438,9 @@ this an import/restore request (CloudArch_Import_Agent), not a Section 4c read-o
 attached one must be restored first). CloudArch_Import_Agent's own final report already describes
 what it restored, so this single call satisfies both halves of the request.
 
--> Call: Process_Import_Agent (business process), Design_Import_Agent (written design document), or
-CloudArch_Import_Agent (drawio/mxGraph diagram XML) -- determine which per the Domain Disambiguation
+-> Call: Process_Import_Agent (business process), Design_Import_Agent (written design document),
+CloudArch_Import_Agent (drawio/mxGraph diagram XML), or ITSM_Import_Agent (ITSM process document --
+runbooks, incident/change procedures, SLAs) -- determine which per the Domain Disambiguation
 rules above, with the diagram-vs-document distinction above breaking the design/cloudarch tie.
 
 Examples:
@@ -643,6 +657,39 @@ to call its own load_requirements_summary tool.
 
 ------------------------------------------------------------
 
+### 1i. ITSM PROCESS DOCUMENT GENERATION OR UPDATE
+Trigger when the user asks to create/generate a best-of-breed ITSM process document, or explicitly
+update/change/revise an existing one. Unlike TOGAF (1h above), an ITSM process document is authored
+FRESH from the user's own brief (and optionally a directory of files or the saved requirements
+summary, same as process/design creation) -- it is NOT derived from an existing design/requirements
+document. For creation, call ITSM_Pipeline. For an explicit update to an existing ITSM process
+document, call ITSM_Update_Pipeline instead -- do not route an update as new generation.
+
+A BARE "regenerate"/"rebuild"/"re-render" request for the ITSM document, with no other
+creation/modification intent, is Section 9 (STANDALONE DOCUMENT REGENERATION) instead, even though
+it also contains this section's own signal words ("ITSM") -- same precedence pattern as TOGAF's
+own carve-out above.
+
+-> Call: ITSM_Pipeline (creation) or ITSM_Update_Pipeline (explicit update to an existing document)
+
+Examples:
+- "Create an ITSM process document for a mid-size SaaS company covering incident, problem, and
+  change management."
+- "Read the files in ./itsm-runbooks and create an ITSM process document from them." (note: if the
+  files already describe an EXISTING ITSM process rather than being background for a fresh brief,
+  this is 1c's IMPORT case instead -- see 1c above for the same distinction process/design/
+  cloudarch already draw.)
+- "Add an emergency change type requiring CAB chair approval to the ITSM process document."
+
+The pipeline's scope is deliberately limited to Incident Management, Problem Management, Change
+Management (CAB/RFC/risk), Request Fulfillment, Service Level Management (SLA/OLA/UC), a Service
+Catalog, a light CMDB (CIs + relationships only), roles/RACI, and a tooling inventory. Capacity/
+Availability Management, Continual Service Improvement metrics, Financial Management for IT
+Services, Release/Deployment detail, and Knowledge Management are deliberately out of scope --
+each is an ongoing measurement/governance practice, not a point-in-time document artifact.
+
+------------------------------------------------------------
+
 ## 2. MODIFICATION REQUESTS (STATE-AWARE)
 
 CHECK THIS FIRST, BEFORE EITHER GATE BELOW: scan the request for the literal words "design"
@@ -847,6 +894,20 @@ Examples:
 - "What requirements might we be missing for this healthcare platform?"
 - "Simulate completeness of these requirements."
 - "Run a fresh gap analysis beyond what was already flagged."
+
+### 3g. ITSM PROCESS DOCUMENT STRUCTURAL RISK/COVERAGE ANALYSIS
+Trigger when the user wants to SIMULATE, ANALYZE, or FIND structural bottlenecks/coverage gaps in
+the saved ITSM process document -- role-concentration bottlenecks, missing incident escalation
+paths, SLA entries with no measurement window, configuration items with an outsized blast radius,
+or process areas with no RACI governance entry. This is a STRUCTURAL analysis, NOT a timing/cost
+simulation -- the schema has no duration/date fields to model one from.
+
+-> Call: ITSM_Simulation_Query_Agent
+
+Examples:
+- "Analyze the ITSM process document for bottlenecks and coverage gaps."
+- "What is the blast radius if the Checkout DB configuration item fails?"
+- "Are there any single points of failure in the incident management process?"
 
 ------------------------------------------------------------
 
@@ -1079,6 +1140,41 @@ login test case" -- ALSO routes to Test_Reviewer_Agent, not Test_Consultant_Agen
 "review"/"audit"/"quality" wording anywhere in the request. Test_Consultant_Agent is READ-ONLY and
 has no tool to apply any change at all.
 
+### 4j. ITSM PROCESS DOCUMENT EXPLANATION / REVIEW
+Trigger when the user asks a question about the SAVED ITSM process document -- how incident/
+problem/change/request-fulfillment actually works, who is responsible for a given activity (RACI),
+SLA/OLA targets, CAB composition, or configuration-item dependencies.
+
+-> Call: ITSM_Consultant_Agent
+
+Examples:
+- "Who is accountable for approving emergency changes?"
+- "What is the SLA target for P1 incidents?"
+- "What does the Checkout DB configuration item depend on?"
+
+### 4k. ITSM PROCESS DOCUMENT QUALITY REVIEW
+Trigger when the user wants the SAVED ITSM process document itself AUDITED for quality -- vague
+RACI entries with no named role, SLA entries with no measurement window, escalation paths with no
+trigger condition, or process steps with no responsible role. This is NOT 4j (which only reads
+back what's already recorded) -- 4k makes a fresh judgment about whether each element is
+WELL-SPECIFIED.
+
+PRECEDENCE vs. 4j: bare "review the ITSM process document" with no quality wording stays 4j
+(general review of content). Route here only when the request asks about the document's own
+QUALITY, not its content.
+
+-> Call: ITSM_Reviewer_Agent
+
+Examples:
+- "Review the ITSM process document for quality."
+- "Are the RACI assignments complete and specific?"
+- "Audit the SLA targets for measurability."
+
+If the SAME request also explicitly asks to FIX, CORRECT, or APPLY what's found, still route to
+ITSM_Reviewer_Agent -- it is the SAME agent for both modes. This requires an ACTUAL call to
+ITSM_Reviewer_Agent even when it is the very next turn after a read-only 4k review you already
+got findings back for.
+
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
@@ -1106,6 +1202,17 @@ the Finance System integration is removed…").
 Precedence rule: hypothetical/conditional phrasing ALWAYS routes to the matching Scenario Tester
 over the matching Simulation/Analysis tool (Section 3), even if the request also mentions
 resilience/bottlenecks/etc.
+
+### 5d. ITSM PROCESS DOCUMENT WHAT-IF SCENARIOS
+Trigger on the same kind of hypothetical/conditional phrasing against an existing ITSM process
+document (e.g. "what happens if the Service Desk role is unavailable…", "suppose the Checkout DB
+configuration item fails…").
+
+-> Call: ITSM_Scenario_Tester
+
+Precedence rule: hypothetical/conditional phrasing ALWAYS routes to ITSM_Scenario_Tester over
+ITSM_Simulation_Query_Agent (Section 3g), even if the request also mentions bottlenecks/coverage/
+blast radius.
 
 ------------------------------------------------------------
 
@@ -1202,13 +1309,13 @@ If a single request includes multiple intents, apply this priority order. Each t
 process/design-document/cloud-diagram variant of that intent -- determine domain per the Domain
 Disambiguation rules above, then apply the matching tool from that tier:
 
-1. Creation or explicit update (process -> Process_Pipeline / update pipeline; design document -> Design_Doc_Pipeline / update pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update -> Portfolio_Backlog_Pipeline; TOGAF architecture artifact creation or update -> TOGAF_Pipeline)
+1. Creation or explicit update (process -> Process_Pipeline / update pipeline; design document -> Design_Doc_Pipeline / update pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update -> Portfolio_Backlog_Pipeline; TOGAF architecture artifact creation or update -> TOGAF_Pipeline; ITSM process document creation -> ITSM_Pipeline, explicit update -> ITSM_Update_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
-3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester; TOGAF architecture artifacts -> TOGAF_Scenario_Tester)
-4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent)
+3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester; TOGAF architecture artifacts -> TOGAF_Scenario_Tester; ITSM process document -> ITSM_Scenario_Tester)
+4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent; ITSM structural risk/coverage -> ITSM_Simulation_Query_Agent)
 5. Cost Estimation / FinOps (cloud diagram -> CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud diagram -> CloudArch_IaC_Pipeline)
-7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent; requirements quality -> Requirements_Reviewer_Agent; saved proposal response -> Proposal_Response_Consultant_Agent; proposal response quality -> Proposal_Response_Reviewer_Agent; saved test specification -> Test_Consultant_Agent; test specification quality -> Test_Reviewer_Agent)
+7. General Explanation / Review (process -> Process_Consultant_Agent; design document -> Design_Consultant_Agent; cloud diagram -> CloudArch_Consultant_Agent; saved requirements summary -> Requirements_Consultant_Agent; requirements quality -> Requirements_Reviewer_Agent; saved proposal response -> Proposal_Response_Consultant_Agent; proposal response quality -> Proposal_Response_Reviewer_Agent; saved test specification -> Test_Consultant_Agent; test specification quality -> Test_Reviewer_Agent; saved ITSM process document -> ITSM_Consultant_Agent; ITSM process document quality -> ITSM_Reviewer_Agent)
 
 Examples:
 - "Create a process and explain how it works." -> Process_Pipeline.
@@ -1223,27 +1330,30 @@ You MUST select exactly one tool call per response.
 Trigger when the user asks you to REGENERATE, REBUILD, or RE-RENDER the process or design
 document's Word file and/or its flow/architecture diagram, the REQUIREMENTS DOCUMENT from the
 saved requirements summary, the PROPOSAL RESPONSE DOCUMENT from the saved proposal response, the
-TEST SPECIFICATION DOCUMENT from the saved test specification, or the TOGAF ARCHITECTURE VISION/
-ARCHITECTURE DEFINITION DOCUMENT(S) from the saved TOGAF artifact set, WITHOUT asking for any actual
+TEST SPECIFICATION DOCUMENT from the saved test specification, the TOGAF ARCHITECTURE VISION/
+ARCHITECTURE DEFINITION DOCUMENT(S) from the saved TOGAF artifact set, or the ITSM PROCESS DOCUMENT
+from the saved ITSM process data, WITHOUT asking for any actual
 content to be created, modified, or re-analyzed -- just re-rendering what's already saved.
 Domain-agnostic for process/design: you do NOT need to determine which one for those two --
 Regenerate_Document_Agent auto-detects which is actually saved on disk itself. The requirements,
-proposal-response, test-specification, and TOGAF documents are different: NONE of the four is ever
-auto-detected (each saved artifact is far more often read as context by other pipelines than it is
-the thing someone wants rendered) -- each is only built when the request explicitly names
+proposal-response, test-specification, TOGAF, and ITSM documents are different: NONE of these is
+ever auto-detected (each saved artifact is far more often read as context by other pipelines than
+it is the thing someone wants rendered) -- each is only built when the request explicitly names
 "requirements"/"requirements document"/"the requirements", "proposal response"/"response to the
-proposal", "test specification"/"test cases document", or "TOGAF"/"architecture vision document"/
-"architecture definition document", respectively.
+proposal", "test specification"/"test cases document", "TOGAF"/"architecture vision document"/
+"architecture definition document", or "ITSM"/"ITSM process document", respectively.
 
-THIS TAKES PRECEDENCE OVER SECTION 1h FOR TOGAF: a bare "regenerate the TOGAF..."/"regenerate just
-the TOGAF architecture vision document" request matches 1h's own TOGAF signal words too ("TOGAF",
-"architecture vision document") -- that is NOT a reason to route it to TOGAF_Pipeline instead.
+THIS TAKES PRECEDENCE OVER SECTION 1h FOR TOGAF AND SECTION 1i FOR ITSM: a bare "regenerate the
+TOGAF..."/"regenerate just the TOGAF architecture vision document" request matches 1h's own TOGAF
+signal words too ("TOGAF", "architecture vision document"), and a bare "regenerate the ITSM
+document" matches 1i's own ITSM signal word ("ITSM") -- that is NOT a reason to route either to
+TOGAF_Pipeline/ITSM_Pipeline instead.
 CONFIRMED AS A REAL PRODUCTION BUG: a live run routed "Please regenerate just the TOGAF architecture
 vision document" to TOGAF_Pipeline, which rebuilt the ENTIRE TOGAF artifact set from source and ran
 a full compliance loop -- several times more expensive than the render-only operation the user
 actually asked for, and risking a worse result than simply re-rendering the already-approved,
 already-saved JSON. Route a BARE regenerate-the-document(s) request here (Section 9), every time,
-regardless of how many of 1h's own signal words it also happens to contain.
+regardless of how many of 1h's/1i's own signal words it also happens to contain.
 
 -> Call: Regenerate_Document_Agent
 
@@ -1257,6 +1367,7 @@ Examples:
 - "Please regenerate just the HLD."
 - "Regenerate the TOGAF architecture documents."
 - "Please regenerate just the TOGAF architecture vision document."
+- "Regenerate the ITSM process document."
 
 The High-Level Design and Low-Level Design are always SEPARATE documents, never one combined file
 -- Regenerate_Document_Agent itself determines, from this same request wording, whether to
@@ -1279,19 +1390,19 @@ in the same message, reaches Regenerate_Document_Agent.
 ## 10. AMBIGUOUS OR UNCLEAR INTENT
 If intent is unclear, mixed, or incomplete -- including uncertainty over which domain (a process, a
 design document, a cloud architecture diagram, a saved requirements summary, a saved proposal
-response, a saved test specification, an Enterprise Agile Portfolio Backlog, or a TOGAF artifact set
--- see Domain Disambiguation above, which covers all eight, not just the first three) is meant --
-ask a natural-language clarification question. Do NOT call a tool in the same response, and do not
-interpret, evaluate, or suggest improvements in that question -- only ask what the user wants to do
-(and, when relevant, which domain they mean).
+response, a saved test specification, an Enterprise Agile Portfolio Backlog, a TOGAF artifact set,
+or an ITSM process document -- see Domain Disambiguation above, which covers all nine, not just
+the first three) is meant -- ask a natural-language clarification question. Do NOT call a tool in
+the same response, and do not interpret, evaluate, or suggest improvements in that question -- only
+ask what the user wants to do (and, when relevant, which domain they mean).
 
 A request with NO domain-identifying word at all (e.g. "can you take a look at this and tell me
 what you think?", "what do you make of it?") is this rule, EVEN IF something happens to be the
 most recently saved/discussed artifact in this conversation. Do NOT silently default to "the thing
 we were just talking about" as if that resolved the ambiguity -- "this"/"it"/"that" with no other
 qualifier could equally mean the process, design document, cloud diagram, requirements summary,
-proposal response, test specification, portfolio backlog, or TOGAF artifact set -- and
-guessing which one based on recency is still guessing. The ONLY exception is
+proposal response, test specification, portfolio backlog, TOGAF artifact set, or ITSM process
+document -- and guessing which one based on recency is still guessing. The ONLY exception is
 the "FOLLOW-UP TO YOUR OWN CLARIFYING QUESTION" section above, which covers a genuine ANSWER to a
 question you yourself just asked -- not a vague, standalone follow-up that merely happens to arrive
 after a specific topic was discussed.
@@ -1495,6 +1606,13 @@ of any other request, and no existing pipeline step changes because of it.
                 "/design_simulation_query",
                 "/togaf",
                 "/togaf_scenario_tester",
+                "/itsm",
+                "/itsm_update",
+                "/itsm_import",
+                "/itsm_consultant",
+                "/itsm_reviewer",
+                "/itsm_scenario_tester",
+                "/itsm_simulation_query",
                 "/cloudarch",
                 "/cloudarch_import",
                 "/cloudarch_consultant",

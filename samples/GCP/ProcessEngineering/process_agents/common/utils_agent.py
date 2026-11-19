@@ -467,6 +467,19 @@ iac_stop_if_ready = _build_stop_if_ready(lambda: {"iac_status": "APPROVED"})
 # docstring above describes.
 togaf_stop_if_ready = _build_stop_if_ready(lambda: {"togaf_compliance_status": "APPROVED"})
 
+# ITSM_Compliance_Agent writes itsm_compliance_status, not togaf_compliance_status
+# -- used by create_itsm_agent.py/update_itsm_agent.py's stop-controller clones.
+# Simulation is informational input to the compliance gate, not an independent
+# approval gate -- this required-keys mapping only names the compliance channel,
+# same discipline as design's own stop_if_ready (compliance+simulation+grounding
+# is the ONE exception, not the rule -- cloudarch/iac/togaf each gate on a single
+# channel too). Requires the "ITSM_COMPLIANCE_APPROVED" marker to be registered in
+# the shared process_toolkit.feedback.iteration_feedback.APPROVAL_MARKERS dict (it
+# is) -- without that, this check would never be satisfied regardless of what
+# ITSM_Compliance_Agent reports, same failure mode TOGAF's own docstring above
+# describes.
+itsm_stop_if_ready = _build_stop_if_ready(lambda: {"itsm_compliance_status": "APPROVED"})
+
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""
     try:

@@ -44,6 +44,16 @@ APPROVAL_MARKERS = {
     # exactly, since save_iteration_feedback scans the json.dumps'd
     # payload, not the agent's separate final chat response text.
     "TOGAF_COMPLIANCE_APPROVED": ("togaf_compliance_status", "APPROVED"),
+    # Same reasoning as TOGAF_COMPLIANCE_APPROVED above, for ITSM_Pipeline's
+    # own stop-controller gate (required={"itsm_compliance_status": "APPROVED"}).
+    "ITSM_COMPLIANCE_APPROVED": ("itsm_compliance_status", "APPROVED"),
+    # ITSM_Simulation_Agent's own approval marker -- ITSM_Pipeline's stop
+    # gate only checks itsm_compliance_status (simulation findings are
+    # informational input to Compliance's own review, not an independent
+    # gate -- same shape as cloudarch/design), but this still needs
+    # registering so save_iteration_feedback recognizes the marker at all
+    # (an unregistered marker is silently never detected as approval).
+    "ITSM_SIMULATION_ALL_APPROVED": ("itsm_simulation_status", "APPROVED"),
 }
 
 APPROVED_STATUSES = {
@@ -54,6 +64,8 @@ APPROVED_STATUSES = {
     "CLOUDARCH APPROVED",
     "IAC APPROVED",
     "TOGAF_COMPLIANCE_APPROVED",
+    "ITSM_COMPLIANCE_APPROVED",
+    "ITSM_SIMULATION_ALL_APPROVED",
 }
 
 # Every channel any network's instructions actually save/load (see the

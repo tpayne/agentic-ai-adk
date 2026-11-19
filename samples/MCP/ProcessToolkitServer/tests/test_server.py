@@ -89,12 +89,37 @@ def _minimal_valid_togaf_doc() -> dict:
     return data
 
 
+def _minimal_valid_itsm_doc() -> dict:
+    data = server.dispatch.DOMAINS["itsm"].load_template()
+    data["document_metadata"].update({
+        "document_id": "ITSM-TEST-001",
+        "system_name": "Checkout Service",
+        "title": "Checkout Service",
+    })
+    # The template's one-item example shapes are placeholders with blank
+    # "" values -- validate_itsm_json structurally validates these
+    # sections too, so clear them the same way _minimal_valid_togaf_doc
+    # above does.
+    data["service_catalog"]["services"] = []
+    data["incident_management"]["priority_matrix"] = []
+    data["incident_management"]["process_steps"] = []
+    data["problem_management"]["process_steps"] = []
+    data["change_management"]["change_types"] = []
+    data["change_management"]["process_steps"] = []
+    data["request_fulfillment"]["process_steps"] = []
+    data["service_level_management"]["slas"] = []
+    data["configuration_management"]["configuration_items"] = []
+    data["configuration_management"]["relationships"] = []
+    data["raci_matrix"] = []
+    return data
+
+
 class TestListSchemaTypes:
     async def test_lists_every_registered_domain(self):
         async with Client(server.mcp) as client:
             result = await client.call_tool("list_schema_types")
         assert result.data == sorted([
-            "design", "togaf", "process", "requirements", "proposal_response", "test_specification",
+            "design", "togaf", "itsm", "process", "requirements", "proposal_response", "test_specification",
         ])
 
 
@@ -178,6 +203,57 @@ class TestTogafRoundTrip:
         async with Client(server.mcp) as client:
             with pytest.raises(Exception, match="No such artifact"):
                 await client.call_tool("get_artifact", {"filename": "../../etc/passwd", "session_id": "s1"})
+
+
+class TestItsmRoundTrip:
+    """Mirrors TestTogafRoundTrip -- ITSM has no document-variant kwarg
+    and always produces exactly one document (no Vision/Definition-style
+    split)."""
+
+    async def test_validate_persist_generate_document_and_download(self):
+        data = _minimal_valid_itsm_doc()
+        async with Client(server.mcp) as client:
+            validation = (await client.call_tool(
+                "validate_json", {"schema_type": "itsm", "data": data},
+            )).data
+            assert validation["valid"], validation["issues"]
+
+            persisted = (await client.call_tool(
+                "persist_json", {"schema_type": "itsm", "data": data, "session_id": "s1"},
+            )).data
+            assert persisted["success"], persisted["message"]
+
+            context = (await client.call_tool(
+                "load_context", {"schema_type": "itsm", "session_id": "s1"},
+            )).data
+            assert context["document_metadata"]["system_name"] == "Checkout Service"
+
+            generated = (await client.call_tool(
+                "generate_document", {"schema_type": "itsm", "session_id": "s1"},
+            )).data
+            assert generated["message"].startswith("SUCCESS"), generated["message"]
+            assert len(generated["documents"]) == 1
+            doc = generated["documents"][0]
+            assert doc["filename"].endswith(".docx")
+            assert doc["size_bytes"] > 0
+            assert len(base64.b64decode(doc["base64"])) == doc["size_bytes"]
+
+            artifacts = (await client.call_tool(
+                "list_artifacts", {"session_id": "s1"},
+            )).data
+            assert doc["filename"] in {a["filename"] for a in artifacts}
+
+    async def test_simulate_itsm_risk_reports_a_grounded_bottleneck(self):
+        data = _minimal_valid_itsm_doc()
+        data["incident_management"]["process_steps"] = [
+            {"step_id": "INC-1", "step_name": "Log", "responsible_role": "Service Desk"},
+            {"step_id": "INC-2", "step_name": "Triage", "responsible_role": "Service Desk"},
+        ]
+        async with Client(server.mcp) as client:
+            await client.call_tool("persist_json", {"schema_type": "itsm", "data": data, "session_id": "s1"})
+            result = (await client.call_tool("simulate_itsm_risk", {"session_id": "s1"})).data
+        assert len(result["bottlenecks"]) == 1
+        assert "Service Desk" in result["bottlenecks"][0]
 
 
 class TestGenerateDiagram:

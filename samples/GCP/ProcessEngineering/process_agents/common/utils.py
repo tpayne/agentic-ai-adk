@@ -3030,6 +3030,29 @@ from process_interface.schema.togaf_json import (  # noqa: E402,F401
 )
 
 
+# ITSM process-document persistence (shared with the neuro-san port) --
+# same disk-only contract as togaf_json above (no ToolContext/state
+# involvement: ITSM_Agent/ITSM_Compliance_Agent/ITSM_Simulation_Agent
+# always read/write the one saved output/itsm_data.json file directly).
+from process_interface.schema.itsm_json import (  # noqa: E402,F401
+    load_itsm_template,
+    load_master_itsm_json,
+    load_full_itsm_context,
+    validate_itsm_json,
+    persist_final_itsm_json,
+)
+
+# ITSM structural risk/coverage analysis (shared with the neuro-san port)
+# -- see process_interface.itsm.simulation's own docstring for why this is
+# a structural analysis (role-concentration bottlenecks, missing escalation
+# paths, missing SLA measurement fields, outsized CI blast radius, RACI
+# coverage gaps) rather than a Monte Carlo timing simulation: the ITSM
+# schema deliberately has no duration/date fields to model one from.
+from process_interface.itsm.simulation import (  # noqa: E402,F401
+    simulate_itsm_risk_and_coverage,
+)
+
+
 def _load_template_json(template_path: str, schema_type: Optional[str] = None) -> Optional[dict]:
     """
     Loads a JSON template from the process_agents/templates directory.

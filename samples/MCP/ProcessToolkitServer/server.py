@@ -63,6 +63,7 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
+from process_toolkit.itsm.simulation import simulate_itsm_risk_and_coverage as _simulate_itsm_risk_and_coverage
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
 from process_toolkit.cloudarch.attack_simulation import simulate_cloudarch_attack as _simulate_cloudarch_attack
@@ -472,6 +473,19 @@ def estimate_finops(xml_content: Optional[str] = None, session_id: Optional[str]
     Same xml_content/return-shape contract as simulate_architecture."""
     with _session(session_id):
         return _estimate_cloudarch_finops(xml_content)
+
+
+@mcp.tool
+def simulate_itsm_risk(session_id: Optional[str] = None) -> dict:
+    """Runs the ITSM structural risk/coverage analysis over the session's
+    currently saved itsm_data.json -- role-concentration bottlenecks,
+    missing incident escalation paths, SLA entries missing a measurement
+    window, configuration items with an outsized blast radius, and
+    process areas with no RACI governance entry. Not a timing simulation
+    -- itsm_data.json has no duration/date fields to model one from, by
+    design."""
+    with _session(session_id):
+        return _simulate_itsm_risk_and_coverage()
 
 
 @mcp.tool
