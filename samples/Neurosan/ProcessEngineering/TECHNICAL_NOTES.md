@@ -408,25 +408,64 @@ different providers without managing separate API keys for each.
 
 1. Get an API key at <https://openrouter.ai/keys>.
 
-2. Set the model name in `config/llm_config.hocon` using the `openrouter/` prefix:
+2. Install the OpenRouter chat-model package -- NOT bundled by default (unlike Gemini/OpenAI/
+   Anthropic, which come in transitively through `neuro-san-studio`'s own dependencies):
 
-   ```hocon
-   "model_name": "openrouter/openai/gpt-4o"
-   # or: "openrouter/anthropic/claude-sonnet-4-5"
-   # or: "openrouter/meta-llama/llama-3.1-8b-instruct"
-   # or: "openrouter/google/gemini-flash-1.5"
+   ```bash
+   uv add langchain-openrouter
    ```
 
-   Browse available model strings at <https://openrouter.ai/models>.
+   Skipping this raises `No module named 'langchain_openrouter'` the first time a turn actually
+   tries to construct the model -- the `install_if_missing` hint neuro-san's own resolver prints
+   in that error is a suggestion string, not an automatic `pip install` (confirmed directly: the
+   resolver only ever calls Python's own `import_module`, nothing installs anything on its own).
 
-3. Export your key:
+3. Set the model via environment variables -- no edit to `config/llm_config.hocon` needed at all:
 
    ```bash
    export OPENROUTER_API_KEY="sk-or-v1-..."
+   export MODEL_NAME="anthropic/claude-sonnet-4-5"
+   export LLM_CLASS="openrouter"
+   # or: "openai/gpt-4o"
+   # or: "meta-llama/llama-3.1-8b-instruct"
+   # or: "google/gemini-flash-1.5"
    ```
 
-No other configuration is needed. neuro-san routes the call through LiteLLM, which recognizes the
-`openrouter/` prefix and authenticates via `OPENROUTER_API_KEY` automatically.
+   NO leading `openrouter/` on `MODEL_NAME` -- OpenRouter's own model ids are plain
+   `<provider>/<model>` (confirmed against neuro-san's own `default_llm_info.hocon` comment: "Models
+   are addressed as 'provider/model', e.g. 'anthropic/claude-sonnet-4-5'"). That prefix is a
+   LiteLLM-only convention; `model_name` passes straight through to the real OpenRouter API call
+   here, so a prefixed string reaches OpenRouter as a literal, invalid model id --
+   CONFIRMED AS A REAL BUG from a live run: `"openrouter/anthropic/claude-sonnet-4-5"` failed with
+   `... is not a valid model ID`. The ONLY model strings that genuinely carry that prefix are the
+   two meta-router aliases `openrouter/free`/`openrouter/auto` (it's their own real OpenRouter-side
+   id, not a routing prefix).
+
+   Browse available model strings at <https://openrouter.ai/models>. `llm_config.hocon`'s own
+   `"model_name"`/`"class"` lines set `${?MODEL_NAME}`/`${?LLM_CLASS}` as overrides of their
+   hardcoded defaults, so these env vars always win when set (same convention as
+   `config/plugins.hocon`'s own `${?PHOENIX_ENABLED}`/`${?LOGBRIDGE_ENABLED}`) -- editing the file
+   directly (uncommenting one of the example lines there) still works too, if you'd rather make
+   the switch permanent for this checkout.
+
+   `LLM_CLASS="openrouter"` is REQUIRED, not optional, for any model string other than the two
+   pre-registered router aliases `openrouter/free`/`openrouter/auto` -- confirmed directly:
+   neuro-san resolves `model_name` against its own `classes`-keyed LLM registry
+   (`default_llm_info.hocon`, not LiteLLM -- this version has no LiteLLM dependency at all), which
+   has an entry for those two aliases but none for an arbitrary `openrouter/<provider>/<model>`
+   string; without an explicit `"class"`, that lookup fails with `No llm entry for model_name
+   openrouter/<provider>/<model>`. Setting `"class"` routes around the per-model_name lookup
+   entirely (see neuro-san's own `registries/music_nerd_pro_llm_openrouter.hocon` example), and
+   `model_name` still passes through to the actual API call either way.
+
+If a single conversation turn grows large enough to cross `llm_config.hocon`'s own
+`pipeline_middleware` summarization trigger (150,000 tokens), also set `MIDDLEWARE_MODEL_NAME` to
+keep that middleware's own model in sync -- see that file's own comment for the exact format
+(LangChain's `init_chat_model("<provider>:<model>")`, a different convention than `MODEL_NAME`'s
+own provider-prefix string, since the middleware goes through LangChain directly rather than
+neuro-san's own LLM factory). Leaving it unset keeps the Gemini default there even after switching
+`MODEL_NAME`, which silently fails once/if that middleware actually fires -- the project's own
+previously-confirmed production bug for this exact drift.
 
 ---
 
@@ -583,8 +622,8 @@ The service exposes:
 | `POST` | `/chat/stream` | Same request body; response is `text/event-stream` instead -- see [Streaming](#streaming) below. |
 | `POST` | `/chat/<session_id>/stop` | Cancel that session's in-flight `/chat/stream` turn, if any. See [Stopping a turn](#stopping-a-turn) below. |
 | `DELETE` | `/chat/<session_id>` | Drop a session's server-side state. |
-| `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
-| `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, and `portfolio_backlog` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
+| `GET` | `/artifacts/<name>` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, `portfolio_backlog`, `togaf`, and `itsm` -- read-only access to the matching saved JSON artifact. See [Process/Design artifacts](#processdesign-artifacts) below. |
+| `GET` | `/artifacts/<name>/download` | `name` includes `process`, `design`, `requirements`, `proposal_response`, `test_specification`, `portfolio_backlog`, `togaf`, and `itsm` -- download the matching JSON as a real file attachment (vs. `GET /artifacts/<name>`'s JSON-wrapped read). |
 | `GET` | `/artifacts/portfolio_backlog_workbook/download` | Download the generated `portfolio_backlog.xlsx` Enterprise Agile Portfolio Backlog workbook as a real file attachment. |
 | `GET` | `/artifacts/documents` | List every generated `.docx` currently in `output/`. See [Downloading generated artifacts](#downloading-generated-artifacts) below. |
 | `GET` | `/artifacts/documents/<filename>/download` | Download one generated `.docx` as a real file attachment. |

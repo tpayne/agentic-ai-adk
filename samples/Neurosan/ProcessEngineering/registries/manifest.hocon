@@ -53,6 +53,13 @@
     "cloudarch_visio_export.hocon": true,
     "togaf.hocon": true,
     "togaf_scenario_tester.hocon": true,
+    "itsm.hocon": true,
+    "itsm_update.hocon": true,
+    "itsm_import.hocon": true,
+    "itsm_consultant.hocon": true,
+    "itsm_reviewer.hocon": true,
+    "itsm_scenario_tester.hocon": true,
+    "itsm_simulation_query.hocon": true,
     "process_architect.hocon": true,
 
     #

@@ -2137,7 +2137,8 @@ def build_web_app(agent_name: str, https: bool = True):
         Read-only access to this web session's own output/<session_id>/
         process_data.json, design_data.json, requirements_summary.json,
         proposal_response.json, test_specification.json,
-        portfolio_backlog.json, or cloudarch_drawio.xml (or flat output/
+        portfolio_backlog.json, togaf_data.json, itsm_data.json, or
+        cloudarch_drawio.xml (or flat output/
         for a caller with no session id at all -- e.g. a direct API
         caller that never went through POST /chat first), resolved via a
         `session_id` query parameter (see _web_session_id_for_get_request's
@@ -2171,6 +2172,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
             "togaf": "togaf_data.json",
+            "itsm": "itsm_data.json",
             "cloudarch": "cloudarch_drawio.xml",
         }
         filename = filenames.get(name)
@@ -2179,7 +2181,8 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', or 'cloudarch'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', "
+                    "'itsm', or 'cloudarch'."
                 ),
             }), 400
 
@@ -2383,6 +2386,7 @@ def build_web_app(agent_name: str, https: bool = True):
             "test_specification": "test_specification.json",
             "portfolio_backlog": "portfolio_backlog.json",
             "togaf": "togaf_data.json",
+            "itsm": "itsm_data.json",
         }
         filename = filenames.get(name)
         if filename is None:
@@ -2390,7 +2394,8 @@ def build_web_app(agent_name: str, https: bool = True):
                 "status": "error",
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
-                    "'proposal_response', 'test_specification', 'portfolio_backlog', or 'togaf'."
+                    "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', "
+                    "or 'itsm'."
                 ),
             }), 400
         with paths.use_session(_web_session_id_for_get_request()):

@@ -68,11 +68,12 @@ def test_router_disambiguates_proposal_response_review_from_the_consultant():
 
 
 def test_router_mentions_review_and_fix_routes_to_the_same_agent():
-    # Both reviewer agents are intent-gated (read-only by default, apply
-    # fixes only when explicitly asked) -- the router must not split
-    # "review and fix" into a separate pipeline.
+    # Proposal_Response_Reviewer_Agent, Test_Reviewer_Agent, and
+    # ITSM_Reviewer_Agent are all intent-gated (read-only by default,
+    # apply fixes only when explicitly asked) -- the router must not
+    # split "review and fix" into a separate pipeline for any of them.
     text = ROUTER_HOCON.read_text(encoding="utf-8")
-    assert text.count("it is the SAME agent for both modes") == 2
+    assert text.count("it is the SAME agent for both modes") == 3
 
 
 def test_both_reviewer_networks_carry_the_intent_gated_apply_mode_instructions():

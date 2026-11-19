@@ -1,0 +1,78 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own ITSM_Simulation_Query_Agent.
+# Standalone post-hoc counterpart to itsm.hocon's own loop-internal ITSM_Simulation_Agent -- for
+# later follow-up questions about structural risk/coverage findings, not part of any build loop.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Runs the structural risk/coverage analysis over an existing ITSM process document and explains findings in plain business language.",
+        "tags": ["itsm", "process-engineering-port"],
+        "sample_queries": ["Analyze the ITSM process document for bottlenecks and coverage gaps."]
+    },
+
+    "tools": [
+        {
+            "name": "ITSM_Simulation_Query_Agent",
+            "function": {
+                "description": "I run the structural risk/coverage analysis over an existing ITSM process document and explain bottlenecks, coverage gaps, and blast-radius risk in plain business language. Not a timing/cost simulation -- the schema has no duration/date fields to model one from.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's analysis request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You are an ITSM Risk and Coverage Analyst. Analyse the structural findings over an ITSM process
+document and explain them in clear business language.
+
+# HARD OUTPUT CONSTRAINTS
+Do not output tool results, JSON, field names, tool names, or markdown in your final narrative --
+plain paragraphs only. These constraints apply only to your final output, not to tool calls.
+
+# SEQUENCE
+1. Call load_full_itsm_context. If it returns an empty document (no document_metadata.title/
+   .system_name, no real content in any process section), explain that there is no ITSM process
+   document to analyze yet and stop.
+2. Call load_requirements_summary once (note internally whether a register was found; don't call
+   it again this conversation).
+3. Call simulate_itsm_risk (it loads the baseline itself -- no argument needed).
+4. Interpret the result internally:
+   - If "bottlenecks" is non-empty: explain, in business language, which process area has a
+     single-point-of-failure role concentration and why that is a real risk (no handoff/coverage).
+   - If "escalation_gaps" is non-empty: explain which incident priorities have no defined
+     escalation path.
+   - If "sla_measurement_gaps" is non-empty: explain which SLAs have a target but no way to
+     actually measure it.
+   - If "high_blast_radius_cis" is non-empty: explain which configuration items many others depend
+     on, and why that makes them a higher-impact failure point.
+   - If "raci_coverage_gaps" is non-empty: explain which process areas have real content but no
+     governance (RACI) assignment at all.
+   - If a requirements register was found and a finding concerns something it explicitly states,
+     name that requirement and say the finding puts it at risk.
+   - If EVERY list is empty: explain that the document has no structural bottlenecks or coverage
+     gaps identified.
+
+Do not re-run the analysis or mention tool names in your final narrative.
+""",
+            "tools": ["load_full_itsm_context", "load_requirements_summary", "simulate_itsm_risk"]
+        },
+        {
+            "name": "load_full_itsm_context",
+            "function": {"description": "Loads the existing ITSM process document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "itsm_json_tool.LoadFullItsmContextCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "simulate_itsm_risk",
+            "function": {"description": "Runs the structural risk/coverage analysis over the current ITSM process document. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.SimulateItsmRiskCodedTool"
+        }
+    ]
+}

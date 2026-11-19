@@ -1,6 +1,23 @@
 {
     "llm_config": {
         "model_name": "gemini-3-flash",
+        # Override the model with an environment variable, if provided -- lets you switch
+        # providers (e.g. to OpenRouter: MODEL_NAME="openrouter/anthropic/claude-sonnet-4-5",
+        # plus OPENROUTER_API_KEY) without editing this file. Same MODEL_NAME env var cli.py's
+        # own no-API-key Ollama fallback already recognizes; that fallback only ever engages when
+        # NO provider API key (including OPENROUTER_API_KEY) is set, so setting MODEL_NAME here
+        # alongside a real API key never collides with it.
+        "model_name": ${?MODEL_NAME}
+        # Also overridable via an environment variable -- OMITTED ENTIRELY when LLM_CLASS is
+        # unset (pyhocon's ${?VAR} substitution with no prior value simply drops the key, rather
+        # than setting it to null), so leaving LLM_CLASS unset never affects the default Gemini
+        # path. Needed for OpenRouter specifically: neuro-san only resolves "model_name" to the
+        # "openrouter" chat class when default_llm_info.hocon has a registered entry for that
+        # EXACT model string (it only has "openrouter/free" and "openrouter/auto" built in) --
+        # any other "openrouter/<provider>/<model>" string raises "No llm entry for model_name
+        # ..." unless "class" is set explicitly, which routes around that per-model_name lookup
+        # entirely. See neuro-san's own registries/music_nerd_pro_llm_openrouter.hocon example.
+        "class": ${?LLM_CLASS}
         #"model_name": "gpt-6-luna"
         # OpenAI reasoning models such as gpt-6-luna reject function tools on
         # Chat Completions while reasoning is enabled. Use Responses API so
@@ -24,15 +41,36 @@
 
         # ---------------------------------------------------------------------------
         # OPENROUTER (cloud-hosted, 300+ models from many providers)
-        # Requires: OPENROUTER_API_KEY environment variable.
+        # Requires: OPENROUTER_API_KEY environment variable, AND the langchain-openrouter
+        # package installed (NOT bundled by default, unlike Gemini/OpenAI/Anthropic -- run
+        # `uv add langchain-openrouter` once; skipping this raises "No module named
+        # 'langchain_openrouter'" the first time a turn actually tries to build the model).
         #   export OPENROUTER_API_KEY="sk-or-v1-..."
-        # Model format: "openrouter/<provider>/<model>"
+        # Model format: "<provider>/<model>" -- e.g. "anthropic/claude-sonnet-4-5" -- NO leading
+        # "openrouter/" (that's a LiteLLM-only convention; this is a native ChatOpenRouter class,
+        # selected via "class": "openrouter" below, not disambiguated by a model-string prefix).
+        # CONFIRMED AS A REAL BUG from a live run: "openrouter/anthropic/claude-sonnet-4-5" reaches
+        # OpenRouter's own API as a literal model id and is rejected with "... is not a valid model
+        # ID" -- the two meta-router aliases "openrouter/free"/"openrouter/auto" are the ONLY model
+        # strings that genuinely carry that prefix (it's their own real OpenRouter-side id).
         # Browse available models at https://openrouter.ai/models
+        #
+        # No edit needed here at all -- set it via the MODEL_NAME/LLM_CLASS overrides above
+        # instead (LLM_CLASS="openrouter" is REQUIRED for any provider/model string other than
+        # the two pre-registered router aliases "openrouter/free"/"openrouter/auto" -- see the
+        # LLM_CLASS comment above for why):
+        #   export OPENROUTER_API_KEY="sk-or-v1-..."
+        #   export MODEL_NAME="anthropic/claude-sonnet-4-5"
+        #   export LLM_CLASS="openrouter"
+        # The commented-out lines below remain as a browsable reference of known-good values --
+        # uncommenting one directly ALSO requires uncommenting/adding "class": "openrouter"
+        # (see the LLM_CLASS comment above) for the exact same reason MODEL_NAME needs LLM_CLASS
+        # set alongside it: there's no registry entry for an arbitrary provider/model string.
         # ---------------------------------------------------------------------------
-        #"model_name": "openrouter/openai/gpt-4o"
-        #"model_name": "openrouter/anthropic/claude-sonnet-4-5"
-        #"model_name": "openrouter/meta-llama/llama-3.1-8b-instruct"
-        #"model_name": "openrouter/google/gemini-flash-1.5"
+        #"model_name": "openai/gpt-4o"
+        #"model_name": "anthropic/claude-sonnet-4-5"
+        #"model_name": "meta-llama/llama-3.1-8b-instruct"
+        #"model_name": "google/gemini-flash-1.5"
     },
 
     # neuro-san's own default (RunContextRunnable.run_it) is 300 seconds per
@@ -98,6 +136,25 @@
                 # compliance loop chained after a large design JSON load, in
                 # particular) likely to cross that threshold within one turn.
                 "model": "google_genai:gemini-3-flash",
+                # Override with an environment variable, if provided -- MUST be kept in sync with
+                # whichever provider MODEL_NAME above actually resolves to (this is the exact drift
+                # the CONFIRMED PRODUCTION BUG above describes), but doing so via an env var means
+                # a provider switch needs no edit to this file at all. Uses LangChain's own
+                # init_chat_model("<provider>:<model>") format, NOT MODEL_NAME's own provider-prefix
+                # "openrouter/anthropic/claude-sonnet-4-5" format -- the two env vars drive two
+                # different resolution paths (this project's own neuro-san LLM factory/"classes"
+                # registry in default_llm_info.hocon vs. LangChain's own init_chat_model, called
+                # directly by the summarization middleware) with different provider-prefix
+                # conventions, so this one cannot just reuse MODEL_NAME's own value verbatim. For
+                # OpenRouter specifically, LangChain has no dedicated "openrouter:" provider --
+                # route through its OpenAI-compatible endpoint instead (model_provider="openai"
+                # plus OPENAI_API_KEY set to your OpenRouter key and OPENAI_BASE_URL set to
+                # "https://openrouter.ai/api/v1"), e.g.
+                # MIDDLEWARE_MODEL_NAME="openai:anthropic/claude-sonnet-4-5". Unverified in this
+                # project directly -- confirm against LangChain's own current init_chat_model docs
+                # if the summarization middleware ever actually fires (only once a single turn's
+                # conversation crosses the 150,000-token trigger below).
+                "model": ${?MIDDLEWARE_MODEL_NAME}
                 "trigger": [["tokens", 150000]],
                 "keep": ["messages", 8],
                 "keep_summary_in_context": true,

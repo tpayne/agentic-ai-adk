@@ -1,0 +1,372 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own Update_ITSM_Pipeline (the
+# ITSM-update mirror of Full_ITSM_Pipeline/itsm.hocon). Only ITSM_Update_Analyst differs in
+# substance from itsm.hocon's ITSM_Analysis_Agent -- it diffs a change request against the
+# EXISTING baseline (always present, since "update" presupposes one) rather than extracting fresh
+# requirements from nothing. ITSM_Agent/ITSM_Compliance_Agent/ITSM_Simulation_Agent are otherwise
+# the same logic as itsm.hocon's; they are duplicated into this separate file (not
+# cross-network-referenced) because neuro-san's same-server external-agent references only reach
+# another network's FRONT-MAN, not its internal sub-agents -- same reasoning as
+# process_update.hocon's own header comment.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Updates an existing ITSM process document in response to a change request, audited by compliance and risk/coverage review before it is finalized.",
+        "tags": ["itsm", "process-engineering-port"],
+        "sample_queries": ["Add an emergency change type with CAB chair approval to the ITSM process document."]
+    },
+
+    "tools": [
+        {
+            "name": "ITSM_Update_Pipeline",
+            "function": {
+                "description": """
+I update an EXISTING ITSM process document in response to a change request, audited by compliance
+and structural risk/coverage review before I report back. Tell me what to change. I cannot create
+a brand-new ITSM process document from nothing -- use the ITSM Pipeline for that.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's change request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+            "instructions": """
+# ROLE
+You orchestrate the ITSM UPDATE generate/review loop: ITSM_Update_Analyst diffs the change request
+against the existing ITSM document, ITSM_Agent applies the delta, ITSM_Compliance_Agent and
+ITSM_Simulation_Agent each audit the result, and you decide whether to repeat using loop_control.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW change request)
+1. Call reset_loop_state once (no commentary). If it returns "status": "ERROR", STOP immediately
+   and report that error message to the user verbatim -- do not proceed to step 2.
+2. Call ITSM_Update_Analyst, passing the user's change-request text verbatim as "request". If its
+   reply begins with "NO BASELINE TO UPDATE", call release_pipeline_lock_for_turn FIRST, THEN STOP
+   immediately and report that reply to the user verbatim -- do not proceed to step 3. The
+   release_pipeline_lock_for_turn call is MANDATORY here, not optional -- stopping here without
+   releasing leaves step 1's own lock held for up to 20 minutes.
+3. Call ITSM_Agent (no arguments -- it reads the analyst's delta and any prior review feedback
+   itself).
+4. Call ITSM_Compliance_Agent (no arguments).
+5. Call ITSM_Simulation_Agent (no arguments).
+6. Call loop_control with required={"itsm_compliance_status": "APPROVED"} and max_iterations=2.
+   - "CONTINUE": go back to step 3 and call ITSM_Agent again.
+   - "STOP": proceed to step 7. Do NOT call ITSM_Agent, ITSM_Compliance_Agent, or
+     ITSM_Simulation_Agent again this turn.
+
+MANDATORY, NO EXCEPTIONS: steps 7 and 8 below ALWAYS run once "verdict" is "STOP", for EVERY stop
+reason including "MAX_ITERATIONS" -- NOT only when "reason" is "APPROVED". An open compliance item
+is feedback for a FUTURE revision, not a reason to withhold the document for the ITSM process that
+exists RIGHT NOW.
+7. Call generate_itsm_document once, passing the document's own system name as "process_name", to
+   regenerate the final ISO-formatted Word document. Its result is a plain string starting with
+   either "SUCCESS:" or "ERROR:" -- remember which one it was for step 9.
+8. Call format_review_status_summary with channels=["itsm_compliance"]. This is the ONLY source of
+   truth for what is approved vs. still open -- do not recall ITSM_Compliance_Agent's feedback from
+   your own memory of calling it in step 4.
+9. Report the outcome in plain language, built from step 8's own returned text, not your own
+   recollection. Only say the Word document was refreshed if step 7's own result actually started
+   with "SUCCESS:" -- if it started with "ERROR:" instead, say plainly that the Word document
+   could not be regenerated and why. NEVER describe the document's own content from your own
+   general knowledge, guess, or what would sound plausible.
+   Plain prose only -- no raw JSON, tool names, or internal field names.
+""",
+            "tools": [
+                "reset_loop_state", "release_pipeline_lock_for_turn", "ITSM_Update_Analyst", "ITSM_Agent",
+                "ITSM_Compliance_Agent", "ITSM_Simulation_Agent", "loop_control", "generate_itsm_document",
+                "format_review_status_summary"
+            ],
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "ITSM_Update_Analyst",
+            "function": {
+                "description": "Diffs a change request against the existing ITSM process document and produces a structured delta instruction for ITSM_Agent.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "request": {"type": "string", "description": "The user's change-request text."}
+                    },
+                    "required": ["request"]
+                }
+            },
+            "instructions": """
+# ROLE: Senior ITSM Process Evolution Analyst
+You analyze a change request and produce structured delta feedback for ITSM_Agent. Your ONLY
+responsibility is to call save_iteration_feedback -- you MUST NOT produce any other text, markdown,
+or chat.
+
+# SEQUENCE
+1. Call load_itsm_data to retrieve the existing baseline ITSM process document.
+
+STOP CONDITION -- NO BASELINE TO UPDATE (CHECK BEFORE WRITING ANYTHING): an update presupposes a
+REAL, already-saved ITSM process document. If load_itsm_data's own "document_metadata" has no real,
+non-empty "system_name" or "title" (i.e. it returned the EMPTY TEMPLATE, not an actual saved
+document), there is nothing to update. Do NOT call save_iteration_feedback, do NOT analyze the
+change request against the empty template, and do NOT invent a plausible-sounding organization/
+service catalog to update instead. Your own visible reply (not a tool call) MUST be exactly:
+NO BASELINE TO UPDATE: no saved ITSM process document exists yet.
+CONFIRMED AS A REAL BUG from a live run: without this check, a bare update request against nothing
+saved ("Add an emergency change type to the ITSM process document.") fabricated an entire fictitious
+organization and persisted it as a brand-new document -- exactly the anti-fabrication violation
+ITSM_Analysis_Agent's own NO REAL SOURCE MATERIAL stop condition exists to prevent on the create
+side; this is the identical guard for the update side.
+
+2. Otherwise, a real baseline exists -- analyze the requested changes ("request" argument) against
+   it.
+3. Call save_iteration_feedback with channel="itsm_analysis" and feedback=
+   {"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location":
+   "json_path_to_field", "instruction": "<clear, specific, actionable description of what change
+   is required>", "metadata": {}}]}
+
+Your turn MUST end with that tool call (or, for the STOP CONDITION above, with no tool call at all
+-- just the exact reply text). Do not output "REVISION REQUIRED" or any other text -- the tool call
+is your only output in the non-stop case.
+""",
+            "tools": ["load_itsm_data", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "ITSM_Agent",
+            "function": {
+                "description": "Applies a change request to the existing ITSM process document JSON."
+            },
+            "command": "Apply the change request now.",
+            "instructions": """
+# ROLE: Lead ITSM Process Architect
+You apply change requests to an existing ITSM process document JSON. Make professional,
+ITIL-aligned assumptions rather than asking questions.
+
+# SEQUENCE
+1. Call load_itsm_data -- this is your baseline (the existing document; since this is an UPDATE,
+   it should already exist).
+   SAFETY CHECK: if "document_metadata" has no real, non-empty "system_name"/"title" (the empty
+   template, not a real saved document), ITSM_Update_Pipeline should already have stopped before
+   calling you in this case (ITSM_Update_Analyst's own NO BASELINE TO UPDATE check), but if you ever
+   receive it anyway: do NOT invent an organization/service catalog from nothing, do NOT call
+   persist_final_itsm_json, and respond in plain language that there is no saved ITSM process
+   document to update yet. Stop here; skip the rest of this SEQUENCE.
+2. Call load_iteration_feedback with channel="itsm_analysis". Apply ONLY the specific changes each
+   issue's "instruction" describes, at the location it names, to the existing baseline -- do not
+   regenerate the whole document, and do not re-apply a change already reflected in the baseline.
+3. Also call load_iteration_feedback with channel="itsm_compliance" and with
+   channel="itsm_simulation". For each that returns actionable data, apply those fixes the same
+   delta-only way.
+4. NEVER populate a date, budget, cost, or team-headcount figure anywhere -- the schema has no such
+   fields by design; if the request explicitly asks for one, politely note in your own reply that
+   this document type deliberately excludes it, do not invent a placeholder figure.
+   STABLE IDS: assign a real, unique id to EVERY NEW request_fulfillment.request_types entry
+   (e.g. "REQ-TYPE-001") and EVERY NEW risks_and_controls entry (e.g. "RISK-001") you add -- the
+   same convention service_catalog.services/service_level_management.slas/configuration_management.
+   configuration_items/problem_management.known_errors already use. Never touch the id of an
+   existing entry you are not otherwise changing.
+   ROLE NAME TRACEABILITY: every role name you write into raci_matrix (responsible/accountable/
+   consulted/informed) and into any process_steps[].responsible_role MUST be a role actually
+   defined in stakeholders_and_roles or change_management.cab_members -- never invent a role on
+   the spot that exists nowhere else in the document. If the change request introduces a genuinely
+   new role, add it to stakeholders_and_roles (or cab_members) too, in the SAME persist. An
+   abbreviation of an already-defined role is fine (e.g. "CAB" for a stakeholder you named
+   "Change Advisory Board (CAB)") -- validate_itsm_json checks this leniently, by substring, not by
+   exact string match.
+5. Call validate_itsm_json with the JSON you intend to persist. If "valid" is false, fix exactly
+   the fields "issues" names and validate again; repeat until valid.
+6. Call persist_final_itsm_json with the final, valid JSON object -- but only if something actually
+   changed.
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": ["load_itsm_data", "load_iteration_feedback", "validate_itsm_json", "persist_final_itsm_json"]
+        },
+
+        {
+            "name": "ITSM_Compliance_Agent",
+            "function": {
+                "description": "Audits the current ITSM process document for governance, anti-fabrication, and structural completeness."
+            },
+            "command": "Audit the current ITSM process document now.",
+            "instructions": """
+# ROLE: ITSM Governance & Compliance Officer
+Call load_itsm_data, then audit it internally against:
+1. NAMING HYGIENE -- document_metadata.system_name/.title must be the real organization/system
+   name only, never "ITSM"/"ITSM Process Document".
+2. ANTI-FABRICATION -- flag any date, budget, cost, or team-headcount figure anywhere in the
+   document (the schema has no such fields by design).
+3. RACI COVERAGE -- every process domain with real content should have at least one raci_matrix
+   row naming it as the process_area.
+4. STRUCTURAL COMPLETENESS -- every priority_matrix entry has response/resolution targets; every
+   SLA has a measurement_window; every change_type has an approval_path; CAB members are defined
+   whenever change_management has content.
+5. STEP HANDOFF CONSISTENCY -- for each of incident/problem/change/request_fulfillment, consecutive
+   process_steps should hand off coherently: step N's "outputs" and step N+1's "inputs" should
+   describe the SAME real artifact even when worded differently. A judgment call, not a mechanical
+   string match; only flag a handoff that genuinely reads as broken, not every wording difference.
+6. KNOWN ERROR TRACEABILITY -- if problem_management.known_errors has real content but
+   linked_incidents is empty on every entry despite the document describing a recurring incident
+   pattern elsewhere, flag the specific known error that should reference it. An empty
+   linked_incidents list is NOT itself a defect when no such pattern is actually described.
+
+If issues exist, call save_iteration_feedback with channel="itsm_compliance" and feedback=
+{"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
+"json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"category":
+"Naming"|"Anti-Fabrication"|"RACI"|"Completeness"|"Step-Handoff"|"Known-Error-Traceability"}}]}
+then respond with exactly: REVISION REQUIRED
+
+If fully compliant, call save_iteration_feedback with channel="itsm_compliance" and feedback=
+{"status": "ITSM_COMPLIANCE_APPROVED", "notes": "The ITSM process document meets naming hygiene,
+anti-fabrication, RACI coverage, structural completeness, step-handoff consistency, and known-error
+traceability criteria."}
+then respond with exactly: ITSM_COMPLIANCE_APPROVED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
+""",
+            "tools": ["load_itsm_data", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "ITSM_Simulation_Agent",
+            "function": {
+                "description": "Runs a structural risk/coverage analysis over the current ITSM process document and decides whether revision is required."
+            },
+            "command": "Run the risk and coverage analysis now.",
+            "instructions": """
+# ROLE
+You are an ITSM Risk and Coverage Analyst. Call simulate_itsm_risk (it loads the current document
+itself -- no argument needed). This is a STRUCTURAL analysis, NOT a timing/cost simulation.
+
+If ANY of "bottlenecks", "escalation_gaps", "sla_measurement_gaps", or "raci_coverage_gaps" is
+non-empty, OR "high_blast_radius_cis" is non-empty: call save_iteration_feedback with
+channel="itsm_simulation" and feedback={"status": "REVISION REQUIRED", "issues": [<one issue per
+finding, quoting the finding's own text verbatim in "instruction">]}, then respond with exactly:
+REVISION REQUIRED
+
+Otherwise (every list empty): call save_iteration_feedback with channel="itsm_simulation" and
+feedback={"status": "ITSM_SIMULATION_ALL_APPROVED", "notes": "The ITSM process document has no
+structural bottlenecks, coverage gaps, or outsized blast-radius configuration items."}, then
+respond with exactly: ITSM_SIMULATION_ALL_APPROVED
+
+Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.
+""",
+            "tools": ["simulate_itsm_risk", "save_iteration_feedback"]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching generate_itsm_document. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"itsm_analysis\", \"itsm_compliance\", \"itsm_simulation\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback to a mailbox channel, updating cumulative approval state for any approval marker found in it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback": {"type": "object", "description": "{\"status\": ..., \"data\"|\"issues\"|\"notes\": ...}"},
+                        "channel": {"type": "string", "description": "Which mailbox channel to write, e.g. \"itsm_analysis\", \"itsm_compliance\", \"itsm_simulation\"."}
+                    },
+                    "required": ["feedback", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {
+                "description": "Renders the CURRENT compliance feedback mailbox into one deterministic plain-text summary (APPROVED, or every open issue's own real instruction text), without draining it.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {"type": "array", "items": {"type": "string"}, "description": "Which mailbox channels to summarize, e.g. [\"itsm_compliance\"]."}
+                    },
+                    "required": []
+                }
+            },
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
+        },
+        {
+            "name": "load_itsm_data",
+            "function": {"description": "Loads the existing ITSM process document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "itsm_json_tool.LoadMasterItsmJsonCodedTool"
+        },
+        {
+            "name": "validate_itsm_json",
+            "function": {
+                "description": "Validates an ITSM process document JSON object against the required structural rules.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The ITSM process document JSON object to validate."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "itsm_json_tool.ValidateItsmJsonCodedTool"
+        },
+        {
+            "name": "persist_final_itsm_json",
+            "function": {
+                "description": "Validates and saves the final ITSM process document JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The complete, valid ITSM process document JSON object to save."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "itsm_json_tool.PersistFinalItsmJsonCodedTool"
+        },
+        {
+            "name": "simulate_itsm_risk",
+            "function": {"description": "Runs the structural risk/coverage analysis over the current ITSM process document. Takes no meaningful arguments -- it loads the baseline itself."},
+            "class": "simulation_tool.SimulateItsmRiskCodedTool"
+        },
+        {
+            "name": "generate_itsm_document",
+            "function": {
+                "description": "Generates a structured, ISO-formatted Word document from the current ITSM process document JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "process_name": {"type": "string", "description": "Fallback document title, used only if the ITSM JSON itself has no document_metadata.title/.system_name."}
+                    },
+                    "required": ["process_name"]
+                }
+            },
+            "class": "doc_generation_tool.GenerateItsmDocumentCodedTool"
+        }
+    ]
+}

@@ -31,6 +31,7 @@ from process_toolkit.schema.test_specification_json import TEST_SPECIFICATION_FI
 from process_toolkit.schema.proposal_response_json import PROPOSAL_RESPONSE_FILENAME
 from process_toolkit.schema.design_json import DESIGN_TEMPLATE
 from process_toolkit.schema.togaf_json import TOGAF_JSON_FILENAME
+from process_toolkit.schema.itsm_json import ITSM_JSON_FILENAME
 from process_toolkit.docgen.themes import apply_theme
 from process_toolkit.docgen.structure import (
     _add_version_history_table,
@@ -116,6 +117,33 @@ from process_toolkit.docgen.togaf_sections import (
     _add_migration_planning_section,
     _add_architecture_compliance_assessment_section,
     _add_glossary_and_references_section as _add_togaf_glossary_and_references_section,
+)
+from process_toolkit.docgen.itsm_sections import (
+    _add_service_catalog_section,
+    _add_stakeholders_and_roles_section,
+    _add_incident_management_section,
+    _add_problem_management_section,
+    # CONFIRMED AS A REAL BUG: governance.py already defines its own
+    # _add_change_management_section/_add_risks_and_controls_section for
+    # the plain PROCESS document's own governance section (imported
+    # above) -- an earlier, unaliased version of this import silently
+    # shadowed both at module scope, so _build_process_document's own
+    # calls to those names (far above this import, but Python resolves
+    # module-level names at CALL time, not definition time) started
+    # invoking the ITSM renderers instead, which no-op against a plain
+    # process document's own data shape -- confirmed directly: rendered
+    # process documents silently lost their "Change Management" and
+    # "Risks and Controls" sections entirely, each leaving one fully
+    # blank page where the stale page-break bookkeeping still assumed a
+    # section had rendered.
+    _add_change_management_section as _add_itsm_change_management_section,
+    _add_request_fulfillment_section,
+    _add_service_level_management_section,
+    _add_configuration_management_section,
+    _add_raci_matrix_section,
+    _add_tooling_and_platform_section,
+    _add_risks_and_controls_section as _add_itsm_risks_and_controls_section,
+    _add_glossary_and_references_section as _add_itsm_glossary_and_references_section,
 )
 from process_toolkit.docgen.proposal_response_sections import (
     _add_executive_summary_section,
@@ -268,12 +296,14 @@ def create_standard_doc_from_file(
             data_filename = DESIGN_JSON_FILENAME
         elif resolved_type == "togaf":
             data_filename = TOGAF_JSON_FILENAME
+        elif resolved_type == "itsm":
+            data_filename = ITSM_JSON_FILENAME
         elif resolved_type == "process":
             data_filename = PROCESS_JSON_FILENAME
         else:
             return (
-                f"ERROR: Unrecognized schema_type '{schema_type}' -- expected "
-                f"'process', 'design', 'requirements', 'proposal_response', 'test_specification', or 'togaf'."
+                f"ERROR: Unrecognized schema_type '{schema_type}' -- expected 'process', 'design', "
+                f"'requirements', 'proposal_response', 'test_specification', 'togaf', or 'itsm'."
             )
 
         data_path = paths.output_path(data_filename)
@@ -309,6 +339,8 @@ def create_standard_doc_from_file(
             out_path = _build_proposal_response_document(doc, data, process_name)
         elif resolved_type == "test_specification":
             out_path = _build_test_specification_document(doc, data, process_name)
+        elif resolved_type == "itsm":
+            out_path = _build_itsm_document(doc, data, process_name)
         else:
             out_path = _build_process_document(doc, data, process_name)
 
@@ -751,6 +783,144 @@ def _build_test_specification_document(doc: docx.Document, data: dict, process_n
         if rendered:
             add_iso_page_break(doc)
         rendered = _add_test_specification_glossary_section(doc, glossary)
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_additional_data_section(doc, data, consumed_keys)
+
+    _renumber_design_document_headings(doc)
+
+    # Save
+    out_path = paths.output_path(f"{safe_filename_component(name)}.docx")
+    doc.save(out_path)
+    return out_path
+
+
+_ITSM_DOC_TYPE_LABEL = r"(?:itsm process document|itsm|it service management)"
+_ITSM_TITLE_LEADING_LABEL_RE = re.compile(
+    rf"^\s*{_ITSM_DOC_TYPE_LABEL}\s*(?:for)?\s*[:\-]?\s*", re.IGNORECASE
+)
+_ITSM_TITLE_TRAILING_LABEL_RE = re.compile(
+    rf"\s*[:\-]?\s*{_ITSM_DOC_TYPE_LABEL}\s*$", re.IGNORECASE
+)
+
+
+def _strip_itsm_doc_type_label(title: str) -> str:
+    """Same bug precedent as togaf_sections.py's own _strip_togaf_doc_type_
+    label guards against -- document_metadata.title must never bake in
+    "ITSM"/"ITSM Process Document", or it leaks into the saved filename."""
+    stripped = _ITSM_TITLE_LEADING_LABEL_RE.sub("", title, count=1)
+    stripped = _ITSM_TITLE_TRAILING_LABEL_RE.sub("", stripped, count=1)
+    return stripped.strip(" :-")
+
+
+# Every top-level itsm_data.json key this renderer knows how to handle --
+# kept out of the Additional Data catch-all. Same reasoning as design's
+# own _DESIGN_CONSUMED_KEYS/TOGAF's own _TOGAF_CONSUMED_KEYS.
+_ITSM_CONSUMED_KEYS = {
+    "document_metadata", "service_catalog", "stakeholders_and_roles", "incident_management",
+    "problem_management", "change_management", "request_fulfillment", "service_level_management",
+    "configuration_management", "raci_matrix", "tooling_and_platform", "risks_and_controls",
+    "glossary_and_references", "appendix",
+}
+
+
+def _build_itsm_document(doc: docx.Document, data: dict, process_name: str) -> str:
+    """Builds the single ITSM process document into `doc` and saves it.
+    document_metadata.title wins when present (stripped of any baked-in
+    "ITSM"/"ITSM Process Document" label), falling back to system_name
+    then process_name -- same precedence _TogafMeta already uses, applied
+    here directly since there is only one document (no second builder to
+    share a dedicated class with)."""
+    metadata = data.get("document_metadata") or {}
+    raw_title = str(metadata.get("title") or "")
+    title_stripped = _strip_itsm_doc_type_label(raw_title)
+    raw_name = title_stripped or str(metadata.get("system_name") or process_name)
+    name = _strip_itsm_doc_type_label(raw_name) or raw_name
+    version = str(metadata.get("version", "1.0"))
+
+    consumed_keys = set(_ITSM_CONSUMED_KEYS)
+
+    # ---- COVER PAGE ----
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(name)
+    run.bold = True
+    run.font.size = Pt(28)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run("ITSM Process Document").font.size = Pt(18)
+
+    doc.add_paragraph()
+    doc.add_paragraph(f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    add_iso_page_break(doc)
+
+    # ---- DOCUMENT CONTROL + TOC ----
+    _add_version_history_table(
+        doc, version=version, author="ITSM Process Owner",
+        description="Initial generated ITSM process document",
+    )
+
+    add_iso_page_break(doc)
+    doc.add_heading("Table of Contents", level=1)
+    _add_table_of_contents(doc)
+
+    add_iso_page_break(doc)
+
+    # ---- MAIN SECTIONS ----
+    # Section numbers are intentionally left un-normalized here --
+    # _renumber_design_document_headings fixes them all in one pass from
+    # the final actual set of headings, right before saving, since which
+    # sections render depends on what's actually present in the source JSON.
+    rendered = _add_service_catalog_section(doc, data.get("service_catalog"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_stakeholders_and_roles_section(doc, data.get("stakeholders_and_roles"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_incident_management_section(doc, data.get("incident_management"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_problem_management_section(doc, data.get("problem_management"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_itsm_change_management_section(doc, data.get("change_management"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_request_fulfillment_section(doc, data.get("request_fulfillment"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_service_level_management_section(doc, data.get("service_level_management"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_configuration_management_section(doc, data.get("configuration_management"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_raci_matrix_section(doc, data.get("raci_matrix"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_tooling_and_platform_section(doc, data.get("tooling_and_platform"))
+
+    if rendered:
+        add_iso_page_break(doc)
+    rendered = _add_itsm_risks_and_controls_section(doc, data.get("risks_and_controls"))
+
+    glossary_and_references = data.get("glossary_and_references")
+    if glossary_and_references:
+        if rendered:
+            add_iso_page_break(doc)
+        rendered = _add_itsm_glossary_and_references_section(doc, glossary_and_references)
 
     if rendered:
         add_iso_page_break(doc)

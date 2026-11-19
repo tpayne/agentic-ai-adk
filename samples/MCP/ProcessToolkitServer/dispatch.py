@@ -53,6 +53,12 @@ from process_toolkit.schema.togaf_json import (
     persist_final_togaf_json,
     validate_togaf_json,
 )
+from process_toolkit.schema.itsm_json import (
+    load_full_itsm_context,
+    load_itsm_template,
+    persist_final_itsm_json,
+    validate_itsm_json,
+)
 from process_toolkit.test_specification.test_specification import (
     load_test_specification,
     save_test_specification,
@@ -88,6 +94,15 @@ DOMAINS: dict[str, DomainOps] = {
         persist_is_native=True,
         doc_variant_kwarg="togaf_variant",
         has_diagram=False,  # TOGAF's diagrams are per-section, rendered inline by the document build itself
+    ),
+    "itsm": DomainOps(
+        load_template=load_itsm_template,
+        load_context=load_full_itsm_context,
+        validate=validate_itsm_json,
+        persist=persist_final_itsm_json,
+        persist_is_native=True,
+        doc_variant_kwarg=None,
+        has_diagram=False,  # ITSM's diagrams are per-process, rendered inline by the document build itself
     ),
     "process": DomainOps(
         load_template=load_process_template,

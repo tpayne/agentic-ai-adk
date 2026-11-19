@@ -1,0 +1,159 @@
+# Imports an EXISTING ITSM process document (not a brief to design one from scratch) from a
+# directory of source files directly into this toolkit's own itsm_data.json schema. Mirrors
+# design_import.hocon's own reasoning -- see that file's header comment. Unlike design_json.py,
+# itsm_json.py has no document_type field, so there is no equivalent "determine document type"
+# step here.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Reads a directory of source documents describing an existing ITSM process (runbooks, incident/change procedures, SLAs) and imports it directly into the ITSM process document JSON schema, ready for use by every other ITSM-domain network.",
+        "tags": ["itsm", "process-engineering-port", "import"],
+        "sample_queries": [
+            "Import the ITSM runbooks documented in ./itsm-docs as an ITSM process document."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "ITSM_Import_Agent",
+
+            "function": {
+                "description": """
+I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json/vsdx/vsdm,
+plus images [png/jpg/jpeg/gif/webp/bmp/tiff] -- OCR'd visible text only) that already describe an
+existing ITSM process (runbooks, incident/change/problem procedures, SLAs, a CMDB export), and
+import their content directly into this toolkit's own structured ITSM JSON -- not a fresh design
+from a brief, an extraction of what's actually in the documents. If the directory contains an
+itsm_data.json previously downloaded from this same toolkit, I restore it verbatim instead of
+re-extracting it. Tell me which directory to read.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, including the directory path to read."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Senior ITSM Consultant performing a document IMPORT, not a fresh design. The directory
+you're given already contains real, existing ITSM process material -- your job is to faithfully
+extract what it already says into this toolkit's structured schema, not to invent or redesign
+anything the material doesn't support.
+
+# STEP 1: READ THE DIRECTORY (MANDATORY)
+The directory to read is ALWAYS the one in THIS request -- never reuse a path from an earlier turn.
+- If the request has no directory path, do not call any tool -- ask for the path and stop.
+- Call load_directory_context with that path.
+- "status": "NOT_FOUND" -> report the directory could not be found and stop. Do not fabricate.
+- "status": "ERROR" -> report the error and stop. Do not fabricate.
+- "status": "OK" but "files_processed" is EMPTY -> report that no usable content was found and
+  stop. Do not fabricate, do not persist anything.
+- "files_processed" non-empty with some "files_skipped" entries too is expected, not an error --
+  proceed with what was successfully extracted, and mention the skipped files in your final reply.
+
+# STEP 2: CHECK FOR AN EXISTING BASELINE (OVERWRITE SAFETY)
+Call load_itsm_data. If it returns a baseline with a real, non-empty "document_metadata.title" or
+"document_metadata.system_name" (an actual existing ITSM process document, not the empty
+template), this import would overwrite it. Unless the user's OWN request in THIS turn already
+explicitly says to overwrite/replace/proceed anyway, STOP here: tell the user an ITSM process
+document titled "<existing title>" already exists and ask whether to overwrite it with this
+import. Do NOT call validate_itsm_json or persist_final_itsm_json in this case.
+
+# STEP 3: CHECK FOR A LITERAL RESTORE
+If exactly one file in "files_processed" is named "itsm_data.json" (case-insensitive) and the text
+under its own "=== itsm_data.json ===" heading in "combined_text" is a JSON object containing a
+"document_metadata" key, this is an ITSM process document previously downloaded from this same
+toolkit, not prose to extract from. Parse that JSON object and use it VERBATIM -- do not re-word,
+re-derive, or otherwise change any field -- as the object you validate and persist in STEP 5. SKIP
+STEP 4 entirely in that case.
+
+Otherwise, this is a genuine extraction -- continue to STEP 4.
+
+# STEP 4: EXTRACT THE ITSM PROCESS DOCUMENT -- FAITHFULLY, AGAINST THE REAL SCHEMA
+The object load_itsm_data returned (baseline or empty template) shows you the exact nested field
+shape to normalize against -- every list/object field in it is a one-item structural hint. Build
+the FULL ITSM JSON object from the directory's "combined_text": document_metadata, service_catalog,
+stakeholders_and_roles, incident_management (priority_matrix + process_steps + escalation_paths),
+problem_management (process_steps + known_errors), change_management (change_types + process_steps
++ cab_members + risk_assessment_criteria), request_fulfillment (request_types + process_steps),
+service_level_management (slas/olas/underpinning_contracts), configuration_management
+(configuration_items + relationships), raci_matrix, tooling_and_platform, risks_and_controls,
+glossary_and_references, wherever the material supports them.
+
+Deliberately DO NOT extract or invent a cost/budget figure, a specific date, or a team-headcount
+number anywhere -- the schema has no fields for these at all. If the source material states one,
+simply omit it rather than trying to force it into a field that doesn't exist.
+
+For fields the material doesn't explicitly state but reasonably implies, infer a reasonable value
+the same way a fresh design would -- but the ACTUAL PROCESSES, ROLES, and CONTENT must come from the
+source material, not be invented. This is an import, not a redesign. Every narrative field needs
+real depth -- several full sentences, not a one-clause paraphrase.
+
+# STEP 5: VALIDATE AND PERSIST
+Call validate_itsm_json with the JSON you intend to persist. If "valid" is false:
+- Literal restore (STEP 3): report the exact "issues" returned, verbatim, and ask the user to
+  correct their file and re-upload it. Do NOT invent or guess field values to force it to pass.
+  Stop here; do not call persist_final_itsm_json.
+- Genuine extraction: fix exactly the fields "issues" names and validate again; repeat until valid.
+Then call persist_final_itsm_json with the final, valid JSON object.
+
+# STEP 6: REPORT BACK
+Reply in plain prose (no raw JSON, no field names, no code blocks): what ITSM process document was
+imported, from which files, and its major processes/structure. Mention any files that were skipped,
+and flag anything you had to infer rather than found explicitly stated. Close by noting this is now
+saved as the active ITSM process document and available to every other ITSM-domain tool
+(consultant, reviewer, scenario testing, simulation).
+
+Do not output the JSON as chat text -- it belongs only inside tool calls.
+""",
+            "tools": ["load_directory_context", "load_itsm_data", "validate_itsm_json", "persist_final_itsm_json"]
+        },
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {"type": "string", "description": "Path to the directory to read."}
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
+        },
+        {
+            "name": "load_itsm_data",
+            "function": {"description": "Loads the existing ITSM process document JSON baseline, or the empty template if none exists. Takes no meaningful arguments."},
+            "class": "itsm_json_tool.LoadMasterItsmJsonCodedTool"
+        },
+        {
+            "name": "validate_itsm_json",
+            "function": {
+                "description": "Validates an ITSM process document JSON object against the required structural rules.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The ITSM process document JSON object to validate."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "itsm_json_tool.ValidateItsmJsonCodedTool"
+        },
+        {
+            "name": "persist_final_itsm_json",
+            "function": {
+                "description": "Validates and saves the final ITSM process document JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"json_content": {"type": "object", "description": "The complete, valid ITSM process document JSON object to save."}},
+                    "required": ["json_content"]
+                }
+            },
+            "class": "itsm_json_tool.PersistFinalItsmJsonCodedTool"
+        }
+    ]
+}

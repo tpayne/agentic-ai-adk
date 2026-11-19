@@ -20,7 +20,7 @@ one tool per domain per operation:
 
 | Tool | Purpose |
 | --- | --- |
-| `list_schema_types()` | The `schema_type` values every other tool accepts: `design`, `togaf`, `process`, `requirements`, `proposal_response`, `test_specification`. |
+| `list_schema_types()` | The `schema_type` values every other tool accepts: `design`, `togaf`, `itsm`, `process`, `requirements`, `proposal_response`, `test_specification`. |
 | `load_template(schema_type)` | The blank/example JSON shape for that domain. |
 | `load_context(schema_type, session_id?)` | The currently saved JSON for that domain within a session (or the template, if nothing saved yet). |
 | `validate_json(schema_type, data)` | Structural validation only -- `{"valid": bool, "issues": [...]}`. Never checks factual correctness. |
@@ -31,14 +31,16 @@ one tool per domain per operation:
 | `export_cloudarch_vsdx(session_id?)` | On-demand Visio (`.vsdx`) export of the currently saved cloud-architecture diagram (`load_drawio`'s own XML). Returns `{"vsdx": null}` with an `ERROR:`-prefixed message if nothing has been saved yet. |
 | `generate_portfolio_backlog(backlog, session_id?)` | Saves an Enterprise Agile Portfolio Backlog and renders its Excel workbook in one call (this domain validates and renders together, unlike every other `schema_type`). |
 | `load_portfolio_backlog_json(session_id?)` | The currently saved portfolio backlog JSON. |
+| `simulate_itsm_risk(session_id?)` | Structural risk/coverage analysis over the currently saved ITSM process document -- role-concentration bottlenecks, missing escalation paths, missing SLA measurement fields, outsized CI blast radius, RACI coverage gaps. Not a timing/cost simulation; the `itsm` schema has no duration/date fields to model one from. |
 | `list_artifacts(session_id?)` | Every generated file currently on disk for a session. |
 | `get_artifact(filename, session_id?)` | One artifact, as base64 -- since an external MCP client has no shared filesystem with this server. |
 
-`togaf`'s diagrams are rendered per-section, inline inside `generate_document`
-itself -- there's no single whole-document diagram to ask for separately, so
-`generate_diagram("togaf", ...)` reports `NOT_APPLICABLE` rather than an
-error. Same for `requirements`/`proposal_response`/`test_specification`, which
-have no diagram at all.
+`togaf`'s and `itsm`'s diagrams are rendered per-section, inline inside
+`generate_document` itself -- there's no single whole-document diagram to ask
+for separately, so `generate_diagram("togaf"|"itsm", ...)` reports
+`NOT_APPLICABLE` rather than an error. Same for
+`requirements`/`proposal_response`/`test_specification`, which have no
+diagram at all.
 
 ### Session isolation
 

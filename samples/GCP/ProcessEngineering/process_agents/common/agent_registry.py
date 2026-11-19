@@ -41,6 +41,13 @@ from .requirements_doc_pipeline_agent import requirements_doc_pipeline
 from .test_specification_pipeline_agent import test_specification_pipeline
 from .portfolio_backlog_pipeline_agent import portfolio_backlog_pipeline
 from .togaf_pipeline_agent import togaf_pipeline
+from ..itsm.create_itsm_agent import full_itsm_pipeline
+from ..itsm.update_itsm_agent import update_itsm_pipeline
+from ..itsm.import_agent import itsm_import_agent
+from ..itsm.consultant_agent import itsm_consultant_agent
+from ..itsm.reviewer_agent import itsm_reviewer_agent
+from ..itsm.scenario_agent import itsm_scenario_tester_agent
+from ..itsm.simulation_agent import itsm_simulation_query_agent
 from .test_consultant_agent import test_consultant_agent
 from .test_reviewer_agent import test_reviewer_agent
 from .proposal_response_pipeline_agent import proposal_response_pipeline

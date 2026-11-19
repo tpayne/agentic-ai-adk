@@ -119,6 +119,37 @@ class TestCloudarchSimulationsBothModes:
         assert parsed["error"] == "no_diagram_available"
 
 
+class TestItsmSimulationBothModes:
+    def test_local_mode_reports_no_bottlenecks_or_blast_radius_when_nothing_saved(self):
+        # load_master_itsm_json() falls back to ITSM_TEMPLATE (never a bare
+        # {}) when nothing has been saved -- its own one-item EXAMPLE shapes
+        # genuinely have no escalation paths/measurement windows/RACI
+        # entries, so those three finding types legitimately fire against
+        # it; bottlenecks/blast-radius require >=2 steps or >3 relationships,
+        # neither of which the template's own single-item examples reach.
+        from process_interface.itsm.simulation import simulate_itsm_risk_and_coverage
+
+        result = simulate_itsm_risk_and_coverage()
+        assert result["bottlenecks"] == []
+        assert result["high_blast_radius_cis"] == []
+
+    def test_mcp_mode_hits_the_server_and_reports_a_grounded_bottleneck(self, mcp_mode):
+        from process_interface.itsm import simulation as itsm_simulation
+        from process_interface.schema import itsm_json
+
+        data = _minimal_valid_itsm_doc()
+        data["incident_management"]["process_steps"] = [
+            {"step_id": "INC-1", "step_name": "Log", "responsible_role": "Service Desk"},
+            {"step_id": "INC-2", "step_name": "Triage", "responsible_role": "Service Desk"},
+        ]
+        message = itsm_json.persist_final_itsm_json(data)
+        assert message.startswith("SUCCESS"), message
+
+        result = itsm_simulation.simulate_itsm_risk_and_coverage()
+        assert len(result["bottlenecks"]) == 1
+        assert "Service Desk" in result["bottlenecks"][0]
+
+
 class TestIacGenerationDualWrite:
     def test_local_mode_round_trip(self):
         from process_interface.iac import generation
@@ -201,6 +232,75 @@ class TestMasterJsonBothModes:
         via_master = master_json.load_master_json("design")
         via_context = design_json.load_full_design_context()
         assert via_master == via_context
+
+
+def _minimal_valid_itsm_doc() -> dict:
+    from process_interface.schema import itsm_json
+
+    template = itsm_json.load_itsm_template()
+    template["document_metadata"].update({
+        "document_id": "I-1", "system_name": "Checkout", "title": "Checkout",
+        "version": "1.0", "status": "draft",
+    })
+    # The template's one-item example shapes are placeholders with blank
+    # "" values -- validate_itsm_json structurally validates these
+    # sections too, so clear them, same reasoning as the MCP server's own
+    # _minimal_valid_itsm_doc helper in tests/test_server.py.
+    template["service_catalog"]["services"] = []
+    template["incident_management"]["priority_matrix"] = []
+    template["incident_management"]["process_steps"] = []
+    template["problem_management"]["process_steps"] = []
+    template["change_management"]["change_types"] = []
+    template["change_management"]["process_steps"] = []
+    template["request_fulfillment"]["request_types"] = []
+    template["request_fulfillment"]["process_steps"] = []
+    template["service_level_management"]["slas"] = []
+    template["configuration_management"]["configuration_items"] = []
+    template["configuration_management"]["relationships"] = []
+    template["raci_matrix"] = []
+    template["risks_and_controls"] = []
+    return template
+
+
+class TestItsmJsonBothModes:
+    def test_local_mode_empty_when_nothing_saved(self):
+        from process_interface.schema import itsm_json
+
+        assert itsm_json.load_master_itsm_json() == itsm_json.load_itsm_template()
+
+    def test_local_mode_persist_then_load_round_trips(self):
+        from process_interface.schema import itsm_json
+
+        template = _minimal_valid_itsm_doc()
+        message = itsm_json.persist_final_itsm_json(template)
+        assert message.startswith("SUCCESS"), message
+
+        loaded = itsm_json.load_master_itsm_json()
+        assert loaded["document_metadata"]["system_name"] == "Checkout"
+
+    def test_mcp_mode_persist_then_load_hits_the_server_and_mirrors_locally(self, mcp_mode):
+        server_output_dir = mcp_mode
+        from process_interface.schema import itsm_json
+
+        template = _minimal_valid_itsm_doc()
+        message = itsm_json.persist_final_itsm_json(template)
+        assert message.startswith("SUCCESS"), message
+
+        # Written on the SERVER's side...
+        assert os.path.isfile(os.path.join(server_output_dir, itsm_json.ITSM_JSON_FILENAME))
+        # ...AND mirrored locally per schema/_common.py's mirror_local_copy.
+        assert os.path.isfile(paths.output_path(itsm_json.ITSM_JSON_FILENAME))
+
+        via_master = itsm_json.load_master_itsm_json()
+        via_context = itsm_json.load_full_itsm_context()
+        assert via_master == via_context == template
+
+    def test_mcp_mode_rejects_an_invalid_document_without_writing_anything(self, mcp_mode):
+        from process_interface.schema import itsm_json
+
+        message = itsm_json.persist_final_itsm_json({"document_metadata": {"document_id": "I-1"}})
+        assert message.startswith("ERROR"), message
+        assert not os.path.exists(paths.output_path(itsm_json.ITSM_JSON_FILENAME))
 
 
 class TestSubprocessJsonBothModes:
