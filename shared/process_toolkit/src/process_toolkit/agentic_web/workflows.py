@@ -100,6 +100,20 @@ WORKFLOW_DEFINITIONS: Dict[str, WorkflowDefinition] = {
         required_inputs=["requirements_summary", "high_level_design"],
         produced_artifacts=["requirements_summary", "high_level_design", "portfolio_backlog"],
     ),
+    "itsm_management_lifecycle": WorkflowDefinition(
+        workflow="itsm_management_lifecycle",
+        name="ITSM Process Management Lifecycle",
+        description="ITIL service-management lifecycle authoring a best-of-breed ITSM process document (incident/problem/change management, request fulfillment, service level management, a light CMDB, RACI governance), with structural risk/coverage simulation, what-if scenario testing, and iterative update.",
+        version="1.0.0",
+        steps=[
+            "itsm",
+            "itsm_simulation_query",
+            "itsm_scenario_tester",
+            "itsm_update",
+        ],
+        required_inputs=["itsm_brief", "document_directory"],
+        produced_artifacts=["itsm_artifacts", "simulation_report"],
+    ),
     "bid_proposal_lifecycle": WorkflowDefinition(
         workflow="bid_proposal_lifecycle",
         name="Commercial Bid & RFP Response Lifecycle",

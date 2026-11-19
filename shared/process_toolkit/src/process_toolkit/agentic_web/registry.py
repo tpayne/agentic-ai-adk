@@ -42,8 +42,8 @@ def get_agent_manifest(base_url: str = "") -> Dict[str, Any]:
         "description": (
             "Enterprise-grade multi-agent platform for business process modeling, "
             "systems architecture, cloud diagrams, test specifications, agile backlogs, "
-            "RFP proposals, and TOGAF enterprise architecture. This manifest describes "
-            "this project's own Agent Discovery API; it is not a conformance claim "
+            "RFP proposals, TOGAF enterprise architecture, and ITSM process management. "
+            "This manifest describes this project's own Agent Discovery API; it is not a conformance claim "
             "against any external agent-interoperability standard."
         ),
         "version": "1.0.0",

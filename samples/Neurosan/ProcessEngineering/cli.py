@@ -1995,7 +1995,7 @@ def build_web_app(agent_name: str, https: bool = True):
     def agents():
         """Capability registry listing all agent cards.
         Supports query filtering:
-          ?category=architecture|process|cloud|testing|portfolio|proposals|togaf
+          ?category=architecture|process|cloud|testing|portfolio|proposals|togaf|itsm
           ?artifact=requirements_summary|cloud_architecture|drawio_xml|...
           ?type=pipeline|consultant|reviewer|simulation|iac|tester|finops|router
           ?query=<text>

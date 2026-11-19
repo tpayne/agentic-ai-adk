@@ -25,7 +25,7 @@ from process_toolkit.agentic_web import (
 class TestAgentCards:
     def test_all_expected_specialist_agents_registered(self):
         cards = get_all_agent_cards()
-        assert len(cards) >= 32
+        assert len(cards) >= 39
         names = {c["name"] for c in cards}
         expected = [
             "process_architect",
@@ -59,6 +59,13 @@ class TestAgentCards:
             "proposal_response_reviewer",
             "togaf",
             "togaf_scenario_tester",
+            "itsm",
+            "itsm_update",
+            "itsm_import",
+            "itsm_consultant",
+            "itsm_reviewer",
+            "itsm_scenario_tester",
+            "itsm_simulation_query",
             "regenerate_document",
         ]
         for name in expected:
@@ -88,6 +95,13 @@ class TestAgentCards:
         assert get_agent_card("CloudArch_Agent")["name"] == "cloudarch"
         assert get_agent_card("nonexistent_agent_xyz") is None
 
+        # ITSM aliases: the real ADK/neuro-san agent idents (ITSM_Agent, ITSM_Pipeline,
+        # Full_ITSM_Pipeline isn't alias-stripped since it doesn't end in _agent/_pipeline
+        # after stripping "Full_", but the bare ones resolve) and the scenario tester.
+        assert get_agent_card("ITSM_Agent")["name"] == "itsm"
+        assert get_agent_card("ITSM_Pipeline")["name"] == "itsm"
+        assert get_agent_card("ITSM_Scenario_Tester")["name"] == "itsm_scenario_tester"
+
     def test_search_capabilities_filters(self):
         # Filter by category
         design_agents = search_capabilities(category="design")
@@ -106,9 +120,20 @@ class TestAgentCards:
         finops_agents = search_capabilities(query="finops")
         assert any("finops" in a["name"] for a in finops_agents)
 
+    def test_search_capabilities_filters_itsm(self):
+        itsm_agents = search_capabilities(category="itsm")
+        assert len(itsm_agents) == 7
+        assert all(a["category"] == "itsm" for a in itsm_agents)
+
+        itsm_artifact_agents = search_capabilities(artifact="itsm_artifacts")
+        assert any(a["name"] == "itsm" for a in itsm_artifact_agents)
+
+        itsm_reviewer_agents = search_capabilities(agent_type="reviewer", category="itsm")
+        assert any(a["name"] == "itsm_reviewer" for a in itsm_reviewer_agents)
+
     def test_list_agent_summaries(self):
         summaries = list_agent_summaries()
-        assert len(summaries) >= 32
+        assert len(summaries) >= 39
         for s in summaries:
             assert "name" in s
             assert "description" in s
@@ -135,6 +160,7 @@ class TestArtifactContracts:
             "test_specification",
             "portfolio_backlog",
             "togaf_artifacts",
+            "itsm_artifacts",
             "proposal_response",
         ]
         for t in expected:
@@ -176,6 +202,7 @@ class TestWorkflows:
             "test_assurance_lifecycle",
             "portfolio_planning_lifecycle",
             "bid_proposal_lifecycle",
+            "itsm_management_lifecycle",
         ]
         for w in expected:
             assert w in ids
@@ -202,7 +229,7 @@ class TestAgentManifest:
         assert manifest["provider"]["name"] == "Agentic-AI-ADK"
         assert manifest["endpoints"]["agents"] == "http://localhost:5000/agents"
         assert manifest["endpoints"]["chat"] == "http://localhost:5000/chat"
-        assert manifest["capabilities_count"] >= 32
-        assert manifest["workflows_count"] >= 6
-        assert manifest["artifact_contracts_count"] >= 13
-        assert len(manifest["agents"]) >= 32
+        assert manifest["capabilities_count"] >= 39
+        assert manifest["workflows_count"] >= 7
+        assert manifest["artifact_contracts_count"] >= 14
+        assert len(manifest["agents"]) >= 39

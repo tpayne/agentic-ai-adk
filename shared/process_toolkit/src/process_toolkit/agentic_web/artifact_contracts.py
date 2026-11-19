@@ -163,6 +163,17 @@ ARTIFACT_CONTRACTS: Dict[str, ArtifactContract] = {
         schema_fields=["document_metadata", "architecture_vision", "architecture_requirements_specification", "business_architecture", "data_architecture", "application_architecture", "technology_architecture"],
         mime_type="application/json",
     ),
+    "itsm_artifacts": ArtifactContract(
+        artifact_type="itsm_artifacts",
+        name="ITSM Process Document",
+        description="Best-of-breed ITSM process document: service catalog, incident/problem/change management, request fulfillment, service level management, a light CMDB, and RACI governance.",
+        version="1.0",
+        producer="itsm",
+        file_format="json",
+        canonical_filename="itsm_data.json",
+        schema_fields=["document_metadata", "service_catalog", "incident_management", "problem_management", "change_management", "request_fulfillment", "service_level_management", "configuration_management", "raci_matrix"],
+        mime_type="application/json",
+    ),
     "proposal_response": ArtifactContract(
         artifact_type="proposal_response",
         name="Commercial & Technical Proposal Response (RtP/RFP)",
