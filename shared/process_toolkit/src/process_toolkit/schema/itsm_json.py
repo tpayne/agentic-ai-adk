@@ -2,7 +2,9 @@
 lightweight structural validation. Same save/load/template-fallback shape
 as togaf_json.py/design_json.py -- validating against the structural
 essentials (document_metadata's required fields, per-list required-field
-checks) rather than a full JSON-Schema document.
+checks, every stable id, and role-name traceability against
+stakeholders_and_roles/cab_members) rather than a full JSON-Schema
+document.
 
 Scope (deliberate, not exhaustive ITIL coverage): Incident Management,
 Problem Management, Change Management (CAB/RFC/risk), Request Fulfillment,
@@ -120,7 +122,7 @@ ITSM_TEMPLATE: Dict[str, Any] = {
 
     "request_fulfillment": {
         "request_types": [
-            {"type": "", "description": "", "target_fulfillment_time": ""}
+            {"id": "REQ-TYPE-001", "type": "", "description": "", "target_fulfillment_time": ""}
         ],
         "process_steps": [
             {
@@ -167,7 +169,7 @@ ITSM_TEMPLATE: Dict[str, Any] = {
 
     "tooling_and_platform": [{"category": "", "tool_name": "", "purpose": ""}],
 
-    "risks_and_controls": [{"risk": "", "control": ""}],
+    "risks_and_controls": [{"id": "RISK-001", "risk": "", "control": ""}],
 
     "glossary_and_references": {
         "glossary": [{"term": "", "definition": ""}],
@@ -243,6 +245,98 @@ def _validate_process_steps(container: Any, location_prefix: str, issues: List[D
     _validate_list_items(container.get("process_steps"), f"{location_prefix}.process_steps", ("step_id", "step_name"), issues)
 
 
+def _collect_known_roles(json_content: Dict[str, Any]) -> List[str]:
+    """Every real role name defined anywhere in the document --
+    stakeholders_and_roles (the canonical registry) plus cab_members
+    (a second, legitimate place a role name can be introduced, e.g. "CAB
+    Chair", that need not duplicate an entry in stakeholders_and_roles).
+    Used by _validate_role_reference to catch a RACI/process-step role
+    name that doesn't trace back to anything actually defined -- the
+    "CAB" vs "Change Advisory Board (CAB)" drift a plain human reviewer
+    would catch on sight."""
+    roles: List[str] = []
+    for entry in json_content.get("stakeholders_and_roles") or []:
+        if isinstance(entry, dict) and str(entry.get("role") or "").strip():
+            roles.append(str(entry["role"]).strip())
+    change_management = json_content.get("change_management")
+    if isinstance(change_management, dict):
+        for entry in change_management.get("cab_members") or []:
+            if isinstance(entry, dict) and str(entry.get("role") or "").strip():
+                roles.append(str(entry["role"]).strip())
+    return roles
+
+
+def _role_reference_is_known(reference: str, known_roles: List[str]) -> bool:
+    """Deliberately lenient (case-insensitive substring in EITHER
+    direction, not exact match) so a legitimate paraphrase/abbreviation
+    ("CAB" for "Change Advisory Board (CAB)", "Service Desk Manager" for
+    "Service Desk") doesn't get flagged as if it were an invented role --
+    only a reference that shares no textual relationship with any known
+    role at all is flagged. This trades some false negatives (two
+    genuinely different phrasings for the same role with no shared
+    substring, e.g. "On-Call Engineer" for "Payments Engineering
+    On-Call") for avoiding false positives on ordinary paraphrasing,
+    which would otherwise make this check too noisy to trust."""
+    needle = reference.strip().lower()
+    if not needle:
+        return True
+    return any(
+        needle in role.lower() or role.lower() in needle
+        for role in known_roles
+    )
+
+
+def _validate_role_references(json_content: Dict[str, Any], issues: List[Dict[str, str]]) -> None:
+    """Cross-checks every role name used in raci_matrix and in each
+    domain's process_steps[].responsible_role against the roles actually
+    defined in stakeholders_and_roles/cab_members -- catches a role that
+    drifted into free text (a typo, an abbreviation nobody defined, or a
+    role invented on the spot) without ever being added to the one place
+    this document defines "who" at all. Skipped entirely if no roles are
+    defined yet (nothing to cross-check against, and _validate_list_items
+    already flags stakeholders_and_roles itself as incomplete elsewhere
+    in the compliance checklist, not here)."""
+    known_roles = _collect_known_roles(json_content)
+    if not known_roles:
+        return
+
+    for index, entry in enumerate(json_content.get("raci_matrix") or []):
+        if not isinstance(entry, dict):
+            continue
+        for field in ("responsible", "accountable", "consulted", "informed"):
+            value = str(entry.get(field) or "").strip()
+            if value and not _role_reference_is_known(value, known_roles):
+                issues.append({
+                    "location": f"raci_matrix[{index}].{field}",
+                    "issue": (
+                        f"'{value}' does not match any role defined in stakeholders_and_roles or "
+                        "cab_members -- either add it there, or use the role's real name."
+                    ),
+                })
+
+    for location_prefix, steps_path in (
+        ("incident_management", ("incident_management",)),
+        ("problem_management", ("problem_management",)),
+        ("change_management", ("change_management",)),
+        ("request_fulfillment", ("request_fulfillment",)),
+    ):
+        container = json_content.get(steps_path[0])
+        if not isinstance(container, dict):
+            continue
+        for index, step in enumerate(container.get("process_steps") or []):
+            if not isinstance(step, dict):
+                continue
+            value = str(step.get("responsible_role") or "").strip()
+            if value and not _role_reference_is_known(value, known_roles):
+                issues.append({
+                    "location": f"{location_prefix}.process_steps[{index}].responsible_role",
+                    "issue": (
+                        f"'{value}' does not match any role defined in stakeholders_and_roles or "
+                        "cab_members -- either add it there, or use the role's real name."
+                    ),
+                })
+
+
 def validate_itsm_json(json_content: Any) -> Dict[str, Any]:
     issues: List[Dict[str, str]] = []
 
@@ -295,6 +389,12 @@ def validate_itsm_json(json_content: Any) -> Dict[str, Any]:
 
     request_fulfillment = json_content.get("request_fulfillment")
     if isinstance(request_fulfillment, dict):
+        _validate_list_items(
+            request_fulfillment.get("request_types"),
+            "request_fulfillment.request_types",
+            ("id", "type"),
+            issues,
+        )
         _validate_process_steps(request_fulfillment, "request_fulfillment", issues)
 
     service_level_management = json_content.get("service_level_management")
@@ -324,6 +424,12 @@ def validate_itsm_json(json_content: Any) -> Dict[str, Any]:
     _validate_list_items(
         json_content.get("raci_matrix"), "raci_matrix", ("process_area", "activity"), issues
     )
+
+    _validate_list_items(
+        json_content.get("risks_and_controls"), "risks_and_controls", ("id", "risk", "control"), issues
+    )
+
+    _validate_role_references(json_content, issues)
 
     return {"valid": len(issues) == 0, "issues": issues}
 

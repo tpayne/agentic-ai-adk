@@ -106,11 +106,13 @@ def _minimal_valid_itsm_doc() -> dict:
     data["problem_management"]["process_steps"] = []
     data["change_management"]["change_types"] = []
     data["change_management"]["process_steps"] = []
+    data["request_fulfillment"]["request_types"] = []
     data["request_fulfillment"]["process_steps"] = []
     data["service_level_management"]["slas"] = []
     data["configuration_management"]["configuration_items"] = []
     data["configuration_management"]["relationships"] = []
     data["raci_matrix"] = []
+    data["risks_and_controls"] = []
     return data
 
 
@@ -259,7 +261,7 @@ class TestItsmRoundTrip:
 class TestGenerateDiagram:
     async def test_not_applicable_schema_types_report_cleanly_without_fabricating_a_diagram(self):
         async with Client(server.mcp) as client:
-            for schema_type in ("requirements", "proposal_response", "test_specification", "togaf"):
+            for schema_type in ("requirements", "proposal_response", "test_specification", "togaf", "itsm"):
                 result = (await client.call_tool(
                     "generate_diagram", {"schema_type": schema_type, "session_id": "s1"},
                 )).data
@@ -270,7 +272,7 @@ class TestGenerateDiagram:
 class TestExportProcessDesignVsdx:
     async def test_not_applicable_schema_types_report_cleanly_without_fabricating_a_vsdx(self):
         async with Client(server.mcp) as client:
-            for schema_type in ("requirements", "proposal_response", "test_specification", "togaf"):
+            for schema_type in ("requirements", "proposal_response", "test_specification", "togaf", "itsm"):
                 result = (await client.call_tool(
                     "export_process_design_vsdx", {"schema_type": schema_type, "session_id": "s1"},
                 )).data

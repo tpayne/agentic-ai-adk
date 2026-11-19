@@ -158,6 +158,19 @@ ITIL-aligned assumptions rather than asking questions.
 4. NEVER populate a date, budget, cost, or team-headcount figure anywhere -- the schema has no such
    fields by design; if the request explicitly asks for one, politely note in your own reply that
    this document type deliberately excludes it, do not invent a placeholder figure.
+   STABLE IDS: assign a real, unique id to EVERY NEW request_fulfillment.request_types entry
+   (e.g. "REQ-TYPE-001") and EVERY NEW risks_and_controls entry (e.g. "RISK-001") you add -- the
+   same convention service_catalog.services/service_level_management.slas/configuration_management.
+   configuration_items/problem_management.known_errors already use. Never touch the id of an
+   existing entry you are not otherwise changing.
+   ROLE NAME TRACEABILITY: every role name you write into raci_matrix (responsible/accountable/
+   consulted/informed) and into any process_steps[].responsible_role MUST be a role actually
+   defined in stakeholders_and_roles or change_management.cab_members -- never invent a role on
+   the spot that exists nowhere else in the document. If the change request introduces a genuinely
+   new role, add it to stakeholders_and_roles (or cab_members) too, in the SAME persist. An
+   abbreviation of an already-defined role is fine (e.g. "CAB" for a stakeholder you named
+   "Change Advisory Board (CAB)") -- validate_itsm_json checks this leniently, by substring, not by
+   exact string match.
 5. Call validate_itsm_json with the JSON you intend to persist. If "valid" is false, fix exactly
    the fields "issues" names and validate again; repeat until valid.
 6. Call persist_final_itsm_json with the final, valid JSON object -- but only if something actually
@@ -186,16 +199,25 @@ Call load_itsm_data, then audit it internally against:
 4. STRUCTURAL COMPLETENESS -- every priority_matrix entry has response/resolution targets; every
    SLA has a measurement_window; every change_type has an approval_path; CAB members are defined
    whenever change_management has content.
+5. STEP HANDOFF CONSISTENCY -- for each of incident/problem/change/request_fulfillment, consecutive
+   process_steps should hand off coherently: step N's "outputs" and step N+1's "inputs" should
+   describe the SAME real artifact even when worded differently. A judgment call, not a mechanical
+   string match; only flag a handoff that genuinely reads as broken, not every wording difference.
+6. KNOWN ERROR TRACEABILITY -- if problem_management.known_errors has real content but
+   linked_incidents is empty on every entry despite the document describing a recurring incident
+   pattern elsewhere, flag the specific known error that should reference it. An empty
+   linked_incidents list is NOT itself a defect when no such pattern is actually described.
 
 If issues exist, call save_iteration_feedback with channel="itsm_compliance" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
 "json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"category":
-"Naming"|"Anti-Fabrication"|"RACI"|"Completeness"}}]}
+"Naming"|"Anti-Fabrication"|"RACI"|"Completeness"|"Step-Handoff"|"Known-Error-Traceability"}}]}
 then respond with exactly: REVISION REQUIRED
 
 If fully compliant, call save_iteration_feedback with channel="itsm_compliance" and feedback=
 {"status": "ITSM_COMPLIANCE_APPROVED", "notes": "The ITSM process document meets naming hygiene,
-anti-fabrication, RACI coverage, and structural completeness criteria."}
+anti-fabrication, RACI coverage, structural completeness, step-handoff consistency, and known-error
+traceability criteria."}
 then respond with exactly: ITSM_COMPLIANCE_APPROVED
 
 Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.

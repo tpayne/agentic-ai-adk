@@ -223,6 +223,26 @@ than asking questions.
      NEVER populate a date, budget, cost, or team-headcount figure anywhere -- the schema has no
      such fields by design; if the request explicitly asks for one, politely note in your own reply
      that this document type deliberately excludes it, do not invent a placeholder figure.
+     STABLE IDS: assign a real, unique id to EVERY request_fulfillment.request_types entry
+     (e.g. "REQ-TYPE-001") and EVERY risks_and_controls entry (e.g. "RISK-001") -- the same
+     convention service_catalog.services/service_level_management.slas/configuration_management.
+     configuration_items/problem_management.known_errors already use. Never leave these two
+     specifically unidentified just because the template's own one-item example omits a value.
+     ROLE NAME TRACEABILITY: every role name you write into raci_matrix (responsible/accountable/
+     consulted/informed) and into any process_steps[].responsible_role MUST be a role you actually
+     defined in stakeholders_and_roles or change_management.cab_members -- never invent a role on
+     the spot inside raci_matrix/process_steps that exists nowhere else in the document. An
+     abbreviation of an already-defined role is fine (e.g. "CAB" for a stakeholder you named
+     "Change Advisory Board (CAB)") -- validate_itsm_json checks this leniently, by substring, not
+     by exact string match -- but a role with no textual relationship to anything in
+     stakeholders_and_roles/cab_members at all means you forgot to define it there first.
+     KNOWN ERROR TRACEABILITY: problem_management.known_errors[].linked_incidents has no incident-
+     instance registry to link against in this schema (incident_management only models the
+     INCIDENT PROCESS DEFINITION, not individual incident records) -- when the requirements
+     describe a recurring incident pattern tied to a known error, record that pattern as
+     descriptive text here (e.g. "Recurring P2 Checkout API timeout incidents"), never a fabricated
+     incident-record id. Leave it as an empty list when no such pattern is described; an empty list
+     is not itself a defect.
 3. Also call load_iteration_feedback with channel="itsm_compliance" and with channel="itsm_simulation".
    For each that returns actionable data (a non-empty "data" list, not just notes), apply ONLY the
    specific changes each issue's "instruction" describes, at the location it names, to the existing
@@ -258,16 +278,29 @@ Call load_itsm_data, then audit it internally against:
 4. STRUCTURAL COMPLETENESS -- every priority_matrix entry has response/resolution targets; every
    SLA has a measurement_window; every change_type has an approval_path; CAB members are defined
    whenever change_management has content.
+5. STEP HANDOFF CONSISTENCY -- for each of incident/problem/change/request_fulfillment, consecutive
+   process_steps should hand off coherently: step N's "outputs" and step N+1's "inputs" should
+   describe the SAME real artifact even when worded differently (e.g. step N outputs "Root Cause
+   Analysis" while step N+1 takes "Investigation Results" as input is a naming drift to flag --
+   likely the same deliverable, inconsistently named -- not two different things). A judgment call,
+   not a mechanical string match; only flag a handoff that genuinely reads as broken, not every
+   wording difference.
+6. KNOWN ERROR TRACEABILITY -- if problem_management.known_errors has real content but
+   linked_incidents is empty on every entry despite the document (or the original request)
+   describing a recurring incident pattern elsewhere, flag the specific known error that should
+   reference it. An empty linked_incidents list is NOT itself a defect when no such pattern is
+   actually described anywhere -- never invent one to fill it.
 
 If issues exist, call save_iteration_feedback with channel="itsm_compliance" and feedback=
 {"status": "REVISION REQUIRED", "issues": [{"issue_type": "compliance", "location":
 "json_path_to_field", "instruction": "<specific, actionable fix>", "metadata": {"category":
-"Naming"|"Anti-Fabrication"|"RACI"|"Completeness"}}]}
+"Naming"|"Anti-Fabrication"|"RACI"|"Completeness"|"Step-Handoff"|"Known-Error-Traceability"}}]}
 then respond with exactly: REVISION REQUIRED
 
 If fully compliant, call save_iteration_feedback with channel="itsm_compliance" and feedback=
 {"status": "ITSM_COMPLIANCE_APPROVED", "notes": "The ITSM process document meets naming hygiene,
-anti-fabrication, RACI coverage, and structural completeness criteria."}
+anti-fabrication, RACI coverage, structural completeness, step-handoff consistency, and known-error
+traceability criteria."}
 then respond with exactly: ITSM_COMPLIANCE_APPROVED
 
 Your only visible output is one of those two literal strings -- no commentary, no JSON in chat.

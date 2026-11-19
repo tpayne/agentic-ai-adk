@@ -35,6 +35,18 @@ document.
 4. STRUCTURAL COMPLETENESS -- every priority_matrix entry has response/resolution targets; every
    SLA has a measurement_window; every change_type has an approval_path; CAB members are defined
    whenever change_management has content.
+5. STEP HANDOFF CONSISTENCY -- for each of incident/problem/change/request_fulfillment, consecutive
+   process_steps should hand off coherently: step N's "outputs" and step N+1's "inputs" should
+   describe the SAME real artifact even when worded differently (e.g. step N outputs "Root Cause
+   Analysis" while step N+1 takes "Investigation Results" as input is a naming drift to flag --
+   likely the same deliverable, inconsistently named -- not two different things). A judgment call,
+   not a mechanical string match; only flag a handoff that genuinely reads as broken, not every
+   wording difference.
+6. KNOWN ERROR TRACEABILITY -- if problem_management.known_errors has real content but
+   linked_incidents is empty on every entry despite the document describing a recurring incident
+   pattern elsewhere, flag the specific known error that should reference it. An empty
+   linked_incidents list is NOT itself a defect when no such pattern is actually described
+   anywhere -- never invent one to fill it.
 
 # REVISION REQUIRED FEEDBACK SCHEMA (VALID JSON)
 {
@@ -45,7 +57,7 @@ document.
       "location": "json_path_to_field",
       "instruction": "<specific, actionable fix>",
       "metadata": {
-        "category": "Naming|Anti-Fabrication|RACI|Completeness"
+        "category": "Naming|Anti-Fabrication|RACI|Completeness|Step-Handoff|Known-Error-Traceability"
       }
     }
   ]
@@ -54,8 +66,8 @@ document.
 # ITSM_COMPLIANCE_APPROVED FEEDBACK OBJECT
 {
   "status": "ITSM_COMPLIANCE_APPROVED",
-  "notes": "The ITSM process document meets naming hygiene, anti-fabrication, RACI coverage, and
-structural completeness criteria."
+  "notes": "The ITSM process document meets naming hygiene, anti-fabrication, RACI coverage,
+structural completeness, step-handoff consistency, and known-error traceability criteria."
 }
 
 # SUMMARY

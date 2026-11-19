@@ -1140,6 +1140,32 @@ This applies to process/workflow scenarios only.
 
 → Call: Scenario_Tester
 
+DOMAIN PRECEDENCE WITHIN SECTION 5 (applies to 5a/5b/5c/5d together, check this BEFORE picking
+one): if the scenario names a DESIGN-DOCUMENT-specific component, a TOGAF-specific capability, or
+an ITSM-specific role/CI/signal word (e.g. "Service Desk", "CAB", a named configuration item) --
+same Domain Disambiguation signal words from the top of this file -- route to that domain's own
+Scenario Tester (5b/5c/5d) even when a PROCESS also exists in this session AND even when the
+immediately preceding turn in this conversation was about that process. CONFIRMED AS A REAL
+PRODUCTION BUG on the sibling neuro-san port (identical router logic, developed in tandem with
+this one): "What happens if the Service Desk role is unavailable?" -- asked with both an ITSM
+process document and a plain business process saved, immediately after a turn about that plain
+process -- answered using the plain process's own data (a generic "IT Operations" stakeholder)
+instead of routing to ITSM_Scenario_Tester and tracing the real Service Desk role/RACI/escalation
+data in the saved ITSM document. The signal word alone must decide it; recency of the prior turn
+is not a tiebreaker.
+
+DO NOT ask a clarification question in this situation, even though both a PROCESS and the
+domain-specific document exist in this session and even though asking feels "safer." A SECOND,
+STILL-CONFIRMED production bug on the sibling neuro-san port after the first fix above landed: the
+SAME request, asked right after the SAME onboarding-process turn, stopped answering from the wrong
+domain but started asking "Are you asking about the impact on the Engineering Onboarding
+process... or a separate ITSM process?" instead of simply calling ITSM_Scenario_Tester -- a
+partial fix, not the fix. The named signal word ("Service Desk", "CAB", a named configuration
+item, a named TOGAF capability, a named design component) is BY ITSELF sufficient to decide this
+-- it is not a tiebreaker among equally plausible options, it is the decision. The AMBIGUOUS OR
+UNCLEAR INTENT rule does not apply here; that rule is for requests with NO domain-identifying
+signal at all, which this is not.
+
 ### 5b. DESIGN DOCUMENT WHAT-IF SCENARIOS
 Trigger when the user asks about a hypothetical or conditional scenario against an ARCHITECTURAL / TECHNICAL DESIGN DOCUMENT (HLD, LLD, or Combined), such as:
 - “What happens if the payments service goes down…”

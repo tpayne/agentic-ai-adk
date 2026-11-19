@@ -26,12 +26,12 @@ POST   /chat                    {"query": "...", "session_id": "..." (optional)}
 POST   /chat/stream              same body; text/event-stream of progress/delta/done events instead
 DELETE /chat/<session_id>       -> {"status": "ok", "session_id": "...", "cleared": true|false}
 GET    /artifacts/<name>        "process", "design", "requirements", "proposal_response",
-                                 "test_specification", "portfolio_backlog", or "togaf" ->
+                                 "test_specification", "portfolio_backlog", "togaf", or "itsm" ->
                                  {"status": "ok", "name": "...", "data": {...the parsed
                                  output/process_data.json / design_data.json /
                                  requirements_summary.json / proposal_response.json /
                                  test_specification.json / portfolio_backlog.json /
-                                 togaf_data.json...}};
+                                 togaf_data.json / itsm_data.json...}};
                                  "cloudarch" -> same envelope, but "data" is the raw
                                  output/cloudarch_drawio.xml TEXT instead of parsed JSON; 404 if
                                  that pipeline hasn't produced an artifact yet
@@ -250,7 +250,8 @@ relabel anything already recorded.
 The **Artefact Browser** tab is a read-only, hierarchical viewer for whichever pipeline's current
 output the connected backend has on disk — `output/process_data.json`, `output/design_data.json`,
 `output/requirements_summary.json`, `output/proposal_response.json`,
-`output/test_specification.json`, `output/portfolio_backlog.json`, or `output/togaf_data.json` —
+`output/test_specification.json`, `output/portfolio_backlog.json`, `output/togaf_data.json`, or
+`output/itsm_data.json` —
 fetched via the new `GET /artifacts/<name>` endpoint above. Unlike the Chat and Agent Network tabs
 (built entirely from data already flowing over the streaming contract), this one needed a new
 backend route, since the web client is a static page with no filesystem access of its own: both
@@ -260,7 +261,8 @@ blank template when the file is missing — this tab needs a real 404 to tell "g
 generated yet" apart from "here's an empty template".
 
 - A dropdown (**Process JSON** / **Design JSON** / **Requirements JSON** / **Proposal Response
-  JSON** / **Test Specification JSON** / **Portfolio Backlog JSON** / **TOGAF JSON**) picks which
+  JSON** / **Test Specification JSON** / **Portfolio Backlog JSON** / **TOGAF JSON** / **ITSM
+  JSON**) picks which
   artifact to load — a plain `<select>` rather than a row of toggle buttons, so a future artefact
   type doesn't keep widening the toolbar. The icon-only refresh button (top-right of the toolbar,
   next to the dropdown) re-fetches the currently selected one on demand — this tab never

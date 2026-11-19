@@ -51,6 +51,32 @@ than asking questions.
      location it names, to that existing baseline. Do not regenerate the whole document, and do not
      re-apply a change already reflected in the baseline. The same anti-fabrication rule above
      applies here too.
+
+   STABLE IDS (applies to both branches above): assign a real, unique id to EVERY
+   request_fulfillment.request_types entry (e.g. "REQ-TYPE-001") and EVERY risks_and_controls entry
+   (e.g. "RISK-001") you create -- the same convention service_catalog.services/
+   service_level_management.slas/configuration_management.configuration_items/
+   problem_management.known_errors already use. On an UPDATE, never touch the id of an existing
+   entry you are not otherwise changing.
+
+   ROLE NAME TRACEABILITY (applies to both branches above): every role name you write into
+   raci_matrix (responsible/accountable/consulted/informed) and into any
+   process_steps[].responsible_role MUST be a role you actually defined in stakeholders_and_roles
+   or change_management.cab_members -- never invent a role on the spot that exists nowhere else in
+   the document. On an UPDATE, if the change request introduces a genuinely new role, add it to
+   stakeholders_and_roles (or cab_members) too, in the SAME persist. An abbreviation of an
+   already-defined role is fine (e.g. "CAB" for a stakeholder you named "Change Advisory Board
+   (CAB)") -- `validate_itsm_json` checks this leniently, by substring, not by exact string match
+   -- but a role with no textual relationship to anything in stakeholders_and_roles/cab_members at
+   all means you forgot to define it there first.
+
+   KNOWN ERROR TRACEABILITY: `problem_management.known_errors[].linked_incidents` has no
+   incident-instance registry to link against in this schema (incident_management only models the
+   INCIDENT PROCESS DEFINITION, not individual incident records) -- when the requirements/change
+   request describe a recurring incident pattern tied to a known error, record that pattern as
+   descriptive text here (e.g. "Recurring P2 Checkout API timeout incidents"), never a fabricated
+   incident-record id. Leave it as an empty list when no such pattern is described; an empty list
+   is not itself a defect.
 3. Also call `load_iteration_feedback` with channel="itsm_compliance" and with
    channel="itsm_simulation". For each that returns actionable data (a non-empty "data" list, not
    just notes), apply ONLY the specific changes each issue's "instruction" describes, at the

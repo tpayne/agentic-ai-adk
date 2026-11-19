@@ -61,6 +61,32 @@ def test_router_disambiguates_itsm_from_generic_process_and_togaf():
     assert "is the ITSM PROCESS DOCUMENT domain, not a generic business PROCESS" in text
 
 
+def test_router_scenario_section_prefers_itsm_signal_words_over_the_generic_process():
+    # CONFIRMED AS A REAL PRODUCTION BUG from a live run: "What happens if the Service Desk role
+    # is unavailable?" -- asked with both an ITSM process document and a plain business process
+    # saved, immediately after a turn about that plain process -- answered using the plain
+    # process's own data instead of routing to ITSM_Scenario_Tester and tracing the real Service
+    # Desk role/RACI/escalation data in the saved ITSM document. Section 5a's own generic "what
+    # happens if..." trigger has no built-in exclusion for an ITSM (or design/TOGAF) signal word,
+    # and recency of the prior turn apparently won over the signal word in actual live routing.
+    text = (REGISTRIES / "process_architect.hocon").read_text(encoding="utf-8")
+    section_5a_start = text.index("### 5a. PROCESS WHAT-IF SCENARIOS")
+    section_5b_start = text.index("### 5b. DESIGN DOCUMENT WHAT-IF SCENARIOS")
+    section_5a_text = text[section_5a_start:section_5b_start]
+
+    assert "DOMAIN PRECEDENCE WITHIN SECTION 5" in section_5a_text
+    assert "CONFIRMED AS A REAL\nPRODUCTION BUG" in section_5a_text or "CONFIRMED AS A REAL PRODUCTION BUG" in section_5a_text
+    assert "recency of\nthe prior turn is not a tiebreaker" in section_5a_text or "recency of the prior turn is not a tiebreaker" in section_5a_text
+
+    # SECOND, STILL-CONFIRMED bug after the first fix above landed: the router stopped
+    # answering from the wrong domain but started asking a clarification question instead of
+    # just calling ITSM_Scenario_Tester -- a partial fix, not the fix. The carve-out must
+    # explicitly forbid asking, not just state a precedence preference.
+    assert 'DO NOT ask a clarification question in this situation' in section_5a_text
+    assert "STILL-CONFIRMED production bug" in section_5a_text
+    assert "it is not a tiebreaker among equally\nplausible options, it is the decision" in section_5a_text or "it is not a tiebreaker among equally plausible options, it is the decision" in section_5a_text
+
+
 def test_router_sends_bare_itsm_regenerate_requests_to_regenerate_document_agent():
     # Same production-bug precedent as TOGAF's own regression guard (see
     # test_togaf_pipeline_wiring.py's matching test): a bare "regenerate the ITSM
@@ -118,13 +144,29 @@ def test_itsm_analysis_agent_refuses_to_fabricate_from_nothing():
     assert "Do NOT invent a plausible-\nsounding organization/service catalog from nothing." in text
 
 
-def test_itsm_compliance_agent_has_the_four_item_checklist():
-    text = (REGISTRIES / "itsm.hocon").read_text(encoding="utf-8")
-    assert "NAMING HYGIENE" in text
-    assert "ANTI-FABRICATION" in text
-    assert "RACI COVERAGE" in text
-    assert "STRUCTURAL COMPLETENESS" in text
-    assert "ITSM_COMPLIANCE_APPROVED" in text
+def test_itsm_compliance_agent_has_the_six_item_checklist():
+    for hocon_path in (REGISTRIES / "itsm.hocon", REGISTRIES / "itsm_update.hocon"):
+        text = hocon_path.read_text(encoding="utf-8")
+        assert "NAMING HYGIENE" in text
+        assert "ANTI-FABRICATION" in text
+        assert "RACI COVERAGE" in text
+        assert "STRUCTURAL COMPLETENESS" in text
+        assert "STEP HANDOFF CONSISTENCY" in text
+        assert "KNOWN ERROR TRACEABILITY" in text
+        assert "ITSM_COMPLIANCE_APPROVED" in text
+
+
+def test_itsm_agent_assigns_stable_ids_and_checks_role_traceability():
+    # Follow-up schema-quality fixes: request_types/risks_and_controls entries now need a
+    # real id (same convention SLA/CI/known_errors already use), and every role name written
+    # into raci_matrix/process_steps must trace back to a role actually defined in
+    # stakeholders_and_roles/cab_members -- the "CAB" vs "Change Advisory Board (CAB)" drift a
+    # plain human reviewer would catch on sight.
+    for hocon_path in (REGISTRIES / "itsm.hocon", REGISTRIES / "itsm_update.hocon"):
+        text = hocon_path.read_text(encoding="utf-8")
+        assert "STABLE IDS" in text
+        assert "ROLE NAME TRACEABILITY" in text
+        assert "validate_itsm_json checks this leniently, by substring, not" in text
 
 
 def test_itsm_simulation_agent_runs_structural_not_timing_analysis():

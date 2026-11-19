@@ -25,3 +25,13 @@ def test_artifact_browser_exposes_togaf_json():
     # (togaf_data.json) already follows the "<artifact>_data.json" convention the download
     # helper falls back to, the same reason "process"/"design" have no entry either.
     assert '"togaf"' in app
+
+
+def test_artifact_browser_exposes_itsm_json():
+    html = (WEBCLIENT_ROOT / "public" / "index.html").read_text(encoding="utf-8")
+    app = (WEBCLIENT_ROOT / "public" / "app.js").read_text(encoding="utf-8")
+
+    assert '<option value="itsm">ITSM JSON</option>' in html
+    # No explicit ARTIFACT_FILENAMES entry is expected for "itsm" either -- same reasoning
+    # as "togaf" above (itsm_data.json already follows the default convention).
+    assert '"itsm"' in app

@@ -153,6 +153,30 @@ def test_validate_requires_source_and_target_ci_for_each_relationship():
     assert "configuration_management.relationships[0].target_ci" in locations
 
 
+def test_validate_requires_id_and_type_for_each_request_type():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "request_fulfillment": {"request_types": [{"description": "Missing id/type."}]},
+    }
+    result = validate_itsm_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "request_fulfillment.request_types[0].id" in locations
+    assert "request_fulfillment.request_types[0].type" in locations
+
+
+def test_validate_requires_id_risk_and_control_for_each_risk():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "risks_and_controls": [{"risk": "Unauthorized change"}],
+    }
+    result = validate_itsm_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "risks_and_controls[0].id" in locations
+    assert "risks_and_controls[0].control" in locations
+
+
 def test_validate_requires_process_area_and_activity_for_each_raci_entry():
     doc = {
         "document_metadata": _valid_metadata(),
@@ -173,6 +197,88 @@ def test_validate_accepts_a_well_formed_raci_entry():
             "responsible": "Service Desk", "accountable": "Incident Manager",
             "consulted": "", "informed": "Customer",
         }],
+    }
+    result = validate_itsm_json(doc)
+    assert result == {"valid": True, "issues": []}
+
+
+def test_validate_flags_a_raci_role_that_matches_no_defined_stakeholder():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "stakeholders_and_roles": [{"role": "Service Desk", "responsibilities": [], "escalation_tier": "1"}],
+        "raci_matrix": [{
+            "process_area": "Incident Management", "activity": "Log Incident",
+            "responsible": "Service Desk", "accountable": "Nonexistent Role",
+        }],
+    }
+    result = validate_itsm_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "raci_matrix[0].accountable" in locations
+    assert "raci_matrix[0].responsible" not in locations
+
+
+def test_validate_role_matching_is_lenient_substring_not_exact():
+    # Deliberately lenient: "CAB" is a real abbreviation of "Change Advisory
+    # Board (CAB)" as actually defined -- this is the exact drift a plain
+    # human reviewer would read as the SAME role, not a defect, so it must
+    # not be flagged. An exact-match check would make this uselessly noisy.
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "stakeholders_and_roles": [
+            {"role": "Change Advisory Board (CAB)", "responsibilities": [], "escalation_tier": ""},
+        ],
+        "raci_matrix": [{
+            "process_area": "Change Management", "activity": "Approve Change",
+            "accountable": "CAB",
+        }],
+    }
+    result = validate_itsm_json(doc)
+    assert result == {"valid": True, "issues": []}
+
+
+def test_validate_skips_role_cross_check_when_no_roles_are_defined_yet():
+    # Mid-generation documents legitimately have no stakeholders_and_roles
+    # populated yet -- nothing to cross-check against, so this must not be
+    # treated as "every role reference is unknown."
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "raci_matrix": [{
+            "process_area": "Incident Management", "activity": "Log Incident",
+            "responsible": "Service Desk",
+        }],
+    }
+    result = validate_itsm_json(doc)
+    assert result == {"valid": True, "issues": []}
+
+
+def test_validate_flags_a_process_step_responsible_role_that_matches_no_defined_stakeholder():
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "stakeholders_and_roles": [{"role": "Service Desk", "responsibilities": [], "escalation_tier": "1"}],
+        "incident_management": {
+            "process_steps": [{
+                "step_id": "INC-1", "step_name": "Log Incident", "responsible_role": "Random Team",
+            }],
+        },
+    }
+    result = validate_itsm_json(doc)
+    assert not result["valid"]
+    locations = {issue["location"] for issue in result["issues"]}
+    assert "incident_management.process_steps[0].responsible_role" in locations
+
+
+def test_validate_accepts_a_cab_members_role_not_duplicated_in_stakeholders_and_roles():
+    # cab_members is a second legitimate place a role name is introduced --
+    # it need not also appear in stakeholders_and_roles to be considered known.
+    doc = {
+        "document_metadata": _valid_metadata(),
+        "change_management": {
+            "cab_members": [{"role": "CAB Chair", "name_or_title": "Head of Engineering"}],
+            "process_steps": [{
+                "step_id": "CHG-1", "step_name": "Approve Change", "responsible_role": "CAB Chair",
+            }],
+        },
     }
     result = validate_itsm_json(doc)
     assert result == {"valid": True, "issues": []}

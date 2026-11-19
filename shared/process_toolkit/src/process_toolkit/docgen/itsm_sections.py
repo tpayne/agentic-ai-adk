@@ -368,14 +368,15 @@ def _add_request_fulfillment_section(
 
         if request_types:
             doc.add_heading("6.1 Request Types", level=2)
-            headers = ["Type", "Description", "Target Fulfillment Time"]
+            headers = ["ID", "Type", "Description", "Target Fulfillment Time"]
             table = doc.add_table(rows=1, cols=len(headers))
             _set_header_row(table, headers)
             for r in sorted(request_types, key=lambda r: str(r.get("type") or "").lower()):
                 row = table.add_row().cells
-                row[0].text = str(r.get("type", ""))
-                _set_cell_bullets(row[1], r.get("description"))
-                row[2].text = str(r.get("target_fulfillment_time", ""))
+                row[0].text = str(r.get("id", ""))
+                row[1].text = str(r.get("type", ""))
+                _set_cell_bullets(row[2], r.get("description"))
+                row[3].text = str(r.get("target_fulfillment_time", ""))
             apply_iso_table_formatting(table, doc)
             doc.add_paragraph()
 
@@ -627,13 +628,14 @@ def _add_risks_and_controls_section(
             "the controls mitigating each one."
         )
 
-        headers = ["Risk", "Control"]
+        headers = ["ID", "Risk", "Control"]
         table = doc.add_table(rows=1, cols=len(headers))
         _set_header_row(table, headers)
         for r in items:
             row = table.add_row().cells
-            _set_cell_bullets(row[0], r.get("risk"))
-            _set_cell_bullets(row[1], r.get("control"))
+            row[0].text = str(r.get("id", ""))
+            _set_cell_bullets(row[1], r.get("risk"))
+            _set_cell_bullets(row[2], r.get("control"))
         apply_iso_table_formatting(table, doc)
         doc.add_paragraph()
 

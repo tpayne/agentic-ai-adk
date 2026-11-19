@@ -114,11 +114,14 @@ class TestRequestFulfillmentSection:
     def test_renders_request_types_and_steps(self):
         doc = docx.Document()
         rendered = itsm_sections._add_request_fulfillment_section(doc, {
-            "request_types": [{"type": "New Laptop", "target_fulfillment_time": "3 business days"}],
+            "request_types": [{
+                "id": "REQ-TYPE-001", "type": "New Laptop", "target_fulfillment_time": "3 business days",
+            }],
             "process_steps": [{"step_id": "REQ-1", "step_name": "Submit Request"}],
         })
         assert rendered is True
         table_texts = [c.text for t in doc.tables for row in t.rows for c in row.cells]
+        assert "REQ-TYPE-001" in table_texts
         assert "New Laptop" in table_texts
         assert "Submit Request" in table_texts
 
@@ -203,10 +206,14 @@ class TestRisksAndControlsSection:
     def test_renders_risks(self):
         doc = docx.Document()
         rendered = itsm_sections._add_risks_and_controls_section(doc, [
-            {"risk": "Unauthorized change", "control": "CAB approval required for all normal/emergency changes"},
+            {
+                "id": "RISK-001", "risk": "Unauthorized change",
+                "control": "CAB approval required for all normal/emergency changes",
+            },
         ])
         assert rendered is True
         table_texts = [c.text for t in doc.tables for row in t.rows for c in row.cells]
+        assert "RISK-001" in table_texts
         assert any("Unauthorized change" in t for t in table_texts)
 
     def test_no_cost_or_date_figure_ever_renders(self):

@@ -252,11 +252,13 @@ def _minimal_valid_itsm_doc() -> dict:
     template["problem_management"]["process_steps"] = []
     template["change_management"]["change_types"] = []
     template["change_management"]["process_steps"] = []
+    template["request_fulfillment"]["request_types"] = []
     template["request_fulfillment"]["process_steps"] = []
     template["service_level_management"]["slas"] = []
     template["configuration_management"]["configuration_items"] = []
     template["configuration_management"]["relationships"] = []
     template["raci_matrix"] = []
+    template["risks_and_controls"] = []
     return template
 
 

@@ -304,10 +304,11 @@ def generate_document(
 def generate_diagram(schema_type: str, session_id: Optional[str] = None) -> dict:
     """Generates the whole-document flow/architecture diagram for
     `schema_type` (meaningful for "design" and "process" only -- "togaf"'s
-    diagrams are per-section and rendered inline by generate_document
-    instead; requirements/proposal_response/test_specification have no
-    diagram at all). Returns {"message": ..., "diagram": null} rather than
-    fabricating a diagram when the schema_type has none."""
+    and "itsm"'s diagrams are per-section and rendered inline by
+    generate_document instead; requirements/proposal_response/
+    test_specification have no diagram at all). Returns {"message": ...,
+    "diagram": null} rather than fabricating a diagram when the schema_type
+    has none."""
     ops = _domain_or_error(schema_type)
     if not ops.has_diagram:
         return {

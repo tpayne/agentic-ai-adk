@@ -232,14 +232,28 @@ def test_approval_markers_are_registered_in_the_shared_feedback_module():
     assert APPROVAL_MARKERS["ITSM_SIMULATION_ALL_APPROVED"] == ("itsm_simulation_status", "APPROVED")
 
 
-def test_itsm_compliance_instructions_have_the_four_item_checklist_and_approved_marker():
+def test_itsm_compliance_instructions_have_the_six_item_checklist_and_approved_marker():
     text = _read("instructions/itsm/compliance_agent.txt")
 
     assert "NAMING HYGIENE" in text
     assert "ANTI-FABRICATION" in text
     assert "RACI COVERAGE" in text
     assert "STRUCTURAL COMPLETENESS" in text
+    assert "STEP HANDOFF CONSISTENCY" in text
+    assert "KNOWN ERROR TRACEABILITY" in text
     assert "ITSM_COMPLIANCE_APPROVED" in text
+
+
+def test_itsm_agent_assigns_stable_ids_and_checks_role_traceability():
+    # Follow-up schema-quality fixes: request_types/risks_and_controls entries now need a
+    # real id (same convention SLA/CI/known_errors already use), and every role name written
+    # into raci_matrix/process_steps must trace back to a role actually defined in
+    # stakeholders_and_roles/cab_members -- the "CAB" vs "Change Advisory Board (CAB)" drift a
+    # plain human reviewer would catch on sight.
+    text = _read("instructions/itsm/itsm_agent.txt")
+    assert "STABLE IDS" in text
+    assert "ROLE NAME TRACEABILITY" in text
+    assert "validate_itsm_json` checks this leniently, by substring, not" in text
 
 
 def test_itsm_agent_instructions_carry_the_naming_hygiene_and_anti_fabrication_rules():
@@ -262,6 +276,33 @@ def test_root_router_routes_itsm_requests():
     assert "→ Call: ITSM_Scenario_Tester" in text
     assert "ITSM process document creation → Full_ITSM_Pipeline" in text
     assert "ITSM process document → ITSM_Scenario_Tester" in text
+
+
+def test_router_scenario_section_prefers_itsm_signal_words_over_the_generic_process():
+    # CONFIRMED AS A REAL PRODUCTION BUG on the sibling neuro-san port (identical router logic,
+    # developed in tandem with this one): "What happens if the Service Desk role is unavailable?"
+    # -- asked with both an ITSM process document and a plain business process saved, immediately
+    # after a turn about that plain process -- answered using the plain process's own data instead
+    # of routing to ITSM_Scenario_Tester and tracing the real Service Desk role/RACI/escalation
+    # data in the saved ITSM document. Section 5a's own generic "what happens if..." trigger has
+    # no built-in exclusion for an ITSM (or design/TOGAF) signal word, and recency of the prior
+    # turn apparently won over the signal word in actual live routing.
+    text = _read("instructions/common/agent.txt")
+    section_5a_start = text.index("### 5a. PROCESS WHAT-IF SCENARIOS")
+    section_5b_start = text.index("### 5b. DESIGN DOCUMENT WHAT-IF SCENARIOS")
+    section_5a_text = text[section_5a_start:section_5b_start]
+
+    assert "DOMAIN PRECEDENCE WITHIN SECTION 5" in section_5a_text
+    assert "CONFIRMED AS A REAL" in section_5a_text
+    assert "recency of the prior turn\nis not a tiebreaker" in section_5a_text or "recency of the prior turn is not a tiebreaker" in section_5a_text
+
+    # SECOND, STILL-CONFIRMED bug after the first fix above landed: the router stopped
+    # answering from the wrong domain but started asking a clarification question instead of
+    # just calling ITSM_Scenario_Tester -- a partial fix, not the fix. The carve-out must
+    # explicitly forbid asking, not just state a precedence preference.
+    assert "DO NOT ask a clarification question in this situation" in section_5a_text
+    assert "STILL-CONFIRMED production bug" in section_5a_text
+    assert "it is not a tiebreaker among equally plausible options, it is the decision" in section_5a_text
 
 
 def test_router_sends_bare_itsm_regenerate_requests_to_create_doc_agent():

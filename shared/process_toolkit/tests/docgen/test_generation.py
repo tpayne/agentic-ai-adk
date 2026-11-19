@@ -1132,7 +1132,7 @@ SAMPLE_ITSM = {
         "risk_assessment_criteria": [{"risk_level": "High", "criteria": "Production outage possible"}],
     },
     "request_fulfillment": {
-        "request_types": [{"type": "New Laptop", "target_fulfillment_time": "3 business days"}],
+        "request_types": [{"id": "REQ-TYPE-001", "type": "New Laptop", "target_fulfillment_time": "3 business days"}],
         "process_steps": [
             {"step_id": "REQ-1", "step_name": "Submit Request", "responsible_role": "Requester"},
             {"step_id": "REQ-2", "step_name": "Approve", "responsible_role": "Manager"},
@@ -1160,7 +1160,7 @@ SAMPLE_ITSM = {
         },
     ],
     "tooling_and_platform": [{"category": "ITSM Platform", "tool_name": "ServiceNow", "purpose": "Ticketing"}],
-    "risks_and_controls": [{"risk": "Unauthorized change", "control": "CAB approval required"}],
+    "risks_and_controls": [{"id": "RISK-001", "risk": "Unauthorized change", "control": "CAB approval required"}],
     "glossary_and_references": {"glossary": [{"term": "CAB", "definition": "Change Advisory Board"}]},
 }
 
