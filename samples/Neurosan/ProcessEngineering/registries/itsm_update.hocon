@@ -42,7 +42,11 @@ ITSM_Simulation_Agent each audit the result, and you decide whether to repeat us
 # REQUIRED SEQUENCE (every time you are invoked, for a NEW change request)
 1. Call reset_loop_state once (no commentary). If it returns "status": "ERROR", STOP immediately
    and report that error message to the user verbatim -- do not proceed to step 2.
-2. Call ITSM_Update_Analyst, passing the user's change-request text verbatim as "request".
+2. Call ITSM_Update_Analyst, passing the user's change-request text verbatim as "request". If its
+   reply begins with "NO BASELINE TO UPDATE", call release_pipeline_lock_for_turn FIRST, THEN STOP
+   immediately and report that reply to the user verbatim -- do not proceed to step 3. The
+   release_pipeline_lock_for_turn call is MANDATORY here, not optional -- stopping here without
+   releasing leaves step 1's own lock held for up to 20 minutes.
 3. Call ITSM_Agent (no arguments -- it reads the analyst's delta and any prior review feedback
    itself).
 4. Call ITSM_Compliance_Agent (no arguments).
@@ -70,8 +74,9 @@ exists RIGHT NOW.
    Plain prose only -- no raw JSON, tool names, or internal field names.
 """,
             "tools": [
-                "reset_loop_state", "ITSM_Update_Analyst", "ITSM_Agent", "ITSM_Compliance_Agent",
-                "ITSM_Simulation_Agent", "loop_control", "generate_itsm_document", "format_review_status_summary"
+                "reset_loop_state", "release_pipeline_lock_for_turn", "ITSM_Update_Analyst", "ITSM_Agent",
+                "ITSM_Compliance_Agent", "ITSM_Simulation_Agent", "loop_control", "generate_itsm_document",
+                "format_review_status_summary"
             ],
             "middleware": ${pipeline_middleware}
         },
@@ -96,14 +101,30 @@ or chat.
 
 # SEQUENCE
 1. Call load_itsm_data to retrieve the existing baseline ITSM process document.
-2. Analyze the requested changes ("request" argument) against that baseline.
+
+STOP CONDITION -- NO BASELINE TO UPDATE (CHECK BEFORE WRITING ANYTHING): an update presupposes a
+REAL, already-saved ITSM process document. If load_itsm_data's own "document_metadata" has no real,
+non-empty "system_name" or "title" (i.e. it returned the EMPTY TEMPLATE, not an actual saved
+document), there is nothing to update. Do NOT call save_iteration_feedback, do NOT analyze the
+change request against the empty template, and do NOT invent a plausible-sounding organization/
+service catalog to update instead. Your own visible reply (not a tool call) MUST be exactly:
+NO BASELINE TO UPDATE: no saved ITSM process document exists yet.
+CONFIRMED AS A REAL BUG from a live run: without this check, a bare update request against nothing
+saved ("Add an emergency change type to the ITSM process document.") fabricated an entire fictitious
+organization and persisted it as a brand-new document -- exactly the anti-fabrication violation
+ITSM_Analysis_Agent's own NO REAL SOURCE MATERIAL stop condition exists to prevent on the create
+side; this is the identical guard for the update side.
+
+2. Otherwise, a real baseline exists -- analyze the requested changes ("request" argument) against
+   it.
 3. Call save_iteration_feedback with channel="itsm_analysis" and feedback=
    {"status": "REVISION REQUIRED", "issues": [{"issue_type": "update", "location":
    "json_path_to_field", "instruction": "<clear, specific, actionable description of what change
    is required>", "metadata": {}}]}
 
-Your turn MUST end with that tool call. Do not output "REVISION REQUIRED" or any other text --
-the tool call is your only output.
+Your turn MUST end with that tool call (or, for the STOP CONDITION above, with no tool call at all
+-- just the exact reply text). Do not output "REVISION REQUIRED" or any other text -- the tool call
+is your only output in the non-stop case.
 """,
             "tools": ["load_itsm_data", "save_iteration_feedback"]
         },
@@ -122,6 +143,12 @@ ITIL-aligned assumptions rather than asking questions.
 # SEQUENCE
 1. Call load_itsm_data -- this is your baseline (the existing document; since this is an UPDATE,
    it should already exist).
+   SAFETY CHECK: if "document_metadata" has no real, non-empty "system_name"/"title" (the empty
+   template, not a real saved document), ITSM_Update_Pipeline should already have stopped before
+   calling you in this case (ITSM_Update_Analyst's own NO BASELINE TO UPDATE check), but if you ever
+   receive it anyway: do NOT invent an organization/service catalog from nothing, do NOT call
+   persist_final_itsm_json, and respond in plain language that there is no saved ITSM process
+   document to update yet. Stop here; skip the rest of this SEQUENCE.
 2. Call load_iteration_feedback with channel="itsm_analysis". Apply ONLY the specific changes each
    issue's "instruction" describes, at the location it names, to the existing baseline -- do not
    regenerate the whole document, and do not re-apply a change already reflected in the baseline.
@@ -207,6 +234,11 @@ Your only visible output is one of those two literal strings -- no commentary, n
             "name": "reset_loop_state",
             "function": {"description": "Clears stale approval/iteration-counter state from an earlier, unrelated request. Takes no meaningful arguments."},
             "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock when stopping early, before ever reaching generate_itsm_document. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
         },
         {
             "name": "loop_control",

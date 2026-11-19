@@ -188,6 +188,22 @@ def test_update_itsm_pipeline_clones_the_loop_agents_not_the_originals():
     assert itsm_inst.instruction == itsm_agent.instruction
 
 
+def test_itsm_update_analyst_refuses_to_fabricate_against_an_empty_baseline():
+    # CONFIRMED AS A REAL BUG on the sibling neuro-san port: a bare update request against nothing
+    # saved ("Add an emergency change type to the ITSM process document.") fabricated an entire
+    # fictitious organization and persisted it as a brand-new document instead of refusing -- the
+    # update-side equivalent of ITSM_Analysis_Agent's own NO REAL SOURCE MATERIAL guard. Both the
+    # first line of defense (ITSM_Update_Analyst) and the defense-in-depth check (ITSM_Agent's own
+    # UPDATE DELTA branch) must refuse rather than fabricate.
+    analyst_text = _read("instructions/itsm/update_analysis_agent.txt")
+    assert "do not create one as a substitute -- stop here" in analyst_text
+
+    agent_text = _read("instructions/itsm/itsm_agent.txt")
+    assert "do NOT invent an" in agent_text
+    assert "organization/service catalog from nothing" in agent_text
+    assert "CONFIRMED AS A REAL BUG" in agent_text
+
+
 def test_itsm_agent_instructions_handle_both_fresh_generation_and_update_deltas():
     # Regression guard: itsm_agent.txt is shared (via true clone) by both
     # Full_ITSM_Pipeline and Update_ITSM_Pipeline. Early draft wrongly

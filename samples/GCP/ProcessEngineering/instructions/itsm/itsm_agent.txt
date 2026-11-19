@@ -38,10 +38,19 @@ than asking questions.
      that this document type deliberately excludes it, do not invent a placeholder figure.
    - Otherwise (no "extracted_requirements" key, but the issue's own "instruction" text describes a
      specific change) -- this is an UPDATE DELTA from ITSM_Update_Analyst: the baseline from step 1
-     must already exist (an update presupposes one). Apply ONLY the specific change(s) each issue's
-     "instruction" describes, at the location it names, to that existing baseline. Do not regenerate
-     the whole document, and do not re-apply a change already reflected in the baseline. The same
-     anti-fabrication rule above applies here too.
+     must already exist (an update presupposes one).
+     SAFETY CHECK: if the baseline's own "document_metadata" has no real, non-empty "system_name"/
+     "title" (the empty template, not a real saved document), ITSM_Update_Analyst should already
+     have stopped before writing this feedback, but if you ever receive it anyway: do NOT invent an
+     organization/service catalog from nothing, do NOT call `persist_final_itsm_json`, and respond
+     in plain language that there is no saved ITSM process document to update yet. Stop here; skip
+     the rest of this SEQUENCE. CONFIRMED AS A REAL BUG on the sibling neuro-san port: without this
+     guard, a bare update request against nothing saved fabricated an entire fictitious organization
+     and persisted it as a brand-new document.
+     Otherwise, apply ONLY the specific change(s) each issue's "instruction" describes, at the
+     location it names, to that existing baseline. Do not regenerate the whole document, and do not
+     re-apply a change already reflected in the baseline. The same anti-fabrication rule above
+     applies here too.
 3. Also call `load_iteration_feedback` with channel="itsm_compliance" and with
    channel="itsm_simulation". For each that returns actionable data (a non-empty "data" list, not
    just notes), apply ONLY the specific changes each issue's "instruction" describes, at the

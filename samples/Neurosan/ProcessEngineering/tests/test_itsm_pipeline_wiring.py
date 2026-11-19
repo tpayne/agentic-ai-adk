@@ -134,6 +134,23 @@ def test_itsm_simulation_agent_runs_structural_not_timing_analysis():
     assert "ITSM_SIMULATION_ALL_APPROVED" in text
 
 
+def test_itsm_update_analyst_refuses_to_fabricate_against_an_empty_baseline():
+    # CONFIRMED AS A REAL BUG from a live run: a bare update request against nothing saved
+    # ("Add an emergency change type to the ITSM process document.") fabricated an entire
+    # fictitious organization and persisted it as a brand-new document instead of refusing --
+    # the update-side equivalent of ITSM_Analysis_Agent's own NO REAL SOURCE MATERIAL guard.
+    text = (REGISTRIES / "itsm_update.hocon").read_text(encoding="utf-8")
+    assert "NO BASELINE TO UPDATE" in text
+    assert "CONFIRMED AS A REAL BUG" in text
+    # The front-man must actually check for and act on that sentinel, and release the pipeline
+    # lock before stopping (same discipline as the create pipeline's own REQUIREMENTS EXTRACTION
+    # FAILED check).
+    assert 'reply begins with "NO BASELINE TO UPDATE"' in text
+    assert "release_pipeline_lock_for_turn" in text
+    # Defense in depth: ITSM_Agent's own SAFETY CHECK must also refuse rather than fabricate.
+    assert "do NOT invent an organization/service catalog from nothing" in text
+
+
 def test_itsm_update_pipeline_duplicates_the_shared_loop_agents():
     # External network references only reach a network's front-man, never its
     # internal sub-agents -- itsm_update.hocon must carry its own full copies of
