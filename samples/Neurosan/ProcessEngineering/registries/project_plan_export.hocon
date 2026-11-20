@@ -1,0 +1,115 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own
+# Project_Plan_Export_Agent, a standalone action -- export the current
+# Enterprise Agile Portfolio Backlog or Proposal Response as an
+# illustrative Microsoft Project / ProjectLibre interchange-format (MSPDI
+# XML) project plan, from whatever is already saved on disk. NO
+# re-analysis, NO backlog/proposal regeneration, and the saved
+# portfolio_backlog.json/proposal_response.json is never modified. This is
+# deliberately NOT portfolio_backlog.hocon's/proposal_response_pipeline.
+# hocon's own pipeline run with its early steps skipped -- same reasoning
+# as process_subprocess_regenerate.hocon's own header comment, and the
+# same standalone shape as process_visio_export.hocon.
+#
+# Domain-agnostic by design, mirroring process_visio_export.hocon's own
+# Visio_Export_Agent_Main: a bare "export a project plan" doesn't say
+# which artifact, so this front-man determines schema_type itself from the
+# user's own request wording, rather than requiring the router to have
+# already disambiguated it.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Exports the current Enterprise Agile Portfolio Backlog or Proposal Response as an illustrative Microsoft Project / ProjectLibre (MSPDI XML) project plan, from whatever is already saved on disk -- no re-analysis, no regeneration.",
+        "tags": ["portfolio", "proposal", "process-engineering-port"],
+        "sample_queries": [
+            "Export the portfolio backlog as a project plan.",
+            "Give me an MS Project file for our proposal response."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Project_Plan_Export_Agent_Main",
+
+            "function": {
+                "description": """
+I export the current Enterprise Agile Portfolio Backlog or Proposal Response as a real Microsoft
+Project / ProjectLibre interchange-format (MSPDI XML) project plan, from whatever is already saved
+on disk. I never re-run analysis, backlog/proposal generation, or review, and I never modify the
+saved data itself. Tell me to export the backlog or the proposal response as a project plan.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's project-plan-export request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You export the current Enterprise Agile Portfolio Backlog or Proposal Response as an illustrative
+Microsoft Project / ProjectLibre (MSPDI XML) project plan, from whatever is already saved on disk.
+You NEVER re-run analysis, backlog/proposal generation, or review, and you NEVER modify the saved
+portfolio_backlog.json/proposal_response.json itself -- that is every other network's job, on a
+separate request.
+
+Neither saved artifact has any real date/duration field -- the exported plan's durations are an
+ILLUSTRATIVE planning estimate computed only at export time (Portfolio Backlog: one working day per
+WSJF story point; Proposal Response: parsed from each implementation_plan phase's own free-text
+timing, falling back to a nominal estimate when unparseable). If asked, say this plainly -- it is
+not a committed schedule.
+
+# DETERMINE schema_type FIRST
+Check whether "inquiry" itself names a domain:
+- If it explicitly says "backlog" / "portfolio backlog" / "epics" / "WSJF", schema_type =
+  "portfolio_backlog".
+- If it explicitly says "proposal" / "proposal response" / "RtP" / "response", schema_type =
+  "proposal_response".
+- Otherwise -- a genuinely generic "export a project plan" with no artifact named -- ask the user
+  to clarify whether they mean the portfolio backlog or the proposal response, rather than
+  guessing. Do NOT call export_project_plan without a determined schema_type.
+
+# SEQUENCE
+1. Determine schema_type as above. If genuinely ambiguous, ask a clarifying question and stop --
+   do not call any tool.
+2. Call export_project_plan with that schema_type. Pass start_date only if the user's own request
+   explicitly names one (ISO "YYYY-MM-DD"); otherwise omit it (defaults to today).
+3. If the result starts with "ERROR", relay it verbatim -- there is no saved backlog/proposal
+   response to export yet; suggest creating one first (e.g. "create an Enterprise Agile Portfolio
+   Backlog from the saved requirements" / "draft a proposal response using the saved requirements
+   summary").
+4. Otherwise, report in plain language that the project plan was exported, the exact saved path
+   from the tool's own result, and restate briefly that durations/sequencing are an illustrative
+   planning estimate, not a committed schedule.
+
+Plain prose only in your final reply -- no raw XML, tool names, or internal field names.
+""",
+            "tools": ["export_project_plan"]
+        },
+
+        {
+            "name": "export_project_plan",
+            "function": {
+                "description": "Exports the current saved Enterprise Agile Portfolio Backlog or Proposal Response as an MSPDI project plan file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["portfolio_backlog", "proposal_response"],
+                            "description": "Which saved artifact to export a project plan from."
+                        },
+                        "start_date": {
+                            "type": "string",
+                            "description": "Optional ISO \"YYYY-MM-DD\" project start date. Defaults to today if omitted."
+                        }
+                    },
+                    "required": ["schema_type"]
+                }
+            },
+            "class": "project_plan_export_tool.ExportProjectPlanCodedTool"
+        }
+    ]
+}

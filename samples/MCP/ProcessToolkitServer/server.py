@@ -63,6 +63,9 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
+from process_toolkit.docgen.project_plan_export import (
+    build_portfolio_backlog_project_plan, build_proposal_response_project_plan,
+)
 from process_toolkit.itsm.simulation import simulate_itsm_risk_and_coverage as _simulate_itsm_risk_and_coverage
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
@@ -366,6 +369,39 @@ def export_cloudarch_vsdx(session_id: Optional[str] = None) -> dict:
         changed = _new_or_changed(before, directory, ".vsdx")
         vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
     return {"message": message, "vsdx": vsdx}
+
+
+@mcp.tool
+def export_project_plan(
+    schema_type: str, start_date: Optional[str] = None, session_id: Optional[str] = None
+) -> dict:
+    """On-demand Microsoft Project / ProjectLibre interchange-format (MSPDI
+    XML) export of an ILLUSTRATIVE project plan, for schema_type
+    "portfolio_backlog" or "proposal_response" ONLY -- no other schema_type
+    has a project plan at all. Durations are computed at render time only
+    (never written back into either saved JSON) since neither schema has a
+    real date/duration field. `start_date` (ISO "YYYY-MM-DD") defaults to
+    today when omitted. Never runs as part of either domain's own
+    generate/review pipeline -- this is a standalone action an MCP client
+    calls explicitly. Returns {"message": ..., "project_plan": null} for an
+    unsupported schema_type, or when the underlying export itself reports an
+    error (its own message, prefixed "ERROR:", is still returned either way
+    for the caller to relay)."""
+    if schema_type not in ("portfolio_backlog", "proposal_response"):
+        return {
+            "message": f"NOT_APPLICABLE: '{schema_type}' has no project plan to export.",
+            "project_plan": None,
+        }
+    with _session(session_id):
+        directory = paths.output_dir()
+        before = _snapshot_mtimes(directory, ".xml")
+        if schema_type == "portfolio_backlog":
+            message = build_portfolio_backlog_project_plan(start_date)
+        else:
+            message = build_proposal_response_project_plan(start_date)
+        changed = _new_or_changed(before, directory, ".xml")
+        project_plan = _encode_file(os.path.join(directory, changed[0])) if changed else None
+    return {"message": message, "project_plan": project_plan}
 
 
 @mcp.tool

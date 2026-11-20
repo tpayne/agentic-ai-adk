@@ -177,6 +177,35 @@ class TestResolveArtifactTarget:
         _write_output_file("Checkout_Architecture_Vision.docx")
         assert artifact_downloads.resolve_artifact_target("togaf architecture vision document") == "Checkout_Architecture_Vision.docx"
 
+    def test_project_plan_keyword_disambiguates_by_domain_word(self):
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        _write_output_file("proposal_response_project_plan.xml")
+        assert artifact_downloads.resolve_artifact_target("the backlog project plan") == "portfolio_backlog_project_plan.xml"
+        assert artifact_downloads.resolve_artifact_target("ms project file for the proposal response") == "proposal_response_project_plan.xml"
+        assert artifact_downloads.resolve_artifact_target("gantt chart for the portfolio") == "portfolio_backlog_project_plan.xml"
+
+    def test_project_plan_keyword_with_no_domain_word_resolves_only_if_exactly_one_exists(self):
+        assert artifact_downloads.resolve_artifact_target("the project plan") is None
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert artifact_downloads.resolve_artifact_target("the project plan") == "portfolio_backlog_project_plan.xml"
+        assert artifact_downloads.resolve_artifact_target("download the projectlibre file") == "portfolio_backlog_project_plan.xml"
+        _write_output_file("proposal_response_project_plan.xml")
+        assert artifact_downloads.resolve_artifact_target("the project plan") is None
+
+    def test_project_plan_keyword_resolves_to_none_when_nothing_exported(self):
+        assert artifact_downloads.resolve_artifact_target("project plan") is None
+        assert artifact_downloads.resolve_artifact_target("the backlog as an ms project file") is None
+
+    def test_project_plan_intent_is_not_hijacked_by_the_plain_backlog_workbook_branch(self):
+        _write_output_file("portfolio_backlog.xlsx")
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert artifact_downloads.resolve_artifact_target("export the backlog as a project plan") == "portfolio_backlog_project_plan.xml"
+
+    def test_bare_plan_word_alone_does_not_trigger_project_plan_resolution(self):
+        _write_output_file("portfolio_backlog.xlsx")
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert artifact_downloads.resolve_artifact_target("the backlog plan") == "portfolio_backlog.xlsx"
+
 
 class TestCloudarchDiagramExists:
     def test_false_when_not_generated(self):

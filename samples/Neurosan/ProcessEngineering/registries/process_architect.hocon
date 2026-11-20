@@ -1650,6 +1650,29 @@ Do NOT force this request into any generate/review pipeline, and do NOT treat a 
 diagram"/"create the architecture" request as implying a Visio export -- Visio export only happens
 on an EXPLICIT ask naming "Visio"/".vsdx". This is purely ADDITIVE: it never runs as a side effect
 of any other request, and no existing pipeline step changes because of it.
+
+------------------------------------------------------------
+# PROJECT PLAN (MS PROJECT / PROJECTLIBRE) EXPORT
+------------------------------------------------------------
+If the user explicitly asks to export/save/download the Enterprise Agile Portfolio Backlog or the
+Proposal Response AS A PROJECT PLAN (e.g. "export the backlog as a project plan", "give me an MS
+Project file for the proposal response", "export this as a Gantt chart", "I need a .mpp-compatible
+file") with NO other creation/modification intent in the same request, call `/project_plan_export`
+directly. It exports whatever portfolio_backlog.json/proposal_response.json is ALREADY saved on
+disk as a real Microsoft Project / ProjectLibre interchange-format (MSPDI XML) file -- it does NOT
+re-run analysis, backlog/proposal generation, or review, and does NOT modify the saved JSON itself.
+Neither saved artifact has any real date/duration field, so the exported plan's durations are
+always an ILLUSTRATIVE planning estimate computed at export time, never a committed schedule.
+
+Signal words: "project plan", "MS Project"/"Microsoft Project", "ProjectLibre", "Gantt chart",
+".mpp". Do NOT trigger on a bare "plan" alone -- that word alone is routine, casual phrasing for
+the backlog/proposal itself (e.g. "the backlog plan", "our delivery plan") and would otherwise
+collide with Section 1g's/1e's own creation routing, the same anti-collision discipline already
+applied to the vsdx/"vision document" substring guard above. Do NOT force this request into
+Portfolio_Backlog_Pipeline/Proposal_Response_Pipeline instead, and do NOT treat a bare "create a
+backlog"/"draft a proposal response" request as implying a project-plan export -- this only happens
+on an EXPLICIT ask naming one of the signal words above. This is purely ADDITIVE: it never runs as
+a side effect of any other request, and no existing pipeline step changes because of it.
 """,
             "tools": [
                 "/process",
@@ -1660,6 +1683,7 @@ of any other request, and no existing pipeline step changes because of it.
                 "/process_simulation_query",
                 "/process_subprocess_regenerate",
                 "/process_visio_export",
+                "/project_plan_export",
                 "/design",
                 "/design_import",
                 "/design_update",

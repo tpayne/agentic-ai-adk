@@ -182,6 +182,42 @@ class TestResolveArtifactTarget:
         _write_output_file("cloudarch_architecture.vsdx")
         assert resolve_artifact_target("export the cloud architecture as visio") == "cloudarch_architecture.vsdx"
 
+    def test_project_plan_keyword_disambiguates_by_domain_word(self):
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        _write_output_file("proposal_response_project_plan.xml")
+        assert resolve_artifact_target("the backlog project plan") == "portfolio_backlog_project_plan.xml"
+        assert resolve_artifact_target("ms project file for the proposal response") == "proposal_response_project_plan.xml"
+        assert resolve_artifact_target("gantt chart for the portfolio") == "portfolio_backlog_project_plan.xml"
+
+    def test_project_plan_keyword_with_no_domain_word_resolves_only_if_exactly_one_exists(self):
+        assert resolve_artifact_target("the project plan") is None
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert resolve_artifact_target("the project plan") == "portfolio_backlog_project_plan.xml"
+        assert resolve_artifact_target("download the projectlibre file") == "portfolio_backlog_project_plan.xml"
+        _write_output_file("proposal_response_project_plan.xml")
+        # Two now exist with no disambiguating word -- genuinely ambiguous.
+        assert resolve_artifact_target("the project plan") is None
+
+    def test_project_plan_keyword_resolves_to_none_when_nothing_exported(self):
+        assert resolve_artifact_target("project plan") is None
+        assert resolve_artifact_target("the backlog as an ms project file") is None
+
+    def test_project_plan_intent_is_not_hijacked_by_the_plain_backlog_workbook_branch(self):
+        # Regression guard: "backlog" alone would otherwise match the
+        # pre-existing portfolio-backlog-workbook branch further down --
+        # project-plan intent must be resolved before that branch ever runs.
+        _write_output_file("portfolio_backlog.xlsx")
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert resolve_artifact_target("export the backlog as a project plan") == "portfolio_backlog_project_plan.xml"
+
+    def test_bare_plan_word_alone_does_not_trigger_project_plan_resolution(self):
+        # "plan" alone is routine, casual phrasing ("the backlog plan") --
+        # must NOT be treated as a project-plan-export request; it still
+        # falls through to the ordinary backlog-workbook branch.
+        _write_output_file("portfolio_backlog.xlsx")
+        _write_output_file("portfolio_backlog_project_plan.xml")
+        assert resolve_artifact_target("the backlog plan") == "portfolio_backlog.xlsx"
+
 
 class TestCopyArtifactToDestination:
     def test_copies_into_an_existing_directory_keeping_the_filename(self, tmp_path):

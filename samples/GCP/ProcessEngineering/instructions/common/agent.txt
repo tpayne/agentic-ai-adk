@@ -1433,6 +1433,31 @@ Examples:
 
 ------------------------------------------------------------
 
+## 9b. PROJECT PLAN (MS PROJECT / PROJECTLIBRE) EXPORT
+Trigger ONLY when the user explicitly asks to export/save/download the Enterprise Agile Portfolio
+Backlog or the Proposal Response AS A PROJECT PLAN (signal words: "project plan", "MS
+Project"/"Microsoft Project", "ProjectLibre", "Gantt chart", ".mpp") with NO other
+creation/modification intent in the same request. Do NOT trigger on a bare "plan" alone -- that
+word alone is routine, casual phrasing for the backlog/proposal itself (e.g. "the backlog plan",
+"our delivery plan") and would otherwise collide with Section 1g's/1e's own creation routing, same
+anti-collision discipline as the vsdx/"vision document" substring guard. Do NOT treat a bare
+"create a backlog"/"draft a proposal response" request as implying a project-plan export -- this is
+purely ADDITIVE and never runs as a side effect of any other request.
+
+→ Call: Project_Plan_Export_Agent. It determines, from the request wording, whether the user means
+the portfolio backlog or the proposal response, exports whatever is already saved on disk as an
+illustrative Microsoft Project / ProjectLibre interchange-format (MSPDI XML) file, and does NOT
+re-run analysis, backlog/proposal generation, or review. Neither saved artifact has any real
+date/duration field, so the exported plan's durations are always an illustrative planning estimate,
+never a committed schedule.
+
+Examples:
+- "Export the portfolio backlog as a project plan."
+- "Give me an MS Project file for the proposal response."
+- "Export this as a Gantt chart."
+
+------------------------------------------------------------
+
 ## 10. MULTI-INTENT REQUESTS (PRIORITY ORDER)
 If the user includes multiple intents in a single request, apply this priority order. Each tier covers the process, design-document, and (where applicable) cloud-architecture-diagram variant of that intent — determine domain per the Domain Disambiguation rules above, then apply the matching tool from that tier:
 
