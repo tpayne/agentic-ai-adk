@@ -123,6 +123,19 @@ def test_itsm_pipeline_loads_requirements_and_runs_a_dual_gate_loop():
     assert "itsm_simulation_status" not in loop_control_line
 
 
+def test_itsm_consultant_answers_general_questions_without_requiring_a_saved_document():
+    # CONFIRMED AS A REAL GAP: every consultant agent used to refuse ANY question -- including a
+    # purely general "what are the core phases of incident management?" with no reference to the
+    # user's own document -- simply because no document was saved, even though answering it needs
+    # no document at all. The agent must classify general-vs-specific BEFORE deciding whether a
+    # saved document is required.
+    text = (REGISTRIES / "itsm_consultant.hocon").read_text(encoding="utf-8")
+    assert "GENERAL: asks about ITSM/ITIL concepts" in text
+    assert "SPECIFIC: references the user's OWN document" in text
+    assert "Do NOT\ncall load_full_itsm_context for a purely general question" in text or \
+        "Do NOT call load_full_itsm_context for a purely general question" in text
+
+
 def test_itsm_pipeline_stops_and_renders_on_max_iterations_not_only_on_approval():
     # Same confirmed-bug precedent as every sibling full-consortium pipeline:
     # an open compliance item after the max revision passes is feedback for a

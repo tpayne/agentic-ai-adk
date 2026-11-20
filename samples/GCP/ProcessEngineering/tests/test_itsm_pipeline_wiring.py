@@ -188,6 +188,19 @@ def test_update_itsm_pipeline_clones_the_loop_agents_not_the_originals():
     assert itsm_inst.instruction == itsm_agent.instruction
 
 
+def test_itsm_consultant_answers_general_questions_without_requiring_a_saved_document():
+    # CONFIRMED AS A REAL GAP on the sibling neuro-san port (identical agent logic, developed in
+    # tandem with this one): every consultant agent used to refuse ANY question -- including a
+    # purely general "what are the core phases of incident management?" with no reference to the
+    # user's own document -- simply because no document was saved, even though answering it needs
+    # no document at all. The agent must classify general-vs-specific BEFORE deciding whether a
+    # saved document is required.
+    text = _read("instructions/itsm/consultant_agent.txt")
+    assert "GENERAL: asks about ITSM/ITIL concepts" in text
+    assert "SPECIFIC: references the user's OWN document" in text
+    assert "Do NOT\ncall `load_full_itsm_context` for a purely general question" in text
+
+
 def test_itsm_update_analyst_refuses_to_fabricate_against_an_empty_baseline():
     # CONFIRMED AS A REAL BUG on the sibling neuro-san port: a bare update request against nothing
     # saved ("Add an emergency change type to the ITSM process document.") fabricated an entire

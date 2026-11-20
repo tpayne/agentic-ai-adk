@@ -84,6 +84,11 @@ Import the ITSM process documented in ./this-directory-does-not-exist as an ITSM
 # A9. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess.
 Can you take a look at this and tell me what you think?
 
+# A10. GENERAL (dual-mode consultant): a purely general ITSM/ITIL question, with NOTHING saved
+# yet, must be answered directly from best-practice knowledge -- ITSM_Consultant_Agent must NOT
+# refuse this for lack of a saved document, since the question doesn't need one.
+What are the core phases of incident management, and how should escalation tiers typically work?
+
 clear
 
 # ------------------------------------------------------------

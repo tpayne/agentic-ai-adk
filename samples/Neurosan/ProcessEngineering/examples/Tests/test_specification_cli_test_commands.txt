@@ -66,6 +66,11 @@ Regenerate the test specification document.
 # A5. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
 Can you take a look at this and tell me what you think?
 
+# A6. GENERAL (dual-mode consultant): a purely general test-design question, with NOTHING saved
+# yet, must be answered directly from best-practice knowledge -- Test_Consultant_Agent must NOT
+# refuse this for lack of a saved specification, since the question doesn't need one.
+What makes a strong, traceable test case for a payment checkout flow?
+
 # ------------------------------------------------------------
 # PART B -- build the three source artifacts, from one consistent brief
 # ------------------------------------------------------------

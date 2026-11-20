@@ -71,6 +71,11 @@ What if the Compliance team is unavailable for a week?
 # A6. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess.
 Can you take a look at this and tell me what you think?
 
+# A7. GENERAL (dual-mode consultant): a purely general process-design question, with NOTHING
+# saved yet, must be answered directly from best-practice knowledge -- Process_Consultant_Agent
+# must NOT refuse this for lack of a saved process, since the question doesn't need one.
+What are good practices for structuring approval gates in a procurement onboarding process?
+
 # ------------------------------------------------------------
 # PART B -- positive creation flow (Process_Pipeline)
 # ------------------------------------------------------------

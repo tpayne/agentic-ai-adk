@@ -98,6 +98,34 @@ def test_togaf_compliance_agent_has_the_four_item_checklist():
     assert "TOGAF_COMPLIANCE_APPROVED" in text
 
 
+def test_manifest_registers_togaf_consultant_network():
+    text = (REGISTRIES / "manifest.hocon").read_text(encoding="utf-8")
+    assert '"togaf_consultant.hocon": true' in text
+
+
+def test_router_routes_and_enables_togaf_consultant_network():
+    text = (REGISTRIES / "process_architect.hocon").read_text(encoding="utf-8")
+    orchestrator_start = text.index('"name": "Process_Architect_Orchestrator"')
+    tools_start = text.index('"tools": [', orchestrator_start)
+    tools_text = text[tools_start:text.index("]", tools_start)]
+
+    assert '"/togaf_consultant"' in tools_text
+    assert "### 4l. TOGAF / ENTERPRISE ARCHITECTURE EXPLANATION, REVIEW, OR GENERAL QUESTION" in text
+    assert "-> Call: TOGAF_Consultant_Agent" in text
+    # The whole point of this network: a general TOGAF question must route here even with
+    # nothing saved -- CONFIRMED AS A REAL GAP every other saved-document consultant agent on
+    # this port had before this pattern existed (see test_consultant_dual_mode_pattern.py).
+    assert "EVEN IF nothing has ever been saved" in text
+
+
+def test_togaf_consultant_answers_general_questions_without_requiring_a_saved_artifact_set():
+    text = (REGISTRIES / "togaf_consultant.hocon").read_text(encoding="utf-8")
+    assert "GENERAL: asks about TOGAF/enterprise-architecture concepts" in text
+    assert "SPECIFIC: references the user's OWN saved artifact set" in text
+    assert "Do NOT call load_full_togaf_context for a purely general question" in text
+    assert '"class": "togaf_json_tool.LoadFullTogafContextCodedTool"' in text
+
+
 def test_togaf_scenario_tester_network_has_no_save_tool_at_all():
     # Structural guarantee against mutation -- same convention as
     # design_scenario_tester.hocon: no save/write tool exists on this

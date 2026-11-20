@@ -86,6 +86,16 @@ $ rm -f output/*.docx
 # A7. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
 Can you take a look at this and tell me what you think?
 
+# A8. GENERAL (dual-mode consultant): a purely general requirements-analysis question, with
+# NOTHING saved yet, must be answered directly from best-practice knowledge --
+# Requirements_Consultant_Agent must NOT refuse this for lack of a saved summary, since the
+# question doesn't need one.
+What makes a good, testable non-functional requirement?
+
+# A9. GENERAL (dual-mode consultant): same, for Proposal_Response_Consultant_Agent -- a purely
+# general bid-writing question with nothing saved yet must be answered directly, not refused.
+What makes a strong compliance matrix entry in a proposal response?
+
 # ------------------------------------------------------------
 # PART B -- RM positive flow (standalone summarize, against the real RFP)
 # ------------------------------------------------------------

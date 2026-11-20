@@ -368,6 +368,17 @@ AGENT_CARDS: Dict[str, AgentCard] = {
         dependencies=[],
         tags=["agile", "safe", "wsjf", "epics_features_stories", "excel_generation"],
     ),
+    "portfolio_backlog_consultant": AgentCard(
+        name="portfolio_backlog_consultant",
+        description="Answers questions about an existing Enterprise Agile Portfolio Backlog, or general agile/SAFe backlog-planning questions that need no saved backlog at all.",
+        category="portfolio",
+        agent_type="consultant",
+        inputs=["portfolio_backlog", "query"],
+        outputs=["explanation_report"],
+        artifacts=["portfolio_backlog"],
+        dependencies=["portfolio_backlog"],
+        tags=["agile_qa", "wsjf", "read_only", "general_knowledge"],
+    ),
 
     # -------------------------------------------------------------
     # Proposal Response (RFP / RtP) Domain
@@ -430,6 +441,17 @@ AGENT_CARDS: Dict[str, AgentCard] = {
         artifacts=["togaf_artifacts"],
         dependencies=["togaf"],
         tags=["togaf_what_if", "capability_impact", "traceability_audit"],
+    ),
+    "togaf_consultant": AgentCard(
+        name="togaf_consultant",
+        description="Answers questions about an existing TOGAF architecture artifact set, or general TOGAF/enterprise-architecture questions that need no saved artifact set at all.",
+        category="governance",
+        agent_type="consultant",
+        inputs=["togaf_artifacts", "query"],
+        outputs=["explanation_report"],
+        artifacts=["togaf_artifacts"],
+        dependencies=["togaf"],
+        tags=["togaf_qa", "adm", "read_only", "general_knowledge"],
     ),
 
     # -------------------------------------------------------------
