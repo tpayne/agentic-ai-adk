@@ -1861,9 +1861,36 @@ def build_web_app(https: bool = True):
         "cloudarch" returns `data` as the raw XML STRING (not JSON-parsed)
         -- the client's own mxGraph-XML renderer parses it directly, the
         same way it already does for a saved .drawio file.
+
+        The three "*_vsdx" names and two "*_project_plan" names power the
+        same "Diagrams" tab's generalized graph/Gantt views -- `data` for
+        those is neither raw text nor a plain JSON-file-load, but the
+        PARSED structured shape (process_interface.docgen.vsdx_export.
+        parse_vsdx_to_graph's {"vertices": [...], "edges": [...]}, or
+        process_interface.docgen.project_plan_export.parse_mspdi_tasks's
+        {"tasks": [...]}), since .vsdx is a binary zip format the client
+        cannot parse itself and the project-plan XML is parsed server-side
+        for consistency with it.
         """
         from process_interface import paths as toolkit_paths
+        from process_interface.docgen.vsdx_export import (
+            CLOUDARCH_VSDX_FILENAME, DESIGN_FLOW_VSDX_FILENAME, PROCESS_FLOW_VSDX_FILENAME,
+            parse_vsdx_to_graph,
+        )
+        from process_interface.docgen.project_plan_export import (
+            PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+            parse_mspdi_tasks,
+        )
 
+        graph_names = {
+            "process_flow_vsdx": PROCESS_FLOW_VSDX_FILENAME,
+            "design_flow_vsdx": DESIGN_FLOW_VSDX_FILENAME,
+            "cloudarch_vsdx": CLOUDARCH_VSDX_FILENAME,
+        }
+        task_list_names = {
+            "portfolio_backlog_project_plan": PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+            "proposal_response_project_plan": PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+        }
         filenames = {
             "process": "process_data.json",
             "design": "design_data.json",
@@ -1874,6 +1901,8 @@ def build_web_app(https: bool = True):
             "togaf": "togaf_data.json",
             "itsm": "itsm_data.json",
             "cloudarch": "cloudarch_drawio.xml",
+            **graph_names,
+            **task_list_names,
         }
         filename = filenames.get(name)
         if filename is None:
@@ -1882,7 +1911,9 @@ def build_web_app(https: bool = True):
                 "error": (
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
                     "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', "
-                    "'itsm', or 'cloudarch'."
+                    "'itsm', 'cloudarch', 'process_flow_vsdx', 'design_flow_vsdx', "
+                    "'cloudarch_vsdx', 'portfolio_backlog_project_plan', or "
+                    "'proposal_response_project_plan'."
                 ),
             }), 400
 
@@ -1895,8 +1926,16 @@ def build_web_app(https: bool = True):
                 }), 404
 
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = f.read() if name == "cloudarch" else json.load(f)
+                if name in graph_names:
+                    data = parse_vsdx_to_graph(path)
+                elif name in task_list_names:
+                    data = {"tasks": parse_mspdi_tasks(path)}
+                elif name == "cloudarch":
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = f.read()
+                else:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
             except Exception:
                 logger.exception("Failed to read/parse %s", filename)
                 return jsonify({
@@ -2075,6 +2114,50 @@ def build_web_app(https: bool = True):
         return send_file(
             path, as_attachment=True, download_name=CLOUDARCH_VSDX_FILENAME,
             mimetype="application/vnd.ms-visio.drawing.main+xml",
+        )
+
+    @web_app.route("/artifacts/portfolio_backlog_project_plan/download", methods=["GET"])
+    def download_portfolio_backlog_project_plan():
+        """Downloads this web session's own exported Portfolio Backlog
+        project plan (MSPDI XML) file -- see Project_Plan_Export_Agent's
+        own export_project_plan tool for how it's produced. Structurally
+        identical to download_cloudarch above, just for this artifact kind."""
+        from process_interface import paths as toolkit_paths
+        from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+            mimetype="application/xml",
+        )
+
+    @web_app.route("/artifacts/proposal_response_project_plan/download", methods=["GET"])
+    def download_proposal_response_project_plan():
+        """Downloads this web session's own exported Proposal Response
+        project plan (MSPDI XML) file. Structurally identical to
+        download_portfolio_backlog_project_plan above, just for the
+        proposal response domain."""
+        from process_interface import paths as toolkit_paths
+        from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+
+        with toolkit_paths.use_session(_web_session_id_for_get_request()):
+            path = os.path.join(toolkit_paths.output_dir(), PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
+            exists = os.path.isfile(path)
+        if not exists:
+            return jsonify({
+                "status": "error",
+                "error": f"No {PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME} found yet -- export the proposal response as a project plan first.",
+            }), 404
+        return send_file(
+            path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+            mimetype="application/xml",
         )
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])

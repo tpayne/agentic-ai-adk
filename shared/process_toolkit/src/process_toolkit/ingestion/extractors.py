@@ -7,14 +7,11 @@ framework-specific, so the logic carries over unchanged.
 
 import base64
 import os
-import re
 import tempfile
-import xml.etree.ElementTree as ET
 from typing import Optional
 
+from process_toolkit.docgen.project_plan_export import mspdi_project_title, parse_mspdi_tasks
 from process_toolkit.ingestion.chunking import chunk_and_wrap, wrap_untrusted
-
-_MSPDI_NAMESPACE = "http://schemas.microsoft.com/project"
 
 
 def _extract_txt_file(path: str) -> str:
@@ -48,70 +45,43 @@ def _extract_project_plan_file(path: str) -> Optional[str]:
     writes -- into a clean, readable per-task text block. Returns None for
     any file that isn't actually MSPDI (malformed XML, or a real root
     element that isn't the MSPDI namespace's own <Project>), so the caller
-    falls back to the generic raw-text XML handler unchanged."""
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError:
-        return None
-    if root.tag != f"{{{_MSPDI_NAMESPACE}}}Project":
-        return None
+    falls back to the generic raw-text XML handler unchanged.
 
-    ns = {"p": _MSPDI_NAMESPACE}
-    title = (
-        root.findtext("p:Title", default="", namespaces=ns)
-        or root.findtext("p:Name", default="", namespaces=ns)
-        or "Project Plan"
-    )
+    The actual <Tasks> walk lives in process_toolkit.docgen.
+    project_plan_export.parse_mspdi_tasks -- shared with the web client's
+    own "Diagrams" tab Gantt view, so an MSPDI file's own structure is only
+    ever walked in one place. This function's own job is purely the
+    readable-text FORMATTING of that shared, structured result."""
+    tasks = parse_mspdi_tasks(path)
+    if tasks is None:
+        return None
+    title = mspdi_project_title(path) or "Project Plan"
 
-    tasks = root.findall(".//p:Tasks/p:Task", ns)
-    name_by_uid = {
-        task.findtext("p:UID", default="", namespaces=ns): task.findtext("p:Name", default="", namespaces=ns)
-        for task in tasks
-    }
+    name_by_uid = {task["uid"]: task["name"] for task in tasks}
 
     lines = [f"[Microsoft Project / ProjectLibre plan: {title}]"]
     for task in tasks:
-        name = (task.findtext("p:Name", default="", namespaces=ns) or "").strip()
-        if not name:
+        if not task["name"]:
             continue
-        try:
-            indent = "  " * max(int(task.findtext("p:OutlineLevel", default="1", namespaces=ns)) - 1, 0)
-        except ValueError:
-            indent = ""
+        indent = "  " * max(task["outline_level"] - 1, 0)
 
-        parts = [f"{indent}{name}"]
-        approx_days = _mspdi_duration_to_approx_days(task.findtext("p:Duration", default="", namespaces=ns))
-        if approx_days is not None:
+        parts = [f'{indent}{task["name"]}']
+        if task["duration_hours"] is not None:
+            approx_days = round(task["duration_hours"] / 8, 2)
             parts.append(f"-- Duration: ~{approx_days:g} working day(s)")
-        start = task.findtext("p:Start", default="", namespaces=ns)
-        if start:
-            parts.append(f"-- Start: {start}")
-        finish = task.findtext("p:Finish", default="", namespaces=ns)
-        if finish:
-            parts.append(f"-- Finish: {finish}")
-        pred_name = name_by_uid.get(task.findtext("p:PredecessorLink/p:PredecessorUID", default="", namespaces=ns))
+        if task["start"]:
+            parts.append(f'-- Start: {task["start"]}')
+        if task["finish"]:
+            parts.append(f'-- Finish: {task["finish"]}')
+        pred_name = name_by_uid.get(task["predecessor_uid"])
         if pred_name:
             parts.append(f"-- Predecessor: {pred_name}")
         lines.append(" ".join(parts))
 
-        notes = (task.findtext("p:Notes", default="", namespaces=ns) or "").strip()
-        if notes:
-            lines.append(f"{indent}  Notes: {notes}")
+        if task["notes"]:
+            lines.append(f'{indent}  Notes: {task["notes"]}')
 
     return "\n".join(lines)
-
-
-def _mspdi_duration_to_approx_days(duration: str) -> Optional[float]:
-    """Parses MSPDI's own "PT#H#M#S" duration profile back into an
-    approximate working-day count, assuming an 8-hour working day (the
-    convention process_toolkit.docgen.project_plan_export itself writes) --
-    a third-party file using a different hours-per-day convention will
-    report a proportionally different approximation, which is why callers
-    always label this with "~" (approximate), never as an exact figure."""
-    match = re.match(r"PT(\d+(?:\.\d+)?)H", duration or "")
-    if not match:
-        return None
-    return round(float(match.group(1)) / 8, 2)
 
 
 def _extract_json_file(path: str) -> str:

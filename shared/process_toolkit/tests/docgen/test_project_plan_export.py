@@ -12,6 +12,8 @@ from process_toolkit.docgen.project_plan_export import (
     _parse_timing_to_days,
     build_portfolio_backlog_project_plan,
     build_proposal_response_project_plan,
+    mspdi_project_title,
+    parse_mspdi_tasks,
     portfolio_backlog_project_plan_exists,
     proposal_response_project_plan_exists,
     uk_bank_holidays,
@@ -504,3 +506,74 @@ class TestTargetDurationOverrunWarning:
         result = build_portfolio_backlog_project_plan()
 
         assert "WARNING" not in result
+
+
+class TestParseMspdiTasks:
+    def test_returns_none_for_a_non_mspdi_xml_file(self, tmp_path):
+        path = tmp_path / "not_mspdi.xml"
+        path.write_text("<root><child/></root>", encoding="utf-8")
+        assert parse_mspdi_tasks(str(path)) is None
+        assert mspdi_project_title(str(path)) is None
+
+    def test_returns_none_for_malformed_xml(self, tmp_path):
+        path = tmp_path / "broken.xml"
+        path.write_text("<Project><Tasks>", encoding="utf-8")
+        assert parse_mspdi_tasks(str(path)) is None
+
+    def test_round_trips_hierarchy_dates_and_duration(self):
+        save_portfolio_backlog(_sample_backlog())
+        build_portfolio_backlog_project_plan()
+        out_path = paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+
+        assert mspdi_project_title(out_path) == "Test Backlog"
+
+        tasks = parse_mspdi_tasks(out_path)
+        by_name = {t["name"]: t for t in tasks}
+        assert set(by_name) == {"Test Backlog", "Epic One", "Feature One", "Story One", "Story Two"}
+
+        assert by_name["Test Backlog"]["outline_level"] == 1
+        assert by_name["Test Backlog"]["is_summary"] is True
+        assert by_name["Story One"]["outline_level"] == 4
+        assert by_name["Story One"]["is_summary"] is False
+
+        # job_size=3 -> 3 working days -> 24 hours (see
+        # test_story_duration_derives_from_job_size_at_one_day_per_point).
+        assert by_name["Story One"]["duration_hours"] == 24.0
+        assert by_name["Story One"]["start"] is not None
+        assert by_name["Story One"]["finish"] is not None
+
+        # Whichever story is scheduled second carries the other's UID as predecessor.
+        story_one_uid = by_name["Story One"]["uid"]
+        story_two_uid = by_name["Story Two"]["uid"]
+        predecessor_uids = {by_name["Story One"]["predecessor_uid"], by_name["Story Two"]["predecessor_uid"]}
+        assert story_one_uid in predecessor_uids or story_two_uid in predecessor_uids
+
+    def test_tasks_are_returned_in_document_order(self):
+        save_proposal_response({
+            "name": "Ordered Response",
+            "implementation_plan": [
+                {"phase": "Discovery", "timing": "1 week", "deliverable": "d", "acceptance_criteria": "a"},
+                {"phase": "Build", "timing": "2 weeks", "deliverable": "d", "acceptance_criteria": "a"},
+                {"phase": "Launch", "timing": "1 week", "deliverable": "d", "acceptance_criteria": "a"},
+            ],
+        })
+        build_proposal_response_project_plan()
+        out_path = paths.output_path(PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
+
+        tasks = parse_mspdi_tasks(out_path)
+        names = [t["name"] for t in tasks]
+        assert names == ["Ordered Response", "Discovery", "Build", "Launch"]
+
+    def test_notes_are_preserved_verbatim(self):
+        save_proposal_response({
+            "name": "Notes Response",
+            "implementation_plan": [
+                {"phase": "Discovery", "timing": "roughly a quarter", "deliverable": "d", "acceptance_criteria": "a"},
+            ],
+        })
+        build_proposal_response_project_plan()
+        out_path = paths.output_path(PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
+
+        tasks = parse_mspdi_tasks(out_path)
+        discovery = next(t for t in tasks if t["name"] == "Discovery")
+        assert "roughly a quarter" in discovery["notes"]

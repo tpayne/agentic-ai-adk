@@ -17,6 +17,8 @@ from process_toolkit.docgen.project_plan_export import (
     PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
     build_portfolio_backlog_project_plan as _toolkit_build_portfolio_backlog_project_plan,
     build_proposal_response_project_plan as _toolkit_build_proposal_response_project_plan,
+    mspdi_project_title,
+    parse_mspdi_tasks,
     portfolio_backlog_project_plan_exists,
     proposal_response_project_plan_exists,
 )
@@ -27,11 +29,13 @@ __all__ = [
     "build_portfolio_backlog_project_plan", "build_proposal_response_project_plan",
     "PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME", "PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME",
     "portfolio_backlog_project_plan_exists", "proposal_response_project_plan_exists",
+    "parse_mspdi_tasks", "mspdi_project_title",
 ]
 
-# The *_exists() checks and filename constants stay always-local (same
-# reasoning as vsdx_export.py's own identical checks) -- they read the LOCAL
-# output dir, which materialize_one() already mirrors a successful MCP-mode
+# The *_exists() checks, filename constants, and parse_mspdi_tasks/
+# mspdi_project_title all stay always-local (same reasoning as
+# vsdx_export.py's own identical checks) -- they read the LOCAL output
+# dir, which materialize_one() already mirrors a successful MCP-mode
 # export into, so there's nothing for these to redirect to the server for.
 
 

@@ -20,6 +20,7 @@ from process_toolkit.docgen.vsdx_export import (
     build_process_design_vsdx as _toolkit_build_process_design_vsdx,
     cloudarch_vsdx_exists,
     design_flow_vsdx_exists,
+    parse_vsdx_to_graph,
     process_flow_vsdx_exists,
 )
 
@@ -29,13 +30,14 @@ __all__ = [
     "build_process_design_vsdx", "build_cloudarch_vsdx",
     "PROCESS_FLOW_VSDX_FILENAME", "DESIGN_FLOW_VSDX_FILENAME", "CLOUDARCH_VSDX_FILENAME",
     "process_flow_vsdx_exists", "design_flow_vsdx_exists", "cloudarch_vsdx_exists",
+    "parse_vsdx_to_graph",
 ]
 
-# The *_exists() checks and filename constants stay always-local (same
-# reasoning as iac/generation.py's own iac_zip_exists) -- they read the
-# LOCAL output dir, which materialize_one() already mirrors a successful
-# MCP-mode export into, so there's nothing for these to redirect to the
-# server for.
+# The *_exists() checks, filename constants, and parse_vsdx_to_graph all
+# stay always-local (same reasoning as iac/generation.py's own
+# iac_zip_exists) -- they read the LOCAL output dir, which
+# materialize_one() already mirrors a successful MCP-mode export into, so
+# there's nothing for these to redirect to the server for.
 
 
 def build_process_design_vsdx(schema_type: str) -> str:

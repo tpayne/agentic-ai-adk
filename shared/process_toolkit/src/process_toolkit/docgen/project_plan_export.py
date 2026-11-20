@@ -743,3 +743,77 @@ def build_proposal_response_project_plan(
         return f"Project plan export failed: {e}"
     message = f"Project plan successfully exported to {out_path}"
     return f"{message}\n\n{overrun_warning}" if overrun_warning else message
+
+
+# ---------------------------------------------------------------------------
+# Reading an existing MSPDI file back (the reverse direction of everything
+# above) -- shared by ingestion/extractors.py's own directory-import text
+# formatting AND the web client's "Diagrams" tab Gantt view, so an MSPDI
+# file's own <Tasks> structure is only ever walked in one place.
+# ---------------------------------------------------------------------------
+
+def _parse_mspdi_root(path: str) -> Optional[ET.Element]:
+    """Returns the parsed root element if `path` is actually an MSPDI file
+    (the exact format this module itself writes), else None -- malformed
+    XML or a real root element that isn't the MSPDI namespace's own
+    <Project> are both "not MSPDI", not an error, since a caller's own job
+    is to fall back to generic handling in that case."""
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        return None
+    if root.tag != f"{{{_MSPDI_NS}}}Project":
+        return None
+    return root
+
+
+def mspdi_project_title(path: str) -> Optional[str]:
+    """The project's own Title (falling back to Name), or None if `path`
+    isn't MSPDI at all."""
+    root = _parse_mspdi_root(path)
+    if root is None:
+        return None
+    ns = {"p": _MSPDI_NS}
+    return root.findtext("p:Title", default="", namespaces=ns) or root.findtext("p:Name", default="", namespaces=ns) or None
+
+
+def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
+    """Parses an existing MSPDI file's <Tasks> into a list of plain dicts,
+    one per task, in document order: {"uid", "name", "outline_level",
+    "is_summary", "start", "finish", "duration_hours", "predecessor_uid",
+    "notes"}. start/finish are the raw MSPDI date-time strings (or None);
+    duration_hours is a float parsed from the task's own "PT#H#M#S" value
+    (or None if absent/unparseable). Returns None if `path` isn't actually
+    MSPDI, so callers can fall back to generic handling the same way
+    _parse_mspdi_root's own callers do."""
+    root = _parse_mspdi_root(path)
+    if root is None:
+        return None
+
+    ns = {"p": _MSPDI_NS}
+    tasks: List[Dict[str, Any]] = []
+    for task_el in root.findall(".//p:Tasks/p:Task", ns):
+        try:
+            outline_level = int(task_el.findtext("p:OutlineLevel", default="1", namespaces=ns))
+        except ValueError:
+            outline_level = 1
+
+        duration_hours: Optional[float] = None
+        match = re.match(r"PT(\d+(?:\.\d+)?)H", task_el.findtext("p:Duration", default="", namespaces=ns) or "")
+        if match:
+            duration_hours = float(match.group(1))
+
+        predecessor_uid = task_el.findtext("p:PredecessorLink/p:PredecessorUID", default="", namespaces=ns) or None
+
+        tasks.append({
+            "uid": task_el.findtext("p:UID", default="", namespaces=ns) or None,
+            "name": (task_el.findtext("p:Name", default="", namespaces=ns) or "").strip(),
+            "outline_level": outline_level,
+            "is_summary": (task_el.findtext("p:Summary", default="0", namespaces=ns) or "0") == "1",
+            "start": task_el.findtext("p:Start", default="", namespaces=ns) or None,
+            "finish": task_el.findtext("p:Finish", default="", namespaces=ns) or None,
+            "duration_hours": duration_hours,
+            "predecessor_uid": predecessor_uid,
+            "notes": (task_el.findtext("p:Notes", default="", namespaces=ns) or "").strip(),
+        })
+    return tasks

@@ -16,7 +16,7 @@ persisted structured cloudarch model exists to call into instead.
 """
 
 import os
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import networkx as nx
 from vsdx import Connect, VisioFile
@@ -199,3 +199,65 @@ def build_cloudarch_vsdx() -> str:
     except Exception as e:  # pylint: disable=broad-except
         return f"Visio export failed: {e}"
     return f"Visio diagram successfully exported to {out_path}"
+
+
+def parse_vsdx_to_graph(path: str) -> Dict[str, Any]:
+    """Parses an existing .vsdx file's first page into the same generic
+    {"vertices": [...], "edges": [...]} shape drawio.graph.parse_drawio_graph
+    already produces for cloudarch -- so a single client-side renderer can
+    draw either source. A deliberately SEPARATE walk from ingestion/
+    extractors.py's own _extract_vsdx_file (which does the identical
+    shape/connect walk for its own text-extraction job) -- same "duplicate
+    rather than share" discipline this module's own _compute_layout already
+    follows for edge_inference.py's layout math, so a future change to one
+    job's own output shape can never silently alter the other's.
+
+    Shape.x/.y are Visio's own PinX/PinY (the shape's CENTER point, in
+    inches, Y increasing UPWARD) -- converted here to a top-left corner
+    with Y increasing downward, matching the SVG/mxGraph convention the
+    client's existing renderer already assumes. Connect direction isn't
+    recoverable from vsdx's own data model (same caveat _extract_vsdx_file
+    already documents), so edges are emitted undirected.
+
+    Only shapes with real text become vertices -- a connector/line shape
+    carries no text of its own (confirmed directly: it has zero height and
+    an empty .text), so skipping textless shapes is how _extract_vsdx_file
+    already avoids treating a connector as content; without the same
+    check here, every connector would leak into "vertices" as a second,
+    fake, zero-size node alongside the two real shapes it actually joins.
+    """
+    vertices: List[Dict[str, Any]] = []
+    id_to_vertex: Dict[str, Dict[str, Any]] = {}
+    by_connector: Dict[str, List[str]] = {}
+
+    with VisioFile(path) as vis:
+        page = vis.pages[0]
+        for shape in page.all_shapes:
+            text = (shape.text or "").strip()
+            if not text:
+                continue
+            width = shape.width or 0.0
+            height = shape.height or 0.0
+            x = shape.x if shape.x is not None else 0.0
+            y = shape.y if shape.y is not None else 0.0
+            vertex = {
+                "id": shape.ID,
+                "label": text,
+                "x": x - width / 2,
+                "y": -(y + height / 2),
+                "width": width,
+                "height": height,
+            }
+            vertices.append(vertex)
+            id_to_vertex[shape.ID] = vertex
+
+        for connect in page.connects:
+            by_connector.setdefault(connect.connector_shape_id, []).append(connect.shape_id)
+
+    edges: List[Dict[str, Any]] = []
+    for shape_ids in by_connector.values():
+        real_ids = [sid for sid in dict.fromkeys(shape_ids) if sid in id_to_vertex]
+        if len(real_ids) >= 2:
+            edges.append({"source": real_ids[0], "target": real_ids[1]})
+
+    return {"vertices": vertices, "edges": edges}
