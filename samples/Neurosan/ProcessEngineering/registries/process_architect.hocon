@@ -1673,6 +1673,34 @@ Portfolio_Backlog_Pipeline/Proposal_Response_Pipeline instead, and do NOT treat 
 backlog"/"draft a proposal response" request as implying a project-plan export -- this only happens
 on an EXPLICIT ask naming one of the signal words above. This is purely ADDITIVE: it never runs as
 a side effect of any other request, and no existing pipeline step changes because of it.
+
+### PROJECT PLAN REQUESTED BUT NOTHING SAVED YET
+CONFIRMED AS A REAL PRODUCTION BUG: when the user's own request names one of the signal words
+above (e.g. "create a project plan for the ITSM discovery, assuming a Project Manager at 50%...")
+but NEITHER a saved Portfolio Backlog NOR a saved Proposal Response exists yet to export from, a
+live run silently dropped "project plan" entirely and asked an unrelated clarifying question
+("Business Process Design or Enterprise Agile Portfolio Backlog?") that never mentioned a project
+plan at all -- even though that is exactly what the user asked for. This is the EXACT failure mode
+the AMBIGUOUS OR UNCLEAR INTENT rule (Section 10) must not fall into here: it is not that the
+user's intent was unclear, it's that the response forgot the user's own stated end-goal.
+
+Whenever a request names a project-plan signal word above and the needed source artifact isn't
+saved yet, you MUST explicitly acknowledge "project plan" in whatever you say next -- never silently
+substitute an unrelated domain question. Determine which of the two project-plan-capable domains
+the request is for, using the SAME wording the export section above uses ("backlog"/"portfolio
+backlog"/"epics"/"WSJF" -> Portfolio Backlog; "proposal"/"proposal response"/"RtP"/"response" ->
+Proposal Response):
+- If one is clearly named (or is the only sensible reading -- e.g. a discovery/delivery project
+  description with resource allocations reads as Portfolio Backlog, not a proposal/bid response),
+  explain plainly: "A project plan is exported from a saved [Portfolio Backlog/Proposal Response].
+  I don't have one saved yet." Then follow that domain's own normal creation path (Section 1g/1e)
+  from here -- if the request already supplies enough real content to build it (per that section's
+  own requirements-extraction rules), proceed with creation and say you'll export it as a project
+  plan once it's saved; otherwise ask for what's missing, the same as that section would on its
+  own.
+- If genuinely unclear which of the two domains the project plan is for, ask which one -- explicitly
+  naming "project plan" in the question -- rather than asking a disconnected domain question that
+  never mentions it.
 """,
             "tools": [
                 "/process",

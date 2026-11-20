@@ -403,6 +403,49 @@ class TestExportProjectPlan:
             assert result["project_plan"]["filename"].endswith(".xml")
             assert "successfully exported" in result["message"], result["message"]
 
+    async def test_exports_with_resources_uk_holidays_and_an_overrun_warning(self):
+        priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}
+        backlog = {
+            "name": "ITSM Discovery Backlog", "summary": "s", "source_name": "x", "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-1", "title": "Discovery", "description": "d",
+                "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                "features": [{
+                    "id": "FEAT-1", "title": "Process Mapping", "description": "d",
+                    "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                    "stories": [{
+                        "id": "STORY-1", "title": "Map Incident Management", "description": "d",
+                        "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                        "acceptance_criteria": ["Mapped and signed off."],
+                    }],
+                }],
+            }],
+        }
+        async with Client(server.mcp) as client:
+            saved = (await client.call_tool(
+                "generate_portfolio_backlog", {"backlog": backlog, "session_id": "s6"},
+            )).data
+            assert saved["message"].startswith("SUCCESS"), saved["message"]
+
+            result = (await client.call_tool(
+                "export_project_plan",
+                {
+                    "schema_type": "portfolio_backlog",
+                    "start_date": "2026-11-23",
+                    "resources": [
+                        {"name": "Project Manager", "allocation_percent": 50},
+                        {"name": "ServiceNow Engineer", "allocation_percent": 100},
+                    ],
+                    "target_duration_weeks": 1,
+                    "holiday_calendar": "uk",
+                    "session_id": "s6",
+                },
+            )).data
+            assert result["project_plan"] is not None
+            assert "successfully exported" in result["message"], result["message"]
+            assert "WARNING" in result["message"]
+            assert "overruns the requested 1-week target" in result["message"]
+
 
 class TestPersistJsonValidatesFirst:
     async def test_invalid_togaf_data_is_rejected_without_writing_anything(self):

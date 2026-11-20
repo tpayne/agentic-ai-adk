@@ -10,7 +10,7 @@ when a new project plan file was produced), NOT on matching a hand-copied
 message prefix -- same reasoning as vsdx_export.py's own docstring.
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from process_toolkit.docgen.project_plan_export import (
     PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
@@ -35,9 +35,16 @@ __all__ = [
 # export into, so there's nothing for these to redirect to the server for.
 
 
-def build_portfolio_backlog_project_plan(start_date: Optional[str] = None) -> str:
+def build_portfolio_backlog_project_plan(
+    start_date: Optional[str] = None,
+    resources: Optional[List[Dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+) -> str:
     if not config.is_mcp_mode():
-        return _toolkit_build_portfolio_backlog_project_plan(start_date)
+        return _toolkit_build_portfolio_backlog_project_plan(
+            start_date, resources, target_duration_weeks, holiday_calendar,
+        )
 
     try:
         result = _transport.call(
@@ -45,6 +52,9 @@ def build_portfolio_backlog_project_plan(start_date: Optional[str] = None) -> st
             {
                 "schema_type": "portfolio_backlog",
                 "start_date": start_date,
+                "resources": resources,
+                "target_duration_weeks": target_duration_weeks,
+                "holiday_calendar": holiday_calendar,
                 "session_id": paths.current_session_id(),
             },
         )
@@ -57,9 +67,16 @@ def build_portfolio_backlog_project_plan(start_date: Optional[str] = None) -> st
     return message
 
 
-def build_proposal_response_project_plan(start_date: Optional[str] = None) -> str:
+def build_proposal_response_project_plan(
+    start_date: Optional[str] = None,
+    resources: Optional[List[Dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+) -> str:
     if not config.is_mcp_mode():
-        return _toolkit_build_proposal_response_project_plan(start_date)
+        return _toolkit_build_proposal_response_project_plan(
+            start_date, resources, target_duration_weeks, holiday_calendar,
+        )
 
     try:
         result = _transport.call(
@@ -67,6 +84,9 @@ def build_proposal_response_project_plan(start_date: Optional[str] = None) -> st
             {
                 "schema_type": "proposal_response",
                 "start_date": start_date,
+                "resources": resources,
+                "target_duration_weeks": target_duration_weeks,
+                "holiday_calendar": holiday_calendar,
                 "session_id": paths.current_session_id(),
             },
         )

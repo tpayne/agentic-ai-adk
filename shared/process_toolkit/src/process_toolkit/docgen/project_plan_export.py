@@ -19,6 +19,23 @@ to a nominal default when unparseable -- the original `timing` text is
 ALWAYS preserved verbatim in the task's own Notes either way, so nothing is
 ever silently dropped or misrepresented.
 
+Optionally also accepts `resources` (a named role/person + % allocation,
+e.g. "Project Manager" at 50%) and `holiday_calendar` ("uk" or None) --
+NEITHER exists in either source schema either, so both are supplied by the
+caller at export time (typically extracted from the user's own request
+wording by the calling agent), never fabricated here. Resources are
+rendered as MSPDI <Resources>/<Assignments> (every resource assigned to
+every leaf task, Units = allocation_percent/100, Work = task duration *
+that fraction -- there is no finer-grained role-to-task mapping anywhere
+in either source schema to assign more precisely than that). A UK holiday
+calendar marks real UK bank holidays (fixed-date + Easter-based + nth-
+weekday rules, with the standard weekend-substitution rule) as Calendar
+Exceptions, so the working-day scheduler actually skips them rather than
+only skipping weekends. An optional `target_duration_weeks` is a POST-HOC
+check only -- if the sequenced plan overruns it, a WARNING is appended to
+both the root task's Notes and the function's own returned message, never
+silently compressed/clipped to force a fit.
+
 The MSPDI tree is hand-rolled via xml.etree.ElementTree -- no proprietary
 binary (.mpp / ProjectLibre's own .pod) dependency, same "write the open
 interchange format by hand" discipline already used for drawio XML
@@ -30,7 +47,7 @@ import datetime as _dt
 import os
 import re
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional
 
 from process_toolkit import paths
 from process_toolkit.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
@@ -70,47 +87,157 @@ def proposal_response_project_plan_exists() -> bool:
 
 
 # ---------------------------------------------------------------------------
+# UK bank holiday calendar (England & Wales dates -- the common default;
+# Scotland/Northern Ireland observe a few different substitute days, which
+# this does not attempt to model, since nothing in either source schema or
+# caller wording distinguishes which nation's calendar is meant).
+# ---------------------------------------------------------------------------
+
+def _easter_sunday(year: int) -> _dt.date:
+    """Anonymous Gregorian algorithm -- Good Friday/Easter Monday are both
+    computed relative to this."""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return _dt.date(year, month, day)
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> _dt.date:
+    """The nth occurrence of `weekday` (Monday=0..Sunday=6) in `month`,
+    1-based; n=-1 means the LAST occurrence in the month instead."""
+    if n > 0:
+        day = _dt.date(year, month, 1)
+        count = 0
+        while True:
+            if day.weekday() == weekday:
+                count += 1
+                if count == n:
+                    return day
+            day += _dt.timedelta(days=1)
+    day = (
+        _dt.date(year, 12, 31) if month == 12
+        else _dt.date(year, month + 1, 1) - _dt.timedelta(days=1)
+    )
+    while day.weekday() != weekday:
+        day -= _dt.timedelta(days=1)
+    return day
+
+
+def _with_weekend_substitution(fixed_dates: List[_dt.date]) -> FrozenSet[_dt.date]:
+    """UK rule: a fixed-date holiday that falls on a weekend gets a
+    substitute weekday, normally the next Monday -- but Christmas Day and
+    Boxing Day can collide (both land on a weekend in the same year), so
+    each substitute must also skip any date already claimed by an earlier
+    substitute in this same batch, not just the original fixed dates."""
+    claimed = set(fixed_dates)
+    observed = set()
+    for fixed in sorted(fixed_dates):
+        if fixed.weekday() < 5:
+            observed.add(fixed)
+            continue
+        substitute = fixed + _dt.timedelta(days=1)
+        while substitute.weekday() >= 5 or substitute in claimed or substitute in observed:
+            substitute += _dt.timedelta(days=1)
+        observed.add(substitute)
+        claimed.add(substitute)
+    return frozenset(observed)
+
+
+def uk_bank_holidays(year: int) -> FrozenSet[_dt.date]:
+    """UK (England & Wales) bank holidays actually observed in `year`:
+    New Year's Day, Good Friday, Easter Monday, the early-May and Spring
+    and Summer bank holidays, Christmas Day, and Boxing Day -- fixed dates
+    get the standard weekend-substitution rule; the Easter-based and
+    nth-weekday ones never need it (they're pinned to a weekday by
+    construction)."""
+    easter = _easter_sunday(year)
+    movable = {
+        easter - _dt.timedelta(days=2),  # Good Friday
+        easter + _dt.timedelta(days=1),  # Easter Monday
+        _nth_weekday(year, 5, 0, 1),  # Early May bank holiday
+        _nth_weekday(year, 5, 0, -1),  # Spring bank holiday
+        _nth_weekday(year, 8, 0, -1),  # Summer bank holiday
+    }
+    fixed_with_substitution = _with_weekend_substitution(
+        [_dt.date(year, 1, 1), _dt.date(year, 12, 25), _dt.date(year, 12, 26)]
+    )
+    return frozenset(movable | fixed_with_substitution)
+
+
+def _uk_bank_holidays_covering(start: _dt.date, years_ahead: int = 2) -> FrozenSet[_dt.date]:
+    """Holidays for `start`'s own year through `years_ahead` years after it
+    -- comfortably covers any plan of ordinary (a few months to ~2 years)
+    length starting at `start`, without needing to know the computed finish
+    date up front (which would be circular -- the finish date depends on
+    which days are holidays)."""
+    holidays: set = set()
+    for year in range(start.year, start.year + years_ahead + 1):
+        holidays |= uk_bank_holidays(year)
+    return frozenset(holidays)
+
+
+# ---------------------------------------------------------------------------
 # Working-day calendar arithmetic
 # ---------------------------------------------------------------------------
 
-def _is_working_day(day: _dt.date) -> bool:
-    return day.weekday() < 5  # Monday=0 .. Sunday=6
+_NO_HOLIDAYS: FrozenSet[_dt.date] = frozenset()
 
 
-def _first_working_day_on_or_after(day: _dt.date) -> _dt.date:
-    while not _is_working_day(day):
+def _is_working_day(day: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS) -> bool:
+    return day.weekday() < 5 and day not in holidays  # Monday=0 .. Sunday=6
+
+
+def _first_working_day_on_or_after(
+    day: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> _dt.date:
+    while not _is_working_day(day, holidays):
         day += _dt.timedelta(days=1)
     return day
 
 
-def _next_working_day(day: _dt.date) -> _dt.date:
+def _next_working_day(day: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS) -> _dt.date:
     nxt = day + _dt.timedelta(days=1)
-    return _first_working_day_on_or_after(nxt)
+    return _first_working_day_on_or_after(nxt, holidays)
 
 
-def _advance_working_days(start: _dt.date, duration_days: int) -> _dt.date:
+def _advance_working_days(
+    start: _dt.date, duration_days: int, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> _dt.date:
     """Returns the date of the last working day in a span of `duration_days`
     consecutive working days starting at `start` (which must itself already
     be a working day)."""
     current = start
     remaining = max(duration_days, 1) - 1
     while remaining > 0:
-        current = _next_working_day(current)
+        current = _next_working_day(current, holidays)
         remaining -= 1
     return current
 
 
-def _count_working_days(start: _dt.date, finish: _dt.date) -> int:
+def _count_working_days(
+    start: _dt.date, finish: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> int:
     """Inclusive count of working days between two dates -- used for a
     summary task's own displayed Duration, so it reflects actual working
     time spanned rather than raw calendar days (which would overstate it
-    whenever the span crosses a weekend)."""
+    whenever the span crosses a weekend or holiday)."""
     if finish < start:
         return 1
     count = 0
     current = start
     while current <= finish:
-        if _is_working_day(current):
+        if _is_working_day(current, holidays):
             count += 1
         current += _dt.timedelta(days=1)
     return max(count, 1)
@@ -134,33 +261,20 @@ class _Task:
         self.children: List["_Task"] = []
 
 
-def _schedule_sequential_leaf(task: "_Task", anchor_start: _dt.date) -> _dt.date:
+def _schedule_sequential_leaf(
+    task: "_Task", anchor_start: _dt.date, holidays: FrozenSet[_dt.date],
+) -> _dt.date:
     """Schedules one leaf task starting at anchor_start, returns its finish date."""
     task.start = anchor_start
-    task.finish = _advance_working_days(anchor_start, max(task.duration_days, 1))
+    task.finish = _advance_working_days(anchor_start, max(task.duration_days, 1), holidays)
     return task.finish
 
 
-def _schedule_tree(tasks: List["_Task"], project_start: _dt.date) -> None:
-    """Schedules a flat, already-ordered top-level task list (each possibly
-    a summary task with its own nested children) sequentially,
-    Finish-to-Start, with zero lag -- the only dependency information this
-    module has (no real predecessor data exists in either source schema).
-    Mutates every task's .start/.finish in place, including summary tasks
-    (set to their own first/last child's span)."""
-    cursor = _first_working_day_on_or_after(project_start)
-    previous_uid: Optional[int] = None
-    for task in tasks:
-        if previous_uid is not None:
-            task.predecessor_uid = previous_uid
-        finish = _schedule_subtree(task, cursor)
-        cursor = _next_working_day(finish)
-        previous_uid = task.uid
-
-
-def _schedule_subtree(task: "_Task", anchor_start: _dt.date) -> _dt.date:
+def _schedule_subtree(
+    task: "_Task", anchor_start: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> _dt.date:
     if not task.children:
-        return _schedule_sequential_leaf(task, anchor_start)
+        return _schedule_sequential_leaf(task, anchor_start, holidays)
 
     task.start = anchor_start
     cursor = anchor_start
@@ -168,8 +282,8 @@ def _schedule_subtree(task: "_Task", anchor_start: _dt.date) -> _dt.date:
     for i, child in enumerate(task.children):
         if i > 0:
             child.predecessor_uid = previous_uid
-        finish = _schedule_subtree(child, cursor)
-        cursor = _next_working_day(finish)
+        finish = _schedule_subtree(child, cursor, holidays)
+        cursor = _next_working_day(finish, holidays)
         previous_uid = child.uid
     task.finish = task.children[-1].finish or task.start
     return task.finish
@@ -205,12 +319,44 @@ def _date_xml(day: _dt.date, hour: int) -> str:
     return _dt.datetime.combine(day, _dt.time(hour, 0, 0)).strftime(_DATE_FORMAT)
 
 
-def _render_mspdi(project_name: str, top_level_tasks: List["_Task"], project_start: _dt.date) -> str:
+def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tuple]:
+    """Validates/normalizes the caller-supplied resources list into
+    `(name, allocation_fraction)` pairs, 0 < fraction <= 1. Silently skips
+    an entry with no name or a non-numeric/out-of-range percent rather than
+    raising -- a malformed resource entry shouldn't abort the whole export,
+    but it also never gets fabricated a default allocation; it's just
+    dropped, and the caller's own instructions are what keep this rare in
+    the first place."""
+    normalized = []
+    for entry in resources or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        if not name:
+            continue
+        try:
+            percent = float(entry.get("allocation_percent"))
+        except (TypeError, ValueError):
+            continue
+        if not (0 < percent <= 100):
+            continue
+        normalized.append((name, percent / 100.0))
+    return normalized
+
+
+def _render_mspdi(
+    project_name: str,
+    top_level_tasks: List["_Task"],
+    project_start: _dt.date,
+    holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+    resources: Optional[List[tuple]] = None,
+) -> str:
     ET.register_namespace("", _MSPDI_NS)
     root = ET.Element(f"{{{_MSPDI_NS}}}Project")
 
     all_tasks = _flatten(top_level_tasks)
     overall_finish = max((t.finish for t in all_tasks if t.finish), default=project_start)
+    normalized_resources = resources or []
 
     ET.SubElement(root, "SaveVersion").text = "1"
     ET.SubElement(root, "Name").text = project_name
@@ -244,8 +390,25 @@ def _render_mspdi(project_name: str, top_level_tasks: List["_Task"], project_sta
             ET.SubElement(working_time, "FromTime").text = f"{_WORK_START_HOUR:02d}:00:00"
             ET.SubElement(working_time, "ToTime").text = f"{_WORK_END_HOUR:02d}:00:00"
 
+    # Holiday exceptions, restricted to the plan's own actual date span --
+    # each marks that single date as non-working, so a tool re-deriving
+    # Start/Finish from Duration + Predecessors + this same Calendar on
+    # open skips it exactly like this module's own scheduler already did.
+    relevant_holidays = sorted(d for d in holidays if project_start <= d <= overall_finish)
+    if relevant_holidays:
+        exceptions = ET.SubElement(calendar, "Exceptions")
+        for index, holiday in enumerate(relevant_holidays, start=1):
+            exception = ET.SubElement(exceptions, "Exception")
+            ET.SubElement(exception, "UID").text = str(index)
+            ET.SubElement(exception, "Name").text = "UK bank holiday"
+            ET.SubElement(exception, "DayWorking").text = "0"
+            period = ET.SubElement(exception, "TimePeriod")
+            ET.SubElement(period, "FromDate").text = _date_xml(holiday, 0)
+            ET.SubElement(period, "ToDate").text = _date_xml(holiday, 0)
+
     wbs_by_uid = _wbs_numbers(top_level_tasks)
     tasks_el = ET.SubElement(root, "Tasks")
+    leaf_duration_hours: Dict[int, int] = {}
     for order, task in enumerate(all_tasks, start=1):
         task_el = ET.SubElement(tasks_el, "Task")
         ET.SubElement(task_el, "UID").text = str(task.uid)
@@ -262,9 +425,10 @@ def _render_mspdi(project_name: str, top_level_tasks: List["_Task"], project_sta
             ET.SubElement(task_el, "Finish").text = _date_xml(task.finish, _WORK_END_HOUR)
         duration_days = (
             task.duration_days if not task.children
-            else _count_working_days(task.start, task.finish) if task.start and task.finish
+            else _count_working_days(task.start, task.finish, holidays) if task.start and task.finish
             else 1
         )
+        duration_hours = max(duration_days, 1) * _WORK_HOURS_PER_DAY
         ET.SubElement(task_el, "Duration").text = _duration_xml(duration_days)
         ET.SubElement(task_el, "DurationFormat").text = "7"  # 7 = days, display hint only
         if task.notes:
@@ -276,6 +440,39 @@ def _render_mspdi(project_name: str, top_level_tasks: List["_Task"], project_sta
             ET.SubElement(pred, "CrossProject").text = "0"
             ET.SubElement(pred, "LinkLag").text = "0"
             ET.SubElement(pred, "LagFormat").text = "7"
+        if not task.children:
+            leaf_duration_hours[task.uid] = duration_hours
+
+    if normalized_resources:
+        resources_el = ET.SubElement(root, "Resources")
+        resource_uids = []
+        for index, (name, fraction) in enumerate(normalized_resources, start=1):
+            resource_el = ET.SubElement(resources_el, "Resource")
+            ET.SubElement(resource_el, "UID").text = str(index)
+            ET.SubElement(resource_el, "ID").text = str(index)
+            ET.SubElement(resource_el, "Name").text = name
+            ET.SubElement(resource_el, "Type").text = "1"  # 1 = work resource
+            ET.SubElement(resource_el, "MaxUnits").text = f"{fraction:g}"
+            resource_uids.append(index)
+
+        # Every named resource is assigned to every LEAF task (there is no
+        # finer-grained role-to-task mapping anywhere in either source
+        # schema to assign more precisely than that) -- Work is the task's
+        # own duration scaled by that resource's allocation fraction, an
+        # illustrative "used N% of the time for the task's duration" model,
+        # not a resource-leveling engine that would stretch the task's own
+        # dates to account for part-time availability.
+        assignments_el = ET.SubElement(root, "Assignments")
+        assignment_uid = 1
+        for task_uid, duration_hours in leaf_duration_hours.items():
+            for resource_index, (_name, fraction) in enumerate(normalized_resources, start=1):
+                assignment_el = ET.SubElement(assignments_el, "Assignment")
+                ET.SubElement(assignment_el, "UID").text = str(assignment_uid)
+                ET.SubElement(assignment_el, "TaskUID").text = str(task_uid)
+                ET.SubElement(assignment_el, "ResourceUID").text = str(resource_index)
+                ET.SubElement(assignment_el, "Units").text = f"{fraction:g}"
+                ET.SubElement(assignment_el, "Work").text = f"PT{round(duration_hours * fraction)}H0M0S"
+                assignment_uid += 1
 
     ET.indent(root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")
@@ -300,6 +497,36 @@ def _write_output(xml_text: str, filename: str) -> str:
     return out_path
 
 
+def _resolve_holidays(holiday_calendar: Optional[str], project_start: _dt.date) -> FrozenSet[_dt.date]:
+    """Only "uk" is recognized -- anything else (None, a typo, a different
+    country) resolves to no holidays at all (weekends-only calendar) rather
+    than guessing a calendar this module has no real data for."""
+    if isinstance(holiday_calendar, str) and holiday_calendar.strip().lower() == "uk":
+        return _uk_bank_holidays_covering(project_start)
+    return _NO_HOLIDAYS
+
+
+def _duration_overrun_warning(
+    root_task: "_Task", target_duration_weeks: Optional[float],
+) -> Optional[str]:
+    """Post-hoc check only -- never reshapes the already-sequenced
+    schedule to force a fit. Returns None when there's nothing to warn
+    about (no target given, or the plan fits within it)."""
+    if not target_duration_weeks or not root_task.start or not root_task.finish:
+        return None
+    target_days = target_duration_weeks * 7
+    actual_days = (root_task.finish - root_task.start).days + 1
+    if actual_days <= target_days:
+        return None
+    return (
+        f"WARNING: the sequenced plan spans {actual_days} calendar day(s) "
+        f"({root_task.start.isoformat()} to {root_task.finish.isoformat()}), which overruns the "
+        f"requested {target_duration_weeks:g}-week target ({target_days:g} day(s)) by "
+        f"{actual_days - target_days:g} day(s). Durations/sequencing were not compressed to force "
+        f"a fit -- review scope, resourcing, or the target itself."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Portfolio Backlog
 # ---------------------------------------------------------------------------
@@ -312,11 +539,19 @@ _BACKLOG_DISCLOSURE = (
 )
 
 
-def build_portfolio_backlog_project_plan(start_date: Optional[str] = None) -> str:
+def build_portfolio_backlog_project_plan(
+    start_date: Optional[str] = None,
+    resources: Optional[List[Dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+) -> str:
     """Exports the current saved Enterprise Agile Portfolio Backlog as an
     MSPDI project plan. Same "ERROR: ..."/"<thing> export failed: ..." string
     convention as vsdx_export.py's own build_* functions -- never raises to
-    the caller."""
+    the caller. `resources` is an optional list of {"name": str,
+    "allocation_percent": number} -- neither this nor `target_duration_weeks`/
+    `holiday_calendar` exist in the saved backlog JSON; all three are
+    supplied by the caller at export time only (see module docstring)."""
     backlog = load_portfolio_backlog()
     if backlog.get("status") != "OK" or not backlog.get("epics"):
         return "ERROR: No saved portfolio backlog found. Create one first."
@@ -374,14 +609,24 @@ def build_portfolio_backlog_project_plan(start_date: Optional[str] = None) -> st
             epic_task.children[-1].children[-1].duration_days = 1
         root.children.append(epic_task)
 
-    _schedule_subtree(root, _first_working_day_on_or_after(_parse_start_date(start_date)))
+    project_start = _parse_start_date(start_date)
+    holidays = _resolve_holidays(holiday_calendar, project_start)
+    _schedule_subtree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
 
-    xml_text = _render_mspdi(root.name, [root], root.start or _parse_start_date(start_date))
+    overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
+    if overrun_warning:
+        root.notes = f"{root.notes}\n\n{overrun_warning}"
+
+    normalized_resources = _normalize_resources(resources)
+    xml_text = _render_mspdi(
+        root.name, [root], root.start or project_start, holidays, normalized_resources,
+    )
     try:
         out_path = _write_output(xml_text, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
     except OSError as e:
         return f"Project plan export failed: {e}"
-    return f"Project plan successfully exported to {out_path}"
+    message = f"Project plan successfully exported to {out_path}"
+    return f"{message}\n\n{overrun_warning}" if overrun_warning else message
 
 
 # ---------------------------------------------------------------------------
@@ -432,10 +677,16 @@ def _parse_timing_to_days(timing: str) -> int:
     return _DEFAULT_PHASE_DURATION_DAYS
 
 
-def build_proposal_response_project_plan(start_date: Optional[str] = None) -> str:
+def build_proposal_response_project_plan(
+    start_date: Optional[str] = None,
+    resources: Optional[List[Dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+) -> str:
     """Exports the current saved proposal response's implementation_plan as
     an MSPDI project plan. Same string-return convention as
-    build_portfolio_backlog_project_plan above."""
+    build_portfolio_backlog_project_plan above, including the same
+    resources/target_duration_weeks/holiday_calendar parameters."""
     response = load_proposal_response()
     if response.get("status") != "OK" or not response.get("implementation_plan"):
         return "ERROR: No saved proposal response found. Create one first."
@@ -474,11 +725,21 @@ def build_proposal_response_project_plan(start_date: Optional[str] = None) -> st
     if not root.children:
         return "ERROR: No saved proposal response found. Create one first."
 
-    _schedule_subtree(root, _first_working_day_on_or_after(_parse_start_date(start_date)))
+    project_start = _parse_start_date(start_date)
+    holidays = _resolve_holidays(holiday_calendar, project_start)
+    _schedule_subtree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
 
-    xml_text = _render_mspdi(root.name, [root], root.start or _parse_start_date(start_date))
+    overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
+    if overrun_warning:
+        root.notes = f"{root.notes}\n\n{overrun_warning}"
+
+    normalized_resources = _normalize_resources(resources)
+    xml_text = _render_mspdi(
+        root.name, [root], root.start or project_start, holidays, normalized_resources,
+    )
     try:
         out_path = _write_output(xml_text, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
     except OSError as e:
         return f"Project plan export failed: {e}"
-    return f"Project plan successfully exported to {out_path}"
+    message = f"Project plan successfully exported to {out_path}"
+    return f"{message}\n\n{overrun_warning}" if overrun_warning else message

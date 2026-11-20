@@ -373,7 +373,12 @@ def export_cloudarch_vsdx(session_id: Optional[str] = None) -> dict:
 
 @mcp.tool
 def export_project_plan(
-    schema_type: str, start_date: Optional[str] = None, session_id: Optional[str] = None
+    schema_type: str,
+    start_date: Optional[str] = None,
+    resources: Optional[list[dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> dict:
     """On-demand Microsoft Project / ProjectLibre interchange-format (MSPDI
     XML) export of an ILLUSTRATIVE project plan, for schema_type
@@ -381,12 +386,21 @@ def export_project_plan(
     has a project plan at all. Durations are computed at render time only
     (never written back into either saved JSON) since neither schema has a
     real date/duration field. `start_date` (ISO "YYYY-MM-DD") defaults to
-    today when omitted. Never runs as part of either domain's own
-    generate/review pipeline -- this is a standalone action an MCP client
-    calls explicitly. Returns {"message": ..., "project_plan": null} for an
-    unsupported schema_type, or when the underlying export itself reports an
-    error (its own message, prefixed "ERROR:", is still returned either way
-    for the caller to relay)."""
+    today when omitted. `resources` is an optional list of {"name": str,
+    "allocation_percent": number}, rendered as MSPDI Resources/Assignments
+    (every resource assigned to every leaf task -- neither source schema has
+    any finer-grained role-to-task mapping to assign more precisely than
+    that). `holiday_calendar`, if set to "uk", marks real UK bank holidays
+    as non-working Calendar Exceptions so the scheduler actually skips them
+    (any other value is ignored, not guessed). `target_duration_weeks` is a
+    POST-HOC check only -- if the sequenced plan overruns it, a WARNING is
+    appended to the message and to the root task's own Notes, never
+    silently compressed to force a fit. Never runs as part of either
+    domain's own generate/review pipeline -- this is a standalone action an
+    MCP client calls explicitly. Returns {"message": ..., "project_plan":
+    null} for an unsupported schema_type, or when the underlying export
+    itself reports an error (its own message, prefixed "ERROR:", is still
+    returned either way for the caller to relay)."""
     if schema_type not in ("portfolio_backlog", "proposal_response"):
         return {
             "message": f"NOT_APPLICABLE: '{schema_type}' has no project plan to export.",
@@ -396,9 +410,13 @@ def export_project_plan(
         directory = paths.output_dir()
         before = _snapshot_mtimes(directory, ".xml")
         if schema_type == "portfolio_backlog":
-            message = build_portfolio_backlog_project_plan(start_date)
+            message = build_portfolio_backlog_project_plan(
+                start_date, resources, target_duration_weeks, holiday_calendar,
+            )
         else:
-            message = build_proposal_response_project_plan(start_date)
+            message = build_proposal_response_project_plan(
+                start_date, resources, target_duration_weeks, holiday_calendar,
+            )
         changed = _new_or_changed(before, directory, ".xml")
         project_plan = _encode_file(os.path.join(directory, changed[0])) if changed else None
     return {"message": message, "project_plan": project_plan}

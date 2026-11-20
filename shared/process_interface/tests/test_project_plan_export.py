@@ -134,6 +134,18 @@ class TestBuildPortfolioBacklogProjectPlanLocalMode:
         out_path = result.removeprefix("Project plan successfully exported to ")
         assert os.path.isfile(out_path)
 
+    def test_resources_and_holiday_calendar_and_target_duration_weeks_pass_through(self):
+        from process_interface.docgen import project_plan_export
+
+        _save_backlog()
+        result = project_plan_export.build_portfolio_backlog_project_plan(
+            resources=[{"name": "Project Manager", "allocation_percent": 50}],
+            target_duration_weeks=0.1,
+            holiday_calendar="uk",
+        )
+        assert "successfully exported" in result
+        assert "WARNING" in result
+
 
 class TestBuildProposalResponseProjectPlanLocalMode:
     def test_errors_cleanly_with_nothing_saved(self):
