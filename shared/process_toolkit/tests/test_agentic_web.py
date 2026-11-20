@@ -25,7 +25,7 @@ from process_toolkit.agentic_web import (
 class TestAgentCards:
     def test_all_expected_specialist_agents_registered(self):
         cards = get_all_agent_cards()
-        assert len(cards) >= 39
+        assert len(cards) >= 41
         names = {c["name"] for c in cards}
         expected = [
             "process_architect",
@@ -54,11 +54,13 @@ class TestAgentCards:
             "test_consultant",
             "test_reviewer",
             "portfolio_backlog",
+            "portfolio_backlog_consultant",
             "proposal_response_pipeline",
             "proposal_response_consultant",
             "proposal_response_reviewer",
             "togaf",
             "togaf_scenario_tester",
+            "togaf_consultant",
             "itsm",
             "itsm_update",
             "itsm_import",
@@ -133,7 +135,7 @@ class TestAgentCards:
 
     def test_list_agent_summaries(self):
         summaries = list_agent_summaries()
-        assert len(summaries) >= 39
+        assert len(summaries) >= 41
         for s in summaries:
             assert "name" in s
             assert "description" in s
@@ -229,7 +231,7 @@ class TestAgentManifest:
         assert manifest["provider"]["name"] == "Agentic-AI-ADK"
         assert manifest["endpoints"]["agents"] == "http://localhost:5000/agents"
         assert manifest["endpoints"]["chat"] == "http://localhost:5000/chat"
-        assert manifest["capabilities_count"] >= 39
+        assert manifest["capabilities_count"] >= 41
         assert manifest["workflows_count"] >= 7
         assert manifest["artifact_contracts_count"] >= 14
-        assert len(manifest["agents"]) >= 39
+        assert len(manifest["agents"]) >= 41

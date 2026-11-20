@@ -37,6 +37,34 @@ def test_backlog_network_loads_one_source_and_writes_the_workbook():
     assert "preserve all unrelated items" in text
 
 
+def test_manifest_registers_backlog_consultant_network():
+    text = (REGISTRIES / "manifest.hocon").read_text(encoding="utf-8")
+    assert '"portfolio_backlog_consultant.hocon": true' in text
+
+
+def test_router_routes_and_enables_backlog_consultant_network():
+    text = (REGISTRIES / "process_architect.hocon").read_text(encoding="utf-8")
+    orchestrator_start = text.index('"name": "Process_Architect_Orchestrator"')
+    tools_start = text.index('"tools": [', orchestrator_start)
+    tools_text = text[tools_start:text.index("]", tools_start)]
+
+    assert '"/portfolio_backlog_consultant"' in tools_text
+    assert "### 4m. ENTERPRISE AGILE PORTFOLIO BACKLOG EXPLANATION, REVIEW, OR GENERAL QUESTION" in text
+    assert "-> Call: Portfolio_Backlog_Consultant_Agent" in text
+    # The whole point of this network: a general backlog-planning question must route here even
+    # with nothing saved -- CONFIRMED AS A REAL GAP every other saved-document consultant agent
+    # on this port had before this pattern existed (see test_consultant_dual_mode_pattern.py).
+    assert "EVEN IF nothing has ever been saved" in text
+
+
+def test_backlog_consultant_answers_general_questions_without_requiring_a_saved_backlog():
+    text = (REGISTRIES / "portfolio_backlog_consultant.hocon").read_text(encoding="utf-8")
+    assert "GENERAL: asks about agile/SAFe backlog-planning concepts" in text
+    assert "SPECIFIC: references the user's OWN saved backlog" in text
+    assert "Do NOT call load_portfolio_backlog for\na purely general question" in text
+    assert '"class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"' in text
+
+
 def test_coded_tool_delegates_to_shared_backlog_persistence():
     text = (
         PROJECT_ROOT

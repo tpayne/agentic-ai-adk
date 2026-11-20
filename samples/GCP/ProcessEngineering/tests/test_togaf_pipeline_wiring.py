@@ -131,6 +131,45 @@ def test_scenario_tester_has_no_save_or_persist_tool_at_all():
     assert not any(name.startswith("save_") or name.startswith("persist_") for name in tool_names)
 
 
+def test_togaf_consultant_agent_registers_source_tools_only():
+    from process_agents.common.togaf_consultant_agent import togaf_consultant_agent
+    from process_agents.common.utils import load_full_togaf_context, load_requirements_summary
+
+    assert set(togaf_consultant_agent.tools) == {load_full_togaf_context, load_requirements_summary}
+
+    # Structural guarantee against mutation: no save/persist tool exists on this agent's own
+    # tool list at all -- it is read-only, same as togaf_scenario_tester_agent.
+    tool_names = {getattr(tool, "__name__", "") for tool in togaf_consultant_agent.tools}
+    assert not any(name.startswith("save_") or name.startswith("persist_") for name in tool_names)
+
+
+def test_togaf_consultant_answers_general_questions_without_requiring_a_saved_artifact_set():
+    # CONFIRMED AS A REAL GAP on the sibling neuro-san port (identical agent logic, developed in
+    # tandem with this one), on every other saved-document consultant agent on that port before
+    # this pattern existed: a purely general TOGAF question used to be refused outright for lack
+    # of a saved artifact set, even though answering it needs no artifact set at all.
+    text = _read("instructions/common/togaf_consultant_agent.txt")
+    assert "GENERAL: asks about TOGAF/enterprise-architecture concepts" in text
+    assert "SPECIFIC: references the user's OWN saved artifact set" in text
+    assert "Do NOT CALL the\n'load_full_togaf_context' tool for a purely general question" in text
+
+
+def test_root_router_routes_togaf_consultant_requests():
+    text = _read("instructions/common/agent.txt")
+
+    assert "### 4l. TOGAF / ENTERPRISE ARCHITECTURE EXPLANATION, REVIEW, OR GENERAL QUESTION" in text
+    assert "→ Call: TOGAF_Consultant_Agent" in text
+    assert "EVEN IF nothing has ever been saved" in text
+
+
+def test_togaf_consultant_registry_and_root_wiring():
+    registry = _read("process_agents/common/agent_registry.py")
+    root = _read("process_agents/common/agent.py")
+
+    assert "from .togaf_consultant_agent import togaf_consultant_agent" in registry
+    assert root.count("togaf_consultant_agent,") == 2
+
+
 def test_root_router_routes_togaf_requests():
     text = _read("instructions/common/agent.txt")
 

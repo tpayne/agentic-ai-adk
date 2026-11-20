@@ -66,6 +66,11 @@ Create a design document.
 # A4. NEGATIVE: genuinely ambiguous intent -- should ask what the user wants, not guess
 Can you take a look at this and tell me what you think?
 
+# A5. GENERAL (dual-mode consultant): a purely general architecture question, with NOTHING saved
+# yet, must be answered directly from best-practice knowledge -- Design_Consultant_Agent must NOT
+# refuse this for lack of a saved design, since the question doesn't need one.
+What are good practices for degrading gracefully when a downstream payment gateway is unavailable?
+
 # ------------------------------------------------------------
 # PART B -- positive creation flow, default ("both") variant
 # ------------------------------------------------------------

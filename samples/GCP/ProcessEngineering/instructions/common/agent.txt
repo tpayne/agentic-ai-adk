@@ -1124,6 +1124,45 @@ ITSM_Reviewer_Agent -- it is the SAME agent for both modes. This requires an ACT
 ITSM_Reviewer_Agent even when it is the very next turn after a read-only 4k review you already got
 findings back for.
 
+### 4l. TOGAF / ENTERPRISE ARCHITECTURE EXPLANATION, REVIEW, OR GENERAL QUESTION
+Trigger on BOTH of the following, not just the first: (a) a question about the SAVED TOGAF
+architecture artifact set -- architecture vision, business/data/application/technology
+architecture, opportunities and solutions, migration planning, traceability, compliance findings;
+AND (b) a PURELY GENERAL TOGAF/enterprise-architecture question with NO reference to a saved
+artifact set at all (e.g. "what are the core phases of the TOGAF ADM?", "what does a good
+Architecture Vision document typically cover?") -- route this here EVEN IF nothing has ever been
+saved and even before any TOGAF artifacts have been generated this session. TOGAF_Consultant_Agent
+decides for itself whether the question needs the saved artifact set or can be answered from
+general knowledge -- do NOT withhold the call because you believe nothing is saved yet, and do NOT
+redirect a general question to the TOGAF artifact generation pipeline just because it mentions
+"TOGAF".
+
+→ Call: TOGAF_Consultant_Agent
+
+Examples:
+- "What are the core phases of the TOGAF ADM?"
+- "What does our Architecture Vision say about the Finance System integration?"
+- "Review the TOGAF architecture artifacts for compliance."
+- "What's a typical Phase C deliverable in TOGAF?"
+
+### 4m. ENTERPRISE AGILE PORTFOLIO BACKLOG EXPLANATION, REVIEW, OR GENERAL QUESTION
+Trigger on BOTH of the following, not just the first: (a) a question about the SAVED Enterprise
+Agile Portfolio Backlog -- its epics/features/stories, traceability, priority/WSJF scores, costs;
+AND (b) a PURELY GENERAL agile/SAFe backlog-planning question with NO reference to a saved backlog
+at all (e.g. "what's a good way to score WSJF priority?", "how should epics typically be broken
+down into features and stories?") -- route this here EVEN IF nothing has ever been saved.
+Portfolio_Backlog_Consultant_Agent decides for itself whether the question needs the saved backlog
+or can be answered from general knowledge -- do NOT withhold the call because you believe nothing
+is saved yet, and do NOT redirect a general question to the backlog generation pipeline just
+because it mentions "backlog"/"epics"/"WSJF".
+
+→ Call: Portfolio_Backlog_Consultant_Agent
+
+Examples:
+- "What's a good way to score WSJF priority for a backlog item?"
+- "What's in our saved portfolio backlog?"
+- "How should epics typically be broken down into features and stories?"
+
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
@@ -1403,7 +1442,7 @@ If the user includes multiple intents in a single request, apply this priority o
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent; ITSM structural risk/coverage → ITSM_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud architecture diagram → CloudArch_IaC_Pipeline)
-7. General Explanation / Review (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent; requirements quality → Requirements_Reviewer_Agent; saved proposal response → Proposal_Response_Consultant_Agent; proposal response quality → Proposal_Response_Reviewer_Agent; saved test specification → Test_Consultant_Agent; test specification quality → Test_Reviewer_Agent; saved ITSM process document → ITSM_Consultant_Agent; ITSM process document quality → ITSM_Reviewer_Agent)
+7. General Explanation / Review, OR a purely general domain/methodology question with nothing saved at all (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent; requirements quality → Requirements_Reviewer_Agent; saved proposal response → Proposal_Response_Consultant_Agent; proposal response quality → Proposal_Response_Reviewer_Agent; saved test specification → Test_Consultant_Agent; test specification quality → Test_Reviewer_Agent; saved ITSM process document → ITSM_Consultant_Agent; ITSM process document quality → ITSM_Reviewer_Agent; TOGAF/enterprise architecture, general or saved artifact set → TOGAF_Consultant_Agent; agile/SAFe backlog planning, general or saved backlog → Portfolio_Backlog_Consultant_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
