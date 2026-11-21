@@ -47,14 +47,17 @@ import datetime as _dt
 import os
 import re
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 from process_toolkit import paths
 from process_toolkit.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
 from process_toolkit.proposal_response.proposal_response import load_proposal_response
+from process_toolkit.docgen.pert_cpm_export import build_pert_cpm_drawio_xml
 
 PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME = "portfolio_backlog_project_plan.xml"
 PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME = "proposal_response_project_plan.xml"
+PORTFOLIO_BACKLOG_PERT_CPM_FILENAME = "portfolio_backlog_pert_cpm.xml"
+PROPOSAL_RESPONSE_PERT_CPM_FILENAME = "proposal_response_pert_cpm.xml"
 
 # Illustrative planning assumption, NOT written into the saved backlog JSON --
 # mirrors portfolio_backlog.py's own "editable, explicitly illustrative"
@@ -497,6 +500,45 @@ def _write_output(xml_text: str, filename: str) -> str:
     return out_path
 
 
+def _build_and_write_pert_cpm(
+    root_task: "_Task", holidays: FrozenSet[_dt.date], filename: str,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Generates the companion PERT/CPM network diagram (see docgen.
+    pert_cpm_export) from the SAME scheduled task tree the MSPDI file was
+    just rendered from, and writes it alongside it. Returns (path, None) on
+    success or (None, warning) on failure -- a failure here must never fail
+    the overall project-plan export, which has already succeeded by the
+    time this is called; the warning is instead folded into the caller's
+    own returned message, same as _duration_overrun_warning's WARNING.
+
+    Only LEAF (non-summary) tasks become activities -- standard PERT/CPM
+    convention shows individual work items, not the summary rollups that
+    span (and would visually overlap) their own children's combined dates.
+    `gap_working_days_before` is computed here (not inside pert_cpm_export,
+    which stays holiday-agnostic) using the same _count_working_days this
+    module already uses elsewhere -- 0 when two consecutive leaves are
+    scheduled back-to-back (always true under this module's own scheduler
+    today, see _schedule_subtree), but a genuine measurement rather than an
+    assumption, so pert_cpm_export's own backward pass produces honest,
+    future-proof float/critical results instead of a hardcoded shortcut.
+    """
+    leaves = [t for t in _flatten([root_task]) if not t.is_summary and t.start and t.finish]
+    activities = []
+    for i, task in enumerate(leaves):
+        gap = 0
+        if i > 0:
+            gap = max(0, _count_working_days(leaves[i - 1].finish, task.start, holidays) - 2)
+        activities.append({
+            "uid": task.uid, "name": task.name, "start": task.start, "finish": task.finish,
+            "duration_days": max(task.duration_days, 1), "gap_working_days_before": gap,
+        })
+    try:
+        xml_text = build_pert_cpm_drawio_xml(activities, root_task.name)
+        return _write_output(xml_text, filename), None
+    except OSError as e:
+        return None, f"WARNING: Could not generate the PERT/CPM diagram: {e}"
+
+
 def _resolve_holidays(holiday_calendar: Optional[str], project_start: _dt.date) -> FrozenSet[_dt.date]:
     """Only "uk" is recognized -- anything else (None, a typo, a different
     country) resolves to no holidays at all (weekends-only calendar) rather
@@ -626,6 +668,13 @@ def build_portfolio_backlog_project_plan(
     except OSError as e:
         return f"Project plan export failed: {e}"
     message = f"Project plan successfully exported to {out_path}"
+    pert_cpm_path, pert_cpm_warning = _build_and_write_pert_cpm(
+        root, holidays, PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
+    )
+    if pert_cpm_path:
+        message += f"\nA PERT/CPM network diagram was also generated at {pert_cpm_path}."
+    elif pert_cpm_warning:
+        message += f"\n{pert_cpm_warning}"
     return f"{message}\n\n{overrun_warning}" if overrun_warning else message
 
 
@@ -742,6 +791,13 @@ def build_proposal_response_project_plan(
     except OSError as e:
         return f"Project plan export failed: {e}"
     message = f"Project plan successfully exported to {out_path}"
+    pert_cpm_path, pert_cpm_warning = _build_and_write_pert_cpm(
+        root, holidays, PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
+    )
+    if pert_cpm_path:
+        message += f"\nA PERT/CPM network diagram was also generated at {pert_cpm_path}."
+    elif pert_cpm_warning:
+        message += f"\n{pert_cpm_warning}"
     return f"{message}\n\n{overrun_warning}" if overrun_warning else message
 
 

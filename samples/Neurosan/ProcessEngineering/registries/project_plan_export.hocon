@@ -35,7 +35,8 @@
                 "description": """
 I export the current Enterprise Agile Portfolio Backlog or Proposal Response as a real Microsoft
 Project / ProjectLibre interchange-format (MSPDI XML) project plan, from whatever is already saved
-on disk. I never re-run analysis, backlog/proposal generation, or review, and I never modify the
+on disk. I always also generate a PERT/CPM network diagram alongside it, from the same scheduled
+tasks. I never re-run analysis, backlog/proposal generation, or review, and I never modify the
 saved data itself. Tell me to export the backlog or the proposal response as a project plan.
 """,
                 "parameters": {
@@ -103,7 +104,8 @@ Check whether "inquiry" itself names a domain:
    on-schedule claim.
 5. Otherwise, report in plain language that the project plan was exported, the exact saved path
    from the tool's own result, and restate briefly that durations/sequencing are an illustrative
-   planning estimate, not a committed schedule.
+   planning estimate, not a committed schedule. The tool's own result also mentions a PERT/CPM
+   network diagram generated alongside it -- relay that path too, in the same reply.
 
 Plain prose only in your final reply -- no raw XML, tool names, or internal field names.
 """,
@@ -113,7 +115,7 @@ Plain prose only in your final reply -- no raw XML, tool names, or internal fiel
         {
             "name": "export_project_plan",
             "function": {
-                "description": "Exports the current saved Enterprise Agile Portfolio Backlog or Proposal Response as an MSPDI project plan file.",
+                "description": "Exports the current saved Enterprise Agile Portfolio Backlog or Proposal Response as an MSPDI project plan file, plus a companion PERT/CPM network diagram generated from the same scheduled tasks.",
                 "parameters": {
                     "type": "object",
                     "properties": {

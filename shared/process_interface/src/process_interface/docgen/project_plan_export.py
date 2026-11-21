@@ -13,7 +13,9 @@ message prefix -- same reasoning as vsdx_export.py's own docstring.
 from typing import Any, Dict, List, Optional
 
 from process_toolkit.docgen.project_plan_export import (
+    PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
     PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+    PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
     PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
     build_portfolio_backlog_project_plan as _toolkit_build_portfolio_backlog_project_plan,
     build_proposal_response_project_plan as _toolkit_build_proposal_response_project_plan,
@@ -28,6 +30,7 @@ from process_interface import _artifacts, _transport, config, paths
 __all__ = [
     "build_portfolio_backlog_project_plan", "build_proposal_response_project_plan",
     "PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME", "PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME",
+    "PORTFOLIO_BACKLOG_PERT_CPM_FILENAME", "PROPOSAL_RESPONSE_PERT_CPM_FILENAME",
     "portfolio_backlog_project_plan_exists", "proposal_response_project_plan_exists",
     "parse_mspdi_tasks", "mspdi_project_title",
 ]
@@ -68,6 +71,8 @@ def build_portfolio_backlog_project_plan(
     message = result["message"]
     if result.get("project_plan"):
         _artifacts.materialize_one(result.get("project_plan"))
+    if result.get("pert_cpm"):
+        _artifacts.materialize_one(result.get("pert_cpm"))
     return message
 
 
@@ -100,4 +105,6 @@ def build_proposal_response_project_plan(
     message = result["message"]
     if result.get("project_plan"):
         _artifacts.materialize_one(result.get("project_plan"))
+    if result.get("pert_cpm"):
+        _artifacts.materialize_one(result.get("pert_cpm"))
     return message

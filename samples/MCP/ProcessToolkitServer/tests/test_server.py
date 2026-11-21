@@ -333,6 +333,7 @@ class TestExportProjectPlan:
                     "export_project_plan", {"schema_type": schema_type, "session_id": "s1"},
                 )).data
                 assert result["project_plan"] is None
+                assert result["pert_cpm"] is None
                 assert "NOT_APPLICABLE" in result["message"], (schema_type, result["message"])
 
     async def test_portfolio_backlog_with_nothing_saved_errors_without_fabricating_a_plan(self):
@@ -382,6 +383,14 @@ class TestExportProjectPlan:
             assert result["project_plan"]["filename"].endswith(".xml")
             assert result["project_plan"]["size_bytes"] > 0
             assert "successfully exported" in result["message"], result["message"]
+            # The companion PERT/CPM diagram is a SEPARATE .xml file written
+            # in the same call -- confirms the "which .xml file changed"
+            # lookup correctly distinguishes the two rather than only
+            # picking up one of them.
+            assert result["pert_cpm"] is not None
+            assert result["pert_cpm"]["filename"] == "portfolio_backlog_pert_cpm.xml"
+            assert result["pert_cpm"]["size_bytes"] > 0
+            assert result["pert_cpm"]["filename"] != result["project_plan"]["filename"]
 
     async def test_exports_a_saved_proposal_responses_implementation_plan_phases(self):
         response = {
@@ -402,6 +411,8 @@ class TestExportProjectPlan:
             assert result["project_plan"] is not None
             assert result["project_plan"]["filename"].endswith(".xml")
             assert "successfully exported" in result["message"], result["message"]
+            assert result["pert_cpm"] is not None
+            assert result["pert_cpm"]["filename"] == "proposal_response_pert_cpm.xml"
 
     async def test_exports_with_resources_uk_holidays_and_an_overrun_warning(self):
         priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}

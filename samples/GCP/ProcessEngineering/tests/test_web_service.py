@@ -1055,10 +1055,44 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
         tasks = response.get_json()["data"]["tasks"]
         self.assertEqual({t["name"] for t in tasks}, {"Fixture Backlog", "Epic", "Feature", "Story"})
 
+    def test_portfolio_backlog_pert_cpm_artifact_name_returns_raw_xml(self):
+        from process_interface.docgen.project_plan_export import build_portfolio_backlog_project_plan
+        from process_interface.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+
+        priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}
+        save_portfolio_backlog({
+            "name": "Fixture Backlog", "summary": "s", "source_name": "x", "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-1", "title": "Epic", "description": "d",
+                "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                "features": [{
+                    "id": "FEAT-1", "title": "Feature", "description": "d",
+                    "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                    "stories": [{
+                        "id": "STORY-1", "title": "Story", "description": "d",
+                        "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                        "acceptance_criteria": ["works"],
+                    }],
+                }],
+            }],
+        })
+        build_portfolio_backlog_project_plan()
+
+        response = self.client.get(
+            "/artifacts/portfolio_backlog_pert_cpm", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["name"], "portfolio_backlog_pert_cpm")
+        self.assertIsInstance(body["data"], str)
+        self.assertIn("<mxfile", body["data"])
+        self.assertIn("Story", body["data"])
+
     def test_graph_and_task_list_artifact_names_404_when_not_yet_exported(self):
         for name in (
             "process_flow_vsdx", "design_flow_vsdx", "cloudarch_vsdx",
             "portfolio_backlog_project_plan", "proposal_response_project_plan",
+            "portfolio_backlog_pert_cpm", "proposal_response_pert_cpm",
         ):
             response = self.client.get(f"/artifacts/{name}", headers=self._authorized_headers())
             self.assertEqual(response.status_code, 404, name)
@@ -1296,6 +1330,39 @@ class WebServiceProcessDesignJsonDownloadRouteTest(unittest.TestCase):
         self.assertEqual(
             self.client.get(
                 "/artifacts/proposal_response_project_plan/download", headers=self._authorized_headers()
+            ).status_code,
+            404,
+        )
+
+    def test_downloads_portfolio_backlog_pert_cpm_as_a_real_attachment(self):
+        self._write("portfolio_backlog_pert_cpm.xml", "<mxfile/>")
+        response = self.client.get(
+            "/artifacts/portfolio_backlog_pert_cpm/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"<mxfile/>")
+        self.assertEqual(response.mimetype, "application/xml")
+        self.assertIn("portfolio_backlog_pert_cpm.xml", response.headers.get("Content-Disposition", ""))
+
+    def test_downloads_proposal_response_pert_cpm_as_a_real_attachment(self):
+        self._write("proposal_response_pert_cpm.xml", "<mxfile/>")
+        response = self.client.get(
+            "/artifacts/proposal_response_pert_cpm/download", headers=self._authorized_headers()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"<mxfile/>")
+        self.assertIn("proposal_response_pert_cpm.xml", response.headers.get("Content-Disposition", ""))
+
+    def test_pert_cpm_routes_404_when_not_yet_exported(self):
+        self.assertEqual(
+            self.client.get(
+                "/artifacts/portfolio_backlog_pert_cpm/download", headers=self._authorized_headers()
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(
+                "/artifacts/proposal_response_pert_cpm/download", headers=self._authorized_headers()
             ).status_code,
             404,
         )

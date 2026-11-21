@@ -2804,6 +2804,22 @@
       label: "proposal response project plan",
       disclaimer: "This is an illustrative planning estimate, not a committed schedule.",
     },
+    // "xml" kind, same as cloudarch -- a real mxGraph/draw.io XML file
+    // generated server-side alongside the project plan (see docgen.
+    // project_plan_export's own _build_and_write_pert_cpm), so it reuses
+    // parseDrawioXml/renderGraphDiagram with zero new client-side code.
+    portfolio_backlog_pert_cpm: {
+      kind: "xml",
+      filename: "portfolio_backlog_pert_cpm.xml",
+      label: "portfolio backlog PERT/CPM network diagram",
+      disclaimer: "This is a network view of the plan's task sequence and timing, not a committed schedule.",
+    },
+    proposal_response_pert_cpm: {
+      kind: "xml",
+      filename: "proposal_response_pert_cpm.xml",
+      label: "proposal response PERT/CPM network diagram",
+      disclaimer: "This is a network view of the plan's task sequence and timing, not a committed schedule.",
+    },
   };
 
   // Parses a semicolon-separated mxGraph style string ("rounded=1;

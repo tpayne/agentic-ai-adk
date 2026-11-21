@@ -46,6 +46,7 @@ plainly -- it is not a committed schedule.
    on-schedule claim.
 5. Otherwise, report in plain language that the project plan was exported, the exact saved path
    from the tool's own result, and restate briefly that durations/sequencing are an illustrative
-   planning estimate, not a committed schedule.
+   planning estimate, not a committed schedule. The tool's own result also mentions a PERT/CPM
+   network diagram generated alongside it -- relay that path too, in the same reply.
 
 Do not output raw XML, tool names, or internal field names as chat text.

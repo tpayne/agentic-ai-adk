@@ -131,8 +131,13 @@ class TestBuildPortfolioBacklogProjectPlanLocalMode:
         _save_backlog()
         result = project_plan_export.build_portfolio_backlog_project_plan()
         assert result.startswith("Project plan successfully exported to "), result
-        out_path = result.removeprefix("Project plan successfully exported to ")
+        first_line, _, rest = result.partition("\n")
+        out_path = first_line.removeprefix("Project plan successfully exported to ")
         assert os.path.isfile(out_path)
+        # The companion PERT/CPM diagram is always generated alongside it.
+        assert "A PERT/CPM network diagram was also generated at " in rest
+        pert_cpm_path = rest.removeprefix("A PERT/CPM network diagram was also generated at ").rstrip(".")
+        assert os.path.isfile(pert_cpm_path)
 
     def test_resources_and_holiday_calendar_and_target_duration_weeks_pass_through(self):
         from process_interface.docgen import project_plan_export
@@ -160,8 +165,12 @@ class TestBuildProposalResponseProjectPlanLocalMode:
         _save_proposal_response()
         result = project_plan_export.build_proposal_response_project_plan()
         assert result.startswith("Project plan successfully exported to "), result
-        out_path = result.removeprefix("Project plan successfully exported to ")
+        first_line, _, rest = result.partition("\n")
+        out_path = first_line.removeprefix("Project plan successfully exported to ")
         assert os.path.isfile(out_path)
+        assert "A PERT/CPM network diagram was also generated at " in rest
+        pert_cpm_path = rest.removeprefix("A PERT/CPM network diagram was also generated at ").rstrip(".")
+        assert os.path.isfile(pert_cpm_path)
 
 
 class TestBothModesAgainstTheRealServer:
@@ -180,6 +189,15 @@ class TestBothModesAgainstTheRealServer:
         # also independently exists on the server's own side.
         assert os.path.isfile(os.path.join(server_output_dir, "portfolio_backlog_project_plan.xml"))
 
+        # The companion PERT/CPM diagram is a SECOND materialized artifact
+        # from the SAME call -- proves the server's own "which .xml file(s)
+        # changed" lookup (server.py's export_project_plan) correctly
+        # distinguishes both rather than only the first one it finds.
+        pert_cpm_local_path = paths.output_path("portfolio_backlog_pert_cpm.xml")
+        assert os.path.isfile(pert_cpm_local_path)
+        assert os.path.getsize(pert_cpm_local_path) > 0
+        assert os.path.isfile(os.path.join(server_output_dir, "portfolio_backlog_pert_cpm.xml"))
+
     def test_proposal_response_project_plan_mcp_mode_materializes_locally(self, mcp_mode):
         server_output_dir = mcp_mode
         from process_interface.docgen import project_plan_export
@@ -191,6 +209,10 @@ class TestBothModesAgainstTheRealServer:
         local_path = paths.output_path("proposal_response_project_plan.xml")
         assert os.path.isfile(local_path)
         assert os.path.isfile(os.path.join(server_output_dir, "proposal_response_project_plan.xml"))
+
+        pert_cpm_local_path = paths.output_path("proposal_response_pert_cpm.xml")
+        assert os.path.isfile(pert_cpm_local_path)
+        assert os.path.isfile(os.path.join(server_output_dir, "proposal_response_pert_cpm.xml"))
 
     def test_mcp_mode_reports_error_cleanly_when_nothing_saved(self, mcp_mode):
         from process_interface.docgen import project_plan_export

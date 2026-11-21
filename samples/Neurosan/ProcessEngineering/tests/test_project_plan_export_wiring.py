@@ -94,6 +94,16 @@ def test_front_man_instructs_extraction_not_fabrication_of_planning_assumptions(
     assert 'relay it verbatim' in text or "WARNING" in text
 
 
+def test_front_man_mentions_the_companion_pert_cpm_diagram():
+    # The tool's own return message always includes the PERT/CPM path (see
+    # process_toolkit.docgen.project_plan_export's own
+    # _build_and_write_pert_cpm) -- the front-man must be told to relay it,
+    # not just the primary project-plan path.
+    text = (REGISTRIES / "project_plan_export.hocon").read_text(encoding="utf-8")
+    assert "PERT/CPM" in text
+    assert "relay that path too" in text
+
+
 def test_router_acknowledges_project_plan_wording_when_nothing_is_saved_yet():
     # CONFIRMED AS A REAL PRODUCTION BUG: a live run asked for a project
     # plan (nothing saved yet) and the router silently dropped "project
@@ -109,6 +119,56 @@ def test_router_acknowledges_project_plan_wording_when_nothing_is_saved_yet():
     assert "Business Process Design" in section_text
     assert "never mentioned a project" in section_text
     assert "you MUST explicitly acknowledge \"project plan\"" in section_text
+
+
+def test_router_routes_portfolio_backlog_what_if_to_consultant_not_the_mutating_pipeline():
+    # CONFIRMED AS A REAL PRODUCTION BUG: a live run asked a plain
+    # hypothetical question about an already-saved backlog ("what if the
+    # BA and SA allocations were changed to 60% instead of 40-50%") and
+    # the router treated it as a literal update instruction, routing it to
+    # Portfolio_Backlog_Pipeline -- which actually rewrote
+    # portfolio_backlog.json/.xlsx with the new allocations instead of
+    # answering the "what if" analysis. Sections 5a-5d already establish
+    # this carve-out for process/design/TOGAF/ITSM; this is 5e, extending
+    # it to Portfolio Backlog.
+    text = (REGISTRIES / "process_architect.hocon").read_text(encoding="utf-8")
+    assert "### 5e. ENTERPRISE AGILE PORTFOLIO BACKLOG WHAT-IF SCENARIOS" in text
+    section_start = text.index("### 5e. ENTERPRISE AGILE PORTFOLIO BACKLOG WHAT-IF SCENARIOS")
+    section_text = text[section_start:section_start + 2000]
+    assert "CONFIRMED AS A REAL PRODUCTION BUG" in section_text
+    assert "Call: Portfolio_Backlog_Consultant_Agent" in section_text
+    assert "ALWAYS routes to Portfolio_Backlog_Consultant_Agent" in section_text
+
+    # The Tier-3 (Scenario/What-if) priority entry must list Portfolio
+    # Backlog too, since Tier 1 (Creation or explicit update) is checked
+    # first and would otherwise win every time.
+    tier_line = text[text.index("3. Scenario / What-if"):]
+    tier_line = tier_line[:tier_line.index("\n")]
+    assert "Portfolio_Backlog_Consultant_Agent" in tier_line
+
+    # 1g's own trigger must now explicitly exclude hypothetical phrasing,
+    # not just rely on 5e existing elsewhere -- same discipline as every
+    # other anti-collision carve-out in this file.
+    section_1g_start = text.index("### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE")
+    section_1g_text = text[section_1g_start:section_1g_start + 1200]
+    assert "Does NOT apply when the request is hypothetical/conditional" in section_1g_text
+    assert "Section 5e" in section_1g_text
+
+
+def test_save_portfolio_backlog_notes_a_stale_project_plan():
+    # Companion fix to the routing bug above: even a GENUINE update should
+    # tell the user that a previously-exported project plan (and its
+    # PERT/CPM diagram) are now stale, since nothing in this codebase
+    # auto-regenerates either (project_plan_export is deliberately
+    # export-only -- see its own module docstring).
+    text = (
+        Path(__file__).resolve().parent.parent.parent.parent.parent
+        / "shared" / "process_interface" / "src" / "process_interface"
+        / "portfolio_backlog" / "portfolio_backlog.py"
+    ).read_text(encoding="utf-8")
+    assert "portfolio_backlog_project_plan_exists" in text
+    assert "neither was regenerated and both may now be" in text
+    assert "PORTFOLIO_BACKLOG_PERT_CPM_FILENAME" in text
 
 
 def test_portfolio_backlog_gained_an_optional_non_authoritative_directory_read_step():

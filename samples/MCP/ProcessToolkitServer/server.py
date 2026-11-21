@@ -64,6 +64,8 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
 from process_toolkit.docgen.project_plan_export import (
+    PORTFOLIO_BACKLOG_PERT_CPM_FILENAME, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+    PROPOSAL_RESPONSE_PERT_CPM_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
     build_portfolio_backlog_project_plan, build_proposal_response_project_plan,
 )
 from process_toolkit.itsm.simulation import simulate_itsm_risk_and_coverage as _simulate_itsm_risk_and_coverage
@@ -397,14 +399,18 @@ def export_project_plan(
     appended to the message and to the root task's own Notes, never
     silently compressed to force a fit. Never runs as part of either
     domain's own generate/review pipeline -- this is a standalone action an
-    MCP client calls explicitly. Returns {"message": ..., "project_plan":
-    null} for an unsupported schema_type, or when the underlying export
-    itself reports an error (its own message, prefixed "ERROR:", is still
-    returned either way for the caller to relay)."""
+    MCP client calls explicitly. A PERT/CPM network diagram (same mxGraph/
+    draw.io XML format the cloud architecture diagram uses) is always
+    generated alongside the project plan -- returned under "pert_cpm".
+    Returns {"message": ..., "project_plan": null, "pert_cpm": null} for an
+    unsupported schema_type, or when the underlying export itself reports
+    an error (its own message, prefixed "ERROR:", is still returned either
+    way for the caller to relay)."""
     if schema_type not in ("portfolio_backlog", "proposal_response"):
         return {
             "message": f"NOT_APPLICABLE: '{schema_type}' has no project plan to export.",
             "project_plan": None,
+            "pert_cpm": None,
         }
     with _session(session_id):
         directory = paths.output_dir()
@@ -413,13 +419,22 @@ def export_project_plan(
             message = build_portfolio_backlog_project_plan(
                 start_date, resources, target_duration_weeks, holiday_calendar,
             )
+            plan_filename = PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+            pert_cpm_filename = PORTFOLIO_BACKLOG_PERT_CPM_FILENAME
         else:
             message = build_proposal_response_project_plan(
                 start_date, resources, target_duration_weeks, holiday_calendar,
             )
+            plan_filename = PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+            pert_cpm_filename = PROPOSAL_RESPONSE_PERT_CPM_FILENAME
+        # Looked up by their own known filenames rather than the previous
+        # "take changed[0]" shortcut -- that assumed exactly one .xml file
+        # could ever change per call, which broke the moment a second
+        # (pert_cpm) file started being written in the same call.
         changed = _new_or_changed(before, directory, ".xml")
-        project_plan = _encode_file(os.path.join(directory, changed[0])) if changed else None
-    return {"message": message, "project_plan": project_plan}
+        project_plan = _encode_file(os.path.join(directory, plan_filename)) if plan_filename in changed else None
+        pert_cpm = _encode_file(os.path.join(directory, pert_cpm_filename)) if pert_cpm_filename in changed else None
+    return {"message": message, "project_plan": project_plan, "pert_cpm": pert_cpm}
 
 
 @mcp.tool
