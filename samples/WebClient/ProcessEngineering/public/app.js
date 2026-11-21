@@ -222,14 +222,20 @@
     documentsPopoverList: document.getElementById("documentsPopoverList"),
 
     cloudarchTabPanel: document.getElementById("cloudarchTabPanel"),
+    diagramSelect: document.getElementById("diagramSelect"),
     cloudarchRefreshBtn: document.getElementById("cloudarchRefreshBtn"),
     cloudarchExportBtn: document.getElementById("cloudarchExportBtn"),
     cloudarchDownloadXmlBtn: document.getElementById("cloudarchDownloadXmlBtn"),
     cloudarchDownloadIacBtn: document.getElementById("cloudarchDownloadIacBtn"),
+    cloudarchDisclaimer: document.getElementById("cloudarchDisclaimer"),
     cloudarchStatus: document.getElementById("cloudarchStatus"),
     cloudarchCanvasWrap: document.getElementById("cloudarchCanvasWrap"),
     cloudarchEmpty: document.getElementById("cloudarchEmpty"),
+    cloudarchEmptyTitle: document.getElementById("cloudarchEmptyTitle"),
+    cloudarchEmptyText: document.getElementById("cloudarchEmptyText"),
     cloudarchSvg: document.getElementById("cloudarchSvg"),
+    cloudarchImg: document.getElementById("cloudarchImg"),
+    cloudarchZoomControls: document.getElementById("cloudarchZoomControls"),
     cloudarchZoomInBtn: document.getElementById("cloudarchZoomInBtn"),
     cloudarchZoomOutBtn: document.getElementById("cloudarchZoomOutBtn"),
     cloudarchResetViewBtn: document.getElementById("cloudarchResetViewBtn"),
@@ -342,21 +348,34 @@
     error: null,
   };
 
-  // The Cloud Architecture tab's data -- the connected backend's current
-  // output/cloudarch_drawio.xml (GET /artifacts/cloudarch), rendered as an
-  // actual diagram (see renderCloudArchDiagram). Runtime only, same as
-  // dataExplorer above; `raw` holds the XML text itself, not a parsed
-  // DOM -- re-parsed fresh on every render so a resize/zoom/pan never
-  // needs to re-fetch.
-  state.cloudarch = {
+  // The Diagrams tab's data -- whichever of the eight artifacts named in
+  // DIAGRAM_META (see that section further down) is currently selected in
+  // #diagramSelect. `kind` drives which of `raw` (the mxGraph XML text,
+  // for "cloudarch" only -- re-parsed fresh on every render, same as
+  // before) / `vertices`+`edges` (the three *_vsdx names, already
+  // server-parsed) / `tasks` (the two *_project_plan names, also
+  // server-parsed) / `imageUrl` (the two *_pert_cpm names -- a real
+  // server-rendered PNG, fetched as a blob and held as an object URL, see
+  // loadDiagram) actually holds data; the other fields stay null. Runtime
+  // only, same as dataExplorer above -- switching the dropdown always
+  // re-fetches rather than caching per name, matching #artifactSelect's
+  // own change handler.
+  state.diagram = {
+    name: "cloudarch",
+    kind: "xml",
     raw: null,
+    vertices: null,
+    edges: null,
+    tasks: null,
+    imageUrl: null,
     loading: false,
     error: null,
     view: { x: 0, y: 0, scale: 1 },
     autoFit: true,
     // The full diagram's own native pixel size (independent of the
-    // current on-screen zoom/pan) -- set by renderCloudArchDiagram,
-    // used by exportCloudArchPng.
+    // current on-screen zoom/pan) -- set by renderGraphDiagram/
+    // renderGanttChart, used by exportDiagramPng. Unused for kind "png"
+    // (the browser's own <img> sizing handles that diagram's layout).
     contentWidth: null,
     contentHeight: null,
   };
@@ -439,7 +458,7 @@
   // a cheap, robust way to get the plain-text reading of a string that's
   // actually (or might contain) HTML, without a second hand-written
   // "strip tags" regex. Used below both for speech (via renderMarkdownLite
-  // first) and for the Cloud Architecture tab's edge labels (which are
+  // first) and for the Diagrams tab's cloudarch edge labels (which are
   // already plain HTML straight out of the diagram XML, no markdown step
   // needed).
   function htmlToText(html) {
@@ -1418,11 +1437,15 @@
       // Same "first open auto-loads" convention as the artifacts tab
       // above, and same "SVG was sized 0x0 while hidden" re-render need
       // as the network tab if a diagram was already loaded before this
-      // tab was last switched away from.
-      if (state.cloudarch.raw === null && !state.cloudarch.loading && !state.cloudarch.error) {
-        loadCloudArchDiagram();
-      } else if (state.cloudarch.raw !== null) {
-        renderCloudArchDiagram();
+      // tab was last switched away from. "Attempted" covers all three
+      // `kind`s -- exactly one of raw/vertices/tasks is non-null once a
+      // load for the current selection has actually finished.
+      const d = state.diagram;
+      const attempted = d.raw !== null || d.vertices !== null || d.tasks !== null;
+      if (!attempted && !d.loading && !d.error) {
+        loadDiagram(d.name);
+      } else if (attempted) {
+        renderDiagram();
       }
     } else if (name === "usage") {
       // Same reason as the network tab above -- the SVG was sized 0x0
@@ -1619,7 +1642,7 @@
 
     const { nodes, width, height } = computeNetworkLayout();
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    // Stashed for Export PNG, same pattern as state.cloudarch.contentWidth/
+    // Stashed for Export PNG, same pattern as state.diagram.contentWidth/
     // contentHeight -- the FULL graph's own natural (now drag-aware) size,
     // not whatever's currently zoomed/panned into view.
     state.network.contentWidth = width;
@@ -1810,8 +1833,8 @@
   const NETWORK_EXPORT_SCALE = 2; // 2x pixel density, matching the Cloud Architecture tab's own export
 
   // Deliberately LIGHT-THEME LITERALS, not this page's current resolved
-  // CSS variables -- same reasoning as the Cloud Architecture tab's own
-  // cloudArchExportStyle (see its comment): the background painted below
+  // CSS variables -- same reasoning as the Diagrams tab's own
+  // diagramExportStyle (see its comment): the background painted below
   // is a fixed light color regardless of theme, so text/line colors must
   // match that fixed background unconditionally too, not whatever the
   // live theme (e.g. dark mode, where --text resolves to near-white)
@@ -1836,7 +1859,7 @@
   // Exports the FULL graph (not whatever's currently zoomed/panned into
   // view, and including any manually dragged node positions -- see
   // computeNetworkLayout's own content-bounds comment) as a PNG. Mirrors
-  // exportCloudArchPng further down exactly -- clones the live SVG rather
+  // exportDiagramPng further down exactly -- clones the live SVG rather
   // than re-rendering from scratch, so the export always matches what's
   // on screen (minus zoom/pan) with zero duplicated drawing logic.
   async function exportNetworkPng() {
@@ -2720,18 +2743,92 @@
   el.documentsPopoverCloseBtn.addEventListener("click", closeDocumentsPopover);
 
   // ---------------------------------------------------------------
-  // Cloud Architecture tab -- renders output/cloudarch_drawio.xml (GET
-  // /artifacts/cloudarch) as an actual diagram: real positions/sizes/
-  // colors parsed straight out of the mxGraph XML's own <mxCell>/
-  // <mxGeometry> elements, unlike the Agent Network tab's graph (which has
-  // no real diagram to draw from and lays itself out from scratch). Real
-  // AWS/Azure/GCP provider icons are NOT rendered -- no stencil library is
-  // bundled, consistent with this page's own no-external-dependency rule
-  // (see the top of this file) -- each icon cell instead draws as a small
-  // neutral placeholder in its own already-correct reserved slot, so box
-  // proportions and overall layout still look right even without the
-  // exact glyph.
+  // Diagrams tab -- one dropdown (#diagramSelect), six possible GET
+  // /artifacts/<name> sources, three render "kind"s:
+  //   "xml"   -- cloudarch only: the raw mxGraph XML text, parsed
+  //              client-side (parseDrawioXml below) into real
+  //              positions/sizes/colors straight out of its own <mxCell>/
+  //              <mxGeometry> elements. Real AWS/Azure/GCP provider icons
+  //              are NOT rendered -- no stencil library is bundled,
+  //              consistent with this page's own no-external-dependency
+  //              rule (see the top of this file) -- each icon cell
+  //              instead draws as a small neutral category glyph (see
+  //              appendCloudArchGlyph) in its own already-correct
+  //              reserved slot.
+  //   "graph" -- the three *_vsdx names: a .vsdx is a binary zip-based
+  //              OOXML format this page cannot parse itself, so the
+  //              server already parsed it (process_toolkit.docgen.
+  //              vsdx_export.parse_vsdx_to_graph) into the same
+  //              {vertices, edges} shape "xml" produces client-side --
+  //              renderGraphDiagram draws either source identically.
+  //   "gantt" -- the two *_project_plan names: the server already parsed
+  //              the MSPDI XML (parse_mspdi_tasks) into a flat task list;
+  //              renderGanttChart draws it as a calendar-scaled bar chart.
+  // All three kinds share one SVG canvas, one pan/zoom/PNG-export
+  // mechanism, and one state.diagram slot (see its own comment further
+  // up) -- renderDiagram is the dispatcher that picks which renderer runs.
   // ---------------------------------------------------------------
+
+  const DIAGRAM_META = {
+    cloudarch: {
+      kind: "xml",
+      filename: "cloudarch_drawio.xml",
+      label: "cloud architecture diagram",
+      disclaimer: "This is a summary rendering only. It approximates the real diagram and may not " +
+        "show everything a true DrawIO client would.",
+    },
+    process_flow_vsdx: {
+      kind: "graph",
+      filename: "process_flow.vsdx",
+      label: "process flow Visio diagram",
+      disclaimer: "This is a summary rendering of the real Visio file's shapes and connections, not a " +
+        "native Visio preview.",
+    },
+    design_flow_vsdx: {
+      kind: "graph",
+      filename: "design_flow.vsdx",
+      label: "design flow Visio diagram",
+      disclaimer: "This is a summary rendering of the real Visio file's shapes and connections, not a " +
+        "native Visio preview.",
+    },
+    cloudarch_vsdx: {
+      kind: "graph",
+      filename: "cloudarch_architecture.vsdx",
+      label: "cloud architecture Visio diagram",
+      disclaimer: "This is a summary rendering of the real Visio file's shapes and connections, not a " +
+        "native Visio preview.",
+    },
+    portfolio_backlog_project_plan: {
+      kind: "gantt",
+      filename: "portfolio_backlog_project_plan.xml",
+      label: "portfolio backlog project plan",
+      disclaimer: "This is an illustrative planning estimate, not a committed schedule.",
+    },
+    proposal_response_project_plan: {
+      kind: "gantt",
+      filename: "proposal_response_project_plan.xml",
+      label: "proposal response project plan",
+      disclaimer: "This is an illustrative planning estimate, not a committed schedule.",
+    },
+    // "png" kind -- a real PNG image rendered server-side (matplotlib, see
+    // docgen.pert_cpm_export's own generate_pert_cpm_diagram), the same
+    // way this app's generated Word documents embed their own diagrams.
+    // Fetched as a blob from the existing /download route (there is no
+    // separate JSON-wrapped view route for this kind -- see renderDiagram)
+    // and shown via #cloudarchImg; no client-side parsing of any kind.
+    portfolio_backlog_pert_cpm: {
+      kind: "png",
+      filename: "portfolio_backlog_pert_cpm.png",
+      label: "portfolio backlog PERT/CPM network diagram",
+      disclaimer: "This is a network view of the plan's task sequence and timing, not a committed schedule.",
+    },
+    proposal_response_pert_cpm: {
+      kind: "png",
+      filename: "proposal_response_pert_cpm.png",
+      label: "proposal response PERT/CPM network diagram",
+      disclaimer: "This is a network view of the plan's task sequence and timing, not a committed schedule.",
+    },
+  };
 
   // Parses a semicolon-separated mxGraph style string ("rounded=1;
   // fillColor=#FFFFFF;...") into a plain object. A bare token with no
@@ -3005,61 +3102,146 @@
     }
   }
 
-  function renderCloudArchDiagram() {
-    const { loading, raw } = state.cloudarch;
+  // Dispatcher for the current #diagramSelect value -- shared loading/
+  // error/empty-state handling (now keyed per-name via DIAGRAM_META) for
+  // all three kinds, then delegates the actual drawing to whichever of
+  // renderGraphDiagram/renderGanttChart applies.
+  function renderDiagram() {
+    const d = state.diagram;
+    const meta = DIAGRAM_META[d.name];
+    const kind = meta.kind;
+
+    el.cloudarchDisclaimer.textContent = meta.disclaimer;
+    // The IaC zip has no meaning for anything but the cloudarch diagram
+    // itself -- it's generated by CloudArch_IaC_Pipeline FROM the cloud
+    // architecture, never from a Visio export or a project plan.
+    el.cloudarchDownloadIacBtn.hidden = d.name !== "cloudarch";
+    // Zoom/pan and "Export PNG" are meaningless for a kind that's already
+    // a flat, server-rendered image with no on-screen SVG to zoom/export --
+    // "Download file" (always visible) is the way to get it at full
+    // resolution.
+    el.cloudarchZoomControls.hidden = kind === "png";
+    el.cloudarchExportBtn.hidden = kind === "png";
+
+    if (kind === "png") {
+      renderPngDiagram(d, meta);
+      return;
+    }
+
     // A parse failure is folded into the same "error" bucket as a fetch
-    // failure (both cleared on the next successful load/parse) --
-    // discovered here rather than in loadCloudArchDiagram itself, since
-    // the XML only actually gets parsed at render time (re-parsed fresh
-    // on every render -- see state.cloudarch's own comment).
-    let error = state.cloudarch.error;
-    let vertices = [];
-    let edges = [];
-    if (!error && !loading && raw !== null) {
+    // failure (both cleared on the next successful load/parse) -- only
+    // reachable for kind "xml", whose XML is re-parsed fresh on every
+    // render (see state.diagram's own comment); "graph"/"gantt" data
+    // already arrived pre-parsed from the server.
+    let error = d.error;
+    let vertices = d.vertices || [];
+    let edges = d.edges || [];
+    const tasks = d.tasks || [];
+    if (kind === "xml" && !error && !d.loading && d.raw !== null) {
       try {
-        ({ vertices, edges } = parseDrawioXml(raw));
+        ({ vertices, edges } = parseDrawioXml(d.raw));
       } catch (err) {
         error = (err && err.message) || "Could not parse the diagram.";
       }
     }
 
-    if (loading) {
+    const attempted = d.raw !== null || d.vertices !== null || d.tasks !== null;
+    // Named tasks only, for "gantt" -- matches renderGanttChart's own
+    // `rows` filter, so "Diagram is empty" can't disagree with what
+    // actually gets drawn.
+    const itemCount = kind === "gantt" ? tasks.filter((t) => t.name).length : vertices.length;
+
+    if (d.loading) {
       el.cloudarchStatus.textContent = "Loading…";
     } else if (error) {
       el.cloudarchStatus.textContent = "Error";
-    } else if (raw !== null) {
-      el.cloudarchStatus.textContent = `${vertices.length} shape${vertices.length === 1 ? "" : "s"}, ` +
-        `${edges.length} connection${edges.length === 1 ? "" : "s"}`;
+    } else if (attempted) {
+      el.cloudarchStatus.textContent = kind === "gantt"
+        ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}`
+        : `${vertices.length} shape${vertices.length === 1 ? "" : "s"}, ` +
+          `${edges.length} connection${edges.length === 1 ? "" : "s"}`;
     } else {
       el.cloudarchStatus.textContent = "Not loaded";
     }
 
-    const hasData = raw !== null && !loading && !error && vertices.length > 0;
+    const hasData = attempted && !d.loading && !error && itemCount > 0;
+    el.cloudarchImg.hidden = true;
     el.cloudarchSvg.toggleAttribute("hidden", !hasData);
     el.cloudarchEmpty.style.display = hasData ? "none" : "";
 
     if (!hasData) {
-      state.cloudarch.contentWidth = null;
-      state.cloudarch.contentHeight = null;
+      d.contentWidth = null;
+      d.contentHeight = null;
       el.cloudarchSvg.innerHTML = "";
-      const heading = el.cloudarchEmpty.querySelector("h2");
-      const body = el.cloudarchEmpty.querySelector("p");
-      if (loading) {
-        heading.textContent = "Loading…";
-        body.textContent = "Fetching the current cloud architecture diagram from the connected backend…";
+      if (d.loading) {
+        el.cloudarchEmptyTitle.textContent = "Loading…";
+        el.cloudarchEmptyText.textContent = `Fetching the connected backend's current ${meta.label}…`;
       } else if (error) {
-        heading.textContent = "Couldn't load the diagram";
-        body.textContent = error;
-      } else if (raw !== null && vertices.length === 0) {
-        heading.textContent = "Diagram is empty";
-        body.textContent = "output/cloudarch_drawio.xml exists but contains no shapes.";
+        el.cloudarchEmptyTitle.textContent = "Couldn't load the diagram";
+        el.cloudarchEmptyText.textContent = error;
+      } else if (attempted && itemCount === 0) {
+        el.cloudarchEmptyTitle.textContent = "Diagram is empty";
+        el.cloudarchEmptyText.textContent =
+          `output/${meta.filename} exists but contains no ${kind === "gantt" ? "tasks" : "shapes"}.`;
       } else {
-        heading.textContent = "No diagram loaded";
-        body.textContent = "Click the refresh icon to load the connected backend's current " +
-          "output/cloudarch_drawio.xml cloud architecture diagram.";
+        el.cloudarchEmptyTitle.textContent = "No diagram loaded";
+        el.cloudarchEmptyText.textContent = "Click the refresh icon to load the connected backend's current " +
+          `output/${meta.filename} ${meta.label}.`;
       }
       return;
     }
+
+    if (kind === "gantt") {
+      renderGanttChart(tasks);
+    } else {
+      renderGraphDiagram(vertices, edges, { useCloudIcons: kind === "xml" });
+    }
+  }
+
+  // kind "png" -- a real image, so there's nothing to parse/lay out here;
+  // this only toggles which element is visible (#cloudarchImg vs. the SVG/
+  // empty-state) and points the <img> at the already-fetched blob's object
+  // URL (see loadDiagram).
+  function renderPngDiagram(d, meta) {
+    const hasData = !d.loading && !d.error && !!d.imageUrl;
+    el.cloudarchStatus.textContent = d.loading ? "Loading…" : d.error ? "Error" : hasData ? "Image loaded" : "Not loaded";
+    el.cloudarchSvg.toggleAttribute("hidden", true);
+    el.cloudarchImg.hidden = !hasData;
+    el.cloudarchEmpty.style.display = hasData ? "none" : "";
+
+    if (hasData) {
+      el.cloudarchImg.src = d.imageUrl;
+      return;
+    }
+
+    el.cloudarchImg.removeAttribute("src");
+    if (d.loading) {
+      el.cloudarchEmptyTitle.textContent = "Loading…";
+      el.cloudarchEmptyText.textContent = `Fetching the connected backend's current ${meta.label}…`;
+    } else if (d.error) {
+      el.cloudarchEmptyTitle.textContent = "Couldn't load the diagram";
+      el.cloudarchEmptyText.textContent = d.error;
+    } else {
+      el.cloudarchEmptyTitle.textContent = "No diagram loaded";
+      el.cloudarchEmptyText.textContent = "Click the refresh icon to load the connected backend's current " +
+        `output/${meta.filename} ${meta.label}.`;
+    }
+  }
+
+  // Draws a node+edge graph from EITHER source: kind "xml"'s own
+  // parseDrawioXml output (useCloudIcons true -- real mxGraph style/
+  // value/absX/absY already present) or kind "graph"'s server-parsed
+  // {id, label, x, y, width, height}/{source, target} vsdx shapes
+  // (useCloudIcons false -- normalized below into the same id/value/
+  // style/width/height/absX/absY/points shape so the drawing code never
+  // needs a second code path).
+  function renderGraphDiagram(rawVertices, rawEdges, { useCloudIcons }) {
+    const vertices = useCloudIcons ? rawVertices : rawVertices.map((v) => ({
+      id: v.id, value: v.label || "", style: {}, width: v.width, height: v.height, absX: v.x, absY: v.y,
+    }));
+    const edges = useCloudIcons ? rawEdges : rawEdges.map((e) => ({
+      source: e.source, target: e.target, style: {}, points: [], value: "",
+    }));
 
     const byId = new Map(vertices.map((v) => [v.id, v]));
 
@@ -3074,9 +3256,9 @@
     const contentHeight = Math.max(1, maxY - minY);
     // Stashed for Export PNG, which renders the FULL diagram at its own
     // native size regardless of whatever zoom/pan the on-screen view
-    // currently has -- see exportCloudArchPng.
-    state.cloudarch.contentWidth = contentWidth;
-    state.cloudarch.contentHeight = contentHeight;
+    // currently has -- see exportDiagramPng.
+    state.diagram.contentWidth = contentWidth;
+    state.diagram.contentHeight = contentHeight;
 
     const wrapWidth = el.cloudarchCanvasWrap.clientWidth || 600;
     const wrapHeight = el.cloudarchCanvasWrap.clientHeight || 400;
@@ -3127,8 +3309,9 @@
       // generated diagram -- routing that into the icon-glyph branch
       // would draw one giant, wrongly-scaled glyph instead of the zone's
       // own border+label. An icon cell's own value is always "" (also
-      // confirmed directly), so this reliably tells the two apart.
-      if (style.shape && !v.value) {
+      // confirmed directly), so this reliably tells the two apart. Gated
+      // on useCloudIcons too -- a Visio shape never carries this style key.
+      if (useCloudIcons && style.shape && !v.value) {
         appendCloudArchGlyph(g, classifyShapeToken(style), Math.min(v.width, v.height), style.fillColor || "#5f6368");
         vertexGroup.appendChild(g);
         return;
@@ -3158,15 +3341,6 @@
         g.appendChild(divider);
       }
 
-      // The cell's own `value` is this project's own layout-engine-authored
-      // HTML ("<b>Title</b><br/>bullet one<br/>bullet two") -- the exact
-      // same trust tier as an agent reply's markdown-lite HTML, which this
-      // file already renders via innerHTML elsewhere (see addMessage/
-      // renderMarkdownLite) -- so a foreignObject + innerHTML here is
-      // consistent with that existing precedent, not a new risk class.
-      // (Contrast the Process/Design tree viewer and Agent Network graph,
-      // which render arbitrary JSON/identifier DATA and deliberately stick
-      // to textContent -- there is no such HTML-label convention there.)
       if (v.value && v.width > 4 && headerHeight > 4) {
         // spacingTop/spacingLeft -- how far the generator pushed this
         // label's own text away from the box's top/left edge (e.g. 74px
@@ -3174,7 +3348,9 @@
         // slot so the two don't overlap -- see
         // process_toolkit.cloudarch.layout.SPACING_TOP_WITH_ICON). Ignoring
         // these previously meant every label started right at the box's
-        // top edge regardless, overlapping any icon drawn there.
+        // top edge regardless, overlapping any icon drawn there. Always 0
+        // for a Visio-sourced box (style = {}), which is correct -- those
+        // never reserve an icon slot.
         const spacingTop = Math.min(headerHeight - 4, Number(style.spacingTop || 0));
         const spacingLeft = Math.min(v.width - 4, Number(style.spacingLeft || 0));
         const fo = document.createElementNS(SVG_NS, "foreignObject");
@@ -3188,7 +3364,16 @@
         label.style.justifyContent = style.verticalAlign === "top" ? "flex-start" : "center";
         label.style.color = style.fontColor || "#202124";
         label.style.fontSize = `${style.fontSize || 11}px`;
-        label.innerHTML = v.value;
+        // Trusted HTML ("<b>Title</b><br/>...") only for useCloudIcons --
+        // this project's own layout-engine-authored markup, the same
+        // trust tier as an agent reply's markdown-lite HTML elsewhere in
+        // this file (see addMessage/renderMarkdownLite). A Visio shape's
+        // own text is arbitrary file content with no such HTML-label
+        // convention, so it stays textContent -- matching the Process/
+        // Design tree viewer and Agent Network graph's own choice for
+        // the same reason.
+        if (useCloudIcons) label.innerHTML = v.value;
+        else label.textContent = v.value;
         fo.appendChild(label);
         g.appendChild(fo);
       }
@@ -3236,64 +3421,224 @@
 
     el.cloudarchSvg.appendChild(viewport);
 
-    if (state.cloudarch.autoFit) {
-      computeCloudArchFitView(contentWidth, contentHeight, wrapWidth, wrapHeight);
+    if (state.diagram.autoFit) {
+      computeDiagramFitView(contentWidth, contentHeight, wrapWidth, wrapHeight);
     }
-    applyCloudArchTransform();
+    applyDiagramTransform();
   }
 
-  async function loadCloudArchDiagram() {
+  const GANTT_ROW_HEIGHT = 28;
+  const GANTT_LABEL_WIDTH = 260;
+  const GANTT_CHART_WIDTH = 900; // the calendar axis's own pixel width, independent of the label column
+  const GANTT_TOP_PADDING = 36; // room for the date-axis header row
+  const GANTT_TICK_COUNT = 6;
+  const GANTT_INDENT = 16;
+
+  // Draws one horizontal bar per task (document order -- already the
+  // correct WBS sequence, see parse_mspdi_tasks's own docstring),
+  // indented by outline_level and visually widened for a summary task,
+  // on an x-axis calendar-scaled from the earliest start to the latest
+  // finish across every dated task. Reuses the SAME SVG canvas/pan-zoom/
+  // PNG-export machinery as renderGraphDiagram (both converge on
+  // state.diagram.view/contentWidth/contentHeight).
+  function renderGanttChart(tasks) {
+    const rows = tasks.filter((t) => t.name);
+    const dated = rows.filter((t) => t.start && t.finish);
+
+    let minTime = Infinity, maxTime = -Infinity;
+    dated.forEach((t) => {
+      const s = new Date(t.start).getTime();
+      const f = new Date(t.finish).getTime();
+      if (!Number.isNaN(s)) minTime = Math.min(minTime, s);
+      if (!Number.isNaN(f)) maxTime = Math.max(maxTime, f);
+    });
+    if (!Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime <= minTime) {
+      // No real dated task (or a single-instant plan) -- a one-day
+      // window keeps the axis math below well-defined without drawing
+      // any bar that wasn't actually backed by a real start/finish.
+      minTime = Number.isFinite(minTime) ? minTime : Date.now();
+      maxTime = minTime + 24 * 60 * 60 * 1000;
+    }
+
+    const contentWidth = GANTT_LABEL_WIDTH + GANTT_CHART_WIDTH;
+    const contentHeight = GANTT_TOP_PADDING + Math.max(1, rows.length) * GANTT_ROW_HEIGHT;
+    state.diagram.contentWidth = contentWidth;
+    state.diagram.contentHeight = contentHeight;
+
+    const wrapWidth = el.cloudarchCanvasWrap.clientWidth || 600;
+    const wrapHeight = el.cloudarchCanvasWrap.clientHeight || 400;
+    el.cloudarchSvg.setAttribute("viewBox", `0 0 ${wrapWidth} ${wrapHeight}`);
+    el.cloudarchSvg.innerHTML = "";
+
+    const viewport = document.createElementNS(SVG_NS, "g");
+    viewport.setAttribute("id", "cloudarchViewport");
+
+    const timeToX = (ms) => GANTT_LABEL_WIDTH + ((ms - minTime) / (maxTime - minTime)) * GANTT_CHART_WIDTH;
+
+    for (let i = 0; i <= GANTT_TICK_COUNT; i += 1) {
+      const t = minTime + (i / GANTT_TICK_COUNT) * (maxTime - minTime);
+      const x = timeToX(t);
+
+      const tick = document.createElementNS(SVG_NS, "line");
+      tick.setAttribute("x1", String(x));
+      tick.setAttribute("x2", String(x));
+      tick.setAttribute("y1", String(GANTT_TOP_PADDING - 8));
+      tick.setAttribute("y2", String(contentHeight));
+      tick.setAttribute("class", "gantt-gridline");
+      viewport.appendChild(tick);
+
+      const tickLabel = document.createElementNS(SVG_NS, "text");
+      tickLabel.setAttribute("x", String(x));
+      tickLabel.setAttribute("y", String(GANTT_TOP_PADDING - 14));
+      tickLabel.setAttribute("text-anchor", "middle");
+      tickLabel.setAttribute("class", "gantt-axis-label");
+      tickLabel.textContent = new Date(t).toLocaleDateString();
+      viewport.appendChild(tickLabel);
+    }
+
+    rows.forEach((task, index) => {
+      const y = GANTT_TOP_PADDING + index * GANTT_ROW_HEIGHT;
+      const indent = Math.max(task.outline_level - 1, 0) * GANTT_INDENT;
+
+      const nameEl = document.createElementNS(SVG_NS, "text");
+      nameEl.setAttribute("x", String(8 + indent));
+      nameEl.setAttribute("y", String(y + GANTT_ROW_HEIGHT / 2 + 4));
+      nameEl.setAttribute("class", task.is_summary ? "gantt-row-label gantt-row-label-summary" : "gantt-row-label");
+      nameEl.textContent = task.name;
+      viewport.appendChild(nameEl);
+
+      if (!task.start || !task.finish) return; // no fabricated bar for a task the scheduler didn't date
+
+      const s = new Date(task.start).getTime();
+      const f = new Date(task.finish).getTime();
+      if (Number.isNaN(s) || Number.isNaN(f)) return;
+
+      const x1 = timeToX(s);
+      const x2 = Math.max(x1 + 2, timeToX(f));
+      const bar = document.createElementNS(SVG_NS, "rect");
+      bar.setAttribute("x", String(x1));
+      bar.setAttribute("y", String(y + (task.is_summary ? 5 : 7)));
+      bar.setAttribute("width", String(x2 - x1));
+      bar.setAttribute("height", String(task.is_summary ? GANTT_ROW_HEIGHT - 10 : GANTT_ROW_HEIGHT - 14));
+      bar.setAttribute("rx", "3");
+      bar.setAttribute("class", task.is_summary ? "gantt-bar gantt-bar-summary" : "gantt-bar");
+      viewport.appendChild(bar);
+    });
+
+    el.cloudarchSvg.appendChild(viewport);
+
+    if (state.diagram.autoFit) {
+      computeDiagramFitView(contentWidth, contentHeight, wrapWidth, wrapHeight);
+    }
+    applyDiagramTransform();
+  }
+
+  // Fetches the currently selected #diagramSelect name fresh -- no
+  // per-name caching, matching #artifactSelect's own loadArtifact (see
+  // its change handler further up).
+  async function loadDiagram(name) {
     const baseUrl = currentBaseUrl();
     if (!baseUrl) {
       toast("Set a Base URL and click Connect first.");
       return;
     }
-    state.cloudarch.loading = true;
-    state.cloudarch.error = null;
-    renderCloudArchDiagram();
+    const meta = DIAGRAM_META[name];
+    const d = state.diagram;
+    d.loading = true;
+    d.error = null;
+    renderDiagram();
     try {
-      const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/cloudarch`), {
-        method: "GET",
-        headers: { ...authHeaders() },
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body.error || `Request failed (${res.status}).`);
+      if (meta.kind === "png") {
+        // Real binary image -- fetched from the existing /download route
+        // (there is no separate JSON-wrapped view route for this kind,
+        // see renderDiagram) as a blob, same authenticated-fetch
+        // requirement as every other download on this page (a plain
+        // <img src="..."> can't carry the Authorization/X-API-Key header
+        // a configured backend requires).
+        const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/${name}/download`), {
+          method: "GET",
+          headers: { ...authHeaders() },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Request failed (${res.status}).`);
+        }
+        const blob = await res.blob();
+        if (d.imageUrl) URL.revokeObjectURL(d.imageUrl);
+        d.imageUrl = URL.createObjectURL(blob);
+      } else {
+        const res = await fetch(withSessionIdParam(`${baseUrl}/artifacts/${name}`), {
+          method: "GET",
+          headers: { ...authHeaders() },
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.error || `Request failed (${res.status}).`);
+        }
+        // Exactly one of raw/vertices+edges/tasks gets populated, per
+        // `kind` -- see DIAGRAM_META and state.diagram's own comments.
+        d.raw = meta.kind === "xml" ? body.data : null;
+        d.vertices = meta.kind === "graph" ? body.data.vertices : null;
+        d.edges = meta.kind === "graph" ? body.data.edges : null;
+        d.tasks = meta.kind === "gantt" ? body.data.tasks : null;
       }
-      state.cloudarch.raw = body.data;
-      state.cloudarch.autoFit = true;
+      d.autoFit = true;
     } catch (err) {
-      state.cloudarch.raw = null;
-      state.cloudarch.error = (err && err.message) || String(err);
+      if (d.imageUrl) URL.revokeObjectURL(d.imageUrl);
+      d.raw = null;
+      d.vertices = null;
+      d.edges = null;
+      d.tasks = null;
+      d.imageUrl = null;
+      d.error = (err && err.message) || String(err);
     } finally {
-      state.cloudarch.loading = false;
-      renderCloudArchDiagram();
+      d.loading = false;
+      renderDiagram();
     }
   }
 
-  el.cloudarchRefreshBtn.addEventListener("click", loadCloudArchDiagram);
+  el.diagramSelect.addEventListener("change", () => {
+    const name = el.diagramSelect.value;
+    if (name === state.diagram.name) return; // already the active one
+    const meta = DIAGRAM_META[name];
+    if (state.diagram.imageUrl) URL.revokeObjectURL(state.diagram.imageUrl);
+    state.diagram = {
+      name, kind: meta.kind,
+      raw: null, vertices: null, edges: null, tasks: null, imageUrl: null,
+      loading: false, error: null,
+      view: { x: 0, y: 0, scale: 1 }, autoFit: true,
+      contentWidth: null, contentHeight: null,
+    };
+    loadDiagram(name);
+  });
 
-  const CLOUDARCH_EXPORT_SCALE = 2; // 2x pixel density, so exported text/icons stay crisp rather than blown up from a small on-screen view
+  el.cloudarchRefreshBtn.addEventListener("click", () => loadDiagram(state.diagram.name));
+
+  const DIAGRAM_EXPORT_SCALE = 2; // 2x pixel density, so exported text/icons stay crisp rather than blown up from a small on-screen view
 
   // The exported SVG is serialized into a STANDALONE document with no
   // access to this page's own stylesheet/CSS variables, so the handful
   // of classes the live rendering actually depends on (cloudarch-edge/
-  // -arrow/-edge-label/-cell-label) need their values inlined explicitly.
+  // -arrow/-edge-label/-cell-label/gantt-*) need their values inlined
+  // explicitly.
   //
   // Deliberately LIGHT-THEME LITERALS, not this page's CURRENT resolved
   // --text/--text-faint (the previous version's approach) -- the export
   // canvas below always paints a solid #ffffff background regardless of
-  // theme (see exportCloudArchPng's own comment on why), so text colors
+  // theme (see exportDiagramPng's own comment on why), so text colors
   // must match that fixed white background unconditionally too. Reading
   // the live theme's CSS variables instead was confirmed to produce a
   // genuinely unreadable export: in dark mode, --text/--text-faint
   // resolve to near-white (#eceef3 / #6b7082), rendered straight onto
   // this always-white background -- exactly a real report of edge/arrow
   // labels being "white on white" in an exported PNG.
-  function cloudArchExportStyle() {
+  function diagramExportStyle() {
     const cs = getComputedStyle(document.documentElement);
     const textFaint = "#9299a8"; // light theme's own --text-faint (style.css :root)
     const text = "#1b1d22"; // light theme's own --text (style.css :root)
+    const border = "#e3e5ea"; // light theme's own --border (style.css :root)
+    const accent = "#4f5eff"; // light theme's own --accent (style.css :root)
+    const accentSoft = "#eef0ff"; // light theme's own --accent-soft (style.css :root)
     const fontFamily = cs.getPropertyValue("--font").trim() || "sans-serif";
     return `
       .cloudarch-edge { stroke-width: 1.6; fill: none; }
@@ -3303,17 +3648,25 @@
         width: 100%; height: 100%; display: flex; flex-direction: column;
         justify-content: center; overflow: hidden; line-height: 1.3; font-family: ${fontFamily};
       }
+      .gantt-gridline { stroke: ${border}; stroke-width: 1; }
+      .gantt-axis-label { font-size: 10px; fill: ${textFaint}; }
+      .gantt-row-label { font-size: 11px; fill: ${text}; font-family: ${fontFamily}; }
+      .gantt-row-label-summary { font-weight: 700; }
+      .gantt-bar { fill: ${accentSoft}; stroke: ${accent}; stroke-width: 1; }
+      .gantt-bar-summary { fill: ${accent}; stroke: ${accent}; }
     `;
   }
 
   // Exports the FULL diagram (not whatever's currently zoomed/panned
-  // into view) as a PNG, at CLOUDARCH_EXPORT_SCALE x its own native
+  // into view) as a PNG, at DIAGRAM_EXPORT_SCALE x its own native
   // pixel size so text/icons stay legible rather than scaling up a tiny
   // on-screen thumbnail. Clones the live SVG rather than re-rendering
   // from scratch, so the export always matches exactly what's on screen
-  // (minus zoom/pan) with zero duplicated drawing logic.
-  async function exportCloudArchPng() {
-    const { contentWidth, contentHeight } = state.cloudarch;
+  // (minus zoom/pan) with zero duplicated drawing logic -- works
+  // identically for a graph or a Gantt chart, since both already draw
+  // into the same #cloudarchSvg.
+  async function exportDiagramPng() {
+    const { contentWidth, contentHeight } = state.diagram;
     if (!contentWidth || !contentHeight || el.cloudarchSvg.hasAttribute("hidden")) {
       toast("Load a diagram first.");
       return;
@@ -3344,7 +3697,7 @@
     clone.insertBefore(bg, clone.firstChild);
 
     const styleEl = document.createElementNS(SVG_NS, "style");
-    styleEl.textContent = cloudArchExportStyle();
+    styleEl.textContent = diagramExportStyle();
     clone.insertBefore(styleEl, clone.firstChild);
 
     const svgText = new XMLSerializer().serializeToString(clone);
@@ -3361,8 +3714,8 @@
     }
 
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(contentWidth * CLOUDARCH_EXPORT_SCALE);
-    canvas.height = Math.round(contentHeight * CLOUDARCH_EXPORT_SCALE);
+    canvas.width = Math.round(contentWidth * DIAGRAM_EXPORT_SCALE);
+    canvas.height = Math.round(contentHeight * DIAGRAM_EXPORT_SCALE);
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -3374,34 +3727,45 @@
         return;
       }
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      const filename = `cloud-architecture-${stamp}.png`;
+      const filename = `${state.diagram.name.replace(/_/g, "-")}-${stamp}.png`;
       const result = await saveFile(blob, filename, { description: "PNG image", accept: { "image/png": [".png"] } });
       if (result === "picker") toast("Diagram exported.");
       else if (result === "download") toast("Diagram downloaded.");
     }, "image/png");
   }
 
-  el.cloudarchExportBtn.addEventListener("click", exportCloudArchPng);
+  el.cloudarchExportBtn.addEventListener("click", exportDiagramPng);
 
-  // Downloads the real output/cloudarch_drawio.xml file (vs. the on-screen
-  // SVG re-rendering exportCloudArchPng above draws from) -- for opening
-  // directly in a real draw.io client, not just a PNG snapshot of this
-  // page's own best-effort approximation (see this tab's own disclaimer).
-  async function downloadCloudArchXml() {
-    const blob = await fetchArtifactBlob("/artifacts/cloudarch/download");
+  // Downloads the real underlying file (vs. the on-screen SVG
+  // re-rendering exportDiagramPng above draws from) for whichever
+  // diagram is currently selected -- all six names share the same
+  // /artifacts/<name>/download route shape.
+  async function downloadDiagramFile() {
+    const name = state.diagram.name;
+    const meta = DIAGRAM_META[name];
+    const blob = await fetchArtifactBlob(`/artifacts/${name}/download`);
     if (!blob) return;
-    const result = await saveFile(blob, "cloudarch_drawio.xml", {
-      description: "XML file", accept: { "application/xml": [".xml"] },
+    const isVsdx = meta.filename.endsWith(".vsdx");
+    const isPng = meta.filename.endsWith(".png");
+    const result = await saveFile(blob, meta.filename, {
+      description: isVsdx ? "Visio file" : isPng ? "PNG image" : "XML file",
+      accept: isVsdx
+        ? { "application/vnd.ms-visio.drawing.main+xml": [".vsdx"] }
+        : isPng
+          ? { "image/png": [".png"] }
+          : { "application/xml": [".xml"] },
     });
-    if (result === "picker") toast("Diagram XML saved.");
-    else if (result === "download") toast("Diagram XML downloaded.");
+    if (result === "picker") toast(`${meta.filename} saved.`);
+    else if (result === "download") toast(`${meta.filename} downloaded.`);
   }
-  el.cloudarchDownloadXmlBtn.addEventListener("click", downloadCloudArchXml);
+  el.cloudarchDownloadXmlBtn.addEventListener("click", downloadDiagramFile);
 
   // Downloads the generated Infrastructure-as-Code zip (see
-  // CloudArch_IaC_Pipeline, both ports) -- a 404 here just means the IaC
-  // pipeline hasn't been run yet this session; fetchArtifactBlob already
-  // surfaces that server-reported message via toast.
+  // CloudArch_IaC_Pipeline, both ports) -- only shown when the cloudarch
+  // diagram itself is selected (see renderDiagram). A 404 here just
+  // means the IaC pipeline hasn't been run yet this session;
+  // fetchArtifactBlob already surfaces that server-reported message via
+  // toast.
   async function downloadCloudArchIacZip() {
     const blob = await fetchArtifactBlob("/artifacts/cloudarch_iac/download");
     if (!blob) return;
@@ -3414,11 +3778,13 @@
   el.cloudarchDownloadIacBtn.addEventListener("click", downloadCloudArchIacZip);
 
   // Zoom / pan -- identical mechanics to the Agent Network tab's own
-  // section further up (state.cloudarch.view instead of state.network.view,
+  // section further up (state.diagram.view instead of state.network.view,
   // #cloudarchViewport instead of #networkViewport); duplicated rather than
   // shared, the same way the Token Usage tab's own copy of this exact
-  // pattern already is in this file.
-  function computeCloudArchFitView(contentWidth, contentHeight, wrapWidth, wrapHeight) {
+  // pattern already is in this file. Shared across all three render
+  // `kind`s, since renderGraphDiagram/renderGanttChart both converge on
+  // the same state.diagram.view/contentWidth/contentHeight shape.
+  function computeDiagramFitView(contentWidth, contentHeight, wrapWidth, wrapHeight) {
     const padding = 32;
     const scale = Math.min(
       1.15,
@@ -3427,76 +3793,84 @@
         (wrapHeight - padding * 2) / contentHeight,
       )),
     );
-    state.cloudarch.view = {
+    state.diagram.view = {
       scale,
       x: (wrapWidth - contentWidth * scale) / 2,
       y: (wrapHeight - contentHeight * scale) / 2,
     };
   }
 
-  function applyCloudArchTransform() {
+  function applyDiagramTransform() {
     const viewport = document.getElementById("cloudarchViewport");
     if (!viewport) return;
-    const { x, y, scale } = state.cloudarch.view;
+    const { x, y, scale } = state.diagram.view;
     viewport.setAttribute("transform", `translate(${x}, ${y}) scale(${scale})`);
   }
 
-  function zoomCloudArchBy(factor) {
-    if (state.cloudarch.raw === null) return;
+  // Whether the current selection has actually finished a load attempt
+  // (any of the three `kind`-specific payload fields got populated) --
+  // zoom/pan are no-ops before that, same as before per-kind.
+  function diagramHasData() {
+    const d = state.diagram;
+    return d.raw !== null || d.vertices !== null || d.tasks !== null;
+  }
+
+  function zoomDiagramBy(factor) {
+    if (!diagramHasData()) return;
     const wrapWidth = el.cloudarchCanvasWrap.clientWidth || 600;
     const wrapHeight = el.cloudarchCanvasWrap.clientHeight || 400;
-    const view = state.cloudarch.view;
+    const view = state.diagram.view;
     const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor));
     const cx = wrapWidth / 2;
     const cy = wrapHeight / 2;
     const contentCx = (cx - view.x) / view.scale;
     const contentCy = (cy - view.y) / view.scale;
-    state.cloudarch.view = {
+    state.diagram.view = {
       scale: newScale,
       x: cx - contentCx * newScale,
       y: cy - contentCy * newScale,
     };
-    state.cloudarch.autoFit = false;
-    applyCloudArchTransform();
+    state.diagram.autoFit = false;
+    applyDiagramTransform();
   }
 
-  function resetCloudArchView() {
-    state.cloudarch.autoFit = true;
-    renderCloudArchDiagram();
+  function resetDiagramView() {
+    state.diagram.autoFit = true;
+    renderDiagram();
   }
 
-  el.cloudarchZoomInBtn.addEventListener("click", () => zoomCloudArchBy(ZOOM_STEP));
-  el.cloudarchZoomOutBtn.addEventListener("click", () => zoomCloudArchBy(1 / ZOOM_STEP));
-  el.cloudarchResetViewBtn.addEventListener("click", resetCloudArchView);
+  el.cloudarchZoomInBtn.addEventListener("click", () => zoomDiagramBy(ZOOM_STEP));
+  el.cloudarchZoomOutBtn.addEventListener("click", () => zoomDiagramBy(1 / ZOOM_STEP));
+  el.cloudarchResetViewBtn.addEventListener("click", resetDiagramView);
 
   el.cloudarchCanvasWrap.addEventListener("wheel", (event) => {
-    if (state.cloudarch.raw === null) return;
+    if (!diagramHasData()) return;
     event.preventDefault();
-    zoomCloudArchBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    zoomDiagramBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
   }, { passive: false });
 
   let cloudarchPanPointerId = null;
   let cloudarchPanStart = null;
 
   el.cloudarchSvg.addEventListener("pointerdown", (event) => {
-    if (state.cloudarch.raw === null) return;
+    if (!diagramHasData()) return;
     cloudarchPanPointerId = event.pointerId;
     cloudarchPanStart = {
       clientX: event.clientX, clientY: event.clientY,
-      viewX: state.cloudarch.view.x, viewY: state.cloudarch.view.y,
+      viewX: state.diagram.view.x, viewY: state.diagram.view.y,
     };
     el.cloudarchSvg.setPointerCapture(event.pointerId);
     el.cloudarchSvg.classList.add("panning");
   });
   el.cloudarchSvg.addEventListener("pointermove", (event) => {
     if (cloudarchPanPointerId !== event.pointerId || !cloudarchPanStart) return;
-    state.cloudarch.view = {
-      ...state.cloudarch.view,
+    state.diagram.view = {
+      ...state.diagram.view,
       x: cloudarchPanStart.viewX + (event.clientX - cloudarchPanStart.clientX),
       y: cloudarchPanStart.viewY + (event.clientY - cloudarchPanStart.clientY),
     };
-    state.cloudarch.autoFit = false;
-    applyCloudArchTransform();
+    state.diagram.autoFit = false;
+    applyDiagramTransform();
   });
   function endCloudArchPan(event) {
     if (cloudarchPanPointerId !== event.pointerId) return;

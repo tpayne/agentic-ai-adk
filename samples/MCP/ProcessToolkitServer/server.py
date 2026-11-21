@@ -63,6 +63,11 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
 )
 from process_toolkit.docgen.edge_inference import generate_clean_diagram
 from process_toolkit.docgen.vsdx_export import build_cloudarch_vsdx, build_process_design_vsdx
+from process_toolkit.docgen.project_plan_export import (
+    PORTFOLIO_BACKLOG_PERT_CPM_FILENAME, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
+    PROPOSAL_RESPONSE_PERT_CPM_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+    build_portfolio_backlog_project_plan, build_proposal_response_project_plan,
+)
 from process_toolkit.itsm.simulation import simulate_itsm_risk_and_coverage as _simulate_itsm_risk_and_coverage
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
 from process_toolkit.cloudarch.simulation import simulate_cloudarch_architecture as _simulate_cloudarch_architecture
@@ -366,6 +371,76 @@ def export_cloudarch_vsdx(session_id: Optional[str] = None) -> dict:
         changed = _new_or_changed(before, directory, ".vsdx")
         vsdx = _encode_file(os.path.join(directory, changed[0])) if changed else None
     return {"message": message, "vsdx": vsdx}
+
+
+@mcp.tool
+def export_project_plan(
+    schema_type: str,
+    start_date: Optional[str] = None,
+    resources: Optional[list[dict[str, Any]]] = None,
+    target_duration_weeks: Optional[float] = None,
+    holiday_calendar: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> dict:
+    """On-demand Microsoft Project / ProjectLibre interchange-format (MSPDI
+    XML) export of an ILLUSTRATIVE project plan, for schema_type
+    "portfolio_backlog" or "proposal_response" ONLY -- no other schema_type
+    has a project plan at all. Durations are computed at render time only
+    (never written back into either saved JSON) since neither schema has a
+    real date/duration field. `start_date` (ISO "YYYY-MM-DD") defaults to
+    today when omitted. `resources` is an optional list of {"name": str,
+    "allocation_percent": number}, rendered as MSPDI Resources/Assignments
+    (every resource assigned to every leaf task -- neither source schema has
+    any finer-grained role-to-task mapping to assign more precisely than
+    that). `holiday_calendar`, if set to "uk", marks real UK bank holidays
+    as non-working Calendar Exceptions so the scheduler actually skips them
+    (any other value is ignored, not guessed). `target_duration_weeks` is a
+    POST-HOC check only -- if the sequenced plan overruns it, a WARNING is
+    appended to the message and to the root task's own Notes, never
+    silently compressed to force a fit. Never runs as part of either
+    domain's own generate/review pipeline -- this is a standalone action an
+    MCP client calls explicitly. A PERT/CPM network diagram (same mxGraph/
+    draw.io XML format the cloud architecture diagram uses) is always
+    generated alongside the project plan -- returned under "pert_cpm".
+    Returns {"message": ..., "project_plan": null, "pert_cpm": null} for an
+    unsupported schema_type, or when the underlying export itself reports
+    an error (its own message, prefixed "ERROR:", is still returned either
+    way for the caller to relay)."""
+    if schema_type not in ("portfolio_backlog", "proposal_response"):
+        return {
+            "message": f"NOT_APPLICABLE: '{schema_type}' has no project plan to export.",
+            "project_plan": None,
+            "pert_cpm": None,
+        }
+    with _session(session_id):
+        directory = paths.output_dir()
+        # Empty suffix -- "".endswith("") is always True, so this snapshots
+        # EVERY file regardless of extension. Needed because this one call
+        # can now write two files of DIFFERENT extensions (the MSPDI
+        # project plan, ".xml", and its companion PERT/CPM diagram,
+        # ".png") -- a single hardcoded suffix (the previous ".xml") would
+        # silently miss whichever file didn't match it.
+        before = _snapshot_mtimes(directory, "")
+        if schema_type == "portfolio_backlog":
+            message = build_portfolio_backlog_project_plan(
+                start_date, resources, target_duration_weeks, holiday_calendar,
+            )
+            plan_filename = PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+            pert_cpm_filename = PORTFOLIO_BACKLOG_PERT_CPM_FILENAME
+        else:
+            message = build_proposal_response_project_plan(
+                start_date, resources, target_duration_weeks, holiday_calendar,
+            )
+            plan_filename = PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+            pert_cpm_filename = PROPOSAL_RESPONSE_PERT_CPM_FILENAME
+        # Looked up by their own known filenames rather than the previous
+        # "take changed[0]" shortcut -- that assumed exactly one file
+        # could ever change per call, which broke the moment a second
+        # (pert_cpm) file started being written in the same call.
+        changed = _new_or_changed(before, directory, "")
+        project_plan = _encode_file(os.path.join(directory, plan_filename)) if plan_filename in changed else None
+        pert_cpm = _encode_file(os.path.join(directory, pert_cpm_filename)) if pert_cpm_filename in changed else None
+    return {"message": message, "project_plan": project_plan, "pert_cpm": pert_cpm}
 
 
 @mcp.tool

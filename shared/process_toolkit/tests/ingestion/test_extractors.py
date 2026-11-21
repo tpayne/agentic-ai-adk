@@ -182,6 +182,59 @@ def test_xml_file_is_extracted_as_raw_markup():
     assert "<step>Receive PO</step>" in result["combined_text"]
 
 
+def test_mspdi_project_plan_xml_is_parsed_into_readable_task_text_not_raw_tags():
+    # CONFIRMED AS A REAL GAP otherwise: a Microsoft Project / ProjectLibre
+    # interchange-format (MSPDI) file is still just ".xml", which would
+    # otherwise fall through to the generic raw-markup handler above and
+    # hand an LLM hundreds of deeply-nested, heavily-namespaced tags per
+    # task instead of a readable task list -- same reasoning
+    # _extract_vsdx_file already applies to Visio files.
+    from process_toolkit.docgen.project_plan_export import build_portfolio_backlog_project_plan
+    from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+    from process_toolkit import paths
+
+    with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as import_dir:
+        original_output_dir = paths.OUTPUT_DIR
+        paths.OUTPUT_DIR = output_dir
+        try:
+            save_portfolio_backlog({
+                "name": "Imported Backlog", "summary": "s",
+                "source_artifact": "design", "source_name": "x",
+                "epics": [{
+                    "id": "EPIC-001", "title": "Epic One", "description": "d",
+                    "strategic_theme": "t", "traces_to": ["FR-1"],
+                    "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                    "job_size": 3,
+                    "features": [{
+                        "id": "FEAT-001", "title": "Feature One", "description": "d",
+                        "strategic_theme": "t", "traces_to": ["FR-1"],
+                        "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                        "job_size": 3,
+                        "stories": [{
+                            "id": "STORY-001", "title": "Story One", "description": "d",
+                            "strategic_theme": "t", "traces_to": ["FR-1"],
+                            "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                            "job_size": 3, "acceptance_criteria": ["works"],
+                        }],
+                    }],
+                }],
+            })
+            build_portfolio_backlog_project_plan()
+            generated_path = Path(paths.output_path("portfolio_backlog_project_plan.xml"))
+            (Path(import_dir) / "existing_plan.xml").write_bytes(generated_path.read_bytes())
+        finally:
+            paths.OUTPUT_DIR = original_output_dir
+
+        result = load_directory_context(import_dir)
+
+    assert result["status"] == "OK"
+    assert "[Microsoft Project / ProjectLibre plan: Imported Backlog]" in result["combined_text"]
+    assert "Story One" in result["combined_text"]
+    assert "Duration: ~3 working day(s)" in result["combined_text"]
+    assert "<Task>" not in result["combined_text"]
+    assert "{http://schemas.microsoft.com/project}" not in result["combined_text"]
+
+
 def test_json_file_is_extracted_as_pretty_printed_text():
     import json
 

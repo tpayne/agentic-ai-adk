@@ -52,6 +52,7 @@
     "process_subprocess_regenerate.hocon": true,
     "process_visio_export.hocon": true,
     "cloudarch_visio_export.hocon": true,
+    "project_plan_export.hocon": true,
     "togaf.hocon": true,
     "togaf_scenario_tester.hocon": true,
     "togaf_consultant.hocon": true,

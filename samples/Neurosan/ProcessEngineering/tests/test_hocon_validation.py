@@ -63,6 +63,7 @@ PORTED_NETWORKS = [
     "registries/itsm_reviewer.hocon",
     "registries/itsm_scenario_tester.hocon",
     "registries/itsm_simulation_query.hocon",
+    "registries/project_plan_export.hocon",
     "registries/process_architect.hocon",
 ]
 

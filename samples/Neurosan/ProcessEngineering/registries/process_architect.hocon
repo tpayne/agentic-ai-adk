@@ -589,12 +589,16 @@ LATER, separate request to regenerate just the document (e.g. after a reviewer f
 
 ### 1g. ENTERPRISE AGILE PORTFOLIO BACKLOG CREATION OR UPDATE
 Trigger when the user asks to create an Enterprise Agile Portfolio Backlog, produce a WSJF-prioritized
-breakdown of saved requirements/design, or explicitly update/change/revise/reprioritize an existing
-backlog. For creation, use the saved design document if one exists; otherwise use the saved
+breakdown of saved requirements/design, or EXPLICITLY, UNCONDITIONALLY update/change/revise/reprioritize
+an existing backlog. For creation, use the saved design document if one exists; otherwise use the saved
 requirements summary. The pipeline checks both, uses only one (design takes precedence), and reports
 if neither exists. Do not generate a backlog from an inline description. For explicit updates, pass
 the request to the pipeline so it loads and modifies the existing portfolio_backlog.json; do not
 route an update as new generation.
+
+Does NOT apply when the request is hypothetical/conditional ("what if…", "what would happen if…",
+"suppose…", "…instead of…") even when it otherwise uses "change"/"update"-shaped wording -- see
+Section 5e, which takes precedence for that phrasing.
 
 -> Call: Portfolio_Backlog_Pipeline
 
@@ -603,7 +607,9 @@ Examples:
 - "Generate an Enterprise Agile Portfolio Backlog from the design, including epics, features, and stories."
 - "Break the current design into an implementation backlog and estimate labor costs."
 - "Update the existing portfolio backlog to add the approved audit logging story."
-- "Change the WSJF scores for the payment features to reflect the new deadline."
+- "Change the WSJF scores for the payment features to reflect the new deadline." (an unconditional
+  instruction, not a question -- contrast "What if the WSJF scores for the payment features
+  reflected the new deadline?", which is 5e.)
 
 The pipeline preserves the supplied workbook's WSJF fields, adds hierarchy/traceability fields,
 saves the structured backlog JSON, and generates the workbook with an editable Assumptions sheet.
@@ -1276,6 +1282,33 @@ Precedence rule: hypothetical/conditional phrasing ALWAYS routes to ITSM_Scenari
 ITSM_Simulation_Query_Agent (Section 3g), even if the request also mentions bottlenecks/coverage/
 blast radius.
 
+### 5e. ENTERPRISE AGILE PORTFOLIO BACKLOG WHAT-IF SCENARIOS
+Trigger on the same kind of hypothetical/conditional phrasing against an existing Enterprise Agile
+Portfolio Backlog -- "what if…", "what would happen if…", "suppose…", "hypothetically…" -- asked
+about resource allocations, FTE/availability percentages, WSJF scores, priorities, or scope, e.g.
+"what if the BA and SA allocations were changed to 60% instead of 40-50%?", "what would happen if
+we deprioritized EPIC-003?".
+
+There is no dedicated Portfolio Backlog Scenario Tester (unlike 5a-5d) -- Portfolio_Backlog_Consultant_Agent
+is the analysis-only destination for this domain (see Section 4m); it reasons over the saved backlog
+without mutating it.
+
+-> Call: Portfolio_Backlog_Consultant_Agent
+
+CONFIRMED AS A REAL PRODUCTION BUG from a live run: "what if the BA and SA allocations were changed
+to 60% instead of 40-50%" -- asked as a plain hypothetical question about an already-saved backlog
+-- was instead routed to Portfolio_Backlog_Pipeline (Section 1g), which treated it as a literal
+update instruction and actually rewrote portfolio_backlog.json/.xlsx with the new allocations,
+without ever answering the actual "what if" analysis the user asked for. Section 1g's own trigger
+wording ("explicitly update/change/revise/reprioritize") and its example ("Change the WSJF scores
+for the payment features to reflect the new deadline.") pattern-match a hypothetical's surface
+wording just as easily as a real instruction -- the conditional framing ("what if", "would",
+"instead of") is what must decide it, exactly as 5a-5d already establish for their own domains.
+
+Precedence rule: hypothetical/conditional phrasing ALWAYS routes to Portfolio_Backlog_Consultant_Agent
+over Portfolio_Backlog_Pipeline (Section 1g), even when the wording also contains a "change X to Y"
+shape that would otherwise look like an update instruction.
+
 ------------------------------------------------------------
 
 ## 6. CLOUD DIAGRAM GENERATION / MODIFICATION
@@ -1373,7 +1406,7 @@ Disambiguation rules above, then apply the matching tool from that tier:
 
 1. Creation or explicit update (process -> Process_Pipeline / update pipeline; design document -> Design_Doc_Pipeline / update pipeline; requirements document from a description -> Requirements_Doc_Pipeline; proposal response from an RFP's analyzed requirements -> Proposal_Response_Pipeline; test specification validating the saved requirements/design/cloud architecture -> Test_Specification_Pipeline; Enterprise Agile Portfolio Backlog creation or update -> Portfolio_Backlog_Pipeline; TOGAF architecture artifact creation or update -> TOGAF_Pipeline; ITSM process document creation -> ITSM_Pipeline, explicit update -> ITSM_Update_Pipeline)
 2. Modification (process -> Process_Update_Pipeline; design document -> Design_Doc_Update_Pipeline; cloud diagram -> CloudArch_Pipeline)
-3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester; TOGAF architecture artifacts -> TOGAF_Scenario_Tester; ITSM process document -> ITSM_Scenario_Tester)
+3. Scenario / What-if (process -> Process_Scenario_Tester; design document -> Design_Scenario_Tester; TOGAF architecture artifacts -> TOGAF_Scenario_Tester; ITSM process document -> ITSM_Scenario_Tester; Enterprise Agile Portfolio Backlog -> Portfolio_Backlog_Consultant_Agent, see Section 5e -- this tier wins over Tier 1's Portfolio_Backlog_Pipeline whenever the phrasing is hypothetical/conditional)
 4. Simulation / Performance / Analysis (process -> Process_Simulation_Query_Agent; design document -> Design_Architecture_Simulation_Query_Agent; cloud diagram resilience/scalability/latency -> CloudArch_Simulation_Query_Agent; cloud diagram adversarial/attack -> CloudArch_Attack_Simulation_Query_Agent; requirements completeness -> Requirements_Simulation_Query_Agent; ITSM structural risk/coverage -> ITSM_Simulation_Query_Agent)
 5. Cost Estimation / FinOps (cloud diagram -> CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud diagram -> CloudArch_IaC_Pipeline)
@@ -1650,6 +1683,57 @@ Do NOT force this request into any generate/review pipeline, and do NOT treat a 
 diagram"/"create the architecture" request as implying a Visio export -- Visio export only happens
 on an EXPLICIT ask naming "Visio"/".vsdx". This is purely ADDITIVE: it never runs as a side effect
 of any other request, and no existing pipeline step changes because of it.
+
+------------------------------------------------------------
+# PROJECT PLAN (MS PROJECT / PROJECTLIBRE) EXPORT
+------------------------------------------------------------
+If the user explicitly asks to export/save/download the Enterprise Agile Portfolio Backlog or the
+Proposal Response AS A PROJECT PLAN (e.g. "export the backlog as a project plan", "give me an MS
+Project file for the proposal response", "export this as a Gantt chart", "I need a .mpp-compatible
+file") with NO other creation/modification intent in the same request, call `/project_plan_export`
+directly. It exports whatever portfolio_backlog.json/proposal_response.json is ALREADY saved on
+disk as a real Microsoft Project / ProjectLibre interchange-format (MSPDI XML) file -- it does NOT
+re-run analysis, backlog/proposal generation, or review, and does NOT modify the saved JSON itself.
+Neither saved artifact has any real date/duration field, so the exported plan's durations are
+always an ILLUSTRATIVE planning estimate computed at export time, never a committed schedule.
+
+Signal words: "project plan", "MS Project"/"Microsoft Project", "ProjectLibre", "Gantt chart",
+".mpp". Do NOT trigger on a bare "plan" alone -- that word alone is routine, casual phrasing for
+the backlog/proposal itself (e.g. "the backlog plan", "our delivery plan") and would otherwise
+collide with Section 1g's/1e's own creation routing, the same anti-collision discipline already
+applied to the vsdx/"vision document" substring guard above. Do NOT force this request into
+Portfolio_Backlog_Pipeline/Proposal_Response_Pipeline instead, and do NOT treat a bare "create a
+backlog"/"draft a proposal response" request as implying a project-plan export -- this only happens
+on an EXPLICIT ask naming one of the signal words above. This is purely ADDITIVE: it never runs as
+a side effect of any other request, and no existing pipeline step changes because of it.
+
+### PROJECT PLAN REQUESTED BUT NOTHING SAVED YET
+CONFIRMED AS A REAL PRODUCTION BUG: when the user's own request names one of the signal words
+above (e.g. "create a project plan for the ITSM discovery, assuming a Project Manager at 50%...")
+but NEITHER a saved Portfolio Backlog NOR a saved Proposal Response exists yet to export from, a
+live run silently dropped "project plan" entirely and asked an unrelated clarifying question
+("Business Process Design or Enterprise Agile Portfolio Backlog?") that never mentioned a project
+plan at all -- even though that is exactly what the user asked for. This is the EXACT failure mode
+the AMBIGUOUS OR UNCLEAR INTENT rule (Section 10) must not fall into here: it is not that the
+user's intent was unclear, it's that the response forgot the user's own stated end-goal.
+
+Whenever a request names a project-plan signal word above and the needed source artifact isn't
+saved yet, you MUST explicitly acknowledge "project plan" in whatever you say next -- never silently
+substitute an unrelated domain question. Determine which of the two project-plan-capable domains
+the request is for, using the SAME wording the export section above uses ("backlog"/"portfolio
+backlog"/"epics"/"WSJF" -> Portfolio Backlog; "proposal"/"proposal response"/"RtP"/"response" ->
+Proposal Response):
+- If one is clearly named (or is the only sensible reading -- e.g. a discovery/delivery project
+  description with resource allocations reads as Portfolio Backlog, not a proposal/bid response),
+  explain plainly: "A project plan is exported from a saved [Portfolio Backlog/Proposal Response].
+  I don't have one saved yet." Then follow that domain's own normal creation path (Section 1g/1e)
+  from here -- if the request already supplies enough real content to build it (per that section's
+  own requirements-extraction rules), proceed with creation and say you'll export it as a project
+  plan once it's saved; otherwise ask for what's missing, the same as that section would on its
+  own.
+- If genuinely unclear which of the two domains the project plan is for, ask which one -- explicitly
+  naming "project plan" in the question -- rather than asking a disconnected domain question that
+  never mentions it.
 """,
             "tools": [
                 "/process",
@@ -1660,6 +1744,7 @@ of any other request, and no existing pipeline step changes because of it.
                 "/process_simulation_query",
                 "/process_subprocess_regenerate",
                 "/process_visio_export",
+                "/project_plan_export",
                 "/design",
                 "/design_import",
                 "/design_update",

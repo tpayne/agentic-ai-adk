@@ -325,6 +325,140 @@ class TestExportCloudarchVsdx:
             assert "successfully exported" in result["message"], result["message"]
 
 
+class TestExportProjectPlan:
+    async def test_not_applicable_schema_types_report_cleanly_without_fabricating_a_plan(self):
+        async with Client(server.mcp) as client:
+            for schema_type in ("requirements", "process", "design", "test_specification", "togaf", "itsm"):
+                result = (await client.call_tool(
+                    "export_project_plan", {"schema_type": schema_type, "session_id": "s1"},
+                )).data
+                assert result["project_plan"] is None
+                assert result["pert_cpm"] is None
+                assert "NOT_APPLICABLE" in result["message"], (schema_type, result["message"])
+
+    async def test_portfolio_backlog_with_nothing_saved_errors_without_fabricating_a_plan(self):
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "export_project_plan", {"schema_type": "portfolio_backlog", "session_id": "s2"},
+            )).data
+            assert result["project_plan"] is None
+            assert result["message"].startswith("ERROR:"), result["message"]
+
+    async def test_proposal_response_with_nothing_saved_errors_without_fabricating_a_plan(self):
+        async with Client(server.mcp) as client:
+            result = (await client.call_tool(
+                "export_project_plan", {"schema_type": "proposal_response", "session_id": "s3"},
+            )).data
+            assert result["project_plan"] is None
+            assert result["message"].startswith("ERROR:"), result["message"]
+
+    async def test_exports_a_saved_portfolio_backlogs_epics_features_and_stories(self):
+        priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}
+        backlog = {
+            "name": "Checkout Backlog", "summary": "s", "source_name": "Checkout", "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-1", "title": "Checkout flow", "description": "d",
+                "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 8,
+                "features": [{
+                    "id": "FEAT-1", "title": "Cart management", "description": "d",
+                    "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 5,
+                    "stories": [{
+                        "id": "STORY-1", "title": "Add to cart", "description": "d",
+                        "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                        "acceptance_criteria": ["Given an item, when added, then it appears in the cart."],
+                    }],
+                }],
+            }],
+        }
+        async with Client(server.mcp) as client:
+            saved = (await client.call_tool(
+                "generate_portfolio_backlog", {"backlog": backlog, "session_id": "s4"},
+            )).data
+            assert saved["message"].startswith("SUCCESS"), saved["message"]
+
+            result = (await client.call_tool(
+                "export_project_plan", {"schema_type": "portfolio_backlog", "session_id": "s4"},
+            )).data
+            assert result["project_plan"] is not None
+            assert result["project_plan"]["filename"].endswith(".xml")
+            assert result["project_plan"]["size_bytes"] > 0
+            assert "successfully exported" in result["message"], result["message"]
+            # The companion PERT/CPM diagram is a real PNG, a DIFFERENT
+            # extension than the project plan, written in the same call --
+            # confirms the "which file(s) changed" lookup correctly
+            # distinguishes both regardless of extension rather than only
+            # picking up one of them.
+            assert result["pert_cpm"] is not None
+            assert result["pert_cpm"]["filename"] == "portfolio_backlog_pert_cpm.png"
+            assert result["pert_cpm"]["size_bytes"] > 0
+            assert result["pert_cpm"]["filename"] != result["project_plan"]["filename"]
+
+    async def test_exports_a_saved_proposal_responses_implementation_plan_phases(self):
+        response = {
+            "name": "Harborlight Response",
+            "implementation_plan": [
+                {"phase": "Discovery", "timing": "2 weeks", "deliverable": "d", "acceptance_criteria": "a"},
+            ],
+        }
+        async with Client(server.mcp) as client:
+            saved = (await client.call_tool(
+                "persist_json", {"schema_type": "proposal_response", "data": response, "session_id": "s5"},
+            )).data
+            assert saved["success"], saved["message"]
+
+            result = (await client.call_tool(
+                "export_project_plan", {"schema_type": "proposal_response", "session_id": "s5"},
+            )).data
+            assert result["project_plan"] is not None
+            assert result["project_plan"]["filename"].endswith(".xml")
+            assert "successfully exported" in result["message"], result["message"]
+            assert result["pert_cpm"] is not None
+            assert result["pert_cpm"]["filename"] == "proposal_response_pert_cpm.png"
+
+    async def test_exports_with_resources_uk_holidays_and_an_overrun_warning(self):
+        priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}
+        backlog = {
+            "name": "ITSM Discovery Backlog", "summary": "s", "source_name": "x", "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-1", "title": "Discovery", "description": "d",
+                "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                "features": [{
+                    "id": "FEAT-1", "title": "Process Mapping", "description": "d",
+                    "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                    "stories": [{
+                        "id": "STORY-1", "title": "Map Incident Management", "description": "d",
+                        "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 20,
+                        "acceptance_criteria": ["Mapped and signed off."],
+                    }],
+                }],
+            }],
+        }
+        async with Client(server.mcp) as client:
+            saved = (await client.call_tool(
+                "generate_portfolio_backlog", {"backlog": backlog, "session_id": "s6"},
+            )).data
+            assert saved["message"].startswith("SUCCESS"), saved["message"]
+
+            result = (await client.call_tool(
+                "export_project_plan",
+                {
+                    "schema_type": "portfolio_backlog",
+                    "start_date": "2026-11-23",
+                    "resources": [
+                        {"name": "Project Manager", "allocation_percent": 50},
+                        {"name": "ServiceNow Engineer", "allocation_percent": 100},
+                    ],
+                    "target_duration_weeks": 1,
+                    "holiday_calendar": "uk",
+                    "session_id": "s6",
+                },
+            )).data
+            assert result["project_plan"] is not None
+            assert "successfully exported" in result["message"], result["message"]
+            assert "WARNING" in result["message"]
+            assert "overruns the requested 1-week target" in result["message"]
+
+
 class TestPersistJsonValidatesFirst:
     async def test_invalid_togaf_data_is_rejected_without_writing_anything(self):
         async with Client(server.mcp) as client:

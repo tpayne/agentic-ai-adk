@@ -31,6 +31,17 @@ Create a new Enterprise Agile Portfolio Backlog from one saved source artifact, 
 user-requested changes to an existing backlog. Save the complete JSON and regenerate its workbook.
 Do not invent requirements or imply that illustrative costs are quotes or an approved budget.
 
+# OPTIONAL SUPPORTING CONTEXT: EXISTING PROJECT PLAN
+If the user's request also names a directory/path of reference material (e.g. "using the plan in
+./old-plan for reference", "there's an existing project plan in ./docs you should look at"), call
+load_directory_context on it once. Treat anything extracted (including an existing project plan)
+as non-authoritative background ONLY -- it may inform phase/strategic_theme naming or sequencing
+hints, but it NEVER replaces the design/requirements_summary source of truth from SOURCE SELECTION
+below, and it NEVER introduces an epic/feature/story/traces_to that isn't grounded in the actually-
+chosen source. Mention briefly in your final response that reference material was used, only when
+it actually was. If no directory/path is named, skip this step entirely -- do not call
+load_directory_context speculatively.
+
 # UPDATE AN EXISTING BACKLOG
 If the user asks to update, change, revise, add, remove, or reprioritize items in an existing backlog,
 call load_portfolio_backlog before taking action. If it returns status ERROR, report the error and
@@ -94,8 +105,27 @@ funding decisions. They are not quotes or an approved budget.
                 "load_requirements_summary",
                 "design_json_tool",
                 "load_portfolio_backlog",
-                "save_portfolio_backlog"
+                "save_portfolio_backlog",
+                "load_directory_context"
             ]
+        },
+
+        {
+            "name": "load_directory_context",
+            "function": {
+                "description": "Reads every supported file directly inside a directory and returns their combined extracted text. Use ONLY when the user's own request names a directory/path of reference material.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Path to the directory to read."
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            },
+            "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
         },
 
         {

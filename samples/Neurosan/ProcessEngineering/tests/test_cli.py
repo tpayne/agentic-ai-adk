@@ -1466,6 +1466,74 @@ class TestArtifactRoute:
             "status": "ok", "name": "cloudarch", "data": "<mxfile><diagram>stuff</diagram></mxfile>",
         }
 
+    def test_process_flow_vsdx_artifact_name_returns_a_parsed_graph(self, monkeypatch, tmp_path):
+        from process_toolkit.docgen.vsdx_export import _build_vsdx, PROCESS_FLOW_VSDX_FILENAME
+
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        (tmp_path / "output").mkdir()
+        out_path = os.path.join(str(tmp_path / "output"), PROCESS_FLOW_VSDX_FILENAME)
+        _build_vsdx([("A", "B")], {}, {"A": "A", "B": "B"}, "Process", "Fixture", out_path)
+
+        app = cli.build_web_app("process_architect", https=False)
+        resp = app.test_client().get("/artifacts/process_flow_vsdx")
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        assert {v["label"] for v in data["vertices"]} == {"A", "B"}
+        assert len(data["edges"]) == 1
+
+    def test_portfolio_backlog_project_plan_artifact_name_returns_parsed_tasks(self, monkeypatch, tmp_path):
+        from process_interface.docgen.project_plan_export import (
+            build_portfolio_backlog_project_plan,
+        )
+        from process_interface.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+
+        monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path / "output"))
+        (tmp_path / "output").mkdir()
+        priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}
+        save_portfolio_backlog({
+            "name": "Fixture Backlog", "summary": "s", "source_name": "x", "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-1", "title": "Epic", "description": "d",
+                "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                "features": [{
+                    "id": "FEAT-1", "title": "Feature", "description": "d",
+                    "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                    "stories": [{
+                        "id": "STORY-1", "title": "Story", "description": "d",
+                        "traces_to": ["REQ-1"], "priority_components": priority, "job_size": 3,
+                        "acceptance_criteria": ["works"],
+                    }],
+                }],
+            }],
+        })
+        build_portfolio_backlog_project_plan()
+
+        app = cli.build_web_app("process_architect", https=False)
+        resp = app.test_client().get("/artifacts/portfolio_backlog_project_plan")
+        assert resp.status_code == 200
+        tasks = resp.get_json()["data"]["tasks"]
+        assert {t["name"] for t in tasks} == {"Fixture Backlog", "Epic", "Feature", "Story"}
+
+    def test_pert_cpm_names_are_not_viewable_via_the_json_route(self, monkeypatch, tmp_path):
+        # The PERT/CPM diagrams are real PNG images, not text/JSON -- they
+        # have no entry in this route's dispatch at all (unlike every other
+        # artifact kind), only their own /download route (see
+        # TestProcessDesignJsonDownloadRoutes). Confirms that's a clean 400
+        # ("unknown name"), not a confusing attempt to read binary bytes as
+        # JSON/text.
+        client = self._build_client(monkeypatch, tmp_path)
+        for name in ("portfolio_backlog_pert_cpm", "proposal_response_pert_cpm"):
+            resp = client.get(f"/artifacts/{name}")
+            assert resp.status_code == 400, name
+
+    def test_graph_and_task_list_artifact_names_404_when_not_yet_exported(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        for name in (
+            "process_flow_vsdx", "design_flow_vsdx", "cloudarch_vsdx",
+            "portfolio_backlog_project_plan", "proposal_response_project_plan",
+        ):
+            assert client.get(f"/artifacts/{name}").status_code == 404
+
     def test_404_when_the_file_has_not_been_generated_yet(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
         resp = client.get("/artifacts/process")
@@ -1635,6 +1703,46 @@ class TestProcessDesignJsonDownloadRoutes:
         assert client.get("/artifacts/process_flow_vsdx/download").status_code == 404
         assert client.get("/artifacts/design_flow_vsdx/download").status_code == 404
         assert client.get("/artifacts/cloudarch_vsdx/download").status_code == 404
+
+    def test_downloads_portfolio_backlog_project_plan_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog_project_plan.xml": "<Project/>"})
+        resp = client.get("/artifacts/portfolio_backlog_project_plan/download")
+        assert resp.status_code == 200
+        assert resp.data == b"<Project/>"
+        assert resp.mimetype == "application/xml"
+        assert "portfolio_backlog_project_plan.xml" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_proposal_response_project_plan_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"proposal_response_project_plan.xml": "<Project/>"})
+        resp = client.get("/artifacts/proposal_response_project_plan/download")
+        assert resp.status_code == 200
+        assert resp.data == b"<Project/>"
+        assert "proposal_response_project_plan.xml" in resp.headers.get("Content-Disposition", "")
+
+    def test_project_plan_routes_404_when_not_yet_exported(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        assert client.get("/artifacts/portfolio_backlog_project_plan/download").status_code == 404
+        assert client.get("/artifacts/proposal_response_project_plan/download").status_code == 404
+
+    def test_downloads_portfolio_backlog_pert_cpm_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"portfolio_backlog_pert_cpm.png": "png bytes"})
+        resp = client.get("/artifacts/portfolio_backlog_pert_cpm/download")
+        assert resp.status_code == 200
+        assert resp.data == b"png bytes"
+        assert resp.mimetype == "image/png"
+        assert "portfolio_backlog_pert_cpm.png" in resp.headers.get("Content-Disposition", "")
+
+    def test_downloads_proposal_response_pert_cpm_as_a_real_attachment(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path, {"proposal_response_pert_cpm.png": "png bytes"})
+        resp = client.get("/artifacts/proposal_response_pert_cpm/download")
+        assert resp.status_code == 200
+        assert resp.data == b"png bytes"
+        assert "proposal_response_pert_cpm.png" in resp.headers.get("Content-Disposition", "")
+
+    def test_pert_cpm_routes_404_when_not_yet_exported(self, monkeypatch, tmp_path):
+        client = self._build_client(monkeypatch, tmp_path)
+        assert client.get("/artifacts/portfolio_backlog_pert_cpm/download").status_code == 404
+        assert client.get("/artifacts/proposal_response_pert_cpm/download").status_code == 404
 
     def test_404s_when_not_yet_generated(self, monkeypatch, tmp_path):
         client = self._build_client(monkeypatch, tmp_path)
