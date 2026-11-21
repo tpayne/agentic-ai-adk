@@ -52,12 +52,12 @@ from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 from process_toolkit import paths
 from process_toolkit.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
 from process_toolkit.proposal_response.proposal_response import load_proposal_response
-from process_toolkit.docgen.pert_cpm_export import build_pert_cpm_drawio_xml
+from process_toolkit.docgen.pert_cpm_export import generate_pert_cpm_diagram
 
 PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME = "portfolio_backlog_project_plan.xml"
 PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME = "proposal_response_project_plan.xml"
-PORTFOLIO_BACKLOG_PERT_CPM_FILENAME = "portfolio_backlog_pert_cpm.xml"
-PROPOSAL_RESPONSE_PERT_CPM_FILENAME = "proposal_response_pert_cpm.xml"
+PORTFOLIO_BACKLOG_PERT_CPM_FILENAME = "portfolio_backlog_pert_cpm.png"
+PROPOSAL_RESPONSE_PERT_CPM_FILENAME = "proposal_response_pert_cpm.png"
 
 # Illustrative planning assumption, NOT written into the saved backlog JSON --
 # mirrors portfolio_backlog.py's own "editable, explicitly illustrative"
@@ -533,9 +533,8 @@ def _build_and_write_pert_cpm(
             "duration_days": max(task.duration_days, 1), "gap_working_days_before": gap,
         })
     try:
-        xml_text = build_pert_cpm_drawio_xml(activities, root_task.name)
-        return _write_output(xml_text, filename), None
-    except OSError as e:
+        return generate_pert_cpm_diagram(activities, root_task.name, filename), None
+    except (OSError, ValueError) as e:
         return None, f"WARNING: Could not generate the PERT/CPM diagram: {e}"
 
 

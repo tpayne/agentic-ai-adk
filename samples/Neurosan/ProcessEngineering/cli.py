@@ -2179,8 +2179,7 @@ def build_web_app(agent_name: str, https: bool = True):
             parse_vsdx_to_graph,
         )
         from process_interface.docgen.project_plan_export import (
-            PORTFOLIO_BACKLOG_PERT_CPM_FILENAME, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
-            PROPOSAL_RESPONSE_PERT_CPM_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
+            PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
             parse_mspdi_tasks,
         )
 
@@ -2194,14 +2193,12 @@ def build_web_app(agent_name: str, https: bool = True):
             "proposal_response_project_plan": PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
         }
         # Raw mxGraph/draw.io XML text, returned as-is for the client's own
-        # parseDrawioXml -- cloudarch's own diagram plus the PERT/CPM
-        # network diagrams generated alongside every project plan export
-        # (docgen.project_plan_export.build_*_project_plan), which are
-        # written in the exact same XML shape.
+        # parseDrawioXml. The PERT/CPM network diagrams generated alongside
+        # every project plan export are real PNG images, not XML -- they
+        # have no entry here at all, only a /download route (binary,
+        # below), same as every other binary artifact (.vsdx, .xlsx, .docx).
         raw_xml_names = {
             "cloudarch": "cloudarch_drawio.xml",
-            "portfolio_backlog_pert_cpm": PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
-            "proposal_response_pert_cpm": PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
         }
         filenames = {
             "process": "process_data.json",
@@ -2224,9 +2221,10 @@ def build_web_app(agent_name: str, https: bool = True):
                     f"Unknown artifact '{name}' -- use 'process', 'design', 'requirements', "
                     "'proposal_response', 'test_specification', 'portfolio_backlog', 'togaf', "
                     "'itsm', 'cloudarch', 'process_flow_vsdx', 'design_flow_vsdx', "
-                    "'cloudarch_vsdx', 'portfolio_backlog_project_plan', "
-                    "'proposal_response_project_plan', 'portfolio_backlog_pert_cpm', or "
-                    "'proposal_response_pert_cpm'."
+                    "'cloudarch_vsdx', 'portfolio_backlog_project_plan', or "
+                    "'proposal_response_project_plan'. The PERT/CPM diagrams "
+                    "('portfolio_backlog_pert_cpm'/'proposal_response_pert_cpm') are images -- "
+                    "use their own /download route instead."
                 ),
             }), 400
 
@@ -2458,12 +2456,14 @@ def build_web_app(agent_name: str, https: bool = True):
 
     @web_app.route("/artifacts/portfolio_backlog_pert_cpm/download", methods=["GET"])
     def download_portfolio_backlog_pert_cpm():
-        """Downloads this web session's own PERT/CPM network diagram
-        (mxGraph/draw.io XML), generated alongside the Portfolio Backlog's
-        project plan every time it's exported -- see docgen.
-        project_plan_export's own _build_and_write_pert_cpm. Structurally
-        identical to download_portfolio_backlog_project_plan above, just
-        for this companion artifact."""
+        """Downloads this web session's own PERT/CPM network diagram -- a
+        real PNG image (matplotlib, see docgen.pert_cpm_export's own
+        generate_pert_cpm_diagram), generated alongside the Portfolio
+        Backlog's project plan every time it's exported. A binary image,
+        not text/JSON, so (unlike cloudarch/vsdx/project-plan artifacts)
+        this has no corresponding entry in the main /artifacts/<name> view
+        route above -- this download route is its only web exposure, the
+        same way .docx/.xlsx documents work."""
         from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PERT_CPM_FILENAME
 
         with paths.use_session(_web_session_id_for_get_request()):
@@ -2476,13 +2476,13 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 404
         return send_file(
             path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
-            mimetype="application/xml",
+            mimetype="image/png",
         )
 
     @web_app.route("/artifacts/proposal_response_pert_cpm/download", methods=["GET"])
     def download_proposal_response_pert_cpm():
-        """Downloads this web session's own PERT/CPM network diagram for
-        the Proposal Response. Structurally identical to
+        """Downloads this web session's own PERT/CPM network diagram PNG
+        for the Proposal Response. Structurally identical to
         download_portfolio_backlog_pert_cpm above, just for the proposal
         response domain."""
         from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PERT_CPM_FILENAME
@@ -2497,7 +2497,7 @@ def build_web_app(agent_name: str, https: bool = True):
             }), 404
         return send_file(
             path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
-            mimetype="application/xml",
+            mimetype="image/png",
         )
 
     @web_app.route("/artifacts/<name>/download", methods=["GET"])

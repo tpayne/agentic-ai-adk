@@ -383,12 +383,13 @@ class TestExportProjectPlan:
             assert result["project_plan"]["filename"].endswith(".xml")
             assert result["project_plan"]["size_bytes"] > 0
             assert "successfully exported" in result["message"], result["message"]
-            # The companion PERT/CPM diagram is a SEPARATE .xml file written
-            # in the same call -- confirms the "which .xml file changed"
-            # lookup correctly distinguishes the two rather than only
+            # The companion PERT/CPM diagram is a real PNG, a DIFFERENT
+            # extension than the project plan, written in the same call --
+            # confirms the "which file(s) changed" lookup correctly
+            # distinguishes both regardless of extension rather than only
             # picking up one of them.
             assert result["pert_cpm"] is not None
-            assert result["pert_cpm"]["filename"] == "portfolio_backlog_pert_cpm.xml"
+            assert result["pert_cpm"]["filename"] == "portfolio_backlog_pert_cpm.png"
             assert result["pert_cpm"]["size_bytes"] > 0
             assert result["pert_cpm"]["filename"] != result["project_plan"]["filename"]
 
@@ -412,7 +413,7 @@ class TestExportProjectPlan:
             assert result["project_plan"]["filename"].endswith(".xml")
             assert "successfully exported" in result["message"], result["message"]
             assert result["pert_cpm"] is not None
-            assert result["pert_cpm"]["filename"] == "proposal_response_pert_cpm.xml"
+            assert result["pert_cpm"]["filename"] == "proposal_response_pert_cpm.png"
 
     async def test_exports_with_resources_uk_holidays_and_an_overrun_warning(self):
         priority = {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2}

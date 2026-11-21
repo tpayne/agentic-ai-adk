@@ -1,33 +1,36 @@
-"""Builds a PERT activity-on-node network diagram, in the same mxGraph/
-draw.io XML format `process_toolkit.cloudarch.layout`'s own
-`build_structured_drawio_xml` already produces (the same `<mxfile>/
-<diagram>/<mxGraphModel>/<root>` shape, the same `<mxCell vertex="1">`/
-`<mxCell edge="1">` conventions) -- deliberately a separate, much simpler
-writer rather than calling into that module's zone/icon/edge-routing
-machinery, which is purpose-built for architecture diagrams with zones and
-icons; a PERT chart has neither. Reusing the OUTPUT FORMAT (so this file is
-openable in a real draw.io client and the web client's existing
-`parseDrawioXml`/`renderGraphDiagram` needs zero new code to display it)
-without reusing the CODE is the same "duplicate rather than share"
-discipline `docgen/vsdx_export.py`'s own `_compute_layout` already
-documents for itself.
+"""Renders a PERT activity-on-node network diagram as a real PNG image --
+same rendering stack and visual language as this module's own sibling
+diagram generators (`proposal_roadmap_diagram.py`'s single-row, left-to-
+right card timeline with directional arrows is the closest match: a header
+banner, one card per activity, `matplotlib`'s `Agg` backend, saved via
+`plt.savefig`). Deliberately NOT mxGraph/draw.io XML -- that format has no
+real use here (no third-party draw.io client benefit, and the web client
+would have had to invent a new renderer for it) when this codebase already
+has a proven, in-use PNG pipeline for exactly this kind of diagram
+(`docgen/uml_diagrams.py`, `docgen/step_diagrams.py`,
+`docgen/proposal_architecture_diagram.py` all follow the same pattern).
 
-Pure function of an already-scheduled activity list -- no file I/O, no
-knowledge of which schema (portfolio backlog vs proposal response) produced
-it. The caller (`docgen.project_plan_export`) is responsible for flattening
-the real task tree down to leaf (non-summary) activities in chronological
-order and computing each one's own `gap_working_days_before` (the number of
-working days of slack between the PREVIOUS activity's finish and this one's
-start -- 0 when they're back-to-back) using its own holiday-aware
-`_count_working_days`, so this module stays holiday-agnostic and trivially
-unit-testable with plain synthetic dates.
+Pure function of an already-scheduled activity list -- no knowledge of
+which schema (portfolio backlog vs proposal response) produced it; the
+caller (`docgen.project_plan_export`) owns flattening the real task tree
+down to leaf (non-summary) activities in chronological order and computing
+each one's own `gap_working_days_before` (the number of working days of
+slack between the PREVIOUS activity's finish and this one's start -- 0 when
+they're back-to-back) using its own holiday-aware `_count_working_days`, so
+this module stays holiday-agnostic and trivially unit-testable with plain
+synthetic dates. `generate_pert_cpm_diagram` DOES own its own file I/O
+(unlike a pure XML-string builder would) -- it takes `filename` and saves
+directly via `paths.output_path`, the same shape as
+`generate_proposal_roadmap_diagram`'s own `out_path = paths.output_path(...);
+plt.savefig(out_path, ...); return out_path`.
 
 Computes a genuine CPM backward pass over the chain (not a hardcoded
 "everything is critical" shortcut): the LAST activity's own Early Finish
 anchors Late Finish (float 0 by definition -- nothing follows it to create
-slack against), and each earlier activity's Late Finish is set from the
-ACTUAL gap before its successor, so float reflects real schedule slack, not
-an assumption. Today's scheduler (`docgen.project_plan_export.
+slack against), and each earlier activity's Late Finish/float is set from
+the ACTUAL gap before its successor PLUS whatever float that successor
+already has (a delay absorbed by shared downstream slack, not just the
+immediate gap). Today's scheduler (`docgen.project_plan_export.
 _schedule_subtree`) always produces a single serial chain with zero gaps --
 so float will currently always be zero, and every activity will be
 "critical" -- but this is computed honestly from the real gaps the caller
@@ -37,122 +40,169 @@ non-critical activity the moment any caller passes a
 """
 
 import datetime as _dt
-import xml.etree.ElementTree as ET
 from typing import Any, Dict, List
 
-_BOX_WIDTH = 200
-_BOX_HEIGHT = 110
-_BOX_GAP = 60
-_ROW_Y = 90  # vertical offset below the header/legend banner
-_HEADER_HEIGHT = 70
-_PAGE_MARGIN = 20
+import matplotlib as mpl
+# Must be set before pyplot is imported -- same reasoning as
+# proposal_roadmap_diagram.py's/edge_inference.py's own identical line
+# (thread-safety: this can run inside asyncio.to_thread, and Agg is the
+# only backend safe to use with no display/event loop of its own).
+mpl.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Circle  # noqa: E402
 
-_CRITICAL_STYLE = (
-    "rounded=1;arcSize=6;fillColor=#FDEDEC;strokeColor=#C0392B;strokeWidth=2.5;"
-    "html=1;whiteSpace=wrap;align=left;spacingLeft=10;spacingTop=6;verticalAlign=top;fontSize=11;"
-)
-_NONCRITICAL_STYLE = (
-    "rounded=1;arcSize=6;fillColor=#FFFFFF;strokeColor=#9AA0A6;strokeWidth=1;"
-    "html=1;whiteSpace=wrap;align=left;spacingLeft=10;spacingTop=6;verticalAlign=top;fontSize=11;"
-)
-_EDGE_STYLE = "rounded=0;html=1;startArrow=none;endArrow=classic;strokeColor=#5f6368;strokeWidth=1.6;"
-_HEADER_STYLE = (
-    "rounded=1;arcSize=4;fillColor=#FFFFFF;strokeColor=#4285F4;strokeWidth=1.5;"
-    "html=1;whiteSpace=wrap;align=left;spacingLeft=16;verticalAlign=middle;fontSize=12;"
-)
+from process_toolkit import paths
+from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
+
+_CARD_WIDTH, _CARD_HEIGHT = 2.9, 2.3
+_X_SPACING = 3.35
+
+_CRITICAL_COLOR = "#C0392B"
+_SLACK_COLOR = "#5C6B7A"
 
 
-def build_pert_cpm_drawio_xml(activities: List[Dict[str, Any]], title: str) -> str:
+def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, filename: str) -> str:
     """`activities`: chronologically ordered dicts, each {"uid", "name",
     "start": date, "finish": date, "duration_days": int,
     "gap_working_days_before": int} (the first activity's own
     `gap_working_days_before` is ignored -- there is nothing before it).
-    Returns the XML text. Never raises on an empty `activities` list --
-    an empty plan is a legitimate, if unusual, state, not an error this
-    function should surface."""
+    Renders the diagram and saves it to output/<filename>. Returns the
+    saved path.
+
+    Raises ValueError if `activities` is empty -- same no-fabrication
+    convention proposal_roadmap_diagram.py's own generate_proposal_
+    roadmap_diagram already follows for an empty plan; the caller's own
+    responsibility not to call this with nothing to render."""
+    if not activities:
+        raise ValueError("No activities to render a PERT/CPM diagram from.")
     scored = _compute_cpm(activities)
+    all_critical = all(a["critical"] for a in scored)
 
-    mxfile = ET.Element("mxfile", {"host": "Electron"})
-    diagram = ET.SubElement(mxfile, "diagram", {"id": "pert_cpm", "name": (title or "PERT/CPM")[:40]})
-    canvas_w = max(
-        _PAGE_MARGIN * 2 + _BOX_WIDTH,
-        _PAGE_MARGIN * 2 + (len(scored) * (_BOX_WIDTH + _BOX_GAP) - _BOX_GAP if scored else _BOX_WIDTH),
+    positions = [(i * _X_SPACING, 0.0) for i in range(len(scored))]
+    x_min, x_max = positions[0][0], positions[-1][0]
+    left, right = x_min - _CARD_WIDTH / 2 - 1.1, x_max + _CARD_WIDTH / 2 + 1.1
+    if right - left < 9.0:
+        extra_padding = (9.0 - (right - left)) / 2
+        left -= extra_padding
+        right += extra_padding
+    # Single row (all cards at y=0) -- banner tall enough for title + the
+    # legend line explaining the critical-path styling, same margin-formula
+    # discipline proposal_roadmap_diagram.py's own header block uses.
+    bottom, top = -_CARD_HEIGHT / 2 - 0.35, _CARD_HEIGHT / 2 + 1.85
+    plot_width, plot_height = right - left, top - bottom
+
+    fig_width = min(14.0, max(9.0, plot_width * 0.72))
+    fig_height = fig_width * plot_height / plot_width
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.set_facecolor("#F4F7FB")
+    ax.set_xlim(left, right)
+    ax.set_ylim(bottom, top)
+    ax.set_aspect("equal", adjustable="box")
+
+    # Header banner.
+    ax.add_patch(FancyBboxPatch(
+        (left, top - 1.65), plot_width, 1.65,
+        boxstyle="round,pad=0.02,rounding_size=0.16",
+        facecolor="#14243A", edgecolor="none", zorder=1,
+    ))
+    ax.text(
+        left + 0.35, top - 0.47, "PERT / CPM NETWORK",
+        color="#77D6C1", fontsize=9, fontweight="bold", va="center",
+        ha="left", zorder=2,
     )
-    canvas_h = _PAGE_MARGIN * 2 + _ROW_Y + _BOX_HEIGHT
-    graph_model = ET.SubElement(diagram, "mxGraphModel", {
-        "dx": "1600", "dy": "900", "grid": "1", "gridSize": "10", "guides": "1",
-        "tooltips": "1", "connect": "1", "arrows": "1", "fold": "1", "page": "1",
-        "pageScale": "1", "pageWidth": str(int(canvas_w)), "pageHeight": str(int(canvas_h)),
-        "math": "0", "shadow": "0", "background": "#FFFFFF",
-    })
-    root = ET.SubElement(graph_model, "root")
-    ET.SubElement(root, "mxCell", {"id": "0"})
-    ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
-
-    all_critical = all(a["critical"] for a in scored) if scored else True
-    # No manual HTML-entity escaping anywhere in this function -- `value`
-    # is an XML ATTRIBUTE, and ET.tostring's own attribute serialization
-    # already escapes &/</>/" exactly once when it writes the file (the
-    # same reasoning cloudarch/layout.py's own title_value/zone-label
-    # construction already relies on -- confirmed directly: escaping here
-    # too produced double-escaped text, e.g. "&amp;" becoming "&amp;amp;").
-    display_title = title or "Project Plan"
-    if not scored:
-        legend_text = f"<b>{display_title} -- PERT / CPM Network</b><br/>No activities to schedule."
-    elif all_critical:
-        legend_text = (
-            f"<b>{display_title} -- PERT / CPM Network</b><br/>"
-            "<span style=\"font-size:10.5px;color:#5f6368\">This plan has no parallel work "
-            "streams -- every activity runs strictly after the previous one, so the entire "
-            "sequence IS the critical path (zero float throughout).</span>"
+    fit_title(
+        ax, str(title or "Project Plan"), left + 0.35, top - 0.91, plot_width - 4.5,
+        color="white", fontweight="bold", ha="left", zorder=2,
+    )
+    ax.text(
+        right - 0.3, top - 0.72, f"{len(scored):02d} ACTIVITIES",
+        color="#D3DFEC", fontsize=8, fontweight="bold", va="center",
+        ha="right", zorder=2,
+    )
+    if all_critical:
+        legend = (
+            "No parallel work streams in this plan -- every activity runs strictly after the "
+            "previous one, so the entire sequence IS the critical path (zero float throughout)."
         )
     else:
-        legend_text = (
-            f"<b>{display_title} -- PERT / CPM Network</b><br/>"
-            "<span style=\"font-size:10.5px;color:#5f6368\">Activities outlined in red are on "
-            "the critical path (zero float); others have slack before they'd delay the plan.</span>"
+        legend = (
+            "Red-bordered activities are on the critical path (zero float); gray-bordered "
+            "activities have slack before they would delay the plan."
         )
-    header_cell = ET.SubElement(root, "mxCell", {
-        "id": "pert_cpm_header", "value": legend_text, "vertex": "1", "parent": "1",
-        "style": _HEADER_STYLE,
-    })
-    ET.SubElement(header_cell, "mxGeometry", {
-        "x": str(_PAGE_MARGIN), "y": str(_PAGE_MARGIN),
-        "width": str(int(canvas_w - 2 * _PAGE_MARGIN)), "height": str(_HEADER_HEIGHT),
-        "as": "geometry",
-    })
+    add_fitted_text(
+        ax, legend, left + 0.35, top - 1.32, plot_width - 0.7, 0.38,
+        fontsize=8.5, min_fontsize=6.5, color="#A9BBCF", ha="left", zorder=2,
+    )
 
-    for i, activity in enumerate(scored):
-        cell_id = f"activity_{activity['uid']}"
-        x = _PAGE_MARGIN + i * (_BOX_WIDTH + _BOX_GAP)
-        y = _PAGE_MARGIN + _ROW_Y
-        badge_color = "#C0392B" if activity["critical"] else "#5f6368"
-        badge_text = "CRITICAL" if activity["critical"] else "HAS SLACK"
-        value = (
-            f"<b>{activity['name']}</b><br/>"
-            f"<span style=\"font-size:10px\">{activity['start'].isoformat()} &#8594; "
-            f"{activity['finish'].isoformat()}</span><br/>"
-            f"<span style=\"font-size:10px\">Duration {activity['duration_days']}d &middot; "
-            f"Float {activity['float_days']}d</span><br/>"
-            f"<span style=\"font-size:10px;font-weight:700;color:{badge_color}\">{badge_text}</span>"
+    node_boxes = []
+    for index, (activity, (x, y)) in enumerate(zip(scored, positions)):
+        color = _CRITICAL_COLOR if activity["critical"] else _SLACK_COLOR
+        box = FancyBboxPatch(
+            (x - _CARD_WIDTH / 2, y - _CARD_HEIGHT / 2),
+            _CARD_WIDTH, _CARD_HEIGHT,
+            boxstyle="round,pad=0.04,rounding_size=0.13",
+            facecolor="white", edgecolor=color,
+            linewidth=2.2 if activity["critical"] else 1.1,
+            zorder=3,
         )
-        cell = ET.SubElement(root, "mxCell", {
-            "id": cell_id, "value": value, "vertex": "1", "parent": "1",
-            "style": _CRITICAL_STYLE if activity["critical"] else _NONCRITICAL_STYLE,
-        })
-        ET.SubElement(cell, "mxGeometry", {
-            "x": str(x), "y": str(y), "width": str(_BOX_WIDTH), "height": str(_BOX_HEIGHT),
-            "as": "geometry",
-        })
-        if i > 0:
-            prev_id = f"activity_{scored[i - 1]['uid']}"
-            edge_cell = ET.SubElement(root, "mxCell", {
-                "id": f"edge_{i}", "value": "", "edge": "1", "parent": "1",
-                "source": prev_id, "target": cell_id, "style": _EDGE_STYLE,
-            })
-            ET.SubElement(edge_cell, "mxGeometry", {"relative": "1", "as": "geometry"})
+        ax.add_patch(box)
+        node_boxes.append(box)
 
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(mxfile, encoding="unicode")
+        ax.add_patch(Circle(
+            (x - _CARD_WIDTH / 2 + 0.24, y + 0.78), 0.14,
+            facecolor=color, edgecolor="none", zorder=4,
+        ))
+        ax.text(
+            x - _CARD_WIDTH / 2 + 0.24, y + 0.78, f"{index + 1:02d}",
+            color="white", fontsize=6.5, fontweight="bold",
+            ha="center", va="center", zorder=5,
+        )
+        add_fitted_text(
+            ax, activity["name"], x - _CARD_WIDTH / 2 + 0.48, y + 0.78,
+            _CARD_WIDTH - 0.72, 0.5, fontsize=9, min_fontsize=6.5,
+            color="#1C2D43", fontweight="bold", ha="left", zorder=5,
+        )
+        add_fitted_text(
+            ax, f"{activity['start'].isoformat()} → {activity['finish'].isoformat()}",
+            x - _CARD_WIDTH / 2 + 0.22, y + 0.24,
+            _CARD_WIDTH - 0.44, 0.3, fontsize=7.5, min_fontsize=5.5,
+            color="#64758A", ha="left", zorder=5,
+        )
+        add_fitted_text(
+            ax, f"Duration {activity['duration_days']}d  ·  Float {activity['float_days']}d",
+            x - _CARD_WIDTH / 2 + 0.22, y - 0.08,
+            _CARD_WIDTH - 0.44, 0.3, fontsize=7.5, min_fontsize=5.5,
+            color="#64758A", ha="left", zorder=5,
+        )
+        ax.add_patch(FancyBboxPatch(
+            (x - _CARD_WIDTH / 2 + 0.22, y - _CARD_HEIGHT / 2 + 0.16),
+            1.3, 0.34,
+            boxstyle="round,pad=0.02,rounding_size=0.08",
+            facecolor=color, edgecolor="none", zorder=4,
+        ))
+        ax.text(
+            x - _CARD_WIDTH / 2 + 0.22 + 0.65, y - _CARD_HEIGHT / 2 + 0.33,
+            "CRITICAL" if activity["critical"] else "HAS SLACK",
+            color="white", fontsize=7, fontweight="bold",
+            ha="center", va="center", zorder=5,
+        )
+
+    for i in range(len(scored) - 1):
+        ax.add_patch(FancyArrowPatch(
+            positions[i], positions[i + 1],
+            patchA=node_boxes[i], patchB=node_boxes[i + 1],
+            arrowstyle="-|>", mutation_scale=13,
+            color="#7C91AA", linewidth=1.55, alpha=0.9,
+            shrinkA=4, shrinkB=4, zorder=2,
+        ))
+
+    ax.axis("off")
+
+    out_path = paths.output_path(filename)
+    plt.savefig(out_path, dpi=220, facecolor="#F4F7FB")
+    plt.close(fig)
+    return out_path
 
 
 def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -160,8 +210,6 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     docstring. Returns a NEW list of dicts (does not mutate the input),
     each carrying everything the input had plus "late_start", "late_finish",
     "float_days", "critical"."""
-    if not activities:
-        return []
     scored = [dict(a) for a in activities]
     # Forward times (ES/EF) are already the given start/finish -- this
     # module trusts the caller's own schedule rather than recomputing it.

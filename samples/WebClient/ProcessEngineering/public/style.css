@@ -745,6 +745,26 @@ input[type="range"]:disabled {
    specifically, overriding this grab/grabbing cursor for the pannable
    background. */
 
+/* A server-rendered PNG diagram (kind "png" -- the PERT/CPM network
+   diagrams, see DIAGRAM_META) -- unlike .network-svg, this has no pan/zoom
+   of its own (the browser's native image rendering already scales it to
+   fit). Absolutely positioned + inset:0 + margin:auto -- same centering
+   trick .empty-state (above) already uses for this same
+   position:relative wrap -- so it's centered on both axes regardless of
+   the diagram's own aspect ratio, rather than just pinned to the top-left. */
+.diagram-img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: 96%;
+  max-height: 96%;
+  object-fit: contain;
+}
+
+.diagram-img[hidden] {
+  display: none;
+}
+
 .network-zoom-controls {
   position: absolute;
   right: 16px;

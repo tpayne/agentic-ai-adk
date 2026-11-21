@@ -50,7 +50,7 @@ class TestSavePortfolioBacklogStalenessNote:
         assert message.startswith("SUCCESS")
         assert "NOTE: a project plan and its PERT/CPM diagram were previously exported" in message
         assert "portfolio_backlog_project_plan.xml" in message
-        assert "portfolio_backlog_pert_cpm.xml" in message
+        assert "portfolio_backlog_pert_cpm.png" in message
 
     def test_no_note_on_a_failed_save(self):
         message = save_portfolio_backlog({"not": "a valid backlog"})

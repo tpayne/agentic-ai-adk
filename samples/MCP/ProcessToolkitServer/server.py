@@ -414,7 +414,13 @@ def export_project_plan(
         }
     with _session(session_id):
         directory = paths.output_dir()
-        before = _snapshot_mtimes(directory, ".xml")
+        # Empty suffix -- "".endswith("") is always True, so this snapshots
+        # EVERY file regardless of extension. Needed because this one call
+        # can now write two files of DIFFERENT extensions (the MSPDI
+        # project plan, ".xml", and its companion PERT/CPM diagram,
+        # ".png") -- a single hardcoded suffix (the previous ".xml") would
+        # silently miss whichever file didn't match it.
+        before = _snapshot_mtimes(directory, "")
         if schema_type == "portfolio_backlog":
             message = build_portfolio_backlog_project_plan(
                 start_date, resources, target_duration_weeks, holiday_calendar,
@@ -428,10 +434,10 @@ def export_project_plan(
             plan_filename = PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
             pert_cpm_filename = PROPOSAL_RESPONSE_PERT_CPM_FILENAME
         # Looked up by their own known filenames rather than the previous
-        # "take changed[0]" shortcut -- that assumed exactly one .xml file
+        # "take changed[0]" shortcut -- that assumed exactly one file
         # could ever change per call, which broke the moment a second
         # (pert_cpm) file started being written in the same call.
-        changed = _new_or_changed(before, directory, ".xml")
+        changed = _new_or_changed(before, directory, "")
         project_plan = _encode_file(os.path.join(directory, plan_filename)) if plan_filename in changed else None
         pert_cpm = _encode_file(os.path.join(directory, pert_cpm_filename)) if pert_cpm_filename in changed else None
     return {"message": message, "project_plan": project_plan, "pert_cpm": pert_cpm}
