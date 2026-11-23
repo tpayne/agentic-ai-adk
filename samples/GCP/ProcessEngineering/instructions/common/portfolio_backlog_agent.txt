@@ -99,10 +99,18 @@ Each epic, feature, and story must have:
   based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories unless an exact engagement team allocation is mandated):
   a list of `{"name": "<delivery role>", "allocation_percent": number}` summing to 100%. When an engagement specification mandates specific roles and allocations, use those exact roles.
 
-Each epic must contain a non-empty `features` list. Each feature must contain a non-empty `stories`
-list. Each story must also have `acceptance_criteria`: a non-empty list of specific, observable
-pass/fail outcomes. Write stories in a delivery-ready format where useful (for example, as a user
-story) without forcing a user persona unsupported by the source.
+Each epic must contain a non-empty `features` list (typically 2-3 distinct features). Each feature must contain
+a non-empty `stories` list (typically 2-4 concrete, granular stories/tasks).
+CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER REPETITIONS:
+- NEVER repeat an Epic title as a single Feature, and NEVER repeat a Feature title as a single Story named
+  "<Feature> Task" or "<Feature> Story".
+- A consulting engagement or project backlog requires a realistic, professional breakdown: each phase/epic
+  subdivides into distinct functional streams (Features), and each stream breaks down into specific, actionable
+  work packages (Stories/Tasks) such as stakeholder interviews, data audits, architecture blueprints, gap analyses,
+  vendor scorecards, TCO financial models, and deliverable authoring.
+- Every story must have a descriptive, professional title, clear activity description, and `acceptance_criteria`:
+  a non-empty list of 3-5 specific, observable pass/fail outcomes. Write stories in a delivery-ready format
+  where useful (for example, as a user story) without forcing a user persona unsupported by the source.
 
 # STEP 3: QUALITY CHECK BEFORE SAVING
 Before calling `save_portfolio_backlog`, verify:

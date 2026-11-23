@@ -352,7 +352,12 @@ def _schedule_task_tree(
     # Link intra-branch siblings without explicit dependencies
     def _link_internal_siblings(parent: "_Task"):
         for i, child in enumerate(parent.children):
-            if i > 0 and not child.dependencies and not child.predecessor_uids and not (child.start_week and child.start_week > 1):
+            child_branch = _flatten([child])
+            branch_has_deps = any(
+                bool(t.dependencies or t.predecessor_uids or (t.start_week and t.start_week > 1))
+                for t in child_branch
+            )
+            if i > 0 and not branch_has_deps:
                 prev_sibling = parent.children[i - 1]
                 prev_leaves = _terminal_leaf_uids(prev_sibling)
                 for init_leaf in _initial_leaf_tasks(child):

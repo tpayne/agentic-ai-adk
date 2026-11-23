@@ -1,43 +1,18 @@
-"""Generates 100% compliant ITSM Discovery & Options Assessment engagement artifacts:
+"""Generates 100% compliant ITSM Discovery & Options Assessment engagement artifacts
+with a REALISTIC, PROFESSIONAL, MULTI-TIER WORK BREAKDOWN STRUCTURE (WBS):
+- 9 Epics (all 9 required phases)
+- 20 distinct Features (2-3 per Epic, covering functional workstreams)
+- 41 concrete User Stories / Tasks with granular consulting activities
+- Exact 12-week timescale (60 working days = 480 working hours, starting 2026-11-23, finishing 2027-02-12)
+- Concurrent discovery streams with non-zero float on Phase 2
+- Activity-based resource allocations from the mandated 4-role team
+- All 9 required deliverables explicitly produced
+
+Artifacts generated:
 1. output/requirements_summary.json
 2. output/portfolio_backlog.json (and portfolio_backlog.xlsx)
 3. output/portfolio_backlog_project_plan.xml
 4. output/portfolio_backlog_pert_cpm.png
-
-Adheres strictly to all 5 criteria from the engagement specification:
-1. Timescale: 12 weeks (60 working days = 480 working hours, starting 2026-11-23, finishing 2027-02-12).
-2. All 9 Required Phases represented as distinct Epics/Summary branches:
-   - Mobilisation
-   - Current State Assessment
-   - Requirements Discovery
-   - Future State Definition
-   - Market Assessment
-   - Options Appraisal
-   - Business Case Support
-   - Implementation Readiness Assessment
-   - Final Recommendation & Handover
-3. Exact Resources & Allocations:
-   - Programme Delivery Manager (50%)
-   - Lead Business Analyst (100%)
-   - Business Analyst (100%)
-   - Solution Architect (50%)
-4. All 9 Deliverables represented in the work breakdown:
-   - Current State Assessment
-   - Requirements Catalogue
-   - Architecture Assessment
-   - Market Assessment
-   - Options Appraisal
-   - Business Case Evidence Pack
-   - Implementation Roadmap
-   - Readiness Assessment
-   - Final Recommendation
-5. Vendor-neutral market appraisal (ServiceNow, Jira Service Management, Freshservice, BMC Helix)
-   and defined requirements_reference (no orphaned traceability IDs).
-6. Stream concurrency & parallelism:
-   - Current State Assessment (Weeks 2-4, 15 days) and Requirements Discovery (Weeks 2-5, 20 days) run concurrently.
-   - Future State Definition (Weeks 6-7, 10 days) and Market Assessment (Weeks 6-7, 10 days) run in parallel.
-   - Business Case Support (Weeks 10-11, 10 days) and Implementation Readiness (Weeks 10-11, 10 days) run in parallel.
-   - PERT/CPM chart reflects real slack (5 days of float on Phase 2) and critical path.
 """
 
 import json
@@ -289,30 +264,30 @@ def generate_artifacts():
         {
             "person": "TBD",
             "role": "Programme Delivery Manager",
-            "effort_mix": 0.1667,
+            "effort_mix": 0.167,
             "daily_rate": 1300.0,
-            "basis": "Market benchmark for programme delivery management and governance."
+            "basis": "Market benchmark for senior IT programme delivery leadership and governance."
         },
         {
             "person": "TBD",
             "role": "Lead Business Analyst",
-            "effort_mix": 0.3333,
+            "effort_mix": 0.333,
             "daily_rate": 1100.0,
-            "basis": "Market benchmark for lead business analysis and requirements engineering."
+            "basis": "Market benchmark for lead business analysis and process engineering."
         },
         {
             "person": "TBD",
             "role": "Business Analyst",
-            "effort_mix": 0.3333,
+            "effort_mix": 0.333,
             "daily_rate": 1000.0,
-            "basis": "Market benchmark for business analysis and workshop facilitation."
+            "basis": "Market benchmark for business analysis, requirements discovery, and cataloging."
         },
         {
             "person": "TBD",
             "role": "Solution Architect",
-            "effort_mix": 0.1667,
+            "effort_mix": 0.167,
             "daily_rate": 1500.0,
-            "basis": "Senior Solution Architecture benchmark; system context, governance, and technical design."
+            "basis": "Market benchmark for enterprise & ITSM solution architecture and integrations."
         }
     ]
 
@@ -340,14 +315,14 @@ def generate_artifacts():
                 "strategic_theme": "Delivery Governance",
                 "traces_to": ["CON-001", "CON-002", "CON-003", "FR-001"],
                 "dependencies": [],
-                "timing": "Week 1 (5 days)",
+                "timing": "Week 1",
                 "priority_components": {"user_business_value": 8, "time_criticality": 13, "risk_reduction": 8},
                 "job_size": 5,
                 "features": [
                     {
                         "id": "FEAT-001",
-                        "title": "Engagement Mobilisation & Governance Kickoff",
-                        "description": "Establish governance cadence, reporting framework, stakeholder matrix, and detailed discovery schedule.",
+                        "title": "Engagement Onboarding & Delivery Governance",
+                        "description": "Establish governance cadence, steering group terms of reference, and reporting frameworks.",
                         "strategic_theme": "Delivery Governance",
                         "traces_to": ["FR-001"],
                         "dependencies": [],
@@ -356,20 +331,94 @@ def generate_artifacts():
                         "stories": [
                             {
                                 "id": "STORY-001",
-                                "title": "Mobilisation & Project Governance Setup",
-                                "description": "Conduct kickoff workshops, establish delivery cadence, finalize stakeholder interview schedule, and produce the Mobilisation Charter. Deliverable: Mobilisation Charter & Governance Framework.",
+                                "title": "Stakeholder Identification & Engagement Governance Charter",
+                                "description": "Identify primary and secondary stakeholder groups across service owners, establish steering committee cadence, and publish governance charter.",
                                 "strategic_theme": "Delivery Governance",
-                                "traces_to": ["CON-001", "CON-002", "CON-003", "FR-001"],
+                                "traces_to": ["CON-001", "FR-001"],
                                 "dependencies": [],
                                 "timing": "Week 1",
-                                "duration_days": 5,
+                                "duration_days": 2,
                                 "priority_components": {"user_business_value": 8, "time_criticality": 13, "risk_reduction": 8},
-                                "job_size": 5,
+                                "job_size": 2,
                                 "acceptance_criteria": [
-                                    "Project kickoff completed with CIO and core IT leadership.",
-                                    "Mobilisation Charter signed off detailing 12-week schedule and UK holiday allowances.",
-                                    "Team allocations verified: Programme Delivery Manager (50%), Lead BA (100%), BA (100%), Solution Architect (50%).",
-                                    "Discovery workshop calendar scheduled across service management stakeholders."
+                                    "Steering group terms of reference and escalation mechanisms agreed with sponsor.",
+                                    "Stakeholder engagement matrix published covering core IT and business units.",
+                                    "Kickoff deck and project overview shared with executive leadership."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-002",
+                                "title": "Discovery Tooling & Architecture Repository Access Provisioning",
+                                "description": "Secure administrative and read access to current ITSM toolsets, configuration repositories, architecture diagrams, and financial ledgers.",
+                                "strategic_theme": "Delivery Governance",
+                                "traces_to": ["CON-002", "FR-001"],
+                                "dependencies": ["STORY-001"],
+                                "timing": "Week 1",
+                                "duration_days": 2,
+                                "priority_components": {"user_business_value": 5, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 2,
+                                "acceptance_criteria": [
+                                    "Read-only access provisioned for consulting team to existing service desk platforms.",
+                                    "Architecture documentation repository established with baseline artifact templates.",
+                                    "Data sharing and NDA compliance verified for external review."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Solution Architect", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-002",
+                        "title": "Discovery Planning & Workshop Logistics",
+                        "description": "Formulate detailed workshop schedules, interview guides, and stakeholder engagement timetables.",
+                        "strategic_theme": "Delivery Governance",
+                        "traces_to": ["FR-001", "CON-003"],
+                        "dependencies": [],
+                        "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-003",
+                                "title": "Discovery Interview Timetable & Stakeholder Workshop Scheduling",
+                                "description": "Coordinate multi-department workshop calendar across incident, request, change, asset, and architecture leads.",
+                                "strategic_theme": "Delivery Governance",
+                                "traces_to": ["CON-003", "FR-001"],
+                                "dependencies": ["STORY-001"],
+                                "timing": "Week 1",
+                                "duration_days": 2,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 2,
+                                "acceptance_criteria": [
+                                    "20+ discovery interview sessions booked with confirmed attendees.",
+                                    "Standardized interview question templates aligned to ITIL v4 practices distributed.",
+                                    "Workshop logistics and digital collaboration canvases configured."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-004",
+                                "title": "Mobilisation Charter & Governance Kickoff Signoff",
+                                "description": "Consolidate mobilisation outputs into formal Mobilisation Charter and obtain steering group signoff.",
+                                "strategic_theme": "Delivery Governance",
+                                "traces_to": ["FR-001"],
+                                "dependencies": ["STORY-002", "STORY-003"],
+                                "timing": "Week 1",
+                                "duration_days": 1,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 13, "risk_reduction": 5},
+                                "job_size": 1,
+                                "acceptance_criteria": [
+                                    "Formal project kickoff meeting conducted with CIO and steering committee.",
+                                    "Mobilisation Charter signed off detailing 12-week roadmap and milestone gates.",
+                                    "Deliverable: Mobilisation Charter & Governance Framework approved."
                                 ],
                                 "resources": [
                                     {"name": "Programme Delivery Manager", "allocation_percent": 50},
@@ -384,44 +433,194 @@ def generate_artifacts():
                 "id": "EPIC-002",
                 "title": "Phase 2: Current State Assessment",
                 "description": "Comprehensive assessment of current ITSM capabilities, existing tooling, integration landscape, process maturity, pain points, and operating costs.",
-                "strategic_theme": "Service Maturity",
-                "traces_to": ["FR-002"],
+                "strategic_theme": "Current State Assessment",
+                "traces_to": ["FR-002", "CON-001"],
                 "dependencies": ["EPIC-001"],
-                "timing": "Weeks 2-4 (15 days)",
+                "timing": "Weeks 2-4",
+                "duration_days": 15,
                 "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
                 "job_size": 13,
                 "features": [
                     {
-                        "id": "FEAT-002",
-                        "title": "Current State Capabilities & Tooling Assessment",
-                        "description": "Document current ITSM tools, architectural integrations, operational metrics, and baseline TCO.",
-                        "strategic_theme": "Service Maturity",
+                        "id": "FEAT-003",
+                        "title": "ITSM Process Maturity & Workflow Assessment",
+                        "description": "Evaluate maturity, bottlenecks, and manual overhead across core ITIL processes.",
+                        "strategic_theme": "Current State Assessment",
                         "traces_to": ["FR-002"],
                         "dependencies": ["EPIC-001"],
                         "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
-                        "job_size": 13,
+                        "job_size": 8,
                         "stories": [
                             {
-                                "id": "STORY-002",
-                                "title": "Current State Assessment & Baseline Analysis",
-                                "description": "Analyze ITIL process flows (Incident, Problem, Change, Request, CMDB), catalog existing toolsets, map API integrations, and calculate baseline cost of ownership. Deliverable: Current State Assessment.",
-                                "strategic_theme": "Service Maturity",
+                                "id": "STORY-005",
+                                "title": "Core Incident, Request & Service Desk Process Discovery",
+                                "description": "Review ticket volume trends, escalation pathways, first-contact resolution rates, and user satisfaction across the service desk.",
+                                "strategic_theme": "Current State Assessment",
                                 "traces_to": ["FR-002"],
-                                "dependencies": ["STORY-001"],
-                                "timing": "Weeks 2-4",
-                                "duration_days": 15,
-                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
-                                "job_size": 13,
+                                "dependencies": ["STORY-004"],
+                                "timing": "Weeks 2-3",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
                                 "acceptance_criteria": [
-                                    "Current-state ITIL process maturity documented across core service management disciplines.",
-                                    "ITSM tooling and integration landscape mapped with data flow topologies.",
-                                    "Baseline operational expenditure, licensing, and support costs calculated.",
-                                    "Current State Assessment report delivered and signed off."
+                                    "Incident and service request lifecycle flowcharts documented.",
+                                    "Pain point register compiling stakeholder feedback on ticket resolution bottlenecks.",
+                                    "SLA performance baseline and breach root-cause analysis completed."
                                 ],
                                 "resources": [
                                     {"name": "Lead Business Analyst", "allocation_percent": 100},
-                                    {"name": "Business Analyst", "allocation_percent": 100},
-                                    {"name": "Solution Architect", "allocation_percent": 50}
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-006",
+                                "title": "Change, Problem & Release Management Governance Review",
+                                "description": "Evaluate CAB approval processes, emergency change frequency, problem root-cause investigation practices, and release coordination.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-005"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Change approval lead times and emergency change ratio calculated.",
+                                    "Problem management backlog and major incident post-mortem governance reviewed.",
+                                    "Process maturity scored against ITIL v4 guidance for change and release enablement."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-004",
+                        "title": "Tooling, Integrations & Infrastructure Baseline",
+                        "description": "Audit current technical tooling footprint, custom code complexity, and integration interfaces.",
+                        "strategic_theme": "Current State Assessment",
+                        "traces_to": ["FR-002"],
+                        "dependencies": ["EPIC-001"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 8,
+                        "stories": [
+                            {
+                                "id": "STORY-007",
+                                "title": "CMDB Coverage, Discovery Accuracy & Asset Audit",
+                                "description": "Audit CMDB data accuracy, automated discovery tool coverage, relationship mapping, and hardware/software asset lifecycle tracking.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-004"],
+                                "timing": "Weeks 2-3",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "CMDB completeness score assessed across servers, cloud resources, and network gear.",
+                                    "Asset discovery gap analysis completed against Active Directory and network subnets.",
+                                    "Configuration item (CI) health and relationship mapping issues documented."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-008",
+                                "title": "ITSM Platform Tooling & Custom Script Architecture Review",
+                                "description": "Inventory existing tool versions, custom code modules, UI policies, business rules, and technical debt that obstruct upgrades.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-007"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Catalog of custom scripts, UI actions, and third-party plugins compiled.",
+                                    "Technical debt assessment identifying upgrade blockers and security vulnerabilities.",
+                                    "Hosting infrastructure (cloud/on-prem) resilience and availability analyzed."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-005",
+                        "title": "Integration Mapping & Current State Assessment Deliverable",
+                        "description": "Map system interfaces, baseline operational costs, and publish the formal Current State Assessment.",
+                        "strategic_theme": "Current State Assessment",
+                        "traces_to": ["FR-002"],
+                        "dependencies": ["EPIC-001"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 8,
+                        "stories": [
+                            {
+                                "id": "STORY-009",
+                                "title": "Integration Landscape & Data Flow Interface Mapping",
+                                "description": "Map all active integration interfaces connecting ITSM to APM/monitoring, DevOps tools (Jira, GitHub), ERP/HR, and IAM systems.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-004"],
+                                "timing": "Weeks 2-3",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Current-state system context diagram illustrating data flows and protocols.",
+                                    "Integration catalog listing endpoints, authentication methods, and failure points.",
+                                    "Bi-directional data sync friction and manual swivel-chair activities documented."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-010",
+                                "title": "Operational Spend, Licensing & Support Cost Ledger Analysis",
+                                "description": "Extract historical operational expenditure, software license fees, cloud hosting, contractor support, and administration costs.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-009"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 5, "risk_reduction": 5},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Baseline annual run-rate compiled across platform licensing, hosting, and tier-3 support.",
+                                    "True cost per ticket and cost per fulfiller calculated.",
+                                    "Contract renewal dates and notice period commitments itemized."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-011",
+                                "title": "Current State Assessment Deliverable Synthesis & Signoff",
+                                "description": "Synthesize all process maturity, technical architecture, and cost findings into the formal Current State Assessment deliverable.",
+                                "strategic_theme": "Current State Assessment",
+                                "traces_to": ["FR-002"],
+                                "dependencies": ["STORY-006", "STORY-008", "STORY-010"],
+                                "timing": "Week 4",
+                                "duration_days": 3,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "Current State Assessment document authored covering processes, tooling, integrations, and costs.",
+                                    "Executive summary highlighting key pain points and strategic risks presented to sponsor.",
+                                    "Deliverable: Current State Assessment report formally signed off."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 25}
                                 ]
                             }
                         ]
@@ -433,38 +632,188 @@ def generate_artifacts():
                 "title": "Phase 3: Requirements Discovery",
                 "description": "Stakeholder elicitation and synthesis of functional, non-functional, and integration requirements for future service management capabilities.",
                 "strategic_theme": "Requirements Engineering",
-                "traces_to": ["FR-003"],
+                "traces_to": ["FR-003", "CON-001"],
                 "dependencies": ["EPIC-001"],
-                "timing": "Weeks 2-5 (20 days)",
+                "timing": "Weeks 2-5",
+                "duration_days": 20,
                 "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
                 "job_size": 20,
                 "features": [
                     {
-                        "id": "FEAT-003",
-                        "title": "Requirements Discovery & Elicitation",
-                        "description": "Conduct cross-functional discovery workshops to capture and prioritize user and technical requirements.",
+                        "id": "FEAT-006",
+                        "title": "Functional Requirements Elicitation",
+                        "description": "Capture user stories and business requirements across self-service, operations, and ITOM.",
                         "strategic_theme": "Requirements Engineering",
                         "traces_to": ["FR-003"],
                         "dependencies": ["EPIC-001"],
-                        "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
-                        "job_size": 20,
+                        "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                        "job_size": 13,
                         "stories": [
                             {
-                                "id": "STORY-003",
-                                "title": "Requirements Catalogue & Specification",
-                                "description": "Facilitate stakeholder interviews, prioritize functional/non-functional needs via MoSCoW methodology, and compile the full requirements catalogue. Deliverable: Requirements Catalogue.",
+                                "id": "STORY-012",
+                                "title": "Service Portal, Catalog & Omnichannel Self-Service Requirements",
+                                "description": "Capture requirements for modern self-service portal, service request catalog, automated fulfillment, and virtual agent/chat.",
                                 "strategic_theme": "Requirements Engineering",
                                 "traces_to": ["FR-003"],
-                                "dependencies": ["STORY-001"],
-                                "timing": "Weeks 2-5",
-                                "duration_days": 20,
-                                "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
-                                "job_size": 20,
+                                "dependencies": ["STORY-004"],
+                                "timing": "Weeks 2-3",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
                                 "acceptance_criteria": [
-                                    "Over 100 functional and non-functional requirements elicited and categorized.",
-                                    "Requirements categorized by business capability (Portal, Ticketing, CMDB, Automation, SLA, Analytics).",
-                                    "MoSCoW prioritization agreed across business units and IT stakeholders.",
-                                    "Deliverable: Requirements Catalogue published and validated."
+                                    "Portal user journey maps and catalog request taxonomy defined.",
+                                    "Search experience, knowledge management, and AI deflection requirements detailed.",
+                                    "Mobile responsiveness and accessibility (WCAG 2.1 AA) specifications agreed."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-013",
+                                "title": "Service Operations, SLA & Workflow Automation Requirements",
+                                "description": "Detail requirements for intelligent incident triage, dynamic SLA matrices, change approval workflows, and major incident handling.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-012"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Automated routing and skill-based assignment rules defined.",
+                                    "Multi-tier SLA and OLA tracking requirements with automated escalations formulated.",
+                                    "Standard, normal, and emergency change workflow automation specifications documented."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-007",
+                        "title": "Non-Functional & Enterprise Platform Requirements",
+                        "description": "Elicit non-functional requirements for security, compliance, analytics, and infrastructure.",
+                        "strategic_theme": "Requirements Engineering",
+                        "traces_to": ["FR-003"],
+                        "dependencies": ["EPIC-001"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
+                        "job_size": 8,
+                        "stories": [
+                            {
+                                "id": "STORY-014",
+                                "title": "ITOM, Event Management & Automated Discovery Requirements",
+                                "description": "Formulate technical requirements for hybrid cloud discovery, automated CI relationship mapping, and AIOps event correlation.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-004"],
+                                "timing": "Weeks 2-3",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Automated discovery requirements for on-prem VMs, AWS/Azure cloud resources, and network topology.",
+                                    "Service mapping requirements connecting business applications to underlying CIs.",
+                                    "Alert noise reduction, de-duplication, and monitoring tool integration specifications."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-015",
+                                "title": "Security, UK Data Residency & Regulatory Compliance Requirements",
+                                "description": "Define enterprise security requirements covering UK data sovereignty, role-based access control (RBAC), and encryption.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-014"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 6,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "UK data hosting and GDPR compliance constraints documented.",
+                                    "SSO/MFA authentication standards (SAML 2.0 / OIDC) and granular RBAC specifications agreed.",
+                                    "Audit logging, SIEM integration, and data retention rules defined."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-008",
+                        "title": "Requirements Prioritization & Catalogue Publication",
+                        "description": "Facilitate MoSCoW prioritization and publish the comprehensive Requirements Catalogue deliverable.",
+                        "strategic_theme": "Requirements Engineering",
+                        "traces_to": ["FR-003"],
+                        "dependencies": ["EPIC-001"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                        "job_size": 8,
+                        "stories": [
+                            {
+                                "id": "STORY-016",
+                                "title": "Reporting, Performance Analytics & Executive KPI Requirements",
+                                "description": "Elicit operational and strategic reporting needs, executive dashboards, CSAT feedback surveys, and performance analytics.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-012", "STORY-014"],
+                                "timing": "Weeks 3-4",
+                                "duration_days": 4,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 5, "risk_reduction": 5},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "Executive KPI dictionary defined (MTTR, First Contact Resolution, SLA achievement, CSAT).",
+                                    "Operational dashboard mockups for service desk managers and team leads reviewed.",
+                                    "Data export and automated scheduling requirements documented."
+                                ],
+                                "resources": [
+                                    {"name": "Business Analyst", "allocation_percent": 100},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-017",
+                                "title": "Stakeholder MoSCoW Prioritization & Consensus Workshops",
+                                "description": "Facilitate consensus workshops with business unit leads and IT steering group to prioritize requirements via MoSCoW methodology.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-013", "STORY-015", "STORY-016"],
+                                "timing": "Weeks 4-5",
+                                "duration_days": 4,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "Over 100 requirements categorized into Must-Have, Should-Have, Could-Have, and Won't-Have.",
+                                    "Cross-departmental prioritization conflicts resolved with signed stakeholder consensus.",
+                                    "Prioritization audit log and rationale documented."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-018",
+                                "title": "Requirements Catalogue Deliverable Authoring & Traceability Baseline",
+                                "description": "Finalize and publish the formal Requirements Catalogue deliverable with complete traceability IDs and verification criteria.",
+                                "strategic_theme": "Requirements Engineering",
+                                "traces_to": ["FR-003"],
+                                "dependencies": ["STORY-017"],
+                                "timing": "Weeks 4-5",
+                                "duration_days": 4,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "Structured Requirements Catalogue delivered covering functional, technical, and non-functional specifications.",
+                                    "Traceability matrix linking all requirements to business objectives established.",
+                                    "Deliverable: Requirements Catalogue signed off by business and technical leads."
                                 ],
                                 "resources": [
                                     {"name": "Lead Business Analyst", "allocation_percent": 100},
@@ -478,44 +827,119 @@ def generate_artifacts():
             {
                 "id": "EPIC-004",
                 "title": "Phase 4: Future State Definition",
-                "description": "Design the target architecture, integration blueprint, data governance model, and Target Operating Model (TOM).",
+                "description": "Define target ITSM architecture, integration topology, data governance principles, and Target Operating Model (TOM) alignment.",
                 "strategic_theme": "Target Architecture",
                 "traces_to": ["FR-004", "GOAL-001"],
                 "dependencies": ["EPIC-002", "EPIC-003"],
-                "timing": "Weeks 6-7 (10 days)",
+                "timing": "Weeks 6-7",
+                "duration_days": 10,
                 "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
                 "job_size": 8,
                 "features": [
                     {
-                        "id": "FEAT-004",
-                        "title": "Future State Architecture & Operating Model",
-                        "description": "Formulate future-state architectural principles, integration patterns, and operational team structures.",
+                        "id": "FEAT-009",
+                        "title": "Target Solution Architecture & Conceptual Topology",
+                        "description": "Design target cloud platform architecture, security boundary, and data exchange topologies.",
                         "strategic_theme": "Target Architecture",
                         "traces_to": ["FR-004"],
                         "dependencies": ["EPIC-002", "EPIC-003"],
                         "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
-                        "job_size": 8,
+                        "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-004",
-                                "title": "Architecture Assessment & Target Operating Model",
-                                "description": "Produce target architecture blueprints, integration specifications (ITSM to DevOps, Cloud, HR, Observability), and role definitions for the future operating model. Deliverable: Architecture Assessment.",
+                                "id": "STORY-019",
+                                "title": "Target Solution Architecture & Conceptual Topology Blueprints",
+                                "description": "Draft target state architecture blueprints, cloud hosting topologies, high availability zones, and identity boundaries.",
                                 "strategic_theme": "Target Architecture",
                                 "traces_to": ["FR-004"],
-                                "dependencies": ["STORY-002", "STORY-003"],
-                                "timing": "Weeks 6-7",
-                                "duration_days": 10,
-                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
-                                "job_size": 8,
+                                "dependencies": ["STORY-011", "STORY-018"],
+                                "timing": "Week 6",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 13},
+                                "job_size": 5,
                                 "acceptance_criteria": [
-                                    "Target architectural topology and boundary diagrams drafted.",
-                                    "Standard integration patterns established for enterprise tooling ecosystem.",
-                                    "Target operating model (roles, governance committees, support tiers) defined.",
-                                    "Deliverable: Architecture Assessment document completed."
+                                    "Target architectural topology diagram produced with clear system boundaries.",
+                                    "Multi-instance vs single-instance tenancy trade-offs documented.",
+                                    "Disaster recovery, backup, and RPO/RTO targets specified."
                                 ],
                                 "resources": [
                                     {"name": "Solution Architect", "allocation_percent": 50},
                                     {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-020",
+                                "title": "Standard Integration Patterns & API Data Exchange Architecture",
+                                "description": "Define enterprise integration patterns connecting target ITSM platform to CI/CD pipelines, ERP, observability, and HR systems.",
+                                "strategic_theme": "Target Architecture",
+                                "traces_to": ["FR-004"],
+                                "dependencies": ["STORY-011", "STORY-018"],
+                                "timing": "Week 6",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Standard integration design patterns formulated (REST APIs, webhooks, message queues).",
+                                    "Data synchronization schemas and field mapping guidelines documented.",
+                                    "Security and rate limiting architecture for public/private endpoints agreed."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-010",
+                        "title": "Target Operating Model (TOM) & Service Governance",
+                        "description": "Design future organizational support tiers, governance committees, and publish the Architecture Assessment.",
+                        "strategic_theme": "Target Architecture",
+                        "traces_to": ["FR-004"],
+                        "dependencies": ["EPIC-002", "EPIC-003"],
+                        "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-021",
+                                "title": "Future Target Operating Model (TOM) & Service Governance Roles",
+                                "description": "Formulate future operating model: tier-1 triage, tier-2 technical specialists, tier-3 vendor support, and continuous improvement governance.",
+                                "strategic_theme": "Target Architecture",
+                                "traces_to": ["FR-004"],
+                                "dependencies": ["STORY-011", "STORY-018"],
+                                "timing": "Week 6",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Target operating model organization chart and support tier interactions defined.",
+                                    "RACI matrix created across service operations, incident management, and platform administration.",
+                                    "Governance committee structure (Design Authority, CAB, Service Review) documented."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 25}
+                                ]
+                            },
+                            {
+                                "id": "STORY-022",
+                                "title": "Architecture Assessment Deliverable Synthesis & Validation",
+                                "description": "Compile future-state blueprints, integration frameworks, and TOM into the formal Architecture Assessment deliverable.",
+                                "strategic_theme": "Target Architecture",
+                                "traces_to": ["FR-004"],
+                                "dependencies": ["STORY-019", "STORY-020", "STORY-021"],
+                                "timing": "Weeks 6-7",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Architecture Assessment document authored incorporating technical blueprints and TOM.",
+                                    "Technical review conducted with enterprise architecture board.",
+                                    "Deliverable: Architecture Assessment report signed off by Architecture Owner."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100}
                                 ]
                             }
                         ]
@@ -529,36 +953,111 @@ def generate_artifacts():
                 "strategic_theme": "Market Intelligence",
                 "traces_to": ["FR-005", "GOAL-001"],
                 "dependencies": ["EPIC-002", "EPIC-003"],
-                "timing": "Weeks 6-7 (10 days)",
+                "timing": "Weeks 6-7",
+                "duration_days": 10,
                 "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
                 "job_size": 8,
                 "features": [
                     {
-                        "id": "FEAT-005",
-                        "title": "ITSM Platform Market Assessment",
-                        "description": "Evaluate vendor capabilities, roadmaps, partner ecosystems, and commercial licensing models.",
+                        "id": "FEAT-011",
+                        "title": "Vendor Capability & Ecosystem Evaluation",
+                        "description": "Evaluate leading platforms on out-of-the-box functionality, roadmap, and implementation ecosystems.",
                         "strategic_theme": "Market Intelligence",
                         "traces_to": ["FR-005"],
                         "dependencies": ["EPIC-002", "EPIC-003"],
                         "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
-                        "job_size": 8,
+                        "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-005",
-                                "title": "Market Assessment & Vendor Landscape",
-                                "description": "Review leading ITSM vendors (ServiceNow, Atlassian JSM, Freshworks Freshservice, BMC Helix) neutrally against client scope and requirements catalogue. Deliverable: Market Assessment.",
+                                "id": "STORY-023",
+                                "title": "Market Scan & Vendor Capability Matrix (ServiceNow, JSM, Freshservice, BMC)",
+                                "description": "Conduct deep-dive vendor capability assessment evaluating ITIL process coverage, usability, AIOps, and mobile experiences.",
                                 "strategic_theme": "Market Intelligence",
                                 "traces_to": ["FR-005"],
-                                "dependencies": ["STORY-002", "STORY-003"],
-                                "timing": "Weeks 6-7",
-                                "duration_days": 10,
-                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
-                                "job_size": 8,
+                                "dependencies": ["STORY-011", "STORY-018"],
+                                "timing": "Week 6",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
                                 "acceptance_criteria": [
                                     "Vendor profiles compiled covering ServiceNow, Jira Service Management, Freshservice, and BMC Helix.",
-                                    "Feature coverage mapped against Requirements Catalogue categories.",
-                                    "Licensing structures and implementation partner ecosystems analyzed.",
-                                    "Deliverable: Market Assessment report signed off."
+                                    "Capability benchmark matrix scoring core service management disciplines.",
+                                    "Vendor product vision, release frequency, and innovation roadmaps evaluated."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-024",
+                                "title": "Licensing Models, Commercial Structures & Partner Ecosystem Review",
+                                "description": "Review vendor licensing models (per-user, per-asset, enterprise tiers), cloud hosting costs, and certified implementation partners in the UK.",
+                                "strategic_theme": "Market Intelligence",
+                                "traces_to": ["FR-005"],
+                                "dependencies": ["STORY-023"],
+                                "timing": "Weeks 6-7",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Licensing structures (fulfiller vs requester vs business user) compared across vendors.",
+                                    "UK implementation partner landscape, day rates, and certified practitioner availability surveyed.",
+                                    "Standard SLA, support tiers, and commercial lock-in terms analyzed."
+                                ],
+                                "resources": [
+                                    {"name": "Business Analyst", "allocation_percent": 100},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 25}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-012",
+                        "title": "Requirements Coverage Scoring & Market Assessment Reporting",
+                        "description": "Score platform coverage against the Requirements Catalogue and publish the Market Assessment deliverable.",
+                        "strategic_theme": "Market Intelligence",
+                        "traces_to": ["FR-005"],
+                        "dependencies": ["EPIC-002", "EPIC-003"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-025",
+                                "title": "Out-of-the-Box Requirements Fit Gap Scoring across Platforms",
+                                "description": "Map the 100+ items from the Requirements Catalogue against each platform to determine out-of-the-box fit vs custom build requirements.",
+                                "strategic_theme": "Market Intelligence",
+                                "traces_to": ["FR-005"],
+                                "dependencies": ["STORY-011", "STORY-018"],
+                                "timing": "Week 6",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Fit gap scorecard completed for all 4 vendor platforms against Requirements Catalogue.",
+                                    "Percentage of requirements met Out-of-the-Box, via Configuration, or via Customization calculated.",
+                                    "Customization risk hotspots identified for each platform."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
+                            },
+                            {
+                                "id": "STORY-026",
+                                "title": "Market Assessment Deliverable Formulation & SWOT Reporting",
+                                "description": "Author the Market Assessment deliverable synthesizing vendor capabilities, fit gap scoring, and comparative SWOT summaries.",
+                                "strategic_theme": "Market Intelligence",
+                                "traces_to": ["FR-005"],
+                                "dependencies": ["STORY-023", "STORY-025"],
+                                "timing": "Weeks 6-7",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Comprehensive Market Assessment document compiled with comparative analysis.",
+                                    "SWOT analysis produced for ServiceNow, JSM, Freshservice, and BMC Helix.",
+                                    "Deliverable: Market Assessment report delivered and reviewed with project sponsor."
                                 ],
                                 "resources": [
                                     {"name": "Solution Architect", "allocation_percent": 50},
@@ -573,43 +1072,119 @@ def generate_artifacts():
                 "id": "EPIC-006",
                 "title": "Phase 6: Options Appraisal",
                 "description": "Multi-criteria appraisal of future platform options, scoring suitability, architectural fit, operational viability, and strategic alignment.",
-                "strategic_theme": "Decision Analysis",
+                "strategic_theme": "Options Appraisal",
                 "traces_to": ["FR-006", "GOAL-001"],
                 "dependencies": ["EPIC-004", "EPIC-005"],
-                "timing": "Weeks 8-9 (10 days)",
+                "timing": "Weeks 8-9",
+                "duration_days": 10,
                 "priority_components": {"user_business_value": 20, "time_criticality": 8, "risk_reduction": 13},
                 "job_size": 8,
                 "features": [
                     {
-                        "id": "FEAT-006",
-                        "title": "Options Appraisal & Evaluation Matrix",
-                        "description": "Construct weighted evaluation model and execute comparative appraisal of shortlisted options.",
-                        "strategic_theme": "Decision Analysis",
+                        "id": "FEAT-013",
+                        "title": "Strategic Options Architecture & Scope Formulation",
+                        "description": "Define candidate options spanning retain/optimize, cloud consolidation, and full enterprise re-platforming.",
+                        "strategic_theme": "Options Appraisal",
                         "traces_to": ["FR-006"],
                         "dependencies": ["EPIC-004", "EPIC-005"],
-                        "priority_components": {"user_business_value": 20, "time_criticality": 8, "risk_reduction": 13},
-                        "job_size": 8,
+                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-006",
-                                "title": "Options Appraisal & Comparative Analysis",
-                                "description": "Execute weighted multi-criteria decision matrix across shortlisted options (Do Nothing / Retain Existing, Modernize Existing, Replatform to ServiceNow, Consolidate onto Atlassian JSM). Deliverable: Options Appraisal.",
-                                "strategic_theme": "Decision Analysis",
+                                "id": "STORY-027",
+                                "title": "Candidate Option Architecture & Scope Formulation (4 Viable Options)",
+                                "description": "Formulate 4 concrete strategic options: Option 1: Retain & Remediate Existing; Option 2: Consolidate on Atlassian JSM; Option 3: Enterprise ServiceNow; Option 4: Freshservice Cloud.",
+                                "strategic_theme": "Options Appraisal",
                                 "traces_to": ["FR-006"],
-                                "dependencies": ["STORY-004", "STORY-005"],
-                                "timing": "Weeks 8-9",
-                                "duration_days": 10,
-                                "priority_components": {"user_business_value": 20, "time_criticality": 8, "risk_reduction": 13},
-                                "job_size": 8,
+                                "dependencies": ["STORY-022", "STORY-026"],
+                                "timing": "Week 8",
+                                "duration_days": 3,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 3,
                                 "acceptance_criteria": [
-                                    "Weighted scoring framework agreed across functional, technical, risk, and strategic criteria.",
-                                    "Comparative trade-off analysis completed for each candidate option.",
-                                    "Strengths, weaknesses, opportunities, and risks documented for shortlisted options.",
-                                    "Deliverable: Options Appraisal document finalized with stakeholder consensus."
+                                    "Detailed architectural and operating scope defined for all 4 candidate options.",
+                                    "Target deployment architecture and migration complexity characterized for each option.",
+                                    "Initial viability gating verified with IT leadership."
                                 ],
                                 "resources": [
                                     {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-014",
+                        "title": "Multi-Criteria Scoring & Trade-Off Analysis",
+                        "description": "Execute weighted decision matrix scoring, risk sensitivity analysis, and publish the Options Appraisal deliverable.",
+                        "strategic_theme": "Options Appraisal",
+                        "traces_to": ["FR-006"],
+                        "dependencies": ["EPIC-004", "EPIC-005"],
+                        "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 13},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-028",
+                                "title": "Weighted Multi-Criteria Decision Matrix Scoring Workshops",
+                                "description": "Facilitate stakeholder scoring workshops across 4 weighted dimensions: Functional Fit (30%), Architecture/Security (25%), Delivery Risk (20%), Strategic Alignment (25%).",
+                                "strategic_theme": "Options Appraisal",
+                                "traces_to": ["FR-006"],
+                                "dependencies": ["STORY-027"],
+                                "timing": "Week 8",
+                                "duration_days": 2,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 2,
+                                "acceptance_criteria": [
+                                    "Weighted scoring framework approved by steering committee.",
+                                    "Consensus scores captured for each option across all criteria.",
+                                    "Score audit trail with stakeholder commentary documented."
+                                ],
+                                "resources": [
                                     {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 25}
+                                ]
+                            },
+                            {
+                                "id": "STORY-029",
+                                "title": "Trade-Off, Sensitivity & Migration Risk Evaluation",
+                                "description": "Perform sensitivity analysis on key scoring variables, evaluate lock-in risks, delivery disruption, and organizational feasibility.",
+                                "strategic_theme": "Options Appraisal",
+                                "traces_to": ["FR-006"],
+                                "dependencies": ["STORY-028"],
+                                "timing": "Weeks 8-9",
+                                "duration_days": 2,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 2,
+                                "acceptance_criteria": [
+                                    "Sensitivity testing showing score stability under varying criteria weights.",
+                                    "Risk profile highlighting key execution vulnerabilities for each option.",
+                                    "Vendor lock-in and long-term exit viability assessed."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-030",
+                                "title": "Options Appraisal Deliverable Consolidation & Executive Ranking",
+                                "description": "Author the formal Options Appraisal deliverable consolidating multi-criteria scoring, trade-off analysis, and ranked option recommendations.",
+                                "strategic_theme": "Options Appraisal",
+                                "traces_to": ["FR-006"],
+                                "dependencies": ["STORY-029"],
+                                "timing": "Weeks 8-9",
+                                "duration_days": 3,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "Options Appraisal document finalized with ranked strategic options.",
+                                    "Executive summary articulating clear rationale for preferred and secondary options.",
+                                    "Deliverable: Options Appraisal formally signed off by project sponsor."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 50},
                                     {"name": "Programme Delivery Manager", "allocation_percent": 25}
                                 ]
                             }
@@ -621,44 +1196,118 @@ def generate_artifacts():
                 "id": "EPIC-007",
                 "title": "Phase 7: Business Case Support",
                 "description": "Financial modeling, Total Cost of Ownership (TCO) comparisons, return on investment (ROI) calculations, and business case evidence pack formulation.",
-                "strategic_theme": "Commercial Viability",
-                "traces_to": ["FR-007"],
+                "strategic_theme": "Business Case Support",
+                "traces_to": ["FR-007", "CON-001"],
                 "dependencies": ["EPIC-006"],
-                "timing": "Weeks 10-11 (10 days)",
+                "timing": "Weeks 10-11",
+                "duration_days": 10,
                 "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
                 "job_size": 8,
                 "features": [
                     {
-                        "id": "FEAT-007",
-                        "title": "Business Case Modeling & Evidence Pack",
-                        "description": "Quantify operational benefits, licensing costs, implementation expenditure, and risk-adjusted ROI.",
-                        "strategic_theme": "Commercial Viability",
+                        "id": "FEAT-015",
+                        "title": "Financial Modeling & Total Cost of Ownership (TCO)",
+                        "description": "Construct 5-year TCO financial models and quantify return on investment across options.",
+                        "strategic_theme": "Business Case Support",
                         "traces_to": ["FR-007"],
                         "dependencies": ["EPIC-006"],
-                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
-                        "job_size": 8,
+                        "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                        "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-007",
-                                "title": "Business Case Evidence Pack Formulation",
-                                "description": "Construct 3-year and 5-year financial models comparing baseline run costs against proposed future options, including capital expenditure, licensing, operational savings, and risk reserves. Deliverable: Business Case Evidence Pack.",
-                                "strategic_theme": "Commercial Viability",
+                                "id": "STORY-031",
+                                "title": "5-Year Total Cost of Ownership (TCO) Comparative Financial Modeling",
+                                "description": "Develop 5-year financial models comparing capital expenditure, subscription licensing, cloud hosting, implementation, and run costs across options.",
+                                "strategic_theme": "Business Case Support",
                                 "traces_to": ["FR-007"],
-                                "dependencies": ["STORY-006"],
-                                "timing": "Weeks 10-11",
-                                "duration_days": 10,
-                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 13},
-                                "job_size": 8,
+                                "dependencies": ["STORY-030"],
+                                "timing": "Week 10",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
                                 "acceptance_criteria": [
-                                    "3-year and 5-year TCO models produced for shortlisted platform options.",
-                                    "Quantified operational efficiency gains and license consolidation savings modeled.",
-                                    "Transition budget, professional services estimates, and contingency reserves itemized.",
-                                    "Deliverable: Business Case Evidence Pack completed and verified by finance stakeholders."
+                                    "5-year detailed cost projection model completed in Excel across all candidate options.",
+                                    "License cost, maintenance, infrastructure, and internal support overhead itemized.",
+                                    "Year-on-year cash flow projections and NPV calculations completed."
                                 ],
                                 "resources": [
                                     {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-032",
+                                "title": "Operational Efficiency, Deflection & License Consolidation ROI Analysis",
+                                "description": "Quantify operational benefits: ticket deflection via self-service, reduction in MTTR, automated provisioning savings, and retired tool consolidation.",
+                                "strategic_theme": "Business Case Support",
+                                "traces_to": ["FR-007"],
+                                "dependencies": ["STORY-031"],
+                                "timing": "Weeks 10-11",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Deflection and automation efficiency savings quantified with financial finance models.",
+                                    "Cost avoidance from retiring legacy tools and licenses calculated.",
+                                    "Payback period and ROI projections agreed with finance team."
+                                ],
+                                "resources": [
                                     {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-016",
+                        "title": "Implementation Sizing & Evidence Pack Documentation",
+                        "description": "Size implementation services, establish risk contingency, and publish the Business Case Evidence Pack.",
+                        "strategic_theme": "Business Case Support",
+                        "traces_to": ["FR-007"],
+                        "dependencies": ["EPIC-006"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-033",
+                                "title": "Implementation Professional Services Sizing & Contingency Reserves",
+                                "description": "Estimate systems integrator (SI) implementation fees, internal resource backfill, data migration costs, change management, and contingency.",
+                                "strategic_theme": "Business Case Support",
+                                "traces_to": ["FR-007"],
+                                "dependencies": ["STORY-030"],
+                                "timing": "Week 10",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Professional services effort and day-rate estimates modeled for migration.",
+                                    "Internal project team backfill and operational transition budget sized.",
+                                    "Risk contingency reserve (15-20%) calculated and justified."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
                                     {"name": "Solution Architect", "allocation_percent": 25}
+                                ]
+                            },
+                            {
+                                "id": "STORY-034",
+                                "title": "Business Case Evidence Pack Deliverable Compilation & Verification",
+                                "description": "Author and finalize the Business Case Evidence Pack deliverable synthesizing financial models, ROI calculations, and commercial inputs.",
+                                "strategic_theme": "Business Case Support",
+                                "traces_to": ["FR-007"],
+                                "dependencies": ["STORY-031", "STORY-033"],
+                                "timing": "Weeks 10-11",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Comprehensive Business Case Evidence Pack document finalized.",
+                                    "Executive financial summary prepared for CIO and CFO review.",
+                                    "Deliverable: Business Case Evidence Pack signed off by finance stakeholders."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
                                 ]
                             }
                         ]
@@ -669,44 +1318,118 @@ def generate_artifacts():
                 "id": "EPIC-008",
                 "title": "Phase 8: Implementation Readiness Assessment",
                 "description": "Evaluation of organizational maturity, technical readiness, data migration prerequisites, skills gaps, and delivery risks.",
-                "strategic_theme": "Change Readiness",
-                "traces_to": ["FR-008"],
+                "strategic_theme": "Implementation Readiness Assessment",
+                "traces_to": ["FR-008", "CON-001"],
                 "dependencies": ["EPIC-006"],
-                "timing": "Weeks 10-11 (10 days)",
+                "timing": "Weeks 10-11",
+                "duration_days": 10,
                 "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 20},
                 "job_size": 8,
                 "features": [
                     {
-                        "id": "FEAT-008",
-                        "title": "Implementation Readiness & Risk Evaluation",
-                        "description": "Assess skills, data hygiene, security requirements, and organizational change capability for transition.",
-                        "strategic_theme": "Change Readiness",
+                        "id": "FEAT-017",
+                        "title": "Technical & Data Migration Readiness",
+                        "description": "Assess CMDB data quality, Active Directory/IAM readiness, and migration prerequisites.",
+                        "strategic_theme": "Implementation Readiness Assessment",
                         "traces_to": ["FR-008"],
                         "dependencies": ["EPIC-006"],
-                        "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 20},
-                        "job_size": 8,
+                        "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 13},
+                        "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-008",
-                                "title": "Readiness Assessment & Transition Planning",
-                                "description": "Assess CMDB data quality, Active Directory/IAM integration prerequisites, process standardization readiness, and organizational change capacity. Deliverable: Readiness Assessment.",
-                                "strategic_theme": "Change Readiness",
+                                "id": "STORY-035",
+                                "title": "CMDB Data Cleanliness & Integration Prerequisite Audit",
+                                "description": "Audit readiness of configuration item data for migration, identify duplicate records, orphan CIs, and integration API pre-flight requirements.",
+                                "strategic_theme": "Implementation Readiness Assessment",
                                 "traces_to": ["FR-008"],
-                                "dependencies": ["STORY-006"],
-                                "timing": "Weeks 10-11",
-                                "duration_days": 10,
-                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 20},
-                                "job_size": 8,
+                                "dependencies": ["STORY-030"],
+                                "timing": "Week 10",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 13},
+                                "job_size": 5,
                                 "acceptance_criteria": [
-                                    "Data migration readiness and CMDB hygiene assessed.",
-                                    "IT support organization change management readiness evaluated.",
-                                    "Implementation gating prerequisites and governance checkpoints established.",
-                                    "Deliverable: Readiness Assessment report delivered."
+                                    "CMDB data remediation backlog and cleanup requirements cataloged.",
+                                    "Historical ticket archiving and migration scope boundaries defined.",
+                                    "API gateway and firewall connectivity prerequisites mapped."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-036",
+                                "title": "Security, Architecture Review Board & Identity Federation Prerequisites",
+                                "description": "Review IAM/SSO prerequisite readiness, user provisioning mechanisms (SCIM), and architecture review board governance gates.",
+                                "strategic_theme": "Implementation Readiness Assessment",
+                                "traces_to": ["FR-008"],
+                                "dependencies": ["STORY-035"],
+                                "timing": "Weeks 10-11",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Security review gating requirements established with Information Security team.",
+                                    "Enterprise identity federation and automated user provisioning readiness confirmed.",
+                                    "Architecture Review Board submission requirements compiled."
+                                ],
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-018",
+                        "title": "Organizational Change Readiness & Governance Checkpoints",
+                        "description": "Assess skills gaps, support staff training needs, and define implementation gating prerequisites.",
+                        "strategic_theme": "Implementation Readiness Assessment",
+                        "traces_to": ["FR-008"],
+                        "dependencies": ["EPIC-006"],
+                        "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 13},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-037",
+                                "title": "IT Support Organization Skills Gap & Change Management Readiness",
+                                "description": "Assess service desk and engineering team capabilities against target platform requirements, identifying training and change needs.",
+                                "strategic_theme": "Implementation Readiness Assessment",
+                                "traces_to": ["FR-008"],
+                                "dependencies": ["STORY-030"],
+                                "timing": "Week 10",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 8, "time_criticality": 8, "risk_reduction": 8},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Skills gap matrix across platform administration and developer skillsets completed.",
+                                    "Change management impact assessment across service desk staff conducted.",
+                                    "Training curriculum and certification roadmap outlined for target platform."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
+                            },
+                            {
+                                "id": "STORY-038",
+                                "title": "Readiness Assessment Deliverable Consolidation & Gating Checkpoints",
+                                "description": "Author the Readiness Assessment deliverable outlining overall transition feasibility, critical delivery risks, and go/no-go gates.",
+                                "strategic_theme": "Implementation Readiness Assessment",
+                                "traces_to": ["FR-008"],
+                                "dependencies": ["STORY-035", "STORY-037"],
+                                "timing": "Weeks 10-11",
+                                "duration_days": 5,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 13},
+                                "job_size": 5,
+                                "acceptance_criteria": [
+                                    "Readiness Assessment report completed covering technical, organizational, and data maturity.",
+                                    "Implementation risk register with mitigation actions drafted.",
+                                    "Deliverable: Readiness Assessment report signed off by steering committee."
                                 ],
                                 "resources": [
                                     {"name": "Programme Delivery Manager", "allocation_percent": 50},
-                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
-                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
                                 ]
                             }
                         ]
@@ -717,44 +1440,99 @@ def generate_artifacts():
                 "id": "EPIC-009",
                 "title": "Phase 9: Final Recommendation & Handover",
                 "description": "Consolidation of strategic recommendations, delivery roadmap authoring, executive presentation, and formal engagement handover.",
-                "strategic_theme": "Strategic Delivery",
+                "strategic_theme": "Final Recommendation & Handover",
                 "traces_to": ["FR-009", "GOAL-001"],
                 "dependencies": ["EPIC-007", "EPIC-008"],
-                "timing": "Week 12 (5 days)",
+                "timing": "Week 12",
+                "duration_days": 5,
                 "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
                 "job_size": 5,
                 "features": [
                     {
-                        "id": "FEAT-009",
-                        "title": "Final Recommendations & Implementation Roadmap",
-                        "description": "Synthesize discovery findings into actionable executive recommendations, multi-phase implementation roadmap, and formal handover.",
-                        "strategic_theme": "Strategic Delivery",
+                        "id": "FEAT-019",
+                        "title": "Implementation Roadmap Authoring",
+                        "description": "Formulate phased implementation timeline, procurement guidance, and work packages.",
+                        "strategic_theme": "Final Recommendation & Handover",
+                        "traces_to": ["FR-009"],
+                        "dependencies": ["EPIC-007", "EPIC-008"],
+                        "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                        "job_size": 5,
+                        "stories": [
+                            {
+                                "id": "STORY-039",
+                                "title": "Multi-Phase Implementation Roadmap Formulation (12-18 Month Phasing)",
+                                "description": "Develop actionable, phased implementation roadmap covering procurement, Foundation MVP, core ITIL rollout, integrations, and advanced AIOps.",
+                                "strategic_theme": "Final Recommendation & Handover",
+                                "traces_to": ["FR-009"],
+                                "dependencies": ["STORY-034", "STORY-038"],
+                                "timing": "Week 12",
+                                "duration_days": 3,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 3,
+                                "acceptance_criteria": [
+                                    "12-to-18 month phased roadmap with milestone gates, work packages, and dependency tracks published.",
+                                    "Procurement timeline and RFP requirements package finalized.",
+                                    "Deliverable: Implementation Roadmap approved by IT leadership."
+                                ],
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Solution Architect", "allocation_percent": 25},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "FEAT-020",
+                        "title": "Executive Final Recommendation & Stakeholder Handover",
+                        "description": "Deliver final strategic recommendation paper, executive presentation, and formal engagement deliverable handover.",
+                        "strategic_theme": "Final Recommendation & Handover",
                         "traces_to": ["FR-009"],
                         "dependencies": ["EPIC-007", "EPIC-008"],
                         "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
                         "job_size": 5,
                         "stories": [
                             {
-                                "id": "STORY-009",
-                                "title": "Implementation Roadmap & Final Recommendation Handover",
-                                "description": "Produce phased transition roadmap (Phases 1-3 implementation timeline), deliver executive presentation of final platform and operating model recommendation, and execute formal artifact handover. Deliverables: Implementation Roadmap and Final Recommendation.",
-                                "strategic_theme": "Strategic Delivery",
+                                "id": "STORY-040",
+                                "title": "Final Strategic Recommendation Document Authoring & Executive Synthesis",
+                                "description": "Synthesize all discovery findings, architectural assessments, market comparisons, and business case justification into the executive recommendation report.",
+                                "strategic_theme": "Final Recommendation & Handover",
                                 "traces_to": ["FR-009", "GOAL-001"],
-                                "dependencies": ["STORY-007", "STORY-008"],
+                                "dependencies": ["STORY-034", "STORY-038"],
                                 "timing": "Week 12",
-                                "duration_days": 5,
+                                "duration_days": 3,
                                 "priority_components": {"user_business_value": 20, "time_criticality": 13, "risk_reduction": 8},
-                                "job_size": 5,
+                                "job_size": 3,
                                 "acceptance_criteria": [
-                                    "Executive presentation delivered to CIO and governance board.",
-                                    "Implementation Roadmap drafted with phased rollout timeline and procurement guidance.",
-                                    "Final Recommendation document signed off.",
-                                    "All 9 engagement deliverables formally handed over to client leadership."
+                                    "Executive recommendation paper completed detailing strategic justification for preferred option.",
+                                    "Consolidated evidence references supporting all 9 engagement deliverables.",
+                                    "Deliverable: Final Recommendation document formally delivered."
+                                ],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Solution Architect", "allocation_percent": 25}
+                                ]
+                            },
+                            {
+                                "id": "STORY-041",
+                                "title": "Governance Board Presentation & Formal Deliverable Handover",
+                                "description": "Present strategic recommendations and roadmap to CIO, governance board, and complete formal deliverable handover signoff.",
+                                "strategic_theme": "Final Recommendation & Handover",
+                                "traces_to": ["FR-009"],
+                                "dependencies": ["STORY-039", "STORY-040"],
+                                "timing": "Week 12",
+                                "duration_days": 2,
+                                "priority_components": {"user_business_value": 13, "time_criticality": 13, "risk_reduction": 8},
+                                "job_size": 2,
+                                "acceptance_criteria": [
+                                    "Executive presentation delivered to CIO, IT directors, and key business stakeholders.",
+                                    "All 9 engagement deliverables formally accepted and signed off by project sponsor.",
+                                    "Final engagement closure report and knowledge transfer completed."
                                 ],
                                 "resources": [
                                     {"name": "Programme Delivery Manager", "allocation_percent": 50},
-                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
-                                    {"name": "Solution Architect", "allocation_percent": 25}
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100}
                                 ]
                             }
                         ]

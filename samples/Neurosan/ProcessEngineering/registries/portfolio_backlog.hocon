@@ -89,8 +89,19 @@ grounded in market benchmarks (e.g. Programme Delivery Manager $1,300/day, Solut
 Lead Business Analyst $1,100/day, Business Analyst $1,000/day, Software Engineer $1,275/day, DevOps $1,200/day).
 effort_mix reflects overall projected staffing mix summing to 1.0.
 
-Nest non-empty features under epics and non-empty stories under features. Give every item a unique id
-with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description, strategic_theme, non-empty traces_to,
+Nest non-empty features under epics (typically 2-3 distinct features) and non-empty stories under features
+(typically 2-4 concrete, granular stories/tasks).
+CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER REPETITIONS:
+- NEVER repeat an Epic title as a single Feature, and NEVER repeat a Feature title as a single Story named
+  "<Feature> Task" or "<Feature> Story".
+- A consulting engagement or project backlog requires a realistic, professional breakdown: each phase/epic
+  subdivides into distinct functional streams (Features), and each stream breaks down into specific, actionable
+  work packages (Stories/Tasks) such as stakeholder interviews, data audits, architecture blueprints, gap analyses,
+  vendor scorecards, TCO financial models, and deliverable authoring.
+- Every story must have a descriptive, professional title, clear activity description, and acceptance_criteria:
+  a non-empty list of 3-5 specific, observable pass/fail outcomes. Write stories in a delivery-ready format
+  where useful (for example, as a user story) without forcing a user persona unsupported by the source.
+Give every item a unique id with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description, strategic_theme, non-empty traces_to,
 priority_components, and job_size. Use dependencies (e.g. ["EPIC-001"]) and timing (e.g. "Weeks 2-4") to model
 concurrency and workflow dependencies. Every story also needs a non-empty acceptance_criteria array of observable pass/fail
 outcomes. Stories must include dynamically calculated resources: an array of {"name": "<delivery role>", "allocation_percent": number}
