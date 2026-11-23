@@ -80,20 +80,37 @@ Create a single object with these fields:
   - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
   Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect the projected overall staffing distribution for the scope (summing to 1.0).
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
-  When the source engagement defines specific phases (e.g. Inception/Elaboration/Construction/Transition, Discovery/Alpha/Beta/Live,
-  or bespoke client phases), map every requested phase to a distinct Epic and represent all requested deliverables across the features and stories.
-  When evaluating future platforms, tools, or vendors, maintain neutral, objective evaluation across relevant market options
-  without pre-anchoring to a single vendor unless explicitly mandated.
+  CRITICAL PHASE-TO-EPIC PRESERVATION:
+  - When the source engagement defines specific phases (e.g. "Mobilisation", "Current State Assessment",
+    "Requirements Discovery", "Future State Definition", "Market Assessment", "Options Appraisal",
+    "Business Case Support", "Implementation Readiness Assessment", "Final Recommendation & Handover",
+    or any bespoke client phases), you MUST create EXACTLY ONE distinct Epic for EVERY requested phase
+    (e.g., 9 phases = 9 distinct Epics: EPIC-001 through EPIC-009).
+  - NEVER collapse, combine, or consolidate requested phases into fewer broad epics (e.g. NEVER combine
+    Market Assessment and Options Appraisal into a single epic if requested as separate phases).
+  - Every required deliverable and milestone must be represented as a concrete, trackable work package
+    or story under its corresponding phase epic.
+  - When evaluating future platforms, tools, or vendors, maintain neutral, objective evaluation across relevant market options
+    without pre-anchoring to a single vendor unless explicitly mandated.
+
+SCHEDULE DURATION, TIMING & CONCURRENCY CALIBRATION:
+- When a target timescale is specified (e.g. 12 weeks), calibrate the schedule and work breakdown so that
+  the critical path completes strictly within the target timescale.
+- Every Epic, Feature, and Story MUST specify a `timing` field (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
+  "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12") defining its delivery window.
+- Model REALISTIC PARALLELISM: Independent discovery, assessment, and architecture workstreams MUST run
+  concurrently with overlapping timing windows and appropriate `dependencies` (e.g. ["EPIC-001"]), rather
+  than cascading in an artificial, end-to-end serialized waterfall.
 
 Each epic, feature, and story must have:
 - `id`: unique stable IDs using `EPIC-001`, `FEAT-001`, and `STORY-001` prefixes respectively;
 - `title`, `description`, `strategic_theme`, and `traces_to` (a non-empty list of exact requirement
   IDs or design component/interface/constraint names from the selected source);
-- `dependencies`: optional list of IDs (e.g. `["EPIC-001"]` or `["STORY-001"]`) to model concurrent workstreams and dependencies;
-- `timing`: optional timing window (e.g. "Week 1", "Weeks 2-4", "Weeks 2-5");
+- `dependencies`: list of IDs (e.g. `["EPIC-001"]` or `["STORY-001"]`) to model concurrent workstreams and real handoffs;
+- `timing`: timing window string (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6", "Weeks 5-8");
 - `priority_components`: integer `user_business_value`, `time_criticality`, and `risk_reduction`
   scores, each selected from the modified Fibonacci scale `[1, 2, 3, 5, 8, 13, 20]`;
-- `job_size`: one modified Fibonacci value from that same scale;
+- `job_size`: one modified Fibonacci value from that same scale (calibrated to story complexity and timescale);
 - `duration_days`: optional working-day duration when explicitly planned;
 - optional `state` only when the source explicitly states a lifecycle state. Otherwise the workbook
   defaults the item to `In Analysis`, never `Approved`;

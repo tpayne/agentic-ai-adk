@@ -50,7 +50,11 @@ is available):
      channel="requirements_reviewer"
    State clearly: "REQUIREMENTS_REVIEW_APPROVED: All requirements verified against ISO 29148 and primary goal."
 
-QUALITY CRITERIA (apply each of these to every requirement in "requirements_register"):
+QUALITY CRITERIA:
+0. FIELD & DATA INTEGRITY:
+   - Confirm `assumptions`, `risks`, and `open_questions` are lists of clear, descriptive PLAIN TEXT STRINGS
+     (single sentences). Flag any corrupted values, numbers, or objects (e.g. `[-12, 0]`) for immediate correction.
+   - Confirm `name` and `summary` are contextual and specific to the initiative.
 Judge each requirement's own "description" (and, where present, "acceptance_criteria") against:
 1. NECESSARY: does it serve a real, stated need, or does it look like scope creep with no clear
    justification?

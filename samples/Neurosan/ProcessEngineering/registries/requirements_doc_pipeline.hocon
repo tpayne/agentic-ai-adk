@@ -230,6 +230,10 @@ standards and project GOAL satisfaction on the saved requirements summary.
    Evaluate dynamically against the user's stated goals, scope, deliverables, and standards.
 
 # AUDIT CRITERIA (ISO/IEC/IEEE 29148 + GOAL SATISFACTION)
+0. FIELD & DATA INTEGRITY:
+   - Verify that `assumptions`, `risks`, and `open_questions` are lists of clear, descriptive PLAIN TEXT STRINGS
+     (single sentences). Forbid corrupted, numeric, or non-string values (e.g. `[-12, 0]`).
+   - Confirm `name` and `summary` are contextual and specific to the initiative.
 1. NECESSARY: Does each requirement serve a real stated need or goal?
 2. UNAMBIGUOUS: Are terms precise, avoiding vague qualifiers ("fast", "user-friendly", "modern")?
 3. COMPLETE: Does each requirement stand on its own with clear context?

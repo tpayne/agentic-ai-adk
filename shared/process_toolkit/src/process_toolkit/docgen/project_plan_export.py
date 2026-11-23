@@ -616,18 +616,21 @@ def _render_mspdi(
     # Collect all resources to be defined in <Resources>
     # If caller explicitly provided resources, restrict catalog and assignments to that;
     # otherwise collect from normalized_resources (engagement roles) and all leaf tasks' resources.
+    # When an explicit availability cap is defined in caller_resources or normalized_resources,
+    # that cap is canonical and MUST NOT be inflated by a single task's effort weighting.
     resource_catalog: Dict[str, float] = {}
     if caller_resources:
         for name, fraction in caller_resources:
-            resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
+            resource_catalog[name] = fraction
     else:
         if normalized_resources:
             for name, fraction in normalized_resources:
-                resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
+                resource_catalog[name] = fraction
         for task in all_tasks:
             if not task.children and task.resources:
                 for name, fraction in task.resources:
-                    resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
+                    if name not in resource_catalog:
+                        resource_catalog[name] = fraction
 
     if resource_catalog:
         resources_el = ET.SubElement(root, "Resources")
@@ -665,10 +668,11 @@ def _render_mspdi(
                 ET.SubElement(assignment_el, "TaskUID").text = str(task.uid)
                 ET.SubElement(assignment_el, "ResourceUID").text = str(r_uid)
                 ET.SubElement(assignment_el, "Units").text = f"{fraction:g}"
-                ET.SubElement(assignment_el, "Work").text = f"PT{round(duration_hours * fraction)}H0M0S"
+                work_h = round(duration_hours * fraction)
+                ET.SubElement(assignment_el, "Work").text = f"PT{work_h}H0M0S"
                 hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
                 if hourly_rate is not None and hourly_rate > 0:
-                    cost = round(duration_hours * fraction * hourly_rate, 2)
+                    cost = round(work_h * hourly_rate, 2)
                     ET.SubElement(assignment_el, "Cost").text = f"{cost:.2f}"
                 assignment_uid += 1
 

@@ -130,8 +130,18 @@ only when the save tool returns SUCCESS, including its exact paths.
 Save one JSON object with name, summary, source_artifact, source_name, rate_card, and a non-empty epics array.
 When specified, include timescale_weeks, roles, and requirements_reference.
 When specific roles and allocations are given in the engagement, use those exact roles in roles,
-rate_card, and across the stories. When specific phases and deliverables are requested, map every phase
-to an Epic and cover all required deliverables, maintaining vendor-neutral evaluation when evaluating external tools.
+rate_card, and across the stories. When specific phases and deliverables are requested, map every requested
+phase to a distinct Epic (e.g. 9 phases = 9 distinct Epics: EPIC-001 through EPIC-009; NEVER collapse or
+consolidate requested phases into fewer epics), and cover all required deliverables. Maintain vendor-neutral
+evaluation when evaluating external tools.
+
+TIMING & CONCURRENCY CALIBRATION:
+- When a target timescale is specified (e.g. 12 weeks), calibrate job_size and workstream concurrency so the
+  critical path completes strictly within the target timescale.
+- Every Epic, Feature, and Story MUST specify a timing window (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
+  "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12").
+- Model realistic parallelism: Independent discovery, assessment, and architecture workstreams MUST run concurrently
+  with overlapping timing windows and appropriate dependencies (e.g. ["EPIC-001"]).
 
 Project sensible estimations for resource costing on rate_card: an array of delivery roles
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
