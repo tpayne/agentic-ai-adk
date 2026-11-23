@@ -14,6 +14,9 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
     PORTFOLIO_BACKLOG_WORKBOOK_FILENAME,
     STATE_KEY,
     StateLike,
+    calculate_story_resources,
+    build_rate_card,
+    ROLE_BENCHMARK_RATES,
 )
 from process_toolkit.portfolio_backlog import portfolio_backlog as _toolkit
 
@@ -32,6 +35,9 @@ __all__ = [
     "StateLike",
     "save_portfolio_backlog",
     "load_portfolio_backlog",
+    "calculate_story_resources",
+    "build_rate_card",
+    "ROLE_BENCHMARK_RATES",
 ]
 
 

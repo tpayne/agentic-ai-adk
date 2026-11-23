@@ -13,6 +13,9 @@ from process_toolkit.docgen.project_plan_export import (
     build_portfolio_backlog_project_plan,
     build_proposal_response_project_plan,
     mspdi_project_title,
+    parse_mspdi_assignments,
+    parse_mspdi_project,
+    parse_mspdi_resources,
     parse_mspdi_tasks,
     portfolio_backlog_project_plan_exists,
     proposal_response_project_plan_exists,
@@ -451,13 +454,17 @@ class TestResourcesAndAssignments:
         )
         assert story_one_assignment.find("p:Work", _NS).text == "PT20H0M0S"
 
-    def test_no_resources_means_no_resources_or_assignments_elements_at_all(self):
+    def test_backlog_resources_included_in_project_plan_when_no_caller_resources_passed(self):
         save_portfolio_backlog(self._sample_backlog_two_stories())
         build_portfolio_backlog_project_plan()
 
         root = ET.parse(paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)).getroot()
-        assert root.find(".//p:Resources", _NS) is None
-        assert root.find(".//p:Assignments", _NS) is None
+        assert root.find(".//p:Resources", _NS) is not None
+        assert root.find(".//p:Assignments", _NS) is not None
+        resources = root.findall(".//p:Resources/p:Resource", _NS)
+        assert len(resources) > 0
+        assignments = root.findall(".//p:Assignments/p:Assignment", _NS)
+        assert len(assignments) > 0
 
 
 class TestTargetDurationOverrunWarning:
@@ -577,3 +584,65 @@ class TestParseMspdiTasks:
         tasks = parse_mspdi_tasks(out_path)
         discovery = next(t for t in tasks if t["name"] == "Discovery")
         assert "roughly a quarter" in discovery["notes"]
+
+
+class TestParseMspdiProject:
+    def test_parse_mspdi_project_returns_complete_project_json(self):
+        save_portfolio_backlog({
+            "name": "Project Plan JSON Backlog",
+            "summary": "s", "source_artifact": "design", "source_name": "x",
+            "epics": [{
+                "id": "EPIC-001", "title": "Epic One", "description": "d", "strategic_theme": "t",
+                "traces_to": ["FR-1"],
+                "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                "job_size": 5,
+                "features": [{
+                    "id": "FEAT-001", "title": "Feature One", "description": "d", "strategic_theme": "t",
+                    "traces_to": ["FR-1"],
+                    "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                    "job_size": 5,
+                    "stories": [{
+                        "id": "STORY-001", "title": "Deploy Centralized Platform Backup",
+                        "description": "Deploy terraform platform backups to AWS cloud.",
+                        "strategic_theme": "Infrastructure",
+                        "traces_to": ["FR-1"],
+                        "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                        "job_size": 5,
+                        "acceptance_criteria": ["Backup deployed"],
+                    }],
+                }],
+            }],
+        })
+        build_portfolio_backlog_project_plan()
+        out_path = paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+
+        project = parse_mspdi_project(out_path)
+        assert project is not None
+        assert project["title"] == "Project Plan JSON Backlog"
+        assert project["start_date"] is not None
+        assert project["finish_date"] is not None
+        assert len(project["tasks"]) > 0
+        assert len(project["resources"]) > 0
+        assert len(project["assignments"]) > 0
+
+        # Story task includes resources and allocations
+        story_task = next(t for t in project["tasks"] if t["name"] == "Deploy Centralized Platform Backup")
+        assert len(story_task["resources"]) > 0
+        assert len(story_task["assignments"]) > 0
+        primary_res = story_task["resources"][0]
+        assert primary_res["name"] == "DevOps / Platform Engineer"
+        assert primary_res["units"] == 0.6
+        assert primary_res["work_hours"] == 24.0
+        assert primary_res["cost"] == 3600.0
+        assert story_task["cost"] is not None
+        assert project["total_cost"] is not None
+
+        # Project resource has standard hourly rate from rate card
+        devops_res = next(r for r in project["resources"] if r["name"] == "DevOps / Platform Engineer")
+        assert devops_res["standard_rate"] == 150.0
+
+    def test_parse_mspdi_project_returns_none_for_missing_or_non_mspdi(self, tmp_path):
+        assert parse_mspdi_project(str(tmp_path / "missing.xml")) is None
+        bad = tmp_path / "bad.xml"
+        bad.write_text("<NotProject/>", encoding="utf-8")
+        assert parse_mspdi_project(str(bad)) is None

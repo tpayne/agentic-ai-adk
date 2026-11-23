@@ -54,6 +54,16 @@ Create a single object with these fields:
 - `summary`: concise scope summary based only on the chosen source.
 - `source_artifact`: exactly `design` or `requirements_summary`.
 - `source_name`: the chosen source's own name/title, or a concise source-grounded identifier.
+- `rate_card`: an array of projected delivery roles with sensible market rate estimations and effort mixes:
+  `[{"person": "TBD", "role": "<role name>", "effort_mix": <decimal fraction>, "daily_rate": <number>, "basis": "<market estimation basis>"}]`.
+  Project sensible estimations for resource costing based on market benchmarks (8-hour day basis), e.g.:
+  - Solution Architect: $1,500/day (Senior Solution Architecture benchmark; system context, governance, and technical design)
+  - Software Engineer: $1,275/day (Full-stack software engineering benchmark; feature delivery and implementation)
+  - DevOps / Platform Engineer: $1,200/day (Cloud platform & DevOps engineering benchmark; CI/CD, IaC, and observability)
+  - QA Engineer: $1,000/day (Quality assurance & test automation benchmark; verification, regression, and E2E)
+  - Business Analyst: $1,000/day (Business analysis & requirements engineering benchmark; user stories and workflow specs)
+  - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
+  Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect the projected overall staffing distribution for the scope (summing to 1.0).
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
 
 Each epic, feature, and story must have:
@@ -66,7 +76,17 @@ Each epic, feature, and story must have:
 - optional `state` only when the source explicitly states a lifecycle state. Otherwise the workbook
   defaults the item to `In Analysis`, never `Approved`;
 - optional `cost_notes` only for source-backed cost caveats. The workbook calculates costs from its
-  explicit, editable assumptions; do not invent alternate rates or budget values.
+  explicit, editable assumptions; do not invent alternate rates or budget values;
+- `resources` for stories: calculate the resources needed and their allocation percentages dynamically
+  based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories):
+  a list of `{"name": "<delivery role>", "allocation_percent": number}` summing to 100%. For example:
+  - Architecture, technical spikes, and governance: e.g. Solution Architect 60%, Software Engineer 20%, Business Analyst 20%
+  - Core software feature implementation: e.g. Software Engineer 60%, QA Engineer 20%, Solution Architect 10%, DevOps / Platform Engineer 10%
+  - Cloud infrastructure, IaC, CI/CD, deployment pipelines: e.g. DevOps / Platform Engineer 60%, Software Engineer 25%, QA Engineer 15%
+  - Testing, test automation, performance/security verification: e.g. QA Engineer 60%, Software Engineer 25%, DevOps / Platform Engineer 15%
+  - Requirements analysis, stakeholder interviews, user journeys: e.g. Business Analyst 60%, Product Owner 25%, Solution Architect 15%
+  - Product strategy, backlog refinement, roadmap planning: e.g. Product Owner 60%, Business Analyst 25%, Solution Architect 15%
+  Specialized roles (such as Data Engineer, Security Engineer, UI/UX Designer) should be allocated when the story activity demands it.
 
 Each epic must contain a non-empty `features` list. Each feature must contain a non-empty `stories`
 list. Each story must also have `acceptance_criteria`: a non-empty list of specific, observable
@@ -87,7 +107,9 @@ Before calling `save_portfolio_backlog`, verify:
    Avoid asserting WSJF priority is objectively certain when the source lacks evidence.
 5. IDs are unique, all scores and sizes use the allowed scale, and each story has testable
    acceptance criteria.
-6. There are no unsupported commitments, dates, team capacity, vendor costs, or cloud/license
+6. Every story has realistic, activity-tailored role allocations in `resources` summing to 100%.
+7. The `rate_card` projects sensible market estimations for resource costing and bases for all project delivery roles.
+8. There are no unsupported commitments, dates, team capacity, vendor costs, or cloud/license
    costs.
 
 # STEP 4: SAVE AND RESPOND

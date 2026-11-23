@@ -1511,8 +1511,15 @@ class TestArtifactRoute:
         app = cli.build_web_app("process_architect", https=False)
         resp = app.test_client().get("/artifacts/portfolio_backlog_project_plan")
         assert resp.status_code == 200
-        tasks = resp.get_json()["data"]["tasks"]
+        data = resp.get_json()["data"]
+        tasks = data["tasks"]
         assert {t["name"] for t in tasks} == {"Fixture Backlog", "Epic", "Feature", "Story"}
+        assert "resources" in data
+        assert "assignments" in data
+        assert len(data["resources"]) > 0
+        assert len(data["assignments"]) > 0
+        story_task = next(t for t in tasks if t["name"] == "Story")
+        assert len(story_task["resources"]) > 0
 
     def test_pert_cpm_names_are_not_viewable_via_the_json_route(self, monkeypatch, tmp_path):
         # The PERT/CPM diagrams are real PNG images, not text/JSON -- they

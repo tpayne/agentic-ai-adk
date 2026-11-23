@@ -99,7 +99,6 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     assert sheet["S5"].value == "Costed Roles"
     assert "Role Rates" in sheet["S8"].value
     assert "'Role Rates'!$B$8" in sheet["S8"].value
-    assert 'TEXT(\'Role Rates\'!$C$5,"0%")' in sheet["S8"].value
     assert sheet["S6"].value == "Rolled up from child items; see story-level roles."
     assert sheet["H8"].value == (
         "=E8*'Assumptions'!$B$13+F8*'Assumptions'!$B$14"
@@ -107,11 +106,8 @@ def test_save_generates_template_based_workbook_with_hierarchy_formulas_and_assu
     )
     assert sheet["J8"].value == "=IFERROR(H8/I8,0)"
     assert sheet["K8"].value.startswith("=1+COUNTIFS(")
-    assert sheet["Q8"].value == (
-        "=I8*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)"
-        "*IFERROR(SUMPRODUCT('Role Rates'!$C$5:$C$10,'Role Rates'!$D$5:$D$10)"
-        "/SUM('Role Rates'!$C$5:$C$10),0)"
-    )
+    assert sheet["Q8"].value.startswith("=I8*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)*(")
+    assert "'Role Rates'!$D$8" in sheet["Q8"].value
     assert sheet["Q7"].value == "=SUMIF($M$6:$M$8,A7,$Q$6:$Q$8)"
     assert sheet["Q6"].value == "=SUMIF($M$6:$M$8,A6,$Q$6:$Q$8)"
     assert sheet["Q9"].value.startswith('=SUMIF($L$6:$L$8,"Epic"')
@@ -255,3 +251,167 @@ def test_workbook_expands_beyond_template_rows_without_losing_summary_formulas()
     assert chart.anchor._from.row + 1 == 21
     assert chart.series[0].cat.strRef.f == "'Enterprise Agile Backlog'!$T$2:$T$5"
     assert chart.series[0].val.numRef.f == "'Enterprise Agile Backlog'!$U$2:$U$5"
+
+
+def test_activity_based_resource_calculation():
+    from process_toolkit.portfolio_backlog.portfolio_backlog import (
+        calculate_story_resources,
+        ROLE_DEVOPS_ENGINEER,
+        ROLE_QA_ENGINEER,
+        ROLE_SOLUTION_ARCHITECT,
+        ROLE_BUSINESS_ANALYST,
+        ROLE_SOFTWARE_ENGINEER,
+    )
+
+    devops_story = {
+        "title": "Deploy Centralized Backup Policies",
+        "description": "As a Platform Administrator, I want to deploy terraform backup policies across AWS accounts.",
+        "acceptance_criteria": ["Terraform applies cleanly", "Backup plan is active"],
+        "strategic_theme": "Cloud Infrastructure",
+    }
+    devops_res = calculate_story_resources(devops_story)
+    assert devops_res[0]["name"] == ROLE_DEVOPS_ENGINEER
+    assert devops_res[0]["allocation_percent"] == 60.0
+    assert sum(r["allocation_percent"] for r in devops_res) == 100.0
+
+    qa_story = {
+        "title": "Automate E2E Regression Testing Suite",
+        "description": "Verify and validate system behavior with automated test cases.",
+        "acceptance_criteria": ["All smoke and regression tests pass"],
+        "strategic_theme": "Quality & Compliance",
+    }
+    qa_res = calculate_story_resources(qa_story)
+    assert qa_res[0]["name"] == ROLE_QA_ENGINEER
+    assert qa_res[0]["allocation_percent"] == 60.0
+
+    arch_story = {
+        "title": "Architect Multi-Tenant Solution Design",
+        "description": "Evaluate architectural tradeoffs and define high-level design standards.",
+        "acceptance_criteria": ["HLD document approved"],
+        "strategic_theme": "Architecture Governance",
+    }
+    arch_res = calculate_story_resources(arch_story)
+    assert arch_res[0]["name"] == ROLE_SOLUTION_ARCHITECT
+    assert arch_res[0]["allocation_percent"] == 60.0
+
+    ba_story = {
+        "title": "Capture Stakeholder Requirements for Onboarding",
+        "description": "Interview business stakeholders and map business process workflow.",
+        "acceptance_criteria": ["Requirements register signed off"],
+        "strategic_theme": "Process Optimization",
+    }
+    ba_res = calculate_story_resources(ba_story)
+    assert ba_res[0]["name"] == ROLE_BUSINESS_ANALYST
+    assert ba_res[0]["allocation_percent"] == 60.0
+
+    dev_story = {
+        "title": "Implement User Profile API Endpoint",
+        "description": "Develop CRUD REST API handler in backend service.",
+        "acceptance_criteria": ["Endpoint returns 200 OK"],
+        "strategic_theme": "Core Features",
+    }
+    dev_res = calculate_story_resources(dev_story)
+    assert dev_res[0]["name"] == ROLE_SOFTWARE_ENGINEER
+    assert dev_res[0]["allocation_percent"] == 60.0
+
+
+def test_backlog_json_includes_resources_on_stories_and_top_level():
+    backlog = _sample_backlog()
+    save_portfolio_backlog(backlog)
+
+    with open(paths.output_path(PORTFOLIO_BACKLOG_FILENAME), encoding="utf-8") as f:
+        saved = json.load(f)
+
+    assert "resources" in saved
+    assert len(saved["resources"]) > 0
+    story = saved["epics"][0]["features"][0]["stories"][0]
+    assert "resources" in story
+    assert len(story["resources"]) > 0
+    assert sum(r["allocation_percent"] for r in story["resources"]) == 100.0
+
+
+def test_explicit_story_resources_preserved():
+    backlog = _sample_backlog()
+    custom_res = [
+        {"name": "DevOps / Platform Engineer", "allocation_percent": 80.0},
+        {"name": "QA Engineer", "allocation_percent": 20.0},
+    ]
+    backlog["epics"][0]["features"][0]["stories"][0]["resources"] = custom_res
+    save_portfolio_backlog(backlog)
+
+    with open(paths.output_path(PORTFOLIO_BACKLOG_FILENAME), encoding="utf-8") as f:
+        saved = json.load(f)
+
+    story = saved["epics"][0]["features"][0]["stories"][0]
+    assert story["resources"] == custom_res
+
+
+def test_backlog_json_includes_projected_rate_card_by_default():
+    backlog = _sample_backlog()
+    save_portfolio_backlog(backlog)
+
+    with open(paths.output_path(PORTFOLIO_BACKLOG_FILENAME), encoding="utf-8") as f:
+        saved = json.load(f)
+
+    assert "rate_card" in saved
+    assert len(saved["rate_card"]) >= 6
+    roles = {entry["role"]: entry for entry in saved["rate_card"]}
+    assert "Solution Architect" in roles
+    assert roles["Solution Architect"]["daily_rate"] == 1500.0
+    assert "Software Engineer" in roles
+    assert roles["Software Engineer"]["daily_rate"] == 1275.0
+    assert sum(entry["effort_mix"] for entry in saved["rate_card"]) == 1.0
+
+
+def test_explicit_rate_card_populates_role_rates_sheet_and_story_formulas():
+    backlog = _sample_backlog()
+    custom_rate_card = [
+        {
+            "person": "Lead Architect",
+            "role": "Solution Architect",
+            "effort_mix": 0.20,
+            "daily_rate": 1600.0,
+            "basis": "Custom enterprise architecture rate.",
+        },
+        {
+            "person": "Lead Dev",
+            "role": "Software Engineer",
+            "effort_mix": 0.50,
+            "daily_rate": 1350.0,
+            "basis": "Senior developer rate.",
+        },
+        {
+            "person": "Platform Lead",
+            "role": "DevOps / Platform Engineer",
+            "effort_mix": 0.30,
+            "daily_rate": 1300.0,
+            "basis": "Cloud infrastructure rate.",
+        },
+    ]
+    backlog["rate_card"] = custom_rate_card
+    backlog["epics"][0]["features"][0]["stories"][0]["resources"] = [
+        {"name": "Solution Architect", "allocation_percent": 40.0},
+        {"name": "Software Engineer", "allocation_percent": 60.0},
+    ]
+    save_portfolio_backlog(backlog)
+
+    with open(paths.output_path(PORTFOLIO_BACKLOG_FILENAME), encoding="utf-8") as f:
+        saved = json.load(f)
+    assert saved["rate_card"][0]["daily_rate"] == 1600.0
+
+    workbook = load_workbook(paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME), data_only=False)
+    role_rates = workbook["Role Rates"]
+    assert role_rates["A5"].value == "Lead Architect"
+    assert role_rates["B5"].value == "Solution Architect"
+    assert role_rates["D5"].value == 1600.0
+    assert role_rates["F5"].value == "Custom enterprise architecture rate."
+
+    assumptions = workbook["Assumptions"]
+    assert assumptions["B5"].value == "=SUM('Role Rates'!E5:E7)"
+
+    sheet = workbook["Enterprise Agile Backlog"]
+    assert "'Role Rates'!$B$5" in sheet["S8"].value
+    assert "'Role Rates'!$B$6" in sheet["S8"].value
+    assert "'Role Rates'!$D$5" in sheet["Q8"].value
+    assert "'Role Rates'!$D$6" in sheet["Q8"].value
+

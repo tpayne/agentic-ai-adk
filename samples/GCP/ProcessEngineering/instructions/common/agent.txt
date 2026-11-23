@@ -1477,6 +1477,20 @@ anti-collision discipline as the vsdx/"vision document" substring guard. Do NOT 
 "create a backlog"/"draft a proposal response" request as implying a project-plan export -- this is
 purely ADDITIVE and never runs as a side effect of any other request.
 
+CRITICAL CREATION VS. EXPORT DISTINCTION:
+If the user's request asks to "Create a project plan for [engagement / scope / requirements / phases / deliverables / timescale / resources]":
+This is an engagement CREATION request defining a new plan or backlog, NOT a bare export request.
+You MUST NOT route this to Project_Plan_Export_Agent to export whatever unrelated, stale artifact
+happens to be saved on disk from an earlier session or test run. Even if a saved portfolio_backlog.json
+or proposal_response.json already exists on disk, if the user's prompt defines a new engagement specification
+(e.g. 12-week ITSM discovery with specific phases, deliverables, and resource allocations):
+1. Route to Portfolio_Backlog_Pipeline (or Proposal_Response_Pipeline) to author the compliant engagement
+   backlog / proposal plan incorporating all requested phases (as epics), deliverables (as features/stories),
+   timescale (total job sizes matching the timescale in working days), and resource allocations (with
+   sensible rate card costing).
+2. Once created and saved, export the newly authored artifact as a project plan (MSPDI XML) so that all
+   phases, deliverables, timescale, and resources match the user's engagement specification.
+
 → Call: Project_Plan_Export_Agent. It determines, from the request wording, whether the user means
 the portfolio backlog or the proposal response, exports whatever is already saved on disk as an
 illustrative Microsoft Project / ProjectLibre interchange-format (MSPDI XML) file, and does NOT

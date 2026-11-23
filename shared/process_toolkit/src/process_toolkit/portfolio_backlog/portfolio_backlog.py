@@ -25,20 +25,298 @@ _CHART_DATA_START_ROW = 2
 _CHART_CATEGORY_COLUMN = 20
 _CHART_VALUE_COLUMN = 21
 _DATA_ROW_FILL = PatternFill("solid", fgColor="FFFFFF")
+ROLE_PRODUCT_OWNER = "Product Owner"
+ROLE_BUSINESS_ANALYST = "Business Analyst"
+ROLE_SOLUTION_ARCHITECT = "Solution Architect"
+ROLE_SOFTWARE_ENGINEER = "Software Engineer"
+ROLE_QA_ENGINEER = "QA Engineer"
+ROLE_DEVOPS_ENGINEER = "DevOps / Platform Engineer"
+
+_ROLE_ROW_INDEX = {
+    ROLE_PRODUCT_OWNER: 5,
+    ROLE_BUSINESS_ANALYST: 6,
+    ROLE_SOLUTION_ARCHITECT: 7,
+    ROLE_SOFTWARE_ENGINEER: 8,
+    ROLE_QA_ENGINEER: 9,
+    ROLE_DEVOPS_ENGINEER: 10,
+}
+
+ROLE_BENCHMARK_RATES: dict[str, tuple[float, str]] = {
+    ROLE_PRODUCT_OWNER: (1200.0, "Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance."),
+    ROLE_BUSINESS_ANALYST: (1000.0, "Business analysis & requirements engineering benchmark; user stories and workflow specs."),
+    ROLE_SOLUTION_ARCHITECT: (1500.0, "Senior Solution Architecture benchmark; system context, governance, and technical design."),
+    ROLE_SOFTWARE_ENGINEER: (1275.0, "Full-stack software engineering benchmark; feature delivery and implementation."),
+    ROLE_QA_ENGINEER: (1000.0, "Quality assurance & test automation benchmark; verification, regression, and E2E."),
+    ROLE_DEVOPS_ENGINEER: (1200.0, "Cloud platform & DevOps engineering benchmark; CI/CD, IaC, and observability."),
+    "Programme Delivery Manager": (1300.0, "Programme delivery management and governance benchmark; delivery oversight, cadence, and reporting."),
+    "Project Manager": (1200.0, "Project management and delivery coordination benchmark; tracking, risks, and issue mitigation."),
+    "Lead Business Analyst": (1100.0, "Lead business analysis and requirements engineering benchmark; discovery facilitation, catalogue ownership."),
+    "Enterprise Architect": (1600.0, "Enterprise architecture and strategy benchmark; target operating models and strategic alignment."),
+    "Data Engineer": (1350.0, "Data engineering benchmark; ETL pipelines, data warehousing, and analytics infrastructure."),
+    "Security Engineer": (1400.0, "Security & compliance engineering benchmark; threat modeling, IAM, and hardening."),
+    "Scrum Master / Agile Coach": (1150.0, "Agile delivery coaching and facilitation benchmark."),
+    "UI/UX Designer": (1100.0, "UI/UX design benchmark; wireframes, user journeys, and design systems."),
+}
+
 _ROLE_COSTING_DEFAULTS = [
-    ("TBD", "Product Owner", 0.10, 1200, "Illustrative default; replace with the approved rate card."),
-    ("TBD", "Business Analyst", 0.15, 1000, "Illustrative default; replace with the approved rate card."),
-    ("TBD", "Solution Architect", 0.10, 1500, "Illustrative default; replace with the approved rate card."),
-    ("TBD", "Software Engineer", 0.40, 1275, "Illustrative default; replace with the approved rate card."),
-    ("TBD", "QA Engineer", 0.15, 1000, "Illustrative default; replace with the approved rate card."),
+    ("TBD", ROLE_PRODUCT_OWNER, 0.10, 1200, "Illustrative default; replace with the approved rate card."),
+    ("TBD", ROLE_BUSINESS_ANALYST, 0.15, 1000, "Illustrative default; replace with the approved rate card."),
+    ("TBD", ROLE_SOLUTION_ARCHITECT, 0.10, 1500, "Illustrative default; replace with the approved rate card."),
+    ("TBD", ROLE_SOFTWARE_ENGINEER, 0.40, 1275, "Illustrative default; replace with the approved rate card."),
+    ("TBD", ROLE_QA_ENGINEER, 0.15, 1000, "Illustrative default; replace with the approved rate card."),
     (
         "TBD",
-        "DevOps / Platform Engineer",
+        ROLE_DEVOPS_ENGINEER,
         0.10,
         1200,
         "Illustrative default; replace with the approved rate card.",
     ),
 ]
+
+
+def build_rate_card(
+    backlog: Dict[str, Any],
+    work_items: Optional[list[tuple[dict[str, Any], str, str]]] = None,
+) -> list[dict[str, Any]]:
+    """Builds, projects, or normalizes an illustrative rate card with sensible market-grounded
+    estimations for resource daily rates and bases.
+    If backlog contains an explicit `rate_card` or `roles`, its rates, roles, and bases are respected
+    and normalized. Missing roles used in stories are appended with sensible estimations.
+    If no rate card is provided, a sensible rate card is projected based on default benchmarks
+    and any specialized roles present in the backlog stories.
+    """
+    explicit = backlog.get("rate_card") or backlog.get("roles")
+    if isinstance(explicit, list) and explicit:
+        normalized = []
+        seen_roles = set()
+        for entry in explicit:
+            if not isinstance(entry, dict):
+                continue
+            role = str(entry.get("role") or entry.get("name") or "").strip()
+            if not role or role in seen_roles:
+                continue
+            seen_roles.add(role)
+            person = str(entry.get("person") or "TBD").strip()
+            daily_rate = entry.get("daily_rate") or entry.get("rate")
+            try:
+                daily_rate = float(daily_rate)
+            except (TypeError, ValueError):
+                daily_rate = None
+            if daily_rate is None or daily_rate <= 0:
+                daily_rate = ROLE_BENCHMARK_RATES.get(role, (1200.0, ""))[0]
+
+            basis = str(entry.get("basis") or "").strip()
+            if not basis:
+                basis = ROLE_BENCHMARK_RATES.get(
+                    role,
+                    (1200.0, f"Sensible market benchmark rate for {role}; standard 8hr daily basis.")
+                )[1]
+
+            mix = entry.get("effort_mix") or entry.get("mix") or entry.get("allocation_percent")
+            try:
+                mix = float(mix)
+                if mix > 1.0:
+                    mix = mix / 100.0
+            except (TypeError, ValueError):
+                mix = None
+            if mix is None or mix < 0:
+                mix = 0.10
+
+            normalized.append({
+                "person": person,
+                "role": role,
+                "effort_mix": mix,
+                "daily_rate": daily_rate,
+                "basis": basis,
+            })
+
+        # Check for roles in work_items/stories not covered in rate_card
+        story_roles = set()
+        if work_items:
+            for item, item_type, _ in work_items:
+                if item_type == "Story":
+                    for res in item.get("resources") or []:
+                        r_name = str(res.get("name") or "").strip()
+                        if r_name:
+                            story_roles.add(r_name)
+        for r_name in sorted(story_roles):
+            if r_name not in seen_roles:
+                seen_roles.add(r_name)
+                bench = ROLE_BENCHMARK_RATES.get(
+                    r_name, (1200.0, f"Sensible market benchmark rate for {r_name}; standard 8hr daily basis.")
+                )
+                normalized.append({
+                    "person": "TBD",
+                    "role": r_name,
+                    "effort_mix": 0.05,
+                    "daily_rate": bench[0],
+                    "basis": bench[1],
+                })
+
+        # Normalize effort_mix so total is 1.0
+        tot = sum(e["effort_mix"] for e in normalized)
+        if tot > 0 and abs(tot - 1.0) > 1e-4:
+            for e in normalized:
+                e["effort_mix"] = round(e["effort_mix"] / tot, 4)
+        return normalized
+
+    # Default market benchmark rate card
+    card = [
+        {
+            "person": person,
+            "role": role,
+            "effort_mix": mix,
+            "daily_rate": rate,
+            "basis": basis,
+        }
+        for person, role, mix, rate, basis in _ROLE_COSTING_DEFAULTS
+    ]
+    seen_roles = {c["role"] for c in card}
+    if work_items:
+        for item, item_type, _ in work_items:
+            if item_type == "Story":
+                for res in item.get("resources") or []:
+                    r_name = str(res.get("name") or "").strip()
+                    if r_name and r_name not in seen_roles:
+                        seen_roles.add(r_name)
+                        bench = ROLE_BENCHMARK_RATES.get(
+                            r_name, (1200.0, f"Sensible market benchmark rate for {r_name}; standard 8hr daily basis.")
+                        )
+                        card.append({
+                            "person": "TBD",
+                            "role": r_name,
+                            "effort_mix": 0.05,
+                            "daily_rate": bench[0],
+                            "basis": bench[1],
+                        })
+        if len(card) > len(_ROLE_COSTING_DEFAULTS):
+            tot = sum(c["effort_mix"] for c in card)
+            if tot > 0:
+                for c in card:
+                    c["effort_mix"] = round(c["effort_mix"] / tot, 4)
+    return card
+
+
+def calculate_story_resources(story: Dict[str, Any]) -> list[dict[str, Any]]:
+    """Calculates realistic role and resource allocations (percentages summing to 100%)
+    based on the activity being performed in the story (analyzing title, description,
+    acceptance criteria, and strategic theme), rather than assigning fixed values.
+    """
+    existing = story.get("resources") or story.get("roles")
+    if isinstance(existing, list) and existing:
+        normalized = []
+        for r in existing:
+            if not isinstance(r, dict):
+                continue
+            name = str(r.get("name") or r.get("role") or "").strip()
+            if not name:
+                continue
+            try:
+                pct = float(r.get("allocation_percent", 0))
+            except (TypeError, ValueError):
+                continue
+            if pct > 0:
+                normalized.append({"name": name, "allocation_percent": pct})
+        if normalized:
+            total = sum(x["allocation_percent"] for x in normalized)
+            if total > 0 and abs(total - 100.0) > 1e-3:
+                for x in normalized:
+                    x["allocation_percent"] = round((x["allocation_percent"] / total) * 100.0, 1)
+            return normalized
+
+    text_parts = [
+        story.get("title", ""),
+        story.get("description", ""),
+        " ".join(story.get("acceptance_criteria", []) if isinstance(story.get("acceptance_criteria"), list) else []),
+        story.get("strategic_theme", ""),
+    ]
+    text = " ".join(part for part in text_parts if isinstance(part, str)).lower()
+
+    devops_keywords = [
+        "devops", "platform", "infrastructure", "iac", "terraform", "cloudformation",
+        "bicep", "ansible", "kubernetes", "k8s", "docker", "container", "helm",
+        "cluster", "backup", "backups", "lockdown", "vpc", "subnet", "iam", "kms",
+        "secrets", "provision", "deploy", "deployment", "pipeline", "ci/cd",
+        "telemetry", "cloudwatch", "datadog", "prometheus", "grafana", "alerting",
+        "sre", "firewall", "network", "ingress", "egress", "route53", "dns", "gateway",
+    ]
+    qa_keywords = [
+        "test", "tests", "testing", "qa", "verify", "verification", "validate",
+        "validation", "validator", "e2e", "cypress", "selenium", "playwright",
+        "smoke", "regression", "penetration", "pentest", "performance test",
+        "load test", "stress test", "audit", "compliance verification", "benchmark",
+    ]
+    arch_keywords = [
+        "architect", "architecture", "solution design", "high-level design", "hld",
+        "low-level design", "lld", "framework", "governance", "topology",
+        "system context", "tradeoff", "trade-off", "standards", "evaluation",
+        "evaluate", "feasibility", "conceptual", "reference architecture",
+    ]
+    ba_keywords = [
+        "requirement", "requirements", "business analyst", "analyst", "user research",
+        "interview", "stakeholder", "business process", "workflow", "gap analysis",
+        "specification", "business rule", "onboarding flow", "user journey",
+    ]
+    po_keywords = [
+        "product owner", "roadmap", "backlog refinement", "prioritization",
+        "user persona", "market analysis", "vision document", "scope definition",
+        "release planning", "feature prioritization",
+    ]
+
+    devops_score = sum(text.count(kw) for kw in devops_keywords)
+    qa_score = sum(text.count(kw) for kw in qa_keywords)
+    arch_score = sum(text.count(kw) for kw in arch_keywords)
+    ba_score = sum(text.count(kw) for kw in ba_keywords)
+    po_score = sum(text.count(kw) for kw in po_keywords)
+
+    scores = [
+        ("devops", devops_score),
+        ("qa", qa_score),
+        ("arch", arch_score),
+        ("ba", ba_score),
+        ("po", po_score),
+    ]
+    scores.sort(key=lambda s: s[1], reverse=True)
+    top_cat, top_score = scores[0]
+
+    if top_score > 0:
+        if top_cat == "devops":
+            return [
+                {"name": ROLE_DEVOPS_ENGINEER, "allocation_percent": 60.0},
+                {"name": ROLE_SOFTWARE_ENGINEER, "allocation_percent": 25.0},
+                {"name": ROLE_QA_ENGINEER, "allocation_percent": 15.0},
+            ]
+        elif top_cat == "qa":
+            return [
+                {"name": ROLE_QA_ENGINEER, "allocation_percent": 60.0},
+                {"name": ROLE_SOFTWARE_ENGINEER, "allocation_percent": 25.0},
+                {"name": ROLE_DEVOPS_ENGINEER, "allocation_percent": 15.0},
+            ]
+        elif top_cat == "arch":
+            return [
+                {"name": ROLE_SOLUTION_ARCHITECT, "allocation_percent": 60.0},
+                {"name": ROLE_SOFTWARE_ENGINEER, "allocation_percent": 20.0},
+                {"name": ROLE_BUSINESS_ANALYST, "allocation_percent": 20.0},
+            ]
+        elif top_cat == "ba":
+            return [
+                {"name": ROLE_BUSINESS_ANALYST, "allocation_percent": 60.0},
+                {"name": ROLE_PRODUCT_OWNER, "allocation_percent": 25.0},
+                {"name": ROLE_SOLUTION_ARCHITECT, "allocation_percent": 15.0},
+            ]
+        elif top_cat == "po":
+            return [
+                {"name": ROLE_PRODUCT_OWNER, "allocation_percent": 60.0},
+                {"name": ROLE_BUSINESS_ANALYST, "allocation_percent": 25.0},
+                {"name": ROLE_SOLUTION_ARCHITECT, "allocation_percent": 15.0},
+            ]
+
+    return [
+        {"name": ROLE_SOFTWARE_ENGINEER, "allocation_percent": 60.0},
+        {"name": ROLE_QA_ENGINEER, "allocation_percent": 20.0},
+        {"name": ROLE_SOLUTION_ARCHITECT, "allocation_percent": 10.0},
+        {"name": ROLE_DEVOPS_ENGINEER, "allocation_percent": 10.0},
+    ]
 _HEADERS = [
     "Work Item ID",
     "Work Item Name",
@@ -130,6 +408,7 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 story_location = f"{feature_location}.stories[{story_index - 1}]"
                 _validate_work_item(story, "Story", seen_ids, story_location)
                 story.setdefault("state", "In Analysis")
+                story["resources"] = calculate_story_resources(story)
                 rows.append((story, "Story", feature["id"]))
     return rows
 
@@ -170,7 +449,7 @@ def _write_epic_chart_data(sheet, rows: list[tuple[dict[str, Any], str, str]]) -
     return category_range, value_range
 
 
-def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
+def _write_assumptions_sheet(workbook, backlog: Dict[str, Any], end_role_row: int = 10) -> None:
     if "Assumptions" in workbook.sheetnames:
         del workbook["Assumptions"]
     sheet = workbook.create_sheet("Assumptions")
@@ -187,7 +466,7 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
         ("Currency", "USD", "All cost estimates are illustrative planning estimates in US dollars."),
         (
             "Blended fully-loaded delivery cost per person-day",
-            "=SUM('Role Rates'!E5:E10)",
+            f"=SUM('Role Rates'!E5:E{end_role_row})",
             "Weighted rate calculated from the editable people/role mix on the Role Rates tab.",
         ),
         (
@@ -300,7 +579,7 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any]) -> None:
     sheet.freeze_panes = "A4"
 
 
-def _write_role_rates_sheet(workbook) -> None:
+def _write_role_rates_sheet(workbook, rate_card: Optional[list[dict[str, Any]]] = None) -> None:
     if "Role Rates" in workbook.sheetnames:
         del workbook["Role Rates"]
     sheet = workbook.create_sheet("Role Rates")
@@ -331,29 +610,47 @@ def _write_role_rates_sheet(workbook) -> None:
         cell.fill = PatternFill("solid", fgColor="4472C4")
         cell.alignment = Alignment(wrap_text=True, vertical="center")
     sheet.row_dimensions[4].height = 32
-    for row_number, role_costing in enumerate(_ROLE_COSTING_DEFAULTS, start=5):
-        for column, value in enumerate(role_costing[:4], start=1):
-            sheet.cell(row_number, column, value)
-        sheet.cell(row_number, 6, role_costing[4])
+
+    if rate_card is None:
+        rate_card = [
+            {
+                "person": person,
+                "role": role,
+                "effort_mix": mix,
+                "daily_rate": rate,
+                "basis": basis,
+            }
+            for person, role, mix, rate, basis in _ROLE_COSTING_DEFAULTS
+        ]
+
+    start_row = 5
+    end_row = start_row + len(rate_card) - 1
+    for row_number, entry in enumerate(rate_card, start=start_row):
+        sheet.cell(row_number, 1, entry["person"])
+        sheet.cell(row_number, 2, entry["role"])
+        sheet.cell(row_number, 3, entry["effort_mix"])
+        sheet.cell(row_number, 4, entry["daily_rate"])
         sheet.cell(
             row_number,
             5,
-            f"=IFERROR(C{row_number}/SUM($C$5:$C$10)*D{row_number},0)",
+            f"=IFERROR(C{row_number}/SUM($C${start_row}:$C${end_row})*D{row_number},0)",
         )
+        sheet.cell(row_number, 6, entry["basis"])
         sheet.cell(row_number, 3).number_format = "0%"
         sheet.cell(row_number, 4).number_format = '"$"#,##0.00'
         sheet.cell(row_number, 5).number_format = '"$"#,##0.00'
         for cell in sheet[row_number][:6]:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
-    sheet.cell(11, 1, "Total / Weighted Rate")
-    sheet.cell(11, 3, "=SUM(C5:C10)")
-    sheet.cell(11, 5, "=SUM(E5:E10)")
-    sheet.cell(11, 3).number_format = "0%"
-    sheet.cell(11, 5).number_format = '"$"#,##0.00'
-    for cell in sheet[11][:6]:
+    total_row = end_row + 1
+    sheet.cell(total_row, 1, "Total / Weighted Rate")
+    sheet.cell(total_row, 3, f"=SUM(C{start_row}:C{end_row})")
+    sheet.cell(total_row, 5, f"=SUM(E{start_row}:E{end_row})")
+    sheet.cell(total_row, 3).number_format = "0%"
+    sheet.cell(total_row, 5).number_format = '"$"#,##0.00'
+    for cell in sheet[total_row][:6]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="D9EAF7")
-    sheet.auto_filter.ref = "A4:F10"
+    sheet.auto_filter.ref = f"A4:F{end_row}"
     sheet.column_dimensions["A"].width = 30
     sheet.column_dimensions["B"].width = 32
     sheet.column_dimensions["C"].width = 18
@@ -366,6 +663,11 @@ def _write_role_rates_sheet(workbook) -> None:
 def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], str, str]], path: str) -> None:
     if not os.path.isfile(TEMPLATE_PATH):
         raise FileNotFoundError(f"Enterprise Agile Portfolio Backlog template is missing: {TEMPLATE_PATH}")
+
+    rate_card = build_rate_card(backlog, rows)
+    role_to_row = {entry["role"]: 5 + i for i, entry in enumerate(rate_card)}
+    start_role_row = 5
+    end_role_row = start_role_row + len(rate_card) - 1
 
     workbook = load_workbook(TEMPLATE_PATH)
     sheet = workbook["Enterprise Agile Backlog"]
@@ -407,11 +709,16 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
         components = item["priority_components"]
         criteria = item.get("acceptance_criteria", [])
         if item_type == "Story":
-            role_refs = [
-                f"'Role Rates'!$A${row}&\" - \"&'Role Rates'!$B${row}"
-                f"&\" (\"&TEXT('Role Rates'!$C${row},\"0%\")&\")\""
-                for row in range(5, 11)
-            ]
+            story_res = item.get("resources") or calculate_story_resources(item)
+            role_refs = []
+            for res in story_res:
+                r_name = res["name"]
+                pct = res["allocation_percent"] / 100.0
+                row_idx = role_to_row.get(r_name)
+                if row_idx:
+                    role_refs.append(f"'Role Rates'!$B${row_idx}&\" (\"&TEXT({pct:g},\"0%\")&\")\"")
+                else:
+                    role_refs.append(f"\"{r_name} (\"&TEXT({pct:g},\"0%\")&\")\"")
             costed_roles = "=" + '&"; "&'.join(role_refs)
         else:
             costed_roles = "Rolled up from child items; see story-level roles."
@@ -451,12 +758,27 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
         sheet.cell(row_number, 4).font = state_font
 
         if item_type == "Story":
+            story_res = item.get("resources") or calculate_story_resources(item)
+            rate_terms = []
+            for res in story_res:
+                r_name = res["name"]
+                pct = res["allocation_percent"] / 100.0
+                row_idx = role_to_row.get(r_name)
+                if row_idx:
+                    rate_terms.append(f"{pct:g}*'Role Rates'!$D${row_idx}")
+                else:
+                    bench_rate = ROLE_BENCHMARK_RATES.get(r_name, (1200.0, ""))[0]
+                    rate_terms.append(f"{pct:g}*{bench_rate:g}")
+            default_weighted = (
+                f"SUMPRODUCT('Role Rates'!$C${start_role_row}:$C${end_role_row},"
+                f"'Role Rates'!$D${start_role_row}:$D${end_role_row})/"
+                f"SUM('Role Rates'!$C${start_role_row}:$C${end_role_row})"
+            )
+            rate_formula = " + ".join(rate_terms) if rate_terms else default_weighted
             sheet.cell(
                 row_number,
                 17,
-                f"=I{row_number}*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)"
-                "*IFERROR(SUMPRODUCT('Role Rates'!$C$5:$C$10,'Role Rates'!$D$5:$D$10)"
-                "/SUM('Role Rates'!$C$5:$C$10),0)",
+                f"=I{row_number}*'Assumptions'!$B$6*(1+'Assumptions'!$B$7)*({rate_formula})",
             )
         else:
             sheet.cell(
@@ -482,7 +804,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     )
     sheet.cell(summary_row, 17).number_format = '"$"#,##0.00'
     sheet.cell(summary_row, 18).value = "Portfolio total sums epics only to avoid double-counting features and stories."
-    sheet.cell(summary_row, 19).value = "Story costs use the Role Rates tab mix."
+    sheet.cell(summary_row, 19).value = "Story costs use activity-based role allocations from the Role Rates tab."
 
     category_range, value_range = _write_epic_chart_data(sheet, rows)
     for chart in sheet._charts:
@@ -511,8 +833,8 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     for row_number in range(_DATA_START_ROW, last_data_row + 1):
         sheet.row_dimensions[row_number].height = 48
 
-    _write_assumptions_sheet(workbook, backlog)
-    _write_role_rates_sheet(workbook)
+    _write_assumptions_sheet(workbook, backlog, end_role_row)
+    _write_role_rates_sheet(workbook, rate_card)
     workbook.calculation.fullCalcOnLoad = True
     workbook.calculation.forceFullCalc = True
     workbook.calculation.calcMode = "auto"
@@ -542,6 +864,20 @@ def save_portfolio_backlog(
             raise ValueError("source_artifact must be 'requirements_summary' or 'design'.")
 
         work_items = _flatten_backlog(backlog)
+        role_alloc_sums: Dict[str, float] = {}
+        for item, item_type, _ in work_items:
+            if item_type == "Story":
+                for r in item.get("resources") or []:
+                    r_name = r.get("name")
+                    if r_name:
+                        role_alloc_sums[r_name] = role_alloc_sums.get(r_name, 0.0) + float(r.get("allocation_percent", 0))
+        total_alloc = sum(role_alloc_sums.values())
+        if total_alloc > 0:
+            backlog["resources"] = [
+                {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
+                for name, val in sorted(role_alloc_sums.items())
+            ]
+        backlog["rate_card"] = build_rate_card(backlog, work_items)
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)
         _render_workbook(backlog, work_items, workbook_path)

@@ -20,6 +20,9 @@ from process_toolkit.docgen.project_plan_export import (
     build_portfolio_backlog_project_plan as _toolkit_build_portfolio_backlog_project_plan,
     build_proposal_response_project_plan as _toolkit_build_proposal_response_project_plan,
     mspdi_project_title,
+    parse_mspdi_assignments,
+    parse_mspdi_project,
+    parse_mspdi_resources,
     parse_mspdi_tasks,
     portfolio_backlog_project_plan_exists,
     proposal_response_project_plan_exists,
@@ -32,7 +35,8 @@ __all__ = [
     "PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME", "PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME",
     "PORTFOLIO_BACKLOG_PERT_CPM_FILENAME", "PROPOSAL_RESPONSE_PERT_CPM_FILENAME",
     "portfolio_backlog_project_plan_exists", "proposal_response_project_plan_exists",
-    "parse_mspdi_tasks", "mspdi_project_title",
+    "parse_mspdi_tasks", "parse_mspdi_resources", "parse_mspdi_assignments",
+    "parse_mspdi_project", "mspdi_project_title",
 ]
 
 # The *_exists() checks, filename constants, and parse_mspdi_tasks/

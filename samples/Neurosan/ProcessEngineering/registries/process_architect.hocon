@@ -1707,6 +1707,20 @@ backlog"/"draft a proposal response" request as implying a project-plan export -
 on an EXPLICIT ask naming one of the signal words above. This is purely ADDITIVE: it never runs as
 a side effect of any other request, and no existing pipeline step changes because of it.
 
+CRITICAL CREATION VS. EXPORT DISTINCTION:
+If the user's request asks to "Create a project plan for [engagement / scope / requirements / phases / deliverables / timescale / resources]":
+This is an engagement CREATION request defining a new plan or backlog, NOT a bare export request.
+You MUST NOT call /project_plan_export to export whatever unrelated, stale artifact happens to be
+saved on disk from an earlier session or test run. Even if a saved portfolio_backlog.json or
+proposal_response.json already exists on disk, if the user's prompt defines a new engagement
+specification (e.g. 12-week ITSM discovery with specific phases, deliverables, and resource allocations):
+1. Route to /portfolio_backlog (or /proposal_response_pipeline) to author the compliant engagement
+   backlog / proposal plan incorporating all requested phases (as epics), deliverables (as features/stories),
+   timescale (total job sizes matching the timescale in working days), and resource allocations (with
+   sensible rate card costing).
+2. Once created and saved, call /project_plan_export to export the newly authored artifact as a project
+   plan (MSPDI XML) so that all phases, deliverables, timescale, and resources match the user's engagement specification.
+
 ### PROJECT PLAN REQUESTED BUT NOTHING SAVED YET
 CONFIRMED AS A REAL PRODUCTION BUG: when the user's own request names one of the signal words
 above (e.g. "create a project plan for the ITSM discovery, assuming a Project Manager at 50%...")

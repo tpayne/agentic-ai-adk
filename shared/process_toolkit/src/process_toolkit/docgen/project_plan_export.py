@@ -262,6 +262,7 @@ class _Task:
         self.finish: Optional[_dt.date] = None
         self.predecessor_uid: Optional[int] = None
         self.children: List["_Task"] = []
+        self.resources: List[Tuple[str, float]] = []
 
 
 def _schedule_sequential_leaf(
@@ -347,12 +348,43 @@ def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tupl
     return normalized
 
 
+def _resolve_resource_hourly_rate(name: str, rates_by_name: Optional[Dict[str, float]]) -> Optional[float]:
+    """Resolves hourly rate for a resource from explicit rate card or sensible benchmark estimations."""
+    if rates_by_name and name in rates_by_name:
+        rate = rates_by_name[name]
+        if rate and rate > 0:
+            return rate
+    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
+    if name in ROLE_BENCHMARK_RATES:
+        return ROLE_BENCHMARK_RATES[name][0] / _WORK_HOURS_PER_DAY
+    lower = name.lower()
+    for role, (daily, _) in ROLE_BENCHMARK_RATES.items():
+        if role.lower() in lower or lower in role.lower():
+            return daily / _WORK_HOURS_PER_DAY
+    if "delivery" in lower or "programme" in lower:
+        return 1300.0 / _WORK_HOURS_PER_DAY
+    if "project manager" in lower or "pm" in lower.split():
+        return 1200.0 / _WORK_HOURS_PER_DAY
+    if "architect" in lower:
+        return 1500.0 / _WORK_HOURS_PER_DAY
+    if "lead" in lower and "analyst" in lower:
+        return 1100.0 / _WORK_HOURS_PER_DAY
+    if "analyst" in lower:
+        return 1000.0 / _WORK_HOURS_PER_DAY
+    if "engineer" in lower or "developer" in lower:
+        return 1275.0 / _WORK_HOURS_PER_DAY
+    if "qa" in lower or "test" in lower:
+        return 1000.0 / _WORK_HOURS_PER_DAY
+    return 1200.0 / _WORK_HOURS_PER_DAY
+
+
 def _render_mspdi(
     project_name: str,
     top_level_tasks: List["_Task"],
     project_start: _dt.date,
     holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
     resources: Optional[List[tuple]] = None,
+    rates_by_name: Optional[Dict[str, float]] = None,
 ) -> str:
     ET.register_namespace("", _MSPDI_NS)
     root = ET.Element(f"{{{_MSPDI_NS}}}Project")
@@ -446,35 +478,58 @@ def _render_mspdi(
         if not task.children:
             leaf_duration_hours[task.uid] = duration_hours
 
+    # Collect all resources to be defined in <Resources>
+    # Either from caller-supplied resources (which override/set global resourcing)
+    # or from leaf tasks' activity-based resources.
+    resource_catalog: Dict[str, float] = {}
     if normalized_resources:
+        for name, fraction in normalized_resources:
+            resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
+    else:
+        for task in all_tasks:
+            if not task.children and task.resources:
+                for name, fraction in task.resources:
+                    resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
+
+    if resource_catalog:
         resources_el = ET.SubElement(root, "Resources")
-        resource_uids = []
-        for index, (name, fraction) in enumerate(normalized_resources, start=1):
+        resource_uids: Dict[str, int] = {}
+        for index, (name, max_fraction) in enumerate(resource_catalog.items(), start=1):
+            resource_uids[name] = index
             resource_el = ET.SubElement(resources_el, "Resource")
             ET.SubElement(resource_el, "UID").text = str(index)
             ET.SubElement(resource_el, "ID").text = str(index)
             ET.SubElement(resource_el, "Name").text = name
             ET.SubElement(resource_el, "Type").text = "1"  # 1 = work resource
-            ET.SubElement(resource_el, "MaxUnits").text = f"{fraction:g}"
-            resource_uids.append(index)
+            ET.SubElement(resource_el, "MaxUnits").text = f"{max_fraction:g}"
+            hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
+            if hourly_rate is not None and hourly_rate > 0:
+                ET.SubElement(resource_el, "StandardRate").text = f"{hourly_rate:.2f}"
+                ET.SubElement(resource_el, "StandardRateFormat").text = "3"  # 3 = /hour
 
-        # Every named resource is assigned to every LEAF task (there is no
-        # finer-grained role-to-task mapping anywhere in either source
-        # schema to assign more precisely than that) -- Work is the task's
-        # own duration scaled by that resource's allocation fraction, an
-        # illustrative "used N% of the time for the task's duration" model,
-        # not a resource-leveling engine that would stretch the task's own
-        # dates to account for part-time availability.
+        # Assign resources to leaf tasks -- either the caller-supplied resources
+        # across all leaf tasks, or each leaf task's own activity-based resources.
         assignments_el = ET.SubElement(root, "Assignments")
         assignment_uid = 1
-        for task_uid, duration_hours in leaf_duration_hours.items():
-            for resource_index, (_name, fraction) in enumerate(normalized_resources, start=1):
+        for task in all_tasks:
+            if task.children:
+                continue
+            duration_hours = leaf_duration_hours.get(task.uid, task.duration_days * _WORK_HOURS_PER_DAY)
+            task_assignments = normalized_resources if normalized_resources else task.resources
+            for name, fraction in task_assignments:
+                r_uid = resource_uids.get(name)
+                if r_uid is None:
+                    continue
                 assignment_el = ET.SubElement(assignments_el, "Assignment")
                 ET.SubElement(assignment_el, "UID").text = str(assignment_uid)
-                ET.SubElement(assignment_el, "TaskUID").text = str(task_uid)
-                ET.SubElement(assignment_el, "ResourceUID").text = str(resource_index)
+                ET.SubElement(assignment_el, "TaskUID").text = str(task.uid)
+                ET.SubElement(assignment_el, "ResourceUID").text = str(r_uid)
                 ET.SubElement(assignment_el, "Units").text = f"{fraction:g}"
                 ET.SubElement(assignment_el, "Work").text = f"PT{round(duration_hours * fraction)}H0M0S"
+                hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
+                if hourly_rate is not None and hourly_rate > 0:
+                    cost = round(duration_hours * fraction * hourly_rate, 2)
+                    ET.SubElement(assignment_el, "Cost").text = f"{cost:.2f}"
                 assignment_uid += 1
 
     ET.indent(root, space="  ")
@@ -633,6 +688,11 @@ def build_portfolio_backlog_project_plan(
                     notes=f"job_size={job_size!r}; illustrative duration only.",
                 )
                 story_task.duration_days = duration_days
+                story_res = story.get("resources")
+                if not story_res:
+                    from process_toolkit.portfolio_backlog.portfolio_backlog import calculate_story_resources
+                    story_res = calculate_story_resources(story)
+                story_task.resources = _normalize_resources(story_res)
                 feature_task.children.append(story_task)
             if not feature_task.children:
                 feature_task.children.append(
@@ -658,9 +718,23 @@ def build_portfolio_backlog_project_plan(
     if overrun_warning:
         root.notes = f"{root.notes}\n\n{overrun_warning}"
 
+    rates_by_name: Dict[str, float] = {}
+    for entry in backlog.get("rate_card") or []:
+        if isinstance(entry, dict):
+            r_name = entry.get("role") or entry.get("name")
+            daily = entry.get("daily_rate") or entry.get("rate")
+            if r_name and daily:
+                try:
+                    rates_by_name[str(r_name)] = float(daily) / _WORK_HOURS_PER_DAY
+                except (ValueError, TypeError):
+                    pass
+    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
+    for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
+        rates_by_name.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
+
     normalized_resources = _normalize_resources(resources)
     xml_text = _render_mspdi(
-        root.name, [root], root.start or project_start, holidays, normalized_resources,
+        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name,
     )
     try:
         out_path = _write_output(xml_text, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
@@ -768,6 +842,8 @@ def build_proposal_response_project_plan(
             notes="\n".join(notes_parts),
         )
         phase_task.duration_days = _parse_timing_to_days(timing_text)
+        if phase.get("resources"):
+            phase_task.resources = _normalize_resources(phase.get("resources"))
         root.children.append(phase_task)
 
     if not root.children:
@@ -781,9 +857,23 @@ def build_proposal_response_project_plan(
     if overrun_warning:
         root.notes = f"{root.notes}\n\n{overrun_warning}"
 
+    rates_by_name_proposal: Dict[str, float] = {}
+    for entry in response.get("rate_card") or []:
+        if isinstance(entry, dict):
+            r_name = entry.get("role") or entry.get("name")
+            daily = entry.get("daily_rate") or entry.get("rate")
+            if r_name and daily:
+                try:
+                    rates_by_name_proposal[str(r_name)] = float(daily) / _WORK_HOURS_PER_DAY
+                except (ValueError, TypeError):
+                    pass
+    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
+    for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
+        rates_by_name_proposal.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
+
     normalized_resources = _normalize_resources(resources)
     xml_text = _render_mspdi(
-        root.name, [root], root.start or project_start, holidays, normalized_resources,
+        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name_proposal,
     )
     try:
         out_path = _write_output(xml_text, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
@@ -813,9 +903,11 @@ def _parse_mspdi_root(path: str) -> Optional[ET.Element]:
     XML or a real root element that isn't the MSPDI namespace's own
     <Project> are both "not MSPDI", not an error, since a caller's own job
     is to fall back to generic handling in that case."""
+    if not os.path.isfile(path):
+        return None
     try:
         root = ET.parse(path).getroot()
-    except ET.ParseError:
+    except (ET.ParseError, OSError):
         return None
     if root.tag != f"{{{_MSPDI_NS}}}Project":
         return None
@@ -832,20 +924,160 @@ def mspdi_project_title(path: str) -> Optional[str]:
     return root.findtext("p:Title", default="", namespaces=ns) or root.findtext("p:Name", default="", namespaces=ns) or None
 
 
+def parse_mspdi_resources(path: str) -> Optional[List[Dict[str, Any]]]:
+    """Parses an existing MSPDI file's <Resources> into a list of plain dicts:
+    {"uid", "id", "name", "type", "max_units"}. Returns None if path isn't MSPDI."""
+    root = _parse_mspdi_root(path)
+    if root is None:
+        return None
+
+    ns = {"p": _MSPDI_NS}
+    resources: List[Dict[str, Any]] = []
+    for res_el in root.findall(".//p:Resources/p:Resource", ns):
+        uid_str = res_el.findtext("p:UID", default="", namespaces=ns) or None
+        id_str = res_el.findtext("p:ID", default="", namespaces=ns) or uid_str
+        name = (res_el.findtext("p:Name", default="", namespaces=ns) or "").strip()
+        type_str = res_el.findtext("p:Type", default="1", namespaces=ns)
+        max_units_str = res_el.findtext("p:MaxUnits", default="", namespaces=ns)
+        max_units = None
+        if max_units_str:
+            try:
+                max_units = float(max_units_str)
+            except ValueError:
+                pass
+        std_rate_str = res_el.findtext("p:StandardRate", default="", namespaces=ns)
+        standard_rate = None
+        if std_rate_str:
+            try:
+                standard_rate = float(std_rate_str)
+            except ValueError:
+                pass
+        resources.append({
+            "uid": uid_str,
+            "id": id_str,
+            "name": name,
+            "type": int(type_str) if type_str.isdigit() else 1,
+            "max_units": max_units,
+            "standard_rate": standard_rate,
+        })
+    return resources
+
+
+def parse_mspdi_assignments(path: str) -> Optional[List[Dict[str, Any]]]:
+    """Parses an existing MSPDI file's <Assignments> into a list of plain dicts:
+    {"uid", "task_uid", "resource_uid", "resource_name", "units", "work", "work_hours", "cost"}.
+    Returns None if path isn't MSPDI."""
+    root = _parse_mspdi_root(path)
+    if root is None:
+        return None
+
+    ns = {"p": _MSPDI_NS}
+    resource_name_by_uid: Dict[str, str] = {}
+    for res_el in root.findall(".//p:Resources/p:Resource", ns):
+        uid_str = res_el.findtext("p:UID", default="", namespaces=ns)
+        name = (res_el.findtext("p:Name", default="", namespaces=ns) or "").strip()
+        if uid_str:
+            resource_name_by_uid[uid_str] = name
+
+    assignments: List[Dict[str, Any]] = []
+    for a_el in root.findall(".//p:Assignments/p:Assignment", ns):
+        uid_str = a_el.findtext("p:UID", default="", namespaces=ns) or None
+        task_uid_str = a_el.findtext("p:TaskUID", default="", namespaces=ns) or None
+        res_uid_str = a_el.findtext("p:ResourceUID", default="", namespaces=ns) or None
+        units_str = a_el.findtext("p:Units", default="", namespaces=ns)
+        work_str = a_el.findtext("p:Work", default="", namespaces=ns) or None
+        cost_str = a_el.findtext("p:Cost", default="", namespaces=ns)
+        units = None
+        if units_str:
+            try:
+                units = float(units_str)
+            except ValueError:
+                pass
+        work_hours = None
+        if work_str:
+            m = re.match(r"PT(\d+(?:\.\d+)?)H", work_str)
+            if m:
+                work_hours = float(m.group(1))
+        cost = None
+        if cost_str:
+            try:
+                cost = float(cost_str)
+            except ValueError:
+                pass
+
+        assignments.append({
+            "uid": uid_str,
+            "task_uid": task_uid_str,
+            "resource_uid": res_uid_str,
+            "resource_name": resource_name_by_uid.get(res_uid_str or "", ""),
+            "units": units,
+            "work": work_str,
+            "work_hours": work_hours,
+            "cost": cost,
+        })
+    return assignments
+
+
 def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
     """Parses an existing MSPDI file's <Tasks> into a list of plain dicts,
     one per task, in document order: {"uid", "name", "outline_level",
     "is_summary", "start", "finish", "duration_hours", "predecessor_uid",
-    "notes"}. start/finish are the raw MSPDI date-time strings (or None);
+    "notes", "resources", "assignments", "cost"}. start/finish are the raw MSPDI date-time strings (or None);
     duration_hours is a float parsed from the task's own "PT#H#M#S" value
-    (or None if absent/unparseable). Returns None if `path` isn't actually
-    MSPDI, so callers can fall back to generic handling the same way
+    (or None if absent/unparseable). Each task includes its assigned resources
+    and allocation details. Returns None if `path` isn't actually MSPDI,
+    so callers can fall back to generic handling the same way
     _parse_mspdi_root's own callers do."""
     root = _parse_mspdi_root(path)
     if root is None:
         return None
 
     ns = {"p": _MSPDI_NS}
+    resource_name_by_uid: Dict[str, str] = {}
+    for res_el in root.findall(".//p:Resources/p:Resource", ns):
+        uid_str = res_el.findtext("p:UID", default="", namespaces=ns)
+        name = (res_el.findtext("p:Name", default="", namespaces=ns) or "").strip()
+        if uid_str:
+            resource_name_by_uid[uid_str] = name
+
+    assignments_by_task: Dict[str, List[Dict[str, Any]]] = {}
+    for a_el in root.findall(".//p:Assignments/p:Assignment", ns):
+        uid_str = a_el.findtext("p:UID", default="", namespaces=ns) or None
+        task_uid_str = a_el.findtext("p:TaskUID", default="", namespaces=ns) or ""
+        res_uid_str = a_el.findtext("p:ResourceUID", default="", namespaces=ns) or ""
+        units_str = a_el.findtext("p:Units", default="", namespaces=ns)
+        work_str = a_el.findtext("p:Work", default="", namespaces=ns) or None
+        cost_str = a_el.findtext("p:Cost", default="", namespaces=ns)
+        units = None
+        if units_str:
+            try:
+                units = float(units_str)
+            except ValueError:
+                pass
+        work_hours = None
+        if work_str:
+            m = re.match(r"PT(\d+(?:\.\d+)?)H", work_str)
+            if m:
+                work_hours = float(m.group(1))
+        cost = None
+        if cost_str:
+            try:
+                cost = float(cost_str)
+            except ValueError:
+                pass
+
+        assignment_data = {
+            "uid": uid_str,
+            "task_uid": task_uid_str,
+            "resource_uid": res_uid_str,
+            "resource_name": resource_name_by_uid.get(res_uid_str, ""),
+            "units": units,
+            "work": work_str,
+            "work_hours": work_hours,
+            "cost": cost,
+        }
+        assignments_by_task.setdefault(task_uid_str, []).append(assignment_data)
+
     tasks: List[Dict[str, Any]] = []
     for task_el in root.findall(".//p:Tasks/p:Task", ns):
         try:
@@ -859,9 +1091,24 @@ def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
             duration_hours = float(match.group(1))
 
         predecessor_uid = task_el.findtext("p:PredecessorLink/p:PredecessorUID", default="", namespaces=ns) or None
+        task_uid = task_el.findtext("p:UID", default="", namespaces=ns) or None
+        task_assigns = assignments_by_task.get(task_uid or "", [])
+        task_resources = [
+            {
+                "resource_uid": a["resource_uid"],
+                "name": a["resource_name"],
+                "units": a["units"],
+                "work": a["work"],
+                "work_hours": a["work_hours"],
+                "cost": a.get("cost"),
+            }
+            for a in task_assigns
+        ]
+        task_cost_vals = [a["cost"] for a in task_assigns if a.get("cost") is not None]
+        task_cost = round(sum(task_cost_vals), 2) if task_cost_vals else None
 
         tasks.append({
-            "uid": task_el.findtext("p:UID", default="", namespaces=ns) or None,
+            "uid": task_uid,
             "name": (task_el.findtext("p:Name", default="", namespaces=ns) or "").strip(),
             "outline_level": outline_level,
             "is_summary": (task_el.findtext("p:Summary", default="0", namespaces=ns) or "0") == "1",
@@ -870,5 +1117,38 @@ def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
             "duration_hours": duration_hours,
             "predecessor_uid": predecessor_uid,
             "notes": (task_el.findtext("p:Notes", default="", namespaces=ns) or "").strip(),
+            "resources": task_resources,
+            "assignments": task_assigns,
+            "cost": task_cost,
         })
     return tasks
+
+
+def parse_mspdi_project(path: str) -> Optional[Dict[str, Any]]:
+    """Parses an existing MSPDI file into a complete Project JSON representation:
+    {"title", "start_date", "finish_date", "tasks", "resources", "assignments", "total_cost"}.
+    Includes resource allocation and costing on the project level and on every task. Returns None if path isn't MSPDI.
+    """
+    root = _parse_mspdi_root(path)
+    if root is None:
+        return None
+
+    ns = {"p": _MSPDI_NS}
+    title = root.findtext("p:Title", default="", namespaces=ns) or root.findtext("p:Name", default="", namespaces=ns) or None
+    start_date = root.findtext("p:StartDate", default="", namespaces=ns) or None
+    finish_date = root.findtext("p:FinishDate", default="", namespaces=ns) or None
+    tasks = parse_mspdi_tasks(path) or []
+    resources = parse_mspdi_resources(path) or []
+    assignments = parse_mspdi_assignments(path) or []
+    cost_vals = [a["cost"] for a in assignments if a.get("cost") is not None]
+    total_cost = round(sum(cost_vals), 2) if cost_vals else None
+
+    return {
+        "title": title,
+        "start_date": start_date,
+        "finish_date": finish_date,
+        "tasks": tasks,
+        "resources": resources,
+        "assignments": assignments,
+        "total_cost": total_cost,
+    }

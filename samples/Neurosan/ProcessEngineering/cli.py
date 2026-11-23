@@ -2180,7 +2180,7 @@ def build_web_app(agent_name: str, https: bool = True):
         )
         from process_interface.docgen.project_plan_export import (
             PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
-            parse_mspdi_tasks,
+            parse_mspdi_tasks, parse_mspdi_project,
         )
 
         graph_names = {
@@ -2240,7 +2240,8 @@ def build_web_app(agent_name: str, https: bool = True):
                 if name in graph_names:
                     data = parse_vsdx_to_graph(path)
                 elif name in task_list_names:
-                    data = {"tasks": parse_mspdi_tasks(path)}
+                    project_data = parse_mspdi_project(path)
+                    data = project_data if project_data is not None else {"tasks": parse_mspdi_tasks(path) or []}
                 elif name in raw_xml_names:
                     with open(path, "r", encoding="utf-8") as f:
                         data = f.read()

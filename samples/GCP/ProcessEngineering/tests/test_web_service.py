@@ -1052,8 +1052,15 @@ class WebServiceArtifactRouteTest(unittest.TestCase):
             "/artifacts/portfolio_backlog_project_plan", headers=self._authorized_headers()
         )
         self.assertEqual(response.status_code, 200)
-        tasks = response.get_json()["data"]["tasks"]
+        data = response.get_json()["data"]
+        tasks = data["tasks"]
         self.assertEqual({t["name"] for t in tasks}, {"Fixture Backlog", "Epic", "Feature", "Story"})
+        self.assertIn("resources", data)
+        self.assertIn("assignments", data)
+        self.assertGreater(len(data["resources"]), 0)
+        self.assertGreater(len(data["assignments"]), 0)
+        story_task = next(t for t in tasks if t["name"] == "Story")
+        self.assertGreater(len(story_task["resources"]), 0)
 
     def test_pert_cpm_names_are_not_viewable_via_the_json_route(self):
         # The PERT/CPM diagrams are real PNG images, not text/JSON -- they

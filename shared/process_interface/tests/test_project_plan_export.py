@@ -35,7 +35,11 @@ def mcp_mode(monkeypatch, tmp_path):
     server_output_dir = tmp_path / "server_output"
     server_output_dir.mkdir()
 
-    env = {**os.environ, "PROCESS_TOOLKIT_MCP_OUTPUT_DIR": str(server_output_dir)}
+    env = {
+        **os.environ,
+        "PROCESS_TOOLKIT_MCP_OUTPUT_DIR": str(server_output_dir),
+        "FASTMCP_DISABLE_VERSION_CHECK": "1",
+    }
     proc = subprocess.Popen(
         [
             "uv", "run", "python", "server.py",
@@ -220,3 +224,24 @@ class TestBothModesAgainstTheRealServer:
 
         result = project_plan_export.build_portfolio_backlog_project_plan()
         assert result.startswith("ERROR:"), result
+
+    def test_parse_mspdi_project_and_resources_in_interface(self):
+        from process_interface.docgen import project_plan_export
+
+        _save_backlog()
+        result = project_plan_export.build_portfolio_backlog_project_plan()
+        assert result.startswith("Project plan successfully exported to ")
+
+        local_path = paths.output_path("portfolio_backlog_project_plan.xml")
+        project = project_plan_export.parse_mspdi_project(local_path)
+        assert project is not None
+        assert "tasks" in project
+        assert "resources" in project
+        assert "assignments" in project
+        assert len(project["tasks"]) > 0
+        assert len(project["resources"]) > 0
+        assert len(project["assignments"]) > 0
+
+        story_task = next(t for t in project["tasks"] if t["name"] == "Story One")
+        assert len(story_task["resources"]) > 0
+        assert len(story_task["assignments"]) > 0

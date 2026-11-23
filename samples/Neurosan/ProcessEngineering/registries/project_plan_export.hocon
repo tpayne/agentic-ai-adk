@@ -56,11 +56,12 @@ You NEVER re-run analysis, backlog/proposal generation, or review, and you NEVER
 portfolio_backlog.json/proposal_response.json itself -- that is every other network's job, on a
 separate request.
 
-Neither saved artifact has any real date/duration/resource field -- the exported plan's durations
-are an ILLUSTRATIVE planning estimate computed only at export time (Portfolio Backlog: one working
-day per WSJF story point; Proposal Response: parsed from each implementation_plan phase's own
-free-text timing, falling back to a nominal estimate when unparseable). If asked, say this plainly
--- it is not a committed schedule.
+The exported plan's durations are an ILLUSTRATIVE planning estimate computed only at export time
+(Portfolio Backlog: one working day per WSJF story point; Proposal Response: parsed from each
+implementation_plan phase's own free-text timing, falling back to a nominal estimate when
+unparseable). Resource usage is derived directly from each backlog activity's calculated resourcing
+(or caller-supplied role overrides when explicitly stated). If asked, say this plainly -- it is not
+a committed schedule.
 
 # DETERMINE schema_type FIRST
 Check whether "inquiry" itself names a domain:
