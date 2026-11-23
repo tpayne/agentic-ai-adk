@@ -188,14 +188,30 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
             ha="center", va="center", zorder=5,
         )
 
-    for i in range(len(scored) - 1):
-        ax.add_patch(FancyArrowPatch(
-            positions[i], positions[i + 1],
-            patchA=node_boxes[i], patchB=node_boxes[i + 1],
-            arrowstyle="-|>", mutation_scale=13,
-            color="#7C91AA", linewidth=1.55, alpha=0.9,
-            shrinkA=4, shrinkB=4, zorder=2,
-        ))
+    uid_to_index = {a["uid"]: i for i, a in enumerate(scored) if "uid" in a}
+    edges = set()
+    has_explicit_predecessors = any(a.get("predecessor_uids") for a in scored)
+    if has_explicit_predecessors:
+        for i, a in enumerate(scored):
+            for p_uid in a.get("predecessor_uids") or []:
+                if p_uid in uid_to_index:
+                    edges.add((uid_to_index[p_uid], i))
+    if not edges:
+        edges = {(i, i + 1) for i in range(len(scored) - 1)}
+
+    for src_idx, dst_idx in sorted(edges):
+        if src_idx != dst_idx and 0 <= src_idx < len(node_boxes) and 0 <= dst_idx < len(node_boxes):
+            rad = 0.0
+            if dst_idx - src_idx > 1:
+                rad = 0.22 if (src_idx + dst_idx) % 2 == 0 else -0.22
+            ax.add_patch(FancyArrowPatch(
+                positions[src_idx], positions[dst_idx],
+                patchA=node_boxes[src_idx], patchB=node_boxes[dst_idx],
+                connectionstyle=f"arc3,rad={rad}",
+                arrowstyle="-|>", mutation_scale=13,
+                color="#7C91AA", linewidth=1.55, alpha=0.9,
+                shrinkA=4, shrinkB=4, zorder=2,
+            ))
 
     ax.axis("off")
 
@@ -209,26 +225,78 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Genuine backward pass, not a hardcoded shortcut -- see module
     docstring. Returns a NEW list of dicts (does not mutate the input),
     each carrying everything the input had plus "late_start", "late_finish",
-    "float_days", "critical"."""
+    "float_days", "critical". Supports both linear sequences and DAGs with
+    predecessor_uids."""
     scored = [dict(a) for a in activities]
-    # Forward times (ES/EF) are already the given start/finish -- this
-    # module trusts the caller's own schedule rather than recomputing it.
-    scored[-1]["late_finish"] = scored[-1]["finish"]
-    scored[-1]["float_days"] = 0
-    for i in range(len(scored) - 2, -1, -1):
-        # Activity i's own float is the gap BEFORE its successor PLUS
-        # whatever float the successor itself already has -- delaying i by
-        # up to that gap doesn't move the successor's own start at all, and
-        # once it would, i is really just borrowing the successor's own
-        # already-available slack instead. Dropping the "+ successor's
-        # float" term (an earlier version of this function did) silently
-        # understates float for every activity before a gap, not just the
-        # one immediately next to it.
-        gap = scored[i + 1].get("gap_working_days_before", 0)
-        scored[i]["float_days"] = gap + scored[i + 1]["float_days"]
-        scored[i]["late_finish"] = scored[i]["finish"] + _dt.timedelta(days=scored[i]["float_days"])
-    for activity in scored:
-        duration = max(activity["duration_days"], 1)
-        activity["late_start"] = activity["late_finish"] - _dt.timedelta(days=duration - 1)
-        activity["critical"] = activity["float_days"] == 0
+    if not scored:
+        return scored
+
+    has_dag = any(a.get("predecessor_uids") for a in scored)
+    if not has_dag:
+        # Forward times (ES/EF) are already the given start/finish -- this
+        # module trusts the caller's own schedule rather than recomputing it.
+        scored[-1]["late_finish"] = scored[-1]["finish"]
+        scored[-1]["float_days"] = 0
+        for i in range(len(scored) - 2, -1, -1):
+            gap = scored[i + 1].get("gap_working_days_before", 0)
+            scored[i]["float_days"] = gap + scored[i + 1]["float_days"]
+            scored[i]["late_finish"] = scored[i]["finish"] + _dt.timedelta(days=scored[i]["float_days"])
+        for activity in scored:
+            duration = max(activity["duration_days"], 1)
+            activity["late_start"] = activity["late_finish"] - _dt.timedelta(days=duration - 1)
+            activity["critical"] = activity["float_days"] == 0
+        return scored
+
+    # DAG CPM computation
+    project_finish = max(a["finish"] for a in scored)
+    successors_of: Dict[Any, List[Dict[str, Any]]] = {a["uid"]: [] for a in scored if "uid" in a}
+    for a in scored:
+        for p_uid in a.get("predecessor_uids") or []:
+            if p_uid in successors_of:
+                successors_of[p_uid].append(a)
+
+    for a in scored:
+        a["late_finish"] = project_finish
+
+    def _working_day_diff(d1: _dt.date, d2: _dt.date) -> int:
+        if d2 <= d1:
+            return 0
+        cur = d1
+        count = 0
+        while cur < d2:
+            cur += _dt.timedelta(days=1)
+            if cur.weekday() < 5:
+                count += 1
+        return count
+
+    def _subtract_working_days(d: _dt.date, days: int) -> _dt.date:
+        cur = d
+        remaining = days
+        while remaining > 0:
+            cur -= _dt.timedelta(days=1)
+            if cur.weekday() < 5:
+                remaining -= 1
+        return cur
+
+    for _ in range(len(scored) * 2):
+        changed = False
+        for a in scored:
+            succs = successors_of.get(a.get("uid"), [])
+            if succs:
+                min_ls = min(
+                    _subtract_working_days(s["late_finish"], max(s["duration_days"], 1) - 1)
+                    for s in succs
+                )
+                target_lf = _subtract_working_days(min_ls, 1)
+                if target_lf < a["late_finish"]:
+                    a["late_finish"] = target_lf
+                    changed = True
+        if not changed:
+            break
+
+    for a in scored:
+        duration = max(a["duration_days"], 1)
+        a["late_start"] = _subtract_working_days(a["late_finish"], duration - 1)
+        a["float_days"] = _working_day_diff(a["finish"], a["late_finish"])
+        a["critical"] = a["float_days"] == 0
     return scored

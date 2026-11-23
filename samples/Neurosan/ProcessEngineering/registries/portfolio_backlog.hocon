@@ -75,20 +75,27 @@ traces_to. Do not assume missing fields exist.
 # BACKLOG
 Save one JSON object with name, summary, source_artifact (exactly "design" or
 "requirements_summary"), source_name, rate_card, and a non-empty epics array.
+When specified in the engagement, include timescale_weeks (e.g. 12), roles, and requirements_reference
+(defining each requirement ID cited in traces_to with id, type, title, description).
+When specific consulting roles and allocations are given in the engagement (e.g. Programme Delivery Manager 50%,
+Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%), use those exact roles in roles,
+rate_card, and across the stories. When specific phases and deliverables are requested (e.g. the 9 ITSM discovery
+phases and 9 deliverables), map every phase to an Epic and cover all 9 deliverables, maintaining vendor-neutral
+evaluation across future market options (ServiceNow, Jira Service Management, Freshservice, BMC Helix).
 
 Project sensible estimations for resource costing on rate_card: an array of delivery roles
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction e.g. 0.40>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
-grounded in market benchmarks (e.g. Solution Architect $1,500/day, Software Engineer $1,275/day,
-DevOps / Platform Engineer $1,200/day, QA Engineer $1,000/day, Business Analyst $1,000/day, Product Owner $1,200/day).
+grounded in market benchmarks (e.g. Programme Delivery Manager $1,300/day, Solution Architect $1,500/day,
+Lead Business Analyst $1,100/day, Business Analyst $1,000/day, Software Engineer $1,275/day, DevOps $1,200/day).
 effort_mix reflects overall projected staffing mix summing to 1.0.
 
 Nest non-empty features under epics and non-empty stories under features. Give every item a unique id
 with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description, strategic_theme, non-empty traces_to,
-priority_components, and job_size. Every story also needs a non-empty acceptance_criteria array of observable pass/fail
+priority_components, and job_size. Use dependencies (e.g. ["EPIC-001"]) and timing (e.g. "Weeks 2-4") to model
+concurrency and workflow dependencies. Every story also needs a non-empty acceptance_criteria array of observable pass/fail
 outcomes. Stories must include dynamically calculated resources: an array of {"name": "<delivery role>", "allocation_percent": number}
-matching the specific technical activity and requirements of the story (never hardcode fixed or uniform percentages),
-summing to 100% (e.g. architecture spikes: Solution Architect 60%, Software Engineer 20%, BA 20%; feature dev: Software Engineer 60%,
-QA 20%, Solution Architect 10%, DevOps 10%; infra/pipeline: DevOps 60%, Software Engineer 25%, QA 15%; testing: QA 60%, Software Engineer 25%, DevOps 15%).
+matching the specific technical activity and requirements of the story (never hardcode fixed or uniform percentages
+unless an exact engagement staffing model is specified), summing to 100%.
 
 priority_components must contain integer user_business_value, time_criticality, and risk_reduction
 scores. Each component and job_size must use only the modified Fibonacci values [1, 2, 3, 5, 8, 13,

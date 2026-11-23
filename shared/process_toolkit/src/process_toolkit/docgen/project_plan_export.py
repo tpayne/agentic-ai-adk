@@ -261,8 +261,12 @@ class _Task:
         self.start: Optional[_dt.date] = None
         self.finish: Optional[_dt.date] = None
         self.predecessor_uid: Optional[int] = None
+        self.predecessor_uids: List[int] = []
         self.children: List["_Task"] = []
         self.resources: List[Tuple[str, float]] = []
+        self.item_id: Optional[str] = None
+        self.dependencies: List[str] = []
+        self.start_week: Optional[int] = None
 
 
 def _schedule_sequential_leaf(
@@ -286,11 +290,133 @@ def _schedule_subtree(
     for i, child in enumerate(task.children):
         if i > 0:
             child.predecessor_uid = previous_uid
+            if previous_uid is not None and previous_uid not in child.predecessor_uids:
+                child.predecessor_uids.append(previous_uid)
         finish = _schedule_subtree(child, cursor, holidays)
         cursor = _next_working_day(finish, holidays)
         previous_uid = child.uid
     task.finish = task.children[-1].finish or task.start
     return task.finish
+
+
+def _schedule_task_tree(
+    root: "_Task", anchor_start: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+) -> _dt.date:
+    all_tasks = _flatten([root])
+    has_explicit_deps = any(t.dependencies or t.predecessor_uids or (t.start_week and t.start_week > 1) for t in all_tasks)
+    if not has_explicit_deps:
+        return _schedule_subtree(root, anchor_start, holidays)
+
+    # Build identifier lookup
+    task_by_id: Dict[str, _Task] = {}
+    task_by_uid: Dict[int, _Task] = {t.uid: t for t in all_tasks}
+    for t in all_tasks:
+        if t.item_id:
+            task_by_id[t.item_id.strip()] = t
+            task_by_id[t.item_id.strip().lower()] = t
+        if t.name:
+            task_by_id[t.name.strip()] = t
+            task_by_id[t.name.strip().lower()] = t
+
+    def _terminal_leaf_uids(task: "_Task") -> List[int]:
+        leaves = [l for l in _flatten([task]) if not l.children]
+        return [l.uid for l in leaves]
+
+    def _initial_leaf_tasks(task: "_Task") -> List["_Task"]:
+        if not task.children:
+            return [task]
+        return _initial_leaf_tasks(task.children[0])
+
+    # Resolve dependencies into predecessor_uids
+    for t in all_tasks:
+        for dep in (t.dependencies or []):
+            dep_clean = str(dep).strip()
+            target = task_by_id.get(dep_clean) or task_by_id.get(dep_clean.lower())
+            if target:
+                if target.is_summary:
+                    for leaf_uid in _terminal_leaf_uids(target):
+                        if leaf_uid != t.uid and leaf_uid not in t.predecessor_uids:
+                            t.predecessor_uids.append(leaf_uid)
+                else:
+                    if target.uid != t.uid and target.uid not in t.predecessor_uids:
+                        t.predecessor_uids.append(target.uid)
+
+    # Propagate summary task predecessors to initial leaf tasks
+    for t in all_tasks:
+        if t.is_summary and t.predecessor_uids:
+            for init_leaf in _initial_leaf_tasks(t):
+                for p in t.predecessor_uids:
+                    if p != init_leaf.uid and p not in init_leaf.predecessor_uids:
+                        init_leaf.predecessor_uids.append(p)
+
+    # Link intra-branch siblings without explicit dependencies
+    def _link_internal_siblings(parent: "_Task"):
+        for i, child in enumerate(parent.children):
+            if i > 0 and not child.dependencies and not child.predecessor_uids and not (child.start_week and child.start_week > 1):
+                prev_sibling = parent.children[i - 1]
+                prev_leaves = _terminal_leaf_uids(prev_sibling)
+                for init_leaf in _initial_leaf_tasks(child):
+                    for p in prev_leaves:
+                        if p != init_leaf.uid and p not in init_leaf.predecessor_uids:
+                            init_leaf.predecessor_uids.append(p)
+            if child.children:
+                _link_internal_siblings(child)
+
+    _link_internal_siblings(root)
+
+    leaf_tasks = [t for t in all_tasks if not t.children]
+    scheduled: Set[int] = set()
+
+    for _ in range(len(leaf_tasks) * 2):
+        progress = False
+        for leaf in leaf_tasks:
+            if leaf.uid in scheduled:
+                continue
+            preds = [p for p in leaf.predecessor_uids if p in task_by_uid]
+            if all(p in scheduled for p in preds):
+                if preds:
+                    max_pred_finish = max(task_by_uid[p].finish for p in preds if task_by_uid[p].finish)
+                    earliest = _next_working_day(max_pred_finish, holidays)
+                else:
+                    earliest = anchor_start
+
+                if leaf.start_week and leaf.start_week > 1:
+                    last_day_prev = _advance_working_days(anchor_start, (leaf.start_week - 1) * 5, holidays)
+                    week_start = _next_working_day(last_day_prev, holidays)
+                    if week_start > earliest:
+                        earliest = week_start
+
+                leaf.start = _first_working_day_on_or_after(earliest, holidays)
+                leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+                if leaf.predecessor_uids:
+                    leaf.predecessor_uid = leaf.predecessor_uids[-1]
+                scheduled.add(leaf.uid)
+                progress = True
+        if not progress:
+            break
+
+    for leaf in leaf_tasks:
+        if leaf.uid not in scheduled:
+            cur_start = anchor_start
+            leaf.start = _first_working_day_on_or_after(cur_start, holidays)
+            leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+            scheduled.add(leaf.uid)
+
+    def _rollup(task: "_Task"):
+        for child in task.children:
+            if child.children:
+                _rollup(child)
+        child_starts = [c.start for c in task.children if c.start]
+        child_finishes = [c.finish for c in task.children if c.finish]
+        if child_starts and child_finishes:
+            task.start = min(child_starts)
+            task.finish = max(child_finishes)
+            task.duration_days = _count_working_days(task.start, task.finish, holidays)
+            if task.predecessor_uids and not task.predecessor_uid:
+                task.predecessor_uid = task.predecessor_uids[-1]
+
+    _rollup(root)
+    return root.finish or anchor_start
 
 
 def _flatten(tasks: List["_Task"]) -> List["_Task"]:
@@ -468,9 +594,12 @@ def _render_mspdi(
         ET.SubElement(task_el, "DurationFormat").text = "7"  # 7 = days, display hint only
         if task.notes:
             ET.SubElement(task_el, "Notes").text = task.notes
-        if task.predecessor_uid is not None:
+        predecessors = list(task.predecessor_uids)
+        if task.predecessor_uid is not None and task.predecessor_uid not in predecessors:
+            predecessors.append(task.predecessor_uid)
+        for p_uid in predecessors:
             pred = ET.SubElement(task_el, "PredecessorLink")
-            ET.SubElement(pred, "PredecessorUID").text = str(task.predecessor_uid)
+            ET.SubElement(pred, "PredecessorUID").text = str(p_uid)
             ET.SubElement(pred, "Type").text = "1"  # Finish-to-Start
             ET.SubElement(pred, "CrossProject").text = "0"
             ET.SubElement(pred, "LinkLag").text = "0"
@@ -583,9 +712,13 @@ def _build_and_write_pert_cpm(
         gap = 0
         if i > 0:
             gap = max(0, _count_working_days(leaves[i - 1].finish, task.start, holidays) - 2)
+        preds = list(task.predecessor_uids)
+        if task.predecessor_uid is not None and task.predecessor_uid not in preds:
+            preds.append(task.predecessor_uid)
         activities.append({
             "uid": task.uid, "name": task.name, "start": task.start, "finish": task.finish,
             "duration_days": max(task.duration_days, 1), "gap_working_days_before": gap,
+            "predecessor_uids": preds,
         })
     try:
         return generate_pert_cpm_diagram(activities, root_task.name, filename), None
@@ -670,24 +803,46 @@ def build_portfolio_backlog_project_plan(
             uid=next_uid(), name=epic.get("title") or epic.get("id") or "Epic",
             outline_level=2, is_summary=True,
         )
+        epic_task.item_id = epic.get("id")
+        epic_task.dependencies = epic.get("dependencies") or epic.get("predecessors") or []
+        timing_w_epic = _parse_timing_window(epic.get("timing") or "")
+        if timing_w_epic[0] is not None:
+            epic_task.start_week = timing_w_epic[0]
         for feature in epic.get("features") or []:
             feature_task = _Task(
                 uid=next_uid(), name=feature.get("title") or feature.get("id") or "Feature",
                 outline_level=3, is_summary=True,
             )
+            feature_task.item_id = feature.get("id")
+            feature_task.dependencies = feature.get("dependencies") or feature.get("predecessors") or []
+            timing_w_feat = _parse_timing_window(feature.get("timing") or "")
+            if timing_w_feat[0] is not None:
+                feature_task.start_week = timing_w_feat[0]
             for story in feature.get("stories") or []:
                 job_size = story.get("job_size")
                 try:
                     points = float(job_size)
                 except (TypeError, ValueError):
                     points = 1.0
-                duration_days = max(1, round(points * DEFAULT_WORKING_DAYS_PER_POINT))
+                explicit_days = story.get("duration_days") or story.get("duration_working_days")
+                if explicit_days:
+                    try:
+                        duration_days = max(1, int(explicit_days))
+                    except (ValueError, TypeError):
+                        duration_days = max(1, round(points * DEFAULT_WORKING_DAYS_PER_POINT))
+                else:
+                    duration_days = max(1, round(points * DEFAULT_WORKING_DAYS_PER_POINT))
                 story_task = _Task(
                     uid=next_uid(), name=story.get("title") or story.get("id") or "Story",
                     outline_level=4, is_summary=False,
                     notes=f"job_size={job_size!r}; illustrative duration only.",
                 )
                 story_task.duration_days = duration_days
+                story_task.item_id = story.get("id")
+                story_task.dependencies = story.get("dependencies") or story.get("predecessors") or []
+                timing_w_story = _parse_timing_window(story.get("timing") or "")
+                if timing_w_story[0] is not None:
+                    story_task.start_week = timing_w_story[0]
                 story_res = story.get("resources")
                 if not story_res:
                     from process_toolkit.portfolio_backlog.portfolio_backlog import calculate_story_resources
@@ -712,7 +867,7 @@ def build_portfolio_backlog_project_plan(
 
     project_start = _parse_start_date(start_date)
     holidays = _resolve_holidays(holiday_calendar, project_start)
-    _schedule_subtree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
+    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
 
     overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
     if overrun_warning:
@@ -732,7 +887,7 @@ def build_portfolio_backlog_project_plan(
     for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
         rates_by_name.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
 
-    normalized_resources = _normalize_resources(resources)
+    normalized_resources = _normalize_resources(resources or backlog.get("roles") or backlog.get("resources"))
     xml_text = _render_mspdi(
         root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name,
     )
@@ -799,6 +954,26 @@ def _parse_timing_to_days(timing: str) -> int:
     return _DEFAULT_PHASE_DURATION_DAYS
 
 
+def _parse_timing_window(timing: str) -> Tuple[Optional[int], Optional[int], int]:
+    """Parses free-text timing (e.g. "Weeks 2-4", "Week 1", "Weeks 11-12 (10 days)")
+    into (start_week, end_week, duration_working_days)."""
+    if not isinstance(timing, str) or not timing.strip():
+        return None, None, _DEFAULT_PHASE_DURATION_DAYS
+
+    match = _WEEK_RANGE_RE.search(timing)
+    if match:
+        start_week, end_week = int(match.group(1)), int(match.group(2))
+        span_weeks = max(1, end_week - start_week + 1)
+        return start_week, end_week, span_weeks * _WORKING_DAYS_PER_WEEK
+
+    match = _WEEK_SINGLE_RE.search(timing)
+    if match:
+        week = int(match.group(1))
+        return week, week, _WORKING_DAYS_PER_WEEK
+
+    return None, None, _parse_timing_to_days(timing)
+
+
 def build_proposal_response_project_plan(
     start_date: Optional[str] = None,
     resources: Optional[List[Dict[str, Any]]] = None,
@@ -841,7 +1016,13 @@ def build_proposal_response_project_plan(
             outline_level=2, is_summary=False,
             notes="\n".join(notes_parts),
         )
-        phase_task.duration_days = _parse_timing_to_days(timing_text)
+        timing_w = _parse_timing_window(timing_text)
+        phase_task.duration_days = timing_w[2]
+        if timing_w[0] is not None:
+            phase_task.start_week = timing_w[0]
+        if phase.get("dependencies") or phase.get("predecessors"):
+            phase_task.dependencies = phase.get("dependencies") or phase.get("predecessors") or []
+        phase_task.item_id = phase.get("id") or phase.get("phase")
         if phase.get("resources"):
             phase_task.resources = _normalize_resources(phase.get("resources"))
         root.children.append(phase_task)
@@ -851,7 +1032,7 @@ def build_proposal_response_project_plan(
 
     project_start = _parse_start_date(start_date)
     holidays = _resolve_holidays(holiday_calendar, project_start)
-    _schedule_subtree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
+    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
 
     overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
     if overrun_warning:
@@ -1090,7 +1271,10 @@ def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
         if match:
             duration_hours = float(match.group(1))
 
-        predecessor_uid = task_el.findtext("p:PredecessorLink/p:PredecessorUID", default="", namespaces=ns) or None
+        pred_uids = [
+            p.text for p in task_el.findall("p:PredecessorLink/p:PredecessorUID", ns) if p.text
+        ]
+        predecessor_uid = pred_uids[0] if pred_uids else None
         task_uid = task_el.findtext("p:UID", default="", namespaces=ns) or None
         task_assigns = assignments_by_task.get(task_uid or "", [])
         task_resources = [
@@ -1116,6 +1300,7 @@ def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
             "finish": task_el.findtext("p:Finish", default="", namespaces=ns) or None,
             "duration_hours": duration_hours,
             "predecessor_uid": predecessor_uid,
+            "predecessor_uids": pred_uids,
             "notes": (task_el.findtext("p:Notes", default="", namespaces=ns) or "").strip(),
             "resources": task_resources,
             "assignments": task_assigns,

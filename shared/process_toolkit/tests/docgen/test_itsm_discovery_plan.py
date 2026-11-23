@@ -10,6 +10,7 @@ Validates compliance against the 5 key criteria:
    and parsed Project JSON.
 """
 
+import datetime as _dt
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 import pytest
@@ -470,3 +471,281 @@ def test_itsm_12_week_proposal_response_project_plan_compliance():
     assert len(parsed["resources"]) == 4
     assert len(parsed["tasks"]) == 10  # 1 root + 9 phases
     assert parsed["total_cost"] == 210000.0
+
+
+def test_itsm_12_week_parallel_streams_and_slack():
+    """Verifies that when backlog or proposal specifies concurrent discovery streams,
+    tasks run in parallel, dependencies link correctly, and slack/float is accurately computed."""
+    parallel_backlog = {
+        "name": "12-Week ITSM Discovery and Options Assessment Engagement",
+        "summary": "Assess current ITSM capabilities, processes, tooling, integrations, costs and requirements; evaluate future options; produce recommendations, roadmap and business case inputs.",
+        "status": "OK",
+        "timescale_weeks": 12,
+        "rate_card": [
+            {"role": "Programme Delivery Manager", "daily_rate": 1300.0},
+            {"role": "Lead Business Analyst", "daily_rate": 1100.0},
+            {"role": "Business Analyst", "daily_rate": 1000.0},
+            {"role": "Solution Architect", "daily_rate": 1500.0},
+        ],
+        "roles": [
+            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+            {"name": "Lead Business Analyst", "allocation_percent": 100},
+            {"name": "Business Analyst", "allocation_percent": 100},
+            {"name": "Solution Architect", "allocation_percent": 50},
+        ],
+        "epics": [
+            {
+                "id": "EPIC-01",
+                "title": "Phase 1: Mobilisation",
+                "dependencies": [],
+                "features": [{
+                    "id": "FEAT-01",
+                    "title": "Engagement Mobilisation & Governance Kickoff",
+                    "stories": [{
+                        "id": "STORY-01",
+                        "title": "Mobilisation & Project Governance Setup",
+                        "duration_days": 5,
+                        "description": "Deliverable: Mobilisation Charter & Governance Framework.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-02",
+                "title": "Phase 2: Current State Assessment",
+                "dependencies": ["EPIC-01"],
+                "features": [{
+                    "id": "FEAT-02",
+                    "title": "Current State Capabilities & Tooling Assessment",
+                    "stories": [{
+                        "id": "STORY-02",
+                        "title": "Current State Assessment & Baseline Analysis",
+                        "duration_days": 15,  # Weeks 2-4 (3 weeks)
+                        "description": "Deliverable: Current State Assessment.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-03",
+                "title": "Phase 3: Requirements Discovery",
+                "dependencies": ["EPIC-01"],
+                "features": [{
+                    "id": "FEAT-03",
+                    "title": "Requirements Discovery & Elicitation",
+                    "stories": [{
+                        "id": "STORY-03",
+                        "title": "Requirements Catalogue & Specification",
+                        "duration_days": 20,  # Weeks 2-5 (4 weeks) -> runs parallel with Phase 2
+                        "description": "Deliverable: Requirements Catalogue.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-04",
+                "title": "Phase 4: Future State Definition",
+                "dependencies": ["EPIC-02", "EPIC-03"],
+                "features": [{
+                    "id": "FEAT-04",
+                    "title": "Future State Architecture & Operating Model",
+                    "stories": [{
+                        "id": "STORY-04",
+                        "title": "Architecture Assessment & Target Operating Model",
+                        "duration_days": 10,  # Weeks 6-7 (2 weeks)
+                        "description": "Deliverable: Architecture Assessment.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-05",
+                "title": "Phase 5: Market Assessment",
+                "dependencies": ["EPIC-02", "EPIC-03"],
+                "features": [{
+                    "id": "FEAT-05",
+                    "title": "ITSM Platform Market Assessment",
+                    "stories": [{
+                        "id": "STORY-05",
+                        "title": "Market Assessment & Vendor Landscape",
+                        "duration_days": 10,  # Weeks 6-7 (2 weeks) -> runs parallel with Phase 4
+                        "description": "Deliverable: Market Assessment.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-06",
+                "title": "Phase 6: Options Appraisal",
+                "dependencies": ["EPIC-04", "EPIC-05"],
+                "features": [{
+                    "id": "FEAT-06",
+                    "title": "Options Appraisal & Evaluation Matrix",
+                    "stories": [{
+                        "id": "STORY-06",
+                        "title": "Options Appraisal & Comparative Analysis",
+                        "duration_days": 10,  # Weeks 8-9 (2 weeks)
+                        "description": "Deliverable: Options Appraisal.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-07",
+                "title": "Phase 7: Business Case Support",
+                "dependencies": ["EPIC-06"],
+                "features": [{
+                    "id": "FEAT-07",
+                    "title": "Business Case Modeling & Evidence Pack",
+                    "stories": [{
+                        "id": "STORY-07",
+                        "title": "Business Case Evidence Pack Formulation",
+                        "duration_days": 10,  # Weeks 10-11 (2 weeks)
+                        "description": "Deliverable: Business Case Evidence Pack.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-08",
+                "title": "Phase 8: Implementation Readiness Assessment",
+                "dependencies": ["EPIC-06"],
+                "features": [{
+                    "id": "FEAT-08",
+                    "title": "Implementation Readiness & Risk Evaluation",
+                    "stories": [{
+                        "id": "STORY-08",
+                        "title": "Readiness Assessment & Transition Planning",
+                        "duration_days": 10,  # Weeks 10-11 (2 weeks) -> runs parallel with Phase 7
+                        "description": "Deliverable: Readiness Assessment.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+            {
+                "id": "EPIC-09",
+                "title": "Phase 9: Final Recommendation & Handover",
+                "dependencies": ["EPIC-07", "EPIC-08"],
+                "features": [{
+                    "id": "FEAT-09",
+                    "title": "Final Recommendations & Implementation Roadmap",
+                    "stories": [{
+                        "id": "STORY-09",
+                        "title": "Final Recommendation, Roadmap & Handover",
+                        "duration_days": 5,  # Week 12 (1 week)
+                        "description": "Deliverable: Implementation Roadmap and Final Recommendation.",
+                        "resources": [
+                            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                            {"name": "Lead Business Analyst", "allocation_percent": 100},
+                            {"name": "Business Analyst", "allocation_percent": 100},
+                            {"name": "Solution Architect", "allocation_percent": 50},
+                        ],
+                    }],
+                }],
+            },
+        ],
+    }
+
+    with patch("process_toolkit.docgen.project_plan_export.load_portfolio_backlog", return_value=parallel_backlog):
+        result_msg = build_portfolio_backlog_project_plan(
+            start_date="2026-11-23",
+            target_duration_weeks=12,
+        )
+
+    assert "successfully exported" in result_msg
+    xml_path = paths.output_path("portfolio_backlog_project_plan.xml")
+    parsed = parse_mspdi_project(xml_path)
+
+    # 1. Total span is exactly 12 weeks (Nov 23, 2026 to Feb 12, 2027)
+    assert parsed["start_date"] == "2026-11-23T08:00:00"
+    assert parsed["finish_date"] == "2027-02-12T16:00:00"
+
+    tasks_by_name = {t["name"]: t for t in parsed["tasks"]}
+
+    # 2. Concurrency: Phase 2 and Phase 3 both start on 2026-11-30 (immediately after Phase 1)
+    p2 = tasks_by_name["Phase 2: Current State Assessment"]
+    p3 = tasks_by_name["Phase 3: Requirements Discovery"]
+    assert p2["start"] == "2026-11-30T08:00:00"
+    assert p3["start"] == "2026-11-30T08:00:00"
+
+    # Phase 2 is 15 working days (finishes Dec 18) while Phase 3 is 20 working days (finishes Dec 25)
+    assert p2["finish"] == "2026-12-18T16:00:00"
+    assert p3["finish"] == "2026-12-25T16:00:00"
+
+    # 3. Phase 4 starts on Dec 28 (after both Phase 2 and Phase 3 finish)
+    p4 = tasks_by_name["Phase 4: Future State Definition"]
+    p5 = tasks_by_name["Phase 5: Market Assessment"]
+    assert p4["start"] == "2026-12-28T08:00:00"
+    assert p5["start"] == "2026-12-28T08:00:00"
+
+    # 4. Multi-predecessor verification in XML
+    story4 = tasks_by_name["Architecture Assessment & Target Operating Model"]
+    story2 = tasks_by_name["Current State Assessment & Baseline Analysis"]
+    story3 = tasks_by_name["Requirements Catalogue & Specification"]
+    assert str(story2["uid"]) in story4["predecessor_uids"]
+    assert str(story3["uid"]) in story4["predecessor_uids"]
+
+    # 5. PERT/CPM: Phase 2 finished early, so its leaf story has 5 working days of float
+    from process_toolkit.docgen.pert_cpm_export import _compute_cpm
+    leaves = [t for t in parsed["tasks"] if not t["is_summary"]]
+    cpm_input = [
+        {
+            "uid": int(t["uid"]),
+            "name": t["name"],
+            "start": _dt.date.fromisoformat(t["start"].split("T")[0]),
+            "finish": _dt.date.fromisoformat(t["finish"].split("T")[0]),
+            "duration_days": int(t["duration_hours"] / 8),
+            "predecessor_uids": [int(u) for u in t.get("predecessor_uids", []) if u.isdigit()],
+        }
+        for t in leaves
+    ]
+    cpm_scored = _compute_cpm(cpm_input)
+    cpm_by_name = {c["name"]: c for c in cpm_scored}
+
+    # Phase 2 story has 5 days of float and is not critical
+    assert cpm_by_name["Current State Assessment & Baseline Analysis"]["float_days"] == 5
+    assert cpm_by_name["Current State Assessment & Baseline Analysis"]["critical"] is False
+
+    # Phase 3 story is on the critical path (0 float)
+    assert cpm_by_name["Requirements Catalogue & Specification"]["float_days"] == 0
+    assert cpm_by_name["Requirements Catalogue & Specification"]["critical"] is True

@@ -872,11 +872,14 @@ def save_portfolio_backlog(
                     if r_name:
                         role_alloc_sums[r_name] = role_alloc_sums.get(r_name, 0.0) + float(r.get("allocation_percent", 0))
         total_alloc = sum(role_alloc_sums.values())
-        if total_alloc > 0:
-            backlog["resources"] = [
-                {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
-                for name, val in sorted(role_alloc_sums.items())
-            ]
+        if total_alloc > 0 and "resources" not in backlog:
+            if "roles" in backlog:
+                backlog["resources"] = list(backlog["roles"])
+            else:
+                backlog["resources"] = [
+                    {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
+                    for name, val in sorted(role_alloc_sums.items())
+                ]
         backlog["rate_card"] = build_rate_card(backlog, work_items)
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)

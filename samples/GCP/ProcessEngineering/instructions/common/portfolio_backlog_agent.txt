@@ -54,39 +54,50 @@ Create a single object with these fields:
 - `summary`: concise scope summary based only on the chosen source.
 - `source_artifact`: exactly `design` or `requirements_summary`.
 - `source_name`: the chosen source's own name/title, or a concise source-grounded identifier.
+- `timescale_weeks`: integer target weeks when specified in the source (e.g. 12).
+- `requirements_reference`: an array defining every requirement ID cited in `traces_to` across all stories,
+  e.g. `[{"id": "FR-001", "type": "functional", "title": "<title>", "description": "<description>"}, ...]`.
+  Every ID cited in any `traces_to` must have an entry here to prevent orphaned traceability links.
+- `roles`: when specific project team roles and allocation percentages are specified in the engagement
+  specification (e.g. Programme Delivery Manager 50%, Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%),
+  record them explicitly in `roles: [{"name": "<role>", "allocation_percent": <number>}]`.
 - `rate_card`: an array of projected delivery roles with sensible market rate estimations and effort mixes:
   `[{"person": "TBD", "role": "<role name>", "effort_mix": <decimal fraction>, "daily_rate": <number>, "basis": "<market estimation basis>"}]`.
+  When specific delivery roles are given in the source/engagement brief, use those exact roles.
   Project sensible estimations for resource costing based on market benchmarks (8-hour day basis), e.g.:
+  - Programme Delivery Manager: $1,300/day (Programme delivery management and governance benchmark)
   - Solution Architect: $1,500/day (Senior Solution Architecture benchmark; system context, governance, and technical design)
+  - Lead Business Analyst: $1,100/day (Lead business analysis & requirements engineering benchmark; discovery facilitation)
+  - Business Analyst: $1,000/day (Business analysis & requirements engineering benchmark; user stories and workflow specs)
   - Software Engineer: $1,275/day (Full-stack software engineering benchmark; feature delivery and implementation)
   - DevOps / Platform Engineer: $1,200/day (Cloud platform & DevOps engineering benchmark; CI/CD, IaC, and observability)
   - QA Engineer: $1,000/day (Quality assurance & test automation benchmark; verification, regression, and E2E)
-  - Business Analyst: $1,000/day (Business analysis & requirements engineering benchmark; user stories and workflow specs)
   - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
   Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect the projected overall staffing distribution for the scope (summing to 1.0).
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
+  When the source engagement defines specific phases (e.g. Mobilisation, Current State Assessment, Requirements Discovery,
+  Future State Definition, Market Assessment, Options Appraisal, Business Case Support, Implementation Readiness Assessment,
+  Final Recommendation & Handover), map every phase to a distinct Epic and represent all required deliverables across the features and stories.
+  Maintain neutral, objective evaluation across future market options (e.g. ServiceNow, Jira Service Management, Freshservice, BMC Helix)
+  without pre-anchoring to a single vendor unless explicitly mandated.
 
 Each epic, feature, and story must have:
 - `id`: unique stable IDs using `EPIC-001`, `FEAT-001`, and `STORY-001` prefixes respectively;
 - `title`, `description`, `strategic_theme`, and `traces_to` (a non-empty list of exact requirement
   IDs or design component/interface/constraint names from the selected source);
+- `dependencies`: optional list of IDs (e.g. `["EPIC-001"]` or `["STORY-001"]`) to model concurrent workstreams and dependencies;
+- `timing`: optional timing window (e.g. "Week 1", "Weeks 2-4", "Weeks 2-5");
 - `priority_components`: integer `user_business_value`, `time_criticality`, and `risk_reduction`
   scores, each selected from the modified Fibonacci scale `[1, 2, 3, 5, 8, 13, 20]`;
 - `job_size`: one modified Fibonacci value from that same scale;
+- `duration_days`: optional working-day duration when explicitly planned;
 - optional `state` only when the source explicitly states a lifecycle state. Otherwise the workbook
   defaults the item to `In Analysis`, never `Approved`;
 - optional `cost_notes` only for source-backed cost caveats. The workbook calculates costs from its
   explicit, editable assumptions; do not invent alternate rates or budget values;
 - `resources` for stories: calculate the resources needed and their allocation percentages dynamically
-  based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories):
-  a list of `{"name": "<delivery role>", "allocation_percent": number}` summing to 100%. For example:
-  - Architecture, technical spikes, and governance: e.g. Solution Architect 60%, Software Engineer 20%, Business Analyst 20%
-  - Core software feature implementation: e.g. Software Engineer 60%, QA Engineer 20%, Solution Architect 10%, DevOps / Platform Engineer 10%
-  - Cloud infrastructure, IaC, CI/CD, deployment pipelines: e.g. DevOps / Platform Engineer 60%, Software Engineer 25%, QA Engineer 15%
-  - Testing, test automation, performance/security verification: e.g. QA Engineer 60%, Software Engineer 25%, DevOps / Platform Engineer 15%
-  - Requirements analysis, stakeholder interviews, user journeys: e.g. Business Analyst 60%, Product Owner 25%, Solution Architect 15%
-  - Product strategy, backlog refinement, roadmap planning: e.g. Product Owner 60%, Business Analyst 25%, Solution Architect 15%
-  Specialized roles (such as Data Engineer, Security Engineer, UI/UX Designer) should be allocated when the story activity demands it.
+  based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories unless an exact engagement team allocation is mandated):
+  a list of `{"name": "<delivery role>", "allocation_percent": number}` summing to 100%. When an engagement specification mandates specific roles and allocations, use those exact roles.
 
 Each epic must contain a non-empty `features` list. Each feature must contain a non-empty `stories`
 list. Each story must also have `acceptance_criteria`: a non-empty list of specific, observable
