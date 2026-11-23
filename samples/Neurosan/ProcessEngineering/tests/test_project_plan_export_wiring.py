@@ -178,3 +178,29 @@ def test_portfolio_backlog_gained_an_optional_non_authoritative_directory_read_s
     assert "NEVER replaces the design/requirements_summary source of truth" in text
     assert "NEVER introduces an epic/feature/story/traces_to that isn't grounded" in text
     assert '"class": "load_directory_context_tool.LoadDirectoryContextCodedTool"' in text
+
+
+def test_project_plan_reviewer_shims_reexport_canonical_classes():
+    from coded_tools.project_plan_reviewer.inspect_project_plan_tool import (
+        InspectProjectPlanCodedTool as ReviewerInspectProjectPlan,
+    )
+    from coded_tools.project_plan_export.inspect_project_plan_tool import (
+        InspectProjectPlanCodedTool as CanonicalInspectProjectPlan,
+    )
+    from coded_tools.project_plan_reviewer.load_portfolio_backlog_tool import (
+        LoadPortfolioBacklogCodedTool as ReviewerLoadPortfolioBacklog,
+    )
+    from coded_tools.portfolio_backlog.load_portfolio_backlog_tool import (
+        LoadPortfolioBacklogCodedTool as CanonicalLoadPortfolioBacklog,
+    )
+    from coded_tools.project_plan_reviewer.load_requirements_summary_tool import (
+        LoadRequirementsSummaryCodedTool as ReviewerLoadRequirementsSummary,
+    )
+    from coded_tools.requirements_summary.load_requirements_summary_tool import (
+        LoadRequirementsSummaryCodedTool as CanonicalLoadRequirementsSummary,
+    )
+
+    assert ReviewerInspectProjectPlan is CanonicalInspectProjectPlan
+    assert ReviewerLoadPortfolioBacklog is CanonicalLoadPortfolioBacklog
+    assert ReviewerLoadRequirementsSummary is CanonicalLoadRequirementsSummary
+
