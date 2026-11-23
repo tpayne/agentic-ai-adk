@@ -17,7 +17,7 @@ from .requirements_synthesis_agent import requirements_synthesis_agent
 from .requirements_reviewer_agent import requirements_reviewer_agent
 from .doc_creation_agent import build_doc_creation_agent
 from .agent_wrappers import ProcessAgent
-from .utils import getProperty
+from .utils import getProperty, save_iteration_feedback, load_iteration_feedback
 from .utils_agent import (
     mute_agent,
     unmute_agent,
@@ -89,7 +89,7 @@ requirements_reviewer_instance = ProcessAgent(
     model=requirements_reviewer_agent.model,
     description=requirements_reviewer_agent.description,
     instruction=requirements_reviewer_agent.instruction,
-    tools=requirements_reviewer_agent.tools,
+    tools=list(requirements_reviewer_agent.tools) + [save_iteration_feedback, load_iteration_feedback],
     output_key=requirements_reviewer_agent.output_key,
     before_model_callback=requirements_reviewer_agent.before_model_callback,
     after_model_callback=requirements_reviewer_agent.after_model_callback,

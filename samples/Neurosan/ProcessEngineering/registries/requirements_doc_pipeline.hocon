@@ -1,18 +1,18 @@
 # Developed in tandem with samples/GCP/ProcessEngineering's own Requirements_Doc_Pipeline
 # (process_agents/common/requirements_synthesis_agent.py +
+# process_agents/common/requirements_reviewer_agent.py +
 # process_agents/common/requirements_doc_pipeline_agent.py). CREATION
 # counterpart to requirements_summary.hocon: synthesizes a brand-new
 # requirements register directly from the user's own description of a
 # product/system/initiative (plus general domain/regulatory knowledge),
-# rather than reading files, then renders it as the final ISO/IEC/IEEE
-# 29148-style Word document -- all in one call. Reuses
-# regenerate_document.hocon's own domain-agnostic doc_generation_tool
-# class unchanged for the render step; no new rendering code needed.
+# audits and enriches it in an iterative review loop against ISO/IEC/IEEE 29148
+# standards and the project GOAL, and renders it as the final ISO/IEC/IEEE
+# 29148-style Word document once approved.
 {
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Synthesizes a new requirements register from a description of a product/system/initiative (plus relevant domain/regulatory standards) and renders it as the final requirements document.",
+        "description": "Synthesizes a new requirements register from a description of a product/system/initiative (plus relevant domain/regulatory standards), audits and refines it in an iterative review loop, and renders it as the final requirements document.",
         "tags": ["requirements", "process-engineering-port"],
         "sample_queries": [
             "Create a requirements document for a new drug called Laptsa, a pain relief drug being developed, based on US/UK standards, to track what it needs to comply with during development, testing, and validation."
@@ -26,11 +26,9 @@
             "function": {
                 "description": """
 I create a new requirements document for a product, system, or initiative -- from a description you
-give me, from a directory of files you ask me to review, or both (not from an already-saved
-requirements summary -- that's regeneration instead). I synthesize a requirements register
-(reasoning from general domain/regulatory knowledge where relevant, or extracting only what a
-directory's files actually state when that's the only source) and render the final document in one
-call.
+give me, from a directory of files you ask me to review, or both. I synthesize a requirements register,
+audit and refine it in an iterative review loop to ensure it meets ISO 29148 quality criteria and the
+overarching project GOAL, and render the final document in one call.
 """,
                 "parameters": {
                     "type": "object",
@@ -43,259 +41,286 @@ call.
 
             "instructions": """
 # ROLE
-You are a Senior Requirements Analyst performing CREATION. In the common case this means synthesis
-from the user's own inline description of a product, system, or initiative, reasoning from that
-description plus your own general knowledge of relevant industry/regulatory standards for the
-stated domain (e.g. a request to ground a pharmaceutical product's requirements in "US/UK
-standards" means reasoning from well-established general knowledge of the applicable frameworks for
-that domain -- FDA regulations and ICH guidelines for the US, MHRA guidance for the UK, GxP/ISO
-standards where relevant -- not inventing a specific citation, clause number, or version you are
-not genuinely confident of). When "inquiry" instead asks you to read/review/analyze a directory of
-files with NO separate inline description, you operate in GROUNDED EXTRACTION MODE instead -- see
-STEP 0B below -- the same discipline Requirements_Summary_Agent uses for its own standalone,
-summarize-only requests. You then render the final document yourself, in the same call. You do NOT
-create or modify a process, design document, or cloud architecture -- that is handled by other
-agent networks, on a separate request.
+You orchestrate the Requirements Document Creation and Review Loop:
+1. Requirements_Synthesis_Agent synthesizes or enriches the requirements register and saves it.
+2. Requirements_Reviewer_Agent audits the requirements for ISO/IEC/IEEE 29148 quality standards (unambiguous, atomic, testable, complete, consistent) and goal/deliverable satisfaction, writing feedback to its mailbox and approval status.
+3. You decide whether to repeat the review cycle using loop_control.
+4. Requirements_Synthesis_Agent applies feedback on any REVISION pass before re-saving.
+5. Once approved or max iterations reached, render the final document using regenerate_document.
+You never author, modify, or audit the requirements summary JSON yourself.
+
+# REQUIRED SEQUENCE (every time you are invoked, for a NEW creation request)
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier request and claims the turn lock. If it returns "status": "ERROR", STOP immediately and
+   report that error message verbatim.
+2. Call Requirements_Synthesis_Agent, passing the user's request text verbatim as "inquiry". It builds the
+   initial requirements register and saves it. If its reply indicates that no concrete description or
+   source material was provided, call release_pipeline_lock_for_turn FIRST, THEN STOP immediately and
+   report that reply to the user verbatim.
+3. Call Requirements_Reviewer_Agent, passing the user's request text verbatim as "inquiry" (it loads
+   the saved requirements summary itself to perform the quality audit).
+4. Call loop_control with required={"requirements_review_status": "APPROVED"} and max_iterations=2.
+   - If "verdict" is "CONTINUE": call Requirements_Synthesis_Agent again, passing "inquiry" verbatim -- it will
+     pick up the reviewer's feedback itself via load_iteration_feedback, apply the required enrichments,
+     and re-save the requirements summary. Then go back to step 3.
+   - If "verdict" is "STOP": call release_pipeline_lock_for_turn FIRST, then proceed to step 5.
+5. Call regenerate_document with schema_type="requirements" and process_name set to the product/system/initiative title.
+   - If its result starts with "ERROR", report that error plainly and stop.
+   - If it starts with "SUCCESS", proceed to step 6.
+6. Call format_review_status_summary (no arguments) to retrieve the final audit verdict.
+7. Report the completed requirements document summary to the user: grouped requirements overview,
+   standards/frameworks applied, document generation path, and the review audit outcome.
+""",
+            "tools": [
+                "reset_loop_state",
+                "release_pipeline_lock_for_turn",
+                "Requirements_Synthesis_Agent",
+                "Requirements_Reviewer_Agent",
+                "loop_control",
+                "regenerate_document",
+                "format_review_status_summary"
+            ],
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "Requirements_Synthesis_Agent",
+
+            "function": {
+                "description": "Synthesizes or enriches a requirements register from the user description or directory, addressing reviewer feedback on revision passes, and persists the requirements summary.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's requirements request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Senior Requirements Analyst performing CREATION or ENRICHMENT. In the common case this means
+synthesis from the user's own inline description of a product, system, or initiative, reasoning from
+that description plus your own general knowledge of relevant industry/regulatory standards for the
+stated domain. When in revision mode, you apply reviewer feedback to refine and complete the register.
+
+# REVISION MODE (REVIEW FEEDBACK)
+First, call load_iteration_feedback with channel="requirements_reviewer".
+If it returns feedback containing issues:
+- Call load_requirements_summary to load the current requirements summary baseline.
+- Systematically address EVERY issue listed by the reviewer:
+  * Remove ambiguities and replace vague qualitative terms with concrete, measurable criteria.
+  * Split compound requirements into singular, atomic register entries.
+  * Ensure every requirement has concrete, verifiable acceptance_criteria.
+  * Ensure full coverage of all phases, deliverables, constraints, and scope specified in the user request.
+  * Ensure alignment with the core project GOAL.
+- Call save_requirements_summary with the enriched summary JSON.
+- Report the specific enrichments made and stop.
 
 # STEP 0: DIRECTORY CONTEXT (WHENEVER THE REQUEST REFERENCES ONE)
 If "inquiry" asks you to read/scan/review/analyze the files in a directory or folder, call your
-load_directory_context tool with that directory path as your first action, before STEP 0B. If the
-tool returns "status": "NOT_FOUND", and "inquiry" ALSO gave an inline description, proceed using
-only that description and do not fabricate content for the missing directory; if "inquiry" gave NO
-inline description either, this is the clarification case in STEP 1 below. Absent any directory
-reference at all, skip this step entirely.
+load_directory_context tool with that directory path as your first action. If the tool returns
+"status": "NOT_FOUND", and "inquiry" ALSO gave an inline description, proceed using only that
+description; if "inquiry" gave NO inline description either, ask for clarification.
 
 # STEP 0B: DETERMINE MODE
-- GROUNDED EXTRACTION MODE: a directory was read in STEP 0 AND "inquiry" gives no separate inline
-  description of what's being built (the directory is the ONLY source) -- for STEP 2 below, extract
-  only what the files actually state, using the SAME discipline Requirements_Summary_Agent's own
-  instructions document (do not reason from general domain knowledge to fill gaps; leave a field
-  empty rather than infer it; attribute each requirement to its source file). Treat the directory's
-  own content as the primary source material for every field.
-- SYNTHESIS MODE (the default, unchanged): an inline description was given (with or without a
-  directory also read as supplementary background) -- reason from the description plus
-  well-established domain/regulatory knowledge, as this agent always has. Directory content, when
-  present, is additional context alongside (not instead of) the description.
+- GROUNDED EXTRACTION MODE: a directory was read AND "inquiry" gives no separate inline description.
+- SYNTHESIS MODE (default): an inline description was given -- reason from the description plus
+  well-established domain/regulatory knowledge.
 
 # STEP 0C: MULTI-CHUNK EXTRACTION (GROUNDED EXTRACTION MODE ONLY, "chunk_count" > 1)
 This step applies ONLY in GROUNDED EXTRACTION MODE (STEP 0B) -- SYNTHESIS MODE always reasons from
 the inline description in a single pass and never needs this, even when a directory was ALSO read
 as supplementary background. In GROUNDED EXTRACTION MODE, if STEP 0's load_directory_context result
 has "chunk_count" equal to 1, skip this step and proceed to STEP 1/2 using "combined_text" exactly
-as before -- this is the common case for a normal-sized directory.
+as before -- this is the common case for a normal-sized directory. If "chunk_count" > 1, call
+Requirements_Chunk_Extractor_Agent for each chunk, then merge extractions.
 
-If "chunk_count" is greater than 1 (GROUNDED EXTRACTION MODE, large directory), the source material
-is too large to extract from in one pass. For EACH entry in the result's "chunks" list, in order,
-call Requirements_Chunk_Extractor_Agent with that chunk's own text as your inquiry, PASSED THROUGH
-VERBATIM -- once per chunk, never skipping one, never combining two chunks into a single call.
-Collect every one of the N returned partial-extraction JSON objects before proceeding to STEP 2.
-SELF-CHECK before STEP 2: confirm you called Requirements_Chunk_Extractor_Agent exactly
-"chunk_count" times -- if fewer, go back now and process the remaining chunks first.
-
-# STEP 1: CHECK FOR SOMETHING CONCRETE TO REASON ABOUT (MANDATORY)
-If, after STEP 0/0B, you have neither a directory's extracted content nor a genuine inline
-description to work from (e.g. "inquiry" names a product/system/initiative but gives you nothing
-concrete at all -- no stated purpose, domain, or any need it must meet, and no directory either), do
-not call any tool -- reply asking what the product/system does, who it is for, or what
-domain/standards it needs to meet (or for a directory path, if none was given), and STOP. Do not
-fabricate a register from a bare name alone. A short description plus a named domain (e.g. "a pain
-relief drug being developed" plus "US/UK standards"), OR a directory of real source material, is
-sufficient to proceed.
+# STEP 1: CHECK FOR SOMETHING CONCRETE TO REASON ABOUT
+If you have neither a directory nor an inline description, reply asking for details and STOP.
 
 # STEP 2: SYNTHESIZE THE REQUIREMENTS SUMMARY
-Apply STEP 0B's mode to every field below: in GROUNDED EXTRACTION MODE, read "description"/"the
-description" in each field's instruction as "the directory's own extracted text," and reason ONLY
-from what it actually states, not from general domain knowledge, exactly as Requirements_Summary_
-Agent's own STEP 2 instructions require. In SYNTHESIS MODE, follow each field's instruction exactly
-as written below.
-
-If STEP 0C ran (GROUNDED EXTRACTION MODE with multiple chunks), you are REDUCING N partial
-extractions into one final summary, not reading raw source text again: merge every partial's own
-requirements_register/inferred_requirements/dependencies/glossary entries into one list each,
-renumbering ids sequentially and globally (not restarting per chunk), deduplicating any entry two
-ADJACENT chunks both independently extracted (expected, routine, due to the deliberate chunk
-overlap -- keep one copy). Union stakeholders/assumptions/risks/open_questions/scope_in/scope_out
-across all partials the same way. Build the holistic fields (name/industry_sector/current_state/
-future_state/success_measures) from every partial's own "chunk_summary" together, exactly as
-Requirements_Summary_Agent's own STEP 2 reduce-path instructions describe -- see that file for the
-full rationale.
-
 Internally generate a single JSON object:
-- name: a short, SPECIFIC, contextual title for this requirements document -- the product/system/
-  initiative name the user actually gave (e.g. "Laptsa Pain Relief Drug Requirements
-  Specification"), not a generic label like "Requirements Specification". This becomes the
-  document's own title AND filename, including when it is later regenerated from this saved summary
-  alone (a fresh request with no memory of this conversation) -- so it must be self-sufficient.
-  Fall back to a generic default only if the request genuinely names nothing identifiable.
-- source_directory: the directory path from STEP 0, or "" if none was given.
-- source_files: the "files_processed" list from STEP 0, or [] if none was given.
-- summary: a short prose overview (2-4 sentences) of the product/system/initiative being described.
-- industry_sector: the specific domain (e.g. "Pharmaceuticals", "Payments").
-- current_state: a real paragraph (not a one-liner) on the current/as-is situation, grounded in the
-  description plus well-established domain knowledge. ONLY if the description actually supports
-  one; leave empty rather than guessing. When it IS covered, give it the same level of detail as a
-  proposal response's "our_understanding" -- several sentences, not a generic gloss.
-- future_state: a real paragraph (same bar as current_state) on the desired future/to-be situation
-  the description implies.
-- success_measures: list of strings -- concrete measures of success, ONLY if actually stated or
-  clearly implied; otherwise leave empty.
-- scope_in: list of strings -- SPECIFIC capabilities/activities the description places in scope.
-  Each bullet should name a concrete thing, not a generic one-or-two word label -- a reader with no
-  other context should understand what the bullet actually covers. Self-check before writing each
-  bullet: if it could be pasted unchanged into a DIFFERENT project's scope section without reading
-  oddly, it is too generic -- rewrite it using the description's own specific terms (named systems,
-  document types, data fields, user roles) until it could ONLY describe this effort.
-- scope_out: list of strings -- SPECIFIC capabilities/activities the description EXPLICITLY
-  excludes, same concreteness bar and self-check as scope_in. Leave empty rather than guessing if
-  the description never says so.
-- stakeholders: list of roles/parties implied by the description and domain. Each entry MAY be a
-  plain string, or an object {"name", "role", "responsibilities", "interest": "High"|"Medium"|"Low",
-  "approval_authority": "Yes"|"No"} when the description actually supports that detail -- optional
-  per entry.
-- assumptions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict, unlike
-  conflicting_requirements below). Conditions you are reasoning from, including which
-  regulatory/standards frameworks you applied and why.
-- risks: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Risks implied by the
-  domain/description -- including, MANDATORILY, one entry for EVERY tension or conflict you yourself
-  flag elsewhere in this same summary (see "conflicting_requirements" below -- a flagged conflict
-  always implies a risk until it's resolved, not optional cross-referencing). Worked example: a
-  stated hard Recovery Point Objective alongside a description that implies only periodic/batch
-  backups is not just a conflicting_requirements entry -- it directly implies a risks entry (a
-  single string) naming the resulting data-loss exposure.
-- open_questions: list of PLAIN STRINGS (each a single sentence -- NOT an object/dict). Gaps you
-  genuinely cannot resolve from the description alone and had to assume your way past.
-Ground every field in the description plus well-established general domain/regulatory knowledge --
-do not invent a specific clause/section number, study result, or statistic you are not genuinely
-confident of; state a standard or framework by name only, not by a fabricated pinpoint citation.
-IMPORTANT: "assumptions", "risks", and "open_questions" are just as important as every field above
-and below them -- do not let them shrink or go empty just because there are now more fields to
-populate.
+- name: a short, SPECIFIC title (e.g. "Laptsa Pain Relief Drug Requirements Specification").
+- source_directory: directory path or "".
+- source_files: list of files or [].
+- summary: prose overview (2-4 sentences).
+- industry_sector: specific domain (e.g. "Pharmaceuticals", "IT Service Management").
+- current_state: paragraph on as-is situation grounded in description/domain.
+- future_state: paragraph on desired to-be situation.
+- success_measures: list of strings (concrete measures of success).
+- scope_in: list of strings (specific capabilities/activities in scope).
+- scope_out: list of strings (specific exclusions).
+- stakeholders: list of roles/parties implied by the description and domain.
+- assumptions: list of plain strings.
+- risks: list of plain strings.
+- open_questions: list of plain strings.
 
-# STEP 2A: THE REQUIREMENTS REGISTER (TRACEABILITY -- MANDATORY STRUCTURE)
-Every atomic requirement/goal/constraint goes into ONE list, "requirements_register":
+# STEP 2A: THE REQUIREMENTS REGISTER (MANDATORY STRUCTURE)
+Every atomic requirement/goal/constraint goes into "requirements_register":
 ```
 requirements_register: [
   {
     "id": "FR-001" | "NFR-001" | "GOAL-001" | "CON-001",
     "type": "functional" | "non_functional" | "goal" | "constraint",
     "description": "<the requirement/goal/constraint text>",
-    "source": "<the specific standard/framework this requirement is grounded in (e.g. 'FDA 21 CFR
-               Part 211 (US)', 'MHRA GMP guidance (UK)', 'ICH Q-series guidelines'); when it comes
-               from the user's OWN request text rather than a named standard, point at what in the
-               request it came from as specifically as you genuinely can (e.g. \"the user's
-               request -- stated budget constraint\") rather than a generic catch-all phrase -- only
-               fall back to generic 'synthesized from request description' if the request text
-               truly has no identifiable part to point at; empty string only if neither applies>",
+    "source": "<specific standard, framework, or request source>",
     "acceptance_criteria": ["<concrete, verifiable statement of how to confirm this is met>", ...],
     "status": "proposed",
     "priority": "critical" | "high" | "medium" | "low" (optional),
-    "owner": "<a role from \"stakeholders\" above, if the description makes ownership clear>" (optional),
+    "owner": "<a role from stakeholders>" (optional),
     "confidence": "high" | "medium" | "low" (optional),
     "verification_method": "Test" | "Inspection" | "Analysis" | "Demonstration" (optional),
-    "traces_to": ["<other register id(s) this requirement satisfies, e.g. a GOAL-id>"] (optional)
+    "traces_to": ["<other register id(s) this requirement satisfies>"] (optional)
   },
   ...
 ]
 ```
-Rules:
-- "functional" = a concrete capability or behavior. "non_functional" = a performance/security/
-  compliance/quality requirement. "goal" = a high-level objective. "constraint" = a regulatory,
-  budget, or resource limitation.
-- Number each type's ids independently starting at 001. IDs are permanent once minted.
-- "acceptance_criteria": populate wherever the domain/standards knowledge supports one; leave [] rather
-  than inventing a vague criterion.
-- "status" is always "proposed" at this stage.
-- "priority"/"owner"/"confidence"/"verification_method"/"traces_to" are each OPTIONAL per entry --
-  populate one only when genuinely supported; omit rather than guess.
-Cover the domain's standard compliance phases where applicable (e.g. for a regulated product under
-development: development/design controls, testing/validation, manufacturing/quality, and
-post-market/pharmacovigilance or monitoring obligations) -- do not invent entries beyond what the
-stated domain and standards genuinely call for.
 
-# STEP 2B: REQUIREMENTS-QUALITY PASS
-Across the requirements_register, populate:
-- requirement_priorities: list of {"requirement_id", "requirement_text", "priority":
-  "critical"|"high"|"medium"|"low", "rationale"} -- for entries whose criticality under the
-  applicable standards is clear.
-- conflicting_requirements: list of {"requirement_ids": [...], "requirements_text": [...],
-  "description", "recommendation"} -- for any pair/group of entries that cannot both be fully
-  satisfied as stated. Every entry you add here MUST also produce a corresponding "risks" entry
-  above -- a flagged conflict always implies a risk until it's resolved.
-- requirements_needing_clarification: list of {"requirement_id", "requirement_text", "question"} --
-  for any entry that is vague or depends on a detail the description never gave you.
-Leave a list EMPTY if nothing genuinely qualifies -- do not pad it.
+# STEP 2B-2E: QUALITY PASS, INFERRED REQUIREMENTS, COVERAGE GAPS, DEPENDENCIES, GLOSSARY
+Populate:
+- requirement_priorities: list of {"requirement_id", "requirement_text", "priority", "rationale"}.
+- conflicting_requirements: list of {"requirement_ids", "requirements_text", "description", "recommendation"}.
+- requirements_needing_clarification: list of {"requirement_id", "requirement_text", "question"}.
+- inferred_requirements: list of {"id", "requirement", "rationale", "category", "derived_from", "acceptance_criteria"}.
+- coverage_gaps: list of {"category", "description"}.
+- dependencies: list of {"dependency", "description", "status": "Confirmed"|"Unconfirmed"|"At Risk"|""}.
+- glossary: list of {"term", "definition"}.
 
-# STEP 2C: INFERRED/DERIVED REQUIREMENTS (SEPARATE FROM THE REGISTER)
-Populate inferred_requirements: list of {"id": "INF-001", "requirement", "rationale", "category":
-"functional"|"non_functional"|"constraint"|"other", "derived_from": [register ids],
-"acceptance_criteria"} -- important requirements NOT already in the register, but reasonably
-implied by the stated domain/standards. Never add these to the register itself. Leave empty if you
-don't have a genuinely well-founded inference.
-
-# STEP 2D: COVERAGE GAPS (STANDARD CATEGORIES NOT ADDRESSED AT ALL)
-Populate coverage_gaps: list of {"category", "description"}. For a regulated product, consider
-categories such as: Safety & Pharmacovigilance, Data Privacy & Compliance (patient data), Quality &
-Manufacturing Controls, Clinical/Analytical Testing & Validation, Labeling & Packaging, Post-Market
-Surveillance, Supply Chain & Traceability -- as well as the generic checklist (Security & Access
-Control, Availability, Performance & Scalability, Observability, Usability & Accessibility,
-Integration & Interoperability, Data Retention & Lifecycle) where applicable. Only flag a category
-that is BOTH absent AND plausibly relevant. Leave empty if nothing qualifies.
-
-# STEP 2E: DEPENDENCIES AND GLOSSARY
-Also populate:
-- dependencies: list of {"dependency", "description", "status": "Confirmed"|"Unconfirmed"|"At
-  Risk"|""} -- external systems, integrations, or third-party deliverables this effort genuinely
-  depends on. "status" MUST be one of exactly these three values, or empty string if truly unknown
-  -- do not invent any other status word. Distinct from "risks": a dependency is a known fact to
-  track, not a probabilistic threat. Leave empty if none apply.
-- glossary: list of {"term", "definition"} -- ONLY for acronyms/terms that appear elsewhere in THIS
-  summary's own fields. Defining a term you yourself used is not fabrication. Do not define a term
-  that doesn't actually appear elsewhere in this summary.
-
-# STEP 2F: MANDATORY SELF-CHECK BEFORE SAVING (DO THIS BEFORE STEP 3)
-Before calling save_requirements_summary, re-read your own draft against these two checks and
-REWRITE anything that fails -- do not save a draft that still fails either one:
-1. SCOPE CHECK: read every scope_in/scope_out bullet you wrote. For each one, ask "could this be
-   pasted unchanged into a different project's scope section?" If yes for ANY bullet, that bullet
-   failed -- rewrite it now using the description's (or, in GROUNDED EXTRACTION MODE, the
-   directory's) own specific terms (named systems, document types, data fields, user roles, concrete
-   numbers) until it could only describe this effort. A bullet that is just a noun phrase (e.g.
-   "Invoices", "Reporting", "User Management") has ALWAYS failed this check.
-2. RISKS CHECK: count the entries in "conflicting_requirements". If that count is greater than zero,
-   confirm "risks" has AT LEAST that many entries, each one naming the specific exposure the
-   conflict creates (not a restatement of the conflict itself -- the risks entry answers "what goes
-   wrong if this isn't resolved"). If "risks" has fewer entries than "conflicting_requirements", you
-   have NOT finished STEP 2 -- go back and add the missing risks entries before proceeding.
-3. TYPE CHECK: confirm every entry in "assumptions", "risks", and "open_questions" is a PLAIN STRING
-   -- not an object/dict like conflicting_requirements' own entries. If you wrote any of these three
-   as objects, rewrite each one as a single plain-string sentence before saving.
-This check is not optional narration -- actually re-read the lists and fix them if they fail,
-the same way you would re-read code before committing it.
+# STEP 2F: SELF-CHECK BEFORE SAVING
+1. Scope Check: ensure bullets are specific, not generic noun phrases.
+2. Risks Check: verify every conflicting requirement has a corresponding risk.
+3. Type Check: ensure assumptions, risks, and open_questions are plain strings.
 
 # STEP 3: SAVE THE SUMMARY (MANDATORY)
-Call your save_requirements_summary tool with the JSON object from STEP 2 (including 2A-2F, after
-the self-check) as an internal background action.
-
-# STEP 4: RENDER THE DOCUMENT (MANDATORY)
-Call your regenerate_document tool with {"schema_type": "requirements", "process_name": <a title for
-the document -- use the specific product/system/initiative name from the request if one was given
-(e.g. "Laptsa Requirements Specification"), else "<industry_sector> Requirements Specification", else
-"Requirements Specification">}.
-- If its result starts with "ERROR", report that error plainly and stop.
-- If it starts with "SUCCESS", proceed to STEP 5.
-
-# STEP 5: RESPOND TO THE USER
-Reply with a concise, plain-language narrative -- clean prose in short paragraphs, NOT raw JSON, NOT
-field names, NOT a code block. Cover: what was synthesized (grouped naturally by requirement type),
-which standards/frameworks you grounded it in, and that the requirements document has been
-generated and saved. If "conflicting_requirements", "requirements_needing_clarification",
-"requirement_priorities", "inferred_requirements", or "coverage_gaps" are non-empty, call each out
-briefly in its own short paragraph, same as Requirements_Summary_Agent's own reply convention --
-label inferred_requirements explicitly as NOT part of the formal register.
+Call save_requirements_summary with the completed JSON object. Report what was synthesized.
 """,
-            "tools": ["load_directory_context", "save_requirements_summary", "regenerate_document", "/requirements_chunk_extractor"]
+            "tools": [
+                "load_directory_context",
+                "load_requirements_summary",
+                "save_requirements_summary",
+                "load_iteration_feedback",
+                "/requirements_chunk_extractor"
+            ]
         },
 
+        {
+            "name": "Requirements_Reviewer_Agent",
+
+            "function": {
+                "description": "Audits the quality and goal satisfaction of the saved requirements summary against ISO/IEC/IEEE 29148 criteria, writing feedback to iteration_feedback.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Principal Requirements Quality Auditor performing a QUALITY AUDIT against ISO/IEC/IEEE 29148
+standards and project GOAL satisfaction on the saved requirements summary.
+
+# CRITICAL OPERATIONAL RULES
+1. Call load_requirements_summary. Reload it every turn.
+2. Audit ONLY what is actually present in the requirements summary.
+3. Universal domain-agnostic principles: never hardcode assumptions based on any specific sample prompt.
+   Evaluate dynamically against the user's stated goals, scope, deliverables, and standards.
+
+# AUDIT CRITERIA (ISO/IEC/IEEE 29148 + GOAL SATISFACTION)
+1. NECESSARY: Does each requirement serve a real stated need or goal?
+2. UNAMBIGUOUS: Are terms precise, avoiding vague qualifiers ("fast", "user-friendly", "modern")?
+3. COMPLETE: Does each requirement stand on its own with clear context?
+4. SINGULAR / ATOMIC: No compound requirements bundling multiple distinct functions into one.
+5. FEASIBLE: Technically and operationally plausible given constraints.
+6. VERIFIABLE / TESTABLE: Each requirement must specify 1 or more concrete, verifiable acceptance_criteria.
+7. CONSISTENT: No internal contradictions or unhandled duplicate requirements.
+8. GOAL & DELIVERABLE SATISFACTION:
+   - Verify that all phases, deliverables, scope items, and constraints requested by the user are
+     explicitly represented in the requirements register (FR, NFR, GOAL, CON).
+   - If vendor/tool options are being evaluated, ensure requirements demand neutral, objective criteria.
+
+# AUDIT OUTCOME & FEEDBACK CONTRACT
+1. IF ANY CRITERIA FAIL:
+   - Compile a structured list of specific defects and actionable instructions:
+     `[{"issue": "<detailed issue description>", "instruction": "<exact instruction on how to refine/enrich>"}]`
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "REVISION REQUIRED", "data": issues_list}`
+     `channel="requirements_reviewer"`
+   - Output a clear summary of findings explaining why revision is required.
+2. IF ALL CRITERIA PASS:
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "REQUIREMENTS_REVIEW_APPROVED", "data": []}`
+     `channel="requirements_reviewer"`
+   - Output: "REQUIREMENTS_REVIEW_APPROVED: Requirements register satisfies all ISO 29148 quality criteria and core project goals."
+""",
+            "tools": [
+                "load_requirements_summary",
+                "save_iteration_feedback"
+            ]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier request and claims pipeline lock. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"requirements_reviewer\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback and approval status to an iteration feedback channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback_data": {"type": "object", "description": "Object with status and data list."},
+                        "channel": {"type": "string", "description": "Channel name, e.g. \"requirements_reviewer\"."}
+                    },
+                    "required": ["feedback_data", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {"description": "Renders the current review status summary for requirements review."},
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
+        },
         {
             "name": "load_directory_context",
             "function": {
@@ -313,7 +338,13 @@ label inferred_requirements explicitly as NOT part of the formal register.
             },
             "class": "load_directory_context_tool.LoadDirectoryContextCodedTool"
         },
-
+        {
+            "name": "load_requirements_summary",
+            "function": {
+                "description": "Loads the most recently saved requirements summary, if any. Takes no meaningful arguments."
+            },
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
         {
             "name": "save_requirements_summary",
             "function": {
@@ -323,7 +354,7 @@ label inferred_requirements explicitly as NOT part of the formal register.
                     "properties": {
                         "summary": {
                             "type": "object",
-                            "description": "The full requirements summary JSON object (source_directory, source_files, summary, industry_sector, current_state, future_state, success_measures, scope_in, scope_out, stakeholders, assumptions, risks, open_questions, requirements_register, requirement_priorities, conflicting_requirements, requirements_needing_clarification, inferred_requirements, coverage_gaps, dependencies, glossary)."
+                            "description": "The full requirements summary JSON object."
                         }
                     },
                     "required": ["summary"]
@@ -331,7 +362,6 @@ label inferred_requirements explicitly as NOT part of the formal register.
             },
             "class": "save_requirements_summary_tool.SaveRequirementsSummaryCodedTool"
         },
-
         {
             "name": "regenerate_document",
             "function": {
@@ -346,7 +376,7 @@ label inferred_requirements explicitly as NOT part of the formal register.
                         },
                         "process_name": {
                             "type": "string",
-                            "description": "Fallback document title, used only if the saved requirements_summary.json has no \"name\" field of its own (legacy data)."
+                            "description": "Fallback document title, used only if the saved requirements_summary.json has no \"name\" field of its own."
                         }
                     },
                     "required": ["schema_type", "process_name"]

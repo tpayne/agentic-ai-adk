@@ -1,26 +1,15 @@
 # Developed in tandem with samples/GCP/ProcessEngineering's own
-# Project_Plan_Export_Agent, a standalone action -- export the current
-# Enterprise Agile Portfolio Backlog or Proposal Response as an
-# illustrative Microsoft Project / ProjectLibre interchange-format (MSPDI
-# XML) project plan, from whatever is already saved on disk. NO
-# re-analysis, NO backlog/proposal regeneration, and the saved
-# portfolio_backlog.json/proposal_response.json is never modified. This is
-# deliberately NOT portfolio_backlog.hocon's/proposal_response_pipeline.
-# hocon's own pipeline run with its early steps skipped -- same reasoning
-# as process_subprocess_regenerate.hocon's own header comment, and the
-# same standalone shape as process_visio_export.hocon.
-#
-# Domain-agnostic by design, mirroring process_visio_export.hocon's own
-# Visio_Export_Agent_Main: a bare "export a project plan" doesn't say
-# which artifact, so this front-man determines schema_type itself from the
-# user's own request wording, rather than requiring the router to have
-# already disambiguated it.
+# Project_Plan_Export_Agent and Project_Plan_Reviewer_Agent.
+# Exports the current Enterprise Agile Portfolio Backlog or Proposal Response as an
+# illustrative Microsoft Project / ProjectLibre interchange-format (MSPDI XML) project plan,
+# audited and refined in an iterative review loop against schedule compliance, concurrency,
+# holiday calendars, resource allocations, and project GOAL alignment.
 {
     include "config/llm_config.hocon",
 
     "metadata": {
-        "description": "Exports the current Enterprise Agile Portfolio Backlog or Proposal Response as an illustrative Microsoft Project / ProjectLibre (MSPDI XML) project plan, from whatever is already saved on disk -- no re-analysis, no regeneration.",
-        "tags": ["portfolio", "proposal", "process-engineering-port"],
+        "description": "Exports the current Enterprise Agile Portfolio Backlog or Proposal Response as a Microsoft Project / ProjectLibre (MSPDI XML) project plan, audited and refined in an iterative review loop for schedule compliance, concurrency, resourcing, and goal alignment.",
+        "tags": ["portfolio", "proposal", "project-plan", "process-engineering-port"],
         "sample_queries": [
             "Export the portfolio backlog as a project plan.",
             "Give me an MS Project file for our proposal response."
@@ -34,11 +23,65 @@
             "function": {
                 "description": """
 I export the current Enterprise Agile Portfolio Backlog or Proposal Response as a real Microsoft
-Project / ProjectLibre interchange-format (MSPDI XML) project plan, from whatever is already saved
-on disk. I always also generate a PERT/CPM network diagram alongside it, from the same scheduled
-tasks. I never re-run analysis, backlog/proposal generation, or review, and I never modify the
-saved data itself. Tell me to export the backlog or the proposal response as a project plan.
+Project / ProjectLibre interchange-format (MSPDI XML) project plan, audited and refined in an iterative
+review loop to ensure strict timescale compliance, concurrency, holiday handling, and resource allocation
+matching the engagement goals. I always generate a PERT/CPM network diagram alongside it.
 """,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's project-plan-export request."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You orchestrate the Project Plan Export and Schedule Audit Loop:
+1. Project_Plan_Export_Agent determines planning parameters and exports the MSPDI XML project plan and PERT/CPM diagram.
+2. Project_Plan_Reviewer_Agent audits the exported project plan for timescale compliance, concurrency, holiday handling, resource allocations, and goal satisfaction, writing feedback to its mailbox and approval status.
+3. You decide whether to repeat the review cycle using loop_control.
+4. Project_Plan_Export_Agent applies feedback on any REVISION pass before re-exporting.
+You never author the XML or calculate schedule timings yourself.
+
+# REQUIRED SEQUENCE
+1. Call reset_loop_state once (no commentary) -- clears stale approval/iteration state from an
+   earlier request and claims the turn lock. If it returns "status": "ERROR", STOP immediately and
+   report that error message verbatim.
+2. Call Project_Plan_Export_Agent, passing the user's request text verbatim as "inquiry". If it asks
+   a clarifying question (e.g. genuinely ambiguous artifact type) or returns an ERROR, call
+   release_pipeline_lock_for_turn FIRST, THEN STOP immediately and report that reply verbatim.
+3. Call Project_Plan_Reviewer_Agent, passing the user's request text verbatim as "inquiry" (it inspects
+   the exported project plan and source backlog to perform the quality audit).
+4. Call loop_control with required={"project_plan_review_status": "APPROVED"} and max_iterations=2.
+   - If "verdict" is "CONTINUE": call Project_Plan_Export_Agent again, passing "inquiry" verbatim -- it will
+     pick up the reviewer's feedback itself via load_iteration_feedback, apply the required adjustments,
+     and re-export the plan. Then go back to step 3.
+   - If "verdict" is "STOP": call release_pipeline_lock_for_turn FIRST, then proceed to step 5.
+5. Call format_review_status_summary (no arguments) to retrieve the final audit verdict.
+6. Report in plain language that the project plan was exported, stating the exact XML file path,
+   the companion PERT/CPM chart path, start/finish dates, timescale compliance, resource allocations,
+   and the review audit outcome. The tool's own result also mentions a PERT/CPM network diagram generated alongside it -- relay that path too, in the same reply.
+   If the export result contains a WARNING (the plan overran a stated target_duration_weeks), relay that warning's own text verbatim.
+""",
+            "tools": [
+                "reset_loop_state",
+                "release_pipeline_lock_for_turn",
+                "Project_Plan_Export_Agent",
+                "Project_Plan_Reviewer_Agent",
+                "loop_control",
+                "format_review_status_summary",
+                "load_iteration_feedback"
+            ],
+            "middleware": ${pipeline_middleware}
+        },
+
+        {
+            "name": "Project_Plan_Export_Agent",
+
+            "function": {
+                "description": "Determines export parameters and exports the saved portfolio backlog or proposal response as an MSPDI XML project plan and PERT chart, adjusting on revision passes.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -52,67 +95,158 @@ saved data itself. Tell me to export the backlog or the proposal response as a p
 # ROLE
 You export the current Enterprise Agile Portfolio Backlog or Proposal Response as an illustrative
 Microsoft Project / ProjectLibre (MSPDI XML) project plan, from whatever is already saved on disk.
-You NEVER re-run analysis, backlog/proposal generation, or review, and you NEVER modify the saved
-portfolio_backlog.json/proposal_response.json itself -- that is every other network's job, on a
-separate request.
 
-The exported plan's durations are an ILLUSTRATIVE planning estimate computed only at export time
-(Portfolio Backlog: one working day per WSJF story point; Proposal Response: parsed from each
-implementation_plan phase's own free-text timing, falling back to a nominal estimate when
-unparseable). Resource usage is derived directly from each backlog activity's calculated resourcing
-(or caller-supplied role overrides when explicitly stated). If asked, say this plainly -- it is not
-a committed schedule.
+# REVISION MODE (REVIEW FEEDBACK)
+First, call load_iteration_feedback with channel="project_plan_reviewer".
+If it returns feedback containing issues:
+- Review the instructions and recommendations from the schedule auditor.
+- Adjust parameters (e.g. enforce target_duration_weeks, ensure holiday_calendar="uk", adjust resource allocations).
+- Re-call export_project_plan with the adjusted parameters.
+- Report what adjustments were made.
 
-# DETERMINE schema_type FIRST
+# DETERMINE schema_type FIRST (NEW GENERATION)
+If not in revision mode:
 Check whether "inquiry" itself names a domain:
-- If it explicitly says "backlog" / "portfolio backlog" / "epics" / "WSJF", schema_type =
-  "portfolio_backlog".
-- If it explicitly says "proposal" / "proposal response" / "RtP" / "response", schema_type =
-  "proposal_response".
-- Otherwise -- a genuinely generic "export a project plan" with no artifact named -- ask the user
-  to clarify whether they mean the portfolio backlog or the proposal response, rather than
-  guessing. Do NOT call export_project_plan without a determined schema_type.
+- If it explicitly says "backlog" / "portfolio backlog" / "epics" / "WSJF", schema_type = "portfolio_backlog".
+- If it explicitly says "proposal" / "proposal response" / "RtP" / "response", schema_type = "proposal_response".
+- Otherwise, ask the user to clarify whether they mean the portfolio backlog or the proposal response.
 
-# OPTIONAL PLANNING ASSUMPTIONS (extract from the user's own wording -- never fabricate any of
-# these when not stated)
-- resources: if the user names roles/people with a % allocation (e.g. "Project Manager (50%)",
-  "ServiceNow Engineer at 100%"), pass resources=[{"name": "Project Manager", "allocation_percent":
-  50}, ...]. Only include entries the user actually named -- never invent a role or guess a
-  percentage that wasn't stated. If no allocation is named at all, omit resources entirely rather
-  than guessing 100% for everyone.
-- target_duration_weeks: if the user states a target length (e.g. "running over 3 months", "a
-  6-week project"), convert to weeks (approximate months as 4 weeks each, and say so if asked) and
-  pass it. Omit if no target length was stated.
-- holiday_calendar: if the user says to honor UK/British public or bank holidays, pass
-  holiday_calendar="uk". Only "uk" is supported -- if a different country's holidays are
-  requested, say plainly that only a UK calendar is supported today and proceed without one
-  (weekends-only) unless the user says otherwise, rather than silently ignoring the request with no
-  explanation.
+# OPTIONAL PLANNING ASSUMPTIONS (extract from the user's own wording -- never fabricate any of these when not stated)
+- resources: if the user names roles/people with a % allocation (e.g. "Programme Delivery Manager (50%)",
+  "Lead Business Analyst (100%)", "Solution Architect (50%)"), pass resources=[{"name": "<role>", "allocation_percent": <number>}, ...].
+  Only include entries the user actually named -- never invent a role or guess a percentage that wasn't stated.
+  If no allocation is named at all, omit resources entirely rather than guessing 100% for everyone.
+- target_duration_weeks: if the user states a target length (e.g. "12-week", "running over 3 months"), convert to weeks and pass it.
+- holiday_calendar: if the user says to honor UK/British public or bank holidays, pass holiday_calendar="uk". Only "uk" is supported.
+- start_date: if the user specifies a start date, pass ISO "YYYY-MM-DD".
 
-# SEQUENCE
-1. Determine schema_type as above. If genuinely ambiguous, ask a clarifying question and stop --
-   do not call any tool.
-2. Call export_project_plan with that schema_type, plus start_date/resources/
-   target_duration_weeks/holiday_calendar for any of those the user's own request actually stated
-   (per the OPTIONAL PLANNING ASSUMPTIONS section above) -- omit any that weren't stated rather
-   than guessing a value.
-3. If the result starts with "ERROR", relay it verbatim -- there is no saved backlog/proposal
-   response to export yet; suggest creating one first (e.g. "create an Enterprise Agile Portfolio
-   Backlog from the saved requirements" / "draft a proposal response using the saved requirements
-   summary").
-4. If the result contains a "WARNING" (the plan overran a stated target_duration_weeks), relay
-   that warning's own text verbatim -- do not soften, omit, or paraphrase it into a confident
-   on-schedule claim.
-5. Otherwise, report in plain language that the project plan was exported, the exact saved path
-   from the tool's own result, and restate briefly that durations/sequencing are an illustrative
-   planning estimate, not a committed schedule. The tool's own result also mentions a PERT/CPM
-   network diagram generated alongside it -- relay that path too, in the same reply.
-
-Plain prose only in your final reply -- no raw XML, tool names, or internal field names.
+# EXECUTION
+Call export_project_plan with the determined parameters.
+Report the export outcome, file paths, and any warnings.
 """,
             "tools": ["export_project_plan"]
         },
 
+        {
+            "name": "Project_Plan_Reviewer_Agent",
+
+            "function": {
+                "description": "Audits the quality, schedule compliance, concurrency, calendar/holidays, resourcing, and goal satisfaction of the exported project plan.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request, passed through for context."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Principal Project Controls and Schedule Auditor performing a QUALITY AUDIT on the
+exported Microsoft Project (MSPDI XML) project plan and companion PERT/CPM chart.
+
+# CRITICAL OPERATIONAL RULES
+1. Call inspect_project_plan. Reload it every turn.
+2. Call load_portfolio_backlog or load_requirements_summary to inspect the source grounding and project goals.
+3. Universal project-agnostic audit principles: never hardcode fixed assumptions from any sample prompt.
+   Evaluate dynamically against the user's requested timescale, resources, holiday calendar, and deliverables.
+
+# AUDIT CRITERIA
+1. STRICT TIMESCALE COMPLIANCE & ZERO OVERRUN:
+   - If the engagement specifies a target timescale (e.g. 12 weeks), verify that the finish date does NOT
+     exceed the target duration. Any unmanaged calendar overrun is an automatic failure.
+2. CONCURRENCY & PARALLEL WORKSTREAMS:
+   - Verify that independent phases or tasks run concurrently where appropriate, rather than a purely linear waterfall cascade.
+3. CALENDAR & HOLIDAY INTEGRITY:
+   - Verify non-working days (weekends) and holiday exceptions (e.g. UK bank holidays if requested).
+4. RESOURCE ALLOCATION & ASSIGNMENTS:
+   - Verify that named roles and allocation percentages match the engagement specification.
+   - Verify that resources are properly mapped to tasks with correct units.
+5. DELIVERABLES & GOAL SATISFACTION:
+   - Verify that all requested phases and deliverables are present as tangible milestones or tasks.
+
+# AUDIT OUTCOME & FEEDBACK CONTRACT
+1. IF ANY CRITERIA FAIL:
+   - Compile a structured list of specific defects and actionable instructions:
+     `[{"issue": "<detailed issue description>", "instruction": "<exact instruction on how to adjust schedule/resourcing>"}]`
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "REVISION REQUIRED", "data": issues_list}`
+     `channel="project_plan_reviewer"`
+   - Output a clear summary of findings explaining why revision is required.
+2. IF ALL CRITERIA PASS:
+   - CALL save_iteration_feedback with:
+     `feedback_data={"status": "PROJECT_PLAN_REVIEW_APPROVED", "data": []}`
+     `channel="project_plan_reviewer"`
+   - Output: "PROJECT_PLAN_REVIEW_APPROVED: Project plan satisfies all timescale constraints, concurrency, resource allocations, and core goals."
+""",
+            "tools": [
+                "inspect_project_plan",
+                "load_portfolio_backlog",
+                "load_requirements_summary",
+                "save_iteration_feedback"
+            ]
+        },
+
+        {
+            "name": "reset_loop_state",
+            "function": {"description": "Clears stale approval/iteration-counter state from an earlier request and claims pipeline lock. Takes no meaningful arguments."},
+            "class": "reset_loop_state_tool.ResetLoopStateCodedTool"
+        },
+        {
+            "name": "release_pipeline_lock_for_turn",
+            "function": {"description": "Safely releases THIS turn's own pipeline lock. Takes no meaningful arguments."},
+            "class": "release_pipeline_lock_tool.ReleasePipelineLockForTurnCodedTool"
+        },
+        {
+            "name": "loop_control",
+            "function": {
+                "description": "Decides whether the generate/review loop should continue or stop.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "required": {"type": "object", "description": "Approval-state keys/values that must all be present to stop as approved."},
+                        "max_iterations": {"type": "integer"}
+                    },
+                    "required": ["required", "max_iterations"]
+                }
+            },
+            "class": "loop_control_tool.LoopControlCodedTool"
+        },
+        {
+            "name": "load_iteration_feedback",
+            "function": {
+                "description": "Reads and drains a feedback mailbox channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string", "description": "Which mailbox channel to read, e.g. \"project_plan_reviewer\"."}
+                    },
+                    "required": ["channel"]
+                }
+            },
+            "class": "load_iteration_feedback_tool.LoadIterationFeedbackCodedTool"
+        },
+        {
+            "name": "save_iteration_feedback",
+            "function": {
+                "description": "Writes feedback and approval status to an iteration feedback channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "feedback_data": {"type": "object", "description": "Object with status and data list."},
+                        "channel": {"type": "string", "description": "Channel name, e.g. \"project_plan_reviewer\"."}
+                    },
+                    "required": ["feedback_data", "channel"]
+                }
+            },
+            "class": "save_iteration_feedback_tool.SaveIterationFeedbackCodedTool"
+        },
+        {
+            "name": "format_review_status_summary",
+            "function": {"description": "Renders the current review status summary for project plan review."},
+            "class": "format_review_status_tool.FormatReviewStatusCodedTool"
+        },
         {
             "name": "export_project_plan",
             "function": {
@@ -155,6 +289,33 @@ Plain prose only in your final reply -- no raw XML, tool names, or internal fiel
                 }
             },
             "class": "project_plan_export_tool.ExportProjectPlanCodedTool"
+        },
+        {
+            "name": "inspect_project_plan",
+            "function": {
+                "description": "Parses and returns structured quality and schedule metrics for the exported project plan (MSPDI XML).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["portfolio_backlog", "proposal_response"],
+                            "description": "Which project plan to inspect. Defaults to portfolio_backlog."
+                        }
+                    }
+                }
+            },
+            "class": "inspect_project_plan_tool.InspectProjectPlanCodedTool"
+        },
+        {
+            "name": "load_portfolio_backlog",
+            "function": {"description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."},
+            "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
         }
     ]
 }
