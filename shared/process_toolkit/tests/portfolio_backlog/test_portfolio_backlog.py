@@ -489,3 +489,127 @@ def test_traceability_id_format_normalization(tmp_path, monkeypatch):
     assert backlog["epics"][0]["features"][0]["stories"][0]["traces_to"] == ["FR-001A", "CON-001"]
 
 
+def test_dependency_cycle_detection_and_validation(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    # Test circular dependency
+    circular_backlog = {
+        "name": "Circular Backlog",
+        "summary": "Summary",
+        "source_name": "Test Source",
+        "source_artifact": "design",
+        "epics": [
+            {
+                "id": "EPIC-1",
+                "title": "Epic 1",
+                "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 3,
+                "traces_to": ["REQ-1"],
+                "features": [
+                    {
+                        "id": "FEAT-1",
+                        "title": "Feat 1",
+                        "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3,
+                        "traces_to": ["REQ-1"],
+                        "stories": [
+                            {
+                                "id": "STORY-1",
+                                "title": "Story 1",
+                                "description": "Desc",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 3,
+                                "traces_to": ["REQ-1"],
+                                "acceptance_criteria": ["C1"],
+                                "dependencies": ["STORY-2"],
+                            },
+                            {
+                                "id": "STORY-2",
+                                "title": "Story 2",
+                                "description": "Desc",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 3,
+                                "traces_to": ["REQ-1"],
+                                "acceptance_criteria": ["C2"],
+                                "dependencies": ["STORY-1"],
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    msg = save_portfolio_backlog(circular_backlog)
+    assert "ERROR" in msg
+    assert "Circular dependency detected" in msg
+
+    # Test self-dependency
+    self_dep_backlog = copy.deepcopy(circular_backlog)
+    self_dep_backlog["epics"][0]["features"][0]["stories"][0]["dependencies"] = ["STORY-1"]
+    msg_self = save_portfolio_backlog(self_dep_backlog)
+    assert "ERROR" in msg_self
+    assert "cannot depend on itself" in msg_self
+
+
+def test_story_job_size_duration_rollups(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = {
+        "name": "Rollup Backlog",
+        "summary": "Summary",
+        "source_name": "Test Source",
+        "source_artifact": "design",
+        "epics": [
+            {
+                "id": "EPIC-1",
+                "title": "Epic 1",
+                "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 3,
+                "traces_to": ["REQ-1"],
+                "features": [
+                    {
+                        "id": "FEAT-1",
+                        "title": "Feat 1",
+                        "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3,
+                        "traces_to": ["REQ-1"],
+                        "stories": [
+                            {
+                                "id": "STORY-1",
+                                "title": "Story 1",
+                                "description": "Desc",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 5,
+                                "duration_days": 5,
+                                "traces_to": ["REQ-1"],
+                                "acceptance_criteria": ["C1"],
+                            },
+                            {
+                                "id": "STORY-2",
+                                "title": "Story 2",
+                                "description": "Desc",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 8,
+                                "traces_to": ["REQ-1"],
+                                "acceptance_criteria": ["C2"],
+                                "dependencies": ["UNKNOWN-ID-999"],  # Test stripping unknown dep
+                            },
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    msg = save_portfolio_backlog(backlog)
+    assert "SUCCESS" in msg
+    assert backlog["epics"][0]["features"][0]["child_job_size_sum"] == 13
+    assert backlog["epics"][0]["features"][0]["child_duration_days_sum"] == 13
+    assert backlog["epics"][0]["child_job_size_sum"] == 13
+    assert backlog["total_job_size"] == 13
+    # Verify unresolvable ID was stripped safely without crashing
+    assert backlog["epics"][0]["features"][0]["stories"][1]["dependencies"] == []
+
+
+

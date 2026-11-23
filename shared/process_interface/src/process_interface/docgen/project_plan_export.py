@@ -51,10 +51,11 @@ def build_portfolio_backlog_project_plan(
     resources: Optional[List[Dict[str, Any]]] = None,
     target_duration_weeks: Optional[float] = None,
     holiday_calendar: Optional[str] = None,
+    include_phase_gates: Optional[bool] = None,
 ) -> str:
     if not config.is_mcp_mode():
         return _toolkit_build_portfolio_backlog_project_plan(
-            start_date, resources, target_duration_weeks, holiday_calendar,
+            start_date, resources, target_duration_weeks, holiday_calendar, include_phase_gates,
         )
 
     try:
@@ -66,6 +67,7 @@ def build_portfolio_backlog_project_plan(
                 "resources": resources,
                 "target_duration_weeks": target_duration_weeks,
                 "holiday_calendar": holiday_calendar,
+                "include_phase_gates": include_phase_gates,
                 "session_id": paths.current_session_id(),
             },
         )

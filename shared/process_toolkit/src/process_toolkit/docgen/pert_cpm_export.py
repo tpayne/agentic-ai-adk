@@ -189,8 +189,13 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
             _CARD_WIDTH - 0.44, 0.3, fontsize=7.5, min_fontsize=5.5,
             color="#64758A", ha="left", zorder=5,
         )
+        dur_label = (
+            f"Milestone  ·  Float {activity['float_days']}d"
+            if activity.get("duration_days") == 0
+            else f"Duration {activity['duration_days']}d  ·  Float {activity['float_days']}d"
+        )
         add_fitted_text(
-            ax, f"Duration {activity['duration_days']}d  ·  Float {activity['float_days']}d",
+            ax, dur_label,
             x - _CARD_WIDTH / 2 + 0.22, y - 0.08,
             _CARD_WIDTH - 0.44, 0.3, fontsize=7.5, min_fontsize=5.5,
             color="#64758A", ha="left", zorder=5,
@@ -310,10 +315,10 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             succs = successors_of.get(a.get("uid"), [])
             if succs:
                 min_ls = min(
-                    _subtract_working_days(s["late_finish"], max(s["duration_days"], 1) - 1)
+                    _subtract_working_days(s["late_finish"], max(s["duration_days"] - 1, 0)) if s.get("duration_days", 1) > 0 else s["late_finish"]
                     for s in succs
                 )
-                target_lf = _subtract_working_days(min_ls, 1)
+                target_lf = _subtract_working_days(min_ls, 1) if a.get("duration_days", 1) > 0 else min_ls
                 if target_lf < a["late_finish"]:
                     a["late_finish"] = target_lf
                     changed = True
@@ -321,8 +326,8 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             break
 
     for a in scored:
-        duration = max(a["duration_days"], 1)
-        a["late_start"] = _subtract_working_days(a["late_finish"], duration - 1)
+        dur = a.get("duration_days", 1)
+        a["late_start"] = _subtract_working_days(a["late_finish"], max(dur - 1, 0)) if dur > 0 else a["late_finish"]
         a["float_days"] = _working_day_diff(a["finish"], a["late_finish"])
         a["critical"] = a["float_days"] == 0
     return scored

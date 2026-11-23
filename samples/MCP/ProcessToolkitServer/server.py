@@ -381,6 +381,7 @@ def export_project_plan(
     resources: Optional[list[dict[str, Any]]] = None,
     target_duration_weeks: Optional[float] = None,
     holiday_calendar: Optional[str] = None,
+    include_phase_gates: Optional[bool] = None,
     session_id: Optional[str] = None,
 ) -> dict:
     """On-demand Microsoft Project / ProjectLibre interchange-format (MSPDI
@@ -424,7 +425,7 @@ def export_project_plan(
         before = _snapshot_mtimes(directory, "")
         if schema_type == "portfolio_backlog":
             message = build_portfolio_backlog_project_plan(
-                start_date, resources, target_duration_weeks, holiday_calendar,
+                start_date, resources, target_duration_weeks, holiday_calendar, include_phase_gates,
             )
             plan_filename = PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
             pert_cpm_filename = PORTFOLIO_BACKLOG_PERT_CPM_FILENAME

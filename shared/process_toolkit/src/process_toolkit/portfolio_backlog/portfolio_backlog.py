@@ -6,7 +6,7 @@ import json
 import os
 import re
 import tempfile
-from typing import Any, Dict, MutableMapping, Optional
+from typing import Any, Dict, List, MutableMapping, Optional, Set, Tuple
 
 from openpyxl import load_workbook
 from openpyxl.chart.data_source import StrRef
@@ -373,9 +373,18 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
         if not isinstance(item.get(field), str) or not item[field].strip():
             raise ValueError(f"{location}.{field} must be a non-empty string.")
 
+    item["id"] = _normalize_id_format(item["id"])
     if item["id"] in seen_ids:
         raise ValueError(f"Duplicate work item id: {item['id']}.")
     seen_ids.add(item["id"])
+
+    deps = item.get("dependencies") or item.get("predecessors")
+    if deps is not None:
+        if not isinstance(deps, list):
+            raise ValueError(f"{location}.dependencies must be a list.")
+        item["dependencies"] = [_normalize_id_format(str(d).strip()) for d in deps]
+        if item["id"] in item["dependencies"]:
+            raise ValueError(f"Work item {item['id']} cannot depend on itself.")
 
     traces_to = item.get("traces_to")
     if not isinstance(traces_to, list) or not traces_to or not all(
@@ -436,6 +445,67 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 story.setdefault("state", "In Analysis")
                 story["resources"] = calculate_story_resources(story)
                 rows.append((story, "Story", feature["id"]))
+
+    # Reconcile job_size vs duration_days rollups
+    for epic in epics:
+        for feature in epic.get("features") or []:
+            for story in feature.get("stories") or []:
+                story_points = int(story["job_size"])
+                explicit_days = story.get("duration_days") or story.get("duration_working_days")
+                if explicit_days:
+                    try:
+                        story["duration_days"] = max(1, int(explicit_days))
+                    except (ValueError, TypeError):
+                        story["duration_days"] = max(1, story_points)
+                else:
+                    story["duration_days"] = max(1, story_points)
+            feature["child_job_size_sum"] = sum(int(s["job_size"]) for s in feature.get("stories") or [])
+            feature["child_duration_days_sum"] = sum(int(s["duration_days"]) for s in feature.get("stories") or [])
+        epic["child_job_size_sum"] = sum(f.get("child_job_size_sum", 0) for f in epic.get("features") or [])
+        epic["child_duration_days_sum"] = sum(f.get("child_duration_days_sum", 0) for f in epic.get("features") or [])
+    backlog["total_job_size"] = sum(e.get("child_job_size_sum", 0) for e in epics)
+    backlog["total_duration_days"] = sum(e.get("child_duration_days_sum", 0) for e in epics)
+
+    # Validate dependencies, strip unresolvable IDs, and reject cycles
+    dep_graph: Dict[str, List[str]] = {}
+    for item, item_type, _ in rows:
+        item_id = item["id"]
+        deps = item.get("dependencies") or item.get("predecessors") or []
+        valid_deps = []
+        for d in deps:
+            norm_d = _normalize_id_format(str(d).strip())
+            if norm_d == item_id:
+                raise ValueError(f"Work item {item_id} cannot depend on itself.")
+            if norm_d in seen_ids:
+                valid_deps.append(norm_d)
+        item["dependencies"] = valid_deps
+        if valid_deps:
+            dep_graph[item_id] = valid_deps
+
+    visited: Dict[str, int] = {}
+    cycle_path: List[str] = []
+
+    def dfs(node: str) -> Optional[List[str]]:
+        visited[node] = 1
+        cycle_path.append(node)
+        for neighbor in dep_graph.get(node, []):
+            if visited.get(neighbor) == 1:
+                start_idx = cycle_path.index(neighbor)
+                return cycle_path[start_idx:] + [neighbor]
+            if visited.get(neighbor) != 2:
+                cyc = dfs(neighbor)
+                if cyc:
+                    return cyc
+        cycle_path.pop()
+        visited[node] = 2
+        return None
+
+    for node in dep_graph:
+        if visited.get(node) != 2:
+            cycle = dfs(node)
+            if cycle:
+                raise ValueError(f"Circular dependency detected in backlog: {' -> '.join(cycle)}")
+
     return rows
 
 

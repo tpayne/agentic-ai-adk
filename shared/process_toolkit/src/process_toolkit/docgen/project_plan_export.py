@@ -269,6 +269,7 @@ class _Task:
         self.dependencies: List[str] = []
         self.start_week: Optional[int] = None
         self.end_week: Optional[int] = None
+        self.is_milestone: bool = False
 
 
 def _schedule_sequential_leaf(
@@ -276,7 +277,11 @@ def _schedule_sequential_leaf(
 ) -> _dt.date:
     """Schedules one leaf task starting at anchor_start, returns its finish date."""
     task.start = anchor_start
-    task.finish = _advance_working_days(anchor_start, max(task.duration_days, 1), holidays)
+    if getattr(task, "is_milestone", False) or task.duration_days == 0:
+        task.finish = anchor_start
+        task.duration_days = 0
+    else:
+        task.finish = _advance_working_days(anchor_start, max(task.duration_days, 1), holidays)
     return task.finish
 
 
@@ -394,7 +399,7 @@ def _schedule_task_tree(
         longest_path: Dict[int, int] = {}
         for leaf in leaf_tasks:
             preds = [p for p in leaf.predecessor_uids if p in task_by_uid]
-            dur = max(leaf.duration_days, 1)
+            dur = 0 if (getattr(leaf, "is_milestone", False) or leaf.duration_days == 0) else max(leaf.duration_days, 1)
             if preds:
                 longest_path[leaf.uid] = max(longest_path.get(p, task_by_uid[p].duration_days) for p in preds) + dur
             else:
@@ -405,7 +410,8 @@ def _schedule_task_tree(
         if max_path_len > total_target_working_days and total_target_working_days > 0:
             scale = total_target_working_days / max_path_len
             for leaf in leaf_tasks:
-                leaf.duration_days = max(1, round(leaf.duration_days * scale))
+                if not getattr(leaf, "is_milestone", False) and leaf.duration_days > 0:
+                    leaf.duration_days = max(1, round(leaf.duration_days * scale))
 
     for _ in range(len(leaf_tasks) * 2):
         progress = False
@@ -414,13 +420,14 @@ def _schedule_task_tree(
                 continue
             preds = [p for p in leaf.predecessor_uids if p in task_by_uid]
             if all(p in scheduled for p in preds):
+                is_ms = getattr(leaf, "is_milestone", False) or leaf.duration_days == 0
                 if preds:
                     max_pred_finish = max(task_by_uid[p].finish for p in preds if task_by_uid[p].finish)
-                    earliest = _next_working_day(max_pred_finish, holidays)
+                    earliest = max_pred_finish if is_ms else _next_working_day(max_pred_finish, holidays)
                 else:
                     earliest = anchor_start
 
-                if leaf.start_week and leaf.start_week > 1:
+                if not is_ms and leaf.start_week and leaf.start_week > 1:
                     cal_week_start = anchor_start + _dt.timedelta(days=(leaf.start_week - 1) * 7)
                     week_start = _first_working_day_on_or_after(cal_week_start, holidays)
                     # If leaf has a target week start and predecessor is from an earlier planned week window,
@@ -434,10 +441,15 @@ def _schedule_task_tree(
                     else:
                         earliest = week_start
 
-                leaf.start = _first_working_day_on_or_after(earliest, holidays)
-                leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+                if is_ms:
+                    leaf.start = earliest
+                    leaf.finish = earliest
+                    leaf.duration_days = 0
+                else:
+                    leaf.start = _first_working_day_on_or_after(earliest, holidays)
+                    leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
 
-                if target_duration_weeks and target_duration_weeks > 0:
+                if not is_ms and target_duration_weeks and target_duration_weeks > 0:
                     cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
                     target_finish_limit = cal_finish
                     while not _is_working_day(target_finish_limit, holidays):
@@ -461,9 +473,15 @@ def _schedule_task_tree(
     for leaf in leaf_tasks:
         if leaf.uid not in scheduled:
             cur_start = anchor_start
-            leaf.start = _first_working_day_on_or_after(cur_start, holidays)
-            leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
-            if target_duration_weeks and target_duration_weeks > 0:
+            is_ms = getattr(leaf, "is_milestone", False) or leaf.duration_days == 0
+            if is_ms:
+                leaf.start = _first_working_day_on_or_after(cur_start, holidays)
+                leaf.finish = leaf.start
+                leaf.duration_days = 0
+            else:
+                leaf.start = _first_working_day_on_or_after(cur_start, holidays)
+                leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+            if not is_ms and target_duration_weeks and target_duration_weeks > 0:
                 cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
                 target_finish_limit = cal_finish
                 while not _is_working_day(target_finish_limit, holidays):
@@ -521,8 +539,8 @@ def _duration_xml(days: int) -> str:
     return f"PT{hours}H0M0S"
 
 
-def _date_xml(day: _dt.date, hour: int) -> str:
-    return _dt.datetime.combine(day, _dt.time(hour, 0, 0)).strftime(_DATE_FORMAT)
+def _date_xml(day: _dt.date, hour: int, minute: int = 0, second: int = 0) -> str:
+    return _dt.datetime.combine(day, _dt.time(hour, minute, second)).strftime(_DATE_FORMAT)
 
 
 def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tuple]:
@@ -700,8 +718,8 @@ def _render_mspdi(
             ET.SubElement(exception, "ID").text = str(index)
             ET.SubElement(exception, "EnteredByOccurrences").text = "0"
             period = ET.SubElement(exception, "TimePeriod")
-            ET.SubElement(period, "FromDate").text = _date_xml(holiday, 0)
-            ET.SubElement(period, "ToDate").text = _date_xml(holiday, 0)
+            ET.SubElement(period, "FromDate").text = _date_xml(holiday, 0, 0, 0)
+            ET.SubElement(period, "ToDate").text = _date_xml(holiday, 23, 59, 59)
             ET.SubElement(exception, "Occurrences").text = "1"
             ET.SubElement(exception, "Name").text = "UK bank holiday"
             ET.SubElement(exception, "Type").text = "1"
@@ -734,15 +752,23 @@ def _render_mspdi(
                 if canon.lower() == name.lower():
                     resource_uids[alias] = index
 
-    # Plan assignments and calculate task work
+    # Plan assignments and calculate task work and cost
     assignments_list: List[Dict[str, Any]] = []
     task_work_map: Dict[int, int] = {}
+    task_cost_map: Dict[int, float] = {}
     leaf_duration_hours: Dict[int, int] = {}
     assignment_uid = 1
 
     for task in all_tasks:
         if task.children:
             continue
+        is_milestone = getattr(task, "is_milestone", False) or (task.duration_days == 0 and not task.is_summary)
+        if is_milestone:
+            leaf_duration_hours[task.uid] = 0
+            task_work_map[task.uid] = 0
+            task_cost_map[task.uid] = 0.0
+            continue
+
         duration_days = max(task.duration_days, 1)
         dur_hours = duration_days * _WORK_HOURS_PER_DAY
         leaf_duration_hours[task.uid] = dur_hours
@@ -768,6 +794,7 @@ def _render_mspdi(
             task_assignments = normalized_resources or task.resources
 
         task_asgn_work = 0
+        task_asgn_cost = 0.0
         for name, fraction in task_assignments:
             r_uid = (
                 resource_uids.get(name)
@@ -779,7 +806,8 @@ def _render_mspdi(
             work_h = round(dur_hours * fraction)
             task_asgn_work += work_h
             hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
-            cost = round(work_h * hourly_rate, 2) if hourly_rate and hourly_rate > 0 else None
+            cost = round(work_h * hourly_rate, 2) if hourly_rate and hourly_rate > 0 else 0.0
+            task_asgn_cost += cost
             assignments_list.append({
                 "uid": assignment_uid,
                 "id": assignment_uid,
@@ -789,22 +817,29 @@ def _render_mspdi(
                 "work_hours": work_h,
                 "start": task.start or project_start,
                 "finish": task.finish or overall_finish,
-                "cost": cost,
+                "cost": cost if (hourly_rate and hourly_rate > 0) else None,
             })
             assignment_uid += 1
 
-        task_work_map[task.uid] = task_asgn_work if task_asgn_work > 0 else dur_hours
+        task_work_map[task.uid] = task_asgn_work if task_assignments else dur_hours
+        task_cost_map[task.uid] = round(task_asgn_cost, 2)
 
-    # Rollup work for summary tasks
-    def _rollup_task_work(t: "_Task") -> int:
+    # Rollup work and cost for summary tasks
+    def _rollup_task_work_and_cost(t: "_Task") -> Tuple[int, float]:
         if not t.children:
-            return task_work_map.get(t.uid, 0)
-        tot = sum(_rollup_task_work(c) for c in t.children)
-        task_work_map[t.uid] = tot
-        return tot
+            return task_work_map.get(t.uid, 0), task_cost_map.get(t.uid, 0.0)
+        tot_work = 0
+        tot_cost = 0.0
+        for c in t.children:
+            w, cst = _rollup_task_work_and_cost(c)
+            tot_work += w
+            tot_cost += cst
+        task_work_map[t.uid] = tot_work
+        task_cost_map[t.uid] = round(tot_cost, 2)
+        return tot_work, tot_cost
 
     for top in top_level_tasks:
-        _rollup_task_work(top)
+        _rollup_task_work_and_cost(top)
 
     wbs_by_uid = _wbs_numbers(top_level_tasks)
     tasks_el = ET.SubElement(root, "Tasks")
@@ -821,24 +856,35 @@ def _render_mspdi(
         ET.SubElement(task_el, "OutlineNumber").text = wbs_num
         ET.SubElement(task_el, "OutlineLevel").text = str(task.outline_level)
         ET.SubElement(task_el, "Priority").text = "500"
+        is_milestone = getattr(task, "is_milestone", False) or (task.duration_days == 0 and not task.children and not task.is_summary)
         if task.start:
-            ET.SubElement(task_el, "Start").text = _date_xml(task.start, _WORK_START_HOUR)
+            s_hour = _WORK_END_HOUR if is_milestone else _WORK_START_HOUR
+            ET.SubElement(task_el, "Start").text = _date_xml(task.start, s_hour)
         if task.finish:
             ET.SubElement(task_el, "Finish").text = _date_xml(task.finish, _WORK_END_HOUR)
         duration_days = (
-            task.duration_days if not task.children
+            0 if is_milestone
+            else task.duration_days if not task.children
             else _count_working_days(task.start, task.finish, holidays) if task.start and task.finish
             else 1
         )
-        ET.SubElement(task_el, "Duration").text = _duration_xml(duration_days)
+        if is_milestone:
+            ET.SubElement(task_el, "Duration").text = "PT0H0M0S"
+        else:
+            ET.SubElement(task_el, "Duration").text = _duration_xml(duration_days)
         ET.SubElement(task_el, "DurationFormat").text = "7"  # 7 = days, display hint only
-        t_work_h = task_work_map.get(task.uid, duration_days * _WORK_HOURS_PER_DAY)
+        t_work_h = task_work_map.get(task.uid, 0 if is_milestone else duration_days * _WORK_HOURS_PER_DAY)
         ET.SubElement(task_el, "Work").text = f"PT{t_work_h}H0M0S"
         ET.SubElement(task_el, "RemainingWork").text = f"PT{t_work_h}H0M0S"
+        t_cost = task_cost_map.get(task.uid)
+        if t_cost is not None and rates_by_name:
+            cost_str = f"{t_cost:.2f}"
+            ET.SubElement(task_el, "Cost").text = cost_str
+            ET.SubElement(task_el, "RemainingCost").text = cost_str
         ET.SubElement(task_el, "PercentComplete").text = "0"
         ET.SubElement(task_el, "PercentWorkComplete").text = "0"
         ET.SubElement(task_el, "Summary").text = "1" if task.is_summary else "0"
-        ET.SubElement(task_el, "Milestone").text = "0"
+        ET.SubElement(task_el, "Milestone").text = "1" if is_milestone else "0"
         ET.SubElement(task_el, "ConstraintType").text = "0"
         predecessors = list(task.predecessor_uids)
         if task.predecessor_uid is not None and task.predecessor_uid not in predecessors:
@@ -946,8 +992,16 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
                 errors.append("Calendar Exception missing UID")
             if not exc.findtext("p:ID", default="", namespaces=ns):
                 errors.append("Calendar Exception missing ID")
-            if exc.find("p:TimePeriod", ns) is None:
+            tp = exc.find("p:TimePeriod", ns)
+            if tp is None:
                 errors.append("Calendar Exception missing TimePeriod")
+            else:
+                f_date = tp.findtext("p:FromDate", default="", namespaces=ns)
+                t_date = tp.findtext("p:ToDate", default="", namespaces=ns)
+                if not f_date or not t_date:
+                    errors.append("Calendar Exception TimePeriod missing FromDate or ToDate")
+                elif f_date >= t_date:
+                    errors.append(f"Calendar Exception has zero-length or inverted TimePeriod ({f_date} to {t_date})")
 
     task_els = root.findall(".//p:Tasks/p:Task", ns)
     if not task_els:
@@ -966,6 +1020,14 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
         finish = task_el.findtext("p:Finish", default="", namespaces=ns)
         dur = task_el.findtext("p:Duration", default="", namespaces=ns)
         work = task_el.findtext("p:Work", default="", namespaces=ns)
+        cost_txt = task_el.findtext("p:Cost", default="", namespaces=ns)
+        cost_val = 0.0
+        has_cost = bool(cost_txt)
+        if cost_txt:
+            try:
+                cost_val = float(cost_txt)
+            except ValueError:
+                errors.append(f"Task {name!r} has invalid Cost {cost_txt!r}")
 
         if not uid:
             errors.append(f"Task {name!r} missing UID")
@@ -993,6 +1055,8 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
                 "dur": dur,
                 "work": work,
                 "work_hours": work_h,
+                "cost": cost_val,
+                "has_cost": has_cost,
             }
 
         for pred in task_el.findall("p:PredecessorLink", ns):
@@ -1008,6 +1072,12 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
             cal_idx = child_tags.index("CalendarUID")
             if first_pred > cal_idx:
                 errors.append(f"Task {name!r} has PredecessorLink after CalendarUID (violates MSPDI sequence order)")
+        if "Work" in child_tags and "Cost" in child_tags:
+            if child_tags.index("Work") > child_tags.index("Cost"):
+                errors.append(f"Task {name!r} has Work after Cost (violates MSPDI sequence order)")
+        if "Cost" in child_tags and "PercentComplete" in child_tags:
+            if child_tags.index("Cost") > child_tags.index("PercentComplete"):
+                errors.append(f"Task {name!r} has Cost after PercentComplete (violates MSPDI sequence order)")
 
     currency_code = root.findtext("p:CurrencyCode", default="", namespaces=ns)
     currency_symbol = root.findtext("p:CurrencySymbol", default="", namespaces=ns)
@@ -1037,6 +1107,10 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
                 child_works = sum(tasks_by_wbs[cwbs]["work_hours"] for cwbs in child_wbs_list)
                 if abs(tdata["work_hours"] - child_works) > 0.01:
                     errors.append(f"Summary task {tdata['name']!r} Work ({tdata['work_hours']}h) does not match sum of child work ({child_works}h)")
+                if tdata.get("has_cost"):
+                    child_costs = sum(tasks_by_wbs[cwbs]["cost"] for cwbs in child_wbs_list)
+                    if abs(tdata["cost"] - child_costs) > 0.05:
+                        errors.append(f"Summary task {tdata['name']!r} Cost ({tdata['cost']}) does not match sum of child cost ({child_costs})")
 
     res_uids = set()
     for res_el in root.findall(".//p:Resources/p:Resource", ns):
@@ -1072,6 +1146,22 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
             errors.append(f"Assignment {a_uid} missing Units")
         if not work:
             errors.append(f"Assignment {a_uid} missing Work")
+
+    # Verify that each leaf task's Work matches the sum of its assignment Work
+    asgn_work_by_task: Dict[str, float] = {}
+    for asgn in root.findall(".//p:Assignments/p:Assignment", ns):
+        t_uid = asgn.findtext("p:TaskUID", default="", namespaces=ns)
+        work = asgn.findtext("p:Work", default="", namespaces=ns)
+        if work and t_uid:
+            m_aw = re.match(r"PT(\d+(?:\.\d+)?)H", work)
+            if m_aw:
+                asgn_work_by_task[t_uid] = asgn_work_by_task.get(t_uid, 0.0) + float(m_aw.group(1))
+
+    for tdata in tasks_by_wbs.values():
+        t_uid = tdata["uid"]
+        if not tdata["summary"] and t_uid in asgn_work_by_task:
+            if abs(tdata["work_hours"] - asgn_work_by_task[t_uid]) > 0.01:
+                errors.append(f"Task {tdata['name']!r} Work ({tdata['work_hours']}h) does not match sum of assignment work ({asgn_work_by_task[t_uid]}h)")
 
     return errors
 
@@ -1130,9 +1220,10 @@ def _build_and_write_pert_cpm(
         preds = list(task.predecessor_uids)
         if task.predecessor_uid is not None and task.predecessor_uid not in preds:
             preds.append(task.predecessor_uid)
+        is_ms = getattr(task, "is_milestone", False) or task.duration_days == 0
         activities.append({
             "uid": task.uid, "name": task.name, "start": task.start, "finish": task.finish,
-            "duration_days": max(task.duration_days, 1), "gap_working_days_before": gap,
+            "duration_days": 0 if is_ms else max(task.duration_days, 1), "gap_working_days_before": gap,
             "predecessor_uids": preds,
         })
     try:
@@ -1188,6 +1279,7 @@ def build_portfolio_backlog_project_plan(
     resources: Optional[List[Dict[str, Any]]] = None,
     target_duration_weeks: Optional[float] = None,
     holiday_calendar: Optional[str] = None,
+    include_phase_gates: Optional[bool] = None,
 ) -> str:
     """Exports the current saved Enterprise Agile Portfolio Backlog as an
     MSPDI project plan. Same "ERROR: ..."/"<thing> export failed: ..." string
@@ -1199,6 +1291,9 @@ def build_portfolio_backlog_project_plan(
     backlog = load_portfolio_backlog()
     if backlog.get("status") != "OK" or not backlog.get("epics"):
         return "ERROR: No saved portfolio backlog found. Create one first."
+
+    if include_phase_gates is None:
+        include_phase_gates = bool(backlog.get("include_phase_gates") or backlog.get("phase_gates"))
 
     if not target_duration_weeks and backlog.get("timescale_weeks"):
         try:
@@ -1276,6 +1371,12 @@ def build_portfolio_backlog_project_plan(
                     points = float(job_size)
                 except (TypeError, ValueError):
                     points = 1.0
+                is_story_ms = (
+                    bool(story.get("milestone"))
+                    or bool(story.get("is_milestone"))
+                    or str(story.get("type", "")).lower() == "milestone"
+                    or job_size == 0
+                )
                 explicit_days = story.get("duration_days") or story.get("duration_working_days")
                 if explicit_days:
                     try:
@@ -1287,9 +1388,10 @@ def build_portfolio_backlog_project_plan(
                 story_task = _Task(
                     uid=next_uid(), name=story.get("title") or story.get("id") or "Story",
                     outline_level=4, is_summary=False,
-                    notes=f"job_size={job_size!r}; illustrative duration only.",
+                    notes=f"job_size={job_size!r}; illustrative duration only." if not is_story_ms else "Phase milestone.",
                 )
-                story_task.duration_days = duration_days
+                story_task.is_milestone = is_story_ms
+                story_task.duration_days = 0 if is_story_ms else duration_days
                 story_task.item_id = story.get("id")
                 story_task.dependencies = story.get("dependencies") or story.get("predecessors") or []
                 story_timing = story.get("timing") or story.get("weeks") or story.get("timing_window") or ""
@@ -1322,6 +1424,22 @@ def build_portfolio_backlog_project_plan(
                 _Task(uid=next_uid(), name="(no stories)", outline_level=4, is_summary=False)
             )
             epic_task.children[-1].children[-1].duration_days = 1
+        if include_phase_gates or epic.get("include_phase_gate") or epic.get("gate"):
+            epic_leaves = [t for t in _flatten(epic_task.children) if not t.children]
+            epic_title = epic.get("title") or epic.get("id") or "Phase"
+            gate_task = _Task(
+                uid=next_uid(),
+                name=f"{epic_title} - Sign-Off & Gate",
+                outline_level=3,
+                is_summary=False,
+                notes=f"Zero-duration milestone and phase gate sign-off for {epic_title}.",
+            )
+            gate_task.is_milestone = True
+            gate_task.duration_days = 0
+            gate_task.item_id = f"{epic.get('id', 'EPIC')}-GATE"
+            if epic_leaves:
+                gate_task.predecessor_uids = [epic_leaves[-1].uid]
+            epic_task.children.append(gate_task)
         root.children.append(epic_task)
 
     project_start = _parse_start_date(start_date)
@@ -1764,14 +1882,24 @@ def parse_mspdi_tasks(path: str) -> Optional[List[Dict[str, Any]]]:
             }
             for a in task_assigns
         ]
-        task_cost_vals = [a["cost"] for a in task_assigns if a.get("cost") is not None]
-        task_cost = round(sum(task_cost_vals), 2) if task_cost_vals else None
+        task_cost_text = task_el.findtext("p:Cost", default="", namespaces=ns)
+        if task_cost_text:
+            try:
+                task_cost = float(task_cost_text)
+            except ValueError:
+                task_cost = None
+        else:
+            task_cost_vals = [a["cost"] for a in task_assigns if a.get("cost") is not None]
+            task_cost = round(sum(task_cost_vals), 2) if task_cost_vals else None
+
+        is_milestone = (task_el.findtext("p:Milestone", default="0", namespaces=ns) or "0") == "1"
 
         tasks.append({
             "uid": task_uid,
             "name": (task_el.findtext("p:Name", default="", namespaces=ns) or "").strip(),
             "outline_level": outline_level,
             "is_summary": (task_el.findtext("p:Summary", default="0", namespaces=ns) or "0") == "1",
+            "is_milestone": is_milestone,
             "start": task_el.findtext("p:Start", default="", namespaces=ns) or None,
             "finish": task_el.findtext("p:Finish", default="", namespaces=ns) or None,
             "duration_hours": duration_hours,
@@ -1803,6 +1931,8 @@ def parse_mspdi_project(path: str) -> Optional[Dict[str, Any]]:
     assignments = parse_mspdi_assignments(path) or []
     cost_vals = [a["cost"] for a in assignments if a.get("cost") is not None]
     total_cost = round(sum(cost_vals), 2) if cost_vals else None
+    if total_cost is None and tasks and tasks[0].get("cost") is not None:
+        total_cost = tasks[0]["cost"]
 
     return {
         "title": title,

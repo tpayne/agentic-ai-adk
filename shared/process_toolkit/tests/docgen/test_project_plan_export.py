@@ -849,3 +849,171 @@ class TestValidateMspdiXml:
         assert "CalendarUID" in child_tags
         assert child_tags.index("PredecessorLink") < child_tags.index("CalendarUID")
 
+    def test_calendar_exceptions_full_day_bounds_and_validation(self):
+        from process_toolkit.docgen.project_plan_export import build_portfolio_backlog_project_plan, validate_mspdi_xml
+        from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+        backlog = {
+            "name": "Holiday Backlog",
+            "summary": "Summary",
+            "source_name": "Design",
+            "source_artifact": "design",
+            "holiday_calendar": "uk",
+            "epics": [{
+                "id": "EPIC-01", "title": "Epic 1", "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 3, "traces_to": ["FR-1"],
+                "features": [{
+                    "id": "FEAT-01", "title": "Feat 1", "description": "Desc",
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                    "job_size": 3, "traces_to": ["FR-1"],
+                    "stories": [{
+                        "id": "STORY-01", "title": "Story 1", "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 8, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"]
+                    }]
+                }]
+            }]
+        }
+        save_portfolio_backlog(backlog)
+        build_portfolio_backlog_project_plan(start_date="2026-12-20", holiday_calendar="uk")
+        tree = ET.parse(paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME))
+        root = tree.getroot()
+        ns = _NS
+
+        exceptions = root.findall(".//p:Calendars/p:Calendar/p:Exceptions/p:Exception", ns)
+        assert len(exceptions) > 0
+        for exc in exceptions:
+            from_dt = exc.findtext("p:TimePeriod/p:FromDate", default="", namespaces=ns)
+            to_dt = exc.findtext("p:TimePeriod/p:ToDate", default="", namespaces=ns)
+            assert from_dt.endswith("T00:00:00")
+            assert to_dt.endswith("T23:59:59")
+            assert to_dt > from_dt
+
+        assert validate_mspdi_xml(paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)) == []
+
+    def test_phase_sign_off_milestone_injection_and_attributes(self):
+        from process_toolkit.docgen.project_plan_export import build_portfolio_backlog_project_plan, parse_mspdi_tasks, validate_mspdi_xml
+        from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+        backlog = {
+            "name": "Multi-Phase Backlog",
+            "summary": "Summary",
+            "source_name": "Design",
+            "source_artifact": "design",
+            "include_phase_gates": True,
+            "epics": [
+                {
+                    "id": "EPIC-01", "title": "Phase 1: Mobilisation", "description": "Desc",
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                    "job_size": 3, "traces_to": ["FR-1"],
+                    "features": [{
+                        "id": "FEAT-01", "title": "Feat 1", "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3, "traces_to": ["FR-1"],
+                        "stories": [{
+                            "id": "STORY-01", "title": "Story 1", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 3, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"]
+                        }]
+                    }]
+                },
+                {
+                    "id": "EPIC-02", "title": "Phase 2: Execution", "description": "Desc",
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                    "job_size": 3, "traces_to": ["FR-1"],
+                    "dependencies": ["EPIC-01"],
+                    "features": [{
+                        "id": "FEAT-02", "title": "Feat 2", "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3, "traces_to": ["FR-1"],
+                        "stories": [{
+                            "id": "STORY-02", "title": "Story 2", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 3, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"]
+                        }]
+                    }]
+                }
+            ]
+        }
+        save_portfolio_backlog(backlog)
+        build_portfolio_backlog_project_plan(start_date="2026-11-23", include_phase_gates=True)
+        xml_path = paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+        assert validate_mspdi_xml(xml_path) == []
+
+        tasks = parse_mspdi_tasks(xml_path)
+        milestones = [t for t in tasks if t.get("is_milestone")]
+        assert len(milestones) == 2
+        p1_gate = next(t for t in milestones if "Mobilisation" in t["name"])
+        assert p1_gate["is_milestone"] is True
+        assert p1_gate["duration_hours"] == 0.0
+        assert p1_gate["start"] == p1_gate["finish"]
+        assert p1_gate["outline_level"] == 3
+
+    def test_task_cost_rollup_and_work_assignment_reconciliation(self):
+        from process_toolkit.docgen.project_plan_export import build_portfolio_backlog_project_plan, parse_mspdi_tasks, validate_mspdi_xml
+        from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+        backlog = {
+            "name": "Costed Backlog",
+            "summary": "Summary",
+            "source_name": "Design",
+            "source_artifact": "design",
+            "rate_card": [
+                {"role": "Solution Architect", "daily_rate": 1600.0},
+                {"role": "Business Analyst", "daily_rate": 800.0},
+            ],
+            "roles": [
+                {"name": "Solution Architect", "allocation_percent": 50},
+                {"name": "Business Analyst", "allocation_percent": 50},
+            ],
+            "epics": [{
+                "id": "EPIC-01", "title": "Epic 1", "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 5, "traces_to": ["FR-1"],
+                "features": [{
+                    "id": "FEAT-01", "title": "Feat 1", "description": "Desc",
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                    "job_size": 5, "traces_to": ["FR-1"],
+                    "stories": [
+                        {
+                            "id": "STORY-01", "title": "Story 1", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 3, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"],
+                            "resources": [
+                                {"name": "Solution Architect", "allocation_percent": 50},
+                                {"name": "Business Analyst", "allocation_percent": 50},
+                            ]
+                        },
+                        {
+                            "id": "STORY-02", "title": "Story 2", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 2, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"],
+                            "resources": [
+                                {"name": "Solution Architect", "allocation_percent": 50},
+                                {"name": "Business Analyst", "allocation_percent": 50},
+                            ]
+                        }
+                    ]
+                }]
+            }]
+        }
+        save_portfolio_backlog(backlog)
+        build_portfolio_backlog_project_plan(start_date="2026-11-23")
+        xml_path = paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+        assert validate_mspdi_xml(xml_path) == []
+
+        tasks = parse_mspdi_tasks(xml_path)
+        root_t = tasks[0]
+        epic_t = tasks[1]
+        feat_t = tasks[2]
+        s1_t = tasks[3]
+        s2_t = tasks[4]
+
+        # Story 1: 3 days = 24h. SA(50%) = 12h @ 200/h = 2400. BA(50%) = 12h @ 100/h = 1200. Total = 3600.
+        assert s1_t["cost"] == 3600.0
+        # Story 2: 2 days = 16h. SA(50%) = 8h @ 200/h = 1600. BA(50%) = 8h @ 100/h = 800. Total = 2400.
+        assert s2_t["cost"] == 2400.0
+        # Rollups
+        assert feat_t["cost"] == 6000.0
+        assert epic_t["cost"] == 6000.0
+        assert root_t["cost"] == 6000.0
+
+
