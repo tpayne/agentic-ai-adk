@@ -80,10 +80,9 @@ Create a single object with these fields:
   - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
   Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect the projected overall staffing distribution for the scope (summing to 1.0).
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
-  When the source engagement defines specific phases (e.g. Mobilisation, Current State Assessment, Requirements Discovery,
-  Future State Definition, Market Assessment, Options Appraisal, Business Case Support, Implementation Readiness Assessment,
-  Final Recommendation & Handover), map every phase to a distinct Epic and represent all required deliverables across the features and stories.
-  Maintain neutral, objective evaluation across future market options (e.g. ServiceNow, Jira Service Management, Freshservice, BMC Helix)
+  When the source engagement defines specific phases (e.g. Inception/Elaboration/Construction/Transition, Discovery/Alpha/Beta/Live,
+  or bespoke client phases), map every requested phase to a distinct Epic and represent all requested deliverables across the features and stories.
+  When evaluating future platforms, tools, or vendors, maintain neutral, objective evaluation across relevant market options
   without pre-anchoring to a single vendor unless explicitly mandated.
 
 Each epic, feature, and story must have:
@@ -109,10 +108,10 @@ a non-empty `stories` list (typically 2-4 concrete, granular stories/tasks).
 CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER REPETITIONS:
 - NEVER repeat an Epic title as a single Feature, and NEVER repeat a Feature title as a single Story named
   "<Feature> Task" or "<Feature> Story".
-- A consulting engagement or project backlog requires a realistic, professional breakdown: each phase/epic
+- Any engagement or project backlog requires a realistic, professional breakdown: each phase/epic
   subdivides into distinct functional streams (Features), and each stream breaks down into specific, actionable
-  work packages (Stories/Tasks) such as stakeholder interviews, data audits, architecture blueprints, gap analyses,
-  vendor scorecards, TCO financial models, and deliverable authoring.
+  work packages (Stories/Tasks) such as requirements workshops, architecture blueprints, data schemas, API implementations,
+  gap analyses, vendor scorecards, TCO financial models, or deliverable authoring.
 - Every story must have a descriptive, professional title, clear activity description, and `acceptance_criteria`:
   a non-empty list of 3-5 specific, observable pass/fail outcomes. Write stories in a delivery-ready format
   where useful (for example, as a user story) without forcing a user persona unsupported by the source.

@@ -1198,7 +1198,7 @@ concurrency of independent phases, resource allocations, and deliverable coverag
 
 Examples:
 - "Audit the project plan for schedule compliance and overrun."
-- "Review the project plan XML to ensure it finishes within the 12-week timescale."
+- "Review the project plan XML to ensure it finishes within the specified timescale."
 - "Check the project plan concurrency and resource allocations."
 
 ------------------------------------------------------------
@@ -1515,7 +1515,7 @@ This is an engagement CREATION request defining a new plan or backlog, NOT a bar
 You MUST NOT route this to Project_Plan_Export_Agent to export whatever unrelated, stale artifact
 happens to be saved on disk from an earlier session or test run. Even if a saved portfolio_backlog.json
 or proposal_response.json already exists on disk, if the user's prompt defines a new engagement specification
-(e.g. 12-week ITSM discovery with specific phases, deliverables, and resource allocations):
+(for example, any arbitrary project such as a 6-week mobile MVP, 9-month cloud migration, or ITSM discovery with specific phases, deliverables, and resource allocations):
 1. Route to Portfolio_Backlog_Pipeline (or Proposal_Response_Pipeline) to author the compliant engagement
    backlog / proposal plan incorporating all requested phases (as epics), deliverables (as features/stories),
    timescale (total job sizes matching the timescale in working days), and resource allocations (with
@@ -1545,7 +1545,7 @@ Examples:
 ### PROJECT PLAN REQUESTED BUT NOTHING SAVED YET
 CONFIRMED AS A REAL PRODUCTION BUG on the sibling neuro-san port (identical router logic,
 developed in tandem with this one): when the user's own request names one of the signal words
-above (e.g. "create a project plan for the ITSM discovery, assuming a Project Manager at 50%...")
+above (e.g. "create a project plan for our system migration, assuming a Project Manager at 50%...")
 but NEITHER a saved Portfolio Backlog NOR a saved Proposal Response exists yet to export from, a
 live run silently dropped "project plan" entirely and asked an unrelated clarifying question
 ("Business Process Design or Enterprise Agile Portfolio Backlog?") that never mentioned a project

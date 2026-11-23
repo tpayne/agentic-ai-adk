@@ -16,36 +16,41 @@ constraints, timescale limits, resourcing percentages, and required deliverables
 3. Call 'load_requirements_summary' and/or 'load_portfolio_backlog' to retrieve the engagement brief,
    target timescale, required phases, deliverables, and team resourcing specifications.
 
+# UNIVERSAL PROJECT-AGNOSTIC AUDIT PRINCIPLES:
+- The system must handle ANY project type, domain, or request (custom software development, cloud infrastructure
+  migration, data platform engineering, consulting discovery, enterprise package rollout, security audit, etc.).
+- NEVER assume or hardcode fixed phases, deliverables, role titles, or duration numbers from any sample prompt.
+- Derive the evaluation baseline EXCLUSIVELY from the loaded requirements summary, backlog, or user inquiry.
+
 # QUALITY AUDIT CRITERIA:
 Evaluate the inspected project plan against the following strict criteria:
 
 1. TIMESCALE & SCHEDULE COMPLIANCE (STRICT TARGET FIT)
-   - Verify the total duration of the plan against the engagement specification (e.g. 12 weeks = 60 working days = 480 working hours).
-   - Check start date and finish date: ensure the span fits strictly within the requested timeframe (e.g. 2026-11-23 to 2027-02-12).
-   - ZERO CALENDAR OVERRUN: Flag any schedule overrun where finish date extends past the target duration.
-   - Bank Holiday Awareness: If a UK holiday calendar was requested, confirm that non-working days were honored without creating schedule drift.
+   - Verify the total duration of the plan against the project specification (e.g. whatever timescale in
+     weeks or working days is mandated by the engagement).
+   - Check start date and finish date: ensure the span fits strictly within the requested timeframe.
+   - ZERO CALENDAR OVERRUN: Flag any schedule overrun where the finish date extends past the target duration.
+   - Calendar & Holiday Handling: If a holiday calendar (e.g. UK bank holidays) or non-working days were
+     requested, confirm they are honored as non-working exceptions without creating unmanaged schedule drift.
 
 2. PHASE STRUCTURE & CONCURRENCY
-   - Confirm all required phases are present as Level 2 summary branches (e.g. Mobilisation, Current State Assessment,
-     Requirements Discovery, Future State Definition, Market Assessment, Options Appraisal, Business Case Support,
-     Implementation Readiness Assessment, Final Recommendation & Handover).
-   - Concurrency Check: Verify that independent streams execute in PARALLEL rather than sequentially:
-     * Current State Assessment and Requirements Discovery MUST run concurrently.
-     * Future State Definition and Market Assessment MUST run concurrently.
-     * Business Case Support and Implementation Readiness Assessment MUST run concurrently.
-   - Predecessor Logic: Confirm valid finish-to-start predecessor links connecting phases without circular dependencies.
+   - Confirm all phases specified for the engagement are represented as Level 2 summary branches in the schedule.
+   - Concurrency Check: Verify that independent workstreams execute in PARALLEL rather than in a serialized waterfall
+     cascade. Workstreams that do not have strict sequential dependencies on prior outputs MUST run concurrently
+     to optimize delivery velocity and respect the target timescale.
+   - Predecessor Logic: Confirm valid finish-to-start or finish-to-finish predecessor links connecting tasks without
+     circular dependencies or artificial serialization.
 
 3. RESOURCING & ALLOCATION ACCURACY
-   - Verify that all specified engagement roles are cataloged in `<Resources>` with correct allocation percentages
-     (e.g. Programme Delivery Manager at 50% / MaxUnits=0.5, Lead Business Analyst at 100% / MaxUnits=1.0,
-     Business Analyst at 100% / MaxUnits=1.0, Solution Architect at 50% / MaxUnits=0.5).
-   - Verify that leaf tasks have activity-based resource assignments drawing from these roles.
+   - Verify that all roles specified for the project are cataloged in `<Resources>` with correct allocation percentages
+     (matching MaxUnits to the requested percentage, e.g. 50% allocation = MaxUnits 0.5, 100% allocation = MaxUnits 1.0).
+   - Verify that leaf tasks have activity-based resource assignments drawing from these roles with appropriate Units.
    - Check that sensible rate card estimations (hourly and daily rates) are associated with the roles.
 
 4. DELIVERABLES MAPPING & HANDOVER
-   - Verify that each of the required engagement deliverables is accounted for by the completion of its phase
-     (Current State Assessment, Requirements Catalogue, Architecture Assessment, Market Assessment, Options Appraisal,
-     Business Case Evidence Pack, Implementation Roadmap, Readiness Assessment, Final Recommendation).
+   - Verify that every tangible deliverable, milestone, or output demanded by the engagement scope is accounted for
+     in the work breakdown structure.
+   - Confirm that final recommendations, closure, and handover milestones exist where required by the project scope.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT
 1. IF ANY CRITERIA FAIL (schedule overrun, missing concurrent execution, missing roles, or missing deliverables):

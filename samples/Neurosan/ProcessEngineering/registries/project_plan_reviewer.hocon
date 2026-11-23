@@ -9,7 +9,7 @@
         "tags": ["project-plan", "mspdi", "schedule-audit", "quality-audit", "process-engineering-port"],
         "sample_queries": [
             "Audit the project plan for schedule compliance and overrun.",
-            "Review the project plan XML to ensure it finishes within the 12-week timescale.",
+            "Review the project plan XML to ensure it finishes within the specified timescale.",
             "Check the project plan concurrency and resource allocations."
         ]
     },
@@ -51,36 +51,38 @@ concurrency, calendar integrity, resource allocations, and alignment with the ov
 3. Also inspect the source artifact by calling load_portfolio_backlog or load_requirements_summary
    to understand the intended timescale and staffing model.
 
+# UNIVERSAL PROJECT-AGNOSTIC AUDIT PRINCIPLES
+The system must be able to audit ANY project type, domain, or request (custom software development,
+cloud migrations, data platforms, discovery consulting, infrastructure rollout, procurement, etc.).
+NEVER hardcode or assume fixed phases, deliverables, role titles, or timescales from any sample prompt.
+Derive evaluation criteria dynamically from the loaded requirements summary, backlog, or user inquiry.
+
 # AUDIT CRITERIA
 
 ## 1. STRICT TIMESCALE COMPLIANCE & ZERO OVERRUN (CRITICAL)
-- Timescale Limit: If the engagement specifies a target timescale (e.g. 12 weeks / 60 working days),
+- Timescale Limit: If the engagement specifies a target timescale (in weeks or working days),
   the finish date MUST NOT exceed the target timescale from the start date.
-- Overrun Flag: Any plan that overruns the requested duration (e.g. taking 14 or 16 weeks for a 12-week
-  engagement) is an automatic failure.
+- Overrun Flag: Any plan that overruns the requested duration without user authorization is an automatic failure.
 
 ## 2. CONCURRENCY & WORKSTREAM DEPENDENCY
-- Concurrent Execution: Phases that do not strictly depend on prior outputs MUST run in parallel
-  with appropriate lead/lag dependencies (e.g. Requirements Discovery, Architecture Assessment, and
-  Market Assessment running in parallel after Mobilisation and initial Current State).
+- Concurrent Execution: Phases or workstreams that do not strictly depend on prior outputs MUST run in parallel
+  with appropriate lead/lag dependencies to respect the project timescale.
 - No Pure Linear Cascade: Flag pure sequential 'waterfall' cascading of all phases where concurrency
   was feasible.
 
 ## 3. CALENDAR & HOLIDAY INTEGRITY
 - Verify non-working days: Saturdays and Sundays must be non-working (DayType 1 and 7).
-- Verify holiday handling: If UK holiday calendar was requested, verify that public holidays
-  (Christmas, Boxing Day, New Year's Day, etc.) are properly scheduled as non-working days.
+- Verify holiday handling: If a holiday calendar (e.g. UK bank holidays) was requested, verify that public holidays
+  are properly scheduled as non-working exceptions without unmanaged schedule drift.
 
 ## 4. RESOURCE ALLOCATION & UTILIZATION
-- Verify named resources and roles against engagement specification (e.g. Programme Delivery Manager 50%,
-  Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%).
-- Check resource MaxUnits and assignment Units: a 50% allocation must show MaxUnits=0.5 and Units=0.5.
+- Verify named resources and roles against the project specification.
+- Check resource MaxUnits and assignment Units: verify that allocation percentages match requested staffing models.
 - Flag missing resources, generic unassigned tasks, or allocation mismatches.
 
 ## 5. DELIVERABLES & GOAL SATISFACTION
-- Verify all requested deliverables (e.g. Current State Assessment, Requirements Catalogue, Architecture
-  Assessment, Market Assessment, Options Appraisal, Business Case Evidence Pack, Implementation Roadmap,
-  Readiness Assessment, Final Recommendation) are represented as tangible milestones or summary task outputs.
+- Verify all requested deliverables and milestones defined in the engagement scope are represented as tangible
+  milestones or summary task outputs.
 
 # RESPONSE FORMAT
 Provide a structured schedule audit:

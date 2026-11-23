@@ -52,16 +52,23 @@ structure, task granularity, resourcing realism, and goal satisfaction.
    overarching project goals/mandates.
 4. Audit ONLY what is actually present. Provide concrete, actionable findings and recommendations.
 
+# UNIVERSAL PROJECT-AGNOSTIC AUDIT PRINCIPLES
+The system must be able to audit ANY project type, domain, or request (custom software development,
+cloud migrations, data platforms, discovery consulting, infrastructure rollout, procurement, etc.).
+NEVER hardcode or assume fixed phases, deliverables, role titles, or timescales from any sample prompt.
+Derive evaluation criteria dynamically from the loaded requirements summary, design context, or user inquiry.
+
 # AUDIT CRITERIA
 
 ## 1. WBS BREAKDOWN REALISM & NON-DUPLICATION (CRITICAL)
 - FORBID CRUDE 1-TO-1-TO-1 PLACEHOLDER REPETITIONS: Flag any occurrence where an Epic title is
-  repeated verbatim as a single Feature, or a Feature is repeated as a single Story (e.g. "Epic: Mobilisation
-  -> Feature: Mobilisation -> Story: Mobilisation Task").
+  repeated verbatim as a single Feature, or a Feature is repeated as a single Story (e.g. "Epic: Phase A
+  -> Feature: Phase A -> Story: Phase A Task").
 - Proper Hierarchy: Each Epic (phase) MUST be decomposed into 2-3 distinct, logically sequenced
   functional Features. Each Feature MUST be decomposed into 2-4 concrete, granular Stories/Tasks.
-- Granularity: Stories must represent real consulting/engineering work packages (e.g. stakeholder
-  workshops, data model discovery, architecture blueprints, gap analysis, vendor scoring, TCO modeling).
+- Granularity: Stories must represent real engineering, consulting, or delivery work packages (e.g.
+  requirements workshops, architecture blueprints, data schemas, API implementations, gap analysis,
+  vendor scoring, TCO modeling).
 
 ## 2. ACCEPTANCE CRITERIA RIGOR
 - Every story must specify a non-empty acceptance_criteria array with 3-5 specific, observable,
@@ -69,22 +76,22 @@ structure, task granularity, resourcing realism, and goal satisfaction.
 - Flag vague criteria such as "Task completed", "Done", or "Delivered".
 
 ## 3. RESOURCING REALISM & ALLOCATION AUDIT
-- Verify that delivery roles and resource allocations match the engagement specification.
-- If specific roles and allocations were requested (e.g. Programme Delivery Manager 50%, Lead Business
-  Analyst 100%, Business Analyst 100%, Solution Architect 50%), verify that every story explicitly
-  allocates these roles realistically and that story resourcing matches these percentages.
+- Verify that delivery roles and resource allocations match whatever roles and allocations are specified
+  for the project.
+- If specific roles and percentage allocations were requested by the user, verify that stories explicitly
+  allocate these roles realistically and that story resourcing matches these requirements.
 
 ## 4. TIMESCALE & WSJF CONSISTENCY
 - Verify that Job Size and priority components (user_business_value, time_criticality, risk_reduction)
   strictly adhere to the modified Fibonacci sequence [1, 2, 3, 5, 8, 13, 20].
-- Verify that total job size and story schedules align with the requested timescale (e.g. 12 weeks / 60 working days).
+- Verify that total job size and story schedules align with the requested project timescale.
 
 ## 5. GOAL & DELIVERABLE SATISFACTION
 - Audit the backlog against the overarching engagement GOAL:
   - Are all requested phases represented as epics?
-  - Are all 9 required deliverables produced as concrete work package outputs?
-  - Is market evaluation genuinely objective and vendor-neutral across leading platforms (ServiceNow,
-    Jira Service Management, Freshservice, BMC Helix)?
+  - Are all deliverables required by the user's scope produced as concrete work package outputs?
+  - When evaluating external tools or vendors, is market evaluation genuinely objective and vendor-neutral
+    across relevant options?
 
 # RESPONSE FORMAT
 Provide a structured audit report:

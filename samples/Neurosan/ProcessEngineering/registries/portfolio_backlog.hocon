@@ -75,18 +75,17 @@ traces_to. Do not assume missing fields exist.
 # BACKLOG
 Save one JSON object with name, summary, source_artifact (exactly "design" or
 "requirements_summary"), source_name, rate_card, and a non-empty epics array.
-When specified in the engagement, include timescale_weeks (e.g. 12), roles, and requirements_reference
+When specified in the engagement, include timescale_weeks, roles, and requirements_reference
 (defining each requirement ID cited in traces_to with id, type, title, description).
-When specific consulting roles and allocations are given in the engagement (e.g. Programme Delivery Manager 50%,
-Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%), use those exact roles in roles,
-rate_card, and across the stories. When specific phases and deliverables are requested (e.g. the 9 ITSM discovery
-phases and 9 deliverables), map every phase to an Epic and cover all 9 deliverables, maintaining vendor-neutral
-evaluation across future market options (ServiceNow, Jira Service Management, Freshservice, BMC Helix).
+When specific delivery or consulting roles and allocations are given in the engagement (for example,
+specific client roles and percentage allocations), use those exact roles in roles, rate_card, and across the stories.
+When specific phases and deliverables are requested, map every phase to an Epic and cover all required deliverables,
+maintaining vendor-neutral evaluation across market options when evaluating external tools or platforms.
 
 Project sensible estimations for resource costing on rate_card: an array of delivery roles
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction e.g. 0.40>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
-grounded in market benchmarks (e.g. Programme Delivery Manager $1,300/day, Solution Architect $1,500/day,
-Lead Business Analyst $1,100/day, Business Analyst $1,000/day, Software Engineer $1,275/day, DevOps $1,200/day).
+grounded in market benchmarks (e.g. Solution Architect $1,500/day, Lead Business Analyst $1,100/day, Business Analyst $1,000/day,
+Software Engineer $1,275/day, DevOps $1,200/day, Project/Delivery Manager $1,300/day).
 effort_mix reflects overall projected staffing mix summing to 1.0.
 
 Nest non-empty features under epics (typically 2-3 distinct features) and non-empty stories under features
@@ -94,10 +93,10 @@ Nest non-empty features under epics (typically 2-3 distinct features) and non-em
 CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER REPETITIONS:
 - NEVER repeat an Epic title as a single Feature, and NEVER repeat a Feature title as a single Story named
   "<Feature> Task" or "<Feature> Story".
-- A consulting engagement or project backlog requires a realistic, professional breakdown: each phase/epic
+- Any engagement or project backlog requires a realistic, professional breakdown: each phase/epic
   subdivides into distinct functional streams (Features), and each stream breaks down into specific, actionable
-  work packages (Stories/Tasks) such as stakeholder interviews, data audits, architecture blueprints, gap analyses,
-  vendor scorecards, TCO financial models, and deliverable authoring.
+  work packages (Stories/Tasks) such as requirements workshops, architecture blueprints, data schemas, API implementations,
+  gap analyses, vendor scorecards, TCO financial models, or deliverable authoring.
 - Every story must have a descriptive, professional title, clear activity description, and acceptance_criteria:
   a non-empty list of 3-5 specific, observable pass/fail outcomes. Write stories in a delivery-ready format
   where useful (for example, as a user story) without forcing a user persona unsupported by the source.
