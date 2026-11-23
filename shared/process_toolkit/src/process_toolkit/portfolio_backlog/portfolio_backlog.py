@@ -218,10 +218,6 @@ def calculate_story_resources(story: Dict[str, Any]) -> list[dict[str, Any]]:
             if pct > 0:
                 normalized.append({"name": name, "allocation_percent": pct})
         if normalized:
-            total = sum(x["allocation_percent"] for x in normalized)
-            if total > 0 and abs(total - 100.0) > 1e-3:
-                for x in normalized:
-                    x["allocation_percent"] = round((x["allocation_percent"] / total) * 100.0, 1)
             return normalized
 
     text_parts = [

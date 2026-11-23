@@ -511,6 +511,7 @@ def _render_mspdi(
     holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
     resources: Optional[List[tuple]] = None,
     rates_by_name: Optional[Dict[str, float]] = None,
+    caller_resources: Optional[List[tuple]] = None,
 ) -> str:
     ET.register_namespace("", _MSPDI_NS)
     root = ET.Element(f"{{{_MSPDI_NS}}}Project")
@@ -608,13 +609,16 @@ def _render_mspdi(
             leaf_duration_hours[task.uid] = duration_hours
 
     # Collect all resources to be defined in <Resources>
-    # Either from caller-supplied resources (which override/set global resourcing)
-    # or from leaf tasks' activity-based resources.
+    # If caller explicitly provided resources, restrict catalog and assignments to that;
+    # otherwise collect from normalized_resources (engagement roles) and all leaf tasks' resources.
     resource_catalog: Dict[str, float] = {}
-    if normalized_resources:
-        for name, fraction in normalized_resources:
+    if caller_resources:
+        for name, fraction in caller_resources:
             resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
     else:
+        if normalized_resources:
+            for name, fraction in normalized_resources:
+                resource_catalog[name] = max(resource_catalog.get(name, 0.0), fraction)
         for task in all_tasks:
             if not task.children and task.resources:
                 for name, fraction in task.resources:
@@ -636,15 +640,17 @@ def _render_mspdi(
                 ET.SubElement(resource_el, "StandardRate").text = f"{hourly_rate:.2f}"
                 ET.SubElement(resource_el, "StandardRateFormat").text = "3"  # 3 = /hour
 
-        # Assign resources to leaf tasks -- either the caller-supplied resources
-        # across all leaf tasks, or each leaf task's own activity-based resources.
+        # Assign resources to leaf tasks:
+        # If caller explicitly passed resources, override task assignments with that;
+        # otherwise use each task's own activity-based resources (task.resources),
+        # falling back to normalized_resources.
         assignments_el = ET.SubElement(root, "Assignments")
         assignment_uid = 1
         for task in all_tasks:
             if task.children:
                 continue
             duration_hours = leaf_duration_hours.get(task.uid, task.duration_days * _WORK_HOURS_PER_DAY)
-            task_assignments = normalized_resources if normalized_resources else task.resources
+            task_assignments = caller_resources if caller_resources else (task.resources or normalized_resources)
             for name, fraction in task_assignments:
                 r_uid = resource_uids.get(name)
                 if r_uid is None:
@@ -887,9 +893,10 @@ def build_portfolio_backlog_project_plan(
     for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
         rates_by_name.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
 
+    caller_resources = _normalize_resources(resources)
     normalized_resources = _normalize_resources(resources or backlog.get("roles") or backlog.get("resources"))
     xml_text = _render_mspdi(
-        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name,
+        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name, caller_resources,
     )
     try:
         out_path = _write_output(xml_text, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
@@ -1052,9 +1059,10 @@ def build_proposal_response_project_plan(
     for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
         rates_by_name_proposal.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
 
-    normalized_resources = _normalize_resources(resources)
+    caller_resources = _normalize_resources(resources)
+    normalized_resources = _normalize_resources(resources or response.get("roles") or response.get("resources"))
     xml_text = _render_mspdi(
-        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name_proposal,
+        root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name_proposal, caller_resources,
     )
     try:
         out_path = _write_output(xml_text, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)

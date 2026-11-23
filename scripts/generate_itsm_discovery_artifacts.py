@@ -371,7 +371,10 @@ def generate_artifacts():
                                     "Team allocations verified: Programme Delivery Manager (50%), Lead BA (100%), BA (100%), Solution Architect (50%).",
                                     "Discovery workshop calendar scheduled across service management stakeholders."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
                             }
                         ]
                     }
@@ -415,7 +418,11 @@ def generate_artifacts():
                                     "Baseline operational expenditure, licensing, and support costs calculated.",
                                     "Current State Assessment report delivered and signed off."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 50}
+                                ]
                             }
                         ]
                     }
@@ -459,7 +466,10 @@ def generate_artifacts():
                                     "MoSCoW prioritization agreed across business units and IT stakeholders.",
                                     "Deliverable: Requirements Catalogue published and validated."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
                             }
                         ]
                     }
@@ -503,7 +513,10 @@ def generate_artifacts():
                                     "Target operating model (roles, governance committees, support tiers) defined.",
                                     "Deliverable: Architecture Assessment document completed."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50}
+                                ]
                             }
                         ]
                     }
@@ -547,7 +560,10 @@ def generate_artifacts():
                                     "Licensing structures and implementation partner ecosystems analyzed.",
                                     "Deliverable: Market Assessment report signed off."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 100}
+                                ]
                             }
                         ]
                     }
@@ -591,7 +607,11 @@ def generate_artifacts():
                                     "Strengths, weaknesses, opportunities, and risks documented for shortlisted options.",
                                     "Deliverable: Options Appraisal document finalized with stakeholder consensus."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 25}
+                                ]
                             }
                         ]
                     }
@@ -635,7 +655,11 @@ def generate_artifacts():
                                     "Transition budget, professional services estimates, and contingency reserves itemized.",
                                     "Deliverable: Business Case Evidence Pack completed and verified by finance stakeholders."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Solution Architect", "allocation_percent": 25}
+                                ]
                             }
                         ]
                     }
@@ -679,7 +703,11 @@ def generate_artifacts():
                                     "Implementation gating prerequisites and governance checkpoints established.",
                                     "Deliverable: Readiness Assessment report delivered."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 50},
+                                    {"name": "Business Analyst", "allocation_percent": 50}
+                                ]
                             }
                         ]
                     }
@@ -723,7 +751,11 @@ def generate_artifacts():
                                     "Final Recommendation document signed off.",
                                     "All 9 engagement deliverables formally handed over to client leadership."
                                 ],
-                                "resources": team_roles
+                                "resources": [
+                                    {"name": "Programme Delivery Manager", "allocation_percent": 50},
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 25}
+                                ]
                             }
                         ]
                     }
