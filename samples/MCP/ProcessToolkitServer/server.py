@@ -67,6 +67,7 @@ from process_toolkit.docgen.project_plan_export import (
     PORTFOLIO_BACKLOG_PERT_CPM_FILENAME, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
     PROPOSAL_RESPONSE_PERT_CPM_FILENAME, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
     build_portfolio_backlog_project_plan, build_proposal_response_project_plan,
+    parse_mspdi_project,
 )
 from process_toolkit.itsm.simulation import simulate_itsm_risk_and_coverage as _simulate_itsm_risk_and_coverage
 from process_toolkit.drawio.persistence import load_drawio_xml as _load_drawio_xml, reset_drawio_xml as _reset_drawio_xml
@@ -441,6 +442,68 @@ def export_project_plan(
         project_plan = _encode_file(os.path.join(directory, plan_filename)) if plan_filename in changed else None
         pert_cpm = _encode_file(os.path.join(directory, pert_cpm_filename)) if pert_cpm_filename in changed else None
     return {"message": message, "project_plan": project_plan, "pert_cpm": pert_cpm}
+
+
+@mcp.tool
+def inspect_project_plan(
+    schema_type: str = "portfolio_backlog",
+    session_id: Optional[str] = None,
+) -> dict:
+    """Parses and returns structured quality and schedule metrics for the exported project plan (MSPDI XML).
+    `schema_type` is 'portfolio_backlog' or 'proposal_response'.
+    Returns structured metrics: start_date, finish_date, total_tasks, summary_tasks, leaf_tasks,
+    total_resources, total_assignments, total_cost, and phase breakdown with concurrency info.
+    """
+    if schema_type not in ("portfolio_backlog", "proposal_response"):
+        return {
+            "status": "NOT_APPLICABLE",
+            "message": f"NOT_APPLICABLE: '{schema_type}' has no project plan to inspect.",
+        }
+    with _session(session_id):
+        directory = paths.output_dir()
+        filename = (
+            PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
+            if schema_type == "portfolio_backlog"
+            else PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
+        )
+        plan_path = os.path.join(directory, filename)
+        if not os.path.exists(plan_path):
+            return {
+                "status": "NOT_FOUND",
+                "message": f"No exported project plan found at {plan_path}. Run export_project_plan first.",
+            }
+        parsed = parse_mspdi_project(plan_path)
+        if not parsed:
+            return {"status": "ERROR", "message": f"Failed to parse MSPDI project plan at {plan_path}."}
+        tasks = parsed.get("tasks", [])
+        summary_tasks = [t for t in tasks if t.get("is_summary")]
+        leaf_tasks = [t for t in tasks if not t.get("is_summary")]
+        resources = parsed.get("resources", [])
+        assignments = parsed.get("assignments", [])
+        phases = [
+            {
+                "id": st.get("id"),
+                "name": st.get("name"),
+                "start": st.get("start"),
+                "finish": st.get("finish"),
+                "duration": st.get("duration"),
+            }
+            for st in summary_tasks
+        ]
+        return {
+            "status": "OK",
+            "plan_path": plan_path,
+            "title": parsed.get("title"),
+            "start_date": parsed.get("start_date"),
+            "finish_date": parsed.get("finish_date"),
+            "total_tasks": len(tasks),
+            "summary_tasks": len(summary_tasks),
+            "leaf_tasks": len(leaf_tasks),
+            "total_resources": len(resources),
+            "total_assignments": len(assignments),
+            "total_cost": parsed.get("total_cost", 0.0),
+            "phases": phases,
+        }
 
 
 @mcp.tool

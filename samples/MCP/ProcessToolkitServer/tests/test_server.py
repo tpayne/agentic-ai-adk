@@ -458,6 +458,69 @@ class TestExportProjectPlan:
             assert "WARNING" in result["message"]
             assert "overruns the requested 1-week target" in result["message"]
 
+    async def test_inspect_project_plan_reports_not_applicable_or_not_found(self):
+        async with Client(server.mcp) as client:
+            res_na = (await client.call_tool(
+                "inspect_project_plan", {"schema_type": "design", "session_id": "s7"},
+            )).data
+            assert res_na["status"] == "NOT_APPLICABLE"
+
+            res_nf = (await client.call_tool(
+                "inspect_project_plan", {"schema_type": "portfolio_backlog", "session_id": "s8"},
+            )).data
+            assert res_nf["status"] == "NOT_FOUND"
+
+    async def test_inspect_project_plan_returns_structured_metrics_on_exported_plan(self):
+        async with Client(server.mcp) as client:
+            backlog = {
+                "name": "Inspect Plan Backlog",
+                "summary": "Summary",
+                "source_name": "Requirements",
+                "source_artifact": "requirements_summary",
+                "epics": [
+                    {
+                        "id": "EPIC-01",
+                        "title": "Mobilisation",
+                        "description": "Mobilisation",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3,
+                        "traces_to": ["REQ-001"],
+                        "features": [
+                            {
+                                "id": "FEAT-01",
+                                "title": "Setup",
+                                "description": "Setup",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 3,
+                                "traces_to": ["REQ-001"],
+                                "stories": [
+                                    {
+                                        "id": "STORY-01",
+                                        "title": "Kickoff",
+                                        "description": "Kickoff",
+                                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                        "job_size": 3,
+                                        "traces_to": ["REQ-001"],
+                                        "acceptance_criteria": ["Kickoff complete"],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+            await client.call_tool("generate_portfolio_backlog", {"backlog": backlog, "session_id": "s9"})
+            await client.call_tool("export_project_plan", {"schema_type": "portfolio_backlog", "session_id": "s9"})
+
+            res = (await client.call_tool(
+                "inspect_project_plan", {"schema_type": "portfolio_backlog", "session_id": "s9"},
+            )).data
+            assert res["status"] == "OK"
+            assert res["total_tasks"] > 0
+            assert res["leaf_tasks"] > 0
+            assert res["summary_tasks"] > 0
+            assert len(res["phases"]) > 0
+
 
 class TestPersistJsonValidatesFirst:
     async def test_invalid_togaf_data_is_rejected_without_writing_anything(self):
