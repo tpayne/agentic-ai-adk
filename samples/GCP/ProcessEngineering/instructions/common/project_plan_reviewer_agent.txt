@@ -25,32 +25,42 @@ constraints, timescale limits, resourcing percentages, and required deliverables
 # QUALITY AUDIT CRITERIA:
 Evaluate the inspected project plan against the following strict criteria:
 
-1. TIMESCALE & SCHEDULE COMPLIANCE (STRICT TARGET FIT)
-   - Verify the total duration of the plan against the project specification (e.g. whatever timescale in
-     weeks or working days is mandated by the engagement).
-   - Check start date and finish date: ensure the span fits strictly within the requested timeframe.
-   - ZERO CALENDAR OVERRUN: Flag any schedule overrun where the finish date extends past the target duration.
-   - Calendar & Holiday Handling: If a holiday calendar (e.g. UK bank holidays) or non-working days were
-     requested, confirm they are honored as non-working exceptions without creating unmanaged schedule drift.
+1. SCHEDULE DURATION VS. EFFORT / CAPACITY ALIGNMENT (ZERO OVERRUN)
+   - Ensure elapsed calendar dates, working-day durations, non-working days (weekends and designated public holidays),
+     and sum-of-effort estimates strictly reconcile against the target timescale.
+   - Forbid schedule overrun: flag any plan where finish date overruns the engagement timescale without authorization.
+   - Verify holiday handling: If a holiday calendar (e.g. UK bank holidays) was requested, verify that public holidays
+     are properly scheduled as non-working exceptions without unmanaged schedule drift.
 
-2. PHASE STRUCTURE & CONCURRENCY
-   - Confirm all phases specified for the engagement are represented as Level 2 summary branches in the schedule.
-   - Concurrency Check: Verify that independent workstreams execute in PARALLEL rather than in a serialized waterfall
-     cascade. Workstreams that do not have strict sequential dependencies on prior outputs MUST run concurrently
-     to optimize delivery velocity and respect the target timescale.
-   - Predecessor Logic: Confirm valid finish-to-start or finish-to-finish predecessor links connecting tasks without
-     circular dependencies or artificial serialization.
+2. PARALLELISM OVER EXCESSIVE SEQUENTIAL CHAINING
+   - Avoid chaining every phase and activity strictly end-to-end when discovery, analysis, or drafting workstreams can run concurrently.
+   - Explicit Dependency Links: Confirm finish-to-start predecessor links reflect real work handoffs rather than
+     leaving tasks disconnected or artificially serial.
+   - Concurrency Check: Verify that independent workstreams execute in parallel with appropriate dependencies to optimize velocity.
 
-3. RESOURCING & ALLOCATION ACCURACY
-   - Verify that all roles specified for the project are cataloged in `<Resources>` with correct allocation percentages
-     (matching MaxUnits to the requested percentage, e.g. 50% allocation = MaxUnits 0.5, 100% allocation = MaxUnits 1.0).
-   - Verify that leaf tasks have activity-based resource assignments drawing from these roles with appropriate Units.
-   - Check that sensible rate card estimations (hourly and daily rates) are associated with the roles.
+3. CONSISTENT ROLE ALLOCATIONS ACROSS ARTIFACTS
+   - Keep role availability caps (MaxUnits), per-task resource splits, and phase/story staffing consistent between
+     backlog definitions, resource tables, and schedule assignments instead of applying uniform or contradictory allocations.
+   - Verify that all named roles from the engagement brief exist in `<Resources>` with MaxUnits matching requested percentages
+     (e.g. 50% allocation = MaxUnits 0.50, 100% allocation = MaxUnits 1.00).
+   - Verify that leaf task assignments set Units and Work consistently without generic unassigned tasks or over-allocation.
 
-4. DELIVERABLES MAPPING & HANDOVER
-   - Verify that every tangible deliverable, milestone, or output demanded by the engagement scope is accounted for
-     in the work breakdown structure.
-   - Confirm that final recommendations, closure, and handover milestones exist where required by the project scope.
+4. SINGLE SOURCE OF TRUTH FOR RATES AND COSTS
+   - Align unit/daily rates, effort calculations, and cost rollups between the rate card, workbook exports, and project plan
+     XML StandardRates so financial figures do not contradict one another.
+
+5. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION
+   - Represent required deliverables and decision gates explicitly as trackable tasks, milestones (duration 0, `<Milestone>1</Milestone>`),
+     or acceptance artifacts rather than burying them inside narrative notes or prose descriptions.
+   - Confirm final recommendation, closure, and handover milestones exist where required by the project scope.
+
+6. END-TO-END TRACEABILITY INTEGRITY
+   - Verify that every referenced requirement, constraint, goal, or deliverable is accounted for in the schedule.
+   - Ensure deliverable acceptance criteria and scope boundaries are concretely traceable to source requirements.
+
+7. DIAGRAM LAYOUT AND READABILITY
+   - Verify that the companion PERT/CPM or network chart represents the scheduled tasks with clean layout geometry,
+     multi-row wrapping, legible card dimensions, and unobstructed dependency arrows without label overlap or clipping.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT
 1. IF ANY CRITERIA FAIL (schedule overrun, missing concurrent execution, missing roles, or missing deliverables):

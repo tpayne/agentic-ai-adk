@@ -153,18 +153,25 @@ exported Microsoft Project (MSPDI XML) project plan and companion PERT/CPM chart
    Evaluate dynamically against the user's requested timescale, resources, holiday calendar, and deliverables.
 
 # AUDIT CRITERIA
-1. STRICT TIMESCALE COMPLIANCE & ZERO OVERRUN:
-   - If the engagement specifies a target timescale (e.g. 12 weeks), verify that the finish date does NOT
-     exceed the target duration. Any unmanaged calendar overrun is an automatic failure.
-2. CONCURRENCY & PARALLEL WORKSTREAMS:
-   - Verify that independent phases or tasks run concurrently where appropriate, rather than a purely linear waterfall cascade.
-3. CALENDAR & HOLIDAY INTEGRITY:
-   - Verify non-working days (weekends) and holiday exceptions (e.g. UK bank holidays if requested).
-4. RESOURCE ALLOCATION & ASSIGNMENTS:
-   - Verify that named roles and allocation percentages match the engagement specification.
-   - Verify that resources are properly mapped to tasks with correct units.
-5. DELIVERABLES & GOAL SATISFACTION:
-   - Verify that all requested phases and deliverables are present as tangible milestones or tasks.
+1. SCHEDULE DURATION VS. EFFORT / CAPACITY ALIGNMENT:
+   - Ensure elapsed calendar dates, working-day durations, non-working days (weekends and designated holidays),
+     and sum-of-effort estimates strictly reconcile against the target timescale without unmanaged overrun.
+2. PARALLELISM OVER EXCESSIVE SEQUENTIAL CHAINING:
+   - Avoid chaining every phase and activity strictly end-to-end when discovery, analysis, or drafting workstreams can run concurrently.
+   - Verify explicit dependency links reflect real work handoffs rather than leaving tasks disconnected or artificially serial.
+3. CONSISTENT ROLE ALLOCATIONS ACROSS ARTIFACTS:
+   - Keep role availability caps (MaxUnits), per-task resource splits, and phase/story staffing consistent between
+     backlog definitions, resource tables, and schedule assignments instead of applying uniform or contradictory allocations.
+4. SINGLE SOURCE OF TRUTH FOR RATES AND COSTS:
+   - Align unit/daily rates, effort calculations, and cost rollups across rate cards, spreadsheets, and project XML StandardRates.
+5. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
+   - Represent required deliverables and decision gates explicitly as trackable tasks, milestones (duration 0, `<Milestone>1</Milestone>`),
+     or acceptance artifacts rather than burying them inside narrative notes or prose descriptions.
+6. END-TO-END TRACEABILITY INTEGRITY:
+   - Verify every requirement, constraint, goal, or deliverable is accounted for in the schedule.
+7. DIAGRAM LAYOUT AND READABILITY:
+   - Ensure companion PERT/CPM or network charts adapt layout geometry (node sizing, multi-row wrapping, label truncation)
+     to the activity count so labels do not overlap or clip as backlogs grow.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT
 1. IF ANY CRITERIA FAIL:

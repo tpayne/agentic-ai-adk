@@ -198,17 +198,20 @@ resourcing realism, and goal satisfaction.
 1. WBS BREAKDOWN REALISM & NON-DUPLICATION (CRITICAL):
    - FORBID CRUDE 1-TO-1-TO-1 PLACEHOLDER REPETITIONS: Flag any occurrence where an Epic title is
      repeated verbatim as a single Feature, or a Feature is repeated as a single Story.
-   - Hierarchy: Each Epic must decompose into 2-3 distinct functional Features. Each Feature must decompose
+   - Multi-Tier Granularity: Each Epic must decompose into 2-3 distinct functional Features. Each Feature must decompose
      into 2-4 granular Stories/Tasks.
-2. ACCEPTANCE CRITERIA RIGOR:
-   - Every story must specify 3-5 specific, observable pass/fail outcomes.
-3. RESOURCING REALISM:
-   - Delivery roles and allocations must match project requirements.
-4. TIMESCALE & WSJF CONSISTENCY:
+2. END-TO-END TRACEABILITY INTEGRITY:
+   - Verify every item cites valid IDs in traces_to corresponding strictly to the canonical register. Forbid orphaned IDs.
+   - Confirm scope boundaries, assumptions, and open questions are resolved rather than left as placeholders.
+3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
+   - All requested contract deliverables and decision gates represented explicitly as dedicated work package outputs or milestones.
+   - Acceptance Criteria Rigor: Every story must specify 3-5 specific, observable pass/fail outcomes.
+4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT:
+   - Sizing and effort distribution must calibrate to team capacity and target timescale.
    - Modified Fibonacci sequence [1, 2, 3, 5, 8, 13, 20] on priority components and job size.
-5. GOAL & DELIVERABLE SATISFACTION:
-   - All requested phases represented as epics.
-   - All requested deliverables produced as concrete work package outputs.
+5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS:
+   - Delivery roles and allocations must match project requirements.
+   - Align unit/daily rates, effort calculations, and cost rollups in rate_card with the backlog items and workbook.
    - Objective, vendor-neutral evaluation when comparing external platforms or tools.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT

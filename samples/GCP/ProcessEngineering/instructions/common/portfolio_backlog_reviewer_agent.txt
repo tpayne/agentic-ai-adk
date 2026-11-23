@@ -24,11 +24,12 @@ high-quality Work Breakdown Structure (WBS) that directly delivers the engagemen
 # QUALITY AUDIT CRITERIA:
 Evaluate the loaded backlog against the following strict quality criteria:
 
-1. GOAL FULFILLMENT & TRACEABILITY
-   - Does the backlog cover all strategic themes, phases, and scope boundaries demanded by the engagement?
+1. GOAL FULFILLMENT & END-TO-END TRACEABILITY INTEGRITY
+   - Does the backlog cover all strategic themes, phases, deliverables, and scope boundaries demanded by the engagement?
    - Every Epic, Feature, and Story must cite valid IDs in `traces_to` (e.g. `REQ-001`, `FR-001`, `NFR-001`, `CON-001`,
-     `GOAL-001`) corresponding to real requirements in the loaded requirements register.
-   - Flag any requirement in the requirements summary that has no corresponding backlog items.
+     `GOAL-001`, `INF-001`) corresponding strictly to real requirements in the loaded canonical register.
+   - Forbid orphaned IDs: flag any referenced requirement or constraint ID that does not exist in the loaded summary.
+   - Verify that scope boundaries, assumptions, and open questions are concretely resolved rather than left as placeholders.
 
 2. WORK BREAKDOWN STRUCTURE (WBS) INTEGRITY (CRITICAL - NO LAZY DUPLICATION)
    - ZERO TOLERANCE for crude 1-to-1-to-1 dummy hierarchy repetition:
@@ -41,16 +42,24 @@ Evaluate the loaded backlog against the following strict quality criteria:
      * Each Feature MUST contain 2 to 4 granular, executable User Stories / Tasks.
      * Story titles must describe concrete engineering, discovery, or delivery activities relevant to the domain.
 
-3. ACCEPTANCE CRITERIA SUBSTANCE
-   - Every Story MUST define 3 to 5 clear, concrete, observable acceptance criteria.
-   - Reject generic criteria (e.g. "Task completed", "Document written"). Criteria must specify
-     verifiable outcomes grounded in the domain and scope.
+3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION
+   - Every tangible deliverable, decision gate, or governance output specified in the engagement scope must be
+     explicitly represented as a dedicated trackable story, work package, or milestone task (not buried in narrative notes).
+   - Each story must define 3 to 5 clear, concrete, observable acceptance criteria verifying verifiable delivery outcomes.
+   - Reject generic criteria (e.g. "Task completed", "Document written").
 
-4. RESOURCING & WSJF PRIORITIZATION
-   - Each story must have sensible, activity-based `resources` assigned matching whatever engagement
-     roles are specified by the user or required for the technical scope.
+4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT
+   - Total effort, story count, and `job_size` distribution must realistically reconcile against the target timescale
+     and available team capacity, rather than blowing out calendar dates due to uncalibrated sizing.
    - Each story must define valid WSJF `priority_components` (`user_business_value`, `time_criticality`,
      `risk_reduction`) and `job_size` using modified Fibonacci numbers (1, 2, 3, 5, 8, 13, 20).
+   - Ensure stories include dependency indicators and sequencing hints to enable parallel execution across workstreams.
+
+5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS
+   - Backlog role definitions and story resource allocations must match the specified engagement staffing model.
+   - Keep role availability caps and per-task resource splits consistent across the rate card and stories.
+   - Align unit/daily rates, effort calculations, and cost rollups in `rate_card` so financial figures do not
+     contradict the rest of the backlog or downstream workbook exports.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT
 1. IF ANY CRITERIA FAIL (lazy 1-to-1 duplication, missing goal traceability, vague acceptance criteria,
