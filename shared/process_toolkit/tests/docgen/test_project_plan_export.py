@@ -770,3 +770,82 @@ class TestValidateMspdiXml:
         errors = validate_mspdi_xml(mismatched_xml)
         assert any("Start" in e and "does not match" in e for e in errors)
         assert any("Work" in e and "does not match" in e for e in errors)
+
+    def test_validate_detects_predecessor_link_after_calendar_uid(self):
+        from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+        misordered_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <StartDate>2026-11-23T08:00:00</StartDate>
+  <FinishDate>2026-11-27T16:00:00</FinishDate>
+  <Calendars>
+    <Calendar><UID>1</UID><ID>1</ID><Name>Standard</Name></Calendar>
+  </Calendars>
+  <Tasks>
+    <Task>
+      <UID>1</UID><ID>1</ID><Name>Task 1</Name><WBS>1</WBS><Summary>0</Summary>
+      <Start>2026-11-23T08:00:00</Start><Finish>2026-11-25T16:00:00</Finish>
+      <Duration>PT24H0M0S</Duration><Work>PT24H0M0S</Work>
+    </Task>
+    <Task>
+      <UID>2</UID><ID>2</ID><Name>Task 2</Name><WBS>2</WBS><Summary>0</Summary>
+      <Start>2026-11-26T08:00:00</Start><Finish>2026-11-27T16:00:00</Finish>
+      <Duration>PT16H0M0S</Duration><Work>PT16H0M0S</Work>
+      <CalendarUID>1</CalendarUID>
+      <PredecessorLink>
+        <PredecessorUID>1</PredecessorUID><Type>1</Type>
+      </PredecessorLink>
+    </Task>
+  </Tasks>
+</Project>"""
+        errors = validate_mspdi_xml(misordered_xml)
+        assert any("violates MSPDI sequence order" in e for e in errors)
+
+    def test_task_emits_predecessor_link_before_calendar_uid(self):
+        from process_toolkit.docgen.project_plan_export import build_portfolio_backlog_project_plan
+        from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog
+        backlog = {
+            "name": "Sequential Backlog",
+            "summary": "Summary",
+            "source_name": "Design",
+            "source_artifact": "design",
+            "epics": [{
+                "id": "EPIC-01", "title": "Epic 1", "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 3, "traces_to": ["FR-1"],
+                "features": [{
+                    "id": "FEAT-01", "title": "Feat 1", "description": "Desc",
+                    "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                    "job_size": 3, "traces_to": ["FR-1"],
+                    "stories": [
+                        {
+                            "id": "STORY-01", "title": "Story 1", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 3, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"]
+                        },
+                        {
+                            "id": "STORY-02", "title": "Story 2", "description": "Desc",
+                            "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                            "job_size": 3, "traces_to": ["FR-1"], "acceptance_criteria": ["Done"],
+                            "dependencies": ["STORY-01"]
+                        }
+                    ]
+                }]
+            }]
+        }
+        save_portfolio_backlog(backlog)
+        build_portfolio_backlog_project_plan(start_date="2026-11-23")
+        tree = ET.parse(paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME))
+        root = tree.getroot()
+        ns = _NS
+        story2 = None
+        for t in root.findall(".//p:Tasks/p:Task", ns):
+            if t.findtext("p:Name", namespaces=ns) == "Story 2":
+                story2 = t
+                break
+        assert story2 is not None
+        child_tags = [c.tag.split("}")[-1] for c in story2]
+        assert "PredecessorLink" in child_tags
+        assert "CalendarUID" in child_tags
+        assert child_tags.index("PredecessorLink") < child_tags.index("CalendarUID")
+

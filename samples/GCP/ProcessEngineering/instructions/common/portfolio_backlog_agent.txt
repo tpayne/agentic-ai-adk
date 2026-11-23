@@ -60,8 +60,8 @@ Create a single object with these fields:
 - `source_artifact`: exactly `design` or `requirements_summary`.
 - `source_name`: the chosen source's own name/title, or a concise source-grounded identifier.
 - `timescale_weeks`: integer target weeks when specified in the source (e.g. 12).
-- `requirements_reference`: an array defining every requirement ID cited in `traces_to` across all stories,
-  e.g. `[{"id": "FR-001", "type": "functional", "title": "<title>", "description": "<description>"}, ...]`.
+- `holiday_calendar`: string specifying holiday calendar when requested (e.g. "uk" for UK bank holidays).
+- `requirements_reference`: an embedded dictionary defining every requirement ID cited in `traces_to` across all stories using consistent hyphenated format (e.g. `FR-001A`, `CON-001`, `INF-001`), matching the `traces_to` arrays throughout epics, features, and stories.
   Every ID cited in any `traces_to` must have an entry here to prevent orphaned traceability links.
 - `roles`: when specific project team roles and allocation percentages are specified in the engagement
   specification (e.g. Programme Delivery Manager 50%, Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%),
@@ -78,7 +78,7 @@ Create a single object with these fields:
   - DevOps / Platform Engineer: $1,200/day (Cloud platform & DevOps engineering benchmark; CI/CD, IaC, and observability)
   - QA Engineer: $1,000/day (Quality assurance & test automation benchmark; verification, regression, and E2E)
   - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
-  Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect the projected overall staffing distribution for the scope (summing to 1.0).
+  Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect clean, unskewed symmetric proportions (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits), summing strictly to 1.0.
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
   CRITICAL PHASE-TO-EPIC PRESERVATION:
   - When the source engagement defines specific phases (e.g. "Mobilisation", "Current State Assessment",

@@ -415,3 +415,77 @@ def test_explicit_rate_card_populates_role_rates_sheet_and_story_formulas():
     assert "'Role Rates'!$D$5" in sheet["Q8"].value
     assert "'Role Rates'!$D$6" in sheet["Q8"].value
 
+
+def test_clean_effort_mix_removes_precision_skews():
+    from process_toolkit.portfolio_backlog.portfolio_backlog import build_rate_card
+    backlog = {
+        "rate_card": [
+            {"person": "TBD", "role": "Programme Delivery Manager", "effort_mix": 0.1663, "daily_rate": 1300.0},
+            {"person": "TBD", "role": "Lead Business Analyst", "effort_mix": 0.3337, "daily_rate": 1100.0},
+            {"person": "TBD", "role": "Business Analyst", "effort_mix": 0.3337, "daily_rate": 1000.0},
+            {"person": "TBD", "role": "Solution Architect", "effort_mix": 0.1663, "daily_rate": 1500.0},
+        ]
+    }
+    card = build_rate_card(backlog)
+    mixes = [c["effort_mix"] for c in card]
+    assert mixes == [0.1667, 0.3333, 0.3333, 0.1667]
+    assert sum(mixes) == 1.0
+
+
+def test_traceability_id_format_normalization(tmp_path, monkeypatch):
+    from process_toolkit.portfolio_backlog.portfolio_backlog import save_portfolio_backlog, _normalize_id_format
+    assert _normalize_id_format("FR_001A") == "FR-001A"
+    assert _normalize_id_format("CON_001") == "CON-001"
+    assert _normalize_id_format("INF_002") == "INF-002"
+    assert _normalize_id_format("FR-001A") == "FR-001A"
+
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = {
+        "name": "Test Backlog",
+        "summary": "Summary",
+        "source_name": "Test Source",
+        "source_artifact": "design",
+        "requirements_reference": {
+            "FR_001A": {"id": "FR_001A", "title": "Req 1"},
+            "CON_001": {"id": "CON_001", "title": "Req 2"},
+        },
+        "epics": [
+            {
+                "id": "EPIC-1",
+                "title": "Epic 1",
+                "description": "Desc",
+                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                "job_size": 3,
+                "traces_to": ["FR_001A"],
+                "features": [
+                    {
+                        "id": "FEAT-1",
+                        "title": "Feat 1",
+                        "description": "Desc",
+                        "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                        "job_size": 3,
+                        "traces_to": ["FR_001A"],
+                        "stories": [
+                            {
+                                "id": "STORY-1",
+                                "title": "Story 1",
+                                "description": "Desc",
+                                "priority_components": {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3},
+                                "job_size": 3,
+                                "traces_to": ["FR_001A", "CON_001"],
+                                "acceptance_criteria": ["Criteria 1"],
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    msg = save_portfolio_backlog(backlog)
+    assert "SUCCESS" in msg
+    assert "FR-001A" in backlog["requirements_reference"]
+    assert "CON-001" in backlog["requirements_reference"]
+    assert backlog["epics"][0]["traces_to"] == ["FR-001A"]
+    assert backlog["epics"][0]["features"][0]["stories"][0]["traces_to"] == ["FR-001A", "CON-001"]
+
+

@@ -1,8 +1,10 @@
 """Persist an Enterprise Agile Portfolio Backlog and render its workbook."""
 
 import copy
+from fractions import Fraction
 import json
 import os
+import re
 import tempfile
 from typing import Any, Dict, MutableMapping, Optional
 
@@ -72,6 +74,40 @@ _ROLE_COSTING_DEFAULTS = [
         "Illustrative default; replace with the approved rate card.",
     ),
 ]
+
+
+def _normalize_id_format(identifier: str) -> str:
+    """Normalizes requirement/traceability IDs to a consistent hyphenated format (e.g. FR_001A -> FR-001A)."""
+    if not isinstance(identifier, str):
+        return str(identifier)
+    s = identifier.strip()
+    return re.sub(r"^([A-Za-z]+)_(\d+.*)$", r"\1-\2", s)
+
+
+def _clean_effort_mix(entries: list[dict[str, Any]]) -> None:
+    """Cleans effort_mix rounding across rate card entries so symmetric roles have
+    exact identical values, matching standard fractional ratios and summing strictly to 1.0."""
+    if not entries:
+        return
+    tot = sum(e["effort_mix"] for e in entries)
+    if tot <= 0:
+        return
+    cleaned = []
+    for e in entries:
+        prop = e["effort_mix"] / tot
+        f = Fraction(prop).limit_denominator(24)
+        if abs(float(f) - prop) < 0.005:
+            cleaned.append(float(f))
+        else:
+            cleaned.append(prop)
+    clean_tot = sum(cleaned)
+    rounded = [round(c / clean_tot, 4) for c in cleaned]
+    diff = round(1.0 - sum(rounded), 4)
+    if diff != 0:
+        max_idx = rounded.index(max(rounded))
+        rounded[max_idx] = round(rounded[max_idx] + diff, 4)
+    for i, e in enumerate(entries):
+        e["effort_mix"] = rounded[i]
 
 
 def build_rate_card(
@@ -153,11 +189,8 @@ def build_rate_card(
                     "basis": bench[1],
                 })
 
-        # Normalize effort_mix so total is 1.0
-        tot = sum(e["effort_mix"] for e in normalized)
-        if tot > 0 and abs(tot - 1.0) > 1e-4:
-            for e in normalized:
-                e["effort_mix"] = round(e["effort_mix"] / tot, 4)
+        # Clean and normalize effort_mix so total is 1.0 without precision skew
+        _clean_effort_mix(normalized)
         return normalized
 
     # Default market benchmark rate card
@@ -189,11 +222,7 @@ def build_rate_card(
                             "daily_rate": bench[0],
                             "basis": bench[1],
                         })
-        if len(card) > len(_ROLE_COSTING_DEFAULTS):
-            tot = sum(c["effort_mix"] for c in card)
-            if tot > 0:
-                for c in card:
-                    c["effort_mix"] = round(c["effort_mix"] / tot, 4)
+        _clean_effort_mix(card)
     return card
 
 
@@ -353,6 +382,7 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
         isinstance(trace, str) and trace.strip() for trace in traces_to
     ):
         raise ValueError(f"{location}.traces_to must contain at least one source reference.")
+    item["traces_to"] = [_normalize_id_format(trace) for trace in traces_to]
 
     components = item.get("priority_components")
     if not isinstance(components, dict):
@@ -878,7 +908,22 @@ def save_portfolio_backlog(
                 ]
         backlog["rate_card"] = build_rate_card(backlog, work_items)
 
+        # Normalize existing requirements_reference keys and ids if present
+        if "requirements_reference" in backlog and isinstance(backlog["requirements_reference"], dict):
+            norm_ref = {}
+            for k, v in backlog["requirements_reference"].items():
+                norm_k = _normalize_id_format(k)
+                if isinstance(v, dict):
+                    v_copy = dict(v)
+                    if "id" in v_copy:
+                        v_copy["id"] = _normalize_id_format(v_copy["id"])
+                    norm_ref[norm_k] = v_copy
+                else:
+                    norm_ref[norm_k] = v
+            backlog["requirements_reference"] = norm_ref
+
         # Embed canonical requirements lookup and validate traces_to if source is requirements_summary
+        req_summary = None
         if backlog.get("source_artifact") == "requirements_summary":
             try:
                 from process_toolkit.requirements_summary import load_requirements_summary
@@ -892,15 +937,23 @@ def save_portfolio_backlog(
                     ):
                         for req in req_summary.get(cat) or []:
                             if isinstance(req, dict) and req.get("id"):
-                                rid = str(req["id"]).strip()
-                                req_catalog[rid] = {
+                                rid_raw = str(req["id"]).strip()
+                                rid = _normalize_id_format(rid_raw)
+                                req_entry = {
                                     "id": rid,
                                     "title": req.get("title") or req.get("name") or "",
                                     "statement": req.get("statement") or req.get("description") or "",
                                     "category": cat,
                                 }
-                    if req_catalog and "requirements_reference" not in backlog:
-                        backlog["requirements_reference"] = req_catalog
+                                req_catalog[rid] = req_entry
+                                if rid_raw != rid:
+                                    req_catalog[rid_raw] = req_entry
+
+                    if "requirements_reference" not in backlog and req_catalog:
+                        # Store canonical hyphenated keys
+                        backlog["requirements_reference"] = {
+                            k: v for k, v in req_catalog.items() if "_" not in k or "-" in k
+                        }
 
                     # Validate traces_to IDs across epics, features, stories
                     invalid_traces = []
@@ -908,13 +961,30 @@ def save_portfolio_backlog(
                         traces = item.get("traces_to") or []
                         if isinstance(traces, list):
                             for tid in traces:
-                                tid_clean = str(tid).strip()
+                                tid_clean = _normalize_id_format(str(tid).strip())
                                 if req_catalog and tid_clean not in req_catalog:
                                     invalid_traces.append({"item_id": item.get("id"), "unresolved_id": tid_clean})
                     if invalid_traces:
                         backlog["unresolved_traces"] = invalid_traces
             except Exception:
                 pass
+
+        # Capture holiday_calendar if in requirements summary or implied by currency / UK terms
+        if not backlog.get("holiday_calendar"):
+            if isinstance(req_summary, dict) and req_summary.get("holiday_calendar"):
+                backlog["holiday_calendar"] = req_summary["holiday_calendar"]
+            else:
+                corpus = " ".join([
+                    str(backlog.get("name") or ""),
+                    str(backlog.get("summary") or ""),
+                    str(backlog.get("source_name") or ""),
+                ]).lower()
+                has_gbp = any(
+                    isinstance(entry, dict) and ("£" in str(entry.get("daily_rate", "")) or "gbp" in str(entry).lower() or "£" in str(entry))
+                    for entry in (backlog.get("rate_card") or [])
+                ) or "£" in corpus or "bank holiday" in corpus or "uk " in corpus or "united kingdom" in corpus
+                if has_gbp:
+                    backlog["holiday_calendar"] = "uk"
 
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)

@@ -128,7 +128,7 @@ only when the save tool returns SUCCESS, including its exact paths.
 
 # BACKLOG STRUCTURE & WBS INTEGRITY
 Save one JSON object with name, summary, source_artifact, source_name, rate_card, and a non-empty epics array.
-When specified, include timescale_weeks, roles, and requirements_reference.
+When specified, include timescale_weeks, roles, holiday_calendar (e.g. "uk" when UK bank holidays are requested), and requirements_reference.
 When specific roles and allocations are given in the engagement, use those exact roles in roles,
 rate_card, and across the stories. When specific phases and deliverables are requested, map every requested
 phase to a distinct Epic (e.g. 9 phases = 9 distinct Epics: EPIC-001 through EPIC-009; NEVER collapse or
@@ -152,7 +152,7 @@ Project sensible estimations for resource costing on rate_card: an array of deli
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
 grounded in market benchmarks (e.g. Solution Architect $1,500/day, Lead Business Analyst $1,100/day, Business Analyst $1,000/day,
 Software Engineer $1,275/day, DevOps $1,200/day, Delivery/Project Manager $1,300/day).
-effort_mix reflects overall projected staffing mix summing to 1.0.
+effort_mix reflects overall projected staffing mix summing strictly to 1.0 without precision rounding skew, matching symmetric role ratios (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits).
 
 Nest non-empty features under epics (typically 2-3 distinct features) and non-empty stories under features
 (typically 2-4 concrete, granular stories/tasks).
@@ -168,7 +168,7 @@ CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER R
   strategic_theme, non-empty traces_to, priority_components, and job_size on the modified Fibonacci scale [1, 2, 3, 5, 8, 13, 20].
 - Stories must include dynamically calculated resources: an array of {"name": "<exact delivery role title>", "allocation_percent": number}
   matching the technical activity and requirements, summing to 100%. Use exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Solution Architect 80% on architecture tasks; Lead BA 70% on requirements elicitation; PDM 60% on governance).
-- Embed requirements_reference mapping every referenced requirement ID to its definition. Ensure every traces_to ID exists in requirements_summary.json.
+- Embed requirements_reference mapping every referenced requirement ID to its definition using consistent hyphenated format (e.g. FR-001A, CON-001, INF-001 with hyphens, not underscores), matching the traces_to arrays throughout epics, features, and stories. Ensure every traces_to ID exists in requirements_summary.json.
 
 # SAVE AND RESPONSE
 Call save_portfolio_backlog with the complete backlog JSON. Report the chosen source, epic/feature/story counts,
@@ -221,7 +221,7 @@ resourcing realism, and goal satisfaction.
 2. END-TO-END TRACEABILITY & CANONICAL LOOKUP:
    - Verify every item cites valid IDs in traces_to corresponding strictly to the canonical requirements register.
      Forbid dangling or unresolved IDs.
-   - Verify `requirements_reference` lookup table is embedded in portfolio_backlog.json mapping all referenced requirement IDs.
+   - Verify `requirements_reference` lookup table is embedded in portfolio_backlog.json mapping all referenced requirement IDs using consistent hyphenated format (e.g. FR-001A, CON-001, INF-001). Reject any ID format mismatches with underscores.
 3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
    - All requested contract deliverables (e.g. Current State Assessment, Requirements Catalogue, Architecture Assessment,
      Market Assessment, Options Appraisal, Business Case Evidence Pack, Implementation Roadmap, Readiness Assessment,
@@ -230,10 +230,12 @@ resourcing realism, and goal satisfaction.
 4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT:
    - Reconcile story durations and job sizes against the target engagement window (e.g. 12 weeks / 60 working days).
    - REJECT uncalibrated backlogs where sum of story job_sizes inflates into hundreds of days (e.g. 264 days).
-   - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs.
+   - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs (e.g. Phase 2 and 3 run concurrently after Phase 1; Phase 5 runs concurrently with Phase 4; Phase 8 runs concurrently with Phase 7).
 5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS:
    - Delivery roles and allocations must match project requirements using exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), avoiding shorthand acronyms.
+   - Verify effort_mix values on rate_card are clean and symmetric (e.g. 0.1667, 0.3333, 0.3333, 0.1667), summing strictly to 1.0 without precision rounding skew.
    - Story-specific resource allocations must reflect realistic activity splits, and rate_card rates must align with role daily rates.
+   - Capture `holiday_calendar="uk"` when UK public or bank holidays are requested.
    - Objective, vendor-neutral evaluation when comparing external platforms or tools.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT

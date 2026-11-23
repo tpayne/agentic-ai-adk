@@ -382,6 +382,31 @@ def _schedule_task_tree(
     leaf_tasks = [t for t in all_tasks if not t.children]
     scheduled: Set[int] = set()
 
+    # Pre-calibrate leaf task durations when target_duration_weeks is specified
+    if target_duration_weeks and target_duration_weeks > 0:
+        cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
+        target_finish_limit = cal_finish
+        while not _is_working_day(target_finish_limit, holidays):
+            target_finish_limit -= _dt.timedelta(days=1)
+        total_target_working_days = _count_working_days(anchor_start, target_finish_limit, holidays)
+
+        # Compute longest sequential path in leaf DAG
+        longest_path: Dict[int, int] = {}
+        for leaf in leaf_tasks:
+            preds = [p for p in leaf.predecessor_uids if p in task_by_uid]
+            dur = max(leaf.duration_days, 1)
+            if preds:
+                longest_path[leaf.uid] = max(longest_path.get(p, task_by_uid[p].duration_days) for p in preds) + dur
+            else:
+                longest_path[leaf.uid] = dur
+        max_path_len = max(longest_path.values(), default=0)
+
+        # Proportionally compress leaf task durations if total critical path overruns target
+        if max_path_len > total_target_working_days and total_target_working_days > 0:
+            scale = total_target_working_days / max_path_len
+            for leaf in leaf_tasks:
+                leaf.duration_days = max(1, round(leaf.duration_days * scale))
+
     for _ in range(len(leaf_tasks) * 2):
         progress = False
         for leaf in leaf_tasks:
@@ -398,7 +423,15 @@ def _schedule_task_tree(
                 if leaf.start_week and leaf.start_week > 1:
                     cal_week_start = anchor_start + _dt.timedelta(days=(leaf.start_week - 1) * 7)
                     week_start = _first_working_day_on_or_after(cal_week_start, holidays)
-                    if week_start > earliest:
+                    # If leaf has a target week start and predecessor is from an earlier planned week window,
+                    # honor planned week start so concurrent workstreams don't get artificially delayed
+                    if preds:
+                        pred_weeks = [task_by_uid[p].start_week for p in preds if p in task_by_uid and task_by_uid[p].start_week]
+                        if pred_weeks and max(pred_weeks) < leaf.start_week:
+                            earliest = week_start
+                        elif week_start > earliest:
+                            earliest = week_start
+                    else:
                         earliest = week_start
 
                 leaf.start = _first_working_day_on_or_after(earliest, holidays)
@@ -409,11 +442,14 @@ def _schedule_task_tree(
                     target_finish_limit = cal_finish
                     while not _is_working_day(target_finish_limit, holidays):
                         target_finish_limit -= _dt.timedelta(days=1)
-                    if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
+                    if leaf.start > target_finish_limit:
+                        leaf.start = target_finish_limit
+                        leaf.duration_days = 1
+                        leaf.finish = target_finish_limit
+                    elif leaf.finish > target_finish_limit:
                         avail = _count_working_days(leaf.start, target_finish_limit, holidays)
-                        if avail > 0:
-                            leaf.duration_days = avail
-                            leaf.finish = target_finish_limit
+                        leaf.duration_days = max(avail, 1)
+                        leaf.finish = target_finish_limit
 
                 if leaf.predecessor_uids:
                     leaf.predecessor_uid = leaf.predecessor_uids[-1]
@@ -427,6 +463,19 @@ def _schedule_task_tree(
             cur_start = anchor_start
             leaf.start = _first_working_day_on_or_after(cur_start, holidays)
             leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+            if target_duration_weeks and target_duration_weeks > 0:
+                cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
+                target_finish_limit = cal_finish
+                while not _is_working_day(target_finish_limit, holidays):
+                    target_finish_limit -= _dt.timedelta(days=1)
+                if leaf.start > target_finish_limit:
+                    leaf.start = target_finish_limit
+                    leaf.duration_days = 1
+                    leaf.finish = target_finish_limit
+                elif leaf.finish > target_finish_limit:
+                    avail = _count_working_days(leaf.start, target_finish_limit, holidays)
+                    leaf.duration_days = max(avail, 1)
+                    leaf.finish = target_finish_limit
             scheduled.add(leaf.uid)
 
     def _rollup(task: "_Task"):
@@ -791,9 +840,6 @@ def _render_mspdi(
         ET.SubElement(task_el, "Summary").text = "1" if task.is_summary else "0"
         ET.SubElement(task_el, "Milestone").text = "0"
         ET.SubElement(task_el, "ConstraintType").text = "0"
-        ET.SubElement(task_el, "CalendarUID").text = "1"
-        if task.notes:
-            ET.SubElement(task_el, "Notes").text = task.notes
         predecessors = list(task.predecessor_uids)
         if task.predecessor_uid is not None and task.predecessor_uid not in predecessors:
             predecessors.append(task.predecessor_uid)
@@ -804,6 +850,9 @@ def _render_mspdi(
             ET.SubElement(pred, "CrossProject").text = "0"
             ET.SubElement(pred, "LinkLag").text = "0"
             ET.SubElement(pred, "LagFormat").text = "7"
+        ET.SubElement(task_el, "CalendarUID").text = "1"
+        if task.notes:
+            ET.SubElement(task_el, "Notes").text = task.notes
 
     if resource_catalog:
         resources_el = ET.SubElement(root, "Resources")
@@ -952,6 +1001,24 @@ def validate_mspdi_xml(xml_input: str) -> List[str]:
                 errors.append(f"Task {name!r} has PredecessorLink without PredecessorUID")
             elif p_uid == uid:
                 errors.append(f"Task {name!r} has self-referencing PredecessorLink")
+
+        child_tags = [c.tag.split("}")[-1] for c in task_el]
+        if "PredecessorLink" in child_tags and "CalendarUID" in child_tags:
+            first_pred = child_tags.index("PredecessorLink")
+            cal_idx = child_tags.index("CalendarUID")
+            if first_pred > cal_idx:
+                errors.append(f"Task {name!r} has PredecessorLink after CalendarUID (violates MSPDI sequence order)")
+
+    currency_code = root.findtext("p:CurrencyCode", default="", namespaces=ns)
+    currency_symbol = root.findtext("p:CurrencySymbol", default="", namespaces=ns)
+    has_uk_context = currency_code == "GBP" or currency_symbol == "£" or "uk" in (root.findtext("p:Name", default="", namespaces=ns) or "").lower()
+    if has_uk_context and calendar_el is not None:
+        exc_els = calendar_el.findall(".//p:Exceptions/p:Exception", ns)
+        if not exc_els:
+            s_date = root.findtext("p:StartDate", default="", namespaces=ns)
+            f_date = root.findtext("p:FinishDate", default="", namespaces=ns)
+            if s_date and f_date and ("-12-" in s_date or "-12-" in f_date or "-01-" in f_date or "-05-" in f_date):
+                errors.append("UK bank holiday plan missing Calendar Exceptions")
 
     # Verify summary rollup consistency
     for wbs, tdata in tasks_by_wbs.items():
@@ -1138,8 +1205,30 @@ def build_portfolio_backlog_project_plan(
             target_duration_weeks = float(backlog["timescale_weeks"])
         except (ValueError, TypeError):
             pass
-    if not holiday_calendar and backlog.get("holiday_calendar"):
-        holiday_calendar = backlog["holiday_calendar"]
+    if not holiday_calendar:
+        if backlog.get("holiday_calendar"):
+            holiday_calendar = backlog["holiday_calendar"]
+        else:
+            try:
+                from process_toolkit.requirements_summary import load_requirements_summary
+                req = load_requirements_summary()
+                if isinstance(req, dict) and req.get("holiday_calendar"):
+                    holiday_calendar = req["holiday_calendar"]
+            except Exception:
+                pass
+        if not holiday_calendar:
+            corpus = " ".join([
+                str(backlog.get("name") or ""),
+                str(backlog.get("summary") or ""),
+                str(backlog.get("notes") or ""),
+                str(backlog.get("source_name") or ""),
+            ]).lower()
+            has_gbp = any(
+                isinstance(entry, dict) and ("£" in str(entry.get("daily_rate", "")) or "gbp" in str(entry).lower() or "£" in str(entry))
+                for entry in (backlog.get("rate_card") or [])
+            ) or "£" in corpus or "bank holiday" in corpus or "uk " in corpus or "united kingdom" in corpus or "london" in corpus
+            if has_gbp:
+                holiday_calendar = "uk"
 
     uid_counter = [0]
 
@@ -1161,7 +1250,8 @@ def build_portfolio_backlog_project_plan(
         )
         epic_task.item_id = epic.get("id")
         epic_task.dependencies = epic.get("dependencies") or epic.get("predecessors") or []
-        timing_w_epic = _parse_timing_window(epic.get("timing") or "")
+        epic_timing = epic.get("timing") or epic.get("weeks") or epic.get("timing_window") or ""
+        timing_w_epic = _parse_timing_window(epic_timing)
         if timing_w_epic[0] is not None:
             epic_task.start_week = timing_w_epic[0]
             epic_task.end_week = timing_w_epic[1]
@@ -1172,10 +1262,14 @@ def build_portfolio_backlog_project_plan(
             )
             feature_task.item_id = feature.get("id")
             feature_task.dependencies = feature.get("dependencies") or feature.get("predecessors") or []
-            timing_w_feat = _parse_timing_window(feature.get("timing") or "")
+            feat_timing = feature.get("timing") or feature.get("weeks") or feature.get("timing_window") or ""
+            timing_w_feat = _parse_timing_window(feat_timing)
             if timing_w_feat[0] is not None:
                 feature_task.start_week = timing_w_feat[0]
                 feature_task.end_week = timing_w_feat[1]
+            else:
+                feature_task.start_week = epic_task.start_week
+                feature_task.end_week = epic_task.end_week
             for story in feature.get("stories") or []:
                 job_size = story.get("job_size")
                 try:
@@ -1198,10 +1292,14 @@ def build_portfolio_backlog_project_plan(
                 story_task.duration_days = duration_days
                 story_task.item_id = story.get("id")
                 story_task.dependencies = story.get("dependencies") or story.get("predecessors") or []
-                timing_w_story = _parse_timing_window(story.get("timing") or "")
+                story_timing = story.get("timing") or story.get("weeks") or story.get("timing_window") or ""
+                timing_w_story = _parse_timing_window(story_timing)
                 if timing_w_story[0] is not None:
                     story_task.start_week = timing_w_story[0]
                     story_task.end_week = timing_w_story[1]
+                else:
+                    story_task.start_week = feature_task.start_week or epic_task.start_week
+                    story_task.end_week = feature_task.end_week or epic_task.end_week
                 story_res = story.get("resources") or story.get("roles")
                 has_explicit = bool(story_res)
                 if not story_res:
@@ -1391,6 +1489,21 @@ def build_proposal_response_project_plan(
 
     if not root.children:
         return "ERROR: No saved proposal response found. Create one first."
+
+    if not holiday_calendar:
+        if response.get("holiday_calendar"):
+            holiday_calendar = response["holiday_calendar"]
+        else:
+            corpus = " ".join([
+                str(response.get("name") or ""),
+                str(response.get("summary") or ""),
+            ]).lower()
+            has_gbp = any(
+                isinstance(entry, dict) and ("£" in str(entry.get("daily_rate", "")) or "gbp" in str(entry).lower() or "£" in str(entry))
+                for entry in (response.get("rate_card") or [])
+            ) or "£" in corpus or "bank holiday" in corpus or "uk " in corpus or "united kingdom" in corpus or "london" in corpus
+            if has_gbp:
+                holiday_calendar = "uk"
 
     project_start = _parse_start_date(start_date)
     holidays = _resolve_holidays(holiday_calendar, project_start)
