@@ -180,12 +180,14 @@
     attachFileInput: document.getElementById("attachFileInput"),
     composerAttachments: document.getElementById("composerAttachments"),
     micBtn: document.getElementById("micBtn"),
+    chatAutoArrangeBtn: document.getElementById("chatAutoArrangeBtn"),
 
     tabBtns: Array.from(document.querySelectorAll(".tab-btn")),
     chatTabPanel: document.getElementById("chatTabPanel"),
     networkTabPanel: document.getElementById("networkTabPanel"),
     networkTabBadge: document.getElementById("networkTabBadge"),
     networkCount: document.getElementById("networkCount"),
+    networkAutoArrangeBtn: document.getElementById("networkAutoArrangeBtn"),
     networkExportBtn: document.getElementById("networkExportBtn"),
     networkCanvasWrap: document.getElementById("networkCanvasWrap"),
     networkEmpty: document.getElementById("networkEmpty"),
@@ -193,6 +195,7 @@
     netHoverTooltip: document.getElementById("netHoverTooltip"),
     networkZoomInBtn: document.getElementById("networkZoomInBtn"),
     networkZoomOutBtn: document.getElementById("networkZoomOutBtn"),
+    networkAutoArrangeZoomBtn: document.getElementById("networkAutoArrangeZoomBtn"),
     networkResetViewBtn: document.getElementById("networkResetViewBtn"),
 
     nodeDetail: document.getElementById("nodeDetail"),
@@ -206,6 +209,7 @@
     artifactsTabPanel: document.getElementById("artifactsTabPanel"),
     artifactSelect: document.getElementById("artifactSelect"),
     artifactRefreshBtn: document.getElementById("artifactRefreshBtn"),
+    artifactAutoArrangeBtn: document.getElementById("artifactAutoArrangeBtn"),
     artifactDownloadJsonBtn: document.getElementById("artifactDownloadJsonBtn"),
     artifactsStatus: document.getElementById("artifactsStatus"),
     artifactsEmpty: document.getElementById("artifactsEmpty"),
@@ -224,6 +228,7 @@
     cloudarchTabPanel: document.getElementById("cloudarchTabPanel"),
     diagramSelect: document.getElementById("diagramSelect"),
     cloudarchRefreshBtn: document.getElementById("cloudarchRefreshBtn"),
+    cloudarchAutoArrangeBtn: document.getElementById("cloudarchAutoArrangeBtn"),
     cloudarchExportBtn: document.getElementById("cloudarchExportBtn"),
     cloudarchDownloadXmlBtn: document.getElementById("cloudarchDownloadXmlBtn"),
     cloudarchDownloadIacBtn: document.getElementById("cloudarchDownloadIacBtn"),
@@ -238,10 +243,12 @@
     cloudarchZoomControls: document.getElementById("cloudarchZoomControls"),
     cloudarchZoomInBtn: document.getElementById("cloudarchZoomInBtn"),
     cloudarchZoomOutBtn: document.getElementById("cloudarchZoomOutBtn"),
+    cloudarchAutoArrangeZoomBtn: document.getElementById("cloudarchAutoArrangeZoomBtn"),
     cloudarchResetViewBtn: document.getElementById("cloudarchResetViewBtn"),
 
     usageTabPanel: document.getElementById("usageTabPanel"),
     usageModelValue: document.getElementById("usageModelValue"),
+    usageAutoArrangeBtn: document.getElementById("usageAutoArrangeBtn"),
     usageResetBtn: document.getElementById("usageResetBtn"),
     usageStatTurns: document.getElementById("usageStatTurns"),
     usageStatTotalTokens: document.getElementById("usageStatTotalTokens"),
@@ -252,6 +259,7 @@
     usageSvg: document.getElementById("usageSvg"),
     usageZoomInBtn: document.getElementById("usageZoomInBtn"),
     usageZoomOutBtn: document.getElementById("usageZoomOutBtn"),
+    usageAutoArrangeZoomBtn: document.getElementById("usageAutoArrangeZoomBtn"),
     usageResetViewBtn: document.getElementById("usageResetViewBtn"),
     usageDetail: document.getElementById("usageDetail"),
     usageDetailTitle: document.getElementById("usageDetailTitle"),
@@ -1826,9 +1834,23 @@
     renderNetwork();
   }
 
+  function autoArrangeNetwork() {
+    if (state.network.nodes.size === 0) return;
+    for (const node of state.network.nodes.values()) {
+      delete node.manualX;
+      delete node.manualY;
+    }
+    state.network.autoFit = true;
+    state.network.view = { x: 0, y: 0, scale: 1 };
+    renderNetwork();
+    toast("Network layout auto-arranged.");
+  }
+
   el.networkZoomInBtn.addEventListener("click", () => zoomBy(ZOOM_STEP));
   el.networkZoomOutBtn.addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
+  if (el.networkAutoArrangeZoomBtn) el.networkAutoArrangeZoomBtn.addEventListener("click", autoArrangeNetwork);
   el.networkResetViewBtn.addEventListener("click", resetNetworkView);
+  if (el.networkAutoArrangeBtn) el.networkAutoArrangeBtn.addEventListener("click", autoArrangeNetwork);
 
   const NETWORK_EXPORT_SCALE = 2; // 2x pixel density, matching the Cloud Architecture tab's own export
 
@@ -2530,7 +2552,25 @@
     loadArtifact(name);
   });
 
+  function autoArrangeArtifacts() {
+    if (state.dataExplorer.raw === null) return;
+    state.dataExplorer.expandedPaths = new Set(["$"]);
+    const raw = state.dataExplorer.raw;
+    if (raw && typeof raw === "object") {
+      if (Array.isArray(raw)) {
+        raw.forEach((_, idx) => state.dataExplorer.expandedPaths.add(`$[${idx}]`));
+      } else {
+        Object.keys(raw).forEach((k) => state.dataExplorer.expandedPaths.add(`$.${k}`));
+      }
+    }
+    closeArtifactDetail();
+    renderArtifactTree();
+    if (el.artifactTree) el.artifactTree.scrollTop = 0;
+    toast("Artefact tree auto-arranged.");
+  }
+
   el.artifactRefreshBtn.addEventListener("click", () => loadArtifact(state.dataExplorer.artifact));
+  if (el.artifactAutoArrangeBtn) el.artifactAutoArrangeBtn.addEventListener("click", autoArrangeArtifacts);
 
   // Downloads the real process_data.json/design_data.json/
   // requirements_summary.json/proposal_response.json/test_specification.json/
@@ -3839,9 +3879,19 @@
     renderDiagram();
   }
 
+  function autoArrangeDiagram() {
+    if (!diagramHasData()) return;
+    state.diagram.autoFit = true;
+    state.diagram.view = { x: 0, y: 0, scale: 1 };
+    renderDiagram();
+    toast("Diagram layout auto-arranged.");
+  }
+
   el.cloudarchZoomInBtn.addEventListener("click", () => zoomDiagramBy(ZOOM_STEP));
   el.cloudarchZoomOutBtn.addEventListener("click", () => zoomDiagramBy(1 / ZOOM_STEP));
+  if (el.cloudarchAutoArrangeZoomBtn) el.cloudarchAutoArrangeZoomBtn.addEventListener("click", autoArrangeDiagram);
   el.cloudarchResetViewBtn.addEventListener("click", resetDiagramView);
+  if (el.cloudarchAutoArrangeBtn) el.cloudarchAutoArrangeBtn.addEventListener("click", autoArrangeDiagram);
 
   el.cloudarchCanvasWrap.addEventListener("wheel", (event) => {
     if (!diagramHasData()) return;
@@ -4174,9 +4224,20 @@
     renderUsageChart();
   }
 
+  function autoArrangeUsage() {
+    if (state.usage.turns.length === 0) return;
+    state.usage.autoFit = true;
+    state.usage.view = { x: 0, y: 0, scale: 1 };
+    closeUsageDetail();
+    renderUsageChart();
+    toast("Usage chart auto-arranged.");
+  }
+
   el.usageZoomInBtn.addEventListener("click", () => zoomUsageBy(ZOOM_STEP));
   el.usageZoomOutBtn.addEventListener("click", () => zoomUsageBy(1 / ZOOM_STEP));
+  if (el.usageAutoArrangeZoomBtn) el.usageAutoArrangeZoomBtn.addEventListener("click", autoArrangeUsage);
   el.usageResetViewBtn.addEventListener("click", resetUsageView);
+  if (el.usageAutoArrangeBtn) el.usageAutoArrangeBtn.addEventListener("click", autoArrangeUsage);
 
   el.usageCanvasWrap.addEventListener("wheel", (event) => {
     if (state.usage.turns.length === 0) return;
@@ -5538,7 +5599,18 @@
     else if (result === "download") toast("Chat downloaded.");
   }
 
+  function autoArrangeChat() {
+    if (el.chatScroll) {
+      el.chatScroll.scrollTop = el.chatScroll.scrollHeight;
+    }
+    if (el.messageInput) {
+      el.messageInput.style.height = "auto";
+    }
+    toast("Chat view auto-arranged.");
+  }
+
   el.saveChatBtn.addEventListener("click", saveChat);
+  if (el.chatAutoArrangeBtn) el.chatAutoArrangeBtn.addEventListener("click", autoArrangeChat);
 
   // ---------------------------------------------------------------
   // Init
