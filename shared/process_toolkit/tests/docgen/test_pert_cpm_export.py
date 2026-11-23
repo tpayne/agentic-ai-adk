@@ -118,3 +118,12 @@ class TestGeneratePertCpmDiagram:
         out_path = generate_pert_cpm_diagram(activities, "Mixed Plan", "mixed.png")
         assert os.path.exists(out_path)
         assert os.path.getsize(out_path) > 0
+
+    def test_generates_multi_row_png_for_large_activity_set(self):
+        activities = [
+            _activity(i, f"Task {i}", dt.date(2026, 1, 1) + dt.timedelta(days=i), dt.date(2026, 1, 2) + dt.timedelta(days=i), 1)
+            for i in range(1, 16)
+        ]
+        out_path = generate_pert_cpm_diagram(activities, "Multi-Row Plan", "multi_row.png")
+        assert os.path.exists(out_path)
+        assert os.path.getsize(out_path) > 0

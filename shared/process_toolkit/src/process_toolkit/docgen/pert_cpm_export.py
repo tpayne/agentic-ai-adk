@@ -56,6 +56,7 @@ from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
 
 _CARD_WIDTH, _CARD_HEIGHT = 2.9, 2.3
 _X_SPACING = 3.35
+_Y_SPACING = 3.10
 
 _CRITICAL_COLOR = "#C0392B"
 _SLACK_COLOR = "#5C6B7A"
@@ -78,21 +79,40 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     scored = _compute_cpm(activities)
     all_critical = all(a["critical"] for a in scored)
 
-    positions = [(i * _X_SPACING, 0.0) for i in range(len(scored))]
-    x_min, x_max = positions[0][0], positions[-1][0]
-    left, right = x_min - _CARD_WIDTH / 2 - 1.1, x_max + _CARD_WIDTH / 2 + 1.1
+    num_activities = len(scored)
+    if num_activities <= 5:
+        cards_per_row = max(num_activities, 1)
+    elif num_activities <= 10:
+        cards_per_row = 4
+    elif num_activities <= 18:
+        cards_per_row = 5
+    else:
+        cards_per_row = 6
+
+    positions = []
+    for i in range(num_activities):
+        row = i // cards_per_row
+        col = i % cards_per_row
+        positions.append((col * _X_SPACING, -row * _Y_SPACING))
+
+    x_coords = [p[0] for p in positions]
+    y_coords = [p[1] for p in positions]
+    x_min, x_max = min(x_coords), max(x_coords)
+    y_min, y_max = min(y_coords), max(y_coords)
+
+    left = x_min - _CARD_WIDTH / 2 - 1.1
+    right = x_max + _CARD_WIDTH / 2 + 1.1
     if right - left < 9.0:
         extra_padding = (9.0 - (right - left)) / 2
         left -= extra_padding
         right += extra_padding
-    # Single row (all cards at y=0) -- banner tall enough for title + the
-    # legend line explaining the critical-path styling, same margin-formula
-    # discipline proposal_roadmap_diagram.py's own header block uses.
-    bottom, top = -_CARD_HEIGHT / 2 - 0.35, _CARD_HEIGHT / 2 + 1.85
+
+    bottom = y_min - _CARD_HEIGHT / 2 - 0.45
+    top = y_max + _CARD_HEIGHT / 2 + 1.85
     plot_width, plot_height = right - left, top - bottom
 
-    fig_width = min(14.0, max(9.0, plot_width * 0.72))
-    fig_height = fig_width * plot_height / plot_width
+    fig_width = min(16.0, max(9.0, plot_width * 0.72))
+    fig_height = max(4.5, fig_width * plot_height / plot_width)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_facecolor("#F4F7FB")
