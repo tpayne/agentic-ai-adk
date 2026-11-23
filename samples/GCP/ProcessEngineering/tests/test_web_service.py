@@ -907,6 +907,11 @@ class WebServiceChatStopTest(unittest.TestCase):
         )
         self.assertEqual(result["events"][-1]["response"], "partial")
         # Cleaned up on its own -- no leftover entry for a turn that's over.
+        for _ in range(20):
+            with self.agent._active_stream_tasks_lock:
+                if "web-session-stop" not in self.agent._active_stream_tasks:
+                    break
+            time.sleep(0.05)
         with self.agent._active_stream_tasks_lock:
             self.assertNotIn("web-session-stop", self.agent._active_stream_tasks)
 

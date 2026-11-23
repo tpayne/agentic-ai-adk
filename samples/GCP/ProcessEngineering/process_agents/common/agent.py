@@ -1578,11 +1578,14 @@ def build_web_app(https: bool = True):
 
             thread = threading.Thread(target=run, daemon=True)
             thread.start()
-            while True:
-                item = event_queue.get()
-                if item is None:
-                    break
-                yield f"data: {json.dumps({**item, 'session_id': web_session_id})}\n\n"
+            try:
+                while True:
+                    item = event_queue.get()
+                    if item is None:
+                        break
+                    yield f"data: {json.dumps({**item, 'session_id': web_session_id})}\n\n"
+            finally:
+                thread.join(timeout=2.0)
 
         resp = Response(generate(), mimetype="text/event-stream")
         resp.headers["Cache-Control"] = "no-cache"
