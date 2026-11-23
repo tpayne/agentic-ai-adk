@@ -16,7 +16,12 @@ import logging
 
 logger = logging.getLogger("ProcessArchitect.RequirementsReviewer")
 
-from ..common.utils import load_requirements_summary, update_requirements_summary
+from ..common.utils import (
+    load_iteration_feedback,
+    load_requirements_summary,
+    save_iteration_feedback,
+    update_requirements_summary,
+)
 from ..common.agent_wrappers import ProcessLlmAgent
 
 requirements_reviewer_agent = ProcessLlmAgent(
@@ -24,11 +29,15 @@ requirements_reviewer_agent = ProcessLlmAgent(
     description=(
         "Audits the QUALITY of the saved requirements summary -- not what it says, but whether "
         "each requirement is well-written: necessary, unambiguous, complete, singular, feasible, "
-        "verifiable, and consistent (ISO/IEC/IEEE 29148). Flags vague, compound, untestable, "
-        "duplicate, or conflicting requirements with specific feedback. By default read-only; if "
-        "explicitly asked to review AND fix, applies only mechanical, well-grounded corrections "
-        "and reports what changed."
+        "verifiable, and consistent (ISO/IEC/IEEE 29148), and whether the requirements register "
+        "fulfills the core GOAL. In pipeline mode, records structured review feedback into the "
+        "iteration mailbox and signals REQUIREMENTS_REVIEW_APPROVED when verified."
     ),
     instruction_file="common/requirements_reviewer_agent.txt",
-    tools=[load_requirements_summary, update_requirements_summary],
+    tools=[
+        load_requirements_summary,
+        update_requirements_summary,
+        save_iteration_feedback,
+        load_iteration_feedback,
+    ],
 )

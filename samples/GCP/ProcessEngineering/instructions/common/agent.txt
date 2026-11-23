@@ -1176,6 +1176,31 @@ Examples:
 - "What's in our saved portfolio backlog?"
 - "How should epics typically be broken down into features and stories?"
 
+### 4n. ENTERPRISE AGILE PORTFOLIO BACKLOG QUALITY AUDIT / WBS REVIEW
+Trigger when the user wants the SAVED Enterprise Agile Portfolio Backlog itself AUDITED for WBS
+breakdown quality (e.g. verifying epics are broken down into distinct real features and stories
+rather than crude 1:1:1 title duplicates, checking 3-5 observable acceptance criteria, validating
+resource allocations, timescale, and WSJF consistency) or verified against the project GOAL.
+
+→ Call: Portfolio_Backlog_Reviewer_Agent
+
+Examples:
+- "Review the portfolio backlog for quality."
+- "Audit the backlog task breakdown and make sure it meets the project goal."
+- "Is the portfolio backlog WBS realistic and properly broken down?"
+
+### 4o. PROJECT PLAN QUALITY AUDIT / SCHEDULE REVIEW
+Trigger when the user wants the SAVED Project Plan (MSPDI XML / PERT CPM) audited for schedule
+compliance (verifying strict timescale compliance with zero calendar overrun, bank holiday handling,
+concurrency of independent phases, resource allocations, and deliverable coverage meeting the project GOAL).
+
+→ Call: Project_Plan_Reviewer_Agent
+
+Examples:
+- "Audit the project plan for schedule compliance and overrun."
+- "Review the project plan XML to ensure it finishes within the 12-week timescale."
+- "Check the project plan concurrency and resource allocations."
+
 ------------------------------------------------------------
 
 ## 5. WHAT-IF / HYPOTHETICAL SCENARIOS
@@ -1558,7 +1583,7 @@ If the user includes multiple competing intents for the SAME artifact or domain 
 4. Simulation / Performance / Analysis (process → Simulation_Optimization_Query_Agent; design document → Design_Architecture_Simulation_Query_Agent; cloud architecture diagram resilience/scalability/latency → CloudArch_Simulation_Query_Agent; cloud architecture diagram adversarial/attack → CloudArch_Attack_Simulation_Query_Agent; requirements completeness → Requirements_Simulation_Query_Agent; ITSM structural risk/coverage → ITSM_Simulation_Query_Agent)
 5. Cost Estimation / Optimization (FinOps) (cloud architecture diagram → CloudArch_FinOps_Agent)
 6. Infrastructure-as-Code Generation (cloud architecture diagram → CloudArch_IaC_Pipeline)
-7. General Explanation / Review, OR a purely general domain/methodology question with nothing saved at all (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent; requirements quality → Requirements_Reviewer_Agent; saved proposal response → Proposal_Response_Consultant_Agent; proposal response quality → Proposal_Response_Reviewer_Agent; saved test specification → Test_Consultant_Agent; test specification quality → Test_Reviewer_Agent; saved ITSM process document → ITSM_Consultant_Agent; ITSM process document quality → ITSM_Reviewer_Agent; TOGAF/enterprise architecture, general or saved artifact set → TOGAF_Consultant_Agent; agile/SAFe backlog planning, general or saved backlog → Portfolio_Backlog_Consultant_Agent)
+7. General Explanation / Review, OR a purely general domain/methodology question with nothing saved at all (process → Consultant_Agent; design document → Design_Consultant_Agent; cloud architecture diagram → CloudArch_Consultant_Agent; saved requirements summary → Requirements_Consultant_Agent; requirements quality → Requirements_Reviewer_Agent; saved proposal response → Proposal_Response_Consultant_Agent; proposal response quality → Proposal_Response_Reviewer_Agent; saved test specification → Test_Consultant_Agent; test specification quality → Test_Reviewer_Agent; saved ITSM process document → ITSM_Consultant_Agent; ITSM process document quality → ITSM_Reviewer_Agent; TOGAF/enterprise architecture, general or saved artifact set → TOGAF_Consultant_Agent; agile/SAFe backlog planning, general or saved backlog → Portfolio_Backlog_Consultant_Agent; portfolio backlog quality / WBS review → Portfolio_Backlog_Reviewer_Agent; project plan quality / schedule audit → Project_Plan_Reviewer_Agent)
 
 Examples:
 - “Create a process and explain how it works.”
@@ -1580,9 +1605,9 @@ Trigger when the user's prompt explicitly requests a multi-stage delivery workfl
 This is NOT a conflict where later steps are discarded. This is an explicit multi-stage pipeline specified by the user.
 
 1. Pipeline Identification:
-   - Requirements Stage: Requirements_Doc_Pipeline (synthesizes requirements specification from the engagement description)
-   - Backlog Stage: Portfolio_Backlog_Pipeline (creates the Enterprise Agile Portfolio Backlog with all epics, features, user stories, WSJF, timescale, and resource allocations matching the engagement requirements)
-   - Project Plan Stage: Project_Plan_Export_Agent (exports the portfolio backlog as a Microsoft Project / ProjectLibre MSPDI XML project plan)
+   - Requirements Stage: Requirements_Doc_Pipeline (synthesizes requirements specification from the engagement description, audited in an iterative review loop against ISO-29148 and the project GOAL)
+   - Backlog Stage: Portfolio_Backlog_Pipeline (creates the Enterprise Agile Portfolio Backlog with all epics, features, user stories, WSJF, timescale, and resource allocations matching the engagement requirements, audited in an iterative review loop against WBS quality and the project GOAL)
+   - Project Plan Stage: Project_Plan_Pipeline (or Project_Plan_Export_Agent) (exports and audits the portfolio backlog as a Microsoft Project / ProjectLibre MSPDI XML project plan and PERT/CPM diagram, verified against timescale, concurrency, and allocations)
 
 2. Execution & Chaining Rules:
    - Execute each requested stage in the sequence specified by the user.
@@ -1590,7 +1615,7 @@ This is NOT a conflict where later steps are discarded. This is an explicit mult
      DO NOT stop to ask the user "Shall I proceed with creating the backlog next?" -- the user ALREADY commanded this in their prompt!
      Immediately invoke the next pipeline in the sequence (Portfolio_Backlog_Pipeline).
    - When Portfolio_Backlog_Pipeline completes:
-     Immediately invoke Project_Plan_Export_Agent to generate the project plan XML.
+     Immediately invoke Project_Plan_Pipeline (or Project_Plan_Export_Agent) to generate and audit the project plan XML.
    - Once all requested stages have completed, present the consolidated summary to the user detailing all completed deliverables: Requirements Specification, Portfolio Backlog, and Project Plan.
 
 ------------------------------------------------------------

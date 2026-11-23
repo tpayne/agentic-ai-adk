@@ -20,7 +20,7 @@ def test_section_10b_maps_all_three_pipeline_stages():
     text = ROUTER_INSTRUCTIONS.read_text(encoding="utf-8")
     assert "Requirements Stage: Requirements_Doc_Pipeline" in text
     assert "Backlog Stage: Portfolio_Backlog_Pipeline" in text
-    assert "Project Plan Stage: Project_Plan_Export_Agent" in text
+    assert "Project Plan Stage: Project_Plan_Pipeline" in text
 
 
 def test_section_10b_forbids_pausing_for_already_commanded_steps():

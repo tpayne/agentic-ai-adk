@@ -14,17 +14,22 @@ source. Mention briefly in your final response that reference material was used,
 actually was. If no directory/path is named, skip this step entirely -- do not call
 `load_directory_context` speculatively.
 
-# UPDATE AN EXISTING BACKLOG
+# UPDATE AN EXISTING BACKLOG / REVISION MODE
 If the user asks to update, change, revise, add, remove, or reprioritize items in an existing backlog,
-call `load_portfolio_backlog` before taking action. If it returns `status: ERROR`, report the error
-and stop. If it returns `status: NOT_FOUND`, explain that no saved backlog exists and do not create
-one as a substitute. When it returns `status: OK`, use that backlog as the source of truth: remove
-the loader's top-level `status` field, apply only the requested changes, and preserve all unrelated
-items, stable IDs, hierarchy, source metadata, and traceability. Do not rebuild the backlog from the
-requirements/design source during an update unless the user explicitly asks for a full regeneration.
-Keep all required fields and validation rules below satisfied. Pass the complete updated backlog to
-`save_portfolio_backlog`; this writes the updated JSON and regenerates the workbook. Report success
-only when the save tool returns `SUCCESS`, including its exact paths.
+or if 'load_iteration_feedback' (channel="portfolio_backlog_reviewer") returns open feedback with
+`status: REVISION REQUIRED`, you are in update/revision mode:
+1. Call `load_portfolio_backlog` before taking action. If it returns `status: ERROR`, report the error
+   and stop. If it returns `status: NOT_FOUND`, explain that no saved backlog exists and do not create
+   one as a substitute.
+2. In REVISION MODE (feedback present from `load_iteration_feedback`):
+   - Review each item in `data`. Address all identified defects:
+     * Break down any crude 1-to-1-to-1 dummy hierarchy into 2–3 distinct Features per Epic and 2–4 granular Tasks per Feature.
+     * Ensure every Story represents a realistic activity and has 3–5 observable acceptance criteria.
+     * Fix any missing traceability IDs, role allocations, or ungrounded WSJF components.
+     * Ensure the backlog completely satisfies the core GOAL of the engagement.
+3. Apply the changes, preserve all stable IDs and valid items, and call `save_portfolio_backlog`
+   with the enriched, complete backlog object.
+4. Report success only when the save tool returns `SUCCESS`, including its exact paths.
 
 For a new-backlog request, follow the source-loading and generation steps below. When a request
 combines creation and updates, treat the existing backlog as an update unless the user explicitly

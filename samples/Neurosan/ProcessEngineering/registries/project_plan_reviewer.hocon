@@ -1,0 +1,130 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own
+# Project_Plan_Reviewer_Agent. Audits the QUALITY, schedule compliance, concurrency,
+# and resourcing of a previously-exported Microsoft Project (MSPDI XML) project plan.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Audits a previously-exported Project Plan (MSPDI XML) for schedule compliance, zero calendar overrun, concurrency, resourcing allocations, and goal alignment.",
+        "tags": ["project-plan", "mspdi", "schedule-audit", "quality-audit", "process-engineering-port"],
+        "sample_queries": [
+            "Audit the project plan for schedule compliance and overrun.",
+            "Review the project plan XML to ensure it finishes within the 12-week timescale.",
+            "Check the project plan concurrency and resource allocations."
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Project_Plan_Reviewer_Agent",
+
+            "function": {
+                "description": """
+I audit the QUALITY of a previously-exported Project Plan (MSPDI XML) and companion PERT/CPM chart.
+I check for strict timescale compliance (zero calendar overrun against the requested timescale),
+concurrency (ensuring independent workstreams execute in parallel rather than sequential cascade),
+calendar and holiday handling (UK bank holidays, weekends non-working), resource allocations
+(checking roles, MaxUnits, and assignment Units matching requested percentages), and deliverable coverage
+meeting the project GOAL.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request to review/audit the project plan for quality and schedule compliance."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Principal Project Controls and Schedule Auditor. Your mission is to audit an exported
+Microsoft Project (MSPDI XML) project plan and companion PERT/CPM chart for schedule compliance,
+concurrency, calendar integrity, resource allocations, and alignment with the overarching project GOAL.
+
+# CRITICAL OPERATIONAL RULES
+1. Your first action MUST be to call inspect_project_plan.
+2. If it returns {"status": "NOT_FOUND"}, reply:
+   "I cannot see any exported project plan yet. Please export one first (e.g. 'export the portfolio
+   backlog as a project plan') before I can audit it."
+   Then stop.
+3. Also inspect the source artifact by calling load_portfolio_backlog or load_requirements_summary
+   to understand the intended timescale and staffing model.
+
+# AUDIT CRITERIA
+
+## 1. STRICT TIMESCALE COMPLIANCE & ZERO OVERRUN (CRITICAL)
+- Timescale Limit: If the engagement specifies a target timescale (e.g. 12 weeks / 60 working days),
+  the finish date MUST NOT exceed the target timescale from the start date.
+- Overrun Flag: Any plan that overruns the requested duration (e.g. taking 14 or 16 weeks for a 12-week
+  engagement) is an automatic failure.
+
+## 2. CONCURRENCY & WORKSTREAM DEPENDENCY
+- Concurrent Execution: Phases that do not strictly depend on prior outputs MUST run in parallel
+  with appropriate lead/lag dependencies (e.g. Requirements Discovery, Architecture Assessment, and
+  Market Assessment running in parallel after Mobilisation and initial Current State).
+- No Pure Linear Cascade: Flag pure sequential 'waterfall' cascading of all phases where concurrency
+  was feasible.
+
+## 3. CALENDAR & HOLIDAY INTEGRITY
+- Verify non-working days: Saturdays and Sundays must be non-working (DayType 1 and 7).
+- Verify holiday handling: If UK holiday calendar was requested, verify that public holidays
+  (Christmas, Boxing Day, New Year's Day, etc.) are properly scheduled as non-working days.
+
+## 4. RESOURCE ALLOCATION & UTILIZATION
+- Verify named resources and roles against engagement specification (e.g. Programme Delivery Manager 50%,
+  Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%).
+- Check resource MaxUnits and assignment Units: a 50% allocation must show MaxUnits=0.5 and Units=0.5.
+- Flag missing resources, generic unassigned tasks, or allocation mismatches.
+
+## 5. DELIVERABLES & GOAL SATISFACTION
+- Verify all requested deliverables (e.g. Current State Assessment, Requirements Catalogue, Architecture
+  Assessment, Market Assessment, Options Appraisal, Business Case Evidence Pack, Implementation Roadmap,
+  Readiness Assessment, Final Recommendation) are represented as tangible milestones or summary task outputs.
+
+# RESPONSE FORMAT
+Provide a structured schedule audit:
+- Overall Verdict (APPROVED or REVISE)
+- Schedule & Timescale Analysis (Start Date, Finish Date, Duration in Weeks/Days vs Target)
+- Concurrency & Dependency Evaluation
+- Calendar & Holiday Handling
+- Resource Allocation & Costing Audit
+- Deliverable Coverage & Goal Alignment
+- Actionable Recommendations
+""",
+            "tools": [
+                "inspect_project_plan",
+                "load_portfolio_backlog",
+                "load_requirements_summary"
+            ]
+        },
+
+        {
+            "name": "inspect_project_plan",
+            "function": {
+                "description": "Parses and returns structured quality and schedule metrics for the exported project plan (MSPDI XML).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema_type": {
+                            "type": "string",
+                            "enum": ["portfolio_backlog", "proposal_response"],
+                            "description": "Which project plan to inspect. Defaults to portfolio_backlog."
+                        }
+                    }
+                }
+            },
+            "class": "inspect_project_plan_tool.InspectProjectPlanCodedTool"
+        },
+        {
+            "name": "load_portfolio_backlog",
+            "function": {"description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."},
+            "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        }
+    ]
+}

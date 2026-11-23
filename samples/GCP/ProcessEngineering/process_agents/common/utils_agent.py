@@ -480,6 +480,15 @@ togaf_stop_if_ready = _build_stop_if_ready(lambda: {"togaf_compliance_status": "
 # describes.
 itsm_stop_if_ready = _build_stop_if_ready(lambda: {"itsm_compliance_status": "APPROVED"})
 
+# Requirements_Reviewer_Agent writes requirements_review_status
+requirements_stop_if_ready = _build_stop_if_ready(lambda: {"requirements_review_status": "APPROVED"})
+
+# Portfolio_Backlog_Reviewer_Agent writes portfolio_backlog_review_status
+portfolio_backlog_stop_if_ready = _build_stop_if_ready(lambda: {"portfolio_backlog_review_status": "APPROVED"})
+
+# Project_Plan_Reviewer_Agent writes project_plan_review_status
+project_plan_stop_if_ready = _build_stop_if_ready(lambda: {"project_plan_review_status": "APPROVED"})
+
 def _reset_stop_counter(counter_path: str):
     """Reset the persistent stop counter."""
     try:

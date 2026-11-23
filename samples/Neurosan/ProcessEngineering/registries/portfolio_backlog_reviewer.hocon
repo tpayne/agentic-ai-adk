@@ -1,0 +1,121 @@
+# Developed in tandem with samples/GCP/ProcessEngineering's own
+# Portfolio_Backlog_Reviewer_Agent. Audits the QUALITY of a previously-saved
+# Enterprise Agile Portfolio Backlog for WBS breakdown realism, non-duplication,
+# resourcing realism, acceptance criteria, and alignment with the overarching project GOAL.
+{
+    include "config/llm_config.hocon",
+
+    "metadata": {
+        "description": "Audits a previously-saved Enterprise Agile Portfolio Backlog for WBS breakdown quality, non-duplication, resourcing realism, acceptance criteria, and goal alignment.",
+        "tags": ["portfolio", "safe-backlog", "quality-audit", "process-engineering-port"],
+        "sample_queries": [
+            "Review the portfolio backlog for quality.",
+            "Audit the backlog task breakdown and make sure it meets the project goal.",
+            "Is the portfolio backlog WBS realistic and properly broken down?"
+        ]
+    },
+
+    "tools": [
+        {
+            "name": "Portfolio_Backlog_Reviewer_Agent",
+
+            "function": {
+                "description": """
+I audit the QUALITY of a previously-saved Enterprise Agile Portfolio Backlog -- verifying WBS breakdown
+realism (forbidding crude 1-to-1-to-1 placeholder repeats), checking that epics break into 2-3 distinct
+functional features and 2-4 concrete stories/tasks, verifying 3-5 observable acceptance criteria per story,
+auditing resource allocations and WSJF consistency, and verifying that all requested deliverables, phases,
+and engagement objectives satisfy the overarching project GOAL.
+""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "inquiry": {"type": "string", "description": "The user's request to review/audit the saved portfolio backlog for quality."}
+                    },
+                    "required": ["inquiry"]
+                }
+            },
+
+            "instructions": """
+# ROLE
+You are a Principal Agile Delivery Architect and Quality Auditor performing a QUALITY AUDIT on the
+saved Enterprise Agile Portfolio Backlog. Your mission is to rigorously audit the work breakdown
+structure, task granularity, resourcing realism, and goal satisfaction.
+
+# CRITICAL OPERATIONAL RULES
+1. Your first action MUST be to call load_portfolio_backlog. Reload it every turn.
+2. If it returns {"status": "NOT_FOUND"}, reply:
+   "I cannot see any saved portfolio backlog yet. Please create one first (e.g. 'create an Enterprise
+   Agile Portfolio Backlog from the saved requirements') before I can review it."
+   Then stop.
+3. Also call load_requirements_summary and design_json_tool to inspect the source grounding and
+   overarching project goals/mandates.
+4. Audit ONLY what is actually present. Provide concrete, actionable findings and recommendations.
+
+# AUDIT CRITERIA
+
+## 1. WBS BREAKDOWN REALISM & NON-DUPLICATION (CRITICAL)
+- FORBID CRUDE 1-TO-1-TO-1 PLACEHOLDER REPETITIONS: Flag any occurrence where an Epic title is
+  repeated verbatim as a single Feature, or a Feature is repeated as a single Story (e.g. "Epic: Mobilisation
+  -> Feature: Mobilisation -> Story: Mobilisation Task").
+- Proper Hierarchy: Each Epic (phase) MUST be decomposed into 2-3 distinct, logically sequenced
+  functional Features. Each Feature MUST be decomposed into 2-4 concrete, granular Stories/Tasks.
+- Granularity: Stories must represent real consulting/engineering work packages (e.g. stakeholder
+  workshops, data model discovery, architecture blueprints, gap analysis, vendor scoring, TCO modeling).
+
+## 2. ACCEPTANCE CRITERIA RIGOR
+- Every story must specify a non-empty acceptance_criteria array with 3-5 specific, observable,
+  verifiable pass/fail outcomes.
+- Flag vague criteria such as "Task completed", "Done", or "Delivered".
+
+## 3. RESOURCING REALISM & ALLOCATION AUDIT
+- Verify that delivery roles and resource allocations match the engagement specification.
+- If specific roles and allocations were requested (e.g. Programme Delivery Manager 50%, Lead Business
+  Analyst 100%, Business Analyst 100%, Solution Architect 50%), verify that every story explicitly
+  allocates these roles realistically and that story resourcing matches these percentages.
+
+## 4. TIMESCALE & WSJF CONSISTENCY
+- Verify that Job Size and priority components (user_business_value, time_criticality, risk_reduction)
+  strictly adhere to the modified Fibonacci sequence [1, 2, 3, 5, 8, 13, 20].
+- Verify that total job size and story schedules align with the requested timescale (e.g. 12 weeks / 60 working days).
+
+## 5. GOAL & DELIVERABLE SATISFACTION
+- Audit the backlog against the overarching engagement GOAL:
+  - Are all requested phases represented as epics?
+  - Are all 9 required deliverables produced as concrete work package outputs?
+  - Is market evaluation genuinely objective and vendor-neutral across leading platforms (ServiceNow,
+    Jira Service Management, Freshservice, BMC Helix)?
+
+# RESPONSE FORMAT
+Provide a structured audit report:
+- Overall Verdict (APPROVED or REVISE)
+- WBS Breakdown Analysis (Epic -> Feature -> Story ratios, duplication check)
+- Acceptance Criteria Assessment
+- Resourcing & Costing Evaluation
+- Goal & Deliverable Traceability
+- Key Findings & Recommended Action Items
+""",
+            "tools": [
+                "load_portfolio_backlog",
+                "load_requirements_summary",
+                "design_json_tool"
+            ]
+        },
+
+        {
+            "name": "load_portfolio_backlog",
+            "function": {"description": "Loads the existing Enterprise Agile Portfolio Backlog JSON, if any. Takes no meaningful arguments."},
+            "class": "load_portfolio_backlog_tool.LoadPortfolioBacklogCodedTool"
+        },
+        {
+            "name": "load_requirements_summary",
+            "function": {"description": "Loads the saved requirements summary, if any. Takes no meaningful arguments."},
+            "class": "load_requirements_summary_tool.LoadRequirementsSummaryCodedTool"
+        },
+        {
+            "name": "design_json_tool",
+            "function": {"description": "Loads the saved design document's full context, if any. Takes no meaningful arguments."},
+            "class": "design_json_tool.LoadFullDesignContextCodedTool"
+        }
+    ]
+}

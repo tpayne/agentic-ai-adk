@@ -181,3 +181,71 @@ def test_front_man_mentions_the_companion_pert_cpm_diagram():
 
     agent_py = _read("process_agents/common/project_plan_export_agent.py")
     assert "PERT/CPM" in agent_py
+
+
+def test_project_plan_pipeline_and_reviewer_wiring():
+    from process_agents.common.project_plan_pipeline_agent import (
+        project_plan_pipeline,
+        project_plan_review_loop,
+        project_plan_export_instance,
+        project_plan_reviewer_instance,
+        stop_controller_agent_instance,
+    )
+    from process_agents.common.project_plan_reviewer_agent import project_plan_reviewer_agent
+    from process_agents.common.utils import (
+        inspect_project_plan,
+        load_portfolio_backlog,
+        load_requirements_summary,
+        save_iteration_feedback,
+        load_iteration_feedback,
+    )
+
+    assert project_plan_review_loop in project_plan_pipeline.sub_agents
+    assert project_plan_export_instance in project_plan_review_loop.sub_agents
+    assert project_plan_reviewer_instance in project_plan_review_loop.sub_agents
+    assert stop_controller_agent_instance in project_plan_review_loop.sub_agents
+
+    assert {
+        inspect_project_plan,
+        load_portfolio_backlog,
+        load_requirements_summary,
+        save_iteration_feedback,
+        load_iteration_feedback,
+    } <= set(project_plan_reviewer_agent.tools)
+
+    registry = _read("process_agents/common/agent_registry.py")
+    root = _read("process_agents/common/agent.py")
+    assert "from .project_plan_pipeline_agent import project_plan_pipeline" in registry
+    assert root.count("project_plan_pipeline,") == 2
+    assert "from .project_plan_reviewer_agent import project_plan_reviewer_agent" in registry
+    assert root.count("project_plan_reviewer_agent,") == 2
+
+
+def test_project_plan_reviewer_instructions_enforce_schedule_and_concurrency():
+    text = _read("instructions/common/project_plan_reviewer_agent.txt")
+    assert "TIMESCALE & SCHEDULE COMPLIANCE" in text
+    assert "ZERO CALENDAR OVERRUN" in text
+    assert "PHASE STRUCTURE & CONCURRENCY" in text
+    assert "RESOURCING & ALLOCATION ACCURACY" in text
+    assert "PROJECT_PLAN_REVIEW_APPROVED" in text
+
+
+def test_reset_project_plan_approval_state(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from process_toolkit import paths
+
+    monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    os.makedirs("output", exist_ok=True)
+
+    stale_feedback = paths.output_path("iteration_feedback_project_plan_reviewer.json")
+    with open(stale_feedback, "w", encoding="utf-8") as f:
+        json.dump({"status": "PROJECT_PLAN_REVIEW_APPROVED", "data": []}, f)
+
+    from process_agents.common.project_plan_pipeline_agent import _reset_project_plan_approval_state
+
+    context = SimpleNamespace(state={}, invocation_id="test-inv")
+    assert _reset_project_plan_approval_state(context) is None
+    assert not os.path.exists(stale_feedback)
+

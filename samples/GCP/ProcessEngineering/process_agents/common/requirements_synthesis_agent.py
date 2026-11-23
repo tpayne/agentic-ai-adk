@@ -16,7 +16,12 @@ logger = logging.getLogger("ProcessArchitect.RequirementsSynthesis")
 
 from google.adk.tools import AgentTool
 
-from ..common.utils import load_directory_context, save_requirements_summary
+from ..common.utils import (
+    load_directory_context,
+    load_iteration_feedback,
+    load_requirements_summary,
+    save_requirements_summary,
+)
 from ..common.agent_wrappers import ProcessLlmAgent
 from ..common.requirements_chunk_extractor_agent import requirements_chunk_extractor_agent
 
@@ -25,11 +30,14 @@ requirements_synthesis_agent = ProcessLlmAgent(
     description=(
         "Synthesizes a new, structured requirements register directly from a user's own "
         "description of a product/system/initiative plus general domain/regulatory knowledge, "
-        "and saves it for the pipeline's own next stage to render as a document."
+        "or refines an existing requirements register based on reviewer feedback, and saves it "
+        "for the pipeline's own next stage to render as a document."
     ),
     instruction_file="common/requirements_synthesis_agent.txt",
     tools=[
         load_directory_context,
+        load_requirements_summary,
+        load_iteration_feedback,
         save_requirements_summary,
         AgentTool(requirements_chunk_extractor_agent),
     ],

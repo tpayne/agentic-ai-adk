@@ -54,6 +54,12 @@ APPROVAL_MARKERS = {
     # registering so save_iteration_feedback recognizes the marker at all
     # (an unregistered marker is silently never detected as approval).
     "ITSM_SIMULATION_ALL_APPROVED": ("itsm_simulation_status", "APPROVED"),
+    # Requirements_Reviewer_Agent's approval marker for the requirements pipeline review loop.
+    "REQUIREMENTS_REVIEW_APPROVED": ("requirements_review_status", "APPROVED"),
+    # Portfolio_Backlog_Reviewer_Agent's approval marker for the portfolio backlog pipeline review loop.
+    "PORTFOLIO_BACKLOG_REVIEW_APPROVED": ("portfolio_backlog_review_status", "APPROVED"),
+    # Project_Plan_Reviewer_Agent's approval marker for the project plan export/pipeline review loop.
+    "PROJECT_PLAN_REVIEW_APPROVED": ("project_plan_review_status", "APPROVED"),
 }
 
 APPROVED_STATUSES = {
@@ -66,6 +72,9 @@ APPROVED_STATUSES = {
     "TOGAF_COMPLIANCE_APPROVED",
     "ITSM_COMPLIANCE_APPROVED",
     "ITSM_SIMULATION_ALL_APPROVED",
+    "REQUIREMENTS_REVIEW_APPROVED",
+    "PORTFOLIO_BACKLOG_REVIEW_APPROVED",
+    "PROJECT_PLAN_REVIEW_APPROVED",
 }
 
 # Every channel any network's instructions actually save/load (see the
@@ -77,7 +86,18 @@ APPROVED_STATUSES = {
 # reset_approval_state() alone doesn't clear these, so a later, UNRELATED
 # request against the same network can load and apply that stale feedback
 # the moment its own Design_Agent reads the same channel.
-KNOWN_CHANNELS = ("", "analysis", "update", "compliance", "simulation", "iac", "togaf_compliance")
+KNOWN_CHANNELS = (
+    "",
+    "analysis",
+    "update",
+    "compliance",
+    "simulation",
+    "iac",
+    "togaf_compliance",
+    "requirements_reviewer",
+    "portfolio_backlog_reviewer",
+    "project_plan_reviewer",
+)
 
 
 def _feedback_filename(channel: str = "") -> str:
@@ -232,6 +252,9 @@ _CHANNEL_LABELS = {
     "togaf_compliance": "TOGAF Compliance",
     "analysis": "Analysis",
     "update": "Update",
+    "requirements_reviewer": "Requirements Review",
+    "portfolio_backlog_reviewer": "Portfolio Backlog Review",
+    "project_plan_reviewer": "Project Plan Review",
 }
 
 
