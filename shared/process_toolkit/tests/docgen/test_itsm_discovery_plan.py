@@ -322,6 +322,9 @@ def test_itsm_12_week_project_plan_compliance(itsm_12_week_backlog):
     assignments = root.findall("m:Assignments/m:Assignment", ns)
     assert len(assignments) == 40  # 10 leaf stories * 4 resources
 
+    from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+    assert validate_mspdi_xml(xml_path) == []
+
     parsed = parse_mspdi_project(xml_path)
     assert parsed["title"] == "12-Week ITSM Discovery and Options Assessment Engagement"
     assert parsed["start_date"] == "2026-11-23T08:00:00"
@@ -464,6 +467,8 @@ def test_itsm_12_week_proposal_response_project_plan_compliance():
     assert "WARNING: Schedule Overrun" not in result_msg
 
     xml_path = paths.output_path("proposal_response_project_plan.xml")
+    from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+    assert validate_mspdi_xml(xml_path) == []
     parsed = parse_mspdi_project(xml_path)
     assert parsed["title"] == "12-Week ITSM Discovery and Options Assessment Engagement"
     assert parsed["start_date"] == "2026-11-23T08:00:00"
@@ -694,6 +699,8 @@ def test_itsm_12_week_parallel_streams_and_slack():
 
     assert "successfully exported" in result_msg
     xml_path = paths.output_path("portfolio_backlog_project_plan.xml")
+    from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+    assert validate_mspdi_xml(xml_path) == []
     parsed = parse_mspdi_project(xml_path)
 
     # 1. Total span is exactly 12 weeks (Nov 23, 2026 to Feb 12, 2027)

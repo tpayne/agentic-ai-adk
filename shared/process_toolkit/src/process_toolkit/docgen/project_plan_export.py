@@ -586,13 +586,28 @@ def _render_mspdi(
     overall_finish = max((t.finish for t in all_tasks if t.finish), default=project_start)
     normalized_resources = resources or []
 
-    ET.SubElement(root, "SaveVersion").text = "1"
+    # Currency detection
+    currency_code = "GBP"
+    currency_symbol = "£"
+    text_corpus = (project_name or "").lower()
+    if "$" in text_corpus or "usd" in text_corpus:
+        currency_code = "USD"
+        currency_symbol = "$"
+    elif "€" in text_corpus or "eur" in text_corpus:
+        currency_code = "EUR"
+        currency_symbol = "€"
+
+    creation = _dt.datetime.now().strftime(_DATE_FORMAT)
+
+    ET.SubElement(root, "SaveVersion").text = "14"
     ET.SubElement(root, "Name").text = project_name
     ET.SubElement(root, "Title").text = project_name
-    creation = _dt.datetime.now().strftime(_DATE_FORMAT)
     ET.SubElement(root, "CreationDate").text = creation
+    ET.SubElement(root, "LastSaved").text = creation
+    ET.SubElement(root, "ScheduleFromStart").text = "1"
     ET.SubElement(root, "StartDate").text = _date_xml(project_start, _WORK_START_HOUR)
     ET.SubElement(root, "FinishDate").text = _date_xml(overall_finish, _WORK_END_HOUR)
+    ET.SubElement(root, "FYStartDate").text = "1"
     ET.SubElement(root, "CalendarUID").text = "1"
     ET.SubElement(root, "DefaultStartTime").text = f"{_WORK_START_HOUR:02d}:00:00"
     ET.SubElement(root, "DefaultFinishTime").text = f"{_WORK_END_HOUR:02d}:00:00"
@@ -600,12 +615,21 @@ def _render_mspdi(
     ET.SubElement(root, "MinutesPerWeek").text = str(_WORK_HOURS_PER_DAY * 60 * 5)
     ET.SubElement(root, "DaysPerMonth").text = "20"
     ET.SubElement(root, "DefaultTaskType").text = "0"
+    ET.SubElement(root, "DefaultFixedCostAccrual").text = "3"  # 3 = Prorated
+    ET.SubElement(root, "CurrencyCode").text = currency_code
+    ET.SubElement(root, "CurrencySymbol").text = currency_symbol
+    ET.SubElement(root, "CurrencyDigits").text = "2"
+    ET.SubElement(root, "DurationFormat").text = "7"  # 7 = days
+    ET.SubElement(root, "WorkFormat").text = "2"  # 2 = hours
 
     calendars = ET.SubElement(root, "Calendars")
     calendar = ET.SubElement(calendars, "Calendar")
     ET.SubElement(calendar, "UID").text = "1"
+    ET.SubElement(calendar, "ID").text = "1"
     ET.SubElement(calendar, "Name").text = "Standard"
     ET.SubElement(calendar, "IsBaseCalendar").text = "1"
+    ET.SubElement(calendar, "IsBaselineCalendar").text = "0"
+    ET.SubElement(calendar, "BaseCalendarUID").text = "-1"
     weekdays = ET.SubElement(calendar, "WeekDays")
     for day_type in range(1, 8):  # 1=Sunday .. 7=Saturday, MSPDI convention
         weekday = ET.SubElement(weekdays, "WeekDay")
@@ -618,67 +642,23 @@ def _render_mspdi(
             ET.SubElement(working_time, "FromTime").text = f"{_WORK_START_HOUR:02d}:00:00"
             ET.SubElement(working_time, "ToTime").text = f"{_WORK_END_HOUR:02d}:00:00"
 
-    # Holiday exceptions, restricted to the plan's own actual date span --
-    # each marks that single date as non-working, so a tool re-deriving
-    # Start/Finish from Duration + Predecessors + this same Calendar on
-    # open skips it exactly like this module's own scheduler already did.
     relevant_holidays = sorted(d for d in holidays if project_start <= d <= overall_finish)
     if relevant_holidays:
         exceptions = ET.SubElement(calendar, "Exceptions")
         for index, holiday in enumerate(relevant_holidays, start=1):
             exception = ET.SubElement(exceptions, "Exception")
             ET.SubElement(exception, "UID").text = str(index)
-            ET.SubElement(exception, "Name").text = "UK bank holiday"
-            ET.SubElement(exception, "DayWorking").text = "0"
+            ET.SubElement(exception, "ID").text = str(index)
+            ET.SubElement(exception, "EnteredByOccurrences").text = "0"
             period = ET.SubElement(exception, "TimePeriod")
             ET.SubElement(period, "FromDate").text = _date_xml(holiday, 0)
             ET.SubElement(period, "ToDate").text = _date_xml(holiday, 0)
+            ET.SubElement(exception, "Occurrences").text = "1"
+            ET.SubElement(exception, "Name").text = "UK bank holiday"
+            ET.SubElement(exception, "Type").text = "1"
+            ET.SubElement(exception, "DayWorking").text = "0"
 
-    wbs_by_uid = _wbs_numbers(top_level_tasks)
-    tasks_el = ET.SubElement(root, "Tasks")
-    leaf_duration_hours: Dict[int, int] = {}
-    for order, task in enumerate(all_tasks, start=1):
-        task_el = ET.SubElement(tasks_el, "Task")
-        ET.SubElement(task_el, "UID").text = str(task.uid)
-        ET.SubElement(task_el, "ID").text = str(order)
-        ET.SubElement(task_el, "Name").text = task.name
-        ET.SubElement(task_el, "OutlineLevel").text = str(task.outline_level)
-        ET.SubElement(task_el, "WBS").text = wbs_by_uid.get(task.uid, str(order))
-        ET.SubElement(task_el, "Priority").text = "500"
-        ET.SubElement(task_el, "Summary").text = "1" if task.is_summary else "0"
-        ET.SubElement(task_el, "Milestone").text = "0"
-        if task.start:
-            ET.SubElement(task_el, "Start").text = _date_xml(task.start, _WORK_START_HOUR)
-        if task.finish:
-            ET.SubElement(task_el, "Finish").text = _date_xml(task.finish, _WORK_END_HOUR)
-        duration_days = (
-            task.duration_days if not task.children
-            else _count_working_days(task.start, task.finish, holidays) if task.start and task.finish
-            else 1
-        )
-        duration_hours = max(duration_days, 1) * _WORK_HOURS_PER_DAY
-        ET.SubElement(task_el, "Duration").text = _duration_xml(duration_days)
-        ET.SubElement(task_el, "DurationFormat").text = "7"  # 7 = days, display hint only
-        if task.notes:
-            ET.SubElement(task_el, "Notes").text = task.notes
-        predecessors = list(task.predecessor_uids)
-        if task.predecessor_uid is not None and task.predecessor_uid not in predecessors:
-            predecessors.append(task.predecessor_uid)
-        for p_uid in predecessors:
-            pred = ET.SubElement(task_el, "PredecessorLink")
-            ET.SubElement(pred, "PredecessorUID").text = str(p_uid)
-            ET.SubElement(pred, "Type").text = "1"  # Finish-to-Start
-            ET.SubElement(pred, "CrossProject").text = "0"
-            ET.SubElement(pred, "LinkLag").text = "0"
-            ET.SubElement(pred, "LagFormat").text = "7"
-        if not task.children:
-            leaf_duration_hours[task.uid] = duration_hours
-
-    # Collect all resources to be defined in <Resources>
-    # If caller explicitly provided resources, restrict catalog and assignments to that;
-    # otherwise collect from normalized_resources (engagement roles) and all leaf tasks' resources.
-    # When an explicit availability cap is defined in caller_resources or normalized_resources,
-    # that cap is canonical and MUST NOT be inflated by a single task's effort weighting.
+    # Pre-compute resource catalog and assignments
     resource_catalog: Dict[str, float] = {}
     if caller_resources:
         for name, fraction in caller_resources:
@@ -696,80 +676,337 @@ def _render_mspdi(
                     if cname not in resource_catalog:
                         resource_catalog[cname] = fraction
 
+    resource_uids: Dict[str, int] = {}
     if resource_catalog:
-        resources_el = ET.SubElement(root, "Resources")
-        resource_uids: Dict[str, int] = {}
-        for index, (name, max_fraction) in enumerate(resource_catalog.items(), start=1):
+        for index, (name, _) in enumerate(resource_catalog.items(), start=1):
             resource_uids[name] = index
             resource_uids[name.lower()] = index
             for alias, canon in ROLE_ALIASES.items():
                 if canon.lower() == name.lower():
                     resource_uids[alias] = index
+
+    # Plan assignments and calculate task work
+    assignments_list: List[Dict[str, Any]] = []
+    task_work_map: Dict[int, int] = {}
+    leaf_duration_hours: Dict[int, int] = {}
+    assignment_uid = 1
+
+    for task in all_tasks:
+        if task.children:
+            continue
+        duration_days = max(task.duration_days, 1)
+        dur_hours = duration_days * _WORK_HOURS_PER_DAY
+        leaf_duration_hours[task.uid] = dur_hours
+
+        matching_task_resources = []
+        if task.resources:
+            for name, fraction in task.resources:
+                r_uid = (
+                    resource_uids.get(name)
+                    or resource_uids.get(name.lower())
+                    or resource_uids.get(_canonical_role(name).lower())
+                )
+                if r_uid is not None:
+                    matching_task_resources.append((name, fraction))
+
+        if task.has_explicit_resources and matching_task_resources:
+            task_assignments = matching_task_resources
+        elif caller_resources:
+            task_assignments = caller_resources
+        elif matching_task_resources:
+            task_assignments = matching_task_resources
+        else:
+            task_assignments = normalized_resources or task.resources
+
+        task_asgn_work = 0
+        for name, fraction in task_assignments:
+            r_uid = (
+                resource_uids.get(name)
+                or resource_uids.get(name.lower())
+                or resource_uids.get(_canonical_role(name).lower())
+            )
+            if r_uid is None:
+                continue
+            work_h = round(dur_hours * fraction)
+            task_asgn_work += work_h
+            hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
+            cost = round(work_h * hourly_rate, 2) if hourly_rate and hourly_rate > 0 else None
+            assignments_list.append({
+                "uid": assignment_uid,
+                "id": assignment_uid,
+                "task_uid": task.uid,
+                "resource_uid": r_uid,
+                "units": fraction,
+                "work_hours": work_h,
+                "start": task.start or project_start,
+                "finish": task.finish or overall_finish,
+                "cost": cost,
+            })
+            assignment_uid += 1
+
+        task_work_map[task.uid] = task_asgn_work if task_asgn_work > 0 else dur_hours
+
+    # Rollup work for summary tasks
+    def _rollup_task_work(t: "_Task") -> int:
+        if not t.children:
+            return task_work_map.get(t.uid, 0)
+        tot = sum(_rollup_task_work(c) for c in t.children)
+        task_work_map[t.uid] = tot
+        return tot
+
+    for top in top_level_tasks:
+        _rollup_task_work(top)
+
+    wbs_by_uid = _wbs_numbers(top_level_tasks)
+    tasks_el = ET.SubElement(root, "Tasks")
+    for order, task in enumerate(all_tasks, start=1):
+        task_el = ET.SubElement(tasks_el, "Task")
+        ET.SubElement(task_el, "UID").text = str(task.uid)
+        ET.SubElement(task_el, "ID").text = str(order)
+        ET.SubElement(task_el, "Name").text = task.name
+        ET.SubElement(task_el, "Type").text = "0"
+        ET.SubElement(task_el, "IsNull").text = "0"
+        ET.SubElement(task_el, "CreateDate").text = creation
+        wbs_num = wbs_by_uid.get(task.uid, str(order))
+        ET.SubElement(task_el, "WBS").text = wbs_num
+        ET.SubElement(task_el, "OutlineNumber").text = wbs_num
+        ET.SubElement(task_el, "OutlineLevel").text = str(task.outline_level)
+        ET.SubElement(task_el, "Priority").text = "500"
+        if task.start:
+            ET.SubElement(task_el, "Start").text = _date_xml(task.start, _WORK_START_HOUR)
+        if task.finish:
+            ET.SubElement(task_el, "Finish").text = _date_xml(task.finish, _WORK_END_HOUR)
+        duration_days = (
+            task.duration_days if not task.children
+            else _count_working_days(task.start, task.finish, holidays) if task.start and task.finish
+            else 1
+        )
+        ET.SubElement(task_el, "Duration").text = _duration_xml(duration_days)
+        ET.SubElement(task_el, "DurationFormat").text = "7"  # 7 = days, display hint only
+        t_work_h = task_work_map.get(task.uid, duration_days * _WORK_HOURS_PER_DAY)
+        ET.SubElement(task_el, "Work").text = f"PT{t_work_h}H0M0S"
+        ET.SubElement(task_el, "RemainingWork").text = f"PT{t_work_h}H0M0S"
+        ET.SubElement(task_el, "PercentComplete").text = "0"
+        ET.SubElement(task_el, "PercentWorkComplete").text = "0"
+        ET.SubElement(task_el, "Summary").text = "1" if task.is_summary else "0"
+        ET.SubElement(task_el, "Milestone").text = "0"
+        ET.SubElement(task_el, "ConstraintType").text = "0"
+        ET.SubElement(task_el, "CalendarUID").text = "1"
+        if task.notes:
+            ET.SubElement(task_el, "Notes").text = task.notes
+        predecessors = list(task.predecessor_uids)
+        if task.predecessor_uid is not None and task.predecessor_uid not in predecessors:
+            predecessors.append(task.predecessor_uid)
+        for p_uid in predecessors:
+            pred = ET.SubElement(task_el, "PredecessorLink")
+            ET.SubElement(pred, "PredecessorUID").text = str(p_uid)
+            ET.SubElement(pred, "Type").text = "1"  # Finish-to-Start
+            ET.SubElement(pred, "CrossProject").text = "0"
+            ET.SubElement(pred, "LinkLag").text = "0"
+            ET.SubElement(pred, "LagFormat").text = "7"
+
+    if resource_catalog:
+        resources_el = ET.SubElement(root, "Resources")
+        for index, (name, max_fraction) in enumerate(resource_catalog.items(), start=1):
             resource_el = ET.SubElement(resources_el, "Resource")
             ET.SubElement(resource_el, "UID").text = str(index)
             ET.SubElement(resource_el, "ID").text = str(index)
             ET.SubElement(resource_el, "Name").text = name
             ET.SubElement(resource_el, "Type").text = "1"  # 1 = work resource
+            ET.SubElement(resource_el, "IsNull").text = "0"
             ET.SubElement(resource_el, "MaxUnits").text = f"{max_fraction:g}"
             hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
             if hourly_rate is not None and hourly_rate > 0:
                 ET.SubElement(resource_el, "StandardRate").text = f"{hourly_rate:.2f}"
                 ET.SubElement(resource_el, "StandardRateFormat").text = "2"  # 2 = /hour (MSPDI standard)
 
-        # Assign resources to leaf tasks:
-        # If task has its own explicit resources that match defined resources,
-        # use those story-specific allocations directly;
-        # otherwise fall back to caller_resources or normalized_resources.
         assignments_el = ET.SubElement(root, "Assignments")
-        assignment_uid = 1
-        for task in all_tasks:
-            if task.children:
-                continue
-            duration_hours = leaf_duration_hours.get(task.uid, task.duration_days * _WORK_HOURS_PER_DAY)
-
-            matching_task_resources = []
-            if task.resources:
-                for name, fraction in task.resources:
-                    r_uid = (
-                        resource_uids.get(name)
-                        or resource_uids.get(name.lower())
-                        or resource_uids.get(_canonical_role(name).lower())
-                    )
-                    if r_uid is not None:
-                        matching_task_resources.append((name, fraction))
-
-            if task.has_explicit_resources and matching_task_resources:
-                task_assignments = matching_task_resources
-            elif caller_resources:
-                task_assignments = caller_resources
-            elif matching_task_resources:
-                task_assignments = matching_task_resources
-            else:
-                task_assignments = normalized_resources or task.resources
-
-            for name, fraction in task_assignments:
-                r_uid = (
-                    resource_uids.get(name)
-                    or resource_uids.get(name.lower())
-                    or resource_uids.get(_canonical_role(name).lower())
-                )
-                if r_uid is None:
-                    continue
-                assignment_el = ET.SubElement(assignments_el, "Assignment")
-                ET.SubElement(assignment_el, "UID").text = str(assignment_uid)
-                ET.SubElement(assignment_el, "TaskUID").text = str(task.uid)
-                ET.SubElement(assignment_el, "ResourceUID").text = str(r_uid)
-                ET.SubElement(assignment_el, "Units").text = f"{fraction:g}"
-                work_h = round(duration_hours * fraction)
-                ET.SubElement(assignment_el, "Work").text = f"PT{work_h}H0M0S"
-                hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
-                if hourly_rate is not None and hourly_rate > 0:
-                    cost = round(work_h * hourly_rate, 2)
-                    ET.SubElement(assignment_el, "Cost").text = f"{cost:.2f}"
-                assignment_uid += 1
+        for asgn in assignments_list:
+            assignment_el = ET.SubElement(assignments_el, "Assignment")
+            ET.SubElement(assignment_el, "UID").text = str(asgn["uid"])
+            ET.SubElement(assignment_el, "ID").text = str(asgn["id"])
+            ET.SubElement(assignment_el, "TaskUID").text = str(asgn["task_uid"])
+            ET.SubElement(assignment_el, "ResourceUID").text = str(asgn["resource_uid"])
+            ET.SubElement(assignment_el, "PercentWorkComplete").text = "0"
+            ET.SubElement(assignment_el, "Units").text = f"{asgn['units']:g}"
+            work_xml = f"PT{asgn['work_hours']}H0M0S"
+            ET.SubElement(assignment_el, "Work").text = work_xml
+            ET.SubElement(assignment_el, "RegularWork").text = work_xml
+            ET.SubElement(assignment_el, "RemainingWork").text = work_xml
+            ET.SubElement(assignment_el, "Start").text = _date_xml(asgn["start"], _WORK_START_HOUR)
+            ET.SubElement(assignment_el, "Finish").text = _date_xml(asgn["finish"], _WORK_END_HOUR)
+            if asgn.get("cost") is not None:
+                cost_str = f"{asgn['cost']:.2f}"
+                ET.SubElement(assignment_el, "Cost").text = cost_str
+                ET.SubElement(assignment_el, "RemainingCost").text = cost_str
+            ET.SubElement(assignment_el, "HasFixedRateUnits").text = "1"
 
     ET.indent(root, space="  ")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")
+
+
+def validate_mspdi_xml(xml_input: str) -> List[str]:
+    """Validates an MSPDI XML string or file path against Microsoft Project XML schema
+    (SaveVersion 14) and loader compatibility rules. Returns a list of error strings;
+    an empty list indicates full compliance.
+    """
+    errors: List[str] = []
+    if not isinstance(xml_input, str) or not xml_input.strip():
+        return ["Empty or invalid XML input"]
+
+    root: Optional[ET.Element] = None
+    stripped = xml_input.strip()
+    if stripped.startswith("<"):
+        try:
+            root = ET.fromstring(stripped)
+        except Exception as e:
+            return [f"Malformed XML string: {e}"]
+    else:
+        if not os.path.isfile(xml_input):
+            return [f"File not found: {xml_input}"]
+        try:
+            tree = ET.parse(xml_input)
+            root = tree.getroot()
+        except Exception as e:
+            return [f"Malformed XML file: {e}"]
+
+    ns = {"p": _MSPDI_NS}
+    if not root.tag.endswith("Project"):
+        errors.append(f"Root element must be Project, got {root.tag}")
+        return errors
+
+    save_version = root.findtext("p:SaveVersion", default="", namespaces=ns)
+    if not save_version or save_version not in ("1", "14"):
+        errors.append(f"Invalid or missing SaveVersion: {save_version!r} (expected '14')")
+
+    start_date = root.findtext("p:StartDate", default="", namespaces=ns)
+    finish_date = root.findtext("p:FinishDate", default="", namespaces=ns)
+    if not start_date or not finish_date:
+        errors.append("Project StartDate or FinishDate is missing")
+
+    calendar_el = root.find(".//p:Calendars/p:Calendar", ns)
+    if calendar_el is None:
+        errors.append("Missing Calendars/Calendar element")
+    else:
+        if not calendar_el.findtext("p:UID", default="", namespaces=ns):
+            errors.append("Calendar missing UID")
+        if not calendar_el.findtext("p:ID", default="", namespaces=ns):
+            errors.append("Calendar missing ID")
+        for exc in calendar_el.findall(".//p:Exceptions/p:Exception", ns):
+            if not exc.findtext("p:UID", default="", namespaces=ns):
+                errors.append("Calendar Exception missing UID")
+            if not exc.findtext("p:ID", default="", namespaces=ns):
+                errors.append("Calendar Exception missing ID")
+            if exc.find("p:TimePeriod", ns) is None:
+                errors.append("Calendar Exception missing TimePeriod")
+
+    task_els = root.findall(".//p:Tasks/p:Task", ns)
+    if not task_els:
+        errors.append("Missing Tasks/Task elements")
+
+    task_uids = set()
+    summary_task_uids = set()
+    tasks_by_wbs: Dict[str, Dict[str, Any]] = {}
+    for task_el in task_els:
+        uid = task_el.findtext("p:UID", default="", namespaces=ns)
+        tid = task_el.findtext("p:ID", default="", namespaces=ns)
+        name = task_el.findtext("p:Name", default="", namespaces=ns)
+        wbs = task_el.findtext("p:WBS", default="", namespaces=ns)
+        summary = task_el.findtext("p:Summary", default="", namespaces=ns)
+        start = task_el.findtext("p:Start", default="", namespaces=ns)
+        finish = task_el.findtext("p:Finish", default="", namespaces=ns)
+        dur = task_el.findtext("p:Duration", default="", namespaces=ns)
+        work = task_el.findtext("p:Work", default="", namespaces=ns)
+
+        if not uid:
+            errors.append(f"Task {name!r} missing UID")
+        else:
+            task_uids.add(uid)
+            if summary == "1":
+                summary_task_uids.add(uid)
+
+        if not tid:
+            errors.append(f"Task {name!r} missing ID")
+        if not wbs:
+            errors.append(f"Task {name!r} missing WBS")
+        else:
+            work_h = 0.0
+            if work:
+                m_work = re.match(r"PT(\d+(?:\.\d+)?)H", work)
+                if m_work:
+                    work_h = float(m_work.group(1))
+            tasks_by_wbs[wbs] = {
+                "uid": uid,
+                "name": name,
+                "summary": summary == "1",
+                "start": start,
+                "finish": finish,
+                "dur": dur,
+                "work": work,
+                "work_hours": work_h,
+            }
+
+        for pred in task_el.findall("p:PredecessorLink", ns):
+            p_uid = pred.findtext("p:PredecessorUID", default="", namespaces=ns)
+            if not p_uid:
+                errors.append(f"Task {name!r} has PredecessorLink without PredecessorUID")
+            elif p_uid == uid:
+                errors.append(f"Task {name!r} has self-referencing PredecessorLink")
+
+    # Verify summary rollup consistency
+    for wbs, tdata in tasks_by_wbs.items():
+        if tdata["summary"]:
+            child_wbs_list = [
+                cwbs for cwbs in tasks_by_wbs
+                if cwbs.startswith(wbs + ".") and len(cwbs.split(".")) == len(wbs.split(".")) + 1
+            ]
+            if child_wbs_list:
+                child_starts = [tasks_by_wbs[cwbs]["start"] for cwbs in child_wbs_list if tasks_by_wbs[cwbs]["start"]]
+                child_finishes = [tasks_by_wbs[cwbs]["finish"] for cwbs in child_wbs_list if tasks_by_wbs[cwbs]["finish"]]
+                if child_starts and tdata["start"] != min(child_starts):
+                    errors.append(f"Summary task {tdata['name']!r} Start ({tdata['start']}) does not match child min Start ({min(child_starts)})")
+                if child_finishes and tdata["finish"] != max(child_finishes):
+                    errors.append(f"Summary task {tdata['name']!r} Finish ({tdata['finish']}) does not match child max Finish ({max(child_finishes)})")
+                child_works = sum(tasks_by_wbs[cwbs]["work_hours"] for cwbs in child_wbs_list)
+                if abs(tdata["work_hours"] - child_works) > 0.01:
+                    errors.append(f"Summary task {tdata['name']!r} Work ({tdata['work_hours']}h) does not match sum of child work ({child_works}h)")
+
+    res_uids = set()
+    for res_el in root.findall(".//p:Resources/p:Resource", ns):
+        r_uid = res_el.findtext("p:UID", default="", namespaces=ns)
+        r_id = res_el.findtext("p:ID", default="", namespaces=ns)
+        r_name = res_el.findtext("p:Name", default="", namespaces=ns)
+        if not r_uid:
+            errors.append(f"Resource {r_name!r} missing UID")
+        else:
+            res_uids.add(r_uid)
+        if not r_id:
+            errors.append(f"Resource {r_name!r} missing ID")
+
+    for asgn in root.findall(".//p:Assignments/p:Assignment", ns):
+        a_uid = asgn.findtext("p:UID", default="", namespaces=ns)
+        a_id = asgn.findtext("p:ID", default="", namespaces=ns)
+        t_uid = asgn.findtext("p:TaskUID", default="", namespaces=ns)
+        r_uid = asgn.findtext("p:ResourceUID", default="", namespaces=ns)
+        units = asgn.findtext("p:Units", default="", namespaces=ns)
+        work = asgn.findtext("p:Work", default="", namespaces=ns)
+
+        if not a_uid:
+            errors.append("Assignment missing UID")
+        if not a_id:
+            errors.append(f"Assignment {a_uid} missing ID")
+        if not t_uid or t_uid not in task_uids:
+            errors.append(f"Assignment {a_uid} references invalid TaskUID {t_uid}")
+        elif t_uid in summary_task_uids:
+            errors.append(f"Assignment {a_uid} targets summary task UID {t_uid}")
+        if not r_uid or r_uid not in res_uids:
+            errors.append(f"Assignment {a_uid} references invalid ResourceUID {r_uid}")
+        if not units:
+            errors.append(f"Assignment {a_uid} missing Units")
+        if not work:
+            errors.append(f"Assignment {a_uid} missing Work")
+
+    return errors
 
 
 def _parse_start_date(start_date: Optional[str]) -> _dt.date:
@@ -782,6 +1019,10 @@ def _parse_start_date(start_date: Optional[str]) -> _dt.date:
 
 
 def _write_output(xml_text: str, filename: str) -> str:
+    validation_errors = validate_mspdi_xml(xml_text)
+    if validation_errors:
+        import logging
+        logging.getLogger(__name__).warning("MSPDI XML validation warnings in %s: %s", filename, validation_errors)
     out_path = paths.output_path(filename)
     out_dir = os.path.dirname(out_path)
     if out_dir:

@@ -646,3 +646,127 @@ class TestParseMspdiProject:
         bad = tmp_path / "bad.xml"
         bad.write_text("<NotProject/>", encoding="utf-8")
         assert parse_mspdi_project(str(bad)) is None
+
+
+class TestValidateMspdiXml:
+    def test_validate_valid_exported_project_plan(self):
+        from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+        backlog = {
+            "name": "Validation Backlog",
+            "summary": "Validating MSPDI XML schema",
+            "source_artifact": "design",
+            "source_name": "design_data.json",
+            "epics": [{
+                "id": "EPIC-001", "title": "Epic One", "description": "d", "strategic_theme": "t",
+                "traces_to": ["FR-1"],
+                "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                "job_size": 5,
+                "features": [{
+                    "id": "FEAT-001", "title": "Feature One", "description": "d", "strategic_theme": "t",
+                    "traces_to": ["FR-1"],
+                    "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                    "job_size": 5,
+                    "stories": [{
+                        "id": "STORY-001", "title": "Story One", "description": "d", "strategic_theme": "t",
+                        "traces_to": ["FR-1"],
+                        "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                        "job_size": 5, "acceptance_criteria": ["works"],
+                    }],
+                }],
+            }],
+        }
+        save_portfolio_backlog(backlog)
+        build_portfolio_backlog_project_plan(
+            resources=[{"name": "Project Manager", "allocation_percent": 50}],
+            holiday_calendar="uk",
+        )
+        out_path = paths.output_path(PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
+        errors = validate_mspdi_xml(out_path)
+        assert errors == [], f"Expected 0 validation errors, got: {errors}"
+
+    def test_validate_detects_malformed_xml_or_wrong_root(self):
+        from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+        assert "Malformed XML string" in validate_mspdi_xml("<not closed")[0]
+        assert "Root element must be Project" in validate_mspdi_xml("<OtherRoot/>")[0]
+
+    def test_validate_detects_missing_calendar_or_assignment_id(self):
+        from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+        # Missing Calendar ID and Assignment ID
+        bad_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <StartDate>2026-11-23T08:00:00</StartDate>
+  <FinishDate>2026-11-27T16:00:00</FinishDate>
+  <Calendars>
+    <Calendar>
+      <UID>1</UID>
+      <Name>Standard</Name>
+    </Calendar>
+  </Calendars>
+  <Tasks>
+    <Task>
+      <UID>1</UID>
+      <ID>1</ID>
+      <Name>Task 1</Name>
+      <WBS>1</WBS>
+      <OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary>
+      <Start>2026-11-23T08:00:00</Start>
+      <Finish>2026-11-27T16:00:00</Finish>
+      <Duration>PT40H0M0S</Duration>
+    </Task>
+  </Tasks>
+  <Resources>
+    <Resource>
+      <UID>1</UID>
+      <ID>1</ID>
+      <Name>PM</Name>
+      <Type>1</Type>
+    </Resource>
+  </Resources>
+  <Assignments>
+    <Assignment>
+      <UID>1</UID>
+      <TaskUID>1</TaskUID>
+      <ResourceUID>1</ResourceUID>
+      <Units>1</Units>
+      <Work>PT40H0M0S</Work>
+    </Assignment>
+  </Assignments>
+</Project>"""
+        errors = validate_mspdi_xml(bad_xml)
+        assert any("Calendar missing ID" in e for e in errors)
+        assert any("Assignment 1 missing ID" in e for e in errors)
+
+    def test_validate_detects_summary_task_rollup_mismatch(self):
+        from process_toolkit.docgen.project_plan_export import validate_mspdi_xml
+        mismatched_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <StartDate>2026-11-23T08:00:00</StartDate>
+  <FinishDate>2026-12-10T16:00:00</FinishDate>
+  <Calendars>
+    <Calendar><UID>1</UID><ID>1</ID><Name>Standard</Name></Calendar>
+  </Calendars>
+  <Tasks>
+    <Task>
+      <UID>1</UID><ID>1</ID><Name>Summary</Name>
+      <WBS>1</WBS><OutlineLevel>1</OutlineLevel><Summary>1</Summary>
+      <Start>2026-11-20T08:00:00</Start>
+      <Finish>2026-12-10T16:00:00</Finish>
+      <Duration>PT80H0M0S</Duration>
+      <Work>PT100H0M0S</Work>
+    </Task>
+    <Task>
+      <UID>2</UID><ID>2</ID><Name>Child</Name>
+      <WBS>1.1</WBS><OutlineLevel>2</OutlineLevel><Summary>0</Summary>
+      <Start>2026-11-23T08:00:00</Start>
+      <Finish>2026-11-27T16:00:00</Finish>
+      <Duration>PT40H0M0S</Duration>
+      <Work>PT40H0M0S</Work>
+    </Task>
+  </Tasks>
+</Project>"""
+        errors = validate_mspdi_xml(mismatched_xml)
+        assert any("Start" in e and "does not match" in e for e in errors)
+        assert any("Work" in e and "does not match" in e for e in errors)
