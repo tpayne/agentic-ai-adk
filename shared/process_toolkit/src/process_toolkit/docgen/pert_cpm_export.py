@@ -111,7 +111,7 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     top = y_max + _CARD_HEIGHT / 2 + 1.85
     plot_width, plot_height = right - left, top - bottom
 
-    fig_width = min(16.0, max(9.0, plot_width * 0.72))
+    fig_width = min(22.0, max(9.0, plot_width * 0.78))
     fig_height = max(4.5, fig_width * plot_height / plot_width)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), facecolor="#F4F7FB")
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
@@ -218,6 +218,12 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
                     edges.add((uid_to_index[p_uid], i))
     if not edges:
         edges = {(i, i + 1) for i in range(len(scored) - 1)}
+    else:
+        # Ensure every activity after the first has at least one incoming edge
+        destinations = {dst for _, dst in edges}
+        for i in range(1, len(scored)):
+            if i not in destinations:
+                edges.add((i - 1, i))
 
     for src_idx, dst_idx in sorted(edges):
         if src_idx != dst_idx and 0 <= src_idx < len(node_boxes) and 0 <= dst_idx < len(node_boxes):

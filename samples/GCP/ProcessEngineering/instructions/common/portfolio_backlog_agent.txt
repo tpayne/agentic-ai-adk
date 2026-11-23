@@ -95,12 +95,16 @@ Create a single object with these fields:
 
 SCHEDULE DURATION, TIMING & CONCURRENCY CALIBRATION:
 - When a target timescale is specified (e.g. 12 weeks), calibrate the schedule and work breakdown so that
-  the critical path completes strictly within the target timescale.
+  the critical path completes strictly within the target timescale (e.g. 12 weeks / 60 working days).
+- STORY DURATION & JOB SIZE CALIBRATION:
+  - Calibrate story `duration_days` (typically 2 to 5 working days) and `job_size` (2, 3, or 5) to fit strictly within the parent feature and phase timing window.
+  - The sum of story durations across sequential chains within a phase must equal that phase's working-day span (e.g., a 2-week phase of 10 working days with 2 sequential stories should have story durations of 5 days each).
+  - Across the entire engagement, the critical path duration must reconcile with the target timescale. NEVER produce uncalibrated story sizes whose sum inflates into hundreds of days (e.g. 264 days) for a 12-week engagement.
 - Every Epic, Feature, and Story MUST specify a `timing` field (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
   "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12") defining its delivery window.
-- Model REALISTIC PARALLELISM: Independent discovery, assessment, and architecture workstreams MUST run
-  concurrently with overlapping timing windows and appropriate `dependencies` (e.g. ["EPIC-001"]), rather
-  than cascading in an artificial, end-to-end serialized waterfall.
+- EXPLICIT DEPENDENCY GRAPH & REALISTIC CONCURRENCY:
+  - Epics MUST specify realistic workflow dependencies: Phase 2 depends on Phase 1; Phase 3 depends on Phase 1 (runs concurrently with Phase 2); Phase 4 depends on Phase 2 & 3; Phase 5 depends on Phase 3; Phase 6 depends on Phase 4 & 5; Phase 7 depends on Phase 6; Phase 8 depends on Phase 2 & 6; Phase 9 depends on Phase 7 & 8.
+  - Sibling stories within each feature MUST specify explicit dependencies (e.g. STORY-002 has `dependencies: ["STORY-001"]`) to represent actual sequence handoffs. This ensures child stories have discrete, non-overlapping dates rather than duplicating identical start/finish bounds with parent summary tasks.
 
 Each epic, feature, and story must have:
 - `id`: unique stable IDs using `EPIC-001`, `FEAT-001`, and `STORY-001` prefixes respectively;
@@ -111,14 +115,15 @@ Each epic, feature, and story must have:
 - `priority_components`: integer `user_business_value`, `time_criticality`, and `risk_reduction`
   scores, each selected from the modified Fibonacci scale `[1, 2, 3, 5, 8, 13, 20]`;
 - `job_size`: one modified Fibonacci value from that same scale (calibrated to story complexity and timescale);
-- `duration_days`: optional working-day duration when explicitly planned;
+- `duration_days`: calibrated working-day duration for the story (typically 2 to 5 days);
 - optional `state` only when the source explicitly states a lifecycle state. Otherwise the workbook
   defaults the item to `In Analysis`, never `Approved`;
 - optional `cost_notes` only for source-backed cost caveats. The workbook calculates costs from its
   explicit, editable assumptions; do not invent alternate rates or budget values;
 - `resources` for stories: calculate the resources needed and their allocation percentages dynamically
   based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories unless an exact engagement team allocation is mandated):
-  a list of `{"name": "<delivery role>", "allocation_percent": number}` summing to 100%. When an engagement specification mandates specific roles and allocations, use those exact roles.
+  a list of `{"name": "<exact delivery role title>", "allocation_percent": number}` summing to 100%. When an engagement specification mandates specific roles and allocations, use those exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Solution Architect 80% on architecture tasks; Lead BA 70% on requirements elicitation; PDM 60% on governance).
+- `requirements_reference`: embedded dictionary mapping every requirement ID referenced in `traces_to` to its definition. Ensure every `traces_to` ID exists in `requirements_summary.json`.
 
 Each epic must contain a non-empty `features` list (typically 2-3 distinct features). Each feature must contain
 a non-empty `stories` list (typically 2-4 concrete, granular stories/tasks).

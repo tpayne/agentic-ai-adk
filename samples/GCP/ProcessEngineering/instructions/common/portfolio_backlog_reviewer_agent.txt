@@ -24,11 +24,12 @@ high-quality Work Breakdown Structure (WBS) that directly delivers the engagemen
 # QUALITY AUDIT CRITERIA:
 Evaluate the loaded backlog against the following strict quality criteria:
 
-1. GOAL FULFILLMENT & END-TO-END TRACEABILITY INTEGRITY
+1. GOAL FULFILLMENT, REQUIREMENTS REFERENCE & TRACEABILITY INTEGRITY
    - Does the backlog cover all strategic themes, phases, deliverables, and scope boundaries demanded by the engagement?
    - Every Epic, Feature, and Story must cite valid IDs in `traces_to` (e.g. `REQ-001`, `FR-001`, `NFR-001`, `CON-001`,
      `GOAL-001`, `INF-001`) corresponding strictly to real requirements in the loaded canonical register.
    - Forbid orphaned IDs: flag any referenced requirement or constraint ID that does not exist in the loaded summary.
+   - Verify that `requirements_reference` lookup dictionary is embedded in `portfolio_backlog.json` mapping all referenced IDs.
    - Verify that scope boundaries, assumptions, and open questions are concretely resolved rather than left as placeholders.
 
 2. WORK BREAKDOWN STRUCTURE (WBS) INTEGRITY (CRITICAL - NO LAZY DUPLICATION)
@@ -41,23 +42,28 @@ Evaluate the loaded backlog against the following strict quality criteria:
        concrete functional or architectural domains.
      * Each Feature MUST contain 2 to 4 granular, executable User Stories / Tasks.
      * Story titles must describe concrete engineering, discovery, or delivery activities relevant to the domain.
+   - Explicit Sequencing: Stories within a feature must specify explicit dependencies (e.g. STORY-002 depends on STORY-001)
+     so that child tasks sequence cleanly rather than duplicating identical date bounds across hierarchy levels.
 
 3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION
-   - Every tangible deliverable, decision gate, or governance output specified in the engagement scope must be
-     explicitly represented as a dedicated trackable story, work package, or milestone task (not buried in narrative notes).
+   - Every tangible deliverable, decision gate, or governance output specified in the engagement scope (e.g. Current State Assessment,
+     Requirements Catalogue, Architecture Assessment, Market Assessment, Options Appraisal, Business Case Evidence Pack,
+     Implementation Roadmap, Readiness Assessment, Final Recommendation) must be explicitly represented as a dedicated
+     trackable story, work package, or milestone task (not buried in narrative notes).
    - Each story must define 3 to 5 clear, concrete, observable acceptance criteria verifying verifiable delivery outcomes.
    - Reject generic criteria (e.g. "Task completed", "Document written").
 
 4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT
-   - Total effort, story count, and `job_size` distribution must realistically reconcile against the target timescale
-     and available team capacity, rather than blowing out calendar dates due to uncalibrated sizing.
+   - Reconcile story `job_size` sums and `duration_days` against the target engagement window (e.g. 12 weeks / 60 working days).
+   - REJECT uncalibrated backlogs where sum of story job_sizes inflates into hundreds of days (e.g. 264 days) for a 12-week plan.
+   - Individual stories should typically be 2 to 5 working days (job_size 2, 3, or 5).
    - Each story must define valid WSJF `priority_components` (`user_business_value`, `time_criticality`,
      `risk_reduction`) and `job_size` using modified Fibonacci numbers (1, 2, 3, 5, 8, 13, 20).
-   - Ensure stories include dependency indicators and sequencing hints to enable parallel execution across workstreams.
+   - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs.
 
 5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS
-   - Backlog role definitions and story resource allocations must match the specified engagement staffing model.
-   - Keep role availability caps and per-task resource splits consistent across the rate card and stories.
+   - Backlog role definitions and story resource allocations must match the specified engagement staffing model using exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), avoiding shorthand acronyms.
+   - Story-specific resource allocations must reflect realistic activity splits, and rate_card rates must align with role daily rates.
    - Align unit/daily rates, effort calculations, and cost rollups in `rate_card` so financial figures do not
      contradict the rest of the backlog or downstream workbook exports.
 

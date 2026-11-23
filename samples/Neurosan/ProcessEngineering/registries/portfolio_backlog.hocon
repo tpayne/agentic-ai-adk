@@ -137,11 +137,16 @@ evaluation when evaluating external tools.
 
 TIMING & CONCURRENCY CALIBRATION:
 - When a target timescale is specified (e.g. 12 weeks), calibrate job_size and workstream concurrency so the
-  critical path completes strictly within the target timescale.
+  critical path completes strictly within the target timescale (e.g. 12 weeks / 60 working days).
+- STORY DURATION & JOB SIZE CALIBRATION:
+  - Calibrate story duration_days (typically 2 to 5 working days) and job_size (2, 3, or 5) to fit strictly within the parent feature and phase timing window.
+  - The sum of story durations across sequential chains within a phase must equal that phase's working-day span (e.g., a 2-week phase of 10 working days with 2 sequential stories should have story durations of 5 days each).
+  - Across the entire engagement, the critical path duration must reconcile with the target timescale. NEVER produce uncalibrated story sizes whose sum inflates into hundreds of days (e.g. 264 days) for a 12-week engagement.
 - Every Epic, Feature, and Story MUST specify a timing window (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
   "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12").
-- Model realistic parallelism: Independent discovery, assessment, and architecture workstreams MUST run concurrently
-  with overlapping timing windows and appropriate dependencies (e.g. ["EPIC-001"]).
+- EXPLICIT DEPENDENCY GRAPH & REALISTIC CONCURRENCY:
+  - Epics MUST specify realistic workflow dependencies: Phase 2 depends on Phase 1; Phase 3 depends on Phase 1 (runs concurrently with Phase 2); Phase 4 depends on Phase 2 & 3; Phase 5 depends on Phase 3; Phase 6 depends on Phase 4 & 5; Phase 7 depends on Phase 6; Phase 8 depends on Phase 2 & 6; Phase 9 depends on Phase 7 & 8.
+  - Sibling stories within each feature MUST specify explicit dependencies (e.g. STORY-002 has dependencies: ["STORY-001"]) to represent actual sequence handoffs. This ensures child stories have discrete, non-overlapping dates rather than duplicating identical start/finish bounds with parent summary tasks.
 
 Project sensible estimations for resource costing on rate_card: an array of delivery roles
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
@@ -161,8 +166,9 @@ CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER R
   a non-empty list of 3-5 specific, observable pass/fail outcomes.
 - Give every item unique stable IDs with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description,
   strategic_theme, non-empty traces_to, priority_components, and job_size on the modified Fibonacci scale [1, 2, 3, 5, 8, 13, 20].
-- Stories must include dynamically calculated resources: an array of {"name": "<delivery role>", "allocation_percent": number}
-  matching the technical activity and requirements, summing to 100%.
+- Stories must include dynamically calculated resources: an array of {"name": "<exact delivery role title>", "allocation_percent": number}
+  matching the technical activity and requirements, summing to 100%. Use exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Solution Architect 80% on architecture tasks; Lead BA 70% on requirements elicitation; PDM 60% on governance).
+- Embed requirements_reference mapping every referenced requirement ID to its definition. Ensure every traces_to ID exists in requirements_summary.json.
 
 # SAVE AND RESPONSE
 Call save_portfolio_backlog with the complete backlog JSON. Report the chosen source, epic/feature/story counts,
@@ -210,18 +216,24 @@ resourcing realism, and goal satisfaction.
      repeated verbatim as a single Feature, or a Feature is repeated as a single Story.
    - Multi-Tier Granularity: Each Epic must decompose into 2-3 distinct functional Features. Each Feature must decompose
      into 2-4 granular Stories/Tasks.
-2. END-TO-END TRACEABILITY INTEGRITY:
-   - Verify every item cites valid IDs in traces_to corresponding strictly to the canonical register. Forbid orphaned IDs.
-   - Confirm scope boundaries, assumptions, and open questions are resolved rather than left as placeholders.
+   - Explicit Sequencing: Stories within a feature must specify explicit dependencies (e.g. STORY-002 depends on STORY-001)
+     to avoid artificial 1:1 duplicate start/finish dates across hierarchy levels.
+2. END-TO-END TRACEABILITY & CANONICAL LOOKUP:
+   - Verify every item cites valid IDs in traces_to corresponding strictly to the canonical requirements register.
+     Forbid dangling or unresolved IDs.
+   - Verify `requirements_reference` lookup table is embedded in portfolio_backlog.json mapping all referenced requirement IDs.
 3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
-   - All requested contract deliverables and decision gates represented explicitly as dedicated work package outputs or milestones.
+   - All requested contract deliverables (e.g. Current State Assessment, Requirements Catalogue, Architecture Assessment,
+     Market Assessment, Options Appraisal, Business Case Evidence Pack, Implementation Roadmap, Readiness Assessment,
+     Final Recommendation) represented explicitly as dedicated work package outputs or milestones.
    - Acceptance Criteria Rigor: Every story must specify 3-5 specific, observable pass/fail outcomes.
 4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT:
-   - Sizing and effort distribution must calibrate to team capacity and target timescale.
-   - Modified Fibonacci sequence [1, 2, 3, 5, 8, 13, 20] on priority components and job size.
+   - Reconcile story durations and job sizes against the target engagement window (e.g. 12 weeks / 60 working days).
+   - REJECT uncalibrated backlogs where sum of story job_sizes inflates into hundreds of days (e.g. 264 days).
+   - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs.
 5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS:
-   - Delivery roles and allocations must match project requirements.
-   - Align unit/daily rates, effort calculations, and cost rollups in rate_card with the backlog items and workbook.
+   - Delivery roles and allocations must match project requirements using exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), avoiding shorthand acronyms.
+   - Story-specific resource allocations must reflect realistic activity splits, and rate_card rates must align with role daily rates.
    - Objective, vendor-neutral evaluation when comparing external platforms or tools.
 
 # AUDIT OUTCOME & FEEDBACK CONTRACT

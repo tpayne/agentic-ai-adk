@@ -877,6 +877,45 @@ def save_portfolio_backlog(
                     for name, val in sorted(role_alloc_sums.items())
                 ]
         backlog["rate_card"] = build_rate_card(backlog, work_items)
+
+        # Embed canonical requirements lookup and validate traces_to if source is requirements_summary
+        if backlog.get("source_artifact") == "requirements_summary":
+            try:
+                from process_toolkit.requirements_summary import load_requirements_summary
+                req_summary = load_requirements_summary(state)
+                if isinstance(req_summary, dict) and req_summary.get("status") == "OK":
+                    req_catalog: Dict[str, Dict[str, Any]] = {}
+                    for cat in (
+                        "functional_requirements", "non_functional_requirements",
+                        "constraints", "inferred_requirements",
+                        "business_requirements", "user_requirements", "deliverables",
+                    ):
+                        for req in req_summary.get(cat) or []:
+                            if isinstance(req, dict) and req.get("id"):
+                                rid = str(req["id"]).strip()
+                                req_catalog[rid] = {
+                                    "id": rid,
+                                    "title": req.get("title") or req.get("name") or "",
+                                    "statement": req.get("statement") or req.get("description") or "",
+                                    "category": cat,
+                                }
+                    if req_catalog and "requirements_reference" not in backlog:
+                        backlog["requirements_reference"] = req_catalog
+
+                    # Validate traces_to IDs across epics, features, stories
+                    invalid_traces = []
+                    for item, item_type, _ in work_items:
+                        traces = item.get("traces_to") or []
+                        if isinstance(traces, list):
+                            for tid in traces:
+                                tid_clean = str(tid).strip()
+                                if req_catalog and tid_clean not in req_catalog:
+                                    invalid_traces.append({"item_id": item.get("id"), "unresolved_id": tid_clean})
+                    if invalid_traces:
+                        backlog["unresolved_traces"] = invalid_traces
+            except Exception:
+                pass
+
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)
         _render_workbook(backlog, work_items, workbook_path)

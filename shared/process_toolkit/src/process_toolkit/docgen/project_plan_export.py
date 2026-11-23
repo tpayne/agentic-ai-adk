@@ -264,9 +264,11 @@ class _Task:
         self.predecessor_uids: List[int] = []
         self.children: List["_Task"] = []
         self.resources: List[Tuple[str, float]] = []
+        self.has_explicit_resources: bool = False
         self.item_id: Optional[str] = None
         self.dependencies: List[str] = []
         self.start_week: Optional[int] = None
+        self.end_week: Optional[int] = None
 
 
 def _schedule_sequential_leaf(
@@ -300,7 +302,10 @@ def _schedule_subtree(
 
 
 def _schedule_task_tree(
-    root: "_Task", anchor_start: _dt.date, holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+    root: "_Task",
+    anchor_start: _dt.date,
+    holidays: FrozenSet[_dt.date] = _NO_HOLIDAYS,
+    target_duration_weeks: Optional[float] = None,
 ) -> _dt.date:
     all_tasks = _flatten([root])
     has_explicit_deps = any(t.dependencies or t.predecessor_uids or (t.start_week and t.start_week > 1) for t in all_tasks)
@@ -320,7 +325,7 @@ def _schedule_task_tree(
 
     def _terminal_leaf_uids(task: "_Task") -> List[int]:
         leaves = [l for l in _flatten([task]) if not l.children]
-        return [l.uid for l in leaves]
+        return [leaves[-1].uid] if leaves else []
 
     def _initial_leaf_tasks(task: "_Task") -> List["_Task"]:
         if not task.children:
@@ -352,12 +357,7 @@ def _schedule_task_tree(
     # Link intra-branch siblings without explicit dependencies
     def _link_internal_siblings(parent: "_Task"):
         for i, child in enumerate(parent.children):
-            child_branch = _flatten([child])
-            branch_has_deps = any(
-                bool(t.dependencies or t.predecessor_uids or (t.start_week and t.start_week > 1))
-                for t in child_branch
-            )
-            if i > 0 and not branch_has_deps:
+            if i > 0 and not child.dependencies and not child.predecessor_uids:
                 prev_sibling = parent.children[i - 1]
                 prev_leaves = _terminal_leaf_uids(prev_sibling)
                 for init_leaf in _initial_leaf_tasks(child):
@@ -368,6 +368,16 @@ def _schedule_task_tree(
                 _link_internal_siblings(child)
 
     _link_internal_siblings(root)
+
+    # At root level: ensure every top-level epic i > 0 has at least one predecessor
+    if len(root.children) > 1:
+        phase1_leaves = _terminal_leaf_uids(root.children[0])
+        for i in range(1, len(root.children)):
+            epic = root.children[i]
+            if not epic.predecessor_uids:
+                for init_leaf in _initial_leaf_tasks(epic):
+                    if not init_leaf.predecessor_uids and phase1_leaves:
+                        init_leaf.predecessor_uids.append(phase1_leaves[-1])
 
     leaf_tasks = [t for t in all_tasks if not t.children]
     scheduled: Set[int] = set()
@@ -386,13 +396,25 @@ def _schedule_task_tree(
                     earliest = anchor_start
 
                 if leaf.start_week and leaf.start_week > 1:
-                    last_day_prev = _advance_working_days(anchor_start, (leaf.start_week - 1) * 5, holidays)
-                    week_start = _next_working_day(last_day_prev, holidays)
+                    cal_week_start = anchor_start + _dt.timedelta(days=(leaf.start_week - 1) * 7)
+                    week_start = _first_working_day_on_or_after(cal_week_start, holidays)
                     if week_start > earliest:
                         earliest = week_start
 
                 leaf.start = _first_working_day_on_or_after(earliest, holidays)
                 leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
+
+                if target_duration_weeks and target_duration_weeks > 0:
+                    cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
+                    target_finish_limit = cal_finish
+                    while not _is_working_day(target_finish_limit, holidays):
+                        target_finish_limit -= _dt.timedelta(days=1)
+                    if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
+                        avail = _count_working_days(leaf.start, target_finish_limit, holidays)
+                        if avail > 0:
+                            leaf.duration_days = avail
+                            leaf.finish = target_finish_limit
+
                 if leaf.predecessor_uids:
                     leaf.predecessor_uid = leaf.predecessor_uids[-1]
                 scheduled.add(leaf.uid)
@@ -479,28 +501,67 @@ def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tupl
     return normalized
 
 
+ROLE_ALIASES: Dict[str, str] = {
+    "pdm": "Programme Delivery Manager",
+    "programme delivery manager": "Programme Delivery Manager",
+    "program delivery manager": "Programme Delivery Manager",
+    "lead ba": "Lead Business Analyst",
+    "lead business analyst": "Lead Business Analyst",
+    "ba": "Business Analyst",
+    "business analyst": "Business Analyst",
+    "sa": "Solution Architect",
+    "solution architect": "Solution Architect",
+    "solutions architect": "Solution Architect",
+    "pm": "Project Manager",
+    "project manager": "Project Manager",
+    "po": "Product Owner",
+    "product owner": "Product Owner",
+    "ea": "Enterprise Architect",
+    "enterprise architect": "Enterprise Architect",
+    "qa": "QA Engineer",
+    "qa engineer": "QA Engineer",
+    "devops": "DevOps Engineer",
+    "devops engineer": "DevOps Engineer",
+    "swe": "Software Engineer",
+    "software engineer": "Software Engineer",
+}
+
+
+def _canonical_role(name: str) -> str:
+    key = str(name).strip().lower()
+    return ROLE_ALIASES.get(key, str(name).strip())
+
+
 def _resolve_resource_hourly_rate(name: str, rates_by_name: Optional[Dict[str, float]]) -> Optional[float]:
     """Resolves hourly rate for a resource from explicit rate card or sensible benchmark estimations."""
-    if rates_by_name and name in rates_by_name:
-        rate = rates_by_name[name]
-        if rate and rate > 0:
-            return rate
+    cname = _canonical_role(name)
+    if rates_by_name:
+        for candidate in (name, cname, name.lower(), cname.lower()):
+            if candidate in rates_by_name and rates_by_name[candidate] > 0:
+                return rates_by_name[candidate]
+        for r_k, r_v in rates_by_name.items():
+            if _canonical_role(r_k).lower() == cname.lower() and r_v > 0:
+                return r_v
+
     from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
-    if name in ROLE_BENCHMARK_RATES:
-        return ROLE_BENCHMARK_RATES[name][0] / _WORK_HOURS_PER_DAY
-    lower = name.lower()
+    for candidate in (cname, name):
+        if candidate in ROLE_BENCHMARK_RATES:
+            return ROLE_BENCHMARK_RATES[candidate][0] / _WORK_HOURS_PER_DAY
+
+    lower = cname.lower()
     for role, (daily, _) in ROLE_BENCHMARK_RATES.items():
         if role.lower() in lower or lower in role.lower():
             return daily / _WORK_HOURS_PER_DAY
-    if "delivery" in lower or "programme" in lower:
+
+    if "delivery" in lower or "programme" in lower or "pdm" in lower.split():
         return 1300.0 / _WORK_HOURS_PER_DAY
     if "project manager" in lower or "pm" in lower.split():
         return 1200.0 / _WORK_HOURS_PER_DAY
-    if "architect" in lower:
+    if "architect" in lower or "sa" in lower.split():
         return 1500.0 / _WORK_HOURS_PER_DAY
     if "lead" in lower and "analyst" in lower:
         return 1100.0 / _WORK_HOURS_PER_DAY
-    if "analyst" in lower:
+    if "analyst" in lower or "ba" in lower.split():
         return 1000.0 / _WORK_HOURS_PER_DAY
     if "engineer" in lower or "developer" in lower:
         return 1275.0 / _WORK_HOURS_PER_DAY
@@ -621,22 +682,29 @@ def _render_mspdi(
     resource_catalog: Dict[str, float] = {}
     if caller_resources:
         for name, fraction in caller_resources:
-            resource_catalog[name] = fraction
+            cname = _canonical_role(name)
+            resource_catalog[cname] = fraction
     else:
         if normalized_resources:
             for name, fraction in normalized_resources:
-                resource_catalog[name] = fraction
+                cname = _canonical_role(name)
+                resource_catalog[cname] = fraction
         for task in all_tasks:
             if not task.children and task.resources:
                 for name, fraction in task.resources:
-                    if name not in resource_catalog:
-                        resource_catalog[name] = fraction
+                    cname = _canonical_role(name)
+                    if cname not in resource_catalog:
+                        resource_catalog[cname] = fraction
 
     if resource_catalog:
         resources_el = ET.SubElement(root, "Resources")
         resource_uids: Dict[str, int] = {}
         for index, (name, max_fraction) in enumerate(resource_catalog.items(), start=1):
             resource_uids[name] = index
+            resource_uids[name.lower()] = index
+            for alias, canon in ROLE_ALIASES.items():
+                if canon.lower() == name.lower():
+                    resource_uids[alias] = index
             resource_el = ET.SubElement(resources_el, "Resource")
             ET.SubElement(resource_el, "UID").text = str(index)
             ET.SubElement(resource_el, "ID").text = str(index)
@@ -646,21 +714,45 @@ def _render_mspdi(
             hourly_rate = _resolve_resource_hourly_rate(name, rates_by_name)
             if hourly_rate is not None and hourly_rate > 0:
                 ET.SubElement(resource_el, "StandardRate").text = f"{hourly_rate:.2f}"
-                ET.SubElement(resource_el, "StandardRateFormat").text = "3"  # 3 = /hour
+                ET.SubElement(resource_el, "StandardRateFormat").text = "2"  # 2 = /hour (MSPDI standard)
 
         # Assign resources to leaf tasks:
-        # If caller explicitly passed resources, override task assignments with that;
-        # otherwise use each task's own activity-based resources (task.resources),
-        # falling back to normalized_resources.
+        # If task has its own explicit resources that match defined resources,
+        # use those story-specific allocations directly;
+        # otherwise fall back to caller_resources or normalized_resources.
         assignments_el = ET.SubElement(root, "Assignments")
         assignment_uid = 1
         for task in all_tasks:
             if task.children:
                 continue
             duration_hours = leaf_duration_hours.get(task.uid, task.duration_days * _WORK_HOURS_PER_DAY)
-            task_assignments = caller_resources if caller_resources else (task.resources or normalized_resources)
+
+            matching_task_resources = []
+            if task.resources:
+                for name, fraction in task.resources:
+                    r_uid = (
+                        resource_uids.get(name)
+                        or resource_uids.get(name.lower())
+                        or resource_uids.get(_canonical_role(name).lower())
+                    )
+                    if r_uid is not None:
+                        matching_task_resources.append((name, fraction))
+
+            if task.has_explicit_resources and matching_task_resources:
+                task_assignments = matching_task_resources
+            elif caller_resources:
+                task_assignments = caller_resources
+            elif matching_task_resources:
+                task_assignments = matching_task_resources
+            else:
+                task_assignments = normalized_resources or task.resources
+
             for name, fraction in task_assignments:
-                r_uid = resource_uids.get(name)
+                r_uid = (
+                    resource_uids.get(name)
+                    or resource_uids.get(name.lower())
+                    or resource_uids.get(_canonical_role(name).lower())
+                )
                 if r_uid is None:
                     continue
                 assignment_el = ET.SubElement(assignments_el, "Assignment")
@@ -800,6 +892,14 @@ def build_portfolio_backlog_project_plan(
     if backlog.get("status") != "OK" or not backlog.get("epics"):
         return "ERROR: No saved portfolio backlog found. Create one first."
 
+    if not target_duration_weeks and backlog.get("timescale_weeks"):
+        try:
+            target_duration_weeks = float(backlog["timescale_weeks"])
+        except (ValueError, TypeError):
+            pass
+    if not holiday_calendar and backlog.get("holiday_calendar"):
+        holiday_calendar = backlog["holiday_calendar"]
+
     uid_counter = [0]
 
     def next_uid() -> int:
@@ -823,6 +923,7 @@ def build_portfolio_backlog_project_plan(
         timing_w_epic = _parse_timing_window(epic.get("timing") or "")
         if timing_w_epic[0] is not None:
             epic_task.start_week = timing_w_epic[0]
+            epic_task.end_week = timing_w_epic[1]
         for feature in epic.get("features") or []:
             feature_task = _Task(
                 uid=next_uid(), name=feature.get("title") or feature.get("id") or "Feature",
@@ -833,6 +934,7 @@ def build_portfolio_backlog_project_plan(
             timing_w_feat = _parse_timing_window(feature.get("timing") or "")
             if timing_w_feat[0] is not None:
                 feature_task.start_week = timing_w_feat[0]
+                feature_task.end_week = timing_w_feat[1]
             for story in feature.get("stories") or []:
                 job_size = story.get("job_size")
                 try:
@@ -858,11 +960,14 @@ def build_portfolio_backlog_project_plan(
                 timing_w_story = _parse_timing_window(story.get("timing") or "")
                 if timing_w_story[0] is not None:
                     story_task.start_week = timing_w_story[0]
-                story_res = story.get("resources")
+                    story_task.end_week = timing_w_story[1]
+                story_res = story.get("resources") or story.get("roles")
+                has_explicit = bool(story_res)
                 if not story_res:
                     from process_toolkit.portfolio_backlog.portfolio_backlog import calculate_story_resources
                     story_res = calculate_story_resources(story)
                 story_task.resources = _normalize_resources(story_res)
+                story_task.has_explicit_resources = has_explicit
                 feature_task.children.append(story_task)
             if not feature_task.children:
                 feature_task.children.append(
@@ -882,7 +987,7 @@ def build_portfolio_backlog_project_plan(
 
     project_start = _parse_start_date(start_date)
     holidays = _resolve_holidays(holiday_calendar, project_start)
-    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
+    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays, target_duration_weeks)
 
     overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
     if overrun_warning:
@@ -1048,7 +1153,7 @@ def build_proposal_response_project_plan(
 
     project_start = _parse_start_date(start_date)
     holidays = _resolve_holidays(holiday_calendar, project_start)
-    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays)
+    _schedule_task_tree(root, _first_working_day_on_or_after(project_start, holidays), holidays, target_duration_weeks)
 
     overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
     if overrun_warning:
