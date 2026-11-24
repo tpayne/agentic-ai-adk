@@ -485,7 +485,7 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     """
     if not sly_data:
         return
-    token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+    token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
     if not token:
         return
     _web_logger.warning(
@@ -974,6 +974,16 @@ class ChatSession:
                     "usage": self.last_usage,
                 }
             finally:
+                if self.sly_data is None or PIPELINE_LOCK_TOKEN_KEY not in self.sly_data:
+                    try:
+                        proc_sly = processor.get_sly_data()
+                        if proc_sly and PIPELINE_LOCK_TOKEN_KEY in proc_sly:
+                            if self.sly_data is not None:
+                                self.sly_data.update(proc_sly)
+                            else:
+                                self.sly_data = proc_sly.copy()
+                    except Exception:
+                        pass
                 _release_any_leftover_pipeline_lock(self.sly_data)
 
 

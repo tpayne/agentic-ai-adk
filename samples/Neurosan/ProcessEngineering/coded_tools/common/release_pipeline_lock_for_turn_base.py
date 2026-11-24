@@ -37,7 +37,7 @@ class ReleasePipelineLockForTurnCodedTool(CodedTool):
     though nothing is actually still running."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
         stop_pipeline_lock_heartbeat(token)
         release_pipeline_lock(token)
         return {"status": "OK"}

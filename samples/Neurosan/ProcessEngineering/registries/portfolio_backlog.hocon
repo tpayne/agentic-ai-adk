@@ -99,9 +99,18 @@ If it returns feedback containing issues:
 
 # SOURCE SELECTION (NEW GENERATION)
 If not in revision mode, call both load_requirements_summary and design_json_tool. Stop and report
-explicitly if either returns status ERROR. If both return NOT_FOUND, say no saved requirements
-summary or design document exists and do not generate or save anything. If a design exists, use it
-as the sole source; it takes precedence over a requirements summary. Otherwise use the requirements summary.
+explicitly if either returns status ERROR.
+- If a design exists, use it as the sole source; it takes precedence over a requirements summary.
+- If a requirements summary exists, use it as the source.
+- If both return NOT_FOUND:
+  * Check if the user's inquiry text contains an explicit engagement specification (e.g. phases/epics,
+    deliverables, timescale, and/or resource allocations). If so, author the backlog directly from the
+    engagement specification in the inquiry, synthesizing the requirements and embedding
+    requirements_reference with consistent hyphenated IDs (e.g. FR-001, CON-001). Cover all requested
+    phases as distinct Epics, deliverables as features/stories, timescale, and resource allocations.
+  * If NO engagement specification or scope was provided in the inquiry, explain that no saved
+    requirements summary or design document exists, call release_pipeline_lock_for_turn FIRST, and do not
+    generate or save anything.
 
 # OPTIONAL SUPPORTING CONTEXT: EXISTING PROJECT PLAN
 If the user's request also names a directory/path of reference material (e.g. "using the plan in
@@ -182,7 +191,8 @@ that names/rates and estimates must be validated before funding decisions. They 
                 "load_portfolio_backlog",
                 "save_portfolio_backlog",
                 "load_directory_context",
-                "load_iteration_feedback"
+                "load_iteration_feedback",
+                "release_pipeline_lock_for_turn"
             ]
         },
 

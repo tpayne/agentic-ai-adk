@@ -38,8 +38,15 @@ asks to replace or regenerate it from source.
 # STEP 1: LOAD THE AVAILABLE SOURCES
 Call both `load_requirements_summary` and `load_full_design_context`.
 - Treat `status: ERROR` from either loader as an explicit error and stop.
-- If both return `NOT_FOUND`, explain that no saved requirements summary or design document was
-  found and ask the user to create/import one first. Do not generate or save a backlog.
+- If both return `NOT_FOUND`:
+  * If the user's request provides an explicit engagement specification (e.g. phases/epics, deliverables,
+    timescale, and/or resource allocations), author the backlog directly from the engagement specification in
+    the request, synthesizing the requirements register and embedding requirements_reference with consistent
+    hyphenated IDs (e.g. FR-001, CON-001). Cover all requested phases as distinct Epics, deliverables as
+    features/stories, timescale, and resource allocations.
+  * If NO engagement specification or scope was provided in the request, explain that no saved
+    requirements summary or design document was found and ask the user to create/import one first. Do not
+    generate or save a backlog.
 - If a design document is available, it takes precedence and is the sole source. Do not merge the
   two artifacts or silently combine stale requirements with the design. Otherwise use the
   requirements summary.

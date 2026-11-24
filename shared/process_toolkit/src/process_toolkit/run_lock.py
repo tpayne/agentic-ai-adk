@@ -63,6 +63,7 @@ Design notes:
     future run.
 """
 
+import contextvars
 import fcntl
 import json
 import logging
@@ -300,8 +301,9 @@ class _LockHeartbeat:
         # by this thread alone -- the lock's own staleness fallback is what
         # reclaims an abandoned run in that case, same as before this
         # heartbeat existed.
+        ctx = contextvars.copy_context()
         self._thread = threading.Thread(
-            target=self._run, daemon=True, name=f"pipeline-lock-heartbeat-{token[:8]}",
+            target=ctx.run, args=(self._run,), daemon=True, name=f"pipeline-lock-heartbeat-{token[:8]}",
         )
         self._thread.start()
 
