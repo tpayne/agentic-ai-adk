@@ -280,7 +280,12 @@ def build_rate_card(
             for item, item_type, _ in work_items:
                 if item_type == "Story":
                     for res in item.get("resources") or []:
-                        r_name = str(res.get("name") or "").strip()
+                        if isinstance(res, dict):
+                            r_name = str(res.get("name") or res.get("role") or "").strip()
+                        elif isinstance(res, str) and res.strip():
+                            r_name = res.strip()
+                        else:
+                            continue
                         if r_name:
                             story_roles.add(r_name)
         for r_name in sorted(story_roles):
@@ -315,7 +320,12 @@ def build_rate_card(
         for item, item_type, _ in work_items:
             if item_type == "Story":
                 for res in item.get("resources") or []:
-                    r_name = str(res.get("name") or "").strip()
+                    if isinstance(res, dict):
+                        r_name = str(res.get("name") or res.get("role") or "").strip()
+                    elif isinstance(res, str) and res.strip():
+                        r_name = res.strip()
+                    else:
+                        continue
                     if r_name and r_name not in seen_roles:
                         seen_roles.add(r_name)
                         bench = get_role_benchmark(r_name)
@@ -343,15 +353,18 @@ def calculate_story_resources(
     if isinstance(existing, list) and existing:
         normalized = []
         for r in existing:
+            if isinstance(r, str) and r.strip():
+                normalized.append({"name": r.strip(), "allocation_percent": 100.0})
+                continue
             if not isinstance(r, dict):
                 continue
             name = str(r.get("name") or r.get("role") or "").strip()
             if not name:
                 continue
             try:
-                pct = float(r.get("allocation_percent", 0))
+                pct = float(r.get("allocation_percent", 100))
             except (TypeError, ValueError):
-                continue
+                pct = 100.0
             if pct > 0:
                 normalized.append({"name": name, "allocation_percent": pct})
         if normalized:
@@ -742,7 +755,15 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
 
                 # Compute story person-day labor effort: duration_days * sum(allocation FTE)
                 story_resources = story.get("resources") or []
-                story_fte = sum(float(r.get("allocation_percent", 0)) / 100.0 for r in story_resources)
+                story_fte = 0.0
+                for r in story_resources:
+                    if isinstance(r, dict):
+                        try:
+                            story_fte += float(r.get("allocation_percent", 100)) / 100.0
+                        except (ValueError, TypeError):
+                            story_fte += 1.0
+                    elif isinstance(r, str) and r.strip():
+                        story_fte += 1.0
                 if story_fte <= 0:
                     story_fte = 1.0
                 story["effort_person_days"] = round(story["duration_days"] * story_fte, 2)
@@ -769,7 +790,15 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
             working_days = round(float(backlog["timescale_weeks"]) * 5)
             backlog["schedule_duration_working_days"] = working_days
             team_res = backlog.get("resources") or backlog.get("roles") or []
-            team_fte = sum(float(r.get("allocation_percent", 0)) / 100.0 for r in team_res)
+            team_fte = 0.0
+            for r in team_res:
+                if isinstance(r, dict):
+                    try:
+                        team_fte += float(r.get("allocation_percent", 0)) / 100.0
+                    except (ValueError, TypeError):
+                        pass
+                elif isinstance(r, str) and r.strip():
+                    team_fte += 1.0
             if team_fte <= 0 and backlog.get("rate_card"):
                 team_fte = float(len(backlog["rate_card"]))
             if team_fte > 0:
@@ -1331,13 +1360,29 @@ def save_portfolio_backlog(
         for item, item_type, _ in work_items:
             if item_type == "Story":
                 for r in item.get("resources") or []:
-                    r_name = r.get("name")
+                    if isinstance(r, dict):
+                        r_name = r.get("name") or r.get("role")
+                        try:
+                            alloc = float(r.get("allocation_percent", 100))
+                        except (ValueError, TypeError):
+                            alloc = 100.0
+                    elif isinstance(r, str) and r.strip():
+                        r_name = r.strip()
+                        alloc = 100.0
+                    else:
+                        continue
                     if r_name:
-                        role_alloc_sums[r_name] = role_alloc_sums.get(r_name, 0.0) + float(r.get("allocation_percent", 0))
+                        role_alloc_sums[r_name] = role_alloc_sums.get(r_name, 0.0) + alloc
         total_alloc = sum(role_alloc_sums.values())
         if total_alloc > 0 and "resources" not in backlog:
-            if "roles" in backlog:
-                backlog["resources"] = list(backlog["roles"])
+            if "roles" in backlog and isinstance(backlog["roles"], list):
+                norm_resources = []
+                for entry in backlog["roles"]:
+                    if isinstance(entry, dict):
+                        norm_resources.append(entry)
+                    elif isinstance(entry, str) and entry.strip():
+                        norm_resources.append({"name": entry.strip(), "allocation_percent": 100.0})
+                backlog["resources"] = norm_resources
             else:
                 backlog["resources"] = [
                     {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
@@ -1526,7 +1571,7 @@ def save_portfolio_backlog(
             f"workbook generated at {workbook_path} "
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
-    except (ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
         logger.debug("save_portfolio_backlog: validation rejected (transient): %s", error)
         return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
     except (OSError, Exception) as error:

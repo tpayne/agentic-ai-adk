@@ -558,6 +558,9 @@ def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tupl
     the first place."""
     normalized = []
     for entry in resources or []:
+        if isinstance(entry, str) and entry.strip():
+            normalized.append((entry.strip(), 1.0))
+            continue
         if not isinstance(entry, dict):
             continue
         name = str(entry.get("name") or "").strip()

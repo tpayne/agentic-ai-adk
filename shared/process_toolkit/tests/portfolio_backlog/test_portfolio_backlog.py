@@ -859,6 +859,19 @@ def test_save_handles_missing_priority_components(tmp_path, monkeypatch):
     assert backlog["epics"][0]["priority_components"]["user_business_value"] == 3
 
 
+def test_save_handles_string_roles_and_string_resources(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = _sample_backlog()
+    backlog["timescale_weeks"] = 12
+    backlog["roles"] = ["PDM", "Lead BA", "BA", "SA"]
+    backlog["epics"][0]["features"][0]["stories"][0]["resources"] = ["Lead BA", "BA"]
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert backlog["team_fte"] == 4.0
+    assert backlog["total_capacity_person_days"] == 240.0
+
+
+
 
 
 
