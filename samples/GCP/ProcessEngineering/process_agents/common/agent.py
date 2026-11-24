@@ -644,7 +644,7 @@ _WEB_SESSION_IDLE_TIMEOUT_SECONDS = float(getProperty("webSessionIdleTimeoutSeco
 # every single request would be wasteful), not something a deployer needs to
 # tune, so it's a plain constant rather than a getProperty.
 _WEB_SESSION_SWEEP_INTERVAL_SECONDS = 300.0
-_web_sessions_last_swept = 0.0
+_web_sessions_last_swept = -1e9
 
 # web_session_id -> count of turns currently executing on it, streaming or
 # not. A COUNT, not a set/bool: two overlapping requests for the SAME
@@ -705,7 +705,7 @@ _web_rate_limit_state: dict = {}  # client key -> [monotonic timestamps within t
 # otherwise accumulate unbounded over the process's lifetime. Swept on the
 # same opportunistic cadence as _web_sessions above.
 _WEB_RATE_LIMIT_SWEEP_INTERVAL_SECONDS = 300.0
-_web_rate_limit_last_swept = 0.0
+_web_rate_limit_last_swept = -1e9
 
 
 def _check_rate_limit(client_key: str, limit_per_minute: int) -> bool:

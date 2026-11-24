@@ -196,7 +196,7 @@ class WebServiceSessionEvictionTest(unittest.TestCase):
         with agent._web_sessions_lock:
             agent._web_sessions.clear()
             agent._active_web_sessions.clear()
-        agent._web_sessions_last_swept = 0.0
+        agent._web_sessions_last_swept = -1e9
 
     def _make_entry(self, user_id, session_id, last_accessed):
         agent = self.agent
