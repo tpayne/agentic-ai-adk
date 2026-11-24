@@ -12,6 +12,14 @@ from typing import Optional
 
 from process_toolkit.docgen.project_plan_export import mspdi_project_title, parse_mspdi_tasks
 from process_toolkit.ingestion.chunking import chunk_and_wrap, wrap_untrusted
+from process_toolkit.ingestion.image_interpreter import (
+    IMAGE_MIME_TYPES,
+    SUPPORTED_IMAGE_EXTENSIONS,
+    import_image,
+    interpret_image_with_model,
+    translate_image_to_process_json,
+    translate_image_to_requirements_json,
+)
 
 
 def _extract_txt_file(path: str) -> str:
@@ -256,17 +264,10 @@ def _extract_vsdx_file(path: str) -> str:
 
 
 def _extract_image_file(path: str) -> str:
-    # OCR extracts visible TEXT only -- same honesty-first limitation as
-    # _extract_pdf_file's own no-OCR-on-scanned-pages note above: a
-    # box-and-arrow diagram screenshot yields whatever text labels Tesseract
-    # can read, roughly in reading order, with NO connection/relationship/
-    # layout information recoverable from pixels alone (unlike _extract_vsdx_
-    # file above, which has real vector shape+connector data to work with).
-    from PIL import Image
-    import pytesseract
-
-    with Image.open(path) as image:
-        return pytesseract.image_to_string(image)
+    # Interprets an image using a multimodal model (visual layout, flow, actors,
+    # decisions, connectors, and requirements) with graceful fallback to OCR
+    # (pytesseract) when unconfigured or offline.
+    return interpret_image_with_model(path, target="general")
 
 
 # Legacy .doc/.ppt (binary, pre-2007 Office) are deliberately absent --
@@ -397,7 +398,8 @@ def load_directory_context(
     found; a caller that never looks at this field is unaffected.
     """
     resolved = os.path.abspath(directory)
-    if not os.path.isdir(resolved):
+    is_file = os.path.isfile(resolved)
+    if not is_file and not os.path.isdir(resolved):
         return {"status": "NOT_FOUND", "directory": resolved}
 
     toolkit_root = _agent_toolkit_root()
@@ -414,7 +416,12 @@ def load_directory_context(
         }
 
     try:
-        entries = sorted(os.listdir(resolved))
+        if is_file:
+            entries = [os.path.basename(resolved)]
+            base_dir = os.path.dirname(resolved)
+        else:
+            entries = sorted(os.listdir(resolved))
+            base_dir = resolved
     except Exception as e:
         return {"status": "ERROR", "directory": resolved, "error": str(e)}
 
@@ -424,7 +431,7 @@ def load_directory_context(
     images = []
 
     for name in entries:
-        full_path = os.path.join(resolved, name)
+        full_path = os.path.join(base_dir, name)
         if not os.path.isfile(full_path):
             continue
 

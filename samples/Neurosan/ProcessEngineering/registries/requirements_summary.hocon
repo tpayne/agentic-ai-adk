@@ -20,10 +20,10 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/vsdx/vsdm, plus images
-[png/jpg/jpeg/gif/webp/bmp/tiff] -- OCR'd visible text only, not a visual description of the image)
-and summarize the requirements found in them into a structured, traceable register. Tell me which
-directory to read.
+I read a directory of source documents or image files (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/vsdx/vsdm, plus images
+[png/jpg/jpeg/gif/webp/bmp/tiff] -- visually interpreted with a multimodal model for layout, architecture,
+specifications, and requirements, with OCR fallback) and summarize the requirements found in them into a structured,
+traceable register. Tell me which directory or image to read.
 """,
                 "parameters": {
                     "type": "object",

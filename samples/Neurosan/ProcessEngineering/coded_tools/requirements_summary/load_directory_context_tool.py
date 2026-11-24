@@ -17,7 +17,7 @@ class LoadDirectoryContextCodedTool(CodedTool):
     their combined extracted text, for use as requirements source material."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        directory = args.get("directory")
+        directory = args.get("directory") or args.get("path") or args.get("file")
         if not directory:
             return {"status": "ERROR", "error": "Missing required argument: directory"}
         return load_directory_context(directory)

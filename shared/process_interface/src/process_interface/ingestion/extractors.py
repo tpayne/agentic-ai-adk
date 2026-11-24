@@ -7,6 +7,20 @@ co-located with the caller's own input directory, which this phase
 doesn't assume -- so these stay always-local, same reasoning as paths.py.
 """
 
-from process_toolkit.ingestion.extractors import load_directory_context, stage_attachments_to_directory
+from process_toolkit.ingestion.extractors import (
+    import_image,
+    interpret_image_with_model,
+    load_directory_context,
+    stage_attachments_to_directory,
+    translate_image_to_process_json,
+    translate_image_to_requirements_json,
+)
 
-__all__ = ["load_directory_context", "stage_attachments_to_directory"]
+__all__ = [
+    "import_image",
+    "interpret_image_with_model",
+    "load_directory_context",
+    "stage_attachments_to_directory",
+    "translate_image_to_process_json",
+    "translate_image_to_requirements_json",
+]

@@ -445,6 +445,16 @@ CloudArch_Import_Agent (drawio/mxGraph diagram XML), or ITSM_Import_Agent (ITSM 
 runbooks, incident/change procedures, SLAs) -- determine which per the Domain Disambiguation
 rules above, with the diagram-vs-document distinction above breaking the design/cloudarch tie.
 
+IMAGE IMPORT (JPG/PNG):
+If the user wants to import a JPG/PNG image (diagram, flowchart, process map, swimlane chart,
+wireframe, or specification screenshot) or translate it into structured JSON:
+- To import / translate as a business process document (process_data.json) -> Process_Import_Agent
+  (e.g. "Import the process diagram in ./workflow.png as a process document.",
+  "Translate the diagram in ./process_map.jpg to a process JSON.").
+- To import / translate as a requirements summary (requirements_summary.json) -> Requirements_Summary_Agent
+  (e.g. "Import the requirements in ./spec_diagram.png as a requirements summary.",
+  "Translate this screenshot ./wireframe.png to a requirements JSON.").
+
 Examples:
 - "Import the process documented in ./legacy-sops as a process document." -> Process_Import_Agent.
 - "Import the design documented in ./old-hld as a High-Level Design only -- there is no low-level

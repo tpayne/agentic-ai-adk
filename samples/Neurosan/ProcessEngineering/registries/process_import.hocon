@@ -22,13 +22,12 @@
 
             "function": {
                 "description": """
-I read a directory of source documents (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json/vsdx/vsdm,
-plus images [png/jpg/jpeg/gif/webp/bmp/tiff] -- OCR'd visible text only, not a visual description
-of the image) that already describe an existing business process, and import their content
-directly into this toolkit's own structured process JSON -- not a fresh design from a brief, an
-extraction of what's actually in the
-documents. If the directory contains a process_data.json previously downloaded from this same
-toolkit, I restore it verbatim instead of re-extracting it. Tell me which directory to read.
+I read a directory of source documents or image files (txt/md/docx/pptx/pdf/eml/msg/xls/xlsx/xml/json/vsdx/vsdm,
+plus images [png/jpg/jpeg/gif/webp/bmp/tiff] -- visually interpreted with a multimodal model for layout,
+swimlanes, sequence flow, and decision logic, with OCR fallback) that already describe an existing business process,
+and import their content directly into this toolkit's own structured process JSON -- not a fresh design from a brief, an
+extraction of what's actually in the documents or diagrams. If the directory contains a process_data.json previously
+downloaded from this same toolkit, I restore it verbatim instead of re-extracting it. Tell me which directory or image to read.
 """,
                 "parameters": {
                     "type": "object",
@@ -46,10 +45,10 @@ you're given already contains a real, existing process description (an SOP, a ru
 write-up) -- your job is to faithfully extract what it already says into this toolkit's structured
 schema, not to invent or redesign anything the material doesn't support.
 
-# STEP 1: READ THE DIRECTORY (MANDATORY)
-The directory to read is ALWAYS the one in THIS request -- never reuse a path from an earlier turn
+# STEP 1: READ THE DIRECTORY OR IMAGE (MANDATORY)
+The path to read is ALWAYS the one in THIS request (a directory or direct image file path) -- never reuse a path from an earlier turn
 or invent one.
-- If the request has no directory path, do not call any tool -- ask for the path and stop.
+- If the request has no path, do not call any tool -- ask for the path and stop.
 - Call load_directory_context with that path.
 - "status": "NOT_FOUND" -> report the directory could not be found and stop. Do not fabricate.
 - "status": "ERROR" -> report the error and stop. Do not fabricate.

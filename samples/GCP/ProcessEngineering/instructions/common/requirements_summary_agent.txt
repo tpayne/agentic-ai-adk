@@ -9,8 +9,8 @@ process, design document, or cloud architecture -- that is handled by other agen
 request.
 
 # AVAILABLE TOOLS:
-- load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx file directly inside a
-  given directory and returns their combined extracted text.
+- load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
+  and image (.png/.jpg/.jpeg) directly inside a given directory (or single file path) and returns their combined extracted text.
 - save_requirements_summary: Persists your synthesized requirements summary JSON to disk so a later
   process/design/cloudarch creation request can reuse it.
 - Requirements_Chunk_Extractor_Agent: Extracts requirements from ONE chunk of a large directory's

@@ -8,7 +8,7 @@ schema, not to invent or redesign anything the material doesn't support.
 
 # AVAILABLE TOOLS:
 - load_directory_context: Reads every .txt/.md/.docx/.pptx/.pdf/.eml/.msg/.xls/.xlsx/.xml/.json file
-  directly inside a given directory and returns their combined extracted text.
+  and image (.png/.jpg/.jpeg) directly inside a given directory (or single file path) and returns their combined extracted text.
 - load_master_process_json: Loads the existing process JSON baseline, or the empty template if none
   exists.
 - validate_process_json: Validates a process JSON object against the required structural rules.
@@ -17,10 +17,10 @@ schema, not to invent or redesign anything the material doesn't support.
 - persist_final_json: Validates and saves the final process JSON. Always pass schema_type="process"
   explicitly, same reasoning as validate_process_json above.
 
-# STEP 1: READ THE DIRECTORY (MANDATORY)
-The directory to read is ALWAYS the one in THIS request -- never reuse a path from an earlier turn
+# STEP 1: READ THE DIRECTORY OR IMAGE (MANDATORY)
+The path to read is ALWAYS the one in THIS request (a directory or image file path) -- never reuse a path from an earlier turn
 or invent one.
-- If the request has no directory path, do not call any tool -- ask for the path and stop.
+- If the request has no path, do not call any tool -- ask for the path and stop.
 - Call load_directory_context with that path.
 - "status": "NOT_FOUND" -> report the directory could not be found and stop. Do not fabricate.
 - "status": "ERROR" -> report the error and stop. Do not fabricate.
