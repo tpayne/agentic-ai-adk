@@ -641,6 +641,22 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for epic_index, epic in enumerate(epics, start=1):
         epic_location = f"epics[{epic_index - 1}]"
+        if not isinstance(epic, dict):
+            if isinstance(epic, str) and epic.strip():
+                title = epic.strip()
+            elif isinstance(epic, (list, tuple)) and epic:
+                title = str(epic[0]).strip()
+            else:
+                title = f"Epic {epic_index}"
+            epic = {
+                "id": f"EPIC-{epic_index:03d}",
+                "title": title,
+                "description": title,
+                "strategic_theme": "Delivery",
+                "job_size": 13,
+                "features": [],
+            }
+            epics[epic_index - 1] = epic
         _validate_work_item(epic, "Epic", seen_ids, epic_location)
         epic.setdefault("state", "In Analysis")
         rows.append((epic, "Epic", ""))
@@ -657,11 +673,17 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
             epic["features"] = features
         for feature_index, feature in enumerate(features, start=1):
             feature_location = f"{epic_location}.features[{feature_index - 1}]"
-            if isinstance(feature, str) and feature.strip():
+            if not isinstance(feature, dict):
+                if isinstance(feature, str) and feature.strip():
+                    title = feature.strip()
+                elif isinstance(feature, (list, tuple)) and feature:
+                    title = str(feature[0]).strip()
+                else:
+                    title = f"{epic.get('title', 'Feature')} Delivery {feature_index}"
                 feature = {
                     "id": f"FEAT-{epic['id'].split('-')[-1]}{feature_index:02d}",
-                    "title": feature.strip(),
-                    "description": feature.strip(),
+                    "title": title,
+                    "description": title,
                     "job_size": 3,
                     "stories": [],
                 }
@@ -683,14 +705,20 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 feature["stories"] = stories
             for story_index, story in enumerate(stories, start=1):
                 story_location = f"{feature_location}.stories[{story_index - 1}]"
-                if isinstance(story, str) and story.strip():
+                if not isinstance(story, dict):
+                    if isinstance(story, str) and story.strip():
+                        title = story.strip()
+                    elif isinstance(story, (list, tuple)) and story:
+                        title = str(story[0]).strip()
+                    else:
+                        title = f"Story {story_index} for {feature.get('title', 'feature')}"
                     story = {
                         "id": f"STORY-{epic['id'].split('-')[-1]}{feature_index:02d}{story_index:02d}",
-                        "title": story.strip(),
-                        "description": story.strip(),
+                        "title": title,
+                        "description": title,
                         "job_size": 3,
                         "traces_to": feature.get("traces_to", ["REQ-001"]),
-                        "acceptance_criteria": [f"Successfully complete {story.strip()}."],
+                        "acceptance_criteria": [f"Successfully complete {title}."],
                     }
                     stories[story_index - 1] = story
                 _validate_work_item(story, "Story", seen_ids, story_location)
@@ -1498,7 +1526,10 @@ def save_portfolio_backlog(
             f"workbook generated at {workbook_path} "
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
-    except (OSError, ValueError, KeyError, TypeError) as error:
+    except (ValueError, KeyError, TypeError) as error:
+        logger.info("save_portfolio_backlog: validation rejected (transient): %s", error)
+        return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
+    except (OSError, Exception) as error:
         logger.error("save_portfolio_backlog failed: %s", error, exc_info=True)
         return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
 
