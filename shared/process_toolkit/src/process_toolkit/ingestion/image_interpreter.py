@@ -172,6 +172,9 @@ def _make_image_part(image_bytes: bytes, mime_type: str) -> Any:
         return _PartStub(image_bytes, mime_type)
 
 
+_FALLBACK_MULTIMODAL_MODELS = ("gemini-3.8-flash", "gemini-3-flash", "gemini-2.0-flash")
+
+
 def _resolve_model_name(preferred: Optional[str] = None) -> str:
     """Resolves the multimodal model name to use."""
     if preferred:
@@ -180,14 +183,55 @@ def _resolve_model_name(preferred: Optional[str] = None) -> str:
         model = (
             os.environ.get("GEMINI_IMAGE_MODEL")
             or os.environ.get("MODEL_NAME")
-            or "gemini-2.5-flash"
+            or "gemini-3.8-flash"
         )
-    # Strip any provider prefixes (e.g. "google_genai:gemini-3-flash" or "google/")
+    # Strip any provider prefixes (e.g. "google_genai:gemini-3.8-flash" or "google/")
     if ":" in model:
         model = model.split(":", 1)[1]
     if model.startswith("google/"):
         model = model[len("google/"):]
     return model
+
+
+def _generate_with_model_fallback(
+    client: Any,
+    primary_model: str,
+    contents: List[Any],
+) -> Any:
+    """Invokes generate_content on client with automatic fallback for 404/deprecated models."""
+    candidate_models = [primary_model]
+    for fb in _FALLBACK_MULTIMODAL_MODELS:
+        if fb != primary_model and fb not in candidate_models:
+            candidate_models.append(fb)
+
+    last_error = None
+    for model in candidate_models:
+        try:
+            logger.info("Calling multimodal model %s...", model)
+            return client.models.generate_content(
+                model=model,
+                contents=contents,
+            )
+        except Exception as e:
+            err_str = str(e)
+            is_model_unavailable = (
+                "404" in err_str
+                or "NOT_FOUND" in err_str
+                or "not found" in err_str.lower()
+                or "no longer available" in err_str.lower()
+                or "unsupported" in err_str.lower()
+            )
+            if is_model_unavailable and model != candidate_models[-1]:
+                logger.warning(
+                    "Multimodal model %s unavailable (%s); falling back to next candidate...",
+                    model,
+                    e,
+                )
+                last_error = e
+                continue
+            raise
+    if last_error:
+        raise last_error
 
 
 def interpret_image_with_model(
@@ -241,8 +285,9 @@ def interpret_image_with_model(
 
             model = _resolve_model_name(model_name)
             logger.info("Interpreting image %s using model %s (target=%s)...", path, model, target)
-            response = client.models.generate_content(
-                model=model,
+            response = _generate_with_model_fallback(
+                client=client,
+                primary_model=model,
                 contents=[image_part, prompt],
             )
             text = (response.text or "").strip()
@@ -294,8 +339,9 @@ def translate_image_to_process_json(
 
             model = _resolve_model_name(model_name)
             logger.info("Translating image %s to process JSON using %s...", path, model)
-            response = client.models.generate_content(
-                model=model,
+            response = _generate_with_model_fallback(
+                client=client,
+                primary_model=model,
                 contents=[image_part, prompt],
             )
             raw_text = (response.text or "").strip()
@@ -356,8 +402,9 @@ def translate_image_to_requirements_json(
 
             model = _resolve_model_name(model_name)
             logger.info("Translating image %s to requirements JSON using %s...", path, model)
-            response = client.models.generate_content(
-                model=model,
+            response = _generate_with_model_fallback(
+                client=client,
+                primary_model=model,
                 contents=[image_part, prompt],
             )
             raw_text = (response.text or "").strip()

@@ -64,9 +64,33 @@ def test_interpret_image_with_mocked_model():
         assert "Receive Order" in result
         mock_client.models.generate_content.assert_called_once()
         call_kwargs = mock_client.models.generate_content.call_args[1]
-        assert call_kwargs["model"] == "gemini-2.5-flash"
+        assert call_kwargs["model"] == "gemini-3.8-flash"
         contents = call_kwargs["contents"]
         assert len(contents) == 2
+
+
+def test_interpret_image_fallback_on_404_model_unavailable():
+    with tempfile.TemporaryDirectory() as d:
+        img_path = _create_test_image(Path(d) / "diagram.png", "Process Order")
+        mock_response = MagicMock()
+        mock_response.text = "[Process Overview]\nProcess Name: Order Processing"
+
+        mock_client = MagicMock()
+        # First call fails with 404 NOT_FOUND, second call succeeds
+        mock_client.models.generate_content.side_effect = [
+            Exception("404 NOT_FOUND: This model models/gemini-foo is no longer available to new users."),
+            mock_response,
+        ]
+
+        with patch("process_toolkit.ingestion.image_interpreter._get_genai_client", return_value=mock_client):
+            result = interpret_image_with_model(str(img_path), target="process", model_name="gemini-foo")
+
+        assert "Order Processing" in result
+        assert mock_client.models.generate_content.call_count == 2
+        first_call = mock_client.models.generate_content.call_args_list[0][1]
+        second_call = mock_client.models.generate_content.call_args_list[1][1]
+        assert first_call["model"] == "gemini-foo"
+        assert second_call["model"] == "gemini-3.8-flash"
 
 
 def test_interpret_image_fallback_to_ocr_when_no_client():
