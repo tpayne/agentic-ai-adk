@@ -871,6 +871,41 @@ def test_save_handles_string_roles_and_string_resources(tmp_path, monkeypatch):
     assert backlog["total_capacity_person_days"] == 240.0
 
 
+def test_save_handles_plain_string_epics_features_stories(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = {
+        "name": "String Backlog",
+        "summary": "String Backlog Summary",
+        "source_name": "Requirements Doc",
+        "source_artifact": "requirements_summary",
+        "rate_card": ["Lead Architect", "Business Analyst"],
+        "epics": [
+            "Discovery and Inception",
+            {
+                "id": "EPIC-002",
+                "title": "Core Implementation",
+                "features": [
+                    "Data Pipeline Feature",
+                    {
+                        "id": "FEAT-002",
+                        "title": "API Gateway Feature",
+                        "stories": [
+                            "Implement Auth Endpoint",
+                            {"id": "STORY-001", "title": "Configure Rate Limiting", "resources": ["Lead Architect"]},
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert len(backlog["epics"]) == 2
+    assert backlog["total_job_size"] > 0
+    assert backlog["total_duration_days"] > 0
+
+
+
 
 
 

@@ -238,6 +238,19 @@ def build_rate_card(
         seen_roles = set()
         for entry in explicit:
             if not isinstance(entry, dict):
+                if isinstance(entry, str) and entry.strip():
+                    role = entry.strip()
+                    if role in seen_roles:
+                        continue
+                    seen_roles.add(role)
+                    bench = get_role_benchmark(role)
+                    normalized.append({
+                        "person": "TBD",
+                        "role": role,
+                        "effort_mix": 0.10,
+                        "daily_rate": bench[0],
+                        "basis": bench[1],
+                    })
                 continue
             role = str(entry.get("role") or entry.get("name") or "").strip()
             if not role or role in seen_roles:
@@ -615,10 +628,11 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
         components[field] = val_int
 
     js = item.get("job_size")
-    if isinstance(js, (str, float)):
+    if js is None:
+        item["job_size"] = 13 if item_type == "Epic" else 3
+    elif isinstance(js, (str, float)):
         try:
-            js = int(float(js))
-            item["job_size"] = js
+            item["job_size"] = int(float(js))
         except (ValueError, TypeError):
             pass
     if type(item.get("job_size")) is not int or item["job_size"] not in FIBONACCI_SIZES:
@@ -741,9 +755,18 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
 
     # Reconcile job_size, duration_days, and effort_person_days rollups
     for epic in epics:
+        if not isinstance(epic, dict):
+            continue
         for feature in epic.get("features") or []:
+            if not isinstance(feature, dict):
+                continue
             for story in feature.get("stories") or []:
-                story_points = int(story["job_size"])
+                if not isinstance(story, dict):
+                    continue
+                try:
+                    story_points = int(story.get("job_size", 3))
+                except (ValueError, TypeError):
+                    story_points = 3
                 explicit_days = story.get("duration_days") or story.get("duration_working_days")
                 if explicit_days:
                     try:
@@ -769,19 +792,35 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 story["effort_person_days"] = round(story["duration_days"] * story_fte, 2)
                 story["effort_hours"] = round(story["effort_person_days"] * 8, 1)
 
-            feature["child_job_size_sum"] = sum(int(s["job_size"]) for s in feature.get("stories") or [])
-            feature["child_duration_days_sum"] = sum(int(s["duration_days"]) for s in feature.get("stories") or [])
-            feature["child_effort_person_days_sum"] = round(
-                sum(float(s.get("effort_person_days", s["duration_days"])) for s in feature.get("stories") or []), 2
+            feature["child_job_size_sum"] = sum(
+                int(s.get("job_size", 0)) for s in (feature.get("stories") or []) if isinstance(s, dict)
             )
-        epic["child_job_size_sum"] = sum(f.get("child_job_size_sum", 0) for f in epic.get("features") or [])
-        epic["child_duration_days_sum"] = sum(f.get("child_duration_days_sum", 0) for f in epic.get("features") or [])
-        epic["child_effort_person_days_sum"] = round(
-            sum(f.get("child_effort_person_days_sum", 0.0) for f in epic.get("features") or []), 2
+            feature["child_duration_days_sum"] = sum(
+                int(s.get("duration_days", 0)) for s in (feature.get("stories") or []) if isinstance(s, dict)
+            )
+            feature["child_effort_person_days_sum"] = round(
+                sum(
+                    float(s.get("effort_person_days", s.get("duration_days", 0)))
+                    for s in (feature.get("stories") or [])
+                    if isinstance(s, dict)
+                ),
+                2,
+            )
+        epic["child_job_size_sum"] = sum(
+            f.get("child_job_size_sum", 0) for f in (epic.get("features") or []) if isinstance(f, dict)
         )
-    backlog["total_job_size"] = sum(e.get("child_job_size_sum", 0) for e in epics)
-    total_duration_days = sum(e.get("child_duration_days_sum", 0) for e in epics)
-    total_effort_days = round(sum(e.get("child_effort_person_days_sum", 0.0) for e in epics), 2)
+        epic["child_duration_days_sum"] = sum(
+            f.get("child_duration_days_sum", 0) for f in (epic.get("features") or []) if isinstance(f, dict)
+        )
+        epic["child_effort_person_days_sum"] = round(
+            sum(
+                f.get("child_effort_person_days_sum", 0.0) for f in (epic.get("features") or []) if isinstance(f, dict)
+            ),
+            2,
+        )
+    backlog["total_job_size"] = sum(e.get("child_job_size_sum", 0) for e in epics if isinstance(e, dict))
+    total_duration_days = sum(e.get("child_duration_days_sum", 0) for e in epics if isinstance(e, dict))
+    total_effort_days = round(sum(e.get("child_effort_person_days_sum", 0.0) for e in epics if isinstance(e, dict)), 2)
     backlog["total_duration_days"] = total_duration_days
     backlog["total_effort_person_days"] = total_effort_days
     backlog["total_effort_hours"] = round(total_effort_days * 8, 1)
@@ -1183,14 +1222,25 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             story_res = item.get("resources") or calculate_story_resources(item)
             role_refs = []
             for res in story_res:
-                r_name = res["name"]
-                pct = res["allocation_percent"] / 100.0
+                if isinstance(res, dict):
+                    r_name = str(res.get("name") or res.get("role") or "").strip()
+                    try:
+                        pct = float(res.get("allocation_percent", 100)) / 100.0
+                    except (ValueError, TypeError):
+                        pct = 1.0
+                elif isinstance(res, str) and res.strip():
+                    r_name = res.strip()
+                    pct = 1.0
+                else:
+                    continue
+                if not r_name:
+                    continue
                 row_idx = role_to_row.get(r_name)
                 if row_idx:
                     role_refs.append(f"'Role Rates'!$B${row_idx}&\" (\"&TEXT({pct:g},\"0%\")&\")\"")
                 else:
                     role_refs.append(f"\"{r_name} (\"&TEXT({pct:g},\"0%\")&\")\"")
-            costed_roles = "=" + '&"; "&'.join(role_refs)
+            costed_roles = ("=" + '&"; "&'.join(role_refs)) if role_refs else "General Staffing"
         else:
             costed_roles = "Rolled up from child items; see story-level roles."
         values = [
@@ -1232,8 +1282,19 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
             story_res = item.get("resources") or calculate_story_resources(item)
             rate_terms = []
             for res in story_res:
-                r_name = res["name"]
-                pct = res["allocation_percent"] / 100.0
+                if isinstance(res, dict):
+                    r_name = str(res.get("name") or res.get("role") or "").strip()
+                    try:
+                        pct = float(res.get("allocation_percent", 100)) / 100.0
+                    except (ValueError, TypeError):
+                        pct = 1.0
+                elif isinstance(res, str) and res.strip():
+                    r_name = res.strip()
+                    pct = 1.0
+                else:
+                    continue
+                if not r_name:
+                    continue
                 row_idx = role_to_row.get(r_name)
                 if row_idx:
                     rate_terms.append(f"{pct:g}*'Role Rates'!$D${row_idx}")
