@@ -25,20 +25,20 @@ constraints, timescale limits, resourcing percentages, and required deliverables
 # QUALITY AUDIT CRITERIA:
 Evaluate the inspected project plan against the following strict criteria:
 
-1. SCHEDULE DURATION VS. EFFORT / CAPACITY ALIGNMENT (ZERO OVERRUN)
+1. TIMESCALE & SCHEDULE COMPLIANCE & CAPACITY ALIGNMENT (ZERO CALENDAR OVERRUN)
    - Ensure elapsed calendar dates, working-day durations, non-working days (weekends and designated public holidays),
      and sum-of-effort estimates strictly reconcile against the target timescale.
    - Forbid schedule overrun: flag any plan where finish date overruns the engagement timescale without authorization.
    - Verify holiday handling: If a holiday calendar (e.g. UK bank holidays) was requested, verify that public holidays
      are properly scheduled as non-working exceptions without unmanaged schedule drift.
 
-2. PARALLELISM OVER EXCESSIVE SEQUENTIAL CHAINING
+2. PHASE STRUCTURE & CONCURRENCY (PARALLELISM OVER EXCESSIVE SEQUENTIAL CHAINING)
    - Avoid chaining every phase and activity strictly end-to-end when discovery, analysis, or drafting workstreams can run concurrently.
    - Explicit Dependency Links: Confirm finish-to-start predecessor links reflect real work handoffs rather than
      leaving tasks disconnected or artificially serial.
    - Concurrency Check: Verify that independent workstreams execute in parallel with appropriate dependencies to optimize velocity.
 
-3. CONSISTENT ROLE ALLOCATIONS ACROSS ARTIFACTS
+3. RESOURCING & ALLOCATION ACCURACY (CONSISTENT ROLE ALLOCATIONS ACROSS ARTIFACTS)
    - Keep role availability caps (MaxUnits), per-task resource splits, and phase/story staffing consistent between
      backlog definitions, resource tables, and schedule assignments instead of applying uniform or contradictory allocations.
    - Verify that all named roles from the engagement brief exist in `<Resources>` with MaxUnits matching requested percentages

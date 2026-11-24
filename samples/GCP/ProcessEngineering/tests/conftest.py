@@ -1,4 +1,9 @@
+import os
 import pytest
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+os.environ.setdefault("GOOGLE_API_KEY", "test-key-unused")
 
 from process_toolkit import paths
 

@@ -252,16 +252,19 @@ def _safe_sleep_from_property(name: str, default: float = 0.25):
     # handling -- called before most tool responses to pace agent turns and
     # avoid bursts of near-simultaneous model/tool calls. The base duration
     # is configurable per-property (e.g. "modelSleep") in agentapp.properties.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
     pv = getProperty(name, default=default)
     try:
         base = float(pv)
     except Exception:
         base = default
+    if base <= 0:
+        return
     time.sleep(base + random.random() * 0.75)
 
 def _log_agent_activity(message: str):
     """Internal logging helper."""
-    _safe_sleep_from_property("modelSleep", default=0.25)
     logger.debug(f"--- [DIAGNOSTIC] Utils: {message} ---")
 
 def log_design_metadata(status: str = "in_progress", document_type: str = "") -> str:

@@ -45,7 +45,7 @@ Evaluate the loaded backlog against the following strict quality criteria:
    - Explicit Sequencing: Stories within a feature must specify explicit dependencies (e.g. STORY-002 depends on STORY-001)
      so that child tasks sequence cleanly rather than duplicating identical date bounds across hierarchy levels.
 
-3. EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION
+3. ACCEPTANCE CRITERIA SUBSTANCE & EXPLICIT DELIVERABLE REPRESENTATION
    - Every tangible deliverable, decision gate, or governance output specified in the engagement scope (e.g. Current State Assessment,
      Requirements Catalogue, Architecture Assessment, Market Assessment, Options Appraisal, Business Case Evidence Pack,
      Implementation Roadmap, Readiness Assessment, Final Recommendation) must be explicitly represented as a dedicated
@@ -53,7 +53,7 @@ Evaluate the loaded backlog against the following strict quality criteria:
    - Each story must define 3 to 5 clear, concrete, observable acceptance criteria verifying verifiable delivery outcomes.
    - Reject generic criteria (e.g. "Task completed", "Document written").
 
-4. SCHEDULE DURATION, CAPACITY & EFFORT ALIGNMENT
+4. RESOURCING & WSJF PRIORITIZATION & SCHEDULE DURATION ALIGNMENT
    - Reconcile story `job_size` sums and `duration_days` against the target engagement window (e.g. 12 weeks / 60 working days).
    - REJECT uncalibrated backlogs where sum of story job_sizes inflates into hundreds of days (e.g. 264 days) for a 12-week plan.
    - Individual stories should typically be 2 to 5 working days (job_size 2, 3, or 5).
