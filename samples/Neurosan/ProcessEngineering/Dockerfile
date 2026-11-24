@@ -22,7 +22,7 @@
 # this port's diagram generation is pure matplotlib/networkx layout, never
 # shells out to a `dot`/`neato` binary the way the ADK original's diagram
 # tooling could.
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # tesseract-ocr is a genuinely new exception to the "no apt-installed system
 # packages needed" reasoning above -- it's not a build toolchain for
