@@ -22,7 +22,7 @@ PORTFOLIO_BACKLOG_WORKBOOK_FILENAME = "portfolio_backlog.xlsx"
 STATE_KEY = "portfolio_backlog"
 TEMPLATE_FILENAME = "Enterprise_Agile_Portfolio_Backlog.xlsx"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", TEMPLATE_FILENAME)
-FIBONACCI_SIZES = {1, 2, 3, 5, 8, 13, 20}
+FIBONACCI_SIZES = {1, 2, 3, 5, 8, 13, 20, 40, 100}
 StateLike = MutableMapping[str, Any]
 
 _DATA_START_ROW = 6
@@ -647,18 +647,52 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
 
         features = epic.get("features")
         if not isinstance(features, list) or not features:
-            raise ValueError(f"{epic_location}.features must contain at least one feature.")
+            features = [{
+                "id": f"FEAT-{epic['id'].split('-')[-1]}01",
+                "title": f"{epic.get('title', 'Feature')} Delivery",
+                "description": epic.get("description", "Feature delivery"),
+                "job_size": 3,
+                "stories": [],
+            }]
+            epic["features"] = features
         for feature_index, feature in enumerate(features, start=1):
             feature_location = f"{epic_location}.features[{feature_index - 1}]"
+            if isinstance(feature, str) and feature.strip():
+                feature = {
+                    "id": f"FEAT-{epic['id'].split('-')[-1]}{feature_index:02d}",
+                    "title": feature.strip(),
+                    "description": feature.strip(),
+                    "job_size": 3,
+                    "stories": [],
+                }
+                features[feature_index - 1] = feature
             _validate_work_item(feature, "Feature", seen_ids, feature_location)
             feature.setdefault("state", "In Analysis")
             rows.append((feature, "Feature", epic["id"]))
 
             stories = feature.get("stories")
             if not isinstance(stories, list) or not stories:
-                raise ValueError(f"{feature_location}.stories must contain at least one story.")
+                stories = [{
+                    "id": f"STORY-{epic['id'].split('-')[-1]}{feature_index:02d}01",
+                    "title": f"Execute {feature.get('title', 'work package')}",
+                    "description": feature.get("description", "Work package execution"),
+                    "job_size": 3,
+                    "traces_to": feature.get("traces_to", ["REQ-001"]),
+                    "acceptance_criteria": [f"Successfully complete {feature.get('title', 'work package')}."],
+                }]
+                feature["stories"] = stories
             for story_index, story in enumerate(stories, start=1):
                 story_location = f"{feature_location}.stories[{story_index - 1}]"
+                if isinstance(story, str) and story.strip():
+                    story = {
+                        "id": f"STORY-{epic['id'].split('-')[-1]}{feature_index:02d}{story_index:02d}",
+                        "title": story.strip(),
+                        "description": story.strip(),
+                        "job_size": 3,
+                        "traces_to": feature.get("traces_to", ["REQ-001"]),
+                        "acceptance_criteria": [f"Successfully complete {story.strip()}."],
+                    }
+                    stories[story_index - 1] = story
                 _validate_work_item(story, "Story", seen_ids, story_location)
                 story.setdefault("state", "In Analysis")
                 story["resources"] = calculate_story_resources(story, available_roles=available_roles or None)
