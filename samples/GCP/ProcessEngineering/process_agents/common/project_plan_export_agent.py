@@ -31,11 +31,12 @@ def export_project_plan(
     resources: Optional[List[Dict[str, Any]]] = None,
     target_duration_weeks: Optional[float] = None,
     holiday_calendar: Optional[str] = None,
+    include_phase_gates: Optional[bool] = None,
 ) -> str:
     """Exports the current saved Enterprise Agile Portfolio Backlog or Proposal Response as a real Microsoft Project / ProjectLibre interchange-format (MSPDI XML) project plan file, from whatever is already saved on disk, plus a companion PERT/CPM network diagram generated from the same scheduled tasks. Never re-runs analysis, generation, or review, and never modifies the saved portfolio_backlog.json/proposal_response.json itself. schema_type ("portfolio_backlog" or "proposal_response") must be set -- determine it from the user's own request wording. start_date (ISO "YYYY-MM-DD") is optional and defaults to today. resources is an optional list of {"name": str, "allocation_percent": number} extracted from the user's own wording (rendered as MSPDI Resources/Assignments); when omitted for a portfolio backlog, resource usage is automatically derived from the backlog's activity-based allocations. target_duration_weeks is an optional target project length in weeks, if the user stated one -- a post-hoc overrun check only, never compresses the schedule to fit. holiday_calendar, if set to "uk", marks real UK bank holidays as non-working so the scheduler skips them; no other value is supported."""
     if schema_type == "portfolio_backlog":
         return build_portfolio_backlog_project_plan(
-            start_date, resources, target_duration_weeks, holiday_calendar,
+            start_date, resources, target_duration_weeks, holiday_calendar, include_phase_gates,
         )
     if schema_type == "proposal_response":
         return build_proposal_response_project_plan(

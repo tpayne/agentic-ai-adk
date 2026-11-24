@@ -400,10 +400,11 @@ def _schedule_task_tree(
         for leaf in leaf_tasks:
             preds = [p for p in leaf.predecessor_uids if p in task_by_uid]
             dur = 0 if (getattr(leaf, "is_milestone", False) or leaf.duration_days == 0) else max(leaf.duration_days, 1)
+            week_offset = ((leaf.start_week - 1) * 5) if (leaf.start_week and leaf.start_week > 1) else 0
             if preds:
-                longest_path[leaf.uid] = max(longest_path.get(p, task_by_uid[p].duration_days) for p in preds) + dur
+                longest_path[leaf.uid] = max(max(longest_path.get(p, task_by_uid[p].duration_days) for p in preds), week_offset) + dur
             else:
-                longest_path[leaf.uid] = dur
+                longest_path[leaf.uid] = week_offset + dur
         max_path_len = max(longest_path.values(), default=0)
 
         # Proportionally compress leaf task durations if total critical path overruns target
@@ -430,16 +431,7 @@ def _schedule_task_tree(
                 if not is_ms and leaf.start_week and leaf.start_week > 1:
                     cal_week_start = anchor_start + _dt.timedelta(days=(leaf.start_week - 1) * 7)
                     week_start = _first_working_day_on_or_after(cal_week_start, holidays)
-                    # If leaf has a target week start and predecessor is from an earlier planned week window,
-                    # honor planned week start so concurrent workstreams don't get artificially delayed
-                    if preds:
-                        pred_weeks = [task_by_uid[p].start_week for p in preds if p in task_by_uid and task_by_uid[p].start_week]
-                        if pred_weeks and max(pred_weeks) < leaf.start_week:
-                            earliest = week_start
-                        elif week_start > earliest:
-                            earliest = week_start
-                    else:
-                        earliest = week_start
+                    earliest = max(earliest, week_start)
 
                 if is_ms:
                     leaf.start = earliest
@@ -454,14 +446,10 @@ def _schedule_task_tree(
                     target_finish_limit = cal_finish
                     while not _is_working_day(target_finish_limit, holidays):
                         target_finish_limit -= _dt.timedelta(days=1)
-                    if leaf.start > target_finish_limit:
-                        leaf.start = target_finish_limit
-                        leaf.duration_days = 1
-                        leaf.finish = target_finish_limit
-                    elif leaf.finish > target_finish_limit:
+                    if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
                         avail = _count_working_days(leaf.start, target_finish_limit, holidays)
                         leaf.duration_days = max(avail, 1)
-                        leaf.finish = target_finish_limit
+                        leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
 
                 if leaf.predecessor_uids:
                     leaf.predecessor_uid = leaf.predecessor_uids[-1]
@@ -486,14 +474,10 @@ def _schedule_task_tree(
                 target_finish_limit = cal_finish
                 while not _is_working_day(target_finish_limit, holidays):
                     target_finish_limit -= _dt.timedelta(days=1)
-                if leaf.start > target_finish_limit:
-                    leaf.start = target_finish_limit
-                    leaf.duration_days = 1
-                    leaf.finish = target_finish_limit
-                elif leaf.finish > target_finish_limit:
+                if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
                     avail = _count_working_days(leaf.start, target_finish_limit, holidays)
                     leaf.duration_days = max(avail, 1)
-                    leaf.finish = target_finish_limit
+                    leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
             scheduled.add(leaf.uid)
 
     def _rollup(task: "_Task"):
@@ -1271,7 +1255,21 @@ def build_portfolio_backlog_project_plan(
         return "ERROR: No saved portfolio backlog found. Create one first."
 
     if include_phase_gates is None:
-        include_phase_gates = bool(backlog.get("include_phase_gates") or backlog.get("phase_gates"))
+        if backlog.get("include_phase_gates") is not None:
+            include_phase_gates = bool(backlog.get("include_phase_gates"))
+        elif backlog.get("phase_gates") is not None:
+            include_phase_gates = bool(backlog.get("phase_gates"))
+        else:
+            corpus = " ".join([
+                str(backlog.get("name") or ""),
+                str(backlog.get("summary") or ""),
+                str(backlog.get("notes") or ""),
+            ]).lower()
+            include_phase_gates = (
+                "phase gate" in corpus or "phase gates" in corpus
+                or "phase sign-off" in corpus or "phase sign off" in corpus
+                or "sign-off milestone" in corpus or "sign off milestone" in corpus
+            )
 
     if not target_duration_weeks and backlog.get("timescale_weeks"):
         try:

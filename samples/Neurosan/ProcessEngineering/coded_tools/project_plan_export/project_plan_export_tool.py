@@ -33,9 +33,10 @@ class ExportProjectPlanCodedTool(CodedTool):
         resources: Optional[List[Dict[str, Any]]] = args.get("resources")
         target_duration_weeks: Optional[float] = args.get("target_duration_weeks")
         holiday_calendar: Optional[str] = args.get("holiday_calendar")
+        include_phase_gates: Optional[bool] = args.get("include_phase_gates")
         if schema_type == "portfolio_backlog":
             return build_portfolio_backlog_project_plan(
-                start_date, resources, target_duration_weeks, holiday_calendar,
+                start_date, resources, target_duration_weeks, holiday_calendar, include_phase_gates,
             )
         if schema_type == "proposal_response":
             return build_proposal_response_project_plan(

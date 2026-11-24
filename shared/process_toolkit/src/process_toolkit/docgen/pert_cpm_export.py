@@ -54,9 +54,9 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Circle  # noqa: 
 from process_toolkit import paths
 from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
 
-_CARD_WIDTH, _CARD_HEIGHT = 2.9, 2.3
+_CARD_WIDTH, _CARD_HEIGHT = 2.9, 2.38
 _X_SPACING = 3.35
-_Y_SPACING = 3.10
+_Y_SPACING = 3.20
 
 _CRITICAL_COLOR = "#C0392B"
 _SLACK_COLOR = "#5C6B7A"
@@ -107,7 +107,7 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
         left -= extra_padding
         right += extra_padding
 
-    bottom = y_min - _CARD_HEIGHT / 2 - 0.45
+    bottom = y_min - _CARD_HEIGHT / 2 - 0.75
     top = y_max + _CARD_HEIGHT / 2 + 1.85
     plot_width, plot_height = right - left, top - bottom
 
@@ -201,13 +201,13 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
             color="#64758A", ha="left", zorder=5,
         )
         ax.add_patch(FancyBboxPatch(
-            (x - _CARD_WIDTH / 2 + 0.22, y - _CARD_HEIGHT / 2 + 0.16),
+            (x - _CARD_WIDTH / 2 + 0.22, y - _CARD_HEIGHT / 2 + 0.22),
             1.3, 0.34,
             boxstyle="round,pad=0.02,rounding_size=0.08",
             facecolor=color, edgecolor="none", zorder=4,
         ))
         ax.text(
-            x - _CARD_WIDTH / 2 + 0.22 + 0.65, y - _CARD_HEIGHT / 2 + 0.33,
+            x - _CARD_WIDTH / 2 + 0.22 + 0.65, y - _CARD_HEIGHT / 2 + 0.39,
             "CRITICAL" if activity["critical"] else "HAS SLACK",
             color="white", fontsize=7, fontweight="bold",
             ha="center", va="center", zorder=5,

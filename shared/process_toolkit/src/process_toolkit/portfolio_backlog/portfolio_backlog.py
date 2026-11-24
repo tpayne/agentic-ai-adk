@@ -614,7 +614,14 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
         epic["child_job_size_sum"] = sum(f.get("child_job_size_sum", 0) for f in epic.get("features") or [])
         epic["child_duration_days_sum"] = sum(f.get("child_duration_days_sum", 0) for f in epic.get("features") or [])
     backlog["total_job_size"] = sum(e.get("child_job_size_sum", 0) for e in epics)
-    backlog["total_duration_days"] = sum(e.get("child_duration_days_sum", 0) for e in epics)
+    total_effort_days = sum(e.get("child_duration_days_sum", 0) for e in epics)
+    backlog["total_duration_days"] = total_effort_days
+    backlog["total_effort_person_days"] = total_effort_days
+    if backlog.get("timescale_weeks"):
+        try:
+            backlog["schedule_duration_working_days"] = round(float(backlog["timescale_weeks"]) * 5)
+        except (ValueError, TypeError):
+            pass
 
     # Validate dependencies, strip unresolvable IDs, and reject cycles
     dep_graph: Dict[str, List[str]] = {}
@@ -1129,18 +1136,30 @@ def save_portfolio_backlog(
         backlog["rate_card"] = build_rate_card(backlog, work_items)
 
         # Normalize existing requirements_reference keys and ids if present
-        if "requirements_reference" in backlog and isinstance(backlog["requirements_reference"], dict):
-            norm_ref = {}
-            for k, v in backlog["requirements_reference"].items():
-                norm_k = _normalize_id_format(k)
-                if isinstance(v, dict):
-                    v_copy = dict(v)
-                    if "id" in v_copy:
-                        v_copy["id"] = _normalize_id_format(v_copy["id"])
-                    norm_ref[norm_k] = v_copy
-                else:
-                    norm_ref[norm_k] = v
-            backlog["requirements_reference"] = norm_ref
+        if "requirements_reference" in backlog:
+            if isinstance(backlog["requirements_reference"], dict):
+                norm_ref = {}
+                for k, v in backlog["requirements_reference"].items():
+                    norm_k = _normalize_id_format(k)
+                    if isinstance(v, dict):
+                        v_copy = dict(v)
+                        if "id" in v_copy:
+                            v_copy["id"] = _normalize_id_format(v_copy["id"])
+                        norm_ref[norm_k] = v_copy
+                    else:
+                        norm_ref[norm_k] = v
+                backlog["requirements_reference"] = norm_ref
+            elif isinstance(backlog["requirements_reference"], list):
+                norm_ref_list = []
+                for entry in backlog["requirements_reference"]:
+                    if isinstance(entry, dict):
+                        e_copy = dict(entry)
+                        if "id" in e_copy:
+                            e_copy["id"] = _normalize_id_format(e_copy["id"])
+                        norm_ref_list.append(e_copy)
+                    elif isinstance(entry, str):
+                        norm_ref_list.append(_normalize_id_format(entry))
+                backlog["requirements_reference"] = norm_ref_list
 
         # Embed canonical requirements lookup and validate traces_to if source is requirements_summary
         req_summary = None
@@ -1188,6 +1207,66 @@ def save_portfolio_backlog(
                         backlog["unresolved_traces"] = invalid_traces
             except Exception:
                 pass
+
+        # Reconcile unreferenced requirements to eliminate orphaned reference IDs
+        all_referenced_traces = set()
+        for item, item_type, _ in work_items:
+            for t in item.get("traces_to") or []:
+                all_referenced_traces.add(_normalize_id_format(str(t).strip()))
+
+        if "requirements_reference" in backlog:
+            ref_entries = (
+                list(backlog["requirements_reference"].values())
+                if isinstance(backlog["requirements_reference"], dict)
+                else backlog["requirements_reference"]
+                if isinstance(backlog["requirements_reference"], list)
+                else []
+            )
+            stop_words = {
+                "conduct", "assessment", "review", "analysis", "support",
+                "management", "definition", "planning", "deliverable", "objective",
+            }
+            for entry in ref_entries:
+                if isinstance(entry, dict) and entry.get("id"):
+                    ref_id = entry["id"]
+                    if ref_id not in all_referenced_traces:
+                        ref_text = str(
+                            entry.get("description")
+                            or entry.get("title")
+                            or entry.get("statement")
+                            or entry.get("name")
+                            or ""
+                        ).lower()
+                        ref_words = {w for w in re.findall(r"\b\w{4,}\b", ref_text) if w not in stop_words}
+                        if ref_words:
+                            for epic in backlog.get("epics") or []:
+                                epic_text = (
+                                    str(epic.get("title") or "")
+                                    + " "
+                                    + str(epic.get("description") or "")
+                                ).lower()
+                                epic_words = {w for w in re.findall(r"\b\w{4,}\b", epic_text) if w not in stop_words}
+                                if ref_words & epic_words:
+                                    epic.setdefault("traces_to", [])
+                                    if ref_id not in epic["traces_to"]:
+                                        epic["traces_to"].append(ref_id)
+                                    all_referenced_traces.add(ref_id)
+
+            # Prune any remaining completely untraced requirements from requirements_reference
+            if isinstance(backlog["requirements_reference"], dict):
+                backlog["requirements_reference"] = {
+                    k: v
+                    for k, v in backlog["requirements_reference"].items()
+                    if (isinstance(v, dict) and v.get("id") in all_referenced_traces)
+                    or k in all_referenced_traces
+                }
+            elif isinstance(backlog["requirements_reference"], list):
+                backlog["requirements_reference"] = [
+                    entry
+                    for entry in backlog["requirements_reference"]
+                    if (isinstance(entry, dict) and entry.get("id") in all_referenced_traces)
+                    or (isinstance(entry, str) and entry in all_referenced_traces)
+                ]
 
         # Capture holiday_calendar if in requirements summary or implied by currency / UK terms
         if not backlog.get("holiday_calendar"):
