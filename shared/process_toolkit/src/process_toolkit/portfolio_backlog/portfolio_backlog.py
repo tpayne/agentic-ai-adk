@@ -1296,7 +1296,7 @@ def save_portfolio_backlog(
     backlog: Dict[str, Any], state: Optional[StateLike] = None
 ) -> str:
     if not isinstance(backlog, dict):
-        logger.error("save_portfolio_backlog: backlog is not a dict (%s)", type(backlog))
+        logger.debug("save_portfolio_backlog: backlog is not a dict (%s)", type(backlog))
         return "ERROR: backlog must be a JSON object."
 
     logger.info(
@@ -1527,7 +1527,7 @@ def save_portfolio_backlog(
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
     except (ValueError, KeyError, TypeError) as error:
-        logger.info("save_portfolio_backlog: validation rejected (transient): %s", error)
+        logger.debug("save_portfolio_backlog: validation rejected (transient): %s", error)
         return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
     except (OSError, Exception) as error:
         logger.error("save_portfolio_backlog failed: %s", error, exc_info=True)
