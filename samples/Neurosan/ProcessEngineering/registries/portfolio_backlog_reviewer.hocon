@@ -80,16 +80,20 @@ Derive evaluation criteria dynamically from the loaded requirements summary, des
   for the project.
 - If specific roles and percentage allocations were requested by the user, verify that stories explicitly
   allocate these roles realistically and that story resourcing matches these requirements.
+- Availability Caps: Part-time roles (e.g. Solution Architect at 50%, Programme Delivery Manager at 50%)
+  must never be allocated at percentages exceeding their cap (e.g. > 50%) on individual stories.
 
 ## 4. TIMESCALE & WSJF CONSISTENCY
 - Verify that Job Size and priority components (user_business_value, time_criticality, risk_reduction)
   strictly adhere to the modified Fibonacci sequence [1, 2, 3, 5, 8, 13, 20].
 - Verify that total job size and story schedules align with the requested project timescale.
+- Parent-child reconciliation: Ensure parent Epic job sizes reflect the sum of their child stories/features.
 
 ## 5. GOAL & DELIVERABLE SATISFACTION
 - Audit the backlog against the overarching engagement GOAL:
   - Are all requested phases represented as epics?
-  - Are all deliverables required by the user's scope produced as concrete work package outputs?
+  - Are all requested deliverables from the prompt explicitly named verbatim as Features or Stories?
+  - Do requirements traces (traces_to) map to relevant domain requirement IDs (e.g. Mobilisation to setup/governance, not final recommendation)?
   - When evaluating external tools or vendors, is market evaluation genuinely objective and vendor-neutral
     across relevant options?
 

@@ -871,6 +871,24 @@ def test_save_handles_string_roles_and_string_resources(tmp_path, monkeypatch):
     assert backlog["total_capacity_person_days"] == 240.0
 
 
+def test_save_handles_string_roles_with_percentages(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = _sample_backlog()
+    backlog["timescale_weeks"] = 12
+    backlog["roles"] = [
+        "Programme Delivery Manager (50%)",
+        "Lead Business Analyst (100%)",
+        "Business Analyst (100%)",
+        "Solution Architect (50%)",
+    ]
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert backlog["team_fte"] == 3.0
+    assert backlog["total_capacity_person_days"] == 180.0
+    assert backlog["resources"][0]["allocation_percent"] == 50.0
+    assert backlog["resources"][3]["allocation_percent"] == 50.0
+
+
 def test_save_handles_plain_string_epics_features_stories(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
     backlog = {

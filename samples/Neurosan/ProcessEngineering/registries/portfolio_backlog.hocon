@@ -144,6 +144,22 @@ phase to a distinct Epic (e.g. if N phases are requested, create N distinct Epic
 consolidate requested phases into fewer epics), deriving titles and scope directly from the source or prompt. Cover all required deliverables. Maintain vendor-neutral
 evaluation when evaluating external tools.
 
+RESOURCE ROLES & FTE FIDELITY:
+- When specific roles and percentage allocations are given in the prompt (e.g. "Programme Delivery Manager (50%), Lead Business Analyst (100%), Business Analyst (100%), Solution Architect (50%)"):
+  - Record them in resources as structured objects: [{"name": "<exact role title>", "allocation_percent": <number>}, ...] (e.g. {"name": "Programme Delivery Manager", "allocation_percent": 50.0}).
+  - Also include roles with their allocations: ["Programme Delivery Manager (50%)", "Lead Business Analyst (100%)", "Business Analyst (100%)", "Solution Architect (50%)"].
+  - STRICT ROLE AVAILABILITY CAPS (MaxUnits): On individual user stories, per-task resource allocations for part-time roles MUST NOT exceed their stated availability cap! For example, a role capped at 50% availability (such as Solution Architect at 50% or PDM at 50%) MUST NOT be assigned higher than 50% on any story. If a story requires additional effort, distribute it to full-time roles (e.g. Lead BA or BA at 100%).
+
+EXPLICIT DELIVERABLE & MILESTONE REPRESENTATION:
+- When specific deliverables are requested (e.g. "Current State Assessment", "Requirements Catalogue", "Architecture Assessment", "Market Assessment", "Options Appraisal", "Business Case Evidence Pack", "Implementation Roadmap", "Readiness Assessment", "Final Recommendation"):
+  - Every requested deliverable MUST be explicitly named as a Feature or key Story in its respective phase/Epic.
+  - Sibling stories must not duplicate names; name deliverables verbatim to ensure 100% deliverable traceability.
+  - Phase Gate Milestones: Include a 0-duration milestone task at the end of each phase (e.g. "Mobilisation Complete", "Current State Assessment Sign-off") with job_size: 0 and is_milestone: true.
+
+REQUIREMENT TRACEABILITY & RECONCILED JOB SIZES:
+- Each Epic and Feature must trace to requirement IDs that match its actual domain (e.g. Mobilisation to foundational/governance requirements, NOT to final recommendation FR-011).
+- Reconcile parent Epic job_size so that it accurately reflects the sum of its child features and stories rather than having disconnected scores (e.g. Epic job size should match child_job_size_sum on the Fibonacci scale).
+
 TIMING & CONCURRENCY CALIBRATION:
 - When a target timescale is specified (e.g. 12 weeks), calibrate job_size and workstream concurrency so the
   critical path completes strictly within the target timescale (e.g. 12 weeks / 60 working days).

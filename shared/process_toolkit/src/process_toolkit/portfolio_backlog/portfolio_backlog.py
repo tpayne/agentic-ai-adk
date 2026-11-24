@@ -137,6 +137,17 @@ _ROLE_COSTING_DEFAULTS = [
 ]
 
 
+def _parse_role_string(s: str) -> tuple[str, float]:
+    """Parses role strings like 'Programme Delivery Manager (50%)' or 'Solution Architect 50%'
+    into (canonical_name, allocation_percent). Defaults to 100% allocation when percentage is omitted."""
+    match = re.search(r"^(.*?)\s*\(?\s*(\d+(?:\.\d+)?)\s*%\s*\)?$", s)
+    if match:
+        name = match.group(1).strip()
+        pct = float(match.group(2))
+        return name, pct
+    return s.strip(), 100.0
+
+
 def _normalize_id_format(identifier: str) -> str:
     """Normalizes requirement/traceability IDs to a consistent hyphenated format (e.g. FR_001A -> FR-001A)."""
     if not isinstance(identifier, str):
@@ -239,7 +250,7 @@ def build_rate_card(
         for entry in explicit:
             if not isinstance(entry, dict):
                 if isinstance(entry, str) and entry.strip():
-                    role = entry.strip()
+                    role, pct = _parse_role_string(entry.strip())
                     if role in seen_roles:
                         continue
                     seen_roles.add(role)
@@ -247,7 +258,7 @@ def build_rate_card(
                     normalized.append({
                         "person": "TBD",
                         "role": role,
-                        "effort_mix": 0.10,
+                        "effort_mix": pct / 100.0 if pct > 0 else 0.10,
                         "daily_rate": bench[0],
                         "basis": bench[1],
                     })
@@ -653,6 +664,34 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(epics, list) or not epics:
         raise ValueError("epics must be a non-empty list.")
 
+    # Normalize roles and resources up-front so FTE and capacity calculations have clean percentages
+    if "roles" in backlog and isinstance(backlog["roles"], list):
+        norm_roles = []
+        for entry in backlog["roles"]:
+            if isinstance(entry, dict):
+                norm_roles.append(entry)
+            elif isinstance(entry, str) and entry.strip():
+                name, pct = _parse_role_string(entry)
+                norm_roles.append({"name": name, "allocation_percent": pct})
+        backlog["roles"] = norm_roles
+        if "resources" not in backlog or any(isinstance(r, str) for r in backlog.get("resources", [])):
+            backlog["resources"] = [dict(r) for r in norm_roles]
+
+    if "resources" in backlog and isinstance(backlog["resources"], list):
+        norm_resources = []
+        for entry in backlog["resources"]:
+            if isinstance(entry, dict):
+                name = str(entry.get("name") or entry.get("role") or "").strip()
+                try:
+                    pct = float(entry.get("allocation_percent", 100))
+                except (ValueError, TypeError):
+                    pct = 100.0
+                norm_resources.append({"name": name, "allocation_percent": pct})
+            elif isinstance(entry, str) and entry.strip():
+                name, pct = _parse_role_string(entry)
+                norm_resources.append({"name": name, "allocation_percent": pct})
+        backlog["resources"] = norm_resources
+
     available_roles: list[str] = []
     for src in (backlog.get("rate_card"), backlog.get("roles"), backlog.get("resources")):
         if isinstance(src, list):
@@ -833,11 +872,12 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
             for r in team_res:
                 if isinstance(r, dict):
                     try:
-                        team_fte += float(r.get("allocation_percent", 0)) / 100.0
+                        team_fte += float(r.get("allocation_percent", 100)) / 100.0
                     except (ValueError, TypeError):
-                        pass
+                        team_fte += 1.0
                 elif isinstance(r, str) and r.strip():
-                    team_fte += 1.0
+                    _, pct = _parse_role_string(r)
+                    team_fte += pct / 100.0
             if team_fte <= 0 and backlog.get("rate_card"):
                 team_fte = float(len(backlog["rate_card"]))
             if team_fte > 0:
@@ -1435,20 +1475,37 @@ def save_portfolio_backlog(
                     if r_name:
                         role_alloc_sums[r_name] = role_alloc_sums.get(r_name, 0.0) + alloc
         total_alloc = sum(role_alloc_sums.values())
-        if total_alloc > 0 and "resources" not in backlog:
-            if "roles" in backlog and isinstance(backlog["roles"], list):
-                norm_resources = []
-                for entry in backlog["roles"]:
-                    if isinstance(entry, dict):
-                        norm_resources.append(entry)
-                    elif isinstance(entry, str) and entry.strip():
-                        norm_resources.append({"name": entry.strip(), "allocation_percent": 100.0})
-                backlog["resources"] = norm_resources
-            else:
-                backlog["resources"] = [
-                    {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
-                    for name, val in sorted(role_alloc_sums.items())
-                ]
+        if "roles" in backlog and isinstance(backlog["roles"], list):
+            norm_roles = []
+            for entry in backlog["roles"]:
+                if isinstance(entry, dict):
+                    norm_roles.append(entry)
+                elif isinstance(entry, str) and entry.strip():
+                    name, pct = _parse_role_string(entry)
+                    norm_roles.append({"name": name, "allocation_percent": pct})
+            backlog["roles"] = norm_roles
+            if "resources" not in backlog:
+                backlog["resources"] = [dict(r) for r in norm_roles]
+
+        if "resources" in backlog and isinstance(backlog["resources"], list):
+            norm_resources = []
+            for entry in backlog["resources"]:
+                if isinstance(entry, dict):
+                    name = str(entry.get("name") or entry.get("role") or "").strip()
+                    try:
+                        pct = float(entry.get("allocation_percent", 100))
+                    except (ValueError, TypeError):
+                        pct = 100.0
+                    norm_resources.append({"name": name, "allocation_percent": pct})
+                elif isinstance(entry, str) and entry.strip():
+                    name, pct = _parse_role_string(entry)
+                    norm_resources.append({"name": name, "allocation_percent": pct})
+            backlog["resources"] = norm_resources
+        elif total_alloc > 0 and "resources" not in backlog:
+            backlog["resources"] = [
+                {"name": name, "allocation_percent": round((val / total_alloc) * 100.0, 1)}
+                for name, val in sorted(role_alloc_sums.items())
+            ]
         backlog["rate_card"] = build_rate_card(backlog, work_items)
 
         # Normalize existing requirements_reference keys and ids if present

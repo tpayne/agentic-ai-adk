@@ -396,8 +396,8 @@ def _schedule_task_tree(
 
     # Pre-calibrate leaf task durations when target_duration_weeks is specified
     if target_duration_weeks and target_duration_weeks > 0:
-        cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
-        target_finish_limit = cal_finish
+        target_calendar_deadline = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 1)
+        target_finish_limit = target_calendar_deadline
         while not _is_working_day(target_finish_limit, holidays):
             target_finish_limit -= _dt.timedelta(days=1)
         total_target_working_days = _count_working_days(anchor_start, target_finish_limit, holidays)
@@ -457,15 +457,26 @@ def _schedule_task_tree(
                     leaf.start = _first_working_day_on_or_after(earliest, holidays)
                     leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
 
-                if not is_ms and target_duration_weeks and target_duration_weeks > 0:
-                    cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
-                    target_finish_limit = cal_finish
+                if target_duration_weeks and target_duration_weeks > 0:
+                    target_calendar_deadline = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 1)
+                    target_finish_limit = target_calendar_deadline
                     while not _is_working_day(target_finish_limit, holidays):
                         target_finish_limit -= _dt.timedelta(days=1)
-                    if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
-                        avail = _count_working_days(leaf.start, target_finish_limit, holidays)
-                        leaf.duration_days = max(avail, 1)
-                        leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
+                    if is_ms:
+                        if leaf.start > target_finish_limit:
+                            leaf.start = target_finish_limit
+                            leaf.finish = target_finish_limit
+                    else:
+                        if leaf.start > target_finish_limit:
+                            leaf.start = target_finish_limit
+                            leaf.duration_days = 1
+                            leaf.finish = target_finish_limit
+                        elif leaf.finish > target_finish_limit:
+                            avail = _count_working_days(leaf.start, target_finish_limit, holidays)
+                            leaf.duration_days = max(avail, 1)
+                            leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
+                            if leaf.finish > target_finish_limit:
+                                leaf.finish = target_finish_limit
 
                 if leaf.predecessor_uids:
                     leaf.predecessor_uid = leaf.predecessor_uids[-1]
@@ -485,15 +496,26 @@ def _schedule_task_tree(
             else:
                 leaf.start = _first_working_day_on_or_after(cur_start, holidays)
                 leaf.finish = _advance_working_days(leaf.start, max(leaf.duration_days, 1), holidays)
-            if not is_ms and target_duration_weeks and target_duration_weeks > 0:
-                cal_finish = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 3)
-                target_finish_limit = cal_finish
+            if target_duration_weeks and target_duration_weeks > 0:
+                target_calendar_deadline = anchor_start + _dt.timedelta(days=round(target_duration_weeks * 7) - 1)
+                target_finish_limit = target_calendar_deadline
                 while not _is_working_day(target_finish_limit, holidays):
                     target_finish_limit -= _dt.timedelta(days=1)
-                if leaf.start <= target_finish_limit and leaf.finish > target_finish_limit:
-                    avail = _count_working_days(leaf.start, target_finish_limit, holidays)
-                    leaf.duration_days = max(avail, 1)
-                    leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
+                if is_ms:
+                    if leaf.start > target_finish_limit:
+                        leaf.start = target_finish_limit
+                        leaf.finish = target_finish_limit
+                else:
+                    if leaf.start > target_finish_limit:
+                        leaf.start = target_finish_limit
+                        leaf.duration_days = 1
+                        leaf.finish = target_finish_limit
+                    elif leaf.finish > target_finish_limit:
+                        avail = _count_working_days(leaf.start, target_finish_limit, holidays)
+                        leaf.duration_days = max(avail, 1)
+                        leaf.finish = _advance_working_days(leaf.start, leaf.duration_days, holidays)
+                        if leaf.finish > target_finish_limit:
+                            leaf.finish = target_finish_limit
             scheduled.add(leaf.uid)
 
     def _rollup(task: "_Task"):
@@ -559,7 +581,13 @@ def _normalize_resources(resources: Optional[List[Dict[str, Any]]]) -> List[tupl
     normalized = []
     for entry in resources or []:
         if isinstance(entry, str) and entry.strip():
-            normalized.append((entry.strip(), 1.0))
+            match = re.search(r"^(.*?)\s*\(?\s*(\d+(?:\.\d+)?)\s*%\s*\)?$", entry.strip())
+            if match:
+                r_name = match.group(1).strip()
+                pct = float(match.group(2))
+                normalized.append((r_name, pct / 100.0 if pct > 0 else 1.0))
+            else:
+                normalized.append((entry.strip(), 1.0))
             continue
         if not isinstance(entry, dict):
             continue
@@ -1483,7 +1511,7 @@ def build_portfolio_backlog_project_plan(
         currency_code, currency_symbol = resolve_backlog_currency(backlog)
 
     caller_resources = _normalize_resources(resources)
-    normalized_resources = _normalize_resources(resources or backlog.get("roles") or backlog.get("resources"))
+    normalized_resources = _normalize_resources(resources or backlog.get("resources") or backlog.get("roles"))
     xml_text = _render_mspdi(
         root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name, caller_resources,
         currency_code=currency_code, currency_symbol=currency_symbol,
