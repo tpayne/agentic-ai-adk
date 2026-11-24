@@ -67,13 +67,27 @@ class ResetLoopStateCodedTool(CodedTool):
     concurrent run reclaim the lock while this one is still working."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
+        current_turn_id = sly_data.get("_current_turn_id") if isinstance(sly_data, dict) else None
+        reusable_token = None
+        if current_turn_id and isinstance(sly_data, dict):
+            if sly_data.get("_pipeline_lock_turn_id") == current_turn_id:
+                reusable_token = sly_data.get(PIPELINE_LOCK_TOKEN_KEY)
+                logger.info(
+                    "ResetLoopState: re-entrant call within turn_id=%s; reusing lock token=%s",
+                    current_turn_id, reusable_token,
+                )
+
         try:
-            token = acquire_pipeline_lock("a neuro-san pipeline")
+            token = acquire_pipeline_lock("a neuro-san pipeline", token=reusable_token)
         except PipelineLockedError as e:
             logger.warning("ResetLoopState: failed to acquire pipeline lock: %s", e)
             return {"status": "ERROR", "error": str(e)}
-        sly_data[PIPELINE_LOCK_TOKEN_KEY] = token
-        logger.info("ResetLoopState: claimed pipeline lock (token=%s) and stashed in sly_data", token)
+
+        if isinstance(sly_data, dict):
+            sly_data[PIPELINE_LOCK_TOKEN_KEY] = token
+            if current_turn_id:
+                sly_data["_pipeline_lock_turn_id"] = current_turn_id
+        logger.info("ResetLoopState: claimed pipeline lock (token=%s, turn_id=%s) and stashed in sly_data", token, current_turn_id)
         start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
         reset_approval_state()
         reset_iteration_counter()

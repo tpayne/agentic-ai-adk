@@ -41,4 +41,6 @@ class LoopControlCodedTool(_SharedLoopControlCodedTool):
         if isinstance(result, dict) and result.get("verdict") == "STOP":
             stop_pipeline_lock_heartbeat(token)
             release_pipeline_lock(token)
+            sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
+            sly_data.pop("_pipeline_lock_turn_id", None)
         return result

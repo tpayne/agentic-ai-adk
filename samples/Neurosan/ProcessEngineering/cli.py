@@ -490,6 +490,8 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     """
     token = None
     if isinstance(sly_data, dict):
+        sly_data.pop("_current_turn_id", None)
+        sly_data.pop("_pipeline_lock_turn_id", None)
         token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
     if token:
         _web_logger.warning(
@@ -791,7 +793,11 @@ class ChatSession:
     def send(self, text: str, files: Optional[List[Dict[str, Any]]] = None) -> str:
         with self._lock:
             turn_started = time.monotonic()
+            turn_id = uuid.uuid4().hex
             self.last_accessed = turn_started
+            if self.sly_data is None:
+                self.sly_data = {}
+            self.sly_data["_current_turn_id"] = turn_id
             try:
                 staged = self._ingest_attachments(files)
                 attachments_directory, attachment_filenames = staged if staged else (None, None)
@@ -888,8 +894,12 @@ class ChatSession:
         # closed/GC'd (GeneratorExit also unwinds through this `with`).
         with self._lock:
             turn_started = time.monotonic()
+            turn_id = uuid.uuid4().hex
             self.last_accessed = turn_started
-            _web_logger.info("send_streaming: turn started (text_len=%d, attachments=%d)", len(text), len(files) if files else 0)
+            _web_logger.info("send_streaming: turn started (turn_id=%s, text_len=%d, attachments=%d)", turn_id, len(text), len(files) if files else 0)
+            if self.sly_data is None:
+                self.sly_data = {}
+            self.sly_data["_current_turn_id"] = turn_id
             staged = self._ingest_attachments(files)
             attachments_directory, attachment_filenames = staged if staged else (None, None)
             effective_text = _append_attachment_directory_marker(

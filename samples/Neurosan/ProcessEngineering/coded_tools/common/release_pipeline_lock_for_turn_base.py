@@ -40,7 +40,9 @@ class ReleasePipelineLockForTurnCodedTool(CodedTool):
     though nothing is actually still running."""
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
+        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None) if isinstance(sly_data, dict) else None
+        if isinstance(sly_data, dict):
+            sly_data.pop("_pipeline_lock_turn_id", None)
         logger.info("ReleasePipelineLockForTurn: invoking with token=%s from sly_data", token)
         stop_pipeline_lock_heartbeat(token)
         release_pipeline_lock(token)
