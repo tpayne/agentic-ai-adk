@@ -275,3 +275,23 @@ def test_acquire_and_release_emits_logs(caplog):
         assert any("acquire_pipeline_lock" in record.message for record in caplog.records)
         release_pipeline_lock(token)
         assert any("release_pipeline_lock" in record.message for record in caplog.records)
+
+
+def test_refresh_pipeline_lock_extends_lease():
+    token = acquire_pipeline_lock("a pipeline")
+    assert run_lock.refresh_pipeline_lock(token) is True
+    release_pipeline_lock(token)
+    assert run_lock.refresh_pipeline_lock(token) is False
+
+
+def test_heartbeat_stops_when_lock_released():
+    token = acquire_pipeline_lock("a pipeline")
+    start_pipeline_lock_heartbeat("a pipeline", token)
+    heartbeat = run_lock._heartbeats.get(token)
+    assert heartbeat is not None
+    assert heartbeat._thread.is_alive()
+
+    release_pipeline_lock(token)
+    assert token not in run_lock._heartbeats
+    assert not heartbeat._thread.is_alive()
+

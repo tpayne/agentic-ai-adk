@@ -1057,18 +1057,19 @@ async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> 
         return
 
     from .utils_agent import PIPELINE_LOCK_TOKEN_STATE_KEY
-    from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat
+    from process_interface.run_lock import force_clear_pipeline_lock, release_pipeline_lock, stop_pipeline_lock_heartbeat
 
-    stored = session.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY)
+    stored = session.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if session and session.state else None
     token = stored.get("token") if isinstance(stored, dict) else None
-    if not token:
-        return
-    logger.warning(
-        "Turn for session %s ended with pipeline lock token %s still held -- "
-        "releasing it defensively (most likely a cancelled turn).", session_id, token,
-    )
-    stop_pipeline_lock_heartbeat(token)
-    release_pipeline_lock(token)
+    if token:
+        logger.warning(
+            "Turn for session %s ended with pipeline lock token %s still held -- "
+            "releasing it defensively (most likely a cancelled turn).", session_id, token,
+        )
+        stop_pipeline_lock_heartbeat(token)
+        release_pipeline_lock(token)
+    # Defense-in-depth: clear any active lock for this web session
+    force_clear_pipeline_lock(session_key=session_id)
 
 
 async def _run_chat_turn(existing_session_id: Optional[str], query: str, files: Optional[List[Dict[str, Any]]] = None):

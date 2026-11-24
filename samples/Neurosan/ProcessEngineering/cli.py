@@ -169,7 +169,12 @@ from neuro_san.message.types.chat_message_type_util import ChatMessageTypeUtil  
 
 from process_interface import paths  # noqa: E402
 from process_interface.ingestion.extractors import stage_attachments_to_directory  # noqa: E402
-from process_interface.run_lock import release_pipeline_lock, stop_pipeline_lock_heartbeat  # noqa: E402
+from process_interface.run_lock import (  # noqa: E402
+    force_clear_pipeline_lock,
+    peek_pipeline_lock,
+    release_pipeline_lock,
+    stop_pipeline_lock_heartbeat,
+)
 from process_interface.session_purge import purge_session, start_session_purge_thread  # noqa: E402
 from coded_tools.common.artifact_downloads import (  # noqa: E402
     cloudarch_exists,
@@ -483,17 +488,22 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     cheap and a no-op on the overwhelming majority of calls, where the
     pipeline's own finalize step already released everything normally.
     """
-    if not sly_data:
-        return
-    token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
-    if not token:
-        return
-    _web_logger.warning(
-        "Turn ended with pipeline lock token %s still held -- releasing it "
-        "defensively (most likely a cancelled turn).", token,
-    )
-    stop_pipeline_lock_heartbeat(token)
-    release_pipeline_lock(token)
+    token = None
+    if isinstance(sly_data, dict):
+        token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
+    if token:
+        _web_logger.warning(
+            "Turn ended with pipeline lock token %s still held in sly_data -- releasing it defensively.", token,
+        )
+        stop_pipeline_lock_heartbeat(token)
+        release_pipeline_lock(token)
+    # Defense-in-depth: unconditionally clear any leftover lock for this session
+    held = peek_pipeline_lock()
+    if held is not None:
+        _web_logger.warning(
+            "Turn ended with pipeline lock still held in memory for session (%s) -- force clearing defensively.", held,
+        )
+        force_clear_pipeline_lock()
 
 
 def _dedupe_doubled_answer(text: Optional[str]) -> Optional[str]:

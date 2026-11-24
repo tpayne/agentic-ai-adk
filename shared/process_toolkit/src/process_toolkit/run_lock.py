@@ -220,6 +220,23 @@ _heartbeats: Dict[str, "_LockHeartbeat"] = {}
 _heartbeats_lock = threading.Lock()
 
 
+def refresh_pipeline_lock(token: str) -> bool:
+    """Extends the lease on an actively held lock matching `token`.
+    Returns True if refreshed, or False if the lock is no longer held
+    (instructing the heartbeat thread to exit). Never creates a new lock."""
+    if not token:
+        return False
+    with _mem_lock:
+        now = time.time()
+        refreshed = False
+        for key, entry in _session_locks.items():
+            if entry.get("token") == token:
+                entry["started_at"] = now
+                logger.debug("refresh_pipeline_lock: refreshed lease for token=%s in session %s", token, key)
+                refreshed = True
+        return refreshed
+
+
 class _LockHeartbeat:
     """Background daemon thread keeping a lock token fresh."""
 
@@ -236,22 +253,19 @@ class _LockHeartbeat:
 
     def _run(self) -> None:
         while not self._stop_event.wait(_HEARTBEAT_INTERVAL_SECONDS):
-            try:
-                acquire_pipeline_lock(self._label, token=self._token, stale_after_seconds=self._stale_after_seconds)
-                logger.debug("Heartbeat tick refreshed lock for token=%s (label=%r)", self._token, self._label)
-            except PipelineLockedError:
-                logger.warning(
-                    "Pipeline lock heartbeat for token %s could not refresh (lock held by another run) -- stopping thread.",
+            if self._stop_event.is_set():
+                break
+            refreshed = refresh_pipeline_lock(self._token)
+            if not refreshed:
+                logger.debug(
+                    "Pipeline lock heartbeat for token %s: lock is no longer held -- stopping heartbeat thread.",
                     self._token,
                 )
-                return
-            except Exception as e:
-                logger.warning("Pipeline lock heartbeat error for token %s: %s", self._token, e)
-                return
+                break
 
     def stop(self) -> None:
         self._stop_event.set()
-        self._thread.join(timeout=_HEARTBEAT_INTERVAL_SECONDS)
+        self._thread.join(timeout=2.0)
 
 
 def start_pipeline_lock_heartbeat(
@@ -294,9 +308,9 @@ def peek_pipeline_lock(session_key: Optional[str] = None) -> Optional[dict]:
         if existing is not None:
             logger.debug("peek_pipeline_lock: lock held in memory for session_key=%s: %s", key, existing)
             return dict(existing)
-        if not paths.current_session_id() and _session_locks:
+        if not paths.current_session_id() and len(_session_locks) == 1:
             res = dict(next(iter(_session_locks.values())))
-            logger.debug("peek_pipeline_lock: fallback active lock found for session_key=%s: %s", key, res)
+            logger.debug("peek_pipeline_lock: fallback single active lock found: %s", res)
             return res
         disk_lock = _read_disk_lock()
         if disk_lock is not None:
@@ -321,9 +335,9 @@ def force_clear_pipeline_lock(session_key: Optional[str] = None) -> Optional[dic
             pass
     with _mem_lock:
         existing = _session_locks.pop(key, None)
-        if existing is None and not paths.current_session_id() and _session_locks:
+        if existing is None and not paths.current_session_id() and len(_session_locks) == 1:
             popped_k, existing = _session_locks.popitem()
-            logger.info("force_clear_pipeline_lock: no lock for key %s, popped active session %s", key, popped_k)
+            logger.info("force_clear_pipeline_lock: no lock for key %s, popped single active session %s", key, popped_k)
         target = existing or disk_existing
         if target is not None:
             tok = target.get("token")
