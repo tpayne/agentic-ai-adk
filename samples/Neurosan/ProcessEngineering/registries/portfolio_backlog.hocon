@@ -136,7 +136,7 @@ save_portfolio_backlog; this writes the updated JSON and regenerates the workboo
 only when the save tool returns SUCCESS, including its exact paths.
 
 # BACKLOG STRUCTURE & WBS INTEGRITY
-Save one JSON object with name, summary, source_artifact, source_name, rate_card, and a non-empty epics array.
+Save one JSON object with name, summary, source_artifact ("requirements_summary" if grounded in requirements, "design" if grounded in design, or "inquiry" if authoring directly from the user inquiry), source_name, rate_card, and a non-empty epics array.
 When specified, include timescale_weeks, roles, holiday_calendar (e.g. "uk" when UK bank holidays are requested), and requirements_reference.
 When specific roles, rates, or allocations are given in the prompt or source, use those exact roles in roles,
 rate_card, and across the stories. When specific phases, lifecycle stages, or deliverables are requested, map every requested

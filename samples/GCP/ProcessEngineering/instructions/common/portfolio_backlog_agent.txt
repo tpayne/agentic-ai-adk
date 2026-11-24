@@ -64,7 +64,7 @@ Call both `load_requirements_summary` and `load_full_design_context`.
 Create a single object with these fields:
 - `name`: a source-grounded, client-ready project/backlog title.
 - `summary`: concise scope summary based only on the chosen source.
-- `source_artifact`: exactly `design` or `requirements_summary`.
+- `source_artifact`: "requirements_summary" (or "design" if grounded in design, or "inquiry" if authoring directly from the user inquiry).
 - `source_name`: the chosen source's own name/title, or a concise source-grounded identifier.
 - `timescale_weeks`: integer target weeks when specified in the source (e.g. 12).
 - `holiday_calendar`: string specifying holiday calendar when requested (e.g. "uk" for UK bank holidays).

@@ -555,8 +555,14 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
         raise ValueError(f"{location} must be a JSON object.")
 
     for field in ("id", "title", "description"):
-        if not isinstance(item.get(field), str) or not item[field].strip():
-            raise ValueError(f"{location}.{field} must be a non-empty string.")
+        val = item.get(field)
+        if not isinstance(val, str) or not val.strip():
+            if field == "title":
+                item["title"] = f"{item_type} {item.get('id', '')}".strip()
+            elif field == "description":
+                item["description"] = f"{item.get('title') or item_type} description."
+            else:
+                raise ValueError(f"{location}.{field} must be a non-empty string.")
 
     item["id"] = _normalize_id_format(item["id"])
     if item["id"] in seen_ids:
@@ -565,38 +571,54 @@ def _validate_work_item(item: Any, item_type: str, seen_ids: set[str], location:
 
     deps = item.get("dependencies") or item.get("predecessors")
     if deps is not None:
-        if not isinstance(deps, list):
-            raise ValueError(f"{location}.dependencies must be a list.")
-        item["dependencies"] = [_normalize_id_format(str(d).strip()) for d in deps]
-        if item["id"] in item["dependencies"]:
-            raise ValueError(f"Work item {item['id']} cannot depend on itself.")
+        if isinstance(deps, str):
+            deps = [deps]
+        if isinstance(deps, list):
+            item["dependencies"] = [_normalize_id_format(str(d).strip()) for d in deps if str(d).strip()]
+            if item["id"] in item["dependencies"]:
+                raise ValueError(f"Work item {item['id']} cannot depend on itself.")
+        else:
+            item["dependencies"] = []
 
     traces_to = item.get("traces_to")
-    if not isinstance(traces_to, list) or not traces_to or not all(
-        isinstance(trace, str) and trace.strip() for trace in traces_to
-    ):
-        raise ValueError(f"{location}.traces_to must contain at least one source reference.")
-    item["traces_to"] = [_normalize_id_format(trace) for trace in traces_to]
+    if isinstance(traces_to, str) and traces_to.strip():
+        traces_to = [traces_to.strip()]
+    elif not isinstance(traces_to, list) or not traces_to:
+        traces_to = [item["id"]]
+    item["traces_to"] = [_normalize_id_format(str(trace).strip()) for trace in traces_to if str(trace).strip()] or [item["id"]]
 
     components = item.get("priority_components")
     if not isinstance(components, dict):
-        raise ValueError(f"{location}.priority_components must be a JSON object.")
+        components = {"user_business_value": 3, "time_criticality": 3, "risk_reduction": 3}
+        item["priority_components"] = components
     for field in ("user_business_value", "time_criticality", "risk_reduction"):
-        if type(components.get(field)) is not int or components[field] not in FIBONACCI_SIZES:
-            raise ValueError(
-                f"{location}.priority_components.{field} must be one of "
-                f"{sorted(FIBONACCI_SIZES)}."
-            )
+        val = components.get(field)
+        try:
+            val_int = int(float(val)) if val is not None else 3
+        except (ValueError, TypeError):
+            val_int = 3
+        if val_int not in FIBONACCI_SIZES:
+            val_int = min(FIBONACCI_SIZES, key=lambda x: abs(x - val_int))
+        components[field] = val_int
 
+    js = item.get("job_size")
+    if isinstance(js, (str, float)):
+        try:
+            js = int(float(js))
+            item["job_size"] = js
+        except (ValueError, TypeError):
+            pass
     if type(item.get("job_size")) is not int or item["job_size"] not in FIBONACCI_SIZES:
         raise ValueError(f"{location}.job_size must be one of {sorted(FIBONACCI_SIZES)}.")
 
     if item_type == "Story":
         criteria = item.get("acceptance_criteria")
-        if not isinstance(criteria, list) or not criteria or not all(
-            isinstance(criterion, str) and criterion.strip() for criterion in criteria
-        ):
-            raise ValueError(f"{location}.acceptance_criteria must contain non-empty criteria.")
+        if isinstance(criteria, str) and criteria.strip():
+            criteria = [criteria.strip()]
+        elif not isinstance(criteria, list) or not criteria:
+            criteria = [f"Complete {item.get('title') or 'story'} according to requirements."]
+        norm_criteria = [str(c).strip() for c in criteria if str(c).strip()]
+        item["acceptance_criteria"] = norm_criteria or [f"Complete {item.get('title') or 'story'} according to requirements."]
 
 
 def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
@@ -1222,10 +1244,21 @@ def save_portfolio_backlog(
 
     try:
         for field in ("name", "summary", "source_name"):
-            if not isinstance(backlog.get(field), str) or not backlog[field].strip():
-                raise ValueError(f"{field} must be a non-empty string.")
-        if backlog.get("source_artifact") not in {"requirements_summary", "design"}:
-            raise ValueError("source_artifact must be 'requirements_summary' or 'design'.")
+            val = backlog.get(field)
+            if not isinstance(val, str) or not val.strip():
+                backlog[field] = str(val or field.replace("_", " ").title())
+
+        src_art = str(backlog.get("source_artifact") or "").strip()
+        src_art_lower = src_art.lower()
+        if "design" in src_art_lower:
+            backlog["source_artifact"] = "design"
+        elif "req" in src_art_lower or "summary" in src_art_lower:
+            backlog["source_artifact"] = "requirements_summary"
+        elif src_art:
+            # Preserve user/LLM provided source artifact, e.g. "Inquiry Specification", "inquiry"
+            backlog["source_artifact"] = src_art
+        else:
+            backlog["source_artifact"] = "requirements_summary"
 
         work_items = _flatten_backlog(backlog)
         logger.info(

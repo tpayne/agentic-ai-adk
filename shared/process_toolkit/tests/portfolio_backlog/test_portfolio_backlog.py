@@ -825,5 +825,40 @@ def test_currency_and_capacity_reconciliation(tmp_path, monkeypatch):
     assert backlog_sheet["Q5"].value == "Cost Estimate (GBP)"
 
 
+def test_save_accepts_inquiry_specification_source_artifact(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = _sample_backlog()
+    backlog["source_artifact"] = "Inquiry Specification"
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert backlog["source_artifact"] == "Inquiry Specification"
+
+
+def test_save_coerces_non_fibonacci_priority_components(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = _sample_backlog()
+    # 4 is not in Fibonacci; should clamp to 3 or 5
+    backlog["epics"][0]["priority_components"]["user_business_value"] = 4
+    # float and string values should be coerced cleanly
+    backlog["epics"][0]["priority_components"]["time_criticality"] = "5"
+    backlog["epics"][0]["priority_components"]["risk_reduction"] = 8.0
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert backlog["epics"][0]["priority_components"]["user_business_value"] in (3, 5)
+    assert backlog["epics"][0]["priority_components"]["time_criticality"] == 5
+    assert backlog["epics"][0]["priority_components"]["risk_reduction"] == 8
+
+
+def test_save_handles_missing_priority_components(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = _sample_backlog()
+    del backlog["epics"][0]["priority_components"]
+    res = save_portfolio_backlog(backlog)
+    assert res.startswith("SUCCESS:")
+    assert "priority_components" in backlog["epics"][0]
+    assert backlog["epics"][0]["priority_components"]["user_business_value"] == 3
+
+
+
 
 
