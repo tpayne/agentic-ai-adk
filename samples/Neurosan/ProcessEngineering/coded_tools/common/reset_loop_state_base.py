@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any, Dict, Union
 
 from neuro_san.interfaces.coded_tool import CodedTool
@@ -7,6 +8,8 @@ from process_interface.feedback.iteration_feedback import reset_approval_state, 
 from process_interface.run_lock import acquire_pipeline_lock, start_pipeline_lock_heartbeat, PipelineLockedError
 from coded_tools.common.loop_control import reset_iteration_counter
 from coded_tools.common.pipeline_lock import PIPELINE_LOCK_TOKEN_KEY
+
+logger = logging.getLogger("ProcessArchitect.ResetLoopState")
 
 
 class ResetLoopStateCodedTool(CodedTool):
@@ -67,8 +70,10 @@ class ResetLoopStateCodedTool(CodedTool):
         try:
             token = acquire_pipeline_lock("a neuro-san pipeline")
         except PipelineLockedError as e:
+            logger.warning("ResetLoopState: failed to acquire pipeline lock: %s", e)
             return {"status": "ERROR", "error": str(e)}
         sly_data[PIPELINE_LOCK_TOKEN_KEY] = token
+        logger.info("ResetLoopState: claimed pipeline lock (token=%s) and stashed in sly_data", token)
         start_pipeline_lock_heartbeat("a neuro-san pipeline", token)
         reset_approval_state()
         reset_iteration_counter()

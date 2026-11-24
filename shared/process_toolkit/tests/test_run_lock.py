@@ -23,19 +23,23 @@ from process_toolkit.run_lock import (
 
 @pytest.fixture(autouse=True)
 def _stop_leftover_heartbeats():
-    # A test that starts a heartbeat but asserts/raises before stopping it
-    # would otherwise leave a daemon thread running (harmless to process
-    # exit, but it would keep re-acquiring a lock tests after it no
-    # longer exist for) -- clean up anything left in the registry after
-    # every test regardless of how it ended.
+    # Clean up anything left in the registry after every test regardless of how it ended.
     yield
     for token in list(run_lock._heartbeats):
         stop_pipeline_lock_heartbeat(token)
+    run_lock._session_locks.clear()
 
 
 def _write_lock(started_at: float, label: str = "an earlier run", token: str = "someone-elses-token") -> None:
-    with open(paths.output_path("pipeline.lock"), "w", encoding="utf-8") as f:
-        json.dump({"label": label, "started_at": started_at, "pid": 1, "token": token}, f)
+    key = run_lock.current_session_key()
+    with run_lock._mem_lock:
+        run_lock._session_locks[key] = {
+            "label": label,
+            "started_at": started_at,
+            "pid": 1,
+            "token": token,
+            "session_key": key,
+        }
 
 
 def test_first_acquire_succeeds_with_no_existing_lock():
@@ -44,20 +48,12 @@ def test_first_acquire_succeeds_with_no_existing_lock():
 
 
 def test_reacquiring_with_the_same_token_always_succeeds_regardless_of_elapsed_time():
-    # Mirrors the real case this is for: a single pipeline run's own
-    # startup sequence calls the acquire step more than once (e.g. two
-    # separate early-stage tool calls in the same turn), potentially with
-    # a real gap between them -- ownership, not timing, is what matters.
     token = acquire_pipeline_lock("my pipeline")
     time.sleep(0.05)
     assert acquire_pipeline_lock("my pipeline", token=token) == token
 
 
 def test_a_different_token_is_rejected_even_moments_later():
-    # Regression test: the previous time-based design let ANY second
-    # acquire within a short grace window through, same-run or not. A
-    # genuinely different run (different/no token) must be rejected
-    # immediately -- not after some elapsed-time threshold.
     acquire_pipeline_lock("my pipeline")
     with pytest.raises(PipelineLockedError):
         acquire_pipeline_lock("a different pipeline")
@@ -93,25 +89,14 @@ def test_release_with_none_is_a_safe_no_op():
     acquire_pipeline_lock("my pipeline")
 
 
-def test_a_corrupt_lock_file_is_recovered_not_permanently_stuck():
-    # Regression test: a crash mid-write (before this module wrote via
-    # os.replace, or any other way a non-JSON/garbage file ends up at
-    # this path) must not permanently block every future acquire --
-    # there's no "started_at" to ever judge as stale, so it has to be
-    # recognized as having no legitimate owner at all.
-    with open(paths.output_path("pipeline.lock"), "w", encoding="utf-8") as f:
-        f.write("{not valid json")
-
+def test_a_corrupt_lock_is_recovered_not_permanently_stuck():
+    key = run_lock.current_session_key()
+    with run_lock._mem_lock:
+        run_lock._session_locks[key] = {"label": "corrupt", "started_at": "not-a-number", "token": "corrupt"}
     acquire_pipeline_lock("a new pipeline")  # must not raise
 
 
 def test_concurrent_stale_reclaim_attempts_let_exactly_one_caller_win():
-    # Regression test: the previous design read a stale lock, then
-    # unconditionally os.remove'd whatever was at that path -- if another
-    # caller had already reclaimed it in the gap, the first caller's
-    # remove would delete the NEW legitimate owner's lock too, and both
-    # would believe they held it exclusively. Many callers racing to
-    # reclaim the SAME stale lock must still produce exactly one winner.
     _write_lock(started_at=time.time() - (DEFAULT_STALE_AFTER_SECONDS + 1))
 
     results = []
@@ -131,40 +116,18 @@ def test_concurrent_stale_reclaim_attempts_let_exactly_one_caller_win():
     assert len(successes) == 1, f"expected exactly one winner reclaiming the stale lock, got {successes}"
 
 
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-def test_mutex_held_by_a_crashed_process_does_not_block_a_later_acquire():
-    # Directly proves the crash-safety property the flock-based mutex
-    # exists for: a process that dies mid-critical-section (simulated
-    # here via os.fork + os._exit, which skips every Python-level
-    # cleanup including the mutex's own "finally: flock(LOCK_UN)") must
-    # not leave the mutex held -- the kernel releases it the instant the
-    # holding process's file descriptors close, for any reason. A
-    # sentinel-file-existence mutex (the design this replaced) would
-    # instead leave a permanently-locked file here, recoverable only by
-    # waiting out an arbitrary staleness window.
-    mutex_path = _lock_path() + _MUTEX_SUFFIX
-
+def test_child_process_does_not_affect_parent_in_memory_lock():
     pid = os.fork()
     if pid == 0:
-        # Child: acquire the mutex and die without releasing it or
-        # running any other cleanup.
-        fd = os.open(mutex_path, os.O_CREAT | os.O_RDWR)
-        fcntl.flock(fd, fcntl.LOCK_EX)
         os._exit(0)
-
-    os.waitpid(pid, 0)  # child has now fully exited
+    os.waitpid(pid, 0)
 
     start = time.time()
     acquire_pipeline_lock("a pipeline in the parent")  # must not raise or hang
-    assert time.time() - start < 1.0, "acquire waited as if the mutex were still held"
+    assert time.time() - start < 1.0
 
 
 def test_concurrent_acquire_attempts_let_exactly_one_caller_win():
-    # Directly exercises the race the time-based design couldn't rule
-    # out: many callers hitting acquire_pipeline_lock at effectively the
-    # same instant, with no existing lock, must still result in exactly
-    # one winner -- not "whoever happened to write last" and not several
-    # simultaneous "successes".
     results = []
 
     def _attempt(i):
@@ -184,13 +147,6 @@ def test_concurrent_acquire_attempts_let_exactly_one_caller_win():
 
 
 def test_heartbeat_keeps_a_lock_from_going_stale(monkeypatch):
-    # The whole reason this exists: between a pipeline's one-time reset
-    # step (acquire) and its own finalize step (release), there is no
-    # guarantee any tool call happens often enough on its own to refresh
-    # started_at -- a long single generate/review phase, or a pause
-    # awaiting the next piece of user input, could otherwise outlast
-    # DEFAULT_STALE_AFTER_SECONDS. A fast interval here stands in for
-    # that real, much longer gap.
     monkeypatch.setattr(run_lock, "_HEARTBEAT_INTERVAL_SECONDS", 0.05)
     token = acquire_pipeline_lock("a long-running pipeline")
     before = run_lock._read_lock(_lock_path())["started_at"]
@@ -237,14 +193,6 @@ def test_start_heartbeat_is_a_safe_noop_for_a_falsy_token():
     assert None not in run_lock._heartbeats
 
 
-# ---------------------------------------------------------------
-# peek_pipeline_lock / force_clear_pipeline_lock -- the escape hatch for
-# a lock that's stuck for a reason the staleness fallback above hasn't
-# caught yet (e.g. a still-running process whose own heartbeat keeps
-# re-acquiring it forever because its release call never ran -- see
-# process_agents.common.utils_agent.release_pipeline_lock_after_run's
-# own docstring for a confirmed real case of exactly this).
-# ---------------------------------------------------------------
 def test_peek_returns_none_when_nothing_is_held():
     assert peek_pipeline_lock() is None
 
@@ -282,11 +230,48 @@ def test_force_clear_also_stops_the_lock_heartbeat():
 
 
 def test_force_clear_does_not_check_which_token_holds_it():
-    # Unlike release_pipeline_lock (ownership-gated), force_clear removes
-    # whatever is currently held regardless of token -- that's the whole
-    # point of this being the operator/explicit-user-request escape
-    # hatch, not a second release_pipeline_lock-style primitive.
     acquire_pipeline_lock("someone else's pipeline")
     cleared = force_clear_pipeline_lock()
     assert cleared["label"] == "someone else's pipeline"
     assert peek_pipeline_lock() is None
+
+
+def test_different_web_sessions_do_not_block_each_other():
+    with paths.use_session("session_1"):
+        tok1 = acquire_pipeline_lock("pipeline in s1")
+        assert tok1
+
+    with paths.use_session("session_2"):
+        tok2 = acquire_pipeline_lock("pipeline in s2")
+        assert tok2
+
+
+def test_same_web_session_rejects_concurrent_different_pipeline():
+    with paths.use_session("session_1"):
+        acquire_pipeline_lock("pipeline 1 in s1")
+        with pytest.raises(PipelineLockedError):
+            acquire_pipeline_lock("pipeline 2 in s1")
+
+
+def test_cli_session_key_format(monkeypatch):
+    monkeypatch.setattr(paths, "OUTPUT_DIR", "output")
+    key = run_lock.current_session_key()
+    assert key.startswith("cli_")
+
+
+def test_release_pipeline_lock_stops_heartbeat():
+    token = acquire_pipeline_lock("a pipeline")
+    start_pipeline_lock_heartbeat("a pipeline", token)
+    assert token in run_lock._heartbeats
+
+    release_pipeline_lock(token)
+    assert token not in run_lock._heartbeats
+
+
+def test_acquire_and_release_emits_logs(caplog):
+    import logging
+    with caplog.at_level(logging.INFO, logger="ProcessArchitect.RunLock"):
+        token = acquire_pipeline_lock("test-logger-pipeline")
+        assert any("acquire_pipeline_lock" in record.message for record in caplog.records)
+        release_pipeline_lock(token)
+        assert any("release_pipeline_lock" in record.message for record in caplog.records)

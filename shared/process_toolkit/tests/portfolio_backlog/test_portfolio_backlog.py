@@ -737,5 +737,93 @@ def test_custom_scenario_with_prompt_roles_and_rates(tmp_path, monkeypatch):
     assert backlog["rate_card"][0]["daily_rate"] == 1600.0
 
 
+def test_currency_and_capacity_reconciliation(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "OUTPUT_DIR", str(tmp_path))
+    backlog = {
+        "name": "ITSM Discovery Engagement",
+        "summary": "12-week ITSM discovery and options assessment.",
+        "source_name": "ITSM Discovery Assessment",
+        "source_artifact": "requirements_summary",
+        "timescale_weeks": 12,
+        "holiday_calendar": "uk",
+        "resources": [
+            {"name": "Programme Delivery Manager", "allocation_percent": 50},
+            {"name": "Lead Business Analyst", "allocation_percent": 100},
+            {"name": "Business Analyst", "allocation_percent": 100},
+            {"name": "Solution Architect", "allocation_percent": 50},
+        ],
+        "epics": [
+            {
+                "id": "EPIC-001",
+                "title": "Mobilisation & Current State",
+                "description": "Assess current ITSM capabilities and processes.",
+                "priority_components": {"user_business_value": 13, "time_criticality": 8, "risk_reduction": 5},
+                "job_size": 13,
+                "traces_to": ["REQ-001"],
+                "features": [
+                    {
+                        "id": "FEAT-001",
+                        "title": "Current State Assessment",
+                        "description": "Baseline tooling and process maturity.",
+                        "priority_components": {"user_business_value": 8, "time_criticality": 5, "risk_reduction": 3},
+                        "job_size": 8,
+                        "traces_to": ["REQ-001"],
+                        "stories": [
+                            {
+                                "id": "STORY-001",
+                                "title": "Audit Tooling & Integrations",
+                                "description": "Review ITSM tool ecosystem.",
+                                "priority_components": {"user_business_value": 5, "time_criticality": 3, "risk_reduction": 2},
+                                "job_size": 5,
+                                "duration_days": 4,
+                                "traces_to": ["REQ-001"],
+                                "acceptance_criteria": ["Inventory complete"],
+                                "resources": [
+                                    {"name": "Lead Business Analyst", "allocation_percent": 100},
+                                    {"name": "Solution Architect", "allocation_percent": 50},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    msg = save_portfolio_backlog(backlog)
+    assert "SUCCESS" in msg
+    assert backlog["currency"] == "GBP"
+    assert backlog["currency_symbol"] == "£"
+
+    story = backlog["epics"][0]["features"][0]["stories"][0]
+    # 4 days duration * (1.0 + 0.5 FTE) = 6.0 person-days effort
+    assert story["effort_person_days"] == 6.0
+    assert story["effort_hours"] == 48.0
+
+    # Backlog capacity metrics
+    assert backlog["total_duration_days"] == 4
+    assert backlog["total_effort_person_days"] == 6.0
+    assert backlog["schedule_duration_working_days"] == 60  # 12 weeks * 5 days
+    assert backlog["team_fte"] == 3.0  # 0.5 + 1.0 + 1.0 + 0.5
+    assert backlog["total_capacity_person_days"] == 180.0  # 60 * 3.0
+    assert backlog["capacity_utilization_percent"] == 3.3  # round(6.0 / 180.0 * 100, 1)
+    assert "governance, cadence meetings, review cycles" in backlog["capacity_notes"]
+
+    # Verify Excel workbook currency and headers
+    wb_path = os.path.join(str(tmp_path), PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)
+    wb = load_workbook(wb_path, data_only=False)
+
+    assumptions = wb["Assumptions"]
+    assert assumptions["B4"].value == "GBP"
+    assert "GBP" in assumptions["C4"].value
+
+    role_rates = wb["Role Rates"]
+    assert role_rates["D4"].value == "Daily Rate (GBP)"
+    assert role_rates["E4"].value == "Weighted Rate Contribution (GBP/day)"
+
+    backlog_sheet = wb["Enterprise Agile Backlog"]
+    assert backlog_sheet["Q5"].value == "Cost Estimate (GBP)"
+
+
 
 

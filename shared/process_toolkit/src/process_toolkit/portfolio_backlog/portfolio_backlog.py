@@ -168,6 +168,56 @@ def _clean_effort_mix(entries: list[dict[str, Any]]) -> None:
         e["effort_mix"] = rounded[i]
 
 
+def resolve_backlog_currency(backlog: Dict[str, Any]) -> tuple[str, str]:
+    """Resolves canonical currency code and symbol: ('GBP', '£'), ('USD', '$'), or ('EUR', '€').
+    Prioritizes explicit backlog currency, rate card currency/symbols, UK calendar/terms, then corpus.
+    """
+    explicit = backlog.get("currency") or backlog.get("currency_code")
+    if explicit:
+        clean = str(explicit).strip().upper()
+        if clean in ("GBP", "£"):
+            return ("GBP", "£")
+        if clean in ("EUR", "€"):
+            return ("EUR", "€")
+        if clean in ("USD", "$"):
+            return ("USD", "$")
+
+    # Check rate card entries
+    for entry in backlog.get("rate_card") or []:
+        if isinstance(entry, dict):
+            basis = str(entry.get("basis") or "")
+            daily = str(entry.get("daily_rate") or entry.get("rate") or "")
+            cur = str(entry.get("currency") or "")
+            combined = f"{basis} {daily} {cur}".lower()
+            if "£" in combined or "gbp" in combined:
+                return ("GBP", "£")
+            if "€" in combined or "eur" in combined:
+                return ("EUR", "€")
+            if "$" in combined or "usd" in combined:
+                return ("USD", "$")
+
+    # Check holiday calendar or UK terms
+    if str(backlog.get("holiday_calendar") or "").lower() == "uk":
+        return ("GBP", "£")
+
+    corpus = " ".join([
+        str(backlog.get("name") or ""),
+        str(backlog.get("summary") or ""),
+        str(backlog.get("source_name") or ""),
+        str(backlog.get("description") or ""),
+    ]).lower()
+
+    if "£" in corpus or "gbp" in corpus or "bank holiday" in corpus or "uk " in corpus or "united kingdom" in corpus:
+        return ("GBP", "£")
+    if "€" in corpus or "eur" in corpus:
+        return ("EUR", "€")
+    if "$" in corpus or "usd" in corpus:
+        return ("USD", "$")
+
+    # Default to GBP if holiday calendar is UK else USD
+    return ("USD", "$")
+
+
 def build_rate_card(
     backlog: Dict[str, Any],
     work_items: Optional[list[tuple[dict[str, Any], str, str]]] = None,
@@ -302,13 +352,6 @@ def calculate_story_resources(
             if pct > 0:
                 normalized.append({"name": name, "allocation_percent": pct})
         if normalized:
-            tot = sum(r["allocation_percent"] for r in normalized)
-            if tot > 0 and tot != 100.0:
-                for r in normalized:
-                    r["allocation_percent"] = round((r["allocation_percent"] / tot) * 100.0, 1)
-                diff = round(100.0 - sum(r["allocation_percent"] for r in normalized), 1)
-                if diff != 0:
-                    normalized[0]["allocation_percent"] = round(normalized[0]["allocation_percent"] + diff, 1)
             return normalized
 
     text_parts = [
@@ -596,7 +639,7 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 story["resources"] = calculate_story_resources(story, available_roles=available_roles or None)
                 rows.append((story, "Story", feature["id"]))
 
-    # Reconcile job_size vs duration_days rollups
+    # Reconcile job_size, duration_days, and effort_person_days rollups
     for epic in epics:
         for feature in epic.get("features") or []:
             for story in feature.get("stories") or []:
@@ -609,17 +652,51 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                         story["duration_days"] = max(1, story_points)
                 else:
                     story["duration_days"] = max(1, story_points)
+
+                # Compute story person-day labor effort: duration_days * sum(allocation FTE)
+                story_resources = story.get("resources") or []
+                story_fte = sum(float(r.get("allocation_percent", 0)) / 100.0 for r in story_resources)
+                if story_fte <= 0:
+                    story_fte = 1.0
+                story["effort_person_days"] = round(story["duration_days"] * story_fte, 2)
+                story["effort_hours"] = round(story["effort_person_days"] * 8, 1)
+
             feature["child_job_size_sum"] = sum(int(s["job_size"]) for s in feature.get("stories") or [])
             feature["child_duration_days_sum"] = sum(int(s["duration_days"]) for s in feature.get("stories") or [])
+            feature["child_effort_person_days_sum"] = round(
+                sum(float(s.get("effort_person_days", s["duration_days"])) for s in feature.get("stories") or []), 2
+            )
         epic["child_job_size_sum"] = sum(f.get("child_job_size_sum", 0) for f in epic.get("features") or [])
         epic["child_duration_days_sum"] = sum(f.get("child_duration_days_sum", 0) for f in epic.get("features") or [])
+        epic["child_effort_person_days_sum"] = round(
+            sum(f.get("child_effort_person_days_sum", 0.0) for f in epic.get("features") or []), 2
+        )
     backlog["total_job_size"] = sum(e.get("child_job_size_sum", 0) for e in epics)
-    total_effort_days = sum(e.get("child_duration_days_sum", 0) for e in epics)
-    backlog["total_duration_days"] = total_effort_days
+    total_duration_days = sum(e.get("child_duration_days_sum", 0) for e in epics)
+    total_effort_days = round(sum(e.get("child_effort_person_days_sum", 0.0) for e in epics), 2)
+    backlog["total_duration_days"] = total_duration_days
     backlog["total_effort_person_days"] = total_effort_days
+    backlog["total_effort_hours"] = round(total_effort_days * 8, 1)
     if backlog.get("timescale_weeks"):
         try:
-            backlog["schedule_duration_working_days"] = round(float(backlog["timescale_weeks"]) * 5)
+            working_days = round(float(backlog["timescale_weeks"]) * 5)
+            backlog["schedule_duration_working_days"] = working_days
+            team_res = backlog.get("resources") or backlog.get("roles") or []
+            team_fte = sum(float(r.get("allocation_percent", 0)) / 100.0 for r in team_res)
+            if team_fte <= 0 and backlog.get("rate_card"):
+                team_fte = float(len(backlog["rate_card"]))
+            if team_fte > 0:
+                total_capacity = round(working_days * team_fte, 1)
+                backlog["team_fte"] = round(team_fte, 2)
+                backlog["total_capacity_person_days"] = total_capacity
+                backlog["total_capacity_hours"] = round(total_capacity * 8, 1)
+                utilization = round((total_effort_days / total_capacity) * 100.0, 1)
+                backlog["capacity_utilization_percent"] = utilization
+                backlog["capacity_notes"] = (
+                    f"Direct delivery tasks account for {total_effort_days} person-days ({utilization}% utilization "
+                    f"of {total_capacity} person-day team capacity across {backlog['timescale_weeks']} weeks at {round(team_fte, 2)} FTE); "
+                    "remaining capacity covers governance, cadence meetings, review cycles, and risk buffer."
+                )
         except (ValueError, TypeError):
             pass
 
@@ -713,10 +790,13 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any], end_role_row: in
     sheet["A1"].alignment = Alignment(vertical="center")
     sheet.row_dimensions[1].height = 30
 
+    currency_code = backlog.get("currency") or "USD"
+    currency_symbol = backlog.get("currency_symbol") or ("£" if currency_code == "GBP" else ("€" if currency_code == "EUR" else "$"))
+
     sheet.append([])
     sheet.append(["Assumption", "Editable Value", "Explanation"])
     assumptions = [
-        ("Currency", "USD", "All cost estimates are illustrative planning estimates in US dollars."),
+        ("Currency", currency_code, f"All cost estimates are illustrative planning estimates in {currency_code} ({currency_symbol})."),
         (
             "Blended fully-loaded delivery cost per person-day",
             f"=SUM('Role Rates'!E5:E{end_role_row})",
@@ -807,13 +887,26 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any], end_role_row: in
         (
             "Role mix and daily rates",
             "See Role Rates worksheet",
-            "Editable role names, effort mix, and illustrative USD daily rates are maintained only on the separate Role Rates worksheet.",
+            f"Editable role names, effort mix, and illustrative {currency_code} daily rates are maintained only on the separate Role Rates worksheet.",
         ),
     ]
+    if backlog.get("timescale_weeks") or backlog.get("total_capacity_person_days"):
+        assumptions.extend([
+            (
+                "Schedule timescale & team capacity",
+                f"{backlog.get('timescale_weeks', 12)} weeks ({backlog.get('schedule_duration_working_days', 60)} working days)",
+                f"Total theoretical capacity of {backlog.get('total_capacity_person_days', '')} person-days ({backlog.get('team_fte', '')} FTE).",
+            ),
+            (
+                "Direct task effort vs team capacity",
+                f"{backlog.get('total_effort_person_days', '')} person-days ({backlog.get('capacity_utilization_percent', '')}% utilization)",
+                "Direct delivery stories account for this effort; remaining capacity covers governance, cadence meetings, reviews, and risk buffer.",
+            ),
+        ])
     for assumption in assumptions:
         sheet.append(list(assumption))
 
-    sheet["B5"].number_format = '"$"#,##0.00'
+    sheet["B5"].number_format = f'"{currency_symbol}"#,##0.00'
     sheet["B6"].number_format = "0.00"
     sheet["B7"].number_format = "0%"
     for cell in ("B13", "B14", "B15"):
@@ -832,7 +925,12 @@ def _write_assumptions_sheet(workbook, backlog: Dict[str, Any], end_role_row: in
     sheet.freeze_panes = "A4"
 
 
-def _write_role_rates_sheet(workbook, rate_card: Optional[list[dict[str, Any]]] = None) -> None:
+def _write_role_rates_sheet(
+    workbook,
+    rate_card: Optional[list[dict[str, Any]]] = None,
+    currency_code: str = "USD",
+    currency_symbol: str = "$",
+) -> None:
     if "Role Rates" in workbook.sheetnames:
         del workbook["Role Rates"]
     sheet = workbook.create_sheet("Role Rates")
@@ -853,8 +951,8 @@ def _write_role_rates_sheet(workbook, rate_card: Optional[list[dict[str, Any]]] 
         "Person",
         "Delivery Role",
         "Effort Mix",
-        "Daily Rate (USD)",
-        "Weighted Rate Contribution (USD/day)",
+        f"Daily Rate ({currency_code})",
+        f"Weighted Rate Contribution ({currency_code}/day)",
         "Rate Basis",
     ]
     for column, header in enumerate(role_headers, start=1):
@@ -890,8 +988,8 @@ def _write_role_rates_sheet(workbook, rate_card: Optional[list[dict[str, Any]]] 
         )
         sheet.cell(row_number, 6, entry["basis"])
         sheet.cell(row_number, 3).number_format = "0%"
-        sheet.cell(row_number, 4).number_format = '"$"#,##0.00'
-        sheet.cell(row_number, 5).number_format = '"$"#,##0.00'
+        sheet.cell(row_number, 4).number_format = f'"{currency_symbol}"#,##0.00'
+        sheet.cell(row_number, 5).number_format = f'"{currency_symbol}"#,##0.00'
         for cell in sheet[row_number][:6]:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
     total_row = end_row + 1
@@ -899,7 +997,7 @@ def _write_role_rates_sheet(workbook, rate_card: Optional[list[dict[str, Any]]] 
     sheet.cell(total_row, 3, f"=SUM(C{start_row}:C{end_row})")
     sheet.cell(total_row, 5, f"=SUM(E{start_row}:E{end_row})")
     sheet.cell(total_row, 3).number_format = "0%"
-    sheet.cell(total_row, 5).number_format = '"$"#,##0.00'
+    sheet.cell(total_row, 5).number_format = f'"{currency_symbol}"#,##0.00'
     for cell in sheet[total_row][:6]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="D9EAF7")
@@ -923,6 +1021,8 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     end_role_row = start_role_row + len(rate_card) - 1
 
     workbook = load_workbook(TEMPLATE_PATH)
+    currency_code = backlog.get("currency") or "USD"
+    currency_symbol = backlog.get("currency_symbol") or ("£" if currency_code == "GBP" else ("€" if currency_code == "EUR" else "$"))
     sheet = workbook["Enterprise Agile Backlog"]
     for row_number in range(1, 4):
         sheet.cell(row_number, 4).fill = PatternFill(fill_type=None)
@@ -948,7 +1048,9 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     sheet["Q4"] = "Planning Cost & Staffing"
     for column in (12, 14, 17):
         sheet.cell(4, column)._style = copy.copy(sheet["J4"]._style)
-    for column, header in enumerate(_HEADERS, start=1):
+    headers = list(_HEADERS)
+    headers[16] = f"Cost Estimate ({currency_code})"
+    for column, header in enumerate(headers, start=1):
         sheet.cell(5, column).value = header
         if column > 11:
             sheet.cell(5, column)._style = copy.copy(sheet.cell(5, 11)._style)
@@ -1040,7 +1142,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
                 f"=SUMIF($M${_DATA_START_ROW}:$M${last_data_row},A{row_number},$Q${_DATA_START_ROW}:$Q${last_data_row})",
             )
             sheet.cell(row_number, 18).value = "Roll-up of child items; no separate cost added."
-        sheet.cell(row_number, 17).number_format = '"$"#,##0.00'
+        sheet.cell(row_number, 17).number_format = f'"{currency_symbol}"#,##0.00'
 
     summary_row = last_data_row + 1
     for column, style in enumerate(summary_styles, start=1):
@@ -1055,7 +1157,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
     sheet.cell(summary_row, 17).value = (
         f'=SUMIF($L${_DATA_START_ROW}:$L${last_data_row},"Epic",$Q${_DATA_START_ROW}:$Q${last_data_row})'
     )
-    sheet.cell(summary_row, 17).number_format = '"$"#,##0.00'
+    sheet.cell(summary_row, 17).number_format = f'"{currency_symbol}"#,##0.00'
     sheet.cell(summary_row, 18).value = "Portfolio total sums epics only to avoid double-counting features and stories."
     sheet.cell(summary_row, 19).value = "Story costs use activity-based role allocations from the Role Rates tab."
 
@@ -1087,7 +1189,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
         sheet.row_dimensions[row_number].height = 48
 
     _write_assumptions_sheet(workbook, backlog, end_role_row)
-    _write_role_rates_sheet(workbook, rate_card)
+    _write_role_rates_sheet(workbook, rate_card, currency_code=currency_code, currency_symbol=currency_symbol)
     workbook.calculation.fullCalcOnLoad = True
     workbook.calculation.forceFullCalc = True
     workbook.calculation.calcMode = "auto"
@@ -1284,6 +1386,10 @@ def save_portfolio_backlog(
                 ) or "£" in corpus or "bank holiday" in corpus or "uk " in corpus or "united kingdom" in corpus
                 if has_gbp:
                     backlog["holiday_calendar"] = "uk"
+
+        currency_code, currency_symbol = resolve_backlog_currency(backlog)
+        backlog["currency"] = currency_code
+        backlog["currency_symbol"] = currency_symbol
 
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)

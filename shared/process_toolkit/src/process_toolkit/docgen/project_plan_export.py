@@ -607,6 +607,8 @@ def _render_mspdi(
     resources: Optional[List[tuple]] = None,
     rates_by_name: Optional[Dict[str, float]] = None,
     caller_resources: Optional[List[tuple]] = None,
+    currency_code: Optional[str] = None,
+    currency_symbol: Optional[str] = None,
 ) -> str:
     ET.register_namespace("", _MSPDI_NS)
     root = ET.Element(f"{{{_MSPDI_NS}}}Project")
@@ -616,15 +618,18 @@ def _render_mspdi(
     normalized_resources = resources or []
 
     # Currency detection
-    currency_code = "GBP"
-    currency_symbol = "£"
-    text_corpus = (project_name or "").lower()
-    if "$" in text_corpus or "usd" in text_corpus:
-        currency_code = "USD"
-        currency_symbol = "$"
-    elif "€" in text_corpus or "eur" in text_corpus:
-        currency_code = "EUR"
-        currency_symbol = "€"
+    if not currency_code:
+        currency_code = "GBP"
+        currency_symbol = "£"
+        text_corpus = (project_name or "").lower()
+        if "$" in text_corpus or "usd" in text_corpus:
+            currency_code = "USD"
+            currency_symbol = "$"
+        elif "€" in text_corpus or "eur" in text_corpus:
+            currency_code = "EUR"
+            currency_symbol = "€"
+    elif not currency_symbol:
+        currency_symbol = "£" if currency_code == "GBP" else ("€" if currency_code == "EUR" else "$")
 
     creation = _dt.datetime.now().strftime(_DATE_FORMAT)
 
@@ -1436,6 +1441,8 @@ def build_portfolio_backlog_project_plan(
     overrun_warning = _duration_overrun_warning(root, target_duration_weeks)
     if overrun_warning:
         root.notes = f"{root.notes}\n\n{overrun_warning}"
+    if backlog.get("capacity_notes"):
+        root.notes = f"{root.notes}\n\n{backlog['capacity_notes']}".strip()
 
     rates_by_name: Dict[str, float] = {}
     for entry in backlog.get("rate_card") or []:
@@ -1447,14 +1454,20 @@ def build_portfolio_backlog_project_plan(
                     rates_by_name[str(r_name)] = float(daily) / _WORK_HOURS_PER_DAY
                 except (ValueError, TypeError):
                     pass
-    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
+    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES, resolve_backlog_currency
     for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
         rates_by_name.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
+
+    currency_code = backlog.get("currency")
+    currency_symbol = backlog.get("currency_symbol")
+    if not currency_code:
+        currency_code, currency_symbol = resolve_backlog_currency(backlog)
 
     caller_resources = _normalize_resources(resources)
     normalized_resources = _normalize_resources(resources or backlog.get("roles") or backlog.get("resources"))
     xml_text = _render_mspdi(
         root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name, caller_resources,
+        currency_code=currency_code, currency_symbol=currency_symbol,
     )
     try:
         out_path = _write_output(xml_text, PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
@@ -1639,14 +1652,20 @@ def build_proposal_response_project_plan(
                     rates_by_name_proposal[str(r_name)] = float(daily) / _WORK_HOURS_PER_DAY
                 except (ValueError, TypeError):
                     pass
-    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
+    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES, resolve_backlog_currency
     for r_name, (daily, _) in ROLE_BENCHMARK_RATES.items():
         rates_by_name_proposal.setdefault(r_name, daily / _WORK_HOURS_PER_DAY)
+
+    currency_code = response.get("currency")
+    currency_symbol = response.get("currency_symbol")
+    if not currency_code:
+        currency_code, currency_symbol = resolve_backlog_currency(response)
 
     caller_resources = _normalize_resources(resources)
     normalized_resources = _normalize_resources(resources or response.get("roles") or response.get("resources"))
     xml_text = _render_mspdi(
         root.name, [root], root.start or project_start, holidays, normalized_resources, rates_by_name_proposal, caller_resources,
+        currency_code=currency_code, currency_symbol=currency_symbol,
     )
     try:
         out_path = _write_output(xml_text, PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
