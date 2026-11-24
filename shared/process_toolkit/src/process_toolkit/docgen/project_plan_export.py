@@ -1272,7 +1272,7 @@ def build_portfolio_backlog_project_plan(
     )
     backlog = load_portfolio_backlog()
     if backlog.get("status") != "OK" or not backlog.get("epics"):
-        logger.warning("build_portfolio_backlog_project_plan: no saved portfolio backlog found (status=%s)", backlog.get("status"))
+        logger.debug("build_portfolio_backlog_project_plan: no saved portfolio backlog found (status=%s)", backlog.get("status"))
         return "ERROR: No saved portfolio backlog found. Create one first."
 
     if include_phase_gates is None:
@@ -1584,7 +1584,7 @@ def build_proposal_response_project_plan(
     )
     response = load_proposal_response()
     if response.get("status") != "OK" or not response.get("implementation_plan"):
-        logger.warning("build_proposal_response_project_plan: no saved proposal response found (status=%s)", response.get("status"))
+        logger.debug("build_proposal_response_project_plan: no saved proposal response found (status=%s)", response.get("status"))
         return "ERROR: No saved proposal response found. Create one first."
 
     uid_counter = [0]

@@ -229,14 +229,14 @@ def _infer_edges_from_process_json() -> Tuple[str | None, List[Tuple[str, str]],
     branching), lane_map, label_map. ALWAYS returns at least one edge."""
     data = _load_process_json()
     if not data or not isinstance(data, dict):
-        logger.warning("No valid process JSON; using fallback Start->End")
+        logger.debug("No valid process JSON; using fallback Start->End")
         return "process", [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     process_name = data.get("process_name") or "process"
 
     raw_steps = data.get("process_steps") or []
     if not isinstance(raw_steps, list):
-        logger.warning("process_steps is not a list; using fallback Start->End")
+        logger.debug("process_steps is not a list; using fallback Start->End")
         return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     valid_steps: List[dict] = []
@@ -249,7 +249,7 @@ def _infer_edges_from_process_json() -> Tuple[str | None, List[Tuple[str, str]],
             valid_steps.append({"name": s.strip()})
 
     if not valid_steps:
-        logger.warning("No valid steps inferred; using fallback Start->End")
+        logger.debug("No valid steps inferred; using fallback Start->End")
         return process_name, [("Start", "End")], {"Start": "Process", "End": "Process"}, {"Start": "Start", "End": "End"}
 
     ordered_steps = _order_steps(valid_steps)
@@ -306,7 +306,7 @@ def _infer_edges_from_process_json() -> Tuple[str | None, List[Tuple[str, str]],
                     edges.append(edge)
 
     if not edges:
-        logger.warning("No edges inferred; using fallback Start->End")
+        logger.debug("No edges inferred; using fallback Start->End")
         edges = [("Start", "End")]
         lane_map["Start"] = "Process"
         lane_map["End"] = "Process"
@@ -326,7 +326,7 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
     returns at least one edge."""
     data = _load_design_json()
     if not data or not isinstance(data, dict):
-        logger.warning("No valid design document JSON; using fallback Start->End")
+        logger.debug("No valid design document JSON; using fallback Start->End")
         return "design", [("Start", "End")], {"Start": "Component", "End": "Component"}, {"Start": "Start", "End": "End"}
 
     metadata = data.get("document_metadata") or {}
@@ -360,7 +360,7 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
             valid_components.append({"component_name": c.strip()})
 
     if not valid_components:
-        logger.warning("No valid design components inferred; using fallback Start->End")
+        logger.debug("No valid design components inferred; using fallback Start->End")
         return doc_name, [("Start", "End")], {"Start": "Component", "End": "Component"}, {"Start": "Start", "End": "End"}
 
     node_names: List[str] = []
@@ -457,7 +457,7 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
             label_map.setdefault("Start", "Start")
             label_map.setdefault("End", "End")
         else:
-            logger.warning(
+            logger.debug(
                 "No integration_points/dependencies/sequence_flows inferred between %d "
                 "components; falling back to declaration-order chain", len(node_names)
             )
@@ -465,7 +465,7 @@ def _infer_edges_from_design_json() -> Tuple[str | None, List[Tuple[str, str]], 
                 edges.append((node_names[i], node_names[i + 1]))
 
     if not edges:
-        logger.warning("No edges inferred; using fallback Start->End")
+        logger.debug("No edges inferred; using fallback Start->End")
         edges = [("Start", "End")]
         lane_map["Start"] = "Component"
         lane_map["End"] = "Component"

@@ -80,7 +80,7 @@ class ResetLoopStateCodedTool(CodedTool):
         try:
             token = acquire_pipeline_lock("a neuro-san pipeline", token=reusable_token)
         except PipelineLockedError as e:
-            logger.warning("ResetLoopState: failed to acquire pipeline lock: %s", e)
+            logger.info("ResetLoopState: failed to acquire pipeline lock: %s", e)
             return {"status": "ERROR", "error": str(e)}
 
         if isinstance(sly_data, dict):

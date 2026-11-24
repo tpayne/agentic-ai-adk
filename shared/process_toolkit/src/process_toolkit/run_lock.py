@@ -343,7 +343,7 @@ def force_clear_pipeline_lock(session_key: Optional[str] = None) -> Optional[dic
             tok = target.get("token")
             if tok:
                 stop_pipeline_lock_heartbeat(tok)
-            logger.warning(
+            logger.info(
                 "force_clear_pipeline_lock: CLEARED lock for session_key=%s (held by %r, token=%s); remaining active sessions: %s",
                 key, target.get("label"), tok, list(_session_locks.keys()),
             )

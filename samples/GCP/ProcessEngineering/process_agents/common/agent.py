@@ -1062,7 +1062,7 @@ async def _release_any_leftover_pipeline_lock(user_id: str, session_id: str) -> 
     stored = session.state.get(PIPELINE_LOCK_TOKEN_STATE_KEY) if session and session.state else None
     token = stored.get("token") if isinstance(stored, dict) else None
     if token:
-        logger.warning(
+        logger.debug(
             "Turn for session %s ended with pipeline lock token %s still held -- "
             "releasing it defensively (most likely a cancelled turn).", session_id, token,
         )

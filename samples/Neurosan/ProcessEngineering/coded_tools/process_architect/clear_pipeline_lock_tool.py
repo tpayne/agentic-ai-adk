@@ -29,7 +29,7 @@ class ClearPipelineLockCodedTool(CodedTool):
     """
 
     def invoke(self, args: Dict[str, Any], sly_data: Dict[str, Any]) -> Union[Dict[str, Any], str]:
-        logger.warning("ClearPipelineLock tool invoked")
+        logger.info("ClearPipelineLock tool invoked")
         cleared = force_clear_pipeline_lock()
         if cleared is None:
             logger.info("ClearPipelineLock: no lock was held")
@@ -41,7 +41,7 @@ class ClearPipelineLockCodedTool(CodedTool):
         if isinstance(started_at, (int, float)):
             age_minutes = (time.time() - started_at) / 60
             age_str = f", held for about {age_minutes:.1f} minute{'s' if abs(age_minutes - 1) > 0.05 else ''}"
-        logger.warning("ClearPipelineLock: successfully cleared lock held by %r%s", label, age_str)
+        logger.info("ClearPipelineLock: successfully cleared lock held by %r%s", label, age_str)
         return {
             "status": "OK",
             "cleared": True,

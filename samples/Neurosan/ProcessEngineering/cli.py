@@ -494,7 +494,7 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
         sly_data.pop("_pipeline_lock_turn_id", None)
         token = sly_data.pop(PIPELINE_LOCK_TOKEN_KEY, None)
     if token:
-        _web_logger.warning(
+        _web_logger.debug(
             "Turn ended with pipeline lock token %s still held in sly_data -- releasing it defensively.", token,
         )
         stop_pipeline_lock_heartbeat(token)
@@ -502,7 +502,7 @@ def _release_any_leftover_pipeline_lock(sly_data: Optional[Dict[str, Any]]) -> N
     # Defense-in-depth: unconditionally clear any leftover lock for this session
     held = peek_pipeline_lock()
     if held is not None:
-        _web_logger.warning(
+        _web_logger.debug(
             "Turn ended with pipeline lock still held in memory for session (%s) -- force clearing defensively.", held,
         )
         force_clear_pipeline_lock()
@@ -2275,7 +2275,7 @@ def build_web_app(agent_name: str, https: bool = True):
         with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), filename)
             if not os.path.exists(path):
-                _web_logger.warning("GET /artifacts/%s: file not found at %s (session=%s)", name, path, session_id)
+                _web_logger.debug("GET /artifacts/%s: file not found at %s (session=%s)", name, path, session_id)
                 return jsonify({
                     "status": "error",
                     "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
@@ -2473,7 +2473,7 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
-            _web_logger.warning("GET /artifacts/portfolio_backlog_project_plan/download: not found at %s (session=%s)", path, session_id)
+            _web_logger.debug("GET /artifacts/portfolio_backlog_project_plan/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
@@ -2498,7 +2498,7 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
-            _web_logger.warning("GET /artifacts/proposal_response_project_plan/download: not found at %s (session=%s)", path, session_id)
+            _web_logger.debug("GET /artifacts/proposal_response_project_plan/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME} found yet -- export the proposal response as a project plan first.",
@@ -2527,7 +2527,7 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PERT_CPM_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
-            _web_logger.warning("GET /artifacts/portfolio_backlog_pert_cpm/download: not found at %s (session=%s)", path, session_id)
+            _web_logger.debug("GET /artifacts/portfolio_backlog_pert_cpm/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PORTFOLIO_BACKLOG_PERT_CPM_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
@@ -2552,7 +2552,7 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PERT_CPM_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
-            _web_logger.warning("GET /artifacts/proposal_response_pert_cpm/download: not found at %s (session=%s)", path, session_id)
+            _web_logger.debug("GET /artifacts/proposal_response_pert_cpm/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PROPOSAL_RESPONSE_PERT_CPM_FILENAME} found yet -- export the proposal response as a project plan first.",
@@ -2605,7 +2605,7 @@ def build_web_app(agent_name: str, https: bool = True):
             path = os.path.join(paths.output_dir(), filename)
             exists = os.path.isfile(path)
         if not exists:
-            _web_logger.warning("GET /artifacts/%s/download: not found at %s (session=%s)", name, path, session_id)
+            _web_logger.debug("GET /artifacts/%s/download: not found at %s (session=%s)", name, path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
