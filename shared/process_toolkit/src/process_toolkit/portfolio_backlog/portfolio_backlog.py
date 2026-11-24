@@ -3,6 +3,7 @@
 import copy
 from fractions import Fraction
 import json
+import logging
 import os
 import re
 import tempfile
@@ -13,6 +14,8 @@ from openpyxl.chart.data_source import StrRef
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from process_toolkit import paths
+
+logger = logging.getLogger("ProcessArchitect.PortfolioBacklog")
 
 PORTFOLIO_BACKLOG_FILENAME = "portfolio_backlog.json"
 PORTFOLIO_BACKLOG_WORKBOOK_FILENAME = "portfolio_backlog.xlsx"
@@ -1209,7 +1212,13 @@ def save_portfolio_backlog(
     backlog: Dict[str, Any], state: Optional[StateLike] = None
 ) -> str:
     if not isinstance(backlog, dict):
+        logger.error("save_portfolio_backlog: backlog is not a dict (%s)", type(backlog))
         return "ERROR: backlog must be a JSON object."
+
+    logger.info(
+        "save_portfolio_backlog: starting save for name=%r (source_artifact=%s, timescale_weeks=%s)",
+        backlog.get("name"), backlog.get("source_artifact"), backlog.get("timescale_weeks"),
+    )
 
     try:
         for field in ("name", "summary", "source_name"):
@@ -1219,6 +1228,10 @@ def save_portfolio_backlog(
             raise ValueError("source_artifact must be 'requirements_summary' or 'design'.")
 
         work_items = _flatten_backlog(backlog)
+        logger.info(
+            "save_portfolio_backlog: flattened backlog into %d work items across %d epics",
+            len(work_items), len(backlog.get("epics") or []),
+        )
         role_alloc_sums: Dict[str, float] = {}
         for item, item_type, _ in work_items:
             if item_type == "Story":
@@ -1390,10 +1403,16 @@ def save_portfolio_backlog(
         currency_code, currency_symbol = resolve_backlog_currency(backlog)
         backlog["currency"] = currency_code
         backlog["currency_symbol"] = currency_symbol
+        logger.info(
+            "save_portfolio_backlog: resolved currency=%s (%s), holiday_calendar=%s, total_effort=%s person-days",
+            currency_code, currency_symbol, backlog.get("holiday_calendar"), backlog.get("total_effort_person_days"),
+        )
 
         json_path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
         workbook_path = paths.output_path(PORTFOLIO_BACKLOG_WORKBOOK_FILENAME)
+        logger.info("save_portfolio_backlog: rendering Excel workbook to %s", workbook_path)
         _render_workbook(backlog, work_items, workbook_path)
+        logger.info("save_portfolio_backlog: rendered Excel workbook successfully")
         fd, temp_json_path = tempfile.mkstemp(
             prefix=".portfolio_backlog_", suffix=".json", dir=os.path.dirname(json_path) or "."
         )
@@ -1401,6 +1420,7 @@ def save_portfolio_backlog(
             with os.fdopen(fd, "w", encoding="utf-8") as file:
                 json.dump(backlog, file, indent=2, ensure_ascii=False)
             os.replace(temp_json_path, json_path)
+            logger.info("save_portfolio_backlog: saved JSON backlog to %s", json_path)
         finally:
             if os.path.exists(temp_json_path):
                 os.remove(temp_json_path)
@@ -1412,6 +1432,7 @@ def save_portfolio_backlog(
             f"({len(work_items)} work items, {len(backlog['epics'])} epics)."
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
+        logger.error("save_portfolio_backlog failed: %s", error, exc_info=True)
         return f"ERROR: Could not save Enterprise Agile Portfolio Backlog: {error}"
 
 
@@ -1421,16 +1442,20 @@ def load_portfolio_backlog(state: Optional[StateLike] = None) -> Dict[str, Any]:
         if isinstance(session_backlog, dict):
             result = dict(session_backlog)
             result.setdefault("status", "OK")
+            logger.debug("load_portfolio_backlog: loaded from state dictionary")
             return result
 
     path = paths.output_path(PORTFOLIO_BACKLOG_FILENAME)
     if not os.path.exists(path):
+        logger.debug("load_portfolio_backlog: file not found at %s", path)
         return {"status": "NOT_FOUND"}
     try:
         with open(path, "r", encoding="utf-8") as file:
             backlog = json.load(file)
         if isinstance(backlog, dict):
             backlog.setdefault("status", "OK")
+        logger.debug("load_portfolio_backlog: successfully loaded from %s", path)
         return backlog
     except (OSError, json.JSONDecodeError) as error:
+        logger.warning("load_portfolio_backlog: error loading %s: %s", path, error)
         return {"status": "ERROR", "error": str(error)}

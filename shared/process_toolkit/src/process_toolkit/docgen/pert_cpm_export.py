@@ -40,6 +40,7 @@ non-critical activity the moment any caller passes a
 """
 
 import datetime as _dt
+import logging
 from typing import Any, Dict, List
 
 import matplotlib as mpl
@@ -53,6 +54,8 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Circle  # noqa: 
 
 from process_toolkit import paths
 from process_toolkit.docgen.diagram_style import add_fitted_text, fit_title
+
+logger = logging.getLogger("ProcessArchitect.PertCpmExport")
 
 _CARD_WIDTH, _CARD_HEIGHT = 2.9, 2.38
 _X_SPACING = 3.35
@@ -76,7 +79,10 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     responsibility not to call this with nothing to render."""
     if not activities:
         raise ValueError("No activities to render a PERT/CPM diagram from.")
+    logger.info("generate_pert_cpm_diagram: rendering diagram %r for %d activities into %s", title, len(activities), filename)
     scored = _compute_cpm(activities)
+    critical_count = sum(1 for a in scored if a.get("critical"))
+    logger.info("generate_pert_cpm_diagram: CPM calculation complete - %d critical, %d with slack out of %d total activities", critical_count, len(scored) - critical_count, len(scored))
     all_critical = all(a["critical"] for a in scored)
 
     num_activities = len(scored)
@@ -107,7 +113,7 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
         left -= extra_padding
         right += extra_padding
 
-    bottom = y_min - _CARD_HEIGHT / 2 - 0.75
+    bottom = y_min - _CARD_HEIGHT / 2 - 1.10
     top = y_max + _CARD_HEIGHT / 2 + 1.85
     plot_width, plot_height = right - left, top - bottom
 
@@ -247,8 +253,10 @@ def generate_pert_cpm_diagram(activities: List[Dict[str, Any]], title: str, file
     ax.axis("off")
 
     out_path = paths.output_path(filename)
+    logger.debug("generate_pert_cpm_diagram: saving %s with %d edges across %d activities", out_path, len(edges), len(scored))
     plt.savefig(out_path, dpi=220, facecolor="#F4F7FB")
     plt.close(fig)
+    logger.info("generate_pert_cpm_diagram: successfully saved PERT/CPM diagram to %s", out_path)
     return out_path
 
 
@@ -264,6 +272,7 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     has_dag = any(a.get("predecessor_uids") for a in scored)
     if not has_dag:
+        logger.debug("_compute_cpm: computing linear backward pass over %d activities", len(scored))
         # Forward times (ES/EF) are already the given start/finish -- this
         # module trusts the caller's own schedule rather than recomputing it.
         scored[-1]["late_finish"] = scored[-1]["finish"]
@@ -280,6 +289,7 @@ def _compute_cpm(activities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     # DAG CPM computation
     project_finish = max(a["finish"] for a in scored)
+    logger.info("_compute_cpm: computing DAG backward pass over %d activities (project_finish=%s)", len(scored), project_finish)
     successors_of: Dict[Any, List[Dict[str, Any]]] = {a["uid"]: [] for a in scored if "uid" in a}
     for a in scored:
         for p_uid in a.get("predecessor_uids") or []:

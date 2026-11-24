@@ -879,6 +879,7 @@ class ChatSession:
         with self._lock:
             turn_started = time.monotonic()
             self.last_accessed = turn_started
+            _web_logger.info("send_streaming: turn started (text_len=%d, attachments=%d)", len(text), len(files) if files else 0)
             staged = self._ingest_attachments(files)
             attachments_directory, attachment_filenames = staged if staged else (None, None)
             effective_text = _append_attachment_directory_marker(
@@ -935,12 +936,14 @@ class ChatSession:
                         if len(preview) > 160:
                             preview = preview[:159] + "…"
                         origin_str = Origination.get_full_name_from_origin(response.get("origin")) or "agent network"
+                        _web_logger.debug("send_streaming progress [%s]: %s", origin_str, preview)
                         yield {"status": "progress", "origin": origin_str, "text": preview}
                 except asyncio.CancelledError:
                     if _trace_logger.isEnabledFor(logging.INFO):
                         _trace_logger.info(
                             "Chat stream turn stopped: duration=%.2fs", time.monotonic() - turn_started,
                         )
+                    _web_logger.info("send_streaming: turn stopped after %.2fs", time.monotonic() - turn_started)
                     yield {"status": "stopped", "response": _dedupe_doubled_answer(last_compiled_answer) or ""}
                     return
 
@@ -967,6 +970,10 @@ class ChatSession:
                         time.monotonic() - turn_started,
                         json.dumps(token_accounting) if token_accounting else None,
                     )
+                _web_logger.info(
+                    "send_streaming: turn completed in %.2fs (usage=%s)",
+                    time.monotonic() - turn_started, self.last_usage,
+                )
 
                 yield {
                     "status": "done",
@@ -1791,12 +1798,14 @@ def build_web_app(agent_name: str, https: bool = True):
             return jsonify({"status": "error", "error": files_error}), 400
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        _web_logger.info("POST /chat received (session=%s, query_len=%d)", session_id, len(query.strip()))
 
         web_session_id = None
         try:
             web_session_id, session = _get_or_create_web_session(session_id, agent_name)
             with paths.use_session(web_session_id):
                 response_text = session.send(query.strip(), files=files)
+            _web_logger.info("POST /chat completed (session=%s, resp_len=%d)", web_session_id, len(response_text or ""))
         except Exception:
             _web_logger.exception("Web chat error")
             return jsonify({
@@ -1855,6 +1864,7 @@ def build_web_app(agent_name: str, https: bool = True):
             return jsonify({"status": "error", "error": files_error}), 400
 
         session_id = payload.get("session_id") or request.cookies.get(WEB_SESSION_COOKIE)
+        _web_logger.info("POST /chat/stream received (session=%s, query_len=%d)", session_id, len(query.strip()))
         # Resolved up front (not inside the generator below) so the
         # session id is known -- and its cookie set -- before the
         # streaming response even starts, exactly like POST /chat.
@@ -1877,11 +1887,13 @@ def build_web_app(agent_name: str, https: bool = True):
             # (gevent/eventlet), which this project does not use.
             try:
                 try:
+                    _web_logger.info("Chat stream session %s active: beginning event streaming", web_session_id)
                     with paths.use_session(web_session_id):
                         for update in session.send_streaming(query.strip(), files=files):
                             yield f"data: {json.dumps({**update, 'session_id': web_session_id})}\n\n"
+                    _web_logger.info("Chat stream session %s ended cleanly", web_session_id)
                 except Exception:
-                    _web_logger.exception("Web chat stream error")
+                    _web_logger.exception("Web chat stream error for session %s", web_session_id)
                     error_event = {
                         "status": "error", "session_id": web_session_id, "error": "An internal error has occurred.",
                     }
@@ -2238,9 +2250,12 @@ def build_web_app(agent_name: str, https: bool = True):
                 ),
             }), 400
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/%s requested (session=%s)", name, session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), filename)
             if not os.path.exists(path):
+                _web_logger.warning("GET /artifacts/%s: file not found at %s (session=%s)", name, path, session_id)
                 return jsonify({
                     "status": "error",
                     "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
@@ -2259,12 +2274,13 @@ def build_web_app(agent_name: str, https: bool = True):
                     with open(path, "r", encoding="utf-8") as f:
                         data = json.load(f)
             except Exception:
-                _web_logger.exception("Failed to read/parse %s", filename)
+                _web_logger.exception("Failed to read/parse %s (session=%s)", filename, session_id)
                 return jsonify({
                     "status": "error",
                     "error": f"Could not read {filename} -- see server logs.",
                 }), 500
 
+        _web_logger.info("GET /artifacts/%s: successfully served %s (session=%s)", name, filename, session_id)
         return jsonify({"status": "ok", "name": name, "data": data})
 
     @web_app.route("/artifacts/documents", methods=["GET"])
@@ -2431,14 +2447,18 @@ def build_web_app(agent_name: str, https: bool = True):
         identical to download_cloudarch above, just for this artifact kind."""
         from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/portfolio_backlog_project_plan/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.warning("GET /artifacts/portfolio_backlog_project_plan/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
             }), 404
+        _web_logger.info("GET /artifacts/portfolio_backlog_project_plan/download: serving %s (session=%s)", path, session_id)
         return send_file(
             path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME,
             mimetype="application/xml",
@@ -2452,14 +2472,18 @@ def build_web_app(agent_name: str, https: bool = True):
         proposal response domain."""
         from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/proposal_response_project_plan/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.warning("GET /artifacts/proposal_response_project_plan/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME} found yet -- export the proposal response as a project plan first.",
             }), 404
+        _web_logger.info("GET /artifacts/proposal_response_project_plan/download: serving %s (session=%s)", path, session_id)
         return send_file(
             path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME,
             mimetype="application/xml",
@@ -2477,14 +2501,18 @@ def build_web_app(agent_name: str, https: bool = True):
         same way .docx/.xlsx documents work."""
         from process_interface.docgen.project_plan_export import PORTFOLIO_BACKLOG_PERT_CPM_FILENAME
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/portfolio_backlog_pert_cpm/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), PORTFOLIO_BACKLOG_PERT_CPM_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.warning("GET /artifacts/portfolio_backlog_pert_cpm/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PORTFOLIO_BACKLOG_PERT_CPM_FILENAME} found yet -- export the portfolio backlog as a project plan first.",
             }), 404
+        _web_logger.info("GET /artifacts/portfolio_backlog_pert_cpm/download: serving %s (session=%s)", path, session_id)
         return send_file(
             path, as_attachment=True, download_name=PORTFOLIO_BACKLOG_PERT_CPM_FILENAME,
             mimetype="image/png",
@@ -2498,14 +2526,18 @@ def build_web_app(agent_name: str, https: bool = True):
         response domain."""
         from process_interface.docgen.project_plan_export import PROPOSAL_RESPONSE_PERT_CPM_FILENAME
 
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/proposal_response_pert_cpm/download requested (session=%s)", session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), PROPOSAL_RESPONSE_PERT_CPM_FILENAME)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.warning("GET /artifacts/proposal_response_pert_cpm/download: not found at %s (session=%s)", path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {PROPOSAL_RESPONSE_PERT_CPM_FILENAME} found yet -- export the proposal response as a project plan first.",
             }), 404
+        _web_logger.info("GET /artifacts/proposal_response_pert_cpm/download: serving %s (session=%s)", path, session_id)
         return send_file(
             path, as_attachment=True, download_name=PROPOSAL_RESPONSE_PERT_CPM_FILENAME,
             mimetype="image/png",
@@ -2547,14 +2579,18 @@ def build_web_app(agent_name: str, https: bool = True):
                     "or 'itsm'."
                 ),
             }), 400
-        with paths.use_session(_web_session_id_for_get_request()):
+        session_id = _web_session_id_for_get_request()
+        _web_logger.info("GET /artifacts/%s/download requested (session=%s)", name, session_id)
+        with paths.use_session(session_id):
             path = os.path.join(paths.output_dir(), filename)
             exists = os.path.isfile(path)
         if not exists:
+            _web_logger.warning("GET /artifacts/%s/download: not found at %s (session=%s)", name, path, session_id)
             return jsonify({
                 "status": "error",
                 "error": f"No {filename} found yet -- run the {name} pipeline at least once, then try again.",
             }), 404
+        _web_logger.info("GET /artifacts/%s/download: serving %s (session=%s)", name, path, session_id)
         return send_file(path, as_attachment=True, download_name=filename, mimetype="application/json")
 
     @web_app.route("/agents/<name>/instructions", methods=["GET"])

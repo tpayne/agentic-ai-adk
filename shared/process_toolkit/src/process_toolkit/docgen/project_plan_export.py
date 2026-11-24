@@ -44,6 +44,7 @@ import/export this format directly.
 """
 
 import datetime as _dt
+import logging
 import os
 import re
 import xml.etree.ElementTree as ET
@@ -53,6 +54,8 @@ from process_toolkit import paths
 from process_toolkit.portfolio_backlog.portfolio_backlog import load_portfolio_backlog
 from process_toolkit.proposal_response.proposal_response import load_proposal_response
 from process_toolkit.docgen.pert_cpm_export import generate_pert_cpm_diagram
+
+logger = logging.getLogger("ProcessArchitect.ProjectPlanExport")
 
 PORTFOLIO_BACKLOG_PROJECT_PLAN_FILENAME = "portfolio_backlog_project_plan.xml"
 PROPOSAL_RESPONSE_PROJECT_PLAN_FILENAME = "proposal_response_project_plan.xml"
@@ -314,6 +317,10 @@ def _schedule_task_tree(
 ) -> _dt.date:
     all_tasks = _flatten([root])
     has_explicit_deps = any(t.dependencies or t.predecessor_uids or (t.start_week and t.start_week > 1) for t in all_tasks)
+    logger.info(
+        "_schedule_task_tree: scheduling root %r (%d total tasks, %d leaves, has_explicit_deps=%s, target_duration_weeks=%s)",
+        root.name, len(all_tasks), len([t for t in all_tasks if not t.children]), has_explicit_deps, target_duration_weeks,
+    )
     if not has_explicit_deps:
         return _schedule_subtree(root, anchor_start, holidays)
 
@@ -410,9 +417,18 @@ def _schedule_task_tree(
         # Proportionally compress leaf task durations if total critical path overruns target
         if max_path_len > total_target_working_days and total_target_working_days > 0:
             scale = total_target_working_days / max_path_len
+            logger.info(
+                "_schedule_task_tree: critical path length (%d days) exceeds target (%d working days); compressing leaf durations with scale factor %.4f",
+                max_path_len, total_target_working_days, scale,
+            )
             for leaf in leaf_tasks:
                 if not getattr(leaf, "is_milestone", False) and leaf.duration_days > 0:
                     leaf.duration_days = max(1, round(leaf.duration_days * scale))
+        else:
+            logger.info(
+                "_schedule_task_tree: critical path length (%d days) fits within target (%d working days)",
+                max_path_len, total_target_working_days,
+            )
 
     for _ in range(len(leaf_tasks) * 2):
         progress = False
@@ -494,6 +510,11 @@ def _schedule_task_tree(
                 task.predecessor_uid = task.predecessor_uids[-1]
 
     _rollup(root)
+    total_w_days = _count_working_days(root.start, root.finish, holidays) if root.start and root.finish else 0
+    logger.info(
+        "_schedule_task_tree: scheduled project %r from %s to %s (%d working days)",
+        root.name, root.start, root.finish, total_w_days,
+    )
     return root.finish or anchor_start
 
 
@@ -1145,40 +1166,27 @@ def _parse_start_date(start_date: Optional[str]) -> _dt.date:
 def _write_output(xml_text: str, filename: str) -> str:
     validation_errors = validate_mspdi_xml(xml_text)
     if validation_errors:
-        import logging
-        logging.getLogger(__name__).warning("MSPDI XML validation warnings in %s: %s", filename, validation_errors)
+        logger.warning("MSPDI XML validation warnings in %s (%d error(s)): %s", filename, len(validation_errors), validation_errors)
+    else:
+        logger.info("MSPDI XML validation passed cleanly for %s", filename)
     out_path = paths.output_path(filename)
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as file:
         file.write(xml_text)
+    logger.info("Wrote MSPDI XML to %s (%d bytes)", out_path, len(xml_text.encode("utf-8")))
     return out_path
 
 
 def _build_and_write_pert_cpm(
     root_task: "_Task", holidays: FrozenSet[_dt.date], filename: str,
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Generates the companion PERT/CPM network diagram (see docgen.
-    pert_cpm_export) from the SAME scheduled task tree the MSPDI file was
-    just rendered from, and writes it alongside it. Returns (path, None) on
-    success or (None, warning) on failure -- a failure here must never fail
-    the overall project-plan export, which has already succeeded by the
-    time this is called; the warning is instead folded into the caller's
-    own returned message, same as _duration_overrun_warning's WARNING.
-
-    Only LEAF (non-summary) tasks become activities -- standard PERT/CPM
-    convention shows individual work items, not the summary rollups that
-    span (and would visually overlap) their own children's combined dates.
-    `gap_working_days_before` is computed here (not inside pert_cpm_export,
-    which stays holiday-agnostic) using the same _count_working_days this
-    module already uses elsewhere -- 0 when two consecutive leaves are
-    scheduled back-to-back (always true under this module's own scheduler
-    today, see _schedule_subtree), but a genuine measurement rather than an
-    assumption, so pert_cpm_export's own backward pass produces honest,
-    future-proof float/critical results instead of a hardcoded shortcut.
-    """
     leaves = [t for t in _flatten([root_task]) if not t.is_summary and t.start and t.finish]
+    logger.info(
+        "_build_and_write_pert_cpm: generating companion PERT/CPM for %r (%d leaf tasks) -> %s",
+        root_task.name, len(leaves), filename,
+    )
     activities = []
     for i, task in enumerate(leaves):
         gap = 0
@@ -1194,8 +1202,11 @@ def _build_and_write_pert_cpm(
             "predecessor_uids": preds,
         })
     try:
-        return generate_pert_cpm_diagram(activities, root_task.name, filename), None
+        path = generate_pert_cpm_diagram(activities, root_task.name, filename)
+        logger.info("_build_and_write_pert_cpm: successfully generated PERT/CPM diagram at %s", path)
+        return path, None
     except (OSError, ValueError) as e:
+        logger.warning("_build_and_write_pert_cpm: could not generate diagram: %s", e)
         return None, f"WARNING: Could not generate the PERT/CPM diagram: {e}"
 
 
@@ -1255,8 +1266,13 @@ def build_portfolio_backlog_project_plan(
     "allocation_percent": number} -- neither this nor `target_duration_weeks`/
     `holiday_calendar` exist in the saved backlog JSON; all three are
     supplied by the caller at export time only (see module docstring)."""
+    logger.info(
+        "build_portfolio_backlog_project_plan: starting export (start_date=%s, target_duration_weeks=%s, holiday_calendar=%s, include_phase_gates=%s)",
+        start_date, target_duration_weeks, holiday_calendar, include_phase_gates,
+    )
     backlog = load_portfolio_backlog()
     if backlog.get("status") != "OK" or not backlog.get("epics"):
+        logger.warning("build_portfolio_backlog_project_plan: no saved portfolio backlog found (status=%s)", backlog.get("status"))
         return "ERROR: No saved portfolio backlog found. Create one first."
 
     if include_phase_gates is None:
@@ -1562,8 +1578,13 @@ def build_proposal_response_project_plan(
     an MSPDI project plan. Same string-return convention as
     build_portfolio_backlog_project_plan above, including the same
     resources/target_duration_weeks/holiday_calendar parameters."""
+    logger.info(
+        "build_proposal_response_project_plan: starting export (start_date=%s, target_duration_weeks=%s, holiday_calendar=%s)",
+        start_date, target_duration_weeks, holiday_calendar,
+    )
     response = load_proposal_response()
     if response.get("status") != "OK" or not response.get("implementation_plan"):
+        logger.warning("build_proposal_response_project_plan: no saved proposal response found (status=%s)", response.get("status"))
         return "ERROR: No saved proposal response found. Create one first."
 
     uid_counter = [0]
