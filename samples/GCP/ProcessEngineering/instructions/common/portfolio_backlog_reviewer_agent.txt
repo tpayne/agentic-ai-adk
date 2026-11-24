@@ -46,9 +46,7 @@ Evaluate the loaded backlog against the following strict quality criteria:
      so that child tasks sequence cleanly rather than duplicating identical date bounds across hierarchy levels.
 
 3. ACCEPTANCE CRITERIA SUBSTANCE & EXPLICIT DELIVERABLE REPRESENTATION
-   - Every tangible deliverable, decision gate, or governance output specified in the engagement scope (e.g. Current State Assessment,
-     Requirements Catalogue, Architecture Assessment, Market Assessment, Options Appraisal, Business Case Evidence Pack,
-     Implementation Roadmap, Readiness Assessment, Final Recommendation) must be explicitly represented as a dedicated
+   - Every tangible deliverable, decision gate, or governance output specified in the engagement scope or requirements summary (e.g. reports, catalogues, architectural blueprints, assessment matrices, models, roadmaps, or final recommendations) must be explicitly represented as a dedicated
      trackable story, work package, or milestone task (not buried in narrative notes).
    - Each story must define 3 to 5 clear, concrete, observable acceptance criteria verifying verifiable delivery outcomes.
    - Reject generic criteria (e.g. "Task completed", "Document written").
@@ -62,7 +60,7 @@ Evaluate the loaded backlog against the following strict quality criteria:
    - Verify explicit `dependencies` across epics and stories modeling real concurrent workstreams and sequence handoffs.
 
 5. CONSISTENT ROLE ALLOCATIONS & SINGLE SOURCE OF TRUTH FOR COSTS
-   - Backlog role definitions and story resource allocations must match the specified engagement staffing model using exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), avoiding shorthand acronyms.
+   - Backlog role definitions and story resource allocations must match the specified project staffing model using exact full role titles (e.g. in consulting: "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"; or in engineering: "Software Engineer", "DevOps / Platform Engineer", "QA Engineer"), avoiding shorthand acronyms.
    - Verify `effort_mix` values on `rate_card` are clean and symmetric (e.g. 0.1667, 0.3333, 0.3333, 0.1667), summing strictly to 1.0 without precision rounding skew.
    - Story-specific resource allocations must reflect realistic activity splits, and rate_card rates must align with role daily rates.
    - Align unit/daily rates, effort calculations, and cost rollups in `rate_card` so financial figures do not

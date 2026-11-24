@@ -17,6 +17,7 @@ from process_toolkit.portfolio_backlog.portfolio_backlog import (
     calculate_story_resources,
     build_rate_card,
     ROLE_BENCHMARK_RATES,
+    get_role_benchmark,
 )
 from process_toolkit.portfolio_backlog import portfolio_backlog as _toolkit
 
@@ -38,6 +39,7 @@ __all__ = [
     "calculate_story_resources",
     "build_rate_card",
     "ROLE_BENCHMARK_RATES",
+    "get_role_benchmark",
 ]
 
 

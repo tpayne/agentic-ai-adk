@@ -610,31 +610,9 @@ def _resolve_resource_hourly_rate(name: str, rates_by_name: Optional[Dict[str, f
             if _canonical_role(r_k).lower() == cname.lower() and r_v > 0:
                 return r_v
 
-    from process_toolkit.portfolio_backlog.portfolio_backlog import ROLE_BENCHMARK_RATES
-    for candidate in (cname, name):
-        if candidate in ROLE_BENCHMARK_RATES:
-            return ROLE_BENCHMARK_RATES[candidate][0] / _WORK_HOURS_PER_DAY
-
-    lower = cname.lower()
-    for role, (daily, _) in ROLE_BENCHMARK_RATES.items():
-        if role.lower() in lower or lower in role.lower():
-            return daily / _WORK_HOURS_PER_DAY
-
-    if "delivery" in lower or "programme" in lower or "pdm" in lower.split():
-        return 1300.0 / _WORK_HOURS_PER_DAY
-    if "project manager" in lower or "pm" in lower.split():
-        return 1200.0 / _WORK_HOURS_PER_DAY
-    if "architect" in lower or "sa" in lower.split():
-        return 1500.0 / _WORK_HOURS_PER_DAY
-    if "lead" in lower and "analyst" in lower:
-        return 1100.0 / _WORK_HOURS_PER_DAY
-    if "analyst" in lower or "ba" in lower.split():
-        return 1000.0 / _WORK_HOURS_PER_DAY
-    if "engineer" in lower or "developer" in lower:
-        return 1275.0 / _WORK_HOURS_PER_DAY
-    if "qa" in lower or "test" in lower:
-        return 1000.0 / _WORK_HOURS_PER_DAY
-    return 1200.0 / _WORK_HOURS_PER_DAY
+    from process_toolkit.portfolio_backlog.portfolio_backlog import get_role_benchmark
+    daily_rate, _ = get_role_benchmark(cname or name)
+    return daily_rate / _WORK_HOURS_PER_DAY
 
 
 def _render_mspdi(
@@ -1331,6 +1309,17 @@ def build_portfolio_backlog_project_plan(
         uid_counter[0] += 1
         return uid_counter[0]
 
+    available_roles: list[str] = []
+    for src in (backlog.get("rate_card"), backlog.get("roles"), backlog.get("resources")):
+        if isinstance(src, list):
+            for r in src:
+                if isinstance(r, dict):
+                    name = str(r.get("role") or r.get("name") or "").strip()
+                    if name and name not in available_roles:
+                        available_roles.append(name)
+                elif isinstance(r, str) and r.strip() and r.strip() not in available_roles:
+                    available_roles.append(r.strip())
+
     root = _Task(
         uid=next_uid(),
         name=backlog.get("name") or "Portfolio Backlog",
@@ -1406,7 +1395,7 @@ def build_portfolio_backlog_project_plan(
                 has_explicit = bool(story_res)
                 if not story_res:
                     from process_toolkit.portfolio_backlog.portfolio_backlog import calculate_story_resources
-                    story_res = calculate_story_resources(story)
+                    story_res = calculate_story_resources(story, available_roles=available_roles or None)
                 story_task.resources = _normalize_resources(story_res)
                 story_task.has_explicit_resources = has_explicit
                 feature_task.children.append(story_task)
@@ -1571,6 +1560,17 @@ def build_proposal_response_project_plan(
     def next_uid() -> int:
         uid_counter[0] += 1
         return uid_counter[0]
+
+    available_roles: list[str] = []
+    for src in (response.get("rate_card"), response.get("roles"), response.get("resources")):
+        if isinstance(src, list):
+            for r in src:
+                if isinstance(r, dict):
+                    name = str(r.get("role") or r.get("name") or "").strip()
+                    if name and name not in available_roles:
+                        available_roles.append(name)
+                elif isinstance(r, str) and r.strip() and r.strip() not in available_roles:
+                    available_roles.append(r.strip())
 
     root = _Task(
         uid=next_uid(), name=response.get("name") or "Proposal Response",

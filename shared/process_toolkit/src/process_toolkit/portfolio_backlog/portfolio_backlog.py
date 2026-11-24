@@ -55,10 +55,68 @@ ROLE_BENCHMARK_RATES: dict[str, tuple[float, str]] = {
     "Lead Business Analyst": (1100.0, "Lead business analysis and requirements engineering benchmark; discovery facilitation, catalogue ownership."),
     "Enterprise Architect": (1600.0, "Enterprise architecture and strategy benchmark; target operating models and strategic alignment."),
     "Data Engineer": (1350.0, "Data engineering benchmark; ETL pipelines, data warehousing, and analytics infrastructure."),
+    "Technical Architect": (1500.0, "Technical architecture and systems engineering benchmark."),
+    "Data Architect": (1550.0, "Data architecture benchmark; data modeling, governance, and storage topology."),
     "Security Engineer": (1400.0, "Security & compliance engineering benchmark; threat modeling, IAM, and hardening."),
     "Scrum Master / Agile Coach": (1150.0, "Agile delivery coaching and facilitation benchmark."),
     "UI/UX Designer": (1100.0, "UI/UX design benchmark; wireframes, user journeys, and design systems."),
+    "Engagement Lead": (1400.0, "Consulting engagement leadership benchmark; client management and executive steering."),
+    "Senior Consultant": (1200.0, "Management consulting benchmark; discovery, options appraisal, and business case support."),
+    "Consultant": (1000.0, "Consulting analysis benchmark; stakeholder workshops, data gathering, and deliverables."),
+    "Financial Analyst": (1100.0, "Financial & commercial modeling benchmark; business case, ROI, and cost-benefit analysis."),
+    "Change Management Lead": (1150.0, "Change management & organizational readiness benchmark; training and adoption."),
 }
+
+
+def get_role_benchmark(role_name: str) -> tuple[float, str]:
+    """Resolves sensible market benchmark daily rates and rationale across any project domain."""
+    if not isinstance(role_name, str):
+        role_name = str(role_name or "").strip()
+    clean = role_name.strip()
+    if not clean:
+        return (1200.0, "Standard professional market benchmark rate; standard 8hr daily basis.")
+
+    # 1. Exact match (case-sensitive and case-insensitive)
+    if clean in ROLE_BENCHMARK_RATES:
+        return ROLE_BENCHMARK_RATES[clean]
+
+    lower = clean.lower()
+    for k, v in ROLE_BENCHMARK_RATES.items():
+        if k.lower() == lower:
+            return v
+
+    # 2. Domain keyword heuristics (check seniority & specialization before broad substring)
+    if any(w in lower for w in ("partner", "director", "programme director", "executive")):
+        return (1600.0, f"Executive leadership benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("principal", "enterprise architect", "chief")):
+        return (1550.0, f"Principal advisory benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("solution architect", "data architect", "cloud architect", "technical architect", "lead architect")):
+        return (1500.0, f"Architecture benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("engagement lead", "programme manager", "delivery director", "pdm", "programme delivery")):
+        return (1350.0, f"Programme delivery benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("lead", "senior")) and any(w in lower for w in ("consultant", "analyst")):
+        return (1150.0, f"Senior consulting & analysis benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("data engineer", "platform engineer", "sre", "devops", "cloud engineer")):
+        return (1250.0, f"Cloud & platform engineering benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("developer", "software engineer", "full stack", "backend", "frontend")):
+        return (1275.0, f"Software engineering benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("security", "infosec", "cyber", "compliance")):
+        return (1400.0, f"Security & compliance benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("project manager", "scrum master", "agile coach", "delivery lead", "pm")):
+        return (1200.0, f"Delivery management benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("designer", "ux", "ui", "product design")):
+        return (1100.0, f"Experience design benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("analyst", "consultant", "ba", "researcher")):
+        return (1000.0, f"Analysis & consulting benchmark for {clean}; standard 8hr daily basis.")
+    if any(w in lower for w in ("qa", "test", "verification", "quality", "sdet")):
+        return (1000.0, f"Quality assurance benchmark for {clean}; standard 8hr daily basis.")
+
+    # 3. Substring matching against dictionary keys (sorted by length descending so longer/more specific match first)
+    for k in sorted(ROLE_BENCHMARK_RATES.keys(), key=len, reverse=True):
+        if k.lower() in lower or lower in k.lower():
+            return ROLE_BENCHMARK_RATES[k]
+
+    return (1200.0, f"Sensible market benchmark rate for {clean}; standard 8hr daily basis.")
 
 _ROLE_COSTING_DEFAULTS = [
     ("TBD", ROLE_PRODUCT_OWNER, 0.10, 1200, "Illustrative default; replace with the approved rate card."),
@@ -139,14 +197,11 @@ def build_rate_card(
             except (TypeError, ValueError):
                 daily_rate = None
             if daily_rate is None or daily_rate <= 0:
-                daily_rate = ROLE_BENCHMARK_RATES.get(role, (1200.0, ""))[0]
+                daily_rate = get_role_benchmark(role)[0]
 
             basis = str(entry.get("basis") or "").strip()
             if not basis:
-                basis = ROLE_BENCHMARK_RATES.get(
-                    role,
-                    (1200.0, f"Sensible market benchmark rate for {role}; standard 8hr daily basis.")
-                )[1]
+                basis = get_role_benchmark(role)[1]
 
             mix = entry.get("effort_mix") or entry.get("mix") or entry.get("allocation_percent")
             try:
@@ -178,9 +233,7 @@ def build_rate_card(
         for r_name in sorted(story_roles):
             if r_name not in seen_roles:
                 seen_roles.add(r_name)
-                bench = ROLE_BENCHMARK_RATES.get(
-                    r_name, (1200.0, f"Sensible market benchmark rate for {r_name}; standard 8hr daily basis.")
-                )
+                bench = get_role_benchmark(r_name)
                 normalized.append({
                     "person": "TBD",
                     "role": r_name,
@@ -212,9 +265,7 @@ def build_rate_card(
                     r_name = str(res.get("name") or "").strip()
                     if r_name and r_name not in seen_roles:
                         seen_roles.add(r_name)
-                        bench = ROLE_BENCHMARK_RATES.get(
-                            r_name, (1200.0, f"Sensible market benchmark rate for {r_name}; standard 8hr daily basis.")
-                        )
+                        bench = get_role_benchmark(r_name)
                         card.append({
                             "person": "TBD",
                             "role": r_name,
@@ -226,10 +277,14 @@ def build_rate_card(
     return card
 
 
-def calculate_story_resources(story: Dict[str, Any]) -> list[dict[str, Any]]:
+def calculate_story_resources(
+    story: Dict[str, Any],
+    available_roles: Optional[List[Any]] = None,
+) -> list[dict[str, Any]]:
     """Calculates realistic role and resource allocations (percentages summing to 100%)
     based on the activity being performed in the story (analyzing title, description,
-    acceptance criteria, and strategic theme), rather than assigning fixed values.
+    acceptance criteria, and strategic theme), dynamically selecting from available_roles
+    when provided, or drawing from domain benchmark roles.
     """
     existing = story.get("resources") or story.get("roles")
     if isinstance(existing, list) and existing:
@@ -247,6 +302,13 @@ def calculate_story_resources(story: Dict[str, Any]) -> list[dict[str, Any]]:
             if pct > 0:
                 normalized.append({"name": name, "allocation_percent": pct})
         if normalized:
+            tot = sum(r["allocation_percent"] for r in normalized)
+            if tot > 0 and tot != 100.0:
+                for r in normalized:
+                    r["allocation_percent"] = round((r["allocation_percent"] / tot) * 100.0, 1)
+                diff = round(100.0 - sum(r["allocation_percent"] for r in normalized), 1)
+                if diff != 0:
+                    normalized[0]["allocation_percent"] = round(normalized[0]["allocation_percent"] + diff, 1)
             return normalized
 
     text_parts = [
@@ -287,12 +349,89 @@ def calculate_story_resources(story: Dict[str, Any]) -> list[dict[str, Any]]:
         "user persona", "market analysis", "vision document", "scope definition",
         "release planning", "feature prioritization",
     ]
+    consulting_keywords = [
+        "consulting", "engagement", "discovery", "current state", "future state",
+        "options appraisal", "business case", "commercial", "operating model", "tom",
+        "readiness assessment", "recommendation", "handover", "steering", "executive",
+        "governance", "mobilisation", "kickoff", "vendor scorecard",
+    ]
 
+    # Clean and extract available_roles if provided
+    candidate_roles: list[str] = []
+    if available_roles:
+        for item in available_roles:
+            if isinstance(item, dict):
+                r_name = str(item.get("role") or item.get("name") or "").strip()
+            else:
+                r_name = str(item or "").strip()
+            if r_name and r_name not in candidate_roles:
+                candidate_roles.append(r_name)
+
+    if candidate_roles:
+        role_categories: dict[str, list[str]] = {
+            "management": [],
+            "analysis": [],
+            "architecture": [],
+            "engineering": [],
+            "qa": [],
+            "devops": [],
+        }
+        for r in candidate_roles:
+            rl = r.lower()
+            if any(k in rl for k in ("architect", "design", "principal", "ux", "ui")):
+                role_categories["architecture"].append(r)
+            elif any(k in rl for k in ("qa", "test", "verification", "audit")):
+                role_categories["qa"].append(r)
+            elif any(k in rl for k in ("devops", "platform", "cloud", "infra", "sre", "security")):
+                role_categories["devops"].append(r)
+            elif any(k in rl for k in ("analyst", "consultant", "business", "commercial", "financial", "change")):
+                role_categories["analysis"].append(r)
+            elif any(k in rl for k in ("manager", "delivery", "director", "pdm", "pm", "scrum", "agile coach", "product owner", "engagement lead")) or (
+                "lead" in rl and not any(spec in rl for spec in ("developer", "engineer", "analyst", "architect"))
+            ):
+                role_categories["management"].append(r)
+            else:
+                role_categories["engineering"].append(r)
+
+        for c, rlist in role_categories.items():
+            rlist.sort(key=lambda x: 0 if any(s in x.lower() for s in ("lead", "senior", "principal", "head")) else 1)
+
+        cat_scores = {
+            "management": sum(text.count(kw) for kw in po_keywords + ["governance", "reporting", "steering", "pdm", "cadence"]),
+            "analysis": sum(text.count(kw) for kw in ba_keywords + consulting_keywords),
+            "architecture": sum(text.count(kw) for kw in arch_keywords),
+            "devops": sum(text.count(kw) for kw in devops_keywords),
+            "qa": sum(text.count(kw) for kw in qa_keywords),
+            "engineering": sum(text.count(kw) for kw in ["develop", "implement", "build", "code", "construct", "endpoint", "api"]),
+        }
+        available_cats = [c for c, roles in role_categories.items() if roles]
+        if available_cats:
+            available_cats.sort(key=lambda c: cat_scores[c], reverse=True)
+            top_cat = available_cats[0]
+            lead_role = role_categories[top_cat][0]
+
+            other_roles = [r for r in candidate_roles if r != lead_role]
+            if not other_roles:
+                return [{"name": lead_role, "allocation_percent": 100.0}]
+            elif len(other_roles) == 1:
+                return [
+                    {"name": lead_role, "allocation_percent": 60.0},
+                    {"name": other_roles[0], "allocation_percent": 40.0},
+                ]
+            else:
+                return [
+                    {"name": lead_role, "allocation_percent": 60.0},
+                    {"name": other_roles[0], "allocation_percent": 25.0},
+                    {"name": other_roles[1], "allocation_percent": 15.0},
+                ]
+
+    # No candidate_roles provided: use built-in domain logic
     devops_score = sum(text.count(kw) for kw in devops_keywords)
     qa_score = sum(text.count(kw) for kw in qa_keywords)
     arch_score = sum(text.count(kw) for kw in arch_keywords)
     ba_score = sum(text.count(kw) for kw in ba_keywords)
     po_score = sum(text.count(kw) for kw in po_keywords)
+    consulting_score = sum(text.count(kw) for kw in consulting_keywords)
 
     scores = [
         ("devops", devops_score),
@@ -419,6 +558,17 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(epics, list) or not epics:
         raise ValueError("epics must be a non-empty list.")
 
+    available_roles: list[str] = []
+    for src in (backlog.get("rate_card"), backlog.get("roles"), backlog.get("resources")):
+        if isinstance(src, list):
+            for r in src:
+                if isinstance(r, dict):
+                    name = str(r.get("role") or r.get("name") or "").strip()
+                    if name and name not in available_roles:
+                        available_roles.append(name)
+                elif isinstance(r, str) and r.strip() and r.strip() not in available_roles:
+                    available_roles.append(r.strip())
+
     seen_ids: set[str] = set()
     rows = []
     for epic_index, epic in enumerate(epics, start=1):
@@ -443,7 +593,7 @@ def _flatten_backlog(backlog: Dict[str, Any]) -> list[dict[str, Any]]:
                 story_location = f"{feature_location}.stories[{story_index - 1}]"
                 _validate_work_item(story, "Story", seen_ids, story_location)
                 story.setdefault("state", "In Analysis")
-                story["resources"] = calculate_story_resources(story)
+                story["resources"] = calculate_story_resources(story, available_roles=available_roles or None)
                 rows.append((story, "Story", feature["id"]))
 
     # Reconcile job_size vs duration_days rollups
@@ -863,7 +1013,7 @@ def _render_workbook(backlog: Dict[str, Any], rows: list[tuple[dict[str, Any], s
                 if row_idx:
                     rate_terms.append(f"{pct:g}*'Role Rates'!$D${row_idx}")
                 else:
-                    bench_rate = ROLE_BENCHMARK_RATES.get(r_name, (1200.0, ""))[0]
+                    bench_rate = get_role_benchmark(r_name)[0]
                     rate_terms.append(f"{pct:g}*{bench_rate:g}")
             default_weighted = (
                 f"SUMPRODUCT('Role Rates'!$C${start_role_row}:$C${end_role_row},"

@@ -63,31 +63,26 @@ Create a single object with these fields:
 - `holiday_calendar`: string specifying holiday calendar when requested (e.g. "uk" for UK bank holidays).
 - `requirements_reference`: an embedded dictionary defining every requirement ID cited in `traces_to` across all stories using consistent hyphenated format (e.g. `FR-001A`, `CON-001`, `INF-001`), matching the `traces_to` arrays throughout epics, features, and stories.
   Every ID cited in any `traces_to` must have an entry here to prevent orphaned traceability links.
-- `roles`: when specific project team roles and allocation percentages are specified in the engagement
-  specification (e.g. Programme Delivery Manager 50%, Lead Business Analyst 100%, Business Analyst 100%, Solution Architect 50%),
+- `roles`: when specific project team roles and allocation percentages are specified in the prompt or
+  source specification (e.g. consulting team, agile engineering squad, data platform team, etc.),
   record them explicitly in `roles: [{"name": "<role>", "allocation_percent": <number>}]`.
 - `rate_card`: an array of projected delivery roles with sensible market rate estimations and effort mixes:
   `[{"person": "TBD", "role": "<role name>", "effort_mix": <decimal fraction>, "daily_rate": <number>, "basis": "<market estimation basis>"}]`.
-  When specific delivery roles are given in the source/engagement brief, use those exact roles.
-  Project sensible estimations for resource costing based on market benchmarks (8-hour day basis), e.g.:
-  - Programme Delivery Manager: $1,300/day (Programme delivery management and governance benchmark)
-  - Solution Architect: $1,500/day (Senior Solution Architecture benchmark; system context, governance, and technical design)
-  - Lead Business Analyst: $1,100/day (Lead business analysis & requirements engineering benchmark; discovery facilitation)
-  - Business Analyst: $1,000/day (Business analysis & requirements engineering benchmark; user stories and workflow specs)
-  - Software Engineer: $1,275/day (Full-stack software engineering benchmark; feature delivery and implementation)
-  - DevOps / Platform Engineer: $1,200/day (Cloud platform & DevOps engineering benchmark; CI/CD, IaC, and observability)
-  - QA Engineer: $1,000/day (Quality assurance & test automation benchmark; verification, regression, and E2E)
-  - Product Owner: $1,200/day (Product ownership benchmark; backlog prioritization, stakeholder alignment, and acceptance)
-  Include specialized roles where the requirements require them (e.g. Data Engineer $1,350/day, Security Engineer $1,400/day). The `effort_mix` across roles should reflect clean, unskewed symmetric proportions (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits), summing strictly to 1.0.
+  - When specific delivery roles, rates, or staffing percentages are given in the prompt or source brief, use those exact inputs.
+  - When roles or rates are omitted, dynamically project the most applicable delivery roles for the domain and sensible market rate estimations (standard 8-hour day basis), for example:
+    * Management / Leadership (e.g. Programme/Project/Delivery Manager: ~$1,200 - $1,350/day; Product Owner: ~$1,200/day)
+    * Architecture & Advisory (e.g. Solution/Technical/Enterprise/Data Architect: ~$1,500 - $1,600/day)
+    * Analysis & Consulting (e.g. Lead Business Analyst: ~$1,100/day; Business/Functional Analyst: ~$1,000/day; Management Consultant: ~$1,000 - $1,200/day)
+    * Engineering & Implementation (e.g. Software Engineer: ~$1,275/day; Data Engineer: ~$1,350/day)
+    * Platform & Quality (e.g. DevOps / Platform Engineer: ~$1,200/day; QA / Test Engineer: ~$1,000/day; Security Engineer: ~$1,400/day)
+  - The `effort_mix` across roles should reflect clean, unskewed symmetric proportions (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits), summing strictly to 1.0.
 - `epics`: a non-empty list of epics, each with the fields and nested hierarchy below.
   CRITICAL PHASE-TO-EPIC PRESERVATION:
-  - When the source engagement defines specific phases (e.g. "Mobilisation", "Current State Assessment",
-    "Requirements Discovery", "Future State Definition", "Market Assessment", "Options Appraisal",
-    "Business Case Support", "Implementation Readiness Assessment", "Final Recommendation & Handover",
-    or any bespoke client phases), you MUST create EXACTLY ONE distinct Epic for EVERY requested phase
-    (e.g., 9 phases = 9 distinct Epics: EPIC-001 through EPIC-009).
-  - NEVER collapse, combine, or consolidate requested phases into fewer broad epics (e.g. NEVER combine
-    Market Assessment and Options Appraisal into a single epic if requested as separate phases).
+  - When the source engagement or prompt defines specific phases, stages, or workstreams, you MUST create
+    EXACTLY ONE distinct Epic for EVERY requested phase (e.g. if N phases are requested, create N distinct
+    Epics: EPIC-001 through EPIC-00N).
+  - Derive phase titles, boundaries, and scope directly from the loaded source document or prompt.
+  - NEVER collapse, combine, or consolidate requested phases into fewer broad epics.
   - Every required deliverable and milestone must be represented as a concrete, trackable work package
     or story under its corresponding phase epic.
   - When evaluating future platforms, tools, or vendors, maintain neutral, objective evaluation across relevant market options
@@ -103,7 +98,9 @@ SCHEDULE DURATION, TIMING & CONCURRENCY CALIBRATION:
 - Every Epic, Feature, and Story MUST specify a `timing` field (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
   "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12") defining its delivery window.
 - EXPLICIT DEPENDENCY GRAPH & REALISTIC CONCURRENCY:
-  - Epics MUST specify realistic workflow dependencies: Phase 2 depends on Phase 1; Phase 3 depends on Phase 1 (runs concurrently with Phase 2); Phase 4 depends on Phase 2 & 3; Phase 5 depends on Phase 3; Phase 6 depends on Phase 4 & 5; Phase 7 depends on Phase 6; Phase 8 depends on Phase 2 & 6; Phase 9 depends on Phase 7 & 8.
+  - Epics MUST specify realistic workflow dependencies derived directly from the project's actual process flow:
+    analyze the workflow sequence and concurrency required by the source or prompt. Prerequisite phases must be linked as
+    dependencies, while independent workstreams must run concurrently with appropriate dependencies rather than chaining all phases end-to-end.
   - Sibling stories within each feature MUST specify explicit dependencies (e.g. STORY-002 has `dependencies: ["STORY-001"]`) to represent actual sequence handoffs. This ensures child stories have discrete, non-overlapping dates rather than duplicating identical start/finish bounds with parent summary tasks.
 
 Each epic, feature, and story must have:
@@ -122,7 +119,7 @@ Each epic, feature, and story must have:
   explicit, editable assumptions; do not invent alternate rates or budget values;
 - `resources` for stories: calculate the resources needed and their allocation percentages dynamically
   based on the story's actual activity and requirements (never hardcode fixed or uniform percentages across all stories unless an exact engagement team allocation is mandated):
-  a list of `{"name": "<exact delivery role title>", "allocation_percent": number}` summing to 100%. When an engagement specification mandates specific roles and allocations, use those exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Solution Architect 80% on architecture tasks; Lead BA 70% on requirements elicitation; PDM 60% on governance).
+  a list of `{"name": "<exact delivery role title>", "allocation_percent": number}` summing to 100%. When an engagement specification or prompt mandates specific roles and allocations, use those exact full role titles (e.g. in consulting: "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"; or in engineering: "Software Engineer", "DevOps / Platform Engineer", "QA Engineer"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Architecture/Design lead on technical architecture tasks; Analyst on requirements/discovery tasks; Delivery Lead on governance/coordination).
 - `requirements_reference`: embedded dictionary mapping every requirement ID referenced in `traces_to` to its definition. Ensure every `traces_to` ID exists in `requirements_summary.json`.
 
 Each epic must contain a non-empty `features` list (typically 2-3 distinct features). Each feature must contain

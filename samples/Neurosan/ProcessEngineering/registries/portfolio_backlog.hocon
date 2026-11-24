@@ -129,10 +129,10 @@ only when the save tool returns SUCCESS, including its exact paths.
 # BACKLOG STRUCTURE & WBS INTEGRITY
 Save one JSON object with name, summary, source_artifact, source_name, rate_card, and a non-empty epics array.
 When specified, include timescale_weeks, roles, holiday_calendar (e.g. "uk" when UK bank holidays are requested), and requirements_reference.
-When specific roles and allocations are given in the engagement, use those exact roles in roles,
-rate_card, and across the stories. When specific phases and deliverables are requested, map every requested
-phase to a distinct Epic (e.g. 9 phases = 9 distinct Epics: EPIC-001 through EPIC-009; NEVER collapse or
-consolidate requested phases into fewer epics), and cover all required deliverables. Maintain vendor-neutral
+When specific roles, rates, or allocations are given in the prompt or source, use those exact roles in roles,
+rate_card, and across the stories. When specific phases, lifecycle stages, or deliverables are requested, map every requested
+phase to a distinct Epic (e.g. if N phases are requested, create N distinct Epics: EPIC-001 through EPIC-00N; NEVER collapse or
+consolidate requested phases into fewer epics), deriving titles and scope directly from the source or prompt. Cover all required deliverables. Maintain vendor-neutral
 evaluation when evaluating external tools.
 
 TIMING & CONCURRENCY CALIBRATION:
@@ -145,13 +145,12 @@ TIMING & CONCURRENCY CALIBRATION:
 - Every Epic, Feature, and Story MUST specify a timing window (e.g. "Weeks 1-2", "Weeks 2-5", "Weeks 3-6",
   "Weeks 5-8", "Weeks 7-10", "Weeks 9-11", "Weeks 11-12").
 - EXPLICIT DEPENDENCY GRAPH & REALISTIC CONCURRENCY:
-  - Epics MUST specify realistic workflow dependencies: Phase 2 depends on Phase 1; Phase 3 depends on Phase 1 (runs concurrently with Phase 2); Phase 4 depends on Phase 2 & 3; Phase 5 depends on Phase 3; Phase 6 depends on Phase 4 & 5; Phase 7 depends on Phase 6; Phase 8 depends on Phase 2 & 6; Phase 9 depends on Phase 7 & 8.
+  - Epics MUST specify realistic workflow dependencies derived directly from the project's actual process flow: analyze the workflow sequence and concurrency required by the source or prompt. Prerequisite phases must be linked as dependencies, while independent workstreams must run concurrently with appropriate dependencies rather than chaining all phases end-to-end.
   - Sibling stories within each feature MUST specify explicit dependencies (e.g. STORY-002 has dependencies: ["STORY-001"]) to represent actual sequence handoffs. This ensures child stories have discrete, non-overlapping dates rather than duplicating identical start/finish bounds with parent summary tasks.
 
-Project sensible estimations for resource costing on rate_card: an array of delivery roles
+When roles/rates are not provided in the prompt, dynamically project sensible estimations for resource costing on rate_card: an array of delivery roles
 [{"person": "TBD", "role": "<role name>", "effort_mix": <fraction>, "daily_rate": <number>, "basis": "<market benchmark basis>"}]
-grounded in market benchmarks (e.g. Solution Architect $1,500/day, Lead Business Analyst $1,100/day, Business Analyst $1,000/day,
-Software Engineer $1,275/day, DevOps $1,200/day, Delivery/Project Manager $1,300/day).
+grounded in market benchmarks for the domain (e.g. Architecture ~$1,500/day, Analysis/Consulting ~$1,000-$1,100/day, Software Engineering ~$1,275/day, DevOps/Cloud ~$1,200/day, Delivery/Project Management ~$1,200-$1,350/day).
 effort_mix reflects overall projected staffing mix summing strictly to 1.0 without precision rounding skew, matching symmetric role ratios (e.g. 0.1667, 0.3333, 0.3333, 0.1667 for 1/6 and 1/3 splits).
 
 Nest non-empty features under epics (typically 2-3 distinct features) and non-empty stories under features
@@ -167,7 +166,7 @@ CRITICAL: PROPER WORK BREAKDOWN STRUCTURE (WBS) -- NO CRUDE 1-TO-1 PLACEHOLDER R
 - Give every item unique stable IDs with EPIC-001, FEAT-001, or STORY-001 prefixes, plus title, description,
   strategic_theme, non-empty traces_to, priority_components, and job_size on the modified Fibonacci scale [1, 2, 3, 5, 8, 13, 20].
 - Stories must include dynamically calculated resources: an array of {"name": "<exact delivery role title>", "allocation_percent": number}
-  matching the technical activity and requirements, summing to 100%. Use exact full role titles (e.g. "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Solution Architect 80% on architecture tasks; Lead BA 70% on requirements elicitation; PDM 60% on governance).
+  matching the technical activity and requirements, summing to 100%. Use exact full role titles matching the project domain (e.g. in consulting: "Programme Delivery Manager", "Lead Business Analyst", "Business Analyst", "Solution Architect"; in engineering: "Software Engineer", "DevOps / Platform Engineer", "QA Engineer"), never shorthand abbreviations. Ensure realistic activity-specific role weighting per story (e.g. Architecture/Design lead on technical architecture tasks; Analyst on requirements/discovery tasks; Delivery Lead on governance/coordination).
 - Embed requirements_reference mapping every referenced requirement ID to its definition using consistent hyphenated format (e.g. FR-001A, CON-001, INF-001 with hyphens, not underscores), matching the traces_to arrays throughout epics, features, and stories. Ensure every traces_to ID exists in requirements_summary.json.
 
 # SAVE AND RESPONSE

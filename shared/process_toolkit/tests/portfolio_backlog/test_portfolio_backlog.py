@@ -612,4 +612,130 @@ def test_story_job_size_duration_rollups(tmp_path, monkeypatch):
     assert backlog["epics"][0]["features"][0]["stories"][1]["dependencies"] == []
 
 
+def test_calculate_story_resources_with_available_roles_consulting():
+    from process_toolkit.portfolio_backlog.portfolio_backlog import calculate_story_resources
+    consulting_roles = [
+        "Programme Delivery Manager",
+        "Lead Business Analyst",
+        "Solution Architect",
+        "Business Analyst",
+    ]
+    # Requirements story -> should pick Lead Business Analyst as primary
+    ba_story = {
+        "title": "Stakeholder Discovery and Requirements Elicitation",
+        "description": "Conduct interviews and draft requirements catalogue.",
+        "acceptance_criteria": ["Requirements signed off"],
+    }
+    res = calculate_story_resources(ba_story, available_roles=consulting_roles)
+    allocated_names = [r["name"] for r in res]
+    assert all(name in consulting_roles for name in allocated_names)
+    assert res[0]["name"] == "Lead Business Analyst"
+    assert sum(r["allocation_percent"] for r in res) == 100.0
+
+    # Architecture story -> should pick Solution Architect as primary
+    arch_story = {
+        "title": "Current State Architecture Assessment & Target Topology",
+        "description": "Evaluate high level design standards and topology.",
+        "acceptance_criteria": ["HLD approved"],
+    }
+    res_arch = calculate_story_resources(arch_story, available_roles=consulting_roles)
+    assert res_arch[0]["name"] == "Solution Architect"
+    assert sum(r["allocation_percent"] for r in res_arch) == 100.0
+
+    # Governance story -> should pick Programme Delivery Manager as primary
+    gov_story = {
+        "title": "Programme Mobilisation and Steering Cadence Setup",
+        "description": "Establish governance reporting and risk logs.",
+        "acceptance_criteria": ["Steering pack approved"],
+    }
+    res_gov = calculate_story_resources(gov_story, available_roles=consulting_roles)
+    assert res_gov[0]["name"] == "Programme Delivery Manager"
+    assert sum(r["allocation_percent"] for r in res_gov) == 100.0
+
+
+def test_get_role_benchmark_domain_coverage():
+    from process_toolkit.portfolio_backlog.portfolio_backlog import get_role_benchmark
+    # Exact known roles
+    rate, _ = get_role_benchmark("Software Engineer")
+    assert rate == 1275.0
+    rate, _ = get_role_benchmark("Solution Architect")
+    assert rate == 1500.0
+    rate, _ = get_role_benchmark("Programme Delivery Manager")
+    assert rate == 1300.0
+
+    # Inferred domain roles
+    rate, basis = get_role_benchmark("Managing Director")
+    assert rate >= 1500.0
+    rate, basis = get_role_benchmark("Senior Management Consultant")
+    assert rate >= 1100.0
+    rate, basis = get_role_benchmark("Cloud Platform SRE")
+    assert rate >= 1200.0
+    rate, basis = get_role_benchmark("Cyber Security Specialist")
+    assert rate >= 1350.0
+    rate, basis = get_role_benchmark("Unknown Bespoke Title")
+    assert rate == 1200.0
+
+
+def test_custom_scenario_with_prompt_roles_and_rates(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "output_path", lambda name: str(tmp_path / name))
+    backlog = {
+        "name": "Custom Consulting Engagement",
+        "summary": "Engagement Summary",
+        "source_name": "Consulting SOW",
+        "source_artifact": "design",
+        "roles": [
+            {"name": "Engagement Lead", "allocation_percent": 25.0},
+            {"name": "Senior Consultant", "allocation_percent": 50.0},
+            {"name": "Financial Analyst", "allocation_percent": 25.0},
+        ],
+        "rate_card": [
+            {"person": "Alice", "role": "Engagement Lead", "effort_mix": 0.25, "daily_rate": 1600.0, "basis": "Engagement partner rate."},
+            {"person": "Bob", "role": "Senior Consultant", "effort_mix": 0.50, "daily_rate": 1200.0, "basis": "Advisory lead rate."},
+            {"person": "Charlie", "role": "Financial Analyst", "effort_mix": 0.25, "daily_rate": 1100.0, "basis": "Financial modeling rate."},
+        ],
+        "epics": [
+            {
+                "id": "EPIC-001",
+                "title": "Phase 1: Financial & Commercial Due Diligence",
+                "description": "Analyze commercial options and build financial model.",
+                "priority_components": {"user_business_value": 5, "time_criticality": 5, "risk_reduction": 3},
+                "job_size": 5,
+                "traces_to": ["REQ-1"],
+                "features": [
+                    {
+                        "id": "FEAT-001",
+                        "title": "Financial Modeling Stream",
+                        "description": "Construct 5-year TCO and ROI projections.",
+                        "priority_components": {"user_business_value": 5, "time_criticality": 5, "risk_reduction": 3},
+                        "job_size": 5,
+                        "traces_to": ["REQ-1"],
+                        "stories": [
+                            {
+                                "id": "STORY-001",
+                                "title": "Build Baseline Cost Model",
+                                "description": "Gather current commercial spend and build Excel model.",
+                                "priority_components": {"user_business_value": 5, "time_criticality": 5, "risk_reduction": 3},
+                                "job_size": 3,
+                                "duration_days": 3,
+                                "traces_to": ["REQ-1"],
+                                "acceptance_criteria": ["Model balances"],
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    msg = save_portfolio_backlog(backlog)
+    assert "SUCCESS" in msg
+    # Verify story resources were drawn from the consulting team roles, not software engineer
+    story = backlog["epics"][0]["features"][0]["stories"][0]
+    assigned_roles = [r["name"] for r in story["resources"]]
+    assert all(r in ["Engagement Lead", "Senior Consultant", "Financial Analyst"] for r in assigned_roles)
+    assert "Software Engineer" not in assigned_roles
+    # Verify rate_card preserved custom rates
+    assert backlog["rate_card"][0]["daily_rate"] == 1600.0
+
+
+
 
